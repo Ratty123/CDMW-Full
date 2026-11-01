@@ -70,9 +70,7 @@ def focus_references_for_path(self, target_path: str, auto_resolve: bool = True)
     if not normalized_path:
         self.status_message_requested.emit("Select a DDS archive path first.", True)
         return
-    self.tab_widget.setCurrentWidget(self.archive_tab)
-    if hasattr(self, "archive_insights_tabs"):
-        self.archive_insights_tabs.setCurrentIndex(2)
+    self.tab_widget.setCurrentWidget(self.reference_tab)
     self._populate_reference_target(normalized_path)
     if auto_resolve:
         if self.resolve_thread is None:
@@ -132,6 +130,20 @@ def _handle_reference_selection_changed(
     if row is None:
         return
     self.reference_review_text_button.setEnabled(reference_row_review_enabled(row))
+    if self._focus_archive_picker_path(row.related_path):
+        return
+    self._focus_archive_picker_path(row.source_path)
+
+def _handle_ui_constraint_selection_changed(
+    self,
+    current: Optional[QTreeWidgetItem],
+    _previous: Optional[QTreeWidgetItem],
+) -> None:
+    # UI Constraints only mirrors its row in Archive Files; the References page's
+    # Review In Text Search button belongs to the reference results alone.
+    row = item_payload(current, MaterialTextureReferenceRow) if current is not None else None
+    if row is None:
+        return
     if self._focus_archive_picker_path(row.related_path):
         return
     self._focus_archive_picker_path(row.source_path)

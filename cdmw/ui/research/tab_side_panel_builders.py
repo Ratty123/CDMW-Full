@@ -23,12 +23,14 @@ from PySide6.QtWidgets import (
 from cdmw.ui.research.help_widgets import (
     add_flat_section_help as _add_flat_section_help,
     add_titled_help_header as _add_titled_help_header,
+    intro_label,
 )
 from cdmw.ui.research.layout_state import (
     research_archive_picker_splitter_default_sizes,
     research_notes_splitter_default_sizes,
 )
 from cdmw.ui.research.models import archive_picker_item_kind as _archive_picker_item_kind
+from cdmw.ui.research.tab_builders import build_preview_zoom_controls
 from cdmw.ui.research.tree_helpers import make_research_tree_columns_persistent
 from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.widgets import ArchiveDetailsEditor, EmptyStateTreeWidget, FlatSectionPanel, PreviewLabel, PreviewScrollArea
@@ -44,9 +46,16 @@ def build_archive_picker_group(self) -> QWidget:
 
     actions = WrappingLayout()
     actions.setSpacing(8)
-    self.archive_picker_refresh_button = QPushButton("Refresh")
-    self.archive_picker_use_reference_button = QPushButton("References")
-    self.archive_picker_use_note_button = QPushButton("Notes")
+    self.archive_picker_refresh_button = QPushButton("Reload List")
+    self.archive_picker_refresh_button.setToolTip(
+        "Reload this list from the current Archive Browser view and filter."
+    )
+    self.archive_picker_use_reference_button = QPushButton("Find References")
+    self.archive_picker_use_reference_button.setToolTip(
+        "Open the selected file on the References page and resolve what points at it. Double-clicking a file does the same."
+    )
+    self.archive_picker_use_note_button = QPushButton("Add Note")
+    self.archive_picker_use_note_button.setToolTip("Open the selected file on the Notes page.")
     self.archive_picker_view_combo = QComboBox()
     self.archive_picker_view_combo.addItem("Flat files", "flat")
     self.archive_picker_view_combo.addItem("Folders", "folders")
@@ -103,12 +112,13 @@ def build_archive_picker_group(self) -> QWidget:
     preview_title_row.setSpacing(8)
     self.archive_picker_preview_title_label = QLabel("Select an archive file")
     self.archive_picker_preview_title_label.setWordWrap(True)
-    self.archive_picker_preview_zoom_out_button = QPushButton("-")
-    self.archive_picker_preview_zoom_fit_button = QPushButton("Fit")
-    self.archive_picker_preview_zoom_100_button = QPushButton("100%")
-    self.archive_picker_preview_zoom_in_button = QPushButton("+")
-    self.archive_picker_preview_zoom_value = QLabel("Fit")
-    self.archive_picker_preview_zoom_value.setObjectName("HintLabel")
+    (
+        self.archive_picker_preview_zoom_out_button,
+        self.archive_picker_preview_zoom_fit_button,
+        self.archive_picker_preview_zoom_100_button,
+        self.archive_picker_preview_zoom_in_button,
+        self.archive_picker_preview_zoom_value,
+    ) = build_preview_zoom_controls()
     preview_layout.addWidget(self.archive_picker_preview_title_label)
     preview_title_row.addWidget(self.archive_picker_preview_zoom_out_button)
     preview_title_row.addWidget(self.archive_picker_preview_zoom_fit_button)
@@ -219,24 +229,29 @@ def build_notes_tab(self) -> QWidget:
     notes_layout = QVBoxLayout(notes_group)
     notes_layout.setContentsMargins(10, 8, 10, 10)
     notes_layout.setSpacing(6)
-    _add_titled_help_header(
+    intro_label(
+        "Annotate archive files, text-search results, or compare targets while you research. Notes are stored locally beside the EXE.",
         notes_layout,
-        "Tagging And Notes",
-        "Annotate archive files, text-search results, or compare targets while you research. Notes are stored locally beside the EXE."
     )
     use_row = QHBoxLayout()
+    use_row.addWidget(QLabel("Note target"))
     self.notes_use_archive_button = QPushButton("Use Selected File")
+    self.notes_use_archive_button.setToolTip("Use the file selected in Archive Files on the right.")
     self.notes_use_search_button = QPushButton("Use Selected Search Result")
+    self.notes_use_search_button.setToolTip("Use the result selected in the Text Search tool.")
     self.notes_use_compare_button = QPushButton("Use Selected Compare File")
+    self.notes_use_compare_button.setToolTip("Use the file selected in the Textures tool's Compare view.")
     use_row.addWidget(self.notes_use_archive_button)
     use_row.addWidget(self.notes_use_search_button)
     use_row.addWidget(self.notes_use_compare_button)
+    use_row.addStretch(1)
     notes_layout.addLayout(use_row)
 
     form = QFormLayout()
     form.setHorizontalSpacing(10)
     form.setVerticalSpacing(8)
     self.notes_target_edit = QLineEdit()
+    self.notes_target_edit.setPlaceholderText("Archive path, search result, or any name")
     self.notes_source_label = QLabel("manual")
     self.notes_tags_edit = QLineEdit()
     self.notes_tags_edit.setPlaceholderText("comma,separated,tags")

@@ -219,11 +219,7 @@ def _accept_unknown_current_role(self) -> None:
             unknown_saved_current_role_status_text(texture_type, semantic_subtype),
             False,
         )
-        self.focus_classification_review_for_paths(
-            [member.path],
-            include_classified=True,
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _apply_unknown_current_file_label(self) -> None:
     member = self._current_unknown_classifiable_member()
@@ -244,11 +240,7 @@ def _apply_unknown_current_file_label(self) -> None:
             unknown_saved_current_file_status_text(texture_type, semantic_subtype),
             False,
         )
-        self.focus_classification_review_for_paths(
-            [member.path],
-            include_classified=self.unknown_show_classified_checkbox.isChecked(),
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _apply_unknown_selected_file_label(self) -> None:
     group = current_unknown_group_from_item(self.unknown_group_tree.currentItem())
@@ -273,11 +265,7 @@ def _apply_unknown_selected_file_label(self) -> None:
             unknown_saved_family_status_text(texture_type, semantic_subtype, updated),
             False,
         )
-        self.focus_classification_review_for_paths(
-            unknown_group_target_paths([group], unknown_only=False),
-            include_classified=self.unknown_show_classified_checkbox.isChecked(),
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _apply_unknown_group_label(self) -> None:
     groups = selected_unknown_groups_from_items(self.unknown_group_tree.selectedItems())
@@ -302,11 +290,7 @@ def _apply_unknown_group_label(self) -> None:
             unknown_saved_selected_families_status_text(texture_type, semantic_subtype, updated, len(groups)),
             False,
         )
-        self.focus_classification_review_for_paths(
-            unknown_group_target_paths(groups, unknown_only=False),
-            include_classified=self.unknown_show_classified_checkbox.isChecked(),
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _clear_unknown_current_file_label(self) -> None:
     member = self._current_unknown_classifiable_member()
@@ -317,11 +301,7 @@ def _clear_unknown_current_file_label(self) -> None:
     if removed:
         self.archive_snapshot_cache.clear()
         self.status_message_requested.emit(unknown_removed_current_file_status_text(), False)
-        self.focus_classification_review_for_paths(
-            [member.path],
-            include_classified=True,
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _clear_unknown_selected_file_label(self) -> None:
     group = current_unknown_group_from_item(self.unknown_group_tree.currentItem())
@@ -337,11 +317,7 @@ def _clear_unknown_selected_file_label(self) -> None:
             unknown_removed_family_status_text(removed),
             False,
         )
-        self.focus_classification_review_for_paths(
-            unknown_group_target_paths([group], unknown_only=False),
-            include_classified=True,
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _clear_unknown_group_label(self) -> None:
     groups = selected_unknown_groups_from_items(self.unknown_group_tree.selectedItems())
@@ -356,11 +332,7 @@ def _clear_unknown_group_label(self) -> None:
             unknown_removed_selected_families_status_text(removed, len(groups)),
             False,
         )
-        self.focus_classification_review_for_paths(
-            unknown_group_target_paths(groups, unknown_only=False),
-            include_classified=True,
-            refresh_if_needed=True,
-        )
+        self._refresh_classification_review_after_edit()
 
 def _update_unknown_resolver_controls(self) -> None:
     controls = unknown_resolver_control_state(
@@ -387,6 +359,12 @@ def _current_unknown_resolver_groups(self) -> object:
         return self.research_payload.get("classification_review_groups", [])
     return self.research_payload.get("unknown_resolver_groups", [])
 
+def _refresh_classification_review_after_edit(self) -> None:
+    # Keep the whole review queue and the user's filters; only drop any focus left by a
+    # previous hand-off, so families that are still unknown stay listed.
+    self._clear_pending_classification_review_focus()
+    self.refresh_research()
+
 def focus_classification_review_for_paths(
     self,
     paths: Sequence[str],
@@ -410,8 +388,7 @@ def focus_classification_review_for_paths(
     self.unknown_show_classified_checkbox.setChecked(include_classified)
     if focus_keys:
         self.unknown_resolver_status_label.setText(unknown_group_focus_status_text())
-    self.tab_widget.setCurrentWidget(self.archive_tab)
-    self.archive_insights_tabs.setCurrentWidget(self.classification_review_tab)
+    self.tab_widget.setCurrentWidget(self.classification_review_tab)
     if refresh_if_needed or not self.research_payload:
         self.refresh_research()
     else:
@@ -518,6 +495,10 @@ def _finalize_unknown_group_population(self) -> None:
             unknown_group_empty_status_text(
                 showing_classified=self._pending_unknown_showing_classified,
                 has_focus_keys=bool(self.pending_classification_review_focus_keys),
+                has_filters=bool(
+                    self.unknown_name_filter_edit.text().strip()
+                    or self.unknown_package_filter_edit.text().strip()
+                ),
             )
         )
         self._update_unknown_resolver_controls()

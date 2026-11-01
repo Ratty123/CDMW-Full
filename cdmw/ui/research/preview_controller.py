@@ -227,6 +227,9 @@ def _adjust_unknown_preview_zoom(self, step: int) -> None:
 
 def _clear_unknown_preview(self, message: str) -> None:
     text_state = unknown_clear_preview_state(message)
+    # Invalidate any preview still in flight so a late result cannot repaint a cleared pane.
+    self.unknown_preview_request_id += 1
+    self.pending_unknown_preview_request = None
     self.unknown_preview_title_label.setText(text_state.title)
     self.unknown_preview_meta_label.setText(text_state.metadata_text)
     self.unknown_preview_warning_label.clear()

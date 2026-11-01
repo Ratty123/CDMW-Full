@@ -276,7 +276,7 @@ def _focus_archive_picker_path(self, path_value: str) -> bool:
     file_item = _find_archive_picker_file_item(container, entry_index)
     if file_item is None:
         return False
-    self.right_panel_stack.setCurrentWidget(self.archive_picker_group)
+    # The side panel follows the visible page; selecting a row here must not swap it.
     self.archive_picker_tree.setCurrentItem(file_item)
     self.archive_picker_tree.scrollToItem(file_item, QAbstractItemView.PositionAtCenter)
     return True

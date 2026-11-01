@@ -37,7 +37,7 @@ def set_preview_image_controls_enabled(
     if enabled:
         refresh_label()
     else:
-        zoom_value_label.setText("-")
+        zoom_value_label.setText("")
 
 
 def apply_preview_zoom(
