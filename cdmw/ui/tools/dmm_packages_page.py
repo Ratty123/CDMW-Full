@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMenu, QMessageBox, QProgressBar,
                                QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -33,6 +33,7 @@ class DmmPackagesPage(QWidget):
         self._settings = settings
         self._closed = False
         self._working = False
+        self._queued = None
         self._applying = False  # The tab's cancel logic reads this; a send never applies anything.
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -90,7 +91,7 @@ class DmmPackagesPage(QWidget):
         self.progress.hide()
         layout.addWidget(self.progress)
         self._load()
-        controller.busy_changed.connect(lambda _busy: self._buttons())
+        controller.busy_changed.connect(self._busy_changed)
         self._buttons()
 
     # ------------------------------------------------------------------ list
@@ -152,12 +153,14 @@ class DmmPackagesPage(QWidget):
     def _buttons(self):
         if self._closed:
             return
-        ready = not (self._working or self.controller.busy)
+        # The list needs no worker. Work started while the shared worker is busy (it reads
+        # the game archives after startup) waits for it instead of disabling the page.
+        ready = not (self._working or self._queued)
         selected = self.selection.selectedItems()
-        self.add_items.setEnabled(ready)
+        self.add_items.setEnabled(True)
         self.send_dmm_button.setEnabled(ready and bool(self.package_root) and bool(self._chosen()))
         self.details_button.setEnabled(ready and len(selected) == 1)
-        self.remove_selected.setEnabled(ready and bool(selected))
+        self.remove_selected.setEnabled(bool(selected) and not self._working)
         total = self.selection.topLevelItemCount()
         self.count.setText(self.tr("{value_0} selected · {value_1} packages").format(value_0=len(selected), value_1=total)
                            if selected else self.tr("{value_0} packages").format(value_0=total))
@@ -180,6 +183,24 @@ class DmmPackagesPage(QWidget):
         menu.popup(self.selection.viewport().mapToGlobal(position))
 
     # ------------------------------------------------------------------ work
+
+    def _busy_changed(self, _busy):
+        if not self._closed:
+            self._buttons()
+            QTimer.singleShot(0, self, self._resume)
+
+    def _resume(self):
+        if not self._closed and not self.controller.busy and not self._working and self._queued:
+            task, self._queued = self._queued, None
+            task()
+
+    def _when_idle(self, task):
+        if self.controller.busy:
+            self.status.setText(self.tr("Waiting for the game archives to finish loading…"))
+            self._queued = task
+            self._buttons()
+        else:
+            task()
 
     def _run(self, task, done):
         if self._closed or self.controller.busy:
@@ -229,7 +250,7 @@ class DmmPackagesPage(QWidget):
             box = QMessageBox(QMessageBox.Icon.Information, self.tr("Mod details"), text, QMessageBox.StandardButton.Ok, self)
             box.setTextFormat(Qt.TextFormat.PlainText)
             box.exec()
-        self._run(lambda log, stop: item_package_details(path, stop_event=stop), loaded)
+        self._when_idle(lambda: self._run(lambda log, stop: item_package_details(path, stop_event=stop), loaded))
 
     def _send_to_dmm(self):
         from cdmw.services import dmm_send
@@ -250,8 +271,8 @@ class DmmPackagesPage(QWidget):
             if result.replaced:
                 message += "\n" + self.tr("It replaced the copy CDMW sent earlier.")
             QMessageBox.information(self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder))
-        self._run(lambda log, stop: dmm_send.send_item_packages(packages, root, mods, DMM_MOD_TITLE, stop_event=stop, on_log=log),
-                  sent)
+        self._when_idle(lambda: self._run(
+            lambda log, stop: dmm_send.send_item_packages(packages, root, mods, DMM_MOD_TITLE, stop_event=stop, on_log=log), sent))
 
     # ------------------------------------------------------------------ tab interface
 
@@ -264,3 +285,4 @@ class DmmPackagesPage(QWidget):
 
     def request_shutdown(self):
         self._closed = True
+        self._queued = None
