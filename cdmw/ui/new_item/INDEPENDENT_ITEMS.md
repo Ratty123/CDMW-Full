@@ -88,7 +88,8 @@ Current equipment packages can include supported template or imported models and
 their item-owned materials, textures, icons and validated accompanying resources.
 Equipment defaults retain v1. Extended item controls write explicitly required
 v2 capabilities. V2 also admits existing ItemInfo field/package-link modules,
-complete stock-item overrides and standalone `texture.replace@1` packages.
+complete stock-item overrides and standalone `texture.replace@1` and
+`prefab.replace@1` packages.
 Texture tools create and update packages for supported existing DDS targets without
 an equipment recipe or numeric item allocation. See
 [`INDEPENDENT_TEXTURES.md`](../../services/INDEPENDENT_TEXTURES.md) for the exact
@@ -244,8 +245,15 @@ V2 also admits **`item.fields` version 1** for the narrowly defined existing-rec
 operations and **`package.links` version 1** for the installation dependency graph
 below. **`texture.replace` version 1** owns existing DDS replacements without a
 legacy recipe and contributes exact final-byte requirements to both deployment
-routes and semantic export. Existing v1 readers explicitly reject the version 2
-boundary.
+routes and semantic export. **`prefab.replace` version 1** does the same for
+shipped `.prefab` files, written by the Archive Browser's Prefab Inspector. Each
+row pins the game copy's SHA-256 and size; the replacement must decode at least as
+completely as that copy, and every resource path it newly references must exist in
+the game. It cannot share a package with `item.legacy`, because a legacy recipe's
+dependency contract cannot say which copy of a prefab it read. Its final-byte
+requirements travel in the same ownership rows as texture replacements, so equal
+owners compose and different bytes for one prefab refuse. Loading in game is
+unverified. Existing v1 readers explicitly reject the version 2 boundary.
 
 ### Tier, required level and durability
 

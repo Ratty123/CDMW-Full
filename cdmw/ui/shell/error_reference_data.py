@@ -19710,6 +19710,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "A duplicate or non-prefab replacement target is unsupported: {path}.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 84
+    }
+  },
+  {
+    "area": "formats",
     "message": "A placement replacement must be bytes, or an (expected_old, new) pair",
     "recovery": "input",
     "sources": {
@@ -19722,6 +19730,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/prefab_array_edit.py": 237
+    }
+  },
+  {
+    "area": "formats",
+    "message": "A prefab replacement exceeds the package size limit.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 35
+    }
+  },
+  {
+    "area": "formats",
+    "message": "A prefab replacement must be bounded prefab bytes.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 176
+    }
+  },
+  {
+    "area": "formats",
+    "message": "A prefab replacement requires its exact source dependency.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 94
+    }
+  },
+  {
+    "area": "formats",
+    "message": "A required prefab replacement resource is missing.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 99
     }
   },
   {
@@ -19913,7 +19953,15 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {entry.path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 35
+      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 54
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Could not read {entry.path}: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/prefab_inspector_actions.py": 76
     }
   },
   {
@@ -20322,6 +20370,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/partprefab_dye_table.py": 115
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Invalid existing-prefab replacement fields.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 81
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Invalid existing-prefab replacement module.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 77
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Invalid prefab source or replacement digest.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 90
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Invalid witnessed prefab source size.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 92
     }
   },
   {
@@ -21191,6 +21271,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Prefab replacement requires a witnessed shipped target: {path}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 126
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Prefab replacement targets must be existing .prefab paths.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 174
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Prefab replacements cannot be combined with an owned item in one package.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 66
+    }
+  },
+  {
+    "area": "formats",
     "message": "Prefab resize lost {lost} internal pointer(s); the offset-candidate scan rewrote the wrong bytes. Use cdmw.core.prefab_binary_edit.rewrite_prefab_paths.",
     "recovery": "write",
     "sources": {
@@ -21593,6 +21697,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Select between one and 128 existing prefab replacements.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 168
+    }
+  },
+  {
+    "area": "formats",
     "message": "Selected chain: {chain_text} Could not read socket XML: {exc}",
     "recovery": "format",
     "sources": {
@@ -21658,10 +21770,90 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The edited prefab {path} points at files this game does not contain: {shown}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 154
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The game copy of this prefab has changed since the package was made: {path}. Edit it again in the Prefab Inspector on this game.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 147
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The logical prefab replacement size limit is exhausted.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 103
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The package contains contradictory writes to its prefab target: {path}.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 157
+    }
+  },
+  {
+    "area": "formats",
     "message": "The pointee at 0x{target} has {len(candidates)} possible length fields and the file does not say which; refusing to guess on an edit inside it.",
     "recovery": "input",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 322
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab replacement could not be decoded: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 40
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab replacement is identical to the game copy: {path}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 97
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab replacement no longer decodes completely: {document.walk_note}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 42
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab target is not an existing shipped resource: {path}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 118
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab you edited differs from the game's own copy of {target_path}, probably because another mod changes it. Disable that mod and edit the prefab again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_prefab_authoring.py": 44
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The replacement count limit is exhausted.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/independent_prefab_package.py": 87
     }
   },
   {
@@ -22008,6 +22200,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py": 495
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Write portable prefab packages outside the game archive folder.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/independent_prefab_authoring.py": 66
     }
   },
   {
@@ -34237,7 +34437,7 @@ MESSAGE_REFERENCE = [
     "message": "This mod has no single legacy item recipe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/new_item/mod_package.py": 147
+      "cdmw/domain/new_item/mod_package.py": 155
     }
   },
   {
@@ -87517,7 +87717,7 @@ MESSAGE_REFERENCE = [
     "message": "A package permits only one package.links module.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 99
+      "cdmw/services/independent_mod_package.py": 101
     }
   },
   {
@@ -87525,7 +87725,7 @@ MESSAGE_REFERENCE = [
     "message": "A retained package provider disagrees with its ownership history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 271
+      "cdmw/services/independent_mod_package.py": 274
     }
   },
   {
@@ -87815,7 +88015,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate ItemInfo operation identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 119
+      "cdmw/services/independent_mod_package.py": 121
     }
   },
   {
@@ -87855,7 +88055,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid ItemInfo field module.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 112
+      "cdmw/services/independent_mod_package.py": 114
     }
   },
   {
@@ -87895,7 +88095,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 216
+      "cdmw/services/independent_mod_package.py": 219
     }
   },
   {
@@ -87943,7 +88143,7 @@ MESSAGE_REFERENCE = [
     "message": "Item behavior requires one module and its owned legacy item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 242
+      "cdmw/services/independent_mod_package.py": 245
     }
   },
   {
@@ -87951,7 +88151,7 @@ MESSAGE_REFERENCE = [
     "message": "Item definition requires one module and its owned legacy item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 230
+      "cdmw/services/independent_mod_package.py": 233
     }
   },
   {
@@ -87959,7 +88159,7 @@ MESSAGE_REFERENCE = [
     "message": "Item inventory requires one module and its owned legacy item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 206
+      "cdmw/services/independent_mod_package.py": 209
     }
   },
   {
@@ -87967,7 +88167,7 @@ MESSAGE_REFERENCE = [
     "message": "Item properties require one module and its owned legacy item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 167
+      "cdmw/services/independent_mod_package.py": 170
     }
   },
   {
@@ -87975,7 +88175,7 @@ MESSAGE_REFERENCE = [
     "message": "Item stats require one module and its owned legacy item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 192
+      "cdmw/services/independent_mod_package.py": 195
     }
   },
   {
@@ -88080,7 +88280,7 @@ MESSAGE_REFERENCE = [
     "message": "Optional metadata must be an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 134
+      "cdmw/services/independent_mod_package.py": 136
     }
   },
   {
@@ -88200,7 +88400,7 @@ MESSAGE_REFERENCE = [
     "message": "Package links require an implemented content module.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 102
+      "cdmw/services/independent_mod_package.py": 104
     }
   },
   {
@@ -88472,7 +88672,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an original v1 package for migration.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 279
+      "cdmw/services/independent_mod_package.py": 282
     }
   },
   {
@@ -88504,7 +88704,7 @@ MESSAGE_REFERENCE = [
     "message": "Stack count cannot be edited through both legacy and inventory settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 218
+      "cdmw/services/independent_mod_package.py": 221
     }
   },
   {
@@ -88512,7 +88712,7 @@ MESSAGE_REFERENCE = [
     "message": "The ItemInfo operation budget is exhausted.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 123
+      "cdmw/services/independent_mod_package.py": 125
     }
   },
   {
@@ -88544,7 +88744,7 @@ MESSAGE_REFERENCE = [
     "message": "The logical package resource size limit is exhausted.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 138
+      "cdmw/services/independent_mod_package.py": 140
     }
   },
   {
@@ -88552,7 +88752,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation kind does not match its frozen capability.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 116
+      "cdmw/services/independent_mod_package.py": 118
     }
   },
   {
@@ -88584,7 +88784,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 95
+      "cdmw/services/independent_mod_package.py": 97
     }
   },
   {
@@ -88600,7 +88800,7 @@ MESSAGE_REFERENCE = [
     "message": "The v1 migration provenance does not match the retained legacy content.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 132
+      "cdmw/services/independent_mod_package.py": 134
     }
   },
   {
@@ -88608,7 +88808,7 @@ MESSAGE_REFERENCE = [
     "message": "The v1 source content no longer matches its digest.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 283
+      "cdmw/services/independent_mod_package.py": 286
     }
   },
   {
@@ -88632,7 +88832,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported v2 item properties fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 175
+      "cdmw/services/independent_mod_package.py": 178
     }
   },
   {
@@ -88648,7 +88848,7 @@ MESSAGE_REFERENCE = [
     "message": "V1 migration provenance requires its retained legacy module.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_mod_package.py": 127
+      "cdmw/services/independent_mod_package.py": 129
     }
   },
   {
@@ -95646,7 +95846,7 @@ MESSAGE_REFERENCE = [
     "message": "A duplicate or non-DDS texture target is unsupported: {path}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 89
+      "cdmw/services/independent_texture_package.py": 90
     }
   },
   {
@@ -95654,7 +95854,7 @@ MESSAGE_REFERENCE = [
     "message": "A required texture replacement resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 102
+      "cdmw/services/independent_texture_package.py": 103
     }
   },
   {
@@ -95670,7 +95870,7 @@ MESSAGE_REFERENCE = [
     "message": "A texture replacement must be bounded DDS bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 194
+      "cdmw/services/independent_texture_package.py": 204
     }
   },
   {
@@ -95678,7 +95878,7 @@ MESSAGE_REFERENCE = [
     "message": "A texture replacement requires its exact source dependency.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 99
+      "cdmw/services/independent_texture_package.py": 100
     }
   },
   {
@@ -96558,7 +96758,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid existing-texture replacement fields.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 86
+      "cdmw/services/independent_texture_package.py": 87
     }
   },
   {
@@ -96566,7 +96766,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid existing-texture replacement module.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 78
+      "cdmw/services/independent_texture_package.py": 79
     }
   },
   {
@@ -96598,7 +96798,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid texture source, descriptor or replacement digest.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 95
+      "cdmw/services/independent_texture_package.py": 96
     }
   },
   {
@@ -96638,7 +96838,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid witnessed texture source size.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 97
+      "cdmw/services/independent_texture_package.py": 98
     }
   },
   {
@@ -97461,7 +97661,7 @@ MESSAGE_REFERENCE = [
     "message": "Select between one and 128 existing texture replacements.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 188
+      "cdmw/services/independent_texture_package.py": 198
     }
   },
   {
@@ -97693,7 +97893,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture modules require contradictory registry witnesses.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 81
+      "cdmw/services/independent_texture_package.py": 82
     }
   },
   {
@@ -97725,7 +97925,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture replacement requires a verified original texture registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 123
+      "cdmw/services/independent_texture_package.py": 131
     }
   },
   {
@@ -97733,7 +97933,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture replacement requires a witnessed shipped target: {path}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 141
+      "cdmw/services/independent_texture_package.py": 149
     }
   },
   {
@@ -97741,7 +97941,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture replacement targets must be existing DDS paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 203
+      "cdmw/services/independent_texture_package.py": 213
     }
   },
   {
@@ -97981,7 +98181,7 @@ MESSAGE_REFERENCE = [
     "message": "The logical texture replacement size limit is exhausted.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 197
+      "cdmw/services/independent_texture_package.py": 207
     }
   },
   {
@@ -97989,7 +98189,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains contradictory writes to its texture target: {path}.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 177
+      "cdmw/services/independent_texture_package.py": 187
     }
   },
   {
@@ -98005,7 +98205,7 @@ MESSAGE_REFERENCE = [
     "message": "The replacement must retain the complete source DDS descriptor: {path}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 208
+      "cdmw/services/independent_texture_package.py": 218
     }
   },
   {
@@ -98053,7 +98253,7 @@ MESSAGE_REFERENCE = [
     "message": "The source texture descriptor disagrees with its registry: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 148
+      "cdmw/services/independent_texture_package.py": 156
     }
   },
   {
@@ -98069,7 +98269,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture package requires a different original texture registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 163
+      "cdmw/services/independent_texture_package.py": 173
     }
   },
   {
@@ -98077,7 +98277,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture registry uses an unsupported mip storage layout: {path}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 150
+      "cdmw/services/independent_texture_package.py": 158
     }
   },
   {
@@ -98085,7 +98285,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture replacement count limit is exhausted.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 92
+      "cdmw/services/independent_texture_package.py": 93
     }
   },
   {
@@ -98093,7 +98293,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture target has no supported direct registry entry: {path}.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 146
+      "cdmw/services/independent_texture_package.py": 154
     }
   },
   {
@@ -98101,7 +98301,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture target is not an existing shipped resource: {path}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 135
+      "cdmw/services/independent_texture_package.py": 143
     }
   },
   {
@@ -98109,7 +98309,7 @@ MESSAGE_REFERENCE = [
     "message": "The witnessed texture descriptor changed: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 171
+      "cdmw/services/independent_texture_package.py": 181
     }
   },
   {
@@ -98117,7 +98317,7 @@ MESSAGE_REFERENCE = [
     "message": "The witnessed texture registry is missing or linked.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 127
+      "cdmw/services/independent_texture_package.py": 135
     }
   },
   {
@@ -98125,7 +98325,7 @@ MESSAGE_REFERENCE = [
     "message": "The witnessed texture source changed: {path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/independent_texture_package.py": 169
+      "cdmw/services/independent_texture_package.py": 179
     }
   },
   {
@@ -102619,6 +102819,12 @@ SOURCE_COVERAGE = {
   "cdmw/services/independent_mod_package.py": {
     "raise": 43
   },
+  "cdmw/services/independent_prefab_authoring.py": {
+    "raise": 2
+  },
+  "cdmw/services/independent_prefab_package.py": {
+    "raise": 22
+  },
   "cdmw/services/independent_texture_authoring.py": {
     "raise": 15
   },
@@ -103488,7 +103694,8 @@ SOURCE_COVERAGE = {
     "dialog": 1
   },
   "cdmw/ui/archive_browser/prefab_inspector_actions.py": {
-    "display": 1
+    "display": 1,
+    "raise": 1
   },
   "cdmw/ui/archive_browser/prefab_inspector_dialog.py": {
     "diagnostic_field": 2,

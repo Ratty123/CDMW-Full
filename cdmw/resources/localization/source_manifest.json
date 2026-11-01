@@ -9137,6 +9137,16 @@
       ]
     },
     {
+      "key": "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 138,
+          "sink": "setInformativeText"
+        }
+      ]
+    },
+    {
       "key": "An output face has no valid original-face mapping.",
       "origins": [
         {
@@ -20211,7 +20221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 133,
+          "line": 209,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -20997,11 +21007,21 @@
       ]
     },
     {
+      "key": "Building prefab item package for {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 200,
+          "sink": "_run_utility_task_when_idle"
+        }
+      ]
+    },
+    {
       "key": "Building prefab package for {value_0}...",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 174,
+          "line": 250,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -26547,6 +26567,16 @@
       ]
     },
     {
+      "key": "Checking {value_0} against the game's own copy...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 175,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Checks",
       "origins": [
         {
@@ -27311,7 +27341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 133,
+          "line": 209,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -36491,7 +36521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 35,
+          "line": 54,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 76,
           "sink": "set_status_message"
         }
       ]
@@ -50251,8 +50286,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 116,
-          "sink": "question"
+          "line": 136,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -68398,12 +68433,22 @@
     },
     {
       "key": "Independent items",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 163,
+          "sink": "getSaveFileName:filter-label"
+        }
+      ]
     },
     {
       "key": "Independent items (*.cditem)",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 163,
+          "sink": "getSaveFileName"
+        },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 270,
@@ -68616,7 +68661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 62,
+          "line": 71,
           "sink": "log"
         }
       ]
@@ -70656,7 +70701,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_mod_package.py",
-          "line": 216,
+          "line": 219,
           "sink": "ValueError"
         }
       ]
@@ -71983,6 +72028,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Item Package (.cditem)...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 146,
+          "sink": "addButton"
         }
       ]
     },
@@ -78058,6 +78113,16 @@
           "path": "cdmw/ui/archive_browser/preview_result.py",
           "line": 84,
           "sink": "_update_archive_preview_warning_controls"
+        }
+      ]
+    },
+    {
+      "key": "Loose Folder...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 147,
+          "sink": "addButton"
         }
       ]
     },
@@ -108571,7 +108636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 102,
+          "line": 118,
           "sink": "PrefabInspectorDialog"
         }
       ]
@@ -108581,7 +108646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 167,
+          "line": 193,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 243,
           "sink": "information"
         }
       ]
@@ -108646,7 +108716,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 165,
+          "line": 190,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 241,
           "sink": "set_status_message"
         }
       ]
@@ -109441,7 +109516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 69,
+          "line": 39,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 81,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -117349,6 +117429,11 @@
     {
       "key": "Reading prefab payload: {value_0}",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 50,
+          "sink": "log"
+        },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
           "line": 51,
@@ -131277,6 +131362,16 @@
       ]
     },
     {
+      "key": "Save Prefab Package",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 163,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "Save Preset",
       "origins": [
         {
@@ -134911,7 +135006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 30,
+          "line": 34,
           "sink": "set_status_message"
         }
       ]
@@ -140128,6 +140223,16 @@
           "path": "cdmw/ui/archive_ignored_folders.py",
           "line": 94,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Set the game package root before saving an item package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 159,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -146176,7 +146281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 152,
+          "line": 228,
           "sink": "log"
         }
       ]
@@ -146896,7 +147001,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_mod_package.py",
-          "line": 218,
+          "line": 221,
           "sink": "ValueError"
         }
       ]
@@ -166011,7 +166116,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_mod_package.py",
-          "line": 175,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -174482,6 +174587,16 @@
       ]
     },
     {
+      "key": "Writing the reviewed prefab package...",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_prefab_authoring.py",
+          "line": 69,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Writing the reviewed texture package...",
       "origins": [
         {
@@ -174772,11 +174887,31 @@
       ]
     },
     {
+      "key": "Wrote prefab item package:\n{value_0}\n\n{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 193,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Wrote prefab item package: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 198,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Wrote prefab loose package into:\n{value_0}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 167,
+          "line": 243,
           "sink": "information"
         }
       ]
@@ -174786,7 +174921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 172,
+          "line": 248,
           "sink": "set_status_message"
         }
       ]
@@ -191475,8 +191610,18 @@
       "key": "replacement",
       "origins": [
         {
+          "path": "cdmw/services/independent_prefab_package.py",
+          "line": 100,
+          "sink": "add"
+        },
+        {
+          "path": "cdmw/services/independent_prefab_package.py",
+          "line": 106,
+          "sink": "add"
+        },
+        {
           "path": "cdmw/services/independent_texture_package.py",
-          "line": 103,
+          "line": 104,
           "sink": "add"
         },
         {
@@ -197572,6 +197717,16 @@
       ]
     },
     {
+      "key": "{value_0}\n\nHow do you want to save the edited prefab?",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
+          "line": 137,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0}\n\nIf this folder does not exist yet, the app will create it.\nIf files already exist there, you will be asked whether to clear the folder, overwrite matching files, or keep both by renaming the new copies.",
       "origins": [
         {
@@ -197628,16 +197783,6 @@
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 584,
           "sink": "setInformativeText"
-        }
-      ]
-    },
-    {
-      "key": "{value_0}\n\nWrite the edited prefab into a loose mod package?\n\nPrefab editing is new and has not yet been confirmed to load in game. The package is a separate folder and your game files are untouched, so if anything misbehaves, disable the mod in your manager and delete that folder - that is the whole of the fix. The readme in the package repeats these steps.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 116,
-          "sink": "question"
         }
       ]
     },

@@ -81,6 +81,8 @@ def read_v2(meta, blobs, *, stop_event=None):
     item_behavior(meta)
     from cdmw.services.independent_texture_package import read_texture_modules
     texture_keys = read_texture_modules(meta, blobs, stop_event=stop_event)
+    from cdmw.services.independent_prefab_package import read_prefab_modules
+    texture_keys = texture_keys | read_prefab_modules(meta, blobs, stop_event=stop_event)
     legacy_keys = set()
     legacy = None
     if legacy_modules:
@@ -98,7 +100,7 @@ def read_v2(meta, blobs, *, stop_event=None):
     if len(link_modules) > 1:
         raise IndependentItemError('A package permits only one package.links module.')
     if link_modules:
-        if not any(module['type'] in ('item.legacy', 'item.fields', 'item.overrides', 'texture.replace') for module in modules):
+        if not any(module['type'] in ('item.legacy', 'item.fields', 'item.overrides', 'texture.replace', 'prefab.replace') for module in modules):
             raise IndependentItemError('Package links require an implemented content module.')
         decode_links(link_modules[0]['data'], meta['identity'], legacy=legacy is not None)
     from cdmw.domain.new_item.iteminfo_operations import MAX_OPERATIONS, decode_assignment
@@ -142,8 +144,9 @@ def read_v2(meta, blobs, *, stop_event=None):
 def package_logical_size(package):
     """Keep repeated target writes within the existing logical package budget."""
     from cdmw.services.independent_item_package import _recipe_values, canonical, package_metadata
+    from cdmw.services.independent_prefab_package import prefab_modules
     from cdmw.services.independent_texture_package import texture_modules
-    modules = texture_modules(package)
+    modules = texture_modules(package) + prefab_modules(package)
     size = len(canonical(package_metadata(package)))
     if not modules:
         return size + sum(map(len, package.blobs.values()))

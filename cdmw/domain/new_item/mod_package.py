@@ -117,6 +117,14 @@ def capability_result(name, version):
              'Visible game behavior requires separate evidence.'),
             (EvidenceClaim('adapter', 'Existing texture replacement', 'independent_texture_package.py'),
              EvidenceClaim('synthetic', 'Texture package admission and lifecycle', 'tests/test_independent_texture_packages.py')))
+    if name == 'prefab.replace' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Existing shipped .prefab files with exact source hashes; standalone, never combined with an owned item.',
+             'The replacement must decode at least as completely as its source.',
+             'Newly referenced resources must exist in the game; no files, item IDs or registry entries are added.',
+             'Explicit final bytes and separate owners; visible game behavior requires separate evidence.'),
+            (EvidenceClaim('adapter', 'Existing prefab replacement', 'independent_prefab_package.py'),
+             EvidenceClaim('synthetic', 'Prefab package admission and composition', 'tests/test_independent_prefab_packages.py')))
     return CapabilityResult(name, version, False, ('No registered adapter for this capability version.',))
 
 
