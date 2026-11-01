@@ -311,6 +311,8 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
 def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None):
     """Build and reparse a complete DMM package outside the installed game."""
     root = Path(entry.pamt_path).resolve().parent.parent
+    if root.parent.name.casefold() == "dlc":
+        root = root.parent.parent  # A DLC group (`dlc/dlc_01/0015`) lies two levels below the install.
     output = Path(output).resolve()
     if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
         raise ValueError("Hair output must be a new folder outside the installed game.")
@@ -327,11 +329,20 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     if not mounts or len({row.name.casefold() for row in mounts}) != len(mounts):
         raise ValueError("A valid unambiguous game mount catalogue is required.")
     entries = {}
-    for mount in mounts:
+    # A DLC ships its own copies of base group folders whose files replace the base
+    # files at the same path; read those copies so the barber list and tables edited
+    # here are the ones the game uses.
+    dlc_layers = []
+    for layer in sorted((root / "dlc").glob("dlc_*")) if (root / "dlc").is_dir() else ():
+        if (layer / "meta/0.papgt").is_file():
+            tracker.pin_file(layer / "meta/0.papgt")
+            dlc_layers.append((layer, parse_papgt((layer / "meta/0.papgt").read_bytes())))
+    # The first copy of a path wins, so the DLC layers are read before the base.
+    for folder, mount in [(layer, row) for layer, rows in dlc_layers for row in rows] + [(root, row) for row in mounts]:
         raise_if_cancelled(stop_event, "Hair catalogue scan cancelled.")
         if Path(mount.name).name != mount.name or mount.name in {".", ".."}:
             raise ValueError("The game mount catalogue contains an unsafe directory.")
-        for pamt in sorted((root / mount.name).glob("*.pamt")):
+        for pamt in sorted((folder / mount.name).glob("*.pamt")):
             tracker.pin_file(pamt)
             if on_log:
                 on_log(f"Reading mounted hair dependencies: {mount.name}")

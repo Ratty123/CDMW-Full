@@ -47,3 +47,17 @@ def test_a_shop_only_the_dlc_has_is_refused(tmp_path):
         return _read(snapshot)(path)
     with pytest.raises(DmmTableError, match="only in the DLC"):
         fold_dlc_additions(plan.loose_files, without_base_shop)
+
+
+def test_a_planned_item_reaches_dmm_as_operations_not_table_copies(tmp_path):
+    from cdmw.services.dmm_dlc_tables import plan_for_dmm
+    service, snapshot = setup(tmp_path, dlc=True)
+    plan = service.plan(_shop_spec("DmmOps"), snapshot, capture_independent=True)
+    dmm_plan, targets = plan_for_dmm(plan, _read(snapshot))
+    assert not [path for path in dmm_plan.loose_files if "storeinfo" in path or "itemgroupinfo" in path]
+    assert not [request for request in dmm_plan.patches if "storeinfo" in request.entry.path]
+    shop = next(target for target in targets if target["file"] == "storeinfo.pabgb")
+    assert [(intent["op"], intent["key"]) for intent in shop["intents"]] == [("array_append", 2003)]
+    # Everything else the plan writes still goes to DMM as files.
+    assert set(dmm_plan.loose_files) == {path for path in plan.loose_files
+                                         if "storeinfo" not in path and "itemgroupinfo" not in path}
