@@ -66,6 +66,18 @@ def decode_paver_build(raw: bytes) -> str:
     if len(raw) == 10:
         major, minor, patch = struct.unpack_from("<3H", raw)
         return f"{major}.{minor:02}.{patch:02}"
+    # Since the DLC update a u32-counted list of (u32 length, name, u32) records,
+    # one per DLC (`dlc_01`), sits between the version and the four build bytes.
+    if len(raw) >= 14:
+        count = struct.unpack_from("<I", raw, 6)[0]
+        offset = 10
+        for _ in range(min(count, 64)):
+            if offset + 4 > len(raw):
+                return ""
+            offset += 4 + struct.unpack_from("<I", raw, offset)[0] + 4
+        if count <= 64 and offset + 4 == len(raw):
+            major, minor, patch = struct.unpack_from("<3H", raw)
+            return f"{major}.{minor:02}.{patch:02}"
     return ""
 
 
