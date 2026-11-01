@@ -351,7 +351,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
     def write(staging):
         if dmm_v3:
             if plan.semantic_export is None:
-                raise ValueError('DMM V3 requires retained .cditem contributors. Use Export installed items or merge semantic exports.')
+                raise ValueError('DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.')
             from cdmw.services.dmm_item_export import build_field_json, SOURCE_FOLDER
             from cdmw.core.mod_compatibility import write_semantic_export
             document = build_field_json(plan.semantic_export, title, stop_event=stop_event)
@@ -367,7 +367,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
                 'Manager mounting, in-game appearance and save compatibility are not validated by this export.\n'
                 'Shop additions append stock and keep vanilla positions; shop replacements are unsupported.\n'
                 'Use this package instead of its original packages or installed CDMW contribution.\n'
-                'For CDMW import or re-export, select cdmw-source/cdmw-semantic.cditem. '
+                'For CDMW import or re-export, select cdmw-source/cdmw-semantic.cdmw. '
                 'It retains the original packages, UUIDs, bindings and dependency witnesses. '
                 'Keep the identity profile with your saves. Do not import this outer folder as a loose mod.\n',
                 encoding='utf-8')

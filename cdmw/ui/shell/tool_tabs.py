@@ -753,7 +753,7 @@ class ShellToolTabsMixin:
         self.mod_management_tab = self._add_lazy_shell_tool(
             "Mod Management", "mod_management", self._create_mod_management_tab
         )
-        # Mod Management handles .cditem packages only; converting mods between
+        # Mod Management handles CDMW packages only; converting mods between
         # managers is retired with the mod folder tools.
         self.mod_package_tool_action.setEnabled(False)
         self.mod_package_tool_action.setToolTip("Converting mods between mod managers is no longer offered.")

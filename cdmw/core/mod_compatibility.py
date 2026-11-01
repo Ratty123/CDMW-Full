@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Mapping
 
-from cdmw.constants import APP_VERSION
+from cdmw.constants import APP_VERSION, PACKAGE_EXTENSIONS
 from cdmw.domain.cancellation import raise_if_cancelled
 
 COMPATIBILITY_FILE = "cdmw-compatibility.json"
@@ -296,7 +296,10 @@ __all__ = ["BASELINE_FILE", "COMPATIBILITY_FILE", "ModCompatibility", "build_lab
 
 # This is an opaque, negotiated export, not optional metadata on loose files.
 # The complete schema and examples live beside this owner in SEMANTIC_EXPORT.md.
-SEMANTIC_EXPORT_FILE = "cdmw-semantic.cditem"
+SEMANTIC_EXPORT_FILE = "cdmw-semantic.cdmw"
+# Exports written before the .cdmw rename carry this name and stay readable.
+LEGACY_SEMANTIC_EXPORT_FILE = "cdmw-semantic.cditem"
+SEMANTIC_EXPORT_FILES = (SEMANTIC_EXPORT_FILE, LEGACY_SEMANTIC_EXPORT_FILE)
 SEMANTIC_EXPORT_FORMAT = "cdmw_mod_semantic_export"
 SEMANTIC_EXPORT_VERSION = 1
 
@@ -307,19 +310,27 @@ def semantic_export_path(source) -> Path | None:
         return None
     path = Path(source)
     if path.is_file():
-        return path if path.suffix.lower() == ".cditem" else None
+        return path if path.suffix.lower() in PACKAGE_EXTENSIONS else None
     if not path.is_dir():
         return None
     entries = tuple(path.iterdir())
-    candidates = [entry for entry in entries if entry.name.casefold() == SEMANTIC_EXPORT_FILE]
+    candidates = [entry for entry in entries if entry.name.casefold() in SEMANTIC_EXPORT_FILES]
     if not candidates:
         return None
     if (len(candidates) != 1 or len(entries) != 1
-            or candidates[0].name != SEMANTIC_EXPORT_FILE
+            or candidates[0].name not in SEMANTIC_EXPORT_FILES
             or candidates[0].is_symlink() or not candidates[0].is_file()
             or path.is_symlink() or getattr(path, "is_junction", lambda: False)()):
-        raise ValueError("A semantic export requires its single opaque .cditem wrapper; extra or linked files refuse.")
+        raise ValueError("A semantic export requires its single opaque .cdmw wrapper; extra or linked files refuse.")
     return candidates[0]
+
+
+def semantic_export_wrapper(folder: Path) -> Path:
+    """The wrapper an export folder holds, or the current name when it holds none."""
+    for name in SEMANTIC_EXPORT_FILES:
+        if (folder / name).is_file():
+            return folder / name
+    return folder / SEMANTIC_EXPORT_FILE
 
 
 def _semantic_path(value, *, index=False):
@@ -596,7 +607,7 @@ def read_semantic_export(source, *, stop_event=None, package_cache=None) -> Sema
         raise ValueError("Linked semantic export files are unsupported.")
     if path.stat().st_size > MAX_TOTAL + MAX_METADATA_BYTES:
         raise ValueError("The semantic export exceeds the supported size.")
-    if path.name.casefold() != SEMANTIC_EXPORT_FILE:
+    if path.name.casefold() not in SEMANTIC_EXPORT_FILES:
         # This is only dispatch, not admission. Ordinary packages are fully
         # verified by their owner. Avoid reading their complete artifact merely
         # to discover that their central directory has no semantic envelope.
@@ -612,7 +623,7 @@ def read_semantic_export(source, *, stop_event=None, package_cache=None) -> Sema
     raw = path.read_bytes()
     if digest(raw) != before:
         raise ValueError("The semantic export changed while reading.")
-    value = _read_semantic_bytes(raw, required=path.name.casefold() == SEMANTIC_EXPORT_FILE,
+    value = _read_semantic_bytes(raw, required=path.name.casefold() in SEMANTIC_EXPORT_FILES,
                                stop_event=stop_event, package_cache=package_cache)
     if value is None:
         return None

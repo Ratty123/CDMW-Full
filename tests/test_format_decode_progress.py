@@ -89,7 +89,8 @@ def test_write_then_check_preserves_archive_records(isolated_report):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["extensions"] == before
     assert manifest["progress"]["headline"]["all_formats"]["extensions"] == 1
-    assert ".cditem" not in report_path.read_text(encoding="utf-8")
+    text = report_path.read_text(encoding="utf-8")
+    assert ".cdmw" not in text and ".cditem" not in text
     assert report.main(["--check"]) == report.main([]) == 0
 
 

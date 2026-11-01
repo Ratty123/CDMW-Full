@@ -229,11 +229,11 @@ class OutputPanel(QGroupBox):
         write_layout.setSpacing(8)
         # Keep one mode value for both the visible choices and existing callers.
         self.output_mode = QComboBox(self)
-        # DMM and .cditem are the only outputs; other managers are not updated for the DLC.
+        # DMM and .cdmw are the only outputs; other managers are not updated for the DLC.
         self.output_mode.addItem(self.tr("Mod folder") + " · DMM", "folder")
         if constants.ARCHIVE_OVERLAYS_ENABLED:
             self.output_mode.addItem("Game overlay", "overlay")
-        self.output_mode.addItem(self.tr("Item package") + " · .cditem", "independent")
+        self.output_mode.addItem(self.tr("Item package") + " · .cdmw", "independent")
         self.output_mode.hide()
         self.mode_buttons = QWidget()
         mode_row = QVBoxLayout(self.mode_buttons)
@@ -257,7 +257,7 @@ class OutputPanel(QGroupBox):
             mode_row.addWidget(button)
         self.folder_mode_button.setToolTip(self.tr("Write a mod folder for DMM (Definitive Mod Manager)."))
         self.overlay_mode_button.setToolTip(self.tr("Install the item into this game's tracked CDMW overlay."))
-        self.independent_mode_button.setToolTip(self.tr("Create a shareable .cditem package with its own identity. CDMW combines supported shared files when it is installed or prepared."))
+        self.independent_mode_button.setToolTip(self.tr("Create a shareable .cdmw package with its own identity. CDMW combines supported shared files when it is installed or prepared."))
         write_layout.addWidget(self.mode_buttons)
         self.folder_controls = QWidget()
         export = QVBoxLayout(self.folder_controls)
@@ -327,11 +327,11 @@ class OutputPanel(QGroupBox):
         self.independent_controls = QWidget()
         independent_layout = QVBoxLayout(self.independent_controls)
         independent_layout.setContentsMargins(0, 0, 0, 0)
-        self.independent_note = QLabel(self.tr("Writes a portable .cditem package. Add it on Mod Management's Mods page, then apply and launch. Loading items this way is experimental."))
+        self.independent_note = QLabel(self.tr("Writes a portable .cdmw package. Add it on Mod Management's Mods page, then apply and launch. Loading items this way is experimental."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
         self.update_package_button = QPushButton("Update an existing item package...")
-        self.update_package_button.setToolTip(self.tr("Replace a selected .cditem package while keeping its identity. Writing a new package creates a separate item."))
+        self.update_package_button.setToolTip(self.tr("Replace a selected .cdmw package while keeping its identity. Writing a new package creates a separate item."))
         self.update_package_button.clicked.connect(lambda: self._write_independent(update=True))
         independent_layout.addWidget(self.update_package_button)
         write_layout.addWidget(self.independent_controls)
@@ -474,8 +474,8 @@ class OutputPanel(QGroupBox):
         self.overlay_controls.setVisible(overlay)
         self.export_button.setVisible(folder or independent)
         self.send_dmm_button.setVisible(folder)
-        self.export_button.setText(self.tr("Write item package") + " (.cditem)" if independent else self.tr("Write mod folder"))
-        self.export_button.setToolTip(self.tr("Write a portable .cditem file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
+        self.export_button.setText(self.tr("Write item package") + " (.cdmw)" if independent else self.tr("Write mod folder"))
+        self.export_button.setToolTip(self.tr("Write a portable .cdmw file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
         self.install_overlay_button.setVisible(overlay)
         self._mod_base_changed(reason)
 
@@ -483,12 +483,12 @@ class OutputPanel(QGroupBox):
         if not self._controller.has_current_plan:
             return
         if update:
-            path, _ = QFileDialog.getOpenFileName(self, self.tr("Select the item package to update"), "", self.tr("Independent item (*.cditem)"))
+            path, _ = QFileDialog.getOpenFileName(self, self.tr("Select the item package to update"), "", self.tr("Independent item (*.cdmw *.cditem)"))
         else:
-            path, _ = QFileDialog.getSaveFileName(self, self.tr("Write item package"), "", self.tr("Independent item (*.cditem)"))
+            path, _ = QFileDialog.getSaveFileName(self, self.tr("Write item package"), "", self.tr("Independent item (*.cdmw)"))
         if path:
-            if not path.lower().endswith(".cditem"):
-                path += ".cditem"
+            if not path.lower().endswith(constants.PACKAGE_EXTENSIONS):
+                path += constants.PACKAGE_EXTENSION
             self._controller.start_independent_export(path, update=update)
 
     def _build(self) -> None:

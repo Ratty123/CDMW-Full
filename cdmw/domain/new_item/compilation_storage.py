@@ -2,7 +2,7 @@
 
 Contexts are content-addressed values inside the same atomic inventory as their
 references. They are never updated in place or treated as fresh compiler output.
-Virtual profile records and the .cditem package wire formats remain inline.
+Virtual profile records and the .cdmw package wire formats remain inline.
 """
 from copy import deepcopy
 import re

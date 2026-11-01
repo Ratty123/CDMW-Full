@@ -1,11 +1,20 @@
 # Independent item packages (Experimental)
 
-Choose **Output > Independent item package (Experimental) · .cditem**, build the plan and
-select **Write item package**. Share the resulting `.cditem` file. Recipients add it
+Choose **Output > Independent item package (Experimental) · .cdmw**, build the plan and
+select **Write item package**. Share the resulting `.cdmw` file. Recipients add it
 to **Mod Management > Mods**, choose **Apply changes**, then **Launch game** for
 experimental virtual loading. Physical installation remains available through
 **Advanced > Item identities > Install into game archives**. Existing folder exports and
 game overlays remain available.
+
+## File extension
+
+CDMW writes packages as `.cdmw` (`PACKAGE_EXTENSION` in `cdmw/constants.py`).
+Packages written before the rename end in `.cditem`; every reader accepts both, and
+updating a `.cditem` package in place keeps its name. The wire format and its
+versions did not change. CDMW's own retained copies under the game's
+`.cdmw/independent-items/` folder keep the `.cditem` name that the virtual loader
+validates, as do the `packages/<sha256>.cditem` members inside a semantic export.
 
 Since the October 2026 DLC update (game 2.04.02), Mod Management is disabled and
 neither installation route can load items: the game authenticates its archive mount
@@ -16,7 +25,7 @@ version's tables and refuses until it is written again. The developer command
 writes them to another folder with the same identities:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\rebuild_cditem.py --game-root "C:\path\to\Crimson Desert" --output rebuilt A.cditem B.cditem
+.\.venv\Scripts\python.exe scripts\rebuild_cditem.py --game-root "C:\path\to\Crimson Desert" --output rebuilt A.cdmw B.cdmw
 ```
 
 It accepts Create New Item packages, including their item settings; packages with
@@ -35,9 +44,9 @@ keep their previous formats. **Merge mods** offers the same opt-in when combinin
 retained semantic exports.
 
 This route writes `mod.field.json`, `modinfo.json`, instructions and
-`cdmw-source/cdmw-semantic.cditem`. It preserves the original contributor UUIDs,
+`cdmw-source/cdmw-semantic.cdmw`. It preserves the original contributor UUIDs,
 content, assigned item/refinement/reward IDs, reservations and source witnesses.
-Select that included `.cditem` file for CDMW import or re-export; the outer DMM
+Select that included `.cdmw` file for CDMW import or re-export; the outer DMM
 folder cannot be used as an ordinary loose mod or New Item base. Keep the identity
 profile with saves. Export prepares a separate folder and does not install or
 remove anything.
@@ -80,7 +89,7 @@ allocate new IDs. Cleanup preserves game archives, saves and payload recovery hi
 restore the matching backup to recover deleted mappings. A remaining installed item
 whose compilation references the mapping must be rebuilt or removed first.
 
-CDMW composes the game's shared files during installation. Separate `.cditem`
+CDMW composes the game's shared files during installation. Separate `.cdmw`
 files are portable authoring packages, not standalone archives the game discovers.
 No manual mod merge is required for compatible packages installed through CDMW.
 
@@ -96,7 +105,7 @@ an equipment recipe or numeric item allocation. See
 source, descriptor, resource and registry limits. General material replacement,
 character, body, hair and outfit adapters remain unimplemented. Armor items must
 still satisfy the equipment matrix. Ordinary mod-folder admission does not add a
-new `.cditem` module.
+new `.cdmw` module.
 
 ## Identity and ownership
 
@@ -159,7 +168,7 @@ and per-package dependency checks. Run it from the repository with the project
 virtual environment, choosing the packages' current deployment route:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\inspect_cditem_isolation.py --game-root "C:\path\to\Crimson Desert" --target virtual A.cditem B.cditem
+.\.venv\Scripts\python.exe scripts\inspect_cditem_isolation.py --game-root "C:\path\to\Crimson Desert" --target virtual A.cdmw B.cdmw
 ```
 
 The JSON report identifies package UUIDs and content hashes, proposed bindings
@@ -967,7 +976,7 @@ manager. Changed sources require a new comparison before publication.
 ### Semantic export and reimport
 
 When active packages declare `item.fields`, `texture.replace` or `package.links`,
-**Export installed items…** writes `cdmw-semantic.cditem` inside the chosen folder. Add that file to
+**Export installed items…** writes `cdmw-semantic.cdmw` inside the chosen folder. Add that file to
 **Mods** or **Virtual loader**, or use the reviewed physical **Install into game
 archives** flow. **Merge mods** also combines supported semantic export folders.
 The opaque wrapper retains every original package and exact contributor binding,
@@ -1170,7 +1179,7 @@ at the ceiling fits memory or every retained installation:
 | Expanded selected package content | 1 GiB total, including manifests |
 | One resource blob | 256 MiB |
 | Package manifest / identity ledger | 4 MiB each |
-| Members in one `.cditem` ZIP | 4,096 including `item.json` |
+| Members in one `.cdmw` ZIP | 4,096 including `item.json` |
 | Physical overlay inventory | 4 MiB, including retained history and compiler records |
 | Field operations / target row | 4,096 active assignments / 64 KiB |
 | Declared package graph | 4,096 providers and 4,096 combined exports, pins and references |

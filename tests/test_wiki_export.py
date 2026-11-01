@@ -287,7 +287,7 @@ def test_all_14_locales_have_complete_guides_and_same_language_navigation(wiki_p
         assert len(headings) == len(set(headings)), (language.code, headings)
         assert "> [!WARNING]" in item
         assert "> [!IMPORTANT]" in mesh
-        assert "65" in item and ".cditem" in item
+        assert "65" in item and ".cdmw" in item
         assert "_CDMW_VERTEX_ID" in mesh and "CDMW_VERTEX_ID" in mesh
         assert '<a id="new_item_studio-7"></a>' in item
         assert '<a id="mesh_editor-10"></a>' in mesh

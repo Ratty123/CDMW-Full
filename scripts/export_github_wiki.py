@@ -95,7 +95,7 @@ _CONTROLS = (
     "Apply profile edit", "Restore profile assignment", "Finish Edit Mesh", "Build Mod", "Free Edit",
     "Exact Game Asset", "Finish", "Restore", "Undo/Redo", "Create", "Edit", "Draw", "Freehand",
     "Straight", "Arc", "Circle", "Stroke smoothing", "Bend", "Follow scalp", "Move reach",
-    "Build plan", "Apply placement", "Mod folder · DMM", "Mod folder", "Item package · .cditem", "Apply changes",
+    "Build plan", "Apply placement", "Mod folder · DMM", "Mod folder", "Item package · .cdmw", "Apply changes",
     "Add to existing mod", "Include mounted items in a new mod", "Import Replacement...",
     "Open in Mesh Editor", "View", "Mod", "Include", "Output Preview", "Mesh islands",
     "Solid (Textured)", "Solid + Wire", "X-Ray", "Bounds", "Bones", "Orbit", "Fit", "Frame Selected",
@@ -572,7 +572,7 @@ def build_pages() -> dict[str, str]:
                 source = sections["new_item_studio"]["html"]
                 paragraphs = re.findall(r"<p>(.*?)</p>", source, re.S)
                 selected = [text for text in paragraphs if text.startswith((
-                    "Item package · .cditem writes", "Use the player-facing name", "Add to existing mod",
+                    "Item package · .cdmw writes", "Use the player-facing name", "Add to existing mod",
                 ))]
                 if len(selected) != 3:
                     raise ValueError("Independent package guide paragraphs are missing")

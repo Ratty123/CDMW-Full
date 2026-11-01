@@ -19,7 +19,7 @@ CREATE_NEW_ITEM_SECTION = {
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
 <p><b>Create New Item</b> creates a new equipment or usable item from a supported game template.</p>
-<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
     <ol>
       <li><b>Template</b>: search internal names, item keys, equipment types, or any available game-language name. The table displays English names when available.</li>
       <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
@@ -27,7 +27,7 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
       <li><b>Effects &amp; Perks</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
-      <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cditem item package.</li>
+      <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cdmw item package.</li>
     </ol>
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
     <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
@@ -59,7 +59,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Mod folder · DMM writes a mod folder for DMM (Definitive Mod Manager), with an optional ZIP. Add the folder in DMM and mount it there.</p>
     <p>Send to DMM writes the same mod straight into DMM's mods folder. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it. Then enable the mod in DMM and click Mount.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
-    <p>Item package · .cditem writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.</p>
+    <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
@@ -398,7 +398,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
-                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
@@ -660,15 +660,16 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Add .cditem item packages, apply them and launch the game with the items.",
-                "keywords": "utilities mods cditem item package apply launch runtime identities dmm",
+                "summary": "Add .cdmw item packages, apply them and launch the game with the items.",
+                "keywords": "utilities mods cdmw cditem item package apply launch runtime identities dmm",
                 "html": """
-                <p>Mod Management loads .cditem item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).</p>
+                <p>Mod Management loads .cdmw item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).</p>
                 <ol>
-                  <li>On Mods, choose Add item packages and select the .cditem files.</li>
+                  <li>On Mods, choose Add item packages and select the .cdmw files.</li>
                   <li>Choose Apply changes. CDMW checks each package against the installed game and prepares the item files.</li>
                   <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
                 </ol>
+                <p>Packages saved before the .cdmw extension was introduced end in .cditem. They still load and need no conversion.</p>
                 <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
                 <p>To use your items in DMM instead, select them on Mods, or select none to take every enabled item, and choose Send to DMM. CDMW combines them as Apply does and writes one DMM mod named CDMW items to DMM's mods folder; enable it in DMM and click Mount. Sending again replaces that mod. Keep the items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items, and a game update can need a new send.</p>
                 <p>Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
@@ -680,7 +681,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Converting mods between mod managers is no longer offered.",
                 "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm manifest",
                 "html": """
-                <p>Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cditem packages.</p>
+                <p>Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cdmw packages.</p>
                 """,
             },
             {

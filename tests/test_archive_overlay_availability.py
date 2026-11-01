@@ -65,7 +65,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
         assert panel.manager.isHidden()
         assert [panel.output_mode.itemText(i) for i in range(panel.output_mode.count())] == [
-            "Mod folder · DMM", "Item package · .cditem"]
+            "Mod folder · DMM", "Item package · .cdmw"]
         from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
         projected = json.dumps(NewItemPresentationBridge(panel).snapshot())
         assert "Game overlay" not in projected

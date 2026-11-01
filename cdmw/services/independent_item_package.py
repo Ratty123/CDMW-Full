@@ -1,4 +1,4 @@
-"""Bounded .cditem export/import. Rebuild records from typed intent, never byte patches."""
+"""Bounded .cdmw export/import (.cditem before the rename). Rebuild records from typed intent, never byte patches."""
 from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -13,6 +13,7 @@ import threading
 from types import MappingProxyType
 import zipfile
 
+from cdmw.constants import PACKAGE_EXTENSIONS
 from cdmw.core.bone_offset_table import BONE_OFFSET_PATH
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.independent import IndependentItemError, IndependentItemPackage, IndependentItemExport, package_id
@@ -364,7 +365,7 @@ def _prepared_spec(spec):
 def from_plan(plan, identity, *, title=None, stop_event=None):
     package_id(identity)
     if plan.independent_inputs is None:
-        raise IndependentItemError("Choose Item package · .cditem and rebuild the plan first.")
+        raise IndependentItemError("Choose Item package · .cdmw and rebuild the plan first.")
     if plan.source_revision is None:
         raise IndependentItemError("Independent packages require verified source dependencies.")
     plan.source_revision.validate(stop_event)
@@ -796,8 +797,8 @@ def read_package(source, *, stop_event=None, cache=None):
 
 def write_package(package, path, *, expected_digest=None, stop_event=None, validate_source=None):
     path = Path(path).resolve()
-    if path.suffix.lower() != ".cditem":
-        raise IndependentItemError("Independent item packages use the .cditem extension.")
+    if path.suffix.lower() not in PACKAGE_EXTENSIONS:
+        raise IndependentItemError("CDMW packages use the .cdmw extension.")
     previous = None
     if path.is_file():
         old = read_package(path, stop_event=stop_event)

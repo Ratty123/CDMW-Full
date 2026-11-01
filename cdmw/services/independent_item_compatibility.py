@@ -247,7 +247,7 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
             result.providers.setdefault(_resource_path(path), []).append((label, source))
             admitted = True
         # Executable mods and patch instruction formats are not final file payloads.
-        unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cditem')
+        unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cdmw', '.cditem')
                    and Path(name).name.lower() not in ('manifest.json', 'modinfo.json', 'new-item.json', 'cdmw-compatibility.json', 'cdmw-baseline.zip')]
         if unknown or not admitted:
             result.findings.append(CompatibilityFinding('Unknown', (label,), '',
@@ -738,7 +738,7 @@ def _semantic_export_plan(root, folders, layers, snapshot, registry, pending, ex
     active = [(layer, changes) for layer, changes in layers if layer['active']]
     if (not active or any(not layer.get('independent_identity') for layer, _ in active)
             or external.paths):
-        raise OverlayConflict('Semantic export requires retained .cditem contributors for every payload. '
+        raise OverlayConflict('Semantic export requires retained .cdmw contributors for every payload. '
                               'Mixed foreign or untyped overlay exports remain unsupported.')
     _validate_composition_packages(root, pending, active, snapshot, external,
                                    stop_event=stop_event, on_log=on_log)
@@ -842,7 +842,7 @@ def prepare_semantic_mod_merge(roots, game_root, entries=None, *, read_entry=Non
     roots = tuple(Path(path).resolve() for path in roots)
     expanded, _, semantic = _semantic_inputs(roots, stop_event=stop_event)
     if len(semantic) != len(roots):
-        raise OverlayConflict('Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.')
+        raise OverlayConflict('Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.')
     sources = list(roots)
     packages = {package.identity: package for package in
                 (read_package(raw, stop_event=stop_event) for raw in expanded)}

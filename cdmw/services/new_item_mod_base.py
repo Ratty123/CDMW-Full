@@ -119,7 +119,7 @@ def mod_folder_payloads(
         if isinstance(document, dict) and any(isinstance(target, dict) and 'intents' in target
                 for target in document.get('targets', ())):
             raise ValueError('DMM field JSON cannot be read as ordinary mod files. '
-                             'For a CDMW export, import cdmw-source/cdmw-semantic.cditem instead.')
+                             'For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.')
     for base in _roots(root):
         for path in base.rglob("*"):
             raise_if_cancelled(stop_event, "New item plan cancelled.")

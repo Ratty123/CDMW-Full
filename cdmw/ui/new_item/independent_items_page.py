@@ -69,7 +69,7 @@ class IndependentItemsPage(QWidget):
         package_layout.addWidget(self.items, 1)
         row = QHBoxLayout()
         self.import_button = QPushButton("Install into game archives…")
-        self.import_button.setToolTip("Advanced installation of .cditem packages into CDMW's managed archives. For the normal Apply and Launch workflow, add packages from Mods.")
+        self.import_button.setToolTip("Advanced installation of .cdmw packages into CDMW's managed archives. For the normal Apply and Launch workflow, add packages from Mods.")
         self.import_button.clicked.connect(self._import)
         self.remove_button = QPushButton("Remove selected item...")
         self.remove_button.clicked.connect(self._remove)
@@ -123,7 +123,7 @@ class IndependentItemsPage(QWidget):
         self._comparison_writer = ReviewTextWriter(self.comparison)
         compatibility_layout.addWidget(self.comparison, 1)
         self.dmm_v3 = QCheckBox(self.tr('DMM V3 field JSON (experimental)'))
-        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.'))
+        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cdmw source; DMM mounting and game behaviour remain unverified.'))
         compatibility_layout.addWidget(self.dmm_v3)
         actions = QHBoxLayout()
         actions.addWidget(self.compose_button)
@@ -267,7 +267,7 @@ class IndependentItemsPage(QWidget):
     def _import(self):
         if not constants.ARCHIVE_OVERLAYS_ENABLED:
             return
-        paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Import independent items"), "", self.tr("Independent items (*.cditem)"))
+        paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Import independent items"), "", self.tr("Independent items (*.cdmw *.cditem)"))
         if not paths:
             return
         from cdmw.services.independent_item_install import prepare_install
@@ -335,7 +335,7 @@ class IndependentItemsPage(QWidget):
             self._comparison = None
             self._set_status(self.tr("Merged mod written:") + ' ' + str(result.package_root))
             if result.manager == 'CDMW':
-                self.comparison.appendPlainText(self.tr("Import cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves."))
+                self.comparison.appendPlainText(self.tr("Import cdmw-semantic.cdmw through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves."))
             else:
                 self.comparison.appendPlainText(self.tr("Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves."))
         self._run(task, completed, publishes_result=True)
