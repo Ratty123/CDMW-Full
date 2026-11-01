@@ -44,7 +44,7 @@ class ModManagementList(VirtualLoaderPage):
         toolbar = QHBoxLayout()
         for button in (self.add_items, self.add_mod, self.apply_button, self.launch_button):
             toolbar.addWidget(button)
-        # Mod folders belong to DMM; Mods takes .cditem packages unless the folder tools are on.
+        # Mod folders belong to DMM; Mods takes CDMW packages unless the folder tools are on.
         self.add_mod.setVisible(constants.MOD_FOLDER_TOOLS_ENABLED)
         self.apply_button.setText(self.tr('Apply changes'))
         self.apply_button.setProperty('newItemPrimary', True)
@@ -64,7 +64,7 @@ class ModManagementList(VirtualLoaderPage):
             self.selection.setColumnWidth(column, width)
         self.selection.setAccessibleDescription(
             self.tr('Add item packages or a mod folder to begin.') if constants.MOD_FOLDER_TOOLS_ENABLED
-            else self.tr('Add .cditem item packages to begin.'))
+            else self.tr('Add .cdmw item packages to begin.'))
         self.selection.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.selection.customContextMenuRequested.connect(self._context_menu)
         self.selection.setToolTip(self.tr('Use Ctrl or Shift to select multiple rows. Right-click for available actions.'))
@@ -385,7 +385,7 @@ class ModManagementList(VirtualLoaderPage):
             def loaded(details):
                 title, identity, version, assets, digest = details
                 show('\n'.join((title, self.tr('Package identity:') + ' ' + identity,
-                    self.tr('Format:') + f' .cditem v{version}', self.tr('Assets:') + ' ' + str(assets),
+                    self.tr('Format:') + f' {Path(path).suffix.lower()} v{version}', self.tr('Assets:') + ' ' + str(assets),
                     self.tr('Content digest:') + ' ' + digest, '', summary)))
             self._run(lambda log, stop: item_package_details(path, stop_event=stop), loaded)
         else:

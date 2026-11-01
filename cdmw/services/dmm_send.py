@@ -100,7 +100,7 @@ def send_plan(plan, mods: Path, title: str, *, service=None, package_info=None,
 def send_item_package(package_path: Path | str, game_root: Path | str, mods: Path, *,
                       stop_event: Optional[threading.Event] = None,
                       on_log: Optional[Callable[[str], None]] = None) -> DmmSendResult:
-    """Plan a .cditem package's item on the installed game and write it as a DMM mod."""
+    """Plan a CDMW package's item on the installed game and write it as a DMM mod."""
     from cdmw.models import ModPackageInfo
     from cdmw.services.independent_item_package import read_package, recipe_plan, stock_snapshot
 
@@ -109,14 +109,14 @@ def send_item_package(package_path: Path | str, game_root: Path | str, mods: Pat
         on_log(f"Reading the game tables for {package.title}…")
     snapshot = stock_snapshot(Path(game_root).resolve(), stop_event=stop_event)
     plan = recipe_plan(package, snapshot, stop_event=stop_event).plan
-    info = ModPackageInfo(title=package.title, description=f"{package.title}, sent to DMM by CDMW from a .cditem package.")
+    info = ModPackageInfo(title=package.title, description=f"{package.title}, sent to DMM by CDMW from a .cdmw package.")
     return send_plan(plan, mods, package.title, package_info=info, stop_event=stop_event)
 
 
 def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: str, *,
                        stop_event: Optional[threading.Event] = None,
                        on_log: Optional[Callable[[str], None]] = None) -> DmmSendResult:
-    """Compose several .cditem packages as Apply does and write them as one DMM mod.
+    """Compose several CDMW packages as Apply does and write them as one DMM mod.
 
     Separate mods would each carry their own copy of the shared tables (ItemInfo, the
     shops, the names), and DMM would keep only one of them, so the items are composed
