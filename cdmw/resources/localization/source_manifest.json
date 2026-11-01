@@ -91,12 +91,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 560,
+          "line": 574,
           "sink": "question"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 574,
+          "line": 588,
           "sink": "question"
         }
       ]
@@ -4086,7 +4086,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 454,
+          "line": 460,
           "sink": "PermissionError"
         }
       ]
@@ -5966,7 +5966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 66,
+          "line": 67,
           "sink": "tr"
         }
       ]
@@ -6471,7 +6471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 65,
+          "line": 66,
           "sink": "tr"
         }
       ]
@@ -10396,7 +10396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 248,
+          "line": 249,
           "sink": "tr"
         }
       ]
@@ -10418,6 +10418,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 925,
           "sink": "_log"
+        }
+      ]
+    },
+    {
+      "key": "Applied. Launch game, Steam or DMM will load the items.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 399,
+          "sink": "tr"
         }
       ]
     },
@@ -10731,7 +10741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 48,
+          "line": 49,
           "sink": "tr"
         }
       ]
@@ -10741,7 +10751,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 139,
+          "line": 144,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -10951,7 +10961,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 160,
+          "line": 166,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -11126,7 +11136,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 163,
+          "line": 169,
           "sink": "VirtualSessionStatus"
         },
         {
@@ -11141,17 +11151,17 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 411,
+          "line": 425,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 126,
+          "line": 127,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 243,
+          "line": 244,
           "sink": "tr"
         }
       ]
@@ -13301,12 +13311,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 154,
+          "line": 155,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 160,
+          "line": 161,
           "sink": "tr"
         }
       ]
@@ -14826,7 +14836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 352,
+          "line": 353,
           "sink": "tr"
         }
       ]
@@ -17061,7 +17071,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 478,
+          "line": 492,
           "sink": "tr"
         }
       ]
@@ -21861,7 +21871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 247,
+          "line": 248,
           "sink": "tr"
         }
       ]
@@ -22026,7 +22036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 576,
+          "line": 590,
           "sink": "tr"
         }
       ]
@@ -23596,7 +23606,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 496,
+          "line": 510,
           "sink": "tr"
         }
       ]
@@ -26181,7 +26191,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 331,
+          "line": 332,
           "sink": "tr"
         }
       ]
@@ -26406,7 +26416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 166,
+          "line": 174,
           "sink": "show_loading"
         }
       ]
@@ -26436,7 +26446,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 418,
+          "line": 424,
           "sink": "progress"
         }
       ]
@@ -26506,17 +26516,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 432,
+          "line": 446,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 450,
+          "line": 464,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 380,
+          "line": 381,
           "sink": "tr"
         }
       ]
@@ -29391,7 +29401,7 @@
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 142,
+          "line": 147,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -31581,7 +31591,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 154,
+          "line": 160,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -34306,7 +34316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 353,
+          "line": 354,
           "sink": "tr"
         }
       ]
@@ -34711,17 +34721,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 394,
+          "line": 400,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 410,
+          "line": 416,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 472,
+          "line": 478,
           "sink": "PermissionError"
         }
       ]
@@ -37643,6 +37653,26 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 1005,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Crimson Desert was updated. Apply changes again to load the items in this version.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 150,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
+      "key": "Crimson Desert was updated. Applying the items again…",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_list.py",
+          "line": 416,
+          "sink": "tr"
         }
       ]
     },
@@ -41421,7 +41451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 77,
+          "line": 78,
           "sink": "tr"
         }
       ]
@@ -41641,7 +41671,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 529,
+          "line": 535,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -42216,12 +42246,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 147,
+          "line": 148,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 250,
+          "line": 251,
           "sink": "tr"
         },
         {
@@ -42386,12 +42416,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 73,
+          "line": 74,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 225,
+          "line": 226,
           "sink": "tr"
         }
       ]
@@ -47476,12 +47506,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 147,
+          "line": 148,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 160,
+          "line": 161,
           "sink": "tr"
         },
         {
@@ -47546,7 +47576,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 225,
+          "line": 226,
           "sink": "tr"
         }
       ]
@@ -49406,7 +49436,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 42,
+          "line": 43,
           "sink": "tr"
         },
         {
@@ -49556,7 +49586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 253,
+          "line": 254,
           "sink": "tr"
         }
       ]
@@ -52291,7 +52321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 160,
+          "line": 161,
           "sink": "tr"
         }
       ]
@@ -57821,7 +57851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 352,
+          "line": 353,
           "sink": "tr"
         }
       ]
@@ -58766,7 +58796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 154,
+          "line": 155,
           "sink": "tr"
         },
         {
@@ -59081,7 +59111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 458,
+          "line": 470,
           "sink": "tr"
         }
       ]
@@ -69511,7 +69541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 438,
+          "line": 452,
           "sink": "tr"
         }
       ]
@@ -72341,7 +72371,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 154,
+          "line": 155,
           "sink": "tr"
         }
       ]
@@ -73196,7 +73226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 226,
+          "line": 227,
           "sink": "tr"
         }
       ]
@@ -76701,7 +76731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 444,
+          "line": 458,
           "sink": "tr"
         }
       ]
@@ -77037,7 +77067,7 @@
       ]
     },
     {
-      "key": "Loading items this way is experimental. After a game update, choose Apply changes again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.",
+      "key": "Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -77361,7 +77391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -78546,12 +78576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 161,
+          "line": 162,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 228,
+          "line": 229,
           "sink": "tr"
         }
       ]
@@ -84891,7 +84921,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 149,
           "sink": "tr"
         },
         {
@@ -85211,7 +85241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -85401,7 +85431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 344,
+          "line": 345,
           "sink": "tr"
         }
       ]
@@ -89846,22 +89876,22 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 149,
+          "line": 150,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 149,
+          "line": 150,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 151,
+          "line": 152,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 248,
+          "line": 249,
           "sink": "tr"
         },
         {
@@ -95591,7 +95621,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 149,
           "sink": "tr"
         }
       ]
@@ -103176,7 +103206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 351,
+          "line": 352,
           "sink": "tr"
         }
       ]
@@ -105831,12 +105861,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 248,
+          "line": 249,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 250,
+          "line": 251,
           "sink": "tr"
         },
         {
@@ -108821,7 +108851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 506,
+          "line": 520,
           "sink": "tr"
         }
       ]
@@ -108841,7 +108871,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 170,
+          "line": 176,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -109701,7 +109731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 475,
+          "line": 489,
           "sink": "tr"
         }
       ]
@@ -110051,7 +110081,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 315,
+          "line": 316,
           "sink": "tr"
         }
       ]
@@ -110257,6 +110287,16 @@
       ]
     },
     {
+      "key": "Preparing the items for any launcher…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 393,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Preparing the new editor scene. Your current scene remains open…",
       "origins": [
         {
@@ -110396,12 +110436,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 70,
+          "line": 78,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 202,
+          "line": 210,
           "sink": "show_loading"
         },
         {
@@ -114481,7 +114521,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 430,
+          "line": 442,
           "sink": "tr"
         }
       ]
@@ -114611,7 +114651,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 163,
+          "line": 169,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -114936,7 +114976,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 169,
+          "line": 175,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -117796,12 +117836,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 170,
+          "line": 176,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 127,
+          "line": 128,
           "sink": "tr"
         }
       ]
@@ -118791,7 +118831,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 264,
+          "line": 268,
           "sink": "progress"
         }
       ]
@@ -119396,7 +119436,7 @@
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 134,
+          "line": 139,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -121836,7 +121876,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 574,
+          "line": 588,
           "sink": "tr"
         }
       ]
@@ -121981,7 +122021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 572,
+          "line": 586,
           "sink": "tr"
         }
       ]
@@ -122046,7 +122086,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 221,
+          "line": 222,
           "sink": "tr"
         }
       ]
@@ -128891,7 +128931,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 220,
+          "line": 221,
           "sink": "tr"
         }
       ]
@@ -128926,7 +128966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 560,
+          "line": 574,
           "sink": "tr"
         }
       ]
@@ -130616,7 +130656,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 563,
+          "line": 569,
           "sink": "PermissionError"
         }
       ]
@@ -130626,7 +130666,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 632,
+          "line": 638,
           "sink": "PermissionError"
         }
       ]
@@ -133601,7 +133641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 56,
+          "line": 57,
           "sink": "tr"
         }
       ]
@@ -137356,7 +137396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 229,
+          "line": 230,
           "sink": "tr"
         }
       ]
@@ -139976,7 +140016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 440,
+          "line": 454,
           "sink": "tr"
         }
       ]
@@ -147106,7 +147146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 558,
+          "line": 572,
           "sink": "tr"
         }
       ]
@@ -147511,7 +147551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 456,
+          "line": 468,
           "sink": "tr"
         }
       ]
@@ -147521,7 +147561,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 436,
+          "line": 442,
           "sink": "progress"
         }
       ]
@@ -147531,12 +147571,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 481,
+          "line": 495,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 515,
+          "line": 529,
           "sink": "tr"
         }
       ]
@@ -148161,7 +148201,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         },
         {
@@ -153001,7 +153041,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 167,
+          "line": 173,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -153191,7 +153231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 327,
+          "line": 335,
           "sink": "_fail"
         }
       ]
@@ -153201,7 +153241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 340,
+          "line": 348,
           "sink": "_fail"
         }
       ]
@@ -153211,7 +153251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 82,
+          "line": 90,
           "sink": "_fail"
         }
       ]
@@ -153221,7 +153261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 306,
+          "line": 314,
           "sink": "_fail"
         }
       ]
@@ -153231,7 +153271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 358,
+          "line": 368,
           "sink": "show_error"
         }
       ]
@@ -155246,12 +155286,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 525,
+          "line": 531,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 529,
+          "line": 535,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -155330,6 +155370,16 @@
       "key": "The global character visibility test requires the game's character render definition.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "The graphics driver was reset. Reopening the workspace…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 384,
+          "sink": "emit"
+        }
+      ]
     },
     {
       "key": "The hair archive contains an incomplete or duplicate bundle.",
@@ -157356,7 +157406,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 529,
+          "line": 535,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -157846,12 +157896,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 503,
+          "line": 509,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 522,
+          "line": 528,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -158756,7 +158806,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 174,
+          "line": 177,
           "sink": "ValueError"
         }
       ]
@@ -158766,7 +158816,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 162,
+          "line": 168,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -158776,7 +158826,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 176,
+          "line": 179,
           "sink": "ValueError"
         }
       ]
@@ -158786,7 +158836,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 529,
+          "line": 535,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -159953,16 +160003,6 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 193,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "This executable build has not been verified for the virtual loader.",
-      "origins": [
-        {
-          "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 144,
-          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -163581,7 +163621,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -166336,7 +166376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 451,
+          "line": 465,
           "sink": "tr"
         }
       ]
@@ -166971,7 +167011,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 69,
+          "line": 70,
           "sink": "tr"
         }
       ]
@@ -169461,7 +169501,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 431,
+          "line": 437,
           "sink": "progress"
         }
       ]
@@ -170061,7 +170101,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_state.py",
-          "line": 391,
+          "line": 394,
           "sink": "on_log"
         }
       ]
@@ -170071,7 +170111,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 276,
+          "line": 280,
           "sink": "progress"
         }
       ]
@@ -170081,7 +170121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 463,
+          "line": 477,
           "sink": "tr"
         }
       ]
@@ -170906,17 +170946,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 504,
-          "sink": "VirtualSessionStatus"
-        },
-        {
-          "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 523,
+          "line": 510,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
           "line": 529,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 535,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -200651,7 +200691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 255,
+          "line": 256,
           "sink": "tr"
         }
       ]
@@ -201356,7 +201396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 254,
+          "line": 255,
           "sink": "tr"
         }
       ]
