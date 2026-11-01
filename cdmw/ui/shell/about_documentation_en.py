@@ -629,16 +629,27 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "research",
                 "title": "Research",
-                "summary": "Texture-family inspection, unknown-resolution, DDS QA, reports, and notes.",
-                "keywords": "research unknown resolver grouped families dds qa reports heatmaps notes references",
+                "summary": "Texture sets, texture types, classification review, references, UI size limits, rebuilt-texture checks and notes.",
+                "keywords": "asset research texture sets classification review label unknown references sidecar ui constraints getrect heatmap texture analysis mip normal budget notes",
                 "html": """
-                <p><b>Research</b> is the analysis surface for grouped texture families and metadata-heavy review.</p>
-                <ul>
-                  <li>Inspect grouped DDS families and their inferred semantic roles.</li>
-                  <li>Use <b>Unknown Resolver</b> to review and assign uncertain classifications.</li>
-                  <li>Open DDS analysis, reports, references, and local notes.</li>
-                  <li>Review planner/path/profile summaries and family-level context before committing to risky workflow overrides.</li>
-                </ul>
+                <p>Asset Research studies the textures in the current Archive Browser view: how they group into sets, what type each texture is, what refers to them, and how your rebuilt textures compare with the originals. It only reads the archives and does not change game files.</p>
+                <ol>
+                  <li>Load the archives in Archive Browser and filter it to the files you want to study.</li>
+                  <li>Open Asset Research under Utilities and click Refresh Research. Every page uses this snapshot until you refresh again.</li>
+                  <li>Choose a page in the row of tabs. The Archive Files panel on the right lists the same files; select one to preview it.</li>
+                </ol>
+                <table>
+                  <tr><th>Page</th><th>What it shows</th><th>What to do</th></tr>
+                  <tr><td>Texture Sets</td><td>Related textures grouped into sets, and the type given to each texture.</td><td>Select a set and click Extract Selected Set to extract its textures and sidecar files together.</td></tr>
+                  <tr><td>Classification Review</td><td>Textures that could not be classified with confidence, with a preview and the reasons for each suggestion.</td><td>Choose a label. Under Save to, pick this file, the unknown files in this family, or the unknown files in the selected families. Remove from deletes saved labels again.</td></tr>
+                  <tr><td>References</td><td>Materials, sidecars and XML files that point at a texture, or the textures a material uses.</td><td>Click Find References in Archive Files or double-click a file. You can also type an archive path and click Resolve.</td></tr>
+                  <tr><td>UI Constraints</td><td>UI textures whose size on screen is fixed by a GetRect box in the game's UI XML.</td><td>Click Scan UI Rect References. Upscaling such a texture alone does not make it bigger in game.</td></tr>
+                  <tr><td>Heatmap</td><td>Where textures concentrate, ranked by system area, folder and package.</td><td>Hover a row to see sample paths.</td></tr>
+                  <tr><td>Texture Analysis</td><td>Mip chains, normal maps and memory budget of your rebuilt textures compared with the originals.</td><td>In Textures, set both DDS folders, the originals and your rebuilt textures, then refresh. Select a row for details, or export the report as CSV or JSON.</td></tr>
+                  <tr><td>Notes</td><td>Your own notes and tags on archive files, Text Search results or compared files.</td><td>Choose a target, write the note and click Save Note. Notes are stored beside the EXE.</td></tr>
+                </table>
+                <p>Saved labels stay on this PC. Later scans and the texture policies used when you build reuse them.</p>
+                <div class="doc-callout doc-warning">Texture types and references come from file names, paths and sidecar files. Treat them as evidence to review, not as proof of how the game uses a texture.</div>
                 """,
             },
             {
