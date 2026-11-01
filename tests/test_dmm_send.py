@@ -66,7 +66,14 @@ def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
     # DMM reads every .json in a mod folder as a mod; only what DMM needs is shipped.
     shipped = {p.relative_to(result.folder).as_posix() for p in result.folder.rglob("*") if p.is_file()}
-    assert shipped - {"meta/0.pathc"} == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json"}
+    assert shipped - {"meta/0.pathc"} == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json",
+                                         "CDMW items - shops and groups.json"}
+    # Shops and groups go as additions DMM applies to base and DLC rows, not as table copies.
+    operations = json.loads((result.folder / "CDMW items - shops and groups.json").read_text(encoding="utf-8"))
+    ops = {target["file"]: target["intents"] for target in operations["targets"]}
+    assert operations["format"] == 3 and ops["storeinfo.pabgb"]
+    assert all(intent["op"] == "array_append" for intent in ops["storeinfo.pabgb"])
+    assert not any("storeinfo" in path or "itemgroupinfo" in path for path in overrides)
     # Archives stay as shipped; only the item identities are kept beside them.
     assert game_bytes(root) == before
     assert [p.relative_to(root).as_posix() for p in (root / ".cdmw").rglob("*") if p.is_file()] == [".cdmw/independent-items.json"]

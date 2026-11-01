@@ -58,6 +58,59 @@ def _group_additions(original, changed):
     return added
 
 
+_KINDS = (("staticinfobody", "staticinfoheader"), ("pabgb", "pabgh"))
+_BIN = "gamedata/binarystaticinfo__/bin/"
+
+
+def field_operations(files: Mapping[str, bytes], read_game: Callable[[str], Optional[bytes]], owned_items):
+    """Shop and group additions in the base tables as DMM V3 operations; those tables leave `files`.
+
+    DMM turns a changed table row into a whole-row edit and carries it into the DLC's copy
+    of that row, which drops what the DLC adds there. An append or union operation adds
+    CDMW's items to the base and DLC rows alike and leaves everything else in place.
+    """
+    from dataclasses import replace
+
+    from cdmw.core.dmm_item_fields import stock_value
+    from cdmw.core.storeinfo_table import encode_stock_entry
+
+    def stock(row, original):
+        added = _store_additions("storeinfo", original, row)
+        return [dict(op="array_append", key=row.key, field="stock_data_list",
+                     new=stock_value(encode_stock_entry(replace(entry, stock_index=len(original.entries) + index))))
+                for index, entry in enumerate(added)], [entry.item_key for entry in added]
+
+    def group(row, original):
+        added = _group_additions(original, row)
+        return [dict(op="array_union", key=row.key, field="item_info_list", new=added)] if added else [], added
+
+    result, targets = dict(files), []
+    owned = {int(key) for key in owned_items}
+    for name, read, lower in (("storeinfo", _stores, stock), ("itemgroupinfo", _groups, group)):
+        for body_kind, header_kind in _KINDS:
+            body, header = f"{_BIN}{name}.{body_kind}", f"{_BIN}{name}.{header_kind}"
+            if body not in files:
+                continue
+            game_header = read_game(header)
+            before = read(read_game(body), game_header)
+            after = read(files[body], files.get(header, game_header))
+            if set(after) != set(before):
+                raise DmmTableError(f"{name} gains or loses rows; DMM operations can only add to existing ones.")
+            intents = []
+            for key, row in after.items():
+                if row.raw == before[key].raw:
+                    continue
+                operations, items = lower(row, before[key])
+                if not set(items) <= owned:
+                    raise DmmTableError(f"{row.name!r} gains items that are not this mod's own; DMM cannot take that.")
+                intents += operations
+            result.pop(body, None)
+            result.pop(header, None)
+            if intents:
+                targets.append(dict(file=f"{name}.pabgb", intents=intents))
+    return result, targets
+
+
 def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Optional[bytes]], *,
                        on_log: Optional[Callable[[str], None]] = None) -> dict[str, bytes]:
     """`files` with DLC shop and group copies replaced by the same additions in the base tables."""

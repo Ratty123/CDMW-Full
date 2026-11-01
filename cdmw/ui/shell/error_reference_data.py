@@ -75185,7 +75185,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_send.py": 75
+      "cdmw/services/dmm_send.py": 77
     }
   },
   {
@@ -75193,7 +75193,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's mods folder {mods} does not exist. Open DMM once, then send again.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/dmm_send.py": 56
+      "cdmw/services/dmm_send.py": 58
     }
   },
   {
@@ -80251,7 +80251,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 133
+      "cdmw/services/dmm_send.py": 135
     }
   },
   {
@@ -81604,7 +81604,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no complete base and DLC copy of {name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 77
+      "cdmw/services/dmm_dlc_tables.py": 130
     }
   },
   {
@@ -87077,7 +87077,7 @@ MESSAGE_REFERENCE = [
     "message": "{'Shop' if name == 'storeinfo' else 'Item group'} {row.name} exists only in the DLC, and DMM does not take a mod's copy of a DLC table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 86
+      "cdmw/services/dmm_dlc_tables.py": 139
     }
   },
   {
@@ -87269,7 +87269,7 @@ MESSAGE_REFERENCE = [
     "message": "{install} is not DMM's folder; choose the folder that contains DMM.exe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_send.py": 47
+      "cdmw/services/dmm_send.py": 49
     }
   },
   {
@@ -87486,6 +87486,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/asset_authoring_service.py": 1140
+    }
+  },
+  {
+    "area": "other",
+    "message": "{name} gains or loses rows; DMM operations can only add to existing ones.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 98
     }
   },
   {
@@ -87742,6 +87750,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/dashboard_controller.py": 160
+    }
+  },
+  {
+    "area": "other",
+    "message": "{row.name} gains items that are not this mod's own; DMM cannot take that.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_dlc_tables.py": 105
     }
   },
   {
@@ -103184,7 +103200,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/dmm_dlc_tables.py": {
     "diagnostic_field": 1,
-    "raise": 7
+    "raise": 9
   },
   "cdmw/services/dmm_item_export.py": {
     "raise": 30

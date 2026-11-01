@@ -19,6 +19,8 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 
 DMM_FOLDER_SETTING = "dmm/install_folder"
+# DMM lists this as its own mod next to the folder; enable both.
+OPERATIONS_FILE = "CDMW items - shops and groups.json"
 _CDMW_GENERATOR = "Crimson Desert Mod Workbench"
 
 
@@ -145,11 +147,13 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
                "this takes about half a minute per item.")
     resolved, files, flags, pathc = compose_packages(paths, (), root, stop_event=stop_event, on_log=on_log,
                                                      progress=progress)
-    from cdmw.services.dmm_dlc_tables import fold_dlc_additions
+    from cdmw.services.dmm_dlc_tables import field_operations, fold_dlc_additions
     from cdmw.services.independent_item_package import stock_snapshot
     snapshot = stock_snapshot(root, stop_event=stop_event)
-    files = fold_dlc_additions(files, lambda path: snapshot.payload(path) if snapshot.has_entry(path) else None,
-                               on_log=on_log)
+    read_game = lambda path: snapshot.payload(path) if snapshot.has_entry(path) else None  # noqa: E731
+    files = fold_dlc_additions(files, read_game, on_log=on_log)
+    owned = {key for row in resolved.registry["items"].values() for key in row["values"].get("iteminfo", {}).values()}
+    files, targets = field_operations(files, read_game, owned)
     progress(90, "Writing the DMM mod…")
     additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
     # The texture registry goes along only when the items register textures: a copy of
@@ -167,6 +171,13 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         from cdmw.core.mod_export_history import retain_dmm_history
         retain_dmm_history(staged, stop_event=stop_event)
         (staged / "README.txt").unlink(missing_ok=True)
+        if targets:
+            # Shops and item groups go to DMM as additions it applies to the base and
+            # the DLC's rows alike, never as table copies that replace those rows.
+            operations = dict(format=3, modinfo=dict(name=f"{title} (shops and groups)", version="1.0.0",
+                                                     description="Adds CDMW's items to their shops and item groups."),
+                              targets=targets)
+            (staged / OPERATIONS_FILE).write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
         destination(mods, title)  # Refuse a folder that appeared meanwhile.
         # Record the item identities before the mod that uses them appears, so the
