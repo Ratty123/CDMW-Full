@@ -57,7 +57,7 @@ def assess_contribution(package, plan, snapshot, changes, bindings, *, target, s
                                 "field": list(assignment.field), "expected": assignment.expect,
                                 "value": assignment.value})
     for row in package_texture_requirements(package):
-        stock_edits.append({"module": "texture.replace", **row})
+        stock_edits.append({"module": "prefab.replace" if row["path"].endswith(".prefab") else "texture.replace", **row})
     links = contract(package)["links"]
     required = _required_keys(package, snapshot, changes)
     added = _added_keys(changes)

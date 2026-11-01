@@ -17,7 +17,7 @@ def texture_requirements(layer):
         owner, path, checksum = row['owner'], row['path'], row['sha256']
         if (not isinstance(owner, str) or not re.fullmatch(r'[0-9a-f]{32}/[a-z][a-z0-9_-]{0,63}', owner)
                 or owner.split('/')[0] != layer.get('independent_identity')
-                or not isinstance(path, str) or not path.endswith('.dds') or path != path.lower()
+                or not isinstance(path, str) or not path.endswith(('.dds', '.prefab')) or path != path.lower()
                 or path.startswith('/') or any(c in path for c in ('\\', ':', '\0'))
                 or any(part in ('', '.', '..') or part.rstrip(' .') != part for part in path.split('/'))
                 or not isinstance(checksum, str) or not re.fullmatch('[0-9a-f]{64}', checksum)

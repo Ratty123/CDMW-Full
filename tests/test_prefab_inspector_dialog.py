@@ -883,3 +883,43 @@ def test_without_archive_access_the_menu_entry_is_absent(qt_app: QApplication) -
     assert dialog._find_users is None
     dialog._show_other_users(PATH)
     assert dialog.log.toPlainText() == ""
+
+
+def test_opening_reads_off_the_ui_thread_and_shows_archive_progress(
+    qt_app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A click that changes nothing on screen reads as a broken button."""
+    from types import SimpleNamespace
+
+    from cdmw.ui.archive_browser import prefab_inspector_actions as actions
+
+    reads: list[str] = []
+
+    def _read(entry: object) -> tuple[bytes, bool, str]:
+        reads.append(entry.path)
+        return _build(), False, ""
+
+    monkeypatch.setattr(actions, "read_archive_entry_data", _read)
+    entry = SimpleNamespace(path="character/sword.prefab", basename="sword.prefab")
+    calls: list[dict[str, object]] = []
+    statuses: list[str] = []
+    shown: list[tuple[object, bytes, dict]] = []
+    browser = SimpleNamespace(
+        shell=SimpleNamespace(
+            set_status_message=lambda message, error=False: statuses.append(message),
+            _run_utility_task_when_idle=lambda **kwargs: calls.append(kwargs),
+        ),
+        archive_package_root_edit=SimpleNamespace(text=lambda: ""),
+        _current_archive_prefab_entry=lambda: entry,
+        _show_prefab_inspector=lambda *args: shown.append(args),
+    )
+
+    actions.ArchivePrefabInspectorActionsMixin._open_current_archive_prefab_inspector(browser)
+
+    assert statuses == ["Preparing Prefab Inspector for sword.prefab..."]
+    assert reads == [], "the payload must be read by the worker, not on the click"
+    assert len(calls) == 1 and calls[0]["show_archive_progress"] is True
+    result = calls[0]["task"](lambda _message: None)
+    assert reads == [entry.path]
+    calls[0]["on_complete"](result)
+    assert shown == [(entry, _build(), {})]

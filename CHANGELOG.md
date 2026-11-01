@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- The Prefab Inspector can save an edited prefab as an item package (.cditem) to add on the Mods page, alongside the loose folder for other mod managers. The package replaces only the game's own copy of that prefab. It refuses to load after a game update changes that copy, when the edit was made on another mod's version, or when the prefab points at a file the game does not contain. Two packages that want different versions of one prefab refuse instead of one silently winning. Loading edited prefabs in game is still untested.
+
 - Create New Item and Mod Management can send an item straight to DMM. **Send to DMM** writes the DMM mod folder into DMM's mods folder, and on Mod Management's Mods page a .cditem package is rebuilt as a DMM mod for the installed game first. CDMW finds DMM in its usual folder or asks once; enable the mod in DMM and click Mount. A mod folder another tool wrote is never replaced.
 
 - Archive Browser can reverse-search textures, sounds and other supported assets with Asset Family's Find references action. Asset Family and Used By separate confirmed paths and sound IDs from name-based guesses, with cancellation and visible search coverage limits.
@@ -40,6 +42,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Find references on an animation clip now finds the action charts, blend spaces and sequences that use it, which name clips relative to the game's motion folder. Blend spaces, action charts and sequences can be searched too. Clips named by charts and blend spaces are listed as confirmed references instead of name guesses, and language copies are no longer shown as cross-package hints. WEM details no longer report compressed sounds as 0-bit.
 
 - Find references no longer freezes the Archive Browser or reads the whole game for every search. It reads only the file types that store paths of the selected kind, lets the archive worker find the files that contain the name first, and redraws Asset Family only when results change. Named voice lines report that they are not searched, because the game picks them by name while it runs and no game file stores their path.
+
+- Opening the Prefab Inspector shows its progress in the Archive Browser's progress bar and log while the prefab is read and the archives are indexed, instead of appearing to do nothing for several seconds.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 

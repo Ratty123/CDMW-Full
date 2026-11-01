@@ -59,8 +59,9 @@ def texture_modules(package):
 
 
 def texture_resource_keys(package):
+    from cdmw.services.independent_prefab_package import prefab_resource_keys
     return {row['replacement'] for module in texture_modules(package)
-            for row in module['data']['replacements']}
+            for row in module['data']['replacements']} | prefab_resource_keys(package)
 
 
 def read_texture_modules(meta, blobs, *, stop_event=None):
@@ -113,8 +114,15 @@ def read_texture_modules(meta, blobs, *, stop_event=None):
 
 
 def package_texture_requirements(package):
+    """Final-bytes requirements of every typed existing-file replacement.
+
+    Prefab replacements share this inventory (and its `independent_textures`
+    ownership key) so install, composition and conflict checks treat both alike.
+    """
+    from cdmw.services.independent_prefab_package import package_prefab_requirements
     return [{'owner': f'{package.identity}/{module["id"]}', 'path': row['path'], 'sha256': row['replacement']}
-            for module in texture_modules(package) for row in module['data']['replacements']]
+            for module in texture_modules(package) for row in module['data']['replacements']
+            ] + package_prefab_requirements(package)
 
 
 def _registry_witness(snapshot, stop_event):
@@ -152,6 +160,8 @@ def _source_texture(snapshot, path, root, stop_event):
 
 
 def lower_texture_operations(package, snapshot, changes, *, stop_event=None):
+    from cdmw.services.independent_prefab_package import lower_prefab_operations
+    changes = lower_prefab_operations(package, snapshot, changes, stop_event=stop_event)
     modules = texture_modules(package)
     if not modules:
         return changes
