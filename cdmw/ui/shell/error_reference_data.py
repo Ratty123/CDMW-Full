@@ -32453,7 +32453,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay installation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 769
+      "cdmw/ui/new_item/panels_output.py": 806
     }
   },
   {
@@ -33651,7 +33651,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 757
+      "cdmw/ui/new_item/panels_output.py": 794
     }
   },
   {
@@ -33731,7 +33731,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 722
+      "cdmw/ui/new_item/panels_output.py": 731
     }
   },
   {
@@ -74766,6 +74766,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_send.py": 75
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's mods folder {mods} does not exist. Open DMM once, then send again.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/dmm_send.py": 56
+    }
+  },
+  {
+    "area": "other",
     "message": "Decoded DDS custom icon source with DirectXTex/native path before fitting: {source_path.name}",
     "recovery": "format",
     "sources": {
@@ -86590,6 +86606,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/item_icon_addition.py": 71
+    }
+  },
+  {
+    "area": "other",
+    "message": "{install} is not DMM's folder; choose the folder that contains DMM.exe.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_send.py": 47
     }
   },
   {
@@ -100009,6 +100033,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/new_item/controller_model_mixin.py",
     "cdmw/ui/new_item/controller_preview_mixin.py",
     "cdmw/ui/new_item/controller_task_mixin.py",
+    "cdmw/ui/new_item/dmm_send_ui.py",
     "cdmw/ui/new_item/effect_item_source.py",
     "cdmw/ui/new_item/effect_recipe_panel.py",
     "cdmw/ui/new_item/effect_workspace_controller.py",
@@ -102498,6 +102523,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/dmm_item_export.py": {
     "raise": 30
   },
+  "cdmw/services/dmm_send.py": {
+    "raise": 3
+  },
   "cdmw/services/effect_catalogue.py": {
     "raise": 2
   },
@@ -104449,6 +104477,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/new_item/controller_variant_mixin.py": {
     "raise": 2
+  },
+  "cdmw/ui/new_item/dmm_send_ui.py": {
+    "dialog": 1
   },
   "cdmw/ui/new_item/dye_editor.py": {},
   "cdmw/ui/new_item/dye_preview.py": {
