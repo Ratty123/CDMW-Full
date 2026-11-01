@@ -174,7 +174,7 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         if targets:
             # Shops and item groups go to DMM as additions it applies to the base and
             # the DLC's rows alike, never as table copies that replace those rows.
-            operations = dict(format=3, modinfo=dict(name=f"{title} (shops and groups)", version="1.0.0",
+            operations = dict(format=3, modinfo=dict(title=f"{title} (shops and groups)", version="1.0.0", author="CDMW",
                                                      description="Adds CDMW's items to their shops and item groups."),
                               targets=targets)
             (staged / OPERATIONS_FILE).write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
