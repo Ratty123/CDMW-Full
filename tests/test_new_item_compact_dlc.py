@@ -551,3 +551,13 @@ def test_compact_corruption_is_rejected(corruption):
         bad = b'\2' if corruption == 'presence' else b'\xff'*4
         raw = raw[:span.start]+bad+raw[span.start+len(bad):]
     with pytest.raises(ValueError): read_compact_layout(raw)
+
+
+def test_acquisition_index_is_decoded_once_per_table_content(tmp_path):
+    from cdmw.services.new_item_acquisition_index import load_acquisition_index
+    _service, snapshot = setup(tmp_path)
+    first = load_acquisition_index(snapshot.discovery_view())
+    second = load_acquisition_index(snapshot.discovery_view())
+    # Each plan reads through its own view; Apply used to decode every recipe again per plan.
+    assert second.recipes is first.recipes and second.rewards is first.rewards
+    assert second.pairs is not first.pairs

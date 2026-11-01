@@ -39,11 +39,37 @@ def _rows(pair):
             parse_pabgh_table(pair.header, payload=pair.payload).row_spans(len(pair.payload)))
 
 
+# Decoded indexes by the content of the tables they come from. Each plan reads through
+# its own snapshot view, whose cache starts empty, and decoding about 40,000 recipes
+# took 15-30 s a plan; Apply plans every package once or twice.
+_SHARED = {}
+_SHARED_LIMIT = 4
+
+
+def _content_key(snapshot):
+    import hashlib
+    from cdmw.services.new_item_tables import table_pairs
+    key = []
+    for name in ("multichangeinfo", "dropsetinfo", "itemuseinfo", "crafttoolinfo", "knowledgeinfo", "iteminfo"):
+        for pair in table_pairs(snapshot, name):
+            key.append((name, hashlib.sha256(pair.header).digest(), hashlib.sha256(pair.payload).digest()))
+    return tuple(key)
+
+
 def load_acquisition_index(snapshot, *, stop_event=None):
     cached = snapshot._authoring_indexes.get("acquisition")
     if cached is not None:
         return cached
     pairs = {name: optional_pair(snapshot, name) for name in ("multichangeinfo", "dropsetinfo", "itemuseinfo", "crafttoolinfo", "knowledgeinfo")}
+    # Reading the pairs above records them as this view's inputs; only decoding is shared.
+    content = _content_key(snapshot)
+    shared = _SHARED.get(content)
+    if shared is not None:
+        # The pairs name this game's archive entries; only the decoded rows are shared.
+        from dataclasses import replace
+        result = replace(shared, pairs=MappingProxyType(pairs))
+        snapshot._authoring_indexes["acquisition"] = result
+        return result
     unsupported, decoded = {}, {}
     for name, parser, encoder in (("multichangeinfo", parse_item_recipe, encode_item_recipe),
                                   ("dropsetinfo", parse_item_reward_set, encode_item_reward_set),
@@ -94,4 +120,7 @@ def load_acquisition_index(snapshot, *, stop_event=None):
                               all_use_keys, tuple(consumers), names["crafttoolinfo"], names["knowledgeinfo"],
                               MappingProxyType(unsupported), MappingProxyType(recipe_items))
     snapshot._authoring_indexes["acquisition"] = result
+    while len(_SHARED) >= _SHARED_LIMIT:
+        _SHARED.pop(next(iter(_SHARED)))
+    _SHARED[content] = result
     return result
