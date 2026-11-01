@@ -187,6 +187,29 @@ def test_new_item_without_a_keyed_template_leaves_the_table_alone(tmp_path):
     assert BONE_OFFSET_PATH not in plan.loose_files
 
 
+def test_an_unkeyed_template_does_not_make_the_table_an_input(tmp_path, monkeypatch):
+    import tests.test_new_item_provenance as provenance
+    original = provenance.current_files
+
+    def files():
+        result = original()
+        result[BONE_OFFSET_PATH] = TABLE.replace(b"cd_phm_01_sword_0109_r", b"cd_phm_01_sword_0110_r")
+        return result
+    monkeypatch.setattr(provenance, "current_files", files)
+    snapshot, plan = imported_plan(tmp_path, capture_independent=True)
+    assert snapshot.has_entry(BONE_OFFSET_PATH)
+    assert "bone_offsets" not in plan.manifest and BONE_OFFSET_PATH not in plan.loose_files
+    # Packages made before fits were carried never pinned the table; reading it here
+    # made Apply refuse them as made without the DLC.
+    assert BONE_OFFSET_PATH not in {row.entry.path.lower() for row in plan.source_revision.payloads}
+
+
+def test_a_carried_fit_pins_the_table(tmp_path, keyed_game):
+    snapshot, plan = imported_plan(tmp_path, capture_independent=True)
+    assert plan.manifest["bone_offsets"]
+    assert BONE_OFFSET_PATH in {row.entry.path.lower() for row in plan.source_revision.payloads}
+
+
 def test_independent_items_compose_their_entries_and_uninstall_cleanly(tmp_path, keyed_game):
     from cdmw.services.independent_item_package import from_plan, package_bytes
     from tests.test_independent_items import Backups, imported_game, load_registry, prepare_install, prepare_remove, snapshot_of
