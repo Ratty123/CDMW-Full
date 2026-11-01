@@ -137,9 +137,12 @@ def _element_end(data: bytes, walk_end: int, pointee_start: int) -> int:
 def element_bounds(data: bytes, document: PrefabDocument, collection_index: int, element_index: int) -> Tuple[int, int, int]:
     """(header start, end, name pointer site) of one collection element.
 
-    The walk's span starts with the previous element's trailing name-length field
-    and stops short of this element's own, so these are the bytes that make the
-    element a whole object: from its header to the end of its own field.
+    Under the fallback readings the walk's span starts with the previous
+    element's trailing name-length field and stops short of this element's own,
+    so these are the bytes that make the element a whole object: from its header
+    to the end of its own field. The group-list reading consumes and records that
+    field, so its span already ends there, and a scan from there would find the
+    next one.
     """
 
     collection = document.collections[collection_index]
@@ -148,6 +151,9 @@ def element_bounds(data: bytes, document: PrefabDocument, collection_index: int,
     site = next((p.site for p in document.pointers if p.site >= header), None)
     if site is None or site >= walk_end:
         raise PrefabEditError(f"element at 0x{header:x} has no name record")
+    recorded = dict(document.pointee_length_fields).get(site)
+    if recorded is not None and recorded + 4 == walk_end:
+        return header, walk_end, site
     return header, _element_end(data, walk_end, site + 4), site
 
 

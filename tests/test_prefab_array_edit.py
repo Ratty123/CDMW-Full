@@ -270,3 +270,63 @@ def test_shipped_prefabs_survive_duplicate_then_remove() -> None:
 
     assert attempted, "no shipped prefab offered a resizable collection"
     assert exact == attempted, f"{len(differing)} of {attempted} did not round trip: {differing[:3]}"
+
+
+def _holder_field(document):
+    """(site, field) of the object holding the nested collection."""
+    nested = document.collections[1]
+    return next(
+        (site, field)
+        for site, field in document.pointee_length_fields
+        if site + 4 < nested.header_offset and field >= nested.elements[-1][1]
+    )
+
+
+def test_a_nested_duplicate_grows_every_pointee_around_it() -> None:
+    """The holder's name pointee encloses its _components, so a copied leaf
+    makes it longer by exactly the copy. Kept at its old value, the field no
+    longer closes the holder, and the round trip still came back exact."""
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups()
+    before = decode_prefab_binary(data)
+    site, field = _holder_field(before)
+    start, end = before.collections[1].elements[0]
+
+    result = duplicate_prefab_element(data, 1, 0)
+
+    grown = result.data
+    delta = end - start
+    assert struct.unpack_from("<I", grown, field + delta)[0] == struct.unpack_from("<I", data, field)[0] + delta
+    after = decode_prefab_binary(grown)
+    assert after.walk_complete, after.walk_note
+    assert len(after.pointee_length_fields) == len(before.pointee_length_fields) + 1
+    assert remove_prefab_element(grown, 1, 1).data == data
+
+
+def test_removing_a_nested_element_shrinks_the_pointee_around_it() -> None:
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups(("Alpha", "Beta", "Gamma"))
+    before = decode_prefab_binary(data)
+    site, field = _holder_field(before)
+    start, end = before.collections[1].elements[1]
+
+    shrunk = remove_prefab_element(data, 1, 1).data
+
+    delta = start - end
+    assert struct.unpack_from("<I", shrunk, field + delta)[0] == struct.unpack_from("<I", data, field)[0] + delta
+    assert decode_prefab_binary(shrunk).collections[1].count == 2
+
+
+def test_a_resize_that_leaves_an_enclosing_length_stale_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The read-back check, not the writer, is what catches a missed field."""
+    from cdmw.core import prefab_array_edit
+    from tests.prefab_collection_builder import build_nested_groups
+
+    monkeypatch.setattr(prefab_array_edit, "_enclosing_fields", lambda *args, **kwargs: {})
+
+    # Either the walk no longer closes (the stale field is left over) or it
+    # closes with one field fewer; both are refusals.
+    with pytest.raises(PrefabEditError, match="no longer reads all the way|pointee length field"):
+        duplicate_prefab_element(build_nested_groups(), 1, 0)

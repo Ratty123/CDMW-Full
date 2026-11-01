@@ -25,7 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- The Prefab Inspector reads about 96% of the game's prefabs all the way through, up from about 76%, including spline, Houdini, audio and mesh-group gimmicks and prefabs with nested prefab instances. On those, paths can be retargeted at any length, placements moved and objects duplicated or removed, and they can be saved as item packages, where before only same-length path swaps were allowed. Prefabs that already read completely show the same objects, apart from some nested prefabs that now also list empty child entries that were skipped before. Loading edited prefabs in game is still untested.
+- The Prefab Inspector reads about 99% of the game's prefabs all the way through, up from about 76%, including spline, Houdini, audio and mesh-group gimmicks and prefabs with nested prefab instances. On those, paths can be retargeted at any length, placements moved and objects duplicated or removed, and they can be saved as item packages, where before only same-length path swaps were allowed. Prefabs that already read completely show the same objects, apart from some nested prefabs that now also list empty child entries that were skipped before, and a few large scene prefabs that now list hundreds of asset paths the earlier reading stepped over. Fewer path changes are refused as undecidable, and prefabs whose layout could be read two ways no longer refuse object edits. Loading edited prefabs in game is still untested.
 
 - Mesh Editor and Create New Item preview existing glass visors and net veils, such as the bridal veil helmet `cd_phw_00_hel_00_0219`, as see-through instead of solid.
 

@@ -112,3 +112,86 @@ def build_with_collection(
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     data_header += struct.pack("<II", base, len(blob))
     return bytes(header + pool + data_header + blob)
+
+
+#: Attribute flags of a list member that is still written when unselected
+#: (``_components``), and of a type that holds lists.
+LIST_ATTR = 0x1008
+
+
+def typed_member(name: str, type_name: str, flags: int, size: int = 0, attr: int = 0, extra: int = 0) -> bytes:
+    return text(name) + text(type_name) + struct.pack("<HHHH", flags, size, attr, extra)
+
+
+class GroupBlob:
+    """A blob written to the group grammar the shipped prefabs use.
+
+    Each object is ``header, owner, name pointer``, then its name pointee: the
+    name record, the selected members, an unselected list as the byte 01, and
+    finally the u32 that closes the pointee -- its own distance from the
+    pointee start. That closing field is what makes an object's bytes its own.
+    """
+
+    def __init__(self, base: int) -> None:
+        self.base = base
+        self.out = bytearray()
+        self.out += struct.pack("<H", 2) + (0b1).to_bytes(6, "little")  # root: member 0
+
+    def element(self, type_index: int, mask: int, name: str, members) -> tuple[int, int]:
+        """Write one object; ``members(self)`` writes its body. Returns its span."""
+        start = len(self.out)
+        self.out += struct.pack("<H", 1) + bytes((mask, type_index, 0, 0))
+        self.out += b"\xff" * 8
+        self.out += struct.pack("<I", self.base + len(self.out) + 4)
+        name_start = len(self.out)
+        self.out += struct.pack("<HHH", 0, 1, 0) + text(name)
+        members(self)
+        self.out += struct.pack("<I", len(self.out) - name_start)
+        return self.base + start, self.base + len(self.out)
+
+    def collection(self, writers) -> None:
+        self.out += b"\x00" + struct.pack("<I", len(writers))
+        for write in writers:
+            write(self)
+
+
+def build_nested_groups(leaves=("Alpha", "Beta"), *, nested_type: str = "Holder", holder_mask: int = 0b011) -> bytes:
+    """A root ``_childSceneObjects`` holding one object that holds ``leaves``.
+
+    The holder declares ``_label``, ``_components`` and an unselected
+    ``_tags`` list, written as the byte 01 after the nested collection.
+    ``holder_mask`` 0b001 leaves ``_components`` unselected too: a nested
+    prefab instance (``nested_type`` starting ``/``) still writes it in full.
+    """
+    types = bytearray()
+    types += text("SceneObject") + struct.pack("<H", 1)
+    types += typed_member("_childSceneObjects", "ReflectObjectPtr", KIND_COLLECTION, attr=0x1028)
+    types += text(nested_type) + struct.pack("<H", 3)
+    types += typed_member("_label", "IndexedStringA", KIND_STRING, 1)
+    types += typed_member("_components", "ReflectObjectPtr", KIND_COLLECTION, attr=LIST_ATTR)
+    types += typed_member("_tags", "ReflectObjectPtr", KIND_COLLECTION, attr=LIST_ATTR)
+    types += text("Leaf") + struct.pack("<H", 1)
+    types += typed_member("_path", "IndexedStringA", KIND_STRING, 1)
+
+    header = bytearray()
+    header += struct.pack("<HHH", 0xFFFF, 4, 0) + b"\x00" * 8
+    header += struct.pack("<I", 15) + struct.pack("<H", 3) + types
+    pool = struct.pack("<I", 0)
+    base = len(header) + len(pool) + 28
+
+    blob = GroupBlob(base)
+
+    def leaf(label: str):
+        return lambda b: b.element(2, 0b1, label, lambda inner: inner.out.extend(text(f"asset/{label.lower()}.pac")))
+
+    def holder(b: GroupBlob) -> None:
+        b.out += text("holder")
+        b.collection([leaf(label) for label in leaves])
+        b.out += b"\x01"  # the unselected _tags
+
+    blob.collection([lambda b: b.element(1, holder_mask, "Holder", holder)])
+    data = blob.out
+    data_header = struct.pack("<III", 1, base + len(data), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", base, len(data))
+    return bytes(header + pool + data_header + data)

@@ -63,6 +63,7 @@ from typing import Sequence
 
 from cdmw.core.prefab_binary import (
     _INDEXED_OBJECT_LIST,
+    READING_GROUP_LISTS,
     PrefabCollection,
     PrefabDocument,
     decode_prefab_binary,
@@ -294,6 +295,12 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
         struct.pack_into("<I", rebuilt, moved_field, moved_field - (site + 4))
 
     _patch_data_header(rebuilt, document, delta)
+    expected_fields = None
+    if document.reading == READING_GROUP_LISTS:
+        # That reading records every object's name-length field, so the result
+        # must carry the source's fields plus (or minus) the block's own.
+        inside = sum(1 for site, field in document.pointee_length_fields if start <= site and field < end)
+        expected_fields = len(document.pointee_length_fields) + (inside if insert else -inside)
     _verify_resize(
         bytes(rebuilt),
         payload,
@@ -302,6 +309,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
         expected_pointers=len(relocated),
         delta=delta,
         twins=(element_index, element_index + 1, len(block)) if insert else None,
+        expected_fields=expected_fields,
     )
 
     verb = "Duplicated" if insert else "Removed"
@@ -336,6 +344,7 @@ def _verify_resize(
     expected_pointers: int,
     delta: int,
     twins: tuple[int, int, int] | None,
+    expected_fields: int | None = None,
 ) -> None:
     """Read the result back and refuse it unless it is the file it claims to be.
 
@@ -385,6 +394,14 @@ def _verify_resize(
                     f"duplicated element is {expected_span}; the copy did not "
                     "re-read as its own source"
                 )
+    # The walk records a length field only where it equals its own distance from
+    # its pointee, so a field the splice left stale is a field missing -- which
+    # a round trip cannot see, since both directions forget it alike.
+    if expected_fields is not None and len(after.pointee_length_fields) != expected_fields:
+        raise PrefabEditError(
+            f"The resized prefab reads back with {len(after.pointee_length_fields)} "
+            f"pointee length field(s) intact, expected {expected_fields}"
+        )
     found = pointer_sites(rebuilt, after.blob_offset, after.blob_length)
     if len(found) != expected_pointers:
         raise PrefabEditError(
