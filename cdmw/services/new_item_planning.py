@@ -671,15 +671,21 @@ class _Planner(EffectPlanningMixin):
         def stem(path: str) -> str:
             return path.replace("\\", "/").rsplit("/", 1)[-1][:-len(".prefab")]
 
-        source = self.snapshot.payload(BONE_OFFSET_PATH)
+        # Only a plan that copies a fit depends on the table. Looking without recording
+        # the read keeps the table out of every other plan's inputs, so item packages
+        # made before fits were carried still match what they pinned.
+        reader = getattr(self.snapshot.provenance, "reader", None)
+        peeked = bytes(reader(self.snapshot.entry(BONE_OFFSET_PATH))) if reader is not None else self.snapshot.payload(BONE_OFFSET_PATH)
         try:
-            keyed = prefab_entry_names(source)
+            keyed = prefab_entry_names(peeked)
             copies = [(stem(old), stem(new)) for new, old in self.prefab_copies.items() if stem(old).lower() in keyed]
-            changed = clone_prefab_entries(source, copies) if copies else source
+            if not copies:
+                return
+            source = self.snapshot.payload(BONE_OFFSET_PATH)
+            changed = clone_prefab_entries(source, copies)
         except BoneOffsetTableError as exc:
             raise NewItemPlanError(f"Cannot carry the template's bone offsets: {exc}") from exc
-        if copies:
-            self.manifest["bone_offsets"] = [{"source_prefab": old, "output_prefab": new} for old, new in copies]
+        self.manifest["bone_offsets"] = [{"source_prefab": old, "output_prefab": new} for old, new in copies]
         if changed != source:
             self.patch(self.snapshot.entry(BONE_OFFSET_PATH), changed,
                        f"Bone offsets: the template's fit correction copied for {len(copies)} prefab(s)")
