@@ -77,8 +77,11 @@ def decode(data, *, limit=MAX_MANIFEST):
 
 def validate_profile(value):
     expected = {'format', 'generation', 'items', 'packages', 'mods', 'files', 'sources', 'inventories', 'observed'}
-    if not isinstance(value, dict) or set(value) - {'disabled_packages', 'disabled_mods', 'catalogue', 'build_cache'} not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
+    if not isinstance(value, dict) or set(value) - {'disabled_packages', 'disabled_mods', 'catalogue', 'build_cache', 'executable_sha256'} not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
         raise VirtualLoaderError('Unsupported virtual profile.')
+    if 'executable_sha256' in value and not (isinstance(value['executable_sha256'], str)
+                                             and re.fullmatch('[a-f0-9]{64}', value['executable_sha256'])):
+        raise VirtualLoaderError('Invalid virtual profile game build.')
     if 'compiler' in value:
         try:
             validate_compiler_stamp(value['compiler'])

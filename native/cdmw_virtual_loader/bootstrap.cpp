@@ -83,23 +83,40 @@ bool VerifiedBootstrap::accepts(const char* name, void* current, void* expected)
             readable(base + row.import, sizeof(void*), module) && *reinterpret_cast<void* const*>(base + row.import) == expected;
     return false;
 }
-bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game) {
-    return matches_startup_frames(frames, bootstrap, game, false);
+bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game_begin, uintptr_t game_end) {
+    return matches_startup_frames(frames, bootstrap, game_begin, game_end, false);
 }
-bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game, bool current_layout) {
-    if (!bootstrap || !game) return false;
+bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game_begin, uintptr_t game_end, bool current_layout) {
+    if (!bootstrap || !game_begin || game_end <= game_begin) return false;
     const auto expected = current_layout ?
-        std::array<uintptr_t, 5>{bootstrap + 0x218a1, bootstrap + 0x30df8,
-            bootstrap + 0x333b3, bootstrap + 0x1f918, game + game_startup_return} :
-        std::array<uintptr_t, 5>{bootstrap + 0x21785, bootstrap + 0x308e8,
-            bootstrap + 0x32e13, bootstrap + 0x1f848, game + game_startup_return};
-    for (size_t i = 0; i + expected.size() <= frames.size(); ++i) {
+        std::array<uintptr_t, 4>{bootstrap + 0x218a1, bootstrap + 0x30df8, bootstrap + 0x333b3, bootstrap + 0x1f918} :
+        std::array<uintptr_t, 4>{bootstrap + 0x21785, bootstrap + 0x308e8, bootstrap + 0x32e13, bootstrap + 0x1f848};
+    for (size_t i = 0; i + expected.size() < frames.size(); ++i) {
         bool same = true;
         for (size_t j = 0; j < expected.size(); ++j)
             same = same && reinterpret_cast<uintptr_t>(frames[i + j]) == expected[j];
-        if (same) return true;
+        const auto caller = reinterpret_cast<uintptr_t>(frames[i + expected.size()]);
+        if (same && caller >= game_begin && caller < game_end) return true;
     }
     return false;
+}
+namespace {
+// The game image's extent from its own PE headers, and whether `address` is
+// executable code inside it (not data, a heap page or another module).
+bool game_code(HMODULE game, void* address, uintptr_t& begin, uintptr_t& end) {
+    const auto base = reinterpret_cast<const unsigned char*>(game);
+    if (!game) return false;
+    const auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    const auto nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+    begin = reinterpret_cast<uintptr_t>(base);
+    end = begin + nt->OptionalHeader.SizeOfImage;
+    MEMORY_BASIC_INFORMATION info{};
+    if (!address || !VirtualQuery(address, &info, sizeof info) || info.Type != MEM_IMAGE || info.AllocationBase != game) return false;
+    constexpr DWORD executable = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    return info.State == MEM_COMMIT && (info.Protect & executable) != 0;
+}
 }
 bool first_live_thread() {
     FILETIME current{}, exit{}, kernel{}, user{};
@@ -127,8 +144,18 @@ bool VerifiedBootstrap::accepts_startup(std::span<void* const> frames, HMODULE g
         matches(base + 0x1f8f0, "4883ec38488b4c2438488d0538ce0600488d542420488944242048c74424280f000000e8481901004883c43848ff25bd470600", module) :
         matches(base + 0x1f820, "4883ec38488b4c2438488d0588ab0600488d542420488944242048c74424280f000000e8f81401004883c43848ff258d280600", module);
     const auto import = current_layout ? 0x840e0 : 0x820e0;
-    return startup && readable(base + import, sizeof(void*), module) &&
-        *reinterpret_cast<void* const*>(base + import) == reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetCommandLineW")) &&
-        matches_startup_frames(frames, reinterpret_cast<uintptr_t>(module), reinterpret_cast<uintptr_t>(game), current_layout);
+    if (!startup || !readable(base + import, sizeof(void*), module) ||
+        *reinterpret_cast<void* const*>(base + import) != reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetCommandLineW")))
+        return false;
+    // The bootstrap's frames are exact; the game's caller may sit anywhere in its own
+    // code, so the runtime keeps working when an update moves that call site.
+    const auto bootstrap = reinterpret_cast<uintptr_t>(module);
+    for (size_t i = 0; i < frames.size(); ++i) {
+        uintptr_t begin{}, end{};
+        if (game_code(game, frames[i], begin, end) &&
+            matches_startup_frames(frames.subspan(i >= 4 ? i - 4 : 0, i >= 4 ? 5 : 0), bootstrap, begin, end, current_layout))
+            return true;
+    }
+    return false;
 }
 }

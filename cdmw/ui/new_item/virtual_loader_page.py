@@ -383,8 +383,22 @@ class VirtualLoaderPage(QWidget):
             self.progress.hide()
             self.activity.emit(self.tr('Profile applied.'))
             self.profile_applied.emit()
-            self._queue(self.refresh)
+            self._queue(self._publish_for_launchers)
         self._run(lambda log, stop: publish_profile(prepared, stop_event=stop, on_log=log), done, applying=True)
+
+    def _publish_for_launchers(self):
+        """Let Steam, DMM and any other launcher load the applied items, not only Launch game."""
+        from cdmw.services.virtual_loader_standalone import publish_standalone, withdraw_standalone
+        root, profile = self.package_root, self._profile()
+        self.status.setText(self.tr('Preparing the items for any launcher…'))
+        def task(log, progress, stop):
+            if not (profile.packages or profile.mods):
+                return withdraw_standalone(root)
+            return publish_standalone(root, stop_event=stop, on_progress=progress)
+        def done(_result):
+            self.activity.emit(self.tr('Applied. Launch game, Steam or DMM will load the items.'))
+            self._queue(self.refresh)
+        self._run(task, done, applying=True, with_progress=True)
 
     def _runtime_refreshed(self, result, *, update_status=True):
         state, profile = result

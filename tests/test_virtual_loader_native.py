@@ -300,7 +300,7 @@ def test_native_production_redirect_gate_cannot_be_enabled_by_manifest(tmp_path)
 
 
 @pytest.mark.parametrize('opt_in', [False, True])
-def test_controlled_probe_requires_host_opt_in_and_exact_game(tmp_path, opt_in):
+def test_controlled_probe_requires_host_opt_in_and_a_real_steam_claim(tmp_path, opt_in):
     root, request, _token = fixture(tmp_path)
     shutil.copy2(TEST_BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/CrimsonDesert.exe')
     launcher = root / 'bin64/steam.exe'
@@ -317,7 +317,9 @@ def test_controlled_probe_requires_host_opt_in_and_exact_game(tmp_path, opt_in):
         command.append('--controlled-probe')
     result = subprocess.run(command, capture_output=True, timeout=10)
     assert result.returncode != 0
-    assert (b'Unsupported executable build' if opt_in else b'reviewed host opt-in') in result.stderr
+    # No game build is pinned any more; with the opt-in, the fixture launcher still
+    # cannot produce a genuine Steam runtime claim, so nothing is activated.
+    assert (b'Invalid Steam runtime claim' if opt_in else b'reviewed host opt-in') in result.stderr
     assert not (root / '.cdmw/virtual-loader/session.bin').exists()
     assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
 

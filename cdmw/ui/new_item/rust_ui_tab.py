@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QProcess, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -18,6 +19,12 @@ from cdmw.ui.new_item.rust_ui_document import theme_snapshot
 from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
 from cdmw.ui.new_item.rust_ui_portals import PreviewPortals
 from cdmw.workers.utility_workers import UtilityWorker
+
+# What wgpu and DXGI print when the graphics device is removed or reset under the interface.
+_DEVICE_RESET_SIGNS = (
+    "device instance has been suspended", "DEVICE_REMOVED", "DEVICE_RESET", "DEVICE_HUNG",
+    "0x887A0005", "0x887A0006", "0x887A0007", "Parent device is lost", "Device lost", "device lost",
+)
 
 
 class RustNewItemStudioTab(QWidget):
@@ -55,6 +62,7 @@ class RustNewItemStudioTab(QWidget):
         self._snapshot_prewarm_requested = False
         self._stopping = False
         self._restart_pending = False
+        self._device_resets = []
         self._reader = JsonLineReader()
         self._stderr = ""
         self._sent_generation = 0
@@ -355,8 +363,27 @@ class RustNewItemStudioTab(QWidget):
             self._launch.cleanup()
             self._launch = None
         if not self._stopping and not self._closed and self._rust_mode:
+            if self._recover_from_device_reset():
+                return
             self._host.show_error("The Rust interface stopped. Use Retry to reopen the same workspace.\n" + self._stderr[-2000:])
         self._restart_if_idle()
+
+    def _recover_from_device_reset(self):
+        """Reopen the interface after the graphics device was reset, as Retry does.
+
+        A driver install, update or GPU reset removes the device under every Direct3D
+        window; the interface cannot keep drawing, but the workspace state lives here.
+        A few resets a minute are recovered; more fall through to the Retry message.
+        """
+        if not any(sign in self._stderr for sign in _DEVICE_RESET_SIGNS):
+            return False
+        now = time.monotonic()
+        self._device_resets = [stamp for stamp in self._device_resets if now - stamp < 60] + [now]
+        if len(self._device_resets) > 3:
+            return False
+        self.status_message_requested.emit("The graphics driver was reset. Reopening the workspace…", False)
+        QTimer.singleShot(2000, self, self._retry)
+        return True
 
     def _fail(self, message):
         self._restart_pending = False

@@ -25,7 +25,7 @@ def test_launch_preflight_avoids_baseline_rehash_but_passes_every_guard_to_host(
     monkeypatch.setattr(runtime, 'hash_file', hashed)
     def start(game, profile, **kwargs):
         _token, raw = runtime.session_manifest(game, profile, mode=kwargs['mode'],
-            executable_sha256=runtime.GAME_SHA256, launcher=runtime._steam_launcher(),
+            executable_sha256=runtime.installed_game_sha256(game), launcher=runtime._steam_launcher(),
             extra_guards=kwargs['extra_guards'])
         manifests.append((profile, raw))
         return VirtualSessionStatus('starting', 'a' * 32, profile['generation'], 123)

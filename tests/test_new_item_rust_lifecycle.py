@@ -166,3 +166,25 @@ def test_explicit_hidden_prewarm_still_sends_state_and_idles_after_acknowledgeme
     _message(tab, "state_received", generation=tab._sent_generation)
     _message(tab, "layout", generation=tab._sent_generation, pixels_per_point=1, portals=[])
     assert tab._first_frame_ready and errors == []
+
+
+def test_a_graphics_device_reset_reopens_the_interface_instead_of_stopping(presentation, monkeypatch):
+    # An AMD driver install removed the device under the interface on 2026-11-01; wgpu panicked.
+    _app, tab, _process, _errors = presentation
+    shown, retries = [], []
+    monkeypatch.setattr(tab._host, "show_error", shown.append)
+    monkeypatch.setattr("cdmw.ui.new_item.rust_ui_tab.QTimer.singleShot",
+                        lambda _ms, _receiver, slot: retries.append(slot))
+    reset = ("QueryVideoMemoryInfo failed: The GPU device instance has been suspended. "
+             "Use GetDeviceRemovedReason to determine the appropriate action. (0x887A0005)\n"
+             "thread 'main' panicked: Failed to create staging buffer for index data.")
+    for attempt in range(3):
+        tab._stderr = reset
+        tab._process_finished()
+        assert not shown and len(retries) == attempt + 1
+    tab._stderr = reset
+    tab._process_finished()  # A fourth reset within a minute leaves the choice to the user.
+    assert len(shown) == 1 and "Use Retry" in shown[0]
+    tab._stderr = "thread 'main' panicked at an unrelated assertion"
+    tab._process_finished()
+    assert len(shown) == 2 and len(retries) == 3

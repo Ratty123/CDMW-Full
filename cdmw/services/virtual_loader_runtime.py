@@ -17,11 +17,16 @@ from cdmw.services.virtual_loader_composition import hash_file
 from cdmw.services.virtual_loader_state import target, load_profile, generation_path, decode, read_optional
 from cdmw.services.application_shutdown_service import archive_write_scope
 
-GAME_SHA256 = '4e38ce1d8fe98eee7be0e26026a1d24ea6a17e80aa88e906b5f3ed553af11f63'  # 1.0.0.3460, native game_hash
 BOOTSTRAP_SHA256 = '810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf'
 BOOTSTRAP_CURRENT_SHA256 = 'fa266e3513d02c08a1b808f28c10538a489eaffaa4b0707f7cc1066e71b5afd7'
 GAME_REDIRECTION_APPROVED = False  # General redirect mode stays closed; reviewed experiments use mode 3.
 RUNTIME_PATH = 'bin64/CDMWVirtualLoader.asi'
+
+
+def installed_game_sha256(root, stop_event=None):
+    """The installed game executable's hash. No build is pinned: a profile records the
+    build it was applied against and an update makes it stale until applied again."""
+    return hash_file(target(Path(root), 'bin64/CrimsonDesert.exe'), stop_event)
 OWNER_PATH = '.cdmw/virtual-loader/runtime-owner.json'
 _security_blocks = {}  # Actual Windows refusals, keyed by build hash for this app session only.
 
@@ -140,8 +145,9 @@ def runtime_status(root, *, experimental=False, stop_event=None):
     exe = target(root, 'bin64/CrimsonDesert.exe')
     if not exe.is_file():
         return VirtualSessionStatus('unavailable', 'Choose the installed Crimson Desert game folder.', generation)
-    if hash_file(exe, stop_event) != GAME_SHA256:
-        return VirtualSessionStatus('blocked', 'This executable build has not been verified for the virtual loader.', generation)
+    installed_game = hash_file(exe, stop_event)
+    if profile and profile.get('executable_sha256', installed_game) != installed_game:
+        return VirtualSessionStatus('reapply', 'Crimson Desert was updated. Apply changes again to load the items in this version.', generation)
     try:
         folder, evidence = native_bundle(stop_event=stop_event)
     except _RuntimeSecurityBlock as exc:
@@ -176,7 +182,7 @@ def prepare_launch(root, *, stop_event=None):
         raise VirtualLoaderError(status.detail)
     profile = verify_snapshot(root, stop_event=stop_event)
     root = Path(root).resolve()
-    return VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'), GAME_SHA256,
+    return VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'), installed_game_sha256(root, stop_event),
                              generation_path(root, profile['generation']), digest(canonical(profile)))
 
 
@@ -316,7 +322,7 @@ def _start_process(root, profile, *, mode, stop_event=None, extra_guards=(), ses
         if read_optional(target(root, '.cdmw/virtual-loader/profile.json')) != canonical(profile):
             raise VirtualLoaderError('The virtual profile changed before launch. Review it again.')
         load_profile(root, registry=load_registry(root))
-        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256,
+        token, data = session_manifest(root, profile, mode=mode, executable_sha256=installed_game_sha256(root, stop_event),
                                        token=session_token, launcher=_steam_launcher(), extra_guards=extra_guards)
         path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
         atomic_write_bytes(path, data)
@@ -363,7 +369,7 @@ def prepare_experimental_launch(root, *, stop_event=None, on_progress=None):
         if not profile:
             raise VirtualLoaderError('The launch plan changed. Review it again.')
         plan = VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'),
-                                 GAME_SHA256, generation_path(root, profile['generation']), digest(canonical(profile)))
+                                 installed_game_sha256(root, stop_event), generation_path(root, profile['generation']), digest(canonical(profile)))
         token = uuid4().hex
         begun, diagnostics = _observe_receipt(receipts.begin_attempt, root, profile,
                                              attempt=token, stop_event=stop_event)
@@ -425,7 +431,7 @@ def _launch_experimental(review, *, confirmed=False, stop_event=None, on_progres
         profile = _snapshot_preflight(review.plan.root, stop_event=stop_event,
             on_progress=lambda value, total, detail: progress(10 + 65 * value // max(1, total), detail))
         checked = VirtualLaunchPlan(review.plan.root, profile['generation'], target(review.plan.root, 'bin64/CrimsonDesert.exe'),
-            GAME_SHA256, generation_path(review.plan.root, profile['generation']), digest(canonical(profile)))
+            installed_game_sha256(review.plan.root, stop_event), generation_path(review.plan.root, profile['generation']), digest(canonical(profile)))
         if checked != review.plan:
             raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
         progress(80, 'Verifying the save backup…')
@@ -444,7 +450,7 @@ def prepare_diagnostic_trace(root, *, stop_event=None):
         raise VirtualLoaderError('Install the reviewed diagnostic runtime before starting a trace.')
     profile = verify_snapshot(root, stop_event=stop_event)
     root = Path(root).resolve()
-    return VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'), GAME_SHA256,
+    return VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'), installed_game_sha256(root, stop_event),
                              generation_path(root, profile['generation']), digest(canonical(profile)))
 
 
@@ -607,8 +613,8 @@ class RuntimeSetup:
 
 def prepare_runtime_setup(root, *, stop_event=None):
     root = Path(root).resolve()
-    if hash_file(target(root, 'bin64/CrimsonDesert.exe'), stop_event) != GAME_SHA256:
-        raise VirtualLoaderError('This executable build is not supported by the diagnostic runtime.')
+    if not target(root, 'bin64/CrimsonDesert.exe').is_file():
+        raise VirtualLoaderError('Choose the installed Crimson Desert game folder.')
     # Bootstrap behavior must be observed during the controlled diagnostic run;
     # do not install or reconfigure another loader to manufacture readiness.
     if not target(root, 'bin64/winmm.dll').is_file() or hash_file(target(root, 'bin64/winmm.dll'), stop_event) not in (BOOTSTRAP_SHA256, BOOTSTRAP_CURRENT_SHA256):

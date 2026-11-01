@@ -29,9 +29,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mods are exported for DMM (Definitive Mod Manager) only, because other mod managers are not being updated for the DLC. Create New Item offers a DMM mod folder or a .cditem item package. Mesh Editor Build Mod, Placement & Animations, Texture Replacer, Texture Recolor, texture upscaling and the other mod-ready exports no longer offer CDUMM, Field-JSON v3.1 or the retired mod-manager option; saved choices of those fall back to DMM. Create New Item's DMM mod folders are written as before; mounting them in the updated DMM is untested.
 
-- Mod Management now handles .cditem item packages only. Add packages on Mods, choose Apply changes, then choose Launch game or start the game from Steam or DMM; CDMW's runtime is updated for game version 2.04.03. Adding mod folders, converting, combining and updating mods, and the Health and recovery page are removed; use DMM for other mods. Archive overlay installation is disabled because it is incompatible with the DLC update. Loading items this way is experimental, and a DMM mod that replaces the item or shop tables may hide the items.
+- Mod Management now handles .cditem item packages only, and the Mods page shows just Add item packages, Apply changes and Launch game. After Apply, Launch game, Steam and DMM all start the game with the items. CDMW's runtime no longer needs an update for each game patch: after a game update, opening Mod Management applies the items again. Adding mod folders, converting, combining and updating mods, and the Health and recovery page are removed; use DMM for other mods. Archive overlay installation is disabled because it is incompatible with the DLC update. Loading items this way is experimental, and a DMM mod that replaces the item or shop tables may hide the items.
 
 ### Fixed
+
+- Create New Item's DMM mod folders export again on games updated for the DLC, where they stopped with a PAPGT checksum error. Mod Management no longer reports the same error when it opens, and its buttons no longer stay greyed out for about 20 seconds while Create New Item reads the archives after startup.
+
+- Create New Item, Mod Management and the other Rust-based workspaces reopen by themselves after a graphics driver install or GPU reset, instead of stopping with an error and a Retry button.
 
 - Archive Browser plays cached WEM sounds and exports them as WAV again. Long audio preview paths no longer prevent widening Asset Family. Reference searches recognise language-folder paths, check sound banks and metadata first, and continue past 2 GiB in cancellable batches.
 

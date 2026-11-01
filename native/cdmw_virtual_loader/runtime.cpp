@@ -293,10 +293,8 @@ void initialize_standalone(const fs::path& root, const fs::path& path) {
         require(manifest.mode == Mode::standalone, "The launcher profile has the wrong mode");
         require(normalize(root) == normalize(manifest.root), "The launcher profile belongs to another installation");
         require(normalize(own_executable()) == normalize(executable(manifest)), "Unexpected game process");
-        require(hash_file(own_executable()) == manifest.executable, "The game executable changed since the profile was published");
-#ifndef CDMW_VIRTUAL_TESTING
-        require(hex(manifest.executable) == game_hash, "Unverified game build");
-#endif
+        // The profile pins the executable it was applied against; any game build works.
+        require(hash_file(own_executable()) == manifest.executable, "The game was updated since the profile was applied; apply it again");
         const DWORD loader_context = require_verified_startup(root);
         const bool startup_verified = true;
         for (const auto& guard : manifest.guards) {
@@ -381,9 +379,6 @@ void initialize_compose(const fs::path& root) {
         expected.root = root;
         require(normalize(own_executable()) == normalize(executable(expected)), "Unexpected game process");
         const auto game = hash_file(own_executable());
-#ifndef CDMW_VIRTUAL_TESTING
-        require(hex(game) == game_hash, "Unverified game build");
-#endif
         const DWORD loader_context = require_verified_startup(root);
         const auto lane = installation_lane(root);
         runtime_lane = CreateFileW(lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -464,10 +459,6 @@ void initialize() {
         require(GetNamedPipeServerProcessId(session_pipe, &server) && server == manifest.host_pid, "Wrong session host");
         require(normalize(own_executable()) == normalize(executable(manifest)), "Unexpected game process");
         require(hash_file(own_executable()) == manifest.executable, "Executable fingerprint changed");
-#ifdef CDMW_VIRTUAL_TESTING
-        if (manifest.mode != Mode::harness)
-#endif
-            require(hex(manifest.executable) == game_hash, "Unverified game build");
         require(manifest.mode != Mode::redirect || game_redirection_approved, "Startup timing has not passed game validation");
         using LoaderCallout = BOOLEAN (NTAPI*)();
         const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));

@@ -253,6 +253,10 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             'files': {p: digest(raw) for p, raw in output.items()},
             'sources': sorted(sources.items()),
             'catalogue': catalogue, 'inventories': inventories, 'observed': observed_hashes}
+    game = target(root, 'bin64/CrimsonDesert.exe')
+    if game.is_file():
+        # The game build the items were composed for; an update makes the profile stale.
+        data['executable_sha256'] = hash_file(game, stop_event)
     if disabled_packages or disabled_mods:
         data['disabled_packages'] = [str(path) for path in disabled_packages]
         data['disabled_mods'] = [str(path) for path in disabled_mods]

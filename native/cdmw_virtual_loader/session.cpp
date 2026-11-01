@@ -226,10 +226,6 @@ int wmain(int argc, wchar_t** argv) {
         require(!manifest.launcher.empty(), "The reviewed Steam client is required");
 #endif
         require(hash_file(executable(manifest)) == manifest.executable, "Executable fingerprint changed");
-#ifdef CDMW_VIRTUAL_TESTING
-        if (manifest.mode != Mode::harness)
-#endif
-            require(hex(manifest.executable) == game_hash, "Unsupported executable build");
         lane.value = CreateFileW(manifest.lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         require(bool(lane), "Installation lane unavailable");
         OVERLAPPED locking{};
