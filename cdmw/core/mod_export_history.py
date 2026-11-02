@@ -9,6 +9,11 @@ The key covers payload files in sub-folders (archive groups, `meta/`, game
 paths); top-level files are manager metadata such as `manifest.json`, which
 exports write last. Packages filed under the earlier key, which also covered
 top-level files, are still found.
+
+Each history folder also lists the payload files it was filed for. A package whose
+exact key matches nothing (a user added a file to it) still finds the records of
+an export whose listed payloads are all present with the same bytes; a changed
+payload never matches.
 """
 from __future__ import annotations
 
@@ -28,6 +33,8 @@ from cdmw.domain.cancellation import raise_if_cancelled
 HISTORY_FILES = ("new-item.json", "cdmw-compatibility.json", "cdmw-baseline.zip")
 _AUTHORING_FILES = (*HISTORY_FILES, "mesh-editor-session.json")
 _PACKAGE_METADATA = {*_AUTHORING_FILES, "README.txt", "meta/0.papgt"}
+#: Beside the records in a history folder: the payloads they were filed for.
+_PAYLOAD_LIST = "payloads.json"
 
 
 def _history_root() -> Path:
@@ -36,11 +43,16 @@ def _history_root() -> Path:
 
 
 def _package_history_directory(root: Path, *, stop_event=None, legacy: bool = False) -> Path | None:
+    return _records_directory(_package_records(root, stop_event=stop_event, legacy=legacy))
+
+
+def _package_records(root: Path, *, stop_event=None, legacy: bool = False) -> list[tuple[str, str]]:
+    """(relative path, sha256) of every payload file the history key covers."""
     from cdmw.core.mod_compatibility import hash_file
 
     root = Path(root).resolve()
     if not root.is_dir():
-        return None
+        return []
     ignored = {name.casefold() for name in _PACKAGE_METADATA}
     records = []
     for path in sorted(root.rglob("*")):
@@ -51,7 +63,7 @@ def _package_history_directory(root: Path, *, stop_event=None, legacy: bool = Fa
         if not path.is_file() or relative in ignored or (not legacy and "/" not in relative):
             continue
         records.append((relative, hash_file(path, stop_event)))
-    return _records_directory(records)
+    return records
 
 
 def _records_directory(records) -> Path | None:
@@ -109,7 +121,38 @@ def mod_metadata_path(root: Path, name: str, *, stop_event=None) -> Path:
         directory = _package_history_directory(root, stop_event=stop_event, legacy=legacy)
         if directory is not None and (directory / name).is_file():
             return directory / name
-    return inline
+    directory = _covering_history_directory(root, name, stop_event=stop_event)
+    return directory / name if directory is not None else inline
+
+
+def _covering_history_directory(root: Path, name: str, *, stop_event=None) -> Path | None:
+    """The history of an export whose payloads are all still in `root`, byte for byte.
+
+    Files added to the package since do not hide its records; a changed or missing
+    payload does. With several matches, the one covering the most payloads wins,
+    then the newest.
+    """
+    current = dict(_package_records(root, stop_event=stop_event))
+    if not current:
+        return None
+    best: tuple[int, float, Path] | None = None
+    for directory in _history_root().iterdir():
+        raise_if_cancelled(stop_event, "Mod history lookup cancelled.")
+        listing = directory / _PAYLOAD_LIST
+        if directory.name.startswith(".") or not (directory / name).is_file() or not listing.is_file():
+            continue
+        try:
+            if listing.stat().st_size > 8 * 1024 * 1024:
+                continue
+            recorded = [(str(path), str(digest)) for path, digest in json.loads(listing.read_text(encoding="utf-8"))]
+        except (OSError, ValueError, TypeError):
+            continue
+        if not recorded or any(current.get(path) != digest for path, digest in recorded):
+            continue
+        rank = (len(recorded), listing.stat().st_mtime, directory)
+        if best is None or rank[:2] > best[:2]:
+            best = rank
+    return best[2] if best is not None else None
 
 
 def _record_limit(name: str) -> int:
@@ -129,7 +172,8 @@ def file_mod_history(root: Path, records, *, stop_event=None) -> Path | None:
     for name in records:
         if name not in _AUTHORING_FILES:
             raise ValueError(f"Not a CDMW history file: {name}")
-    destination = _package_history_directory(root, stop_event=stop_event)
+    payloads = _package_records(root, stop_event=stop_event)
+    destination = _records_directory(payloads)
     if destination is None:
         return None
     destination = destination.resolve()
@@ -155,6 +199,7 @@ def file_mod_history(root: Path, records, *, stop_event=None) -> Path | None:
                 while data := reader.read(1024 * 1024):
                     raise_if_cancelled(stop_event, "Mod history save cancelled.")
                     writer.write(data)
+        (staging / _PAYLOAD_LIST).write_text(json.dumps(sorted(payloads), separators=(",", ":")), encoding="utf-8")
         raise_if_cancelled(stop_event, "Mod history save cancelled.")
         atomic_publish_directory(staging, destination)
     finally:
