@@ -168,10 +168,10 @@ def test_tables_without_rules_and_unknown_stems_are_refused():
     with pytest.raises(StaticTableError, match="no editable fields"):
         apply_field_edits("regioninfo", header, body, {(3, "_key"): 4})
     with pytest.raises(StaticTableError, match="no closed record schema"):
-        decode_static_table("stageinfo", header, body)
+        decode_static_table("actionpointinfo", header, body)
     assert table_kind_for_stem("skillinfo") == "skill"
     assert table_kind_for_stem("characterinfo.dlc_01") == "characterinfo"
-    assert table_kind_for_stem("stageinfo") is None
+    assert table_kind_for_stem("actionpointinfo") is None
 
 
 def test_a_row_the_schema_refuses_is_reported_not_guessed():
@@ -235,4 +235,4 @@ def test_service_writes_the_edited_pair_as_loose_files(tmp_path):
     assert result.body_path.name == "inventory.dlc_01.staticinfobody"
     assert result.proof_lines[-1] == "Row 2 _maxSlotCount: 240 -> 500"
     with pytest.raises(ValueError, match="no closed record schema"):
-        write_static_table_edits(StaticTableEditRequest("stageinfo", header, body, {(2, "_key"): 1}, tmp_path))
+        write_static_table_edits(StaticTableEditRequest("actionpointinfo", header, body, {(2, "_key"): 1}, tmp_path))

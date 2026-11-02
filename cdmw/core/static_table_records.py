@@ -165,13 +165,19 @@ def _top_level_shapes(kind):
     return shapes
 
 
+def _text(data):
+    """A u32 length and UTF-8 text whose span the closed schema already bounded."""
+    cursor = Cursor(data)
+    return cursor.take(cursor.count(limit=len(data))).decode("utf-8")
+
+
 def _field_value(shape, data):
     if shape[0] == "raw" and len(data) in (1, 2, 4, 8):
         return f"u{len(data) * 8}", int.from_bytes(data, "little")
     if shape[0] == "raw":
         return f"bytes<{len(data)}>", data.hex()
     if shape[0] == "text":
-        return "text", Cursor(data).text()
+        return "text", _text(data)
     return "nested", len(data)
 
 
@@ -185,7 +191,7 @@ def decode_record(kind: str, raw: bytes, *, start: int = 0, key_width: int = 4) 
         shape_name, value = _field_value(shapes.get(name, ("nested",)), raw[span.start:span.end])
         fields.append(StaticField(name, shape_name, start + span.start, start + span.end, value))
     fields.sort(key=lambda field: field.start)
-    name = Cursor(layout.data("_stringKey")).text() if "_stringKey" in layout.fields else ""
+    name = _text(layout.data("_stringKey")) if "_stringKey" in layout.fields else ""
     return StaticRecord(layout.integer("_key", width=key_width), name, start, start + len(raw), tuple(fields))
 
 

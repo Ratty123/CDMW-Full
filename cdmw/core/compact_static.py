@@ -6,9 +6,19 @@ from cdmw.core.new_item_record import Cursor, RecordError
 
 
 # (record bytes, walk steps). Faction and quest rows carry whole relation and
-# stage graphs; the largest shipped rows are about 204 KiB and 1.5 MiB.
-_RECORD_LIMITS = {"faction": (1 << 20, 4_000_000), "questinfo": (4 << 20, 16_000_000)}
+# stage graphs (largest shipped rows about 204 KiB and 1.5 MiB); deep condition
+# trees and gimmick scripts need more steps or bytes than an item row.
+_RECORD_LIMITS = {
+    "faction": (1 << 20, 4_000_000),
+    "questinfo": (4 << 20, 16_000_000),
+    "conditioninfo": (65536, 1_000_000),
+    "gimmickinfo": (1 << 20, 4_000_000),
+    "gimmickgroupinfo": (1 << 20, 4_000_000),
+}
 _DEFAULT_LIMITS = (65536, 200000)
+# Condition logic nests AND/OR/NOT nodes; each level costs about four walk levels
+# and the deepest shipped condition needs about 300.
+_DEPTH_LIMIT = 400
 
 
 def read_compact_layout(raw, kind="iteminfo"):
@@ -24,7 +34,7 @@ def read_compact_layout(raw, kind="iteminfo"):
     def walk(op, path=(), depth=0):
         nonlocal steps
         steps += 1
-        if depth > 40 or steps > step_limit:
+        if depth > _DEPTH_LIMIT or steps > step_limit:
             raise RecordError("Compact static record exceeds the layout limit.")
         code = op[0]
         if code == 'unsupported':
@@ -32,7 +42,8 @@ def read_compact_layout(raw, kind="iteminfo"):
         if code == "raw":
             cursor.take(op[1])
         elif code == "text":
-            cursor.text()
+            # Gimmick tables embed state-handler XML longer than the 4 KiB item-text bound.
+            cursor.take(cursor.count(limit=size_limit)).decode("utf-8")
         elif code == "seq":
             for child in op[1:]:
                 walk(child, path, depth + 1)
