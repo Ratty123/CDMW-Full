@@ -23222,6 +23222,16 @@
       ]
     },
     {
+      "key": "CDMW cannot find its record of the items in {value_0}. Its files were changed after export, or it was exported on another computer. Export the new item to a new mod instead.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_mod_base.py",
+          "line": 287,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "CDMW cannot rebuild this file safely, so it opens read-only. Reason: {value_0}",
       "origins": [
         {
@@ -29771,7 +29781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 347,
+          "line": 367,
           "sink": "ValueError"
         }
       ]
@@ -30451,7 +30461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 345,
+          "line": 365,
           "sink": "ValueError"
         }
       ]
@@ -41591,7 +41601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 354,
+          "line": 374,
           "sink": "ValueError"
         }
       ]
@@ -131786,7 +131796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 340,
+          "line": 360,
           "sink": "ValueError"
         }
       ]
@@ -145461,7 +145471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 381,
+          "line": 401,
           "sink": "on_log"
         }
       ]
@@ -165152,6 +165162,16 @@
         {
           "path": "cdmw/services/new_item_mounted_base.py",
           "line": 123,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The shop and group operations of {value_0} cannot be read: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 348,
           "sink": "ValueError"
         }
       ]
