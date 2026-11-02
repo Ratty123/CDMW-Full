@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -94,7 +95,6 @@ def destination(mods: Path, title: str) -> tuple[Path, bool]:
 def send_plan(plan, mods: Path, title: str, *, service=None, package_info=None,
               stop_event: Optional[threading.Event] = None) -> DmmSendResult:
     """Write a planned new item as a DMM mod in DMM's mods folder."""
-    from cdmw.core.atomic_file import atomic_publish_directory
     from cdmw.models import ModPackageInfo
     from cdmw.services.new_item_service import NewItemService
 
@@ -108,7 +108,7 @@ def send_plan(plan, mods: Path, title: str, *, service=None, package_info=None,
                                                    replace_existing=False, stop_event=stop_event)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
         destination(mods, title)  # Refuse a folder that appeared meanwhile.
-        atomic_publish_directory(staged, folder, replace_existing=True)
+        _publish(staged, folder, Path(staging))
     return DmmSendResult(folder, replaced, title)
 
 
@@ -138,7 +138,6 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
     shops, the names), and DMM would keep only one of them, so the items are composed
     together first, with the identities Apply gives them.
     """
-    from cdmw.core.atomic_file import atomic_publish_directory
     from cdmw.domain.archives.mutation import ArchiveAddRequest
     from cdmw.services.new_item_overlay_export import export_overlay_mod
     from cdmw.services.virtual_loader_composition import compose_packages
@@ -192,10 +191,23 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         # Record the item identities before the mod that uses them appears, so the
         # next send gives every item the same key and saves keep their items.
         _keep_identities(root, resolved.registry)
-        atomic_publish_directory(staged, folder, replace_existing=True)
+        _publish(staged, folder, Path(staging))
     if on_progress:
         on_progress(100, 100, "Sent to DMM.")
     return DmmSendResult(folder, replaced, title)
+
+
+def _publish(staged: Path, folder: Path, staging: Path) -> None:
+    """Swap the staged mod in, then delete the previous version outside DMM's mods folder:
+    DMM lists every folder there, and a half-deleted backup would show up as a mod."""
+    from cdmw.core.atomic_file import atomic_publish_directory
+
+    backup = atomic_publish_directory(staged, folder, replace_existing=True, retain_backup=True)
+    if backup is not None:
+        try:
+            os.replace(backup, staging / "previous")
+        except OSError:
+            shutil.rmtree(backup, ignore_errors=True)
 
 
 # The flags CDMW's generated textures carry, which render through DMM.

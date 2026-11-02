@@ -246,8 +246,10 @@ class DmmPackagesPage(QWidget):
             if not self._closed:
                 self.status.setText(self.tr("Processing stopped by user."))
 
+        # A send that got past its last cancel check has replaced DMM's mod and the item
+        # identities: report what happened, not the late cancel.
         started = self.controller._run("mod_management_dmm", task, completed, failed, on_cancel=cancelled,
-                                       task_accepts_progress=with_progress)
+                                       task_accepts_progress=with_progress, publishes_result=True)
         if not started:
             finish()
         return started

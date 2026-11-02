@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 
+from cdmw import constants
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import read_papgt_directories
@@ -604,6 +605,11 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             snapshot.payload(dependency.entry.path)
         prior = registry['items'].get(identity)
         previous_layer = next((layer for layer in state['layers'] if prior and layer['id'] == prior['layer']), None)
+        if target == 'virtual' and not constants.VIRTUAL_LOADING_ENABLED:
+            # Items go to DMM, not into the game folder. An overlay left from an earlier
+            # version cannot load since the DLC update and has no removal page now, so it
+            # must not block sending the item.
+            previous_layer = None
         if target == 'virtual' and previous_layer and (previous_layer['active'] or previous_layer.get('disabled')):
             raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
         _check_dependencies(package, snapshot, stop_event)

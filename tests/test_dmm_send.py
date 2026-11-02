@@ -50,6 +50,18 @@ def test_send_writes_the_dmm_mod_and_a_resend_replaces_only_cdmws_copy(tmp_path)
     assert not any(path.name.startswith(".cdmw-send-") for path in mods.parent.iterdir())
 
 
+def test_a_resend_never_leaves_the_previous_version_in_dmms_mods_folder(tmp_path, monkeypatch):
+    service, snapshot = setup(tmp_path)
+    plan = service.plan(spec("CompactOwned"), snapshot, capture_independent=True)
+    _install, mods = _dmm(tmp_path)
+    send_plan(plan, mods, "Frost blade", service=service)
+    # DMM can hold a file of the old mod open, so deleting the backup in place may fail.
+    import cdmw.core.atomic_file as atomic_file
+    monkeypatch.setattr(atomic_file.shutil, "rmtree", lambda *args, **kwargs: None)
+    send_plan(plan, mods, "Frost blade", service=service)
+    assert sorted(path.name for path in mods.iterdir()) == ["Frost blade"]
+
+
 def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     from cdmw.services.dmm_send import send_item_packages
     from tests.test_virtual_loader import game_bytes, packages

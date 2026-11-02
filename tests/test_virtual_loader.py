@@ -57,7 +57,7 @@ def test_virtual_collision_composition_is_private_and_identity_survives_reinstal
     assert game_bytes(root) == before
 
 
-def test_dual_activation_and_stale_publication_refused(tmp_path):
+def test_dual_activation_and_stale_publication_refused(tmp_path, retained_virtual_loading):
     root, files = packages(tmp_path)
     plan = prepare_profile(VirtualProfile(files), root)
     Backups(tmp_path).apply(prepare_install(files[:1], root).preparation)
@@ -65,6 +65,14 @@ def test_dual_activation_and_stale_publication_refused(tmp_path):
         publish_profile(plan)
     with pytest.raises(ValueError, match='remove the installed contribution'):
         prepare_profile(VirtualProfile(files), root)
+
+
+def test_an_overlay_from_an_earlier_version_does_not_block_sending_to_dmm(tmp_path):
+    from cdmw.services.virtual_loader_composition import compose_packages
+    root, files = packages(tmp_path)
+    Backups(tmp_path).apply(prepare_install(files[:1], root).preparation)
+    resolved, composed, _flags, _pathc = compose_packages(files, (), root)
+    assert len(resolved.registry['items']) == 2 and composed
 
 
 def test_selected_loose_files_are_carried_and_unknown_mod_refuses(tmp_path):
