@@ -248,10 +248,10 @@ def _missing_bone_advice(error, skeleton, pab_path, skeleton_edits):
                                   and set(absent.split(", ")) & set(edit.bone_names)}))
     if elsewhere:
         advice = ValueError(f"{error} {absent}: added to {elsewhere}, but this model binds to {rig}. "
-                            "Add the same bones to that skeleton with Skeleton edit… in the Rig row.")
+                            "Add the same bones to this variant's skeleton with Add bones… in the Rig row.")
     else:
         advice = ValueError(f"{error} {absent}: not in {rig}. To weight to new bones, add them with "
-                            "Skeleton edit… in the Rig row, then import again.")
+                            "Add bones… in the Rig row, then import again.")
     advice.missing_bones = error.missing_bones
     return advice
 

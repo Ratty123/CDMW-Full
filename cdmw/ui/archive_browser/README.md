@@ -694,7 +694,9 @@ edited along the character's axes (X left, Y up, Z back) and stored in the
 parent's space; rotation stays relative to the parent. Every change rebuilds the
 skeleton, and the first refusal disables **Save as Mod...** with its reason.
 **Save Draft...** and **Open Draft...** use Skeleton Edit JSON. Game bones are
-shown read-only.
+shown read-only. Create New Item's **Add bones…** opens the same dialog with
+`initial_edits` and its own accept label (**Use These Bones**) and reads
+`edits()` instead of writing a package (see the New Item README).
 
 The same menu offers **Export Skeleton Edit JSON...**
 and **Import Skeleton Edit JSON...** (`pab_json_actions.py`). The export lists

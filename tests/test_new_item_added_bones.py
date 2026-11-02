@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import hashlib
+import time
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -164,7 +165,7 @@ def test_each_rig_takes_its_own_skeleton_edit(monkeypatch):
 
 
 @pytest.mark.parametrize("edits, advice", [
-    ((), "Cape_00: not in character/model/1_pc/1_phm/phm_01.pab. To weight to new bones, add them with Skeleton edit"),
+    ((), "Cape_00: not in character/model/1_pc/1_phm/phm_01.pab. To weight to new bones, add them with Add bones"),
     ((PHW_RIG,), "Cape_00: added to character/model/1_pc/2_phw/phw_01.pab, but this model binds to "
                  "character/model/1_pc/1_phm/phm_01.pab"),
 ])
@@ -262,8 +263,10 @@ def test_item_packages_carry_their_bones_and_send_composes_one_rig(monkeypatch, 
 
 # ---------------------------------------------------------------- studio wiring
 
-def test_rig_row_reads_a_skeleton_edit_and_the_next_import_binds_to_it(studio, tmp_path, monkeypatch):
+def test_add_bones_button_edits_the_variant_rig_and_the_next_import_binds_to_it(studio, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QDialog
     from cdmw.modding.skeleton_parser import parse_pab
+    from cdmw.ui.archive_browser import pab_bone_editor_dialog
     from tests.test_mesh_replacement_imported_skinning import source_glb
     from tests.test_new_item_model_apply import _finish
 
@@ -271,15 +274,51 @@ def test_rig_row_reads_a_skeleton_edit_and_the_next_import_binds_to_it(studio, t
     controller, panel = tab.controller, tab.model_panel
     monkeypatch.setattr("cdmw.services.mesh_skinning_preflight.template_skeleton",
                         lambda _snapshot, _path, edit=None, **_kwargs: (parse_pab(pab()), pab(), PAB_PATH, None))
-    document = dumps_pab_edit_json(pab(), PAB_PATH).replace(
-        '"add_bones": []', '"add_bones": [{"parent": "Bip01 Spine", "name": "Cape_00"}]')
-    chosen = tmp_path / "phm_01.skeleton-edit.json"
-    # Notepad saves UTF-8 with a byte-order mark.
-    chosen.write_text(document, encoding="utf-8-sig")
-    assert controller.start_skeleton_edit(chosen)
-    _finish(app, controller)
+    opened, answers = [], []
+
+    class Dialog:
+        """Stands in for the Add Bones dialog: records how it was opened, answers in turn."""
+
+        def __init__(self, data, path, parent, **kwargs):
+            opened.append((data, path, kwargs))
+
+        def exec(self):
+            self._answer = answers.pop(0)
+            return QDialog.DialogCode.Accepted if self._answer is not None else QDialog.DialogCode.Rejected
+
+        def edits(self):
+            return self._answer
+
+        def deleteLater(self):
+            pass
+
+    monkeypatch.setattr(pab_bone_editor_dialog, "PabBoneEditorDialog", Dialog)
+
+    def settle():
+        """Wait until idle across an event pass: the dialog opens, and weighting again
+        starts, from queued events after the reading task ends."""
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            app.processEvents()
+            if not controller.busy:
+                app.processEvents()
+                if not controller.busy:
+                    return
+            time.sleep(.005)
+        raise AssertionError(f"still busy with {controller._lane}")
+
+    def add_bones(answer):
+        answers.append(answer)
+        panel.add_bones_button.click()
+        settle()
+
+    cape = (PabAppendEdit("Bip01 Spine", "Cape_00"),)
+    add_bones(cape)
+    data, path, options = opened[-1]
+    assert (data, path, options["initial_edits"]) == (pab(), PAB_PATH, ())
+    assert options["accept_text"] == "Use These Bones"
     first, = controller.skeleton_edits
-    assert first.bone_names == ("Cape_00",)
+    assert first == SkeletonEditRecipe(PAB_PATH, cape)
     assert "phm_01.pab + 1 added bone(s)" in panel.rig_summary.text()
     assert "Cape_00" in panel.rig_summary.toolTip() and not panel.clear_skeleton_edit_button.isHidden()
 
@@ -290,23 +329,47 @@ def test_rig_row_reads_a_skeleton_edit_and_the_next_import_binds_to_it(studio, t
         return mesh, ()
     monkeypatch.setattr("cdmw.services.mesh_skinning_preflight.prepare_new_item_skin", prepare)
     assert controller.start_model_import(source_glb(tmp_path))
-    _finish(app, controller)
+    settle()
     assert calls == [(first,)] and controller.model_import.skeleton_edit is first
 
-    # A new edit for the same rig replaces the old one and weights the rigged import again.
-    chosen.write_text(document.replace('"Cape_00"', '"Cape_99"'), encoding="utf-8")
-    assert controller.start_skeleton_edit(chosen)
-    _finish(app, controller)
-    _finish(app, controller)
+    # Reopening starts from the bones added before; changing them weights the rigged import again.
+    add_bones((PabAppendEdit("Bip01 Spine", "Cape_99"),))
+    assert opened[-1][2]["initial_edits"] == cape
     second, = controller.skeleton_edits
     assert second.bone_names == ("Cape_99",)
     assert calls[-1] == (second,) and controller.model_import.skeleton_edit is second
 
-    panel.clear_skeleton_edit_button.click()
-    _finish(app, controller)
+    # Cancel keeps the edit; accepting no bones removes it.
+    add_bones(None)
+    assert controller.skeleton_edits == (second,)
+    add_bones(())
     assert controller.skeleton_edits == () and panel.rig_summary.text() == "Template skeleton"
-    assert panel.clear_skeleton_edit_button.isHidden()
     assert calls[-1] == () and controller.model_import.skeleton_edit is None
+
+    add_bones(cape)
+    panel.clear_skeleton_edit_button.click()
+    settle()
+    assert controller.skeleton_edits == () and panel.clear_skeleton_edit_button.isHidden()
+
+
+def test_add_bones_dialog_opens_a_draft_saved_with_a_byte_order_mark(studio, tmp_path, monkeypatch):
+    from cdmw.ui.archive_browser import pab_bone_editor_dialog
+    from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+
+    draft = tmp_path / "phm_01.skeleton-edit.json"
+    draft.write_text(dumps_pab_edit_json(pab(), PAB_PATH, add_bones=CAPE), encoding="utf-8-sig")
+    monkeypatch.setattr(pab_bone_editor_dialog.QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *_args, **_kwargs: (str(draft), "")))
+    def refuse(_parent, _title, text, *_args):
+        raise AssertionError(text)
+    monkeypatch.setattr(pab_bone_editor_dialog.QMessageBox, "warning", staticmethod(refuse))
+    dialog = PabBoneEditorDialog(pab(), PAB_PATH, accept_text="Use These Bones", accept_tooltip="")
+    try:
+        dialog._open_draft()
+        assert dialog.edits() == CAPE
+        assert dialog.save_mod_button.text() == "Use These Bones"
+    finally:
+        dialog.deleteLater()
 
 
 # ---------------------------------------------------------------- plan and package rig checks

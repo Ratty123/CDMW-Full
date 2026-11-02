@@ -2494,20 +2494,24 @@ prefab attachment; deforming headgear uses its character rig.
 #### Added bones (Skeleton Edit JSON)
 
 The **Rig** row lets an import weight to bones appended to the template's skeleton;
-the **Rig** label's tooltip lists the three steps. **Skeleton edit…** reads a Skeleton
-Edit JSON (UTF-8, with or without a byte-order mark) exported from the current
-variant's `.pab` in Archive Browser and checks it against the resolved PAB's SHA-256 and
-bone list. The controller keeps one edit per rig (`skeleton_edits`), so a male and a
-female variant can each have one; loading another edit for the same rig replaces it,
-and changing the template clears them all. Imports and **Skin weights…** pass them to
-`prepare_new_item_skin(skeleton_edits=...)`, which applies the edit whose path matches
-the resolved rig and reports it as `interchange_skeleton_edit`. Every added bone that
-the kept imported weights use with a non-zero weight joins the PAC palette through the
-existing palette extension; transferred parts and zero-weight padding add none. When an
-edit is loaded or cleared while a model imported with its own weights is open, the
-controller weights it again once idle (`_reweight_for_skeleton_edits`). A missing bone
-is reported with what to do: add it with **Skeleton edit…**, or add it to this
-variant's skeleton too when only another rig's edit has it.
+the **Rig** label's tooltip lists the three steps. **Add bones…** reads the current
+variant's resolved PAB on a worker (`start_add_bones`, then `rig_source_ready`) and
+opens Archive Browser's `PabBoneEditorDialog` on it once that task has finished,
+starting from that rig's current edit and accepting with **Use These Bones**. The
+dialog's **Open Draft…** loads a Skeleton Edit JSON (with or without a byte-order
+mark) and checks it against the PAB's SHA-256 and bone list. `set_skeleton_edit`
+keeps one edit per rig (`skeleton_edits`), so a male and a female variant can each
+have one; accepting no bones removes that rig's edit, Cancel keeps it, and changing
+the template clears them all. Imports and **Skin weights…** pass the edits to
+`prepare_new_item_skin(skeleton_edits=...)`, which applies the edit whose path
+matches the resolved rig and reports it as `interchange_skeleton_edit`. Every added
+bone that the kept imported weights use with a non-zero weight joins the PAC palette
+through the existing palette extension; transferred parts and zero-weight padding add
+none. When an edit changes or is cleared while a model imported with its own weights
+is open, the controller weights it again once idle (`_reweight_for_skeleton_edits`,
+deferred one event-loop turn after `busy_changed`). A missing bone is reported with
+what to do: add it with **Add bones…**, or add it to this variant's skeleton too when
+only another rig's edit has it.
 
 **Export rig GLB…** writes the template mesh skinned to the current variant's rig,
 added joints included, for weighting in Blender. It leaves out the round-trip sidecar,

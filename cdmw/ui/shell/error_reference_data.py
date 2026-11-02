@@ -9401,6 +9401,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Bone {clash} already exists; choose another prefix.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 529
+    }
+  },
+  {
+    "area": "archive",
     "message": "Both table files are required to compose {body}.",
     "recovery": "input",
     "sources": {
@@ -10301,6 +10309,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not save the draft: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 605
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not save the folder exclusion: {exc}",
     "recovery": "internal",
     "sources": {
@@ -10777,6 +10793,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_archive_results.py": 115
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Fix the error above to see it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 415
     }
   },
   {
@@ -16547,7 +16571,7 @@ MESSAGE_REFERENCE = [
     "message": "Wrote Skeleton Edit JSON: {exported} Add new child bones under add_bones, then use Import Skeleton Edit JSON. Existing bones cannot be renamed, removed or reordered.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/pab_json_actions.py": 65
+      "cdmw/ui/archive_browser/pab_json_actions.py": 115
     }
   },
   {
@@ -30292,7 +30316,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 590
+      "cdmw/ui/new_item/controller.py": 592
     }
   },
   {
@@ -32208,7 +32232,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 852
+      "cdmw/ui/new_item/controller_model_mixin.py": 866
     }
   },
   {
@@ -33149,7 +33173,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 605
+      "cdmw/ui/new_item/controller_model_mixin.py": 619
     }
   },
   {
@@ -33510,7 +33534,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 782,
+      "cdmw/ui/new_item/controller_model_mixin.py": 796,
       "cdmw/ui/new_item/model_import.py": 978
     }
   },
@@ -34033,7 +34057,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 729
+      "cdmw/ui/new_item/controller_model_mixin.py": 743
     }
   },
   {
@@ -34260,14 +34284,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/new_item_shops.py": 53
-    }
-  },
-  {
-    "area": "items",
-    "message": "The skeleton edit adds no bones; fill add_bones first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 458
     }
   },
   {
@@ -36093,7 +36109,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 364
+      "cdmw/ui/new_item/controller.py": 366
     }
   },
   {
@@ -37162,7 +37178,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 583
+      "cdmw/ui/new_item/controller.py": 585
     }
   },
   {
@@ -41089,6 +41105,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A chain has 1 to 64 bones.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 311
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A color DDS also supplies another material role; edit that texture explicitly.",
     "recovery": "internal",
     "sources": {
@@ -41268,7 +41292,7 @@ MESSAGE_REFERENCE = [
     "message": "A skeleton edit recipe must add at least one bone.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 185
+      "cdmw/services/pab_skeleton_edit_service.py": 194
     }
   },
   {
@@ -41321,10 +41345,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Added bone {number} ({edit.name or 'unnamed'}): {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 295
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Added bone {number} has unknown fields: {', '.join(sorted(unknown))}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 235
+      "cdmw/services/pab_skeleton_edit_service.py": 244
     }
   },
   {
@@ -41332,7 +41364,7 @@ MESSAGE_REFERENCE = [
     "message": "Added bone {number} needs a parent and a name.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 232
+      "cdmw/services/pab_skeleton_edit_service.py": 241
     }
   },
   {
@@ -41340,7 +41372,7 @@ MESSAGE_REFERENCE = [
     "message": "Added bone {number}: core must be 0 or 1.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 238
+      "cdmw/services/pab_skeleton_edit_service.py": 247
     }
   },
   {
@@ -41348,7 +41380,7 @@ MESSAGE_REFERENCE = [
     "message": "Added bone {number}: {key} must be {len(default)} numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 253
+      "cdmw/services/pab_skeleton_edit_service.py": 335
     }
   },
   {
@@ -42667,6 +42699,14 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/modding/skeleton_writer.py": 219
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {taken[0]} already exists; choose another prefix.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 321
     }
   },
   {
@@ -48200,7 +48240,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid skeleton edit recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 182
+      "cdmw/services/pab_skeleton_edit_service.py": 191
     }
   },
   {
@@ -58150,6 +58190,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Segment length must be greater than zero.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 313
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Select a procedural morph profile first.",
     "recovery": "input",
     "sources": {
@@ -58497,7 +58545,7 @@ MESSAGE_REFERENCE = [
     "message": "Skeleton Edit JSON is not valid JSON: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 194
+      "cdmw/services/pab_skeleton_edit_service.py": 203
     }
   },
   {
@@ -58505,7 +58553,7 @@ MESSAGE_REFERENCE = [
     "message": "Skeleton Edit JSON version {payload.get('version')} is not supported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 198
+      "cdmw/services/pab_skeleton_edit_service.py": 207
     }
   },
   {
@@ -59806,7 +59854,7 @@ MESSAGE_REFERENCE = [
     "message": "The bones list was changed. Existing bones are read-only; add new bones under add_bones.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 210
+      "cdmw/services/pab_skeleton_edit_service.py": 219
     }
   },
   {
@@ -59839,6 +59887,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/static_mesh_build.py": 66
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The chain needs a direction.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 316
     }
   },
   {
@@ -60582,7 +60638,7 @@ MESSAGE_REFERENCE = [
     "message": "This Skeleton Edit JSON was exported from a different version of the skeleton. Export it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 201
+      "cdmw/services/pab_skeleton_edit_service.py": 210
     }
   },
   {
@@ -60719,7 +60775,7 @@ MESSAGE_REFERENCE = [
     "message": "This is not a Skeleton Edit JSON document.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 196
+      "cdmw/services/pab_skeleton_edit_service.py": 205
     }
   },
   {
@@ -61708,7 +61764,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported skeleton edit {type(edit).__name__}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 90
+      "cdmw/services/pab_skeleton_edit_service.py": 93
     }
   },
   {
@@ -62164,7 +62220,7 @@ MESSAGE_REFERENCE = [
     "message": "add_bones must be a list.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 214
+      "cdmw/services/pab_skeleton_edit_service.py": 223
     }
   },
   {
@@ -71971,7 +72027,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.bone} is part of the source skeleton. Meshes, clips, appearance variations, sockets and Havok files name it, so renaming it would unbind them. Rename only bones added in this edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/pab_skeleton_edit_service.py": 84
+      "cdmw/services/pab_skeleton_edit_service.py": 87
     }
   },
   {
@@ -71984,7 +72040,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to that skeleton with Skeleton edit… in the Rig row.",
+    "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to this variant's skeleton with Add bones… in the Rig row.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_skinning_preflight.py": 250
@@ -71992,7 +72048,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Skeleton edit… in the Rig row, then import again.",
+    "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Add bones… in the Rig row, then import again.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_skinning_preflight.py": 253
@@ -100903,6 +100959,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/mesh_import_export.py",
     "cdmw/ui/archive_browser/mesh_launch_flow.py",
     "cdmw/ui/archive_browser/mesh_patch_flow.py",
+    "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
     "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
     "cdmw/ui/archive_browser/preview_core_prewarm.py",
     "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
@@ -104138,7 +104195,7 @@ SOURCE_COVERAGE = {
     "raise": 17
   },
   "cdmw/services/pab_skeleton_edit_service.py": {
-    "raise": 15
+    "raise": 20
   },
   "cdmw/services/pac_material_graph.py": {
     "validation": 1
@@ -104532,6 +104589,11 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/archive_browser/model.py": {
     "raise": 2
+  },
+  "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": {
+    "dialog": 3,
+    "display": 1,
+    "raise": 1
   },
   "cdmw/ui/archive_browser/pab_json_actions.py": {
     "dialog": 1
@@ -105532,7 +105594,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/new_item/controller_model_mixin.py": {
     "failure": 1,
-    "raise": 12,
+    "raise": 11,
     "signal": 4
   },
   "cdmw/ui/new_item/controller_preview_mixin.py": {

@@ -815,22 +815,22 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         rig_label = QLabel("Rig")
         rig_label.setToolTip(
             "Weight a model to new bones, for capes, tails or long hair:\n"
-            "1. In Archive Browser, export this template's .pab as Skeleton Edit JSON and list the new bones under add_bones.\n"
-            "2. Choose Skeleton edit… here, then Export rig GLB… for the template on that skeleton.\n"
-            "3. In Blender, weight your model to the new bones and import it here.")
+            "1. Choose Add bones… and add child bones or a chain to this variant's skeleton.\n"
+            "2. Choose Export rig GLB… and weight your model to the new bones in Blender.\n"
+            "3. Import the model here. The item ships the added bones.")
         rig_row.addWidget(rig_label)
         self.rig_summary = QLabel("Template skeleton")
         self.rig_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.rig_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         rig_row.addWidget(self.rig_summary, 1)
-        self.skeleton_edit_button = QPushButton("Skeleton edit…")
-        self.skeleton_edit_button.setToolTip(
-            "Pick a Skeleton Edit JSON exported from this template's .pab in Archive Browser, with bones under add_bones. "
-            "Imported weights can then use those bones; the item ships the edited skeleton, and Send to DMM combines "
-            "bones that other items add. Added bones follow their parent rigidly and are not proven in game. "
-            "Male and female variants use different skeletons; pick one edit for each.")
-        self.skeleton_edit_button.clicked.connect(self._pick_skeleton_edit)
-        rig_row.addWidget(self.skeleton_edit_button)
+        self.add_bones_button = QPushButton("Add bones…")
+        self.add_bones_button.setToolTip(
+            "Add child bones or chains to this variant's skeleton, or open a Skeleton Edit JSON draft. Imported weights "
+            "can then use those bones; the item ships the edited skeleton, and Send to DMM combines bones that other "
+            "items add. Added bones follow their parent rigidly and are not proven in game. Male and female variants "
+            "use different skeletons; add bones to each.")
+        self.add_bones_button.clicked.connect(self._controller.start_add_bones)
+        rig_row.addWidget(self.add_bones_button)
         self.clear_skeleton_edit_button = QPushButton("Clear")
         self.clear_skeleton_edit_button.setToolTip("Forget the skeleton edits and weight the model against the template's own skeleton.")
         self.clear_skeleton_edit_button.clicked.connect(self._controller.clear_skeleton_edit)
@@ -843,6 +843,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         rig_row.addWidget(self.export_rig_button)
         model_layout.addLayout(rig_row)
         self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
+        # Open the dialog after the reading task has finished, not inside its callback.
+        self._controller.rig_source_ready.connect(
+            lambda source: QTimer.singleShot(0, lambda: self._open_bone_editor(source)))
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -1304,12 +1307,23 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _remember_rig_folder(self, folder: Path) -> None:
         QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench").setValue(RIG_DIR_SETTING, str(folder))
 
-    def _pick_skeleton_edit(self) -> None:
-        path, _selected = QFileDialog.getOpenFileName(
-            self, "Choose a Skeleton Edit JSON", self._rig_folder(), "Skeleton Edit JSON (*.skeleton-edit.json *.json)")
-        if path:
-            self._remember_rig_folder(Path(path).parent)
-            self._controller.start_skeleton_edit(Path(path))
+    def _open_bone_editor(self, source) -> None:
+        from PySide6.QtWidgets import QDialog
+        from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+        data, pab_path = source
+        current = next((edit for edit in self._controller.skeleton_edits if edit.path == pab_path), None)
+        dialog = PabBoneEditorDialog(
+            data, pab_path, self, initial_edits=current.add_bones if current is not None else (),
+            accept_text=self.tr("Use These Bones"),
+            accept_tooltip=self.tr("Weight imported models to these bones. The item ships them in this skeleton."),
+            draft_directory=Path(self._rig_folder()))
+        self._bone_editor = dialog
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self._controller.set_skeleton_edit(pab_path, dialog.edits())
+        finally:
+            self._bone_editor = None
+            dialog.deleteLater()
 
     def _pick_rig_export_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Export the template rig as GLB", self._rig_folder())

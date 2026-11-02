@@ -290,7 +290,7 @@ class PabBoneEditorDialog(QDialog):
         layout.addWidget(self.status_label)
         limits = QLabel(
             "New bones have no animation or physics of their own, so they follow their parent. "
-            "Meshes cannot be weighted to them in CDMW yet, and a skeleton with added bones is untested in game.")
+            "Create New Item can weight a model to them; a skeleton with added bones is untested in game.")
         limits.setObjectName("HintLabel")
         limits.setWordWrap(True)
         layout.addWidget(limits)
@@ -610,7 +610,8 @@ class PabBoneEditorDialog(QDialog):
         selected, _filter = QFileDialog.getOpenFileName(
             self, "Open Draft", self._draft_path(), "Skeleton Edit JSON (*.skeleton-edit.json *.json);;JSON (*.json)")
         if selected:
-            self.load_draft_text(Path(selected).read_text(encoding="utf-8"))
+            # Editors such as Notepad may save a byte-order mark.
+            self.load_draft_text(Path(selected).read_text(encoding="utf-8-sig"))
 
     def load_draft_text(self, text: str) -> bool:
         try:

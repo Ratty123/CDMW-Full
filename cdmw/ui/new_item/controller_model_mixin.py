@@ -432,51 +432,64 @@ class NewItemModelControllerMixin:
 
         return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
-    def start_skeleton_edit(self, path: Path) -> bool:
-        """Read a Skeleton Edit JSON against the template's rig, off the UI thread.
+    def start_add_bones(self) -> bool:
+        """Read the current variant's skeleton off the UI thread for the Add Bones dialog.
 
-        One edit is kept per rig, so a male and a female variant can each have one.
-        A model already imported with its own weights is weighted again at once."""
+        ``rig_source_ready`` then carries ``(pab bytes, pab path)``; the dialog's result
+        comes back through :meth:`set_skeleton_edit`."""
 
-        chosen = Path(path)
         snapshot, entry = self.snapshot, self.template_primary_entry()
         if snapshot is None or entry is None:
-            self.status_message.emit("Choose a template first; a skeleton edit is checked against its rig.", True)
+            self.status_message.emit("Choose a template first; bones are added to its skeleton.", True)
             return False
-        template_key = self.draft.template_key
+        template_key, variant = self.draft.template_key, self._active_variant
 
         def task(log, progress, stop_event):
-            from cdmw.services.mesh_skinning_preflight import edited_rig, template_skeleton
-            from cdmw.services.pab_skeleton_edit_service import read_pab_edit_json
-            progress(0, 0, f"Reading {chosen.name}")
-            # Editors such as Notepad may save a byte-order mark.
-            text = chosen.read_text(encoding="utf-8-sig")
+            from cdmw.services.mesh_skinning_preflight import rig_path, template_skeleton
+            progress(0, 0, "Reading the template skeleton")
             _skeleton, data, pab_path, _edit = template_skeleton(snapshot, entry.path)
             raise_if_cancelled(stop_event)
-            recipe = read_pab_edit_json(data, text, virtual_path=pab_path)
-            if not recipe.add_bones:
-                raise ValueError("The skeleton edit adds no bones; fill add_bones first.")
-            edited_rig(data, pab_path, recipe)
-            log(f"Skeleton edit: {len(recipe.add_bones)} bone(s) added to {pab_path}")
-            return recipe
+            return data, rig_path(pab_path)
 
-        def done(recipe):
-            if self.snapshot is not snapshot or self.draft.template_key != template_key:
+        def done(source):
+            if (self.snapshot is not snapshot or self.draft.template_key != template_key
+                    or self._active_variant != variant):
                 return
-            self._set_skeleton_edits((*(edit for edit in self.skeleton_edits if edit.path != recipe.path), recipe))
-            names = ", ".join(recipe.bone_names)
-            if self._reweight_for_skeleton_edits():
-                self.status_message.emit(f"Skeleton edit ready: {names}. Weighting the imported model again.", False)
-            else:
-                self.status_message.emit(
-                    f"Skeleton edit ready: {names}. Import a rigged model to weight it against this rig.", False)
-                # Shown last, so the status line keeps it.
-                self._warn_stale_skeleton_edit()
+            self.rig_source_ready.emit(source)
 
         def failed(message):
-            self.status_message.emit(f"The skeleton edit could not be used: {message}", True)
+            self.status_message.emit(f"The template skeleton could not be read: {message}", True)
 
-        return self._run("skeleton_edit", task, done, failed, task_accepts_progress=True)
+        return self._run("rig_source", task, done, failed, task_accepts_progress=True)
+
+    def set_skeleton_edit(self, pab_path: str, edits) -> None:
+        """Keep ``edits`` (validated PabAppendEdit rows) as the skeleton edit for one rig.
+
+        One edit is kept per rig, so a male and a female variant can each have one; no
+        edits removes that rig's. A model already imported with its own weights is
+        weighted again once the controller is idle."""
+
+        from cdmw.services.pab_skeleton_edit_service import SkeletonEditRecipe
+        edits = tuple(edits)
+        others = tuple(edit for edit in self.skeleton_edits if edit.path != pab_path)
+        if not edits:
+            if len(others) != len(self.skeleton_edits):
+                self._set_skeleton_edits(others)
+                if not self._reweight_for_skeleton_edits():
+                    self._warn_stale_skeleton_edit()
+            return
+        recipe = SkeletonEditRecipe(pab_path, edits)
+        if recipe in self.skeleton_edits:
+            return
+        self._set_skeleton_edits((*others, recipe))
+        names = ", ".join(recipe.bone_names)
+        if self._reweight_for_skeleton_edits():
+            self.status_message.emit(f"Skeleton edit ready: {names}. Weighting the imported model again.", False)
+        else:
+            self.status_message.emit(
+                f"Skeleton edit ready: {names}. Import a rigged model to weight it against this rig.", False)
+            # Shown last, so the status line keeps it.
+            self._warn_stale_skeleton_edit()
 
     def clear_skeleton_edit(self) -> None:
         if self.skeleton_edits:
@@ -511,7 +524,8 @@ class NewItemModelControllerMixin:
     def _run_pending_reweight(self, busy: bool) -> None:
         if not busy and self._reweight_pending:
             self._reweight_pending = False
-            self._reweight_for_skeleton_edits()
+            # After every other listener has seen the controller go idle.
+            QTimer.singleShot(0, self, self._reweight_for_skeleton_edits)
 
     def start_rig_export(self, output_dir: Path) -> bool:
         """Write the template skinned to its rig (with the matching skeleton edit's bones) as GLB."""

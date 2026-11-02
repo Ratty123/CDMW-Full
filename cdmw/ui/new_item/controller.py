@@ -87,6 +87,8 @@ class NewItemStudioController(
     model_import_failed = Signal(str)
     #: the skeleton edits imports weight against changed (a tuple of recipes, one per rig)
     skeleton_edit_changed = Signal(object)
+    #: the current variant's skeleton was read for the Add Bones dialog: (pab bytes, pab path)
+    rig_source_ready = Signal(object)
     #: placement conversion failed; keep the reason beside Apply placement
     model_apply_failed = Signal(str)
     #: an imported model accepted one stable Mesh Editor revision
