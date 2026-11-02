@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from cdmw.modding.skeleton_writer import (
+    PabDocument,
     PabEditRefused,
+    _invert_affine,
     append_child_bone,
     read_pab_document,
     rename_bone,
@@ -109,8 +112,10 @@ class PabEditJsonError(ValueError):
     """A Skeleton Edit JSON document is malformed or does not match its source."""
 
 
-def dumps_pab_edit_json(data: bytes, virtual_path: str = "") -> str:
-    """Export a skeleton as Skeleton Edit JSON: read-only bones plus an empty ``add_bones`` list."""
+def dumps_pab_edit_json(
+    data: bytes, virtual_path: str = "", add_bones: Sequence[PabAppendEdit] = (),
+) -> str:
+    """Export a skeleton as Skeleton Edit JSON: read-only bones plus ``add_bones`` (empty or a draft)."""
     document = read_pab_document(data, virtual_path)
     bones = []
     for index, bone in enumerate(document.bones):
@@ -143,7 +148,11 @@ def dumps_pab_edit_json(data: bytes, virtual_path: str = "") -> str:
              "\"scale\": [x, y, z], \"core\": 0}."),
             *PAB_APPEND_NOTES,
         ],
-        "add_bones": [],
+        "add_bones": [
+            {"parent": edit.parent, "name": edit.name, "position": list(edit.position),
+             "rotation": list(edit.rotation), "scale": list(edit.scale), "core": edit.core_flag}
+            for edit in add_bones
+        ],
         "bones": bones,
     }
     return json.dumps(payload, indent=2) + "\n"
@@ -244,6 +253,79 @@ def _append_edits(rows: list) -> tuple[PabAppendEdit, ...]:
             core_flag=core,
         ))
     return tuple(edits)
+
+
+#: Character-space directions for bone chains: Y is up, the character faces -Z, its left is +X.
+PAB_CHAIN_DIRECTIONS = {
+    "down": (0.0, -1.0, 0.0),
+    "up": (0.0, 1.0, 0.0),
+    "forward": (0.0, 0.0, -1.0),
+    "back": (0.0, 0.0, 1.0),
+    "left": (1.0, 0.0, 0.0),
+    "right": (-1.0, 0.0, 0.0),
+}
+
+
+def euler_degrees_to_quaternion(x: float, y: float, z: float) -> tuple[float, float, float, float]:
+    """Unit quaternion (xyzw) for turns about the parent's X, then Y, then Z axis."""
+    hx, hy, hz = (math.radians(value) / 2.0 for value in (x, y, z))
+    cx, sx, cy, sy, cz, sz = math.cos(hx), math.sin(hx), math.cos(hy), math.sin(hy), math.cos(hz), math.sin(hz)
+    return (sx * cy * cz - cx * sy * sz, cx * sy * cz + sx * cy * sz,
+            cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz)
+
+
+def quaternion_to_euler_degrees(rotation: Sequence[float]) -> tuple[float, float, float]:
+    """Inverse of :func:`euler_degrees_to_quaternion` (Y kept within +-90 degrees)."""
+    x, y, z, w = rotation
+    roll = math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y))
+    pitch = math.asin(max(-1.0, min(1.0, 2.0 * (w * y - z * x))))
+    yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    return tuple(math.degrees(value) + 0.0 for value in (roll, pitch, yaw))
+
+
+def preview_pab_edits(data: bytes, edits: Sequence[PabAppendEdit], *, path: str = "") -> PabDocument:
+    """The skeleton as it would be written, or PabEditRefused naming the first bad edit."""
+    document = read_pab_document(data, path)
+    for number, edit in enumerate(edits, 1):
+        try:
+            document = append_child_bone(
+                document, edit.parent, edit.name, position=edit.position, rotation=edit.rotation,
+                scale=edit.scale, core_flag=edit.core_flag)
+        except PabEditRefused as exc:
+            raise PabEditRefused(f"Added bone {number} ({edit.name or 'unnamed'}): {exc}") from exc
+    return document
+
+
+def plan_bone_chain(
+    document: PabDocument, parent: str, prefix: str, count: int, segment_length: float,
+    direction: Sequence[float] = PAB_CHAIN_DIRECTIONS["down"],
+) -> tuple[PabAppendEdit, ...]:
+    """A chain of ``count`` bones hanging from ``parent`` in a character-space direction.
+
+    The first bone sits at the parent, each later one ``segment_length`` further
+    along ``direction``. Every bone keeps its parent's orientation, so one local
+    offset, converted from character space through the parent's bind matrix,
+    serves the whole chain. Names are ``<prefix>_00``, ``<prefix>_01`` and so on.
+    """
+    if not 1 <= int(count) <= 64:
+        raise PabEditRefused("A chain has 1 to 64 bones.")
+    if not math.isfinite(segment_length) or segment_length <= 0:
+        raise PabEditRefused("Segment length must be greater than zero.")
+    length = math.sqrt(sum(value * value for value in direction))
+    if not math.isfinite(length) or length < 1e-9:
+        raise PabEditRefused("The chain needs a direction.")
+    names = {bone.name for bone in document.bones}
+    chain = [f"{prefix}_{index:02d}" for index in range(int(count))]
+    taken = [name for name in chain if name in names]
+    if taken:
+        raise PabEditRefused(f"Bone {taken[0]!r} already exists; choose another prefix.")
+    inverse = _invert_affine(document.bones[document.bone_index(parent)].bind_matrix)
+    step = tuple(segment_length * value / length for value in direction)
+    offset = tuple(sum(step[k] * inverse[k * 4 + column] for k in range(3)) for column in range(3))
+    return tuple(
+        PabAppendEdit(chain[index - 1] if index else parent, name,
+                      position=offset if index else (0.0, 0.0, 0.0))
+        for index, name in enumerate(chain))
 
 
 def _vector(row: dict, key: str, default: tuple[float, ...], number: int) -> tuple[float, ...]:
