@@ -320,3 +320,18 @@ def test_a_private_copy_keeps_the_texture_kind_suffix():
         assert copy.endswith(kind + ".dds") and "_r" in copy
         # Registries that read the kind from the name, CDMW's and DMM's, tag it like the source.
         assert header_tag_for(copy, dds) == header_tag_for(source, dds)
+
+
+def test_a_whole_copy_of_a_partially_compressed_texture_records_its_real_mip_sizes():
+    import struct
+    from cdmw.core.pathc_format import block_infos_for, with_stored_mip_sizes
+    header = bytearray(128)
+    header[:4] = b"DDS "
+    struct.pack_into("<7I", header, 4, 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000, 8, 8, 32, 1, 2)
+    struct.pack_into("<11I", header, 32, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0)  # compressed sizes, as the game stores them
+    struct.pack_into("<II4s", header, 76, 32, 0x4, b"DXT1")
+    struct.pack_into("<I", header, 124, 4)
+    data = bytes(header) + bytes(32 + 8)
+    fixed = with_stored_mip_sizes(data)
+    assert struct.unpack_from("<4I", fixed, 32) == struct.unpack("<4I", block_infos_for(data)) == (32, 8, 0, 0)
+    assert fixed[:32] == data[:32] and fixed[76:] == data[76:]

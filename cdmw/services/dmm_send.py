@@ -156,6 +156,7 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
     owned = {key for row in resolved.registry["items"].values() for key in row["values"].get("iteminfo", {}).values()}
     files, targets = field_operations(files, read_game, owned)
     progress(90, "Writing the DMM mod…")
+    files = {path: _plain_copy(path, data) for path, data in files.items()}
     additions = tuple(ArchiveAddRequest(Path(), path, data, _storage_flags(path, data, int(flags.get(path) or 0)))
                       for path, data in sorted(files.items()))
     # DMM registers a mod's new textures itself and reports a mod's own meta/0.pathc as
@@ -193,6 +194,19 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
 # The flags CDMW's generated textures carry, which render through DMM.
 _PLAIN_DDS_FLAGS = 0x201
 _PRIVATE_COPY = re.compile(r"_r[0-9a-f]{16}(?:_[a-z]+)?\.dds$")
+
+
+def _plain_copy(path: str, data: bytes) -> bytes:
+    """A private copy of a partially compressed game texture, read back whole, keeps the
+    compressed mip sizes in its header; the game then reads the whole mips short and
+    draws noise. DMM serves the file as it is, so its header must give the real sizes."""
+    if _PRIVATE_COPY.search(path) and data[:4] == b"DDS ":
+        from cdmw.core.pathc_format import PathcError, with_stored_mip_sizes
+        try:
+            return with_stored_mip_sizes(data)
+        except PathcError:
+            return data
+    return data
 
 
 def _storage_flags(path: str, data: bytes, flags: int) -> int:

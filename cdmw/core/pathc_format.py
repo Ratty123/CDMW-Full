@@ -125,6 +125,18 @@ def _dds_descriptor(data: bytes) -> DdsTextureDescriptor:
     return DdsTextureDescriptor(header, counts)
 
 
+def with_stored_mip_sizes(data: bytes) -> bytes:
+    """`data` with its header's mip-size fields describing the mips it actually holds.
+
+    The game's partially compressed textures record their compressed mip sizes in
+    `dwReserved1`; read back in full they keep those numbers, and a loader that trusts
+    the header reads the uncompressed mips short and draws noise. A texture stored raw
+    records its raw sizes there, which is what this writes.
+    """
+    descriptor = _dds_descriptor(data)
+    return bytes(data[:32]) + descriptor.block_infos + bytes(28) + bytes(data[76:])
+
+
 def validate_dds_payload(data: bytes) -> DdsTextureDescriptor:
     """Refuse incomplete or unexplained bytes before publishing a raw DDS texture."""
     descriptor = _dds_descriptor(data)
