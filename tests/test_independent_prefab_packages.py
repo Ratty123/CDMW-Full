@@ -408,6 +408,7 @@ def test_the_inspector_route_adds_the_edit_to_an_existing_item_package(tmp_path)
     write_package(item, path)
     review = prepare_prefab_package(root, PREFAB_PATH, retargeted(mesh), edited_from=prefab_payload(), add_to=path)
     assert review.update is not None and review.package.identity == item.identity
+    assert not any('replaces' in line for line in review.lines), 'nothing to replace yet'
     write_prefab_package(review)
     updated = read_package(path)
     assert updated.identity == item.identity and updated.manifest['release'] == '2'
@@ -415,7 +416,10 @@ def test_the_inspector_route_adds_the_edit_to_an_existing_item_package(tmp_path)
     assert {row['path'] for module in updated.manifest['modules'] if module['type'] == 'prefab.replace'
             for row in module['data']['replacements']} == {PREFAB_PATH}
     # A second edit of the same prefab replaces the row and drops the bytes nobody uses.
+    # The editor opened the game's copy, so the first edit is not in it: the review
+    # has to say so, or the earlier edit disappears without a word.
     again = prepare_prefab_package(root, PREFAB_PATH, retargeted(), edited_from=prefab_payload(), add_to=path)
+    assert again.lines[0].startswith(f"This replaces the package's earlier edit of {PREFAB_PATH}.")
     write_prefab_package(again)
     final = read_package(path)
     assert final.manifest['release'] == '3' and digest(retargeted(mesh)) not in final.blobs

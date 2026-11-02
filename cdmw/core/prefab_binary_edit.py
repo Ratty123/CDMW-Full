@@ -233,6 +233,12 @@ def _plan_from_occurrences(
 ) -> tuple[PrefabPathEdit, ...]:
     """Validate offset-addressed edits against what actually decoded there."""
     decoded = {item.offset: item.text for item in document.all_strings()}
+    # A string that opens a pointee (every resource path does: 4 bytes of head,
+    # then the string) cannot be emptied. A zero-length prefix there reads back
+    # as "no string" followed by the pointee's length, so the rewrite would
+    # fail its own read-back; the game's form for an empty reference is not
+    # established, so the edit is refused before anything is written.
+    pointee_openers = {pointer.target + 4 for pointer in document.pointers}
     edits: list[PrefabPathEdit] = []
     for edit in requested:
         found = decoded.get(edit.offset)
@@ -246,6 +252,11 @@ def _plan_from_occurrences(
         # An empty replacement clears the string: this form names each row the
         # caller acted on, so an empty one is a choice. The mapping form keeps
         # treating an empty value as "leave it".
+        if not edit.new_text and found and edit.offset in pointee_openers:
+            raise PrefabEditError(
+                f"{found!r} is the path a reference points at, and a reference cannot be left "
+                "without one. Type another path, or undo the row."
+            )
         if edit.new_text != found:
             edits.append(edit)
     edits.sort(key=lambda item: item.offset)

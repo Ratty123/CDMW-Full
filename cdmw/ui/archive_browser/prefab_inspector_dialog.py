@@ -66,6 +66,7 @@ from cdmw.ui.archive_browser.prefab_inspector_editing import (
     USED_ROLE,
     VALUE_ROLE,
     WARNING_COLOUR,
+    pending_text,
 )
 from cdmw.ui.archive_browser.prefab_inspector_review import PrefabChangeReview
 from cdmw.ui.archive_browser.prefab_inspector_rows import PrefabRowsMixin
@@ -114,7 +115,7 @@ def _retarget_warning(original: str, replacement: str) -> str:
     """
     text = replacement.strip()
     if not text:
-        return "Path is empty, so this object will no longer name a file here."
+        return "Path is empty. A file path cannot be cleared; type another path or undo this row."
     if not is_asset_path(text):
         return "That does not look like a file path (expected folders and a file extension)."
     was, now = asset_role(original), asset_role(text)
@@ -165,8 +166,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
-        # Computed once: it costs a second decode, and nothing about it changes
-        # while the dialog is open.
+        # It costs a second decode, so it is computed once per payload: here,
+        # and again by _adopt_payload when a structural edit replaces the bytes.
         self._determined = True
         try:
             self._document = decode_prefab_binary(self._original)
@@ -549,8 +550,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         original = item.data(2, _EDIT_ROLE)
         if not isinstance(original, str):
             return
-        current = item.text(2)
-        changed = current != original
+        current = pending_text(item)
+        changed = current is not None
         warning = self._warning_for(original, current) if changed else ""
         colour = _WARNING_COLOUR if warning else _CHANGED_COLOUR if changed else None
         item.setBackground(2, QBrush(colour) if colour else QBrush())
@@ -842,9 +843,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
                 child = parent.child(child_index)
                 original = child.data(2, _EDIT_ROLE)
                 offset = child.data(2, _OFFSET_ROLE)
-                current = child.text(2).strip()
                 # An emptied row is a choice to clear the string, not a no-op.
-                if not isinstance(original, str) or current == original:
+                current = pending_text(child)
+                if current is None:
                     continue
                 if not isinstance(offset, int) or offset < 0:
                     continue

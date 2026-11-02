@@ -76,10 +76,15 @@ def prepare_prefab_package(root, target_path, replacement, *, edited_from=None, 
         raise IndependentItemError(f'The prefab you edited differs from the game\'s own copy of {target_path}, '
                                    'probably because another mod changes it. Disable that mod and edit the prefab again.')
     update = None
+    replaces_earlier = False
     if add_to is not None:
         add_to = Path(add_to).expanduser().resolve()
         existing = read_package(add_to, stop_event=stop_event)
         update = PrefabPackageUpdate(add_to, existing.identity, existing.digest)
+        # A package holds one version of each prefab, and the editor opened the
+        # game's copy, so an earlier edit of this prefab is not in what was edited.
+        replaces_earlier = any(row['path'] == target_path for module in prefab_modules(existing)
+                               for row in module['data']['replacements'])
         release = existing.manifest['release'] if isinstance(existing, IndependentModPackage) else '1'
         package = with_prefab_replacements(existing, snapshot, {target_path: bytes(replacement)},
                                            release=next_release(release), stop_event=stop_event)
@@ -93,7 +98,12 @@ def prepare_prefab_package(root, target_path, replacement, *, edited_from=None, 
             title=str(title).strip() or 'Prefab edit', release=str(release).strip() or '1', stop_event=stop_event)
     row = next(row for module in prefab_modules(package) for row in module['data']['replacements']
                if row['path'] == target_path)
+    replaced_line = (
+        (f"This replaces the package's earlier edit of {target_path}. That edit was made on the game's "
+         "own copy too, so it is not part of this one; redo it here if you still want it."),
+    ) if replaces_earlier else ()
     review = PrefabPackageReview(package, snapshot.provenance.capture(), root, target_path, (
+        *replaced_line,
         f'Target prefab: {target_path}',
         f'Package: {package.title}',
         f'Package UUID: {package.identity}',
