@@ -47,7 +47,10 @@ from cdmw.services.mesh_dotnet_material_channels import (
     _dotnet_material_input_channels,
     _dotnet_resolved_texture_channels,
 )
-from cdmw.services.mesh_dotnet_material_package import _refine_synthesized_material_contract
+from cdmw.services.mesh_dotnet_material_package import (
+    _refine_synthesized_material_contract,
+    _source_base_comes_from_layers,
+)
 from cdmw.services.pac_material_graph import build_pac_material_graph_v1
 
 
@@ -1854,3 +1857,124 @@ def test_sword_0014_acc_0035_cannot_receive_acc_0037_base_texture() -> None:
     assert owner_0035.owner_slot_index == 0
     assert channels["base"].endswith("acc_0035_base.dds")
     assert "acc_0037_base.dds" not in channels.values()
+
+
+def _antumbra_stone_layer_inputs(root: Path) -> tuple[PreviewMaterialTextureInput, ...]:
+    overlay = QImage(2, 1, QImage.Format.Format_RGBA8888)
+    overlay.fill(QColor(103, 99, 99, 255))
+    overlay_path = root / "tower_o.png"
+    assert overlay.save(str(overlay_path), "PNG")
+    color_mask = QImage(2, 1, QImage.Format.Format_RGBA8888)
+    color_mask.fill(QColor(255, 0, 0, 255))
+    color_mask_path = root / "tower_ma.png"
+    assert color_mask.save(str(color_mask_path), "PNG")
+    granite = QImage(2, 1, QImage.Format.Format_RGBA8888)
+    granite.setPixelColor(0, 0, QColor(40, 40, 40, 255))
+    granite.setPixelColor(1, 0, QColor(220, 220, 220, 255))
+    granite_path = root / "texturelayer_015_0008.png"
+    assert granite.save(str(granite_path), "PNG")
+    common = {
+        "material_name": "CD_MT0022_Antumbra_Tower_0001",
+        "shader_family": "SkinnedMeshStandard_Ver2",
+        "sidecar_kind": "pac_xml",
+        "parameter_declared_by": "pac_xml",
+        "owner_slot_index": 10,
+        "owner_wrapper_item_id": "4120",
+        "binding_authority": "authoritative",
+        "material_parameters": (
+            PreviewMaterialParameterInput(
+                parameter_kind="color",
+                parameter_name="_dyeingDetailLayerColorMaskR",
+                color_value=(1.0, 1.0, 1.0),
+            ),
+        ),
+        "visualized": True,
+    }
+    return (
+        PreviewMaterialTextureInput(
+            **common,
+            slot_kind="base",
+            parameter_name="_overlayColorTexture",
+            source_texture_path="character/texture/cd_mt0022_antumbra_tower_0001_o.dds",
+            preview_texture_path=str(overlay_path),
+            semantic_type="color",
+            semantic_subtype="base_color",
+            layer_role="overlay",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_base",
+        ),
+        PreviewMaterialTextureInput(
+            **common,
+            slot_kind="material",
+            parameter_name="_colorBlendingMaskTexture",
+            source_texture_path="character/texture/cd_mt0022_antumbra_tower_0001_ma.dds",
+            preview_texture_path=str(color_mask_path),
+            semantic_type="mask",
+            semantic_subtype="material_mask",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+        ),
+        PreviewMaterialTextureInput(
+            **common,
+            slot_kind="base",
+            parameter_name="_detailDiffuseMaskR",
+            source_texture_path="character/texture/cd_texturelayer_015_0008.dds",
+            preview_texture_path=str(granite_path),
+            semantic_type="color",
+            semantic_subtype="detail_diffuse",
+            layer_role="detail",
+            layer_channel="r",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_color",
+        ),
+    )
+
+
+def test_layer_bound_overlay_does_not_hide_layers_when_preview_core_has_no_base() -> None:
+    # cd_mt0022_antumbra_tower_0001: Preview Core finds no base and composes the stone from
+    # its detail layers, but the combiner took the flat _o overlay as the full base, so the
+    # Mesh Editor drew plain grey where Browse Archives showed granite.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        payload = SimpleNamespace(
+            material_name="CD_MT0022_Antumbra_Tower_0001",
+            material_texture_inputs=_antumbra_stone_layer_inputs(root),
+            tangents_usable=False,
+            texture_flip_vertical=False,
+        )
+
+        overlay_base = combine_preview_material(
+            payload, root / "overlay", 10,
+            settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
+        )
+        layered = combine_preview_material(
+            payload, root / "layered", 10,
+            settings=MaterialPreviewCombinerSettings(
+                support_map_max_dimension=96,
+                layered_base_only=True,
+            ),
+        )
+
+        flat = QImage(QUrl(overlay_base.base_source).toLocalFile())
+        assert flat.pixelColor(0, 0) == flat.pixelColor(1, 0)
+        notes = "; ".join(layered.notes)
+        assert "layer-only base rejected:cd_mt0022_antumbra_tower_0001_o.dds" in notes
+        assert "albedo synthesized" in notes
+        stone = QImage(QUrl(layered.base_source).toLocalFile())
+        assert stone.pixelColor(1, 0).red() - stone.pixelColor(0, 0).red() >= 12
+
+
+def test_preview_core_missing_base_with_layer_albedo_marks_layered_base_only() -> None:
+    def source(quality: object) -> SimpleNamespace:
+        return SimpleNamespace(preview_native_material_overrides={"native_base_quality": quality})
+
+    assert _source_base_comes_from_layers(
+        source({"missing": True, "visible_layer_albedo_used": True})
+    )
+    assert not _source_base_comes_from_layers(
+        source({"missing": False, "visible_layer_albedo_used": True})
+    )
+    assert not _source_base_comes_from_layers(
+        source({"missing": True, "visible_layer_albedo_used": False})
+    )
+    assert not _source_base_comes_from_layers(SimpleNamespace())

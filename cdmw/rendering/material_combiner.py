@@ -558,7 +558,10 @@ def combine_preview_material(
     )
     for item in base_candidates:
         _raise_if_material_combiner_cancelled(cancelled)
-        if _is_layer_only_base_color(item):
+        if _is_layer_only_base_color(item) or (
+            settings.layered_base_only
+            and str(getattr(item, "binding_disposition", "") or "").strip().lower() == "layer_only"
+        ):
             notes.append(f"layer-only base rejected:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue
         if _looks_like_technical_base(item):
