@@ -156,11 +156,10 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
     files, targets = field_operations(files, read_game, owned)
     progress(90, "Writing the DMM mod…")
     additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
-    # The texture registry goes along only when the items register textures: a copy of
-    # the shipped one would hide the next game update's registry.
-    installed = root / "meta" / "0.pathc"
-    changed_pathc = pathc is not None and (not installed.is_file() or installed.read_bytes() != pathc)
-    composed = _ComposedMod(additions, (_Meta("meta/0.pathc", pathc),) if changed_pathc else (), _Spec(title))
+    # DMM registers a mod's new textures itself and reports a mod's own meta/0.pathc as
+    # "loose archive files not applied", so the registry stays out of the mod.
+    del pathc
+    composed = _ComposedMod(additions, (), _Spec(title))
     description = f"{len(paths)} item package(s) sent to DMM by CDMW."
     with tempfile.TemporaryDirectory(prefix=".cdmw-send-", dir=folder.parent.parent) as staging:
         staged = Path(staging) / folder.name

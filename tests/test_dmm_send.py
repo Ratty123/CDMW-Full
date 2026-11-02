@@ -66,7 +66,8 @@ def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
     # DMM reads every .json in a mod folder as a mod; only what DMM needs is shipped.
     shipped = {p.relative_to(result.folder).as_posix() for p in result.folder.rglob("*") if p.is_file()}
-    assert shipped - {"meta/0.pathc"} == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json",
+    # No texture registry: DMM registers new textures itself and flags a shipped one.
+    assert shipped == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json",
                                          "CDMW items - shops and groups.json"}
     # Shops and groups go as additions DMM applies to base and DLC rows, not as table copies.
     operations = json.loads((result.folder / "CDMW items - shops and groups.json").read_text(encoding="utf-8"))
