@@ -1438,10 +1438,18 @@ runtime dump, archives read-only):
   of the buffer for the edited animation, and on all 558 charts the other
   animations kept the old value. In-place f32 edits cover `ActionSpeedRate`,
   animation start/end, speed windows and their rate, frame-tag and just-time
-  windows, and frame-event begin/end. Everything else is refused. None of these
-  edits has been checked in game yet.
-  Archive Browser's **Edit Action Chart...** exposes these writes and exports
-  the chart as a DMM archive-group mod.
+  windows, and frame-event begin/end. Everything else is refused.
+  Archive Browser's **Edit Action Chart...** exposes these writes, names the
+  other charts that play a clip, and exports the edited charts as one DMM
+  archive-group mod.
+- **In game (2026-11-02, game 2.04.03, exe 1.0.0.3479, mounted with DMM 1.0).**
+  Clip retargets work: with the two sword-drawn idle clips retargeted to a
+  clapping loop in the six Kliff charts that play them (each table grew by 10
+  bytes per entry), Kliff clapped with the sword drawn and the game loaded
+  normally. The same edit in `sword_upper.paac` alone changed nothing visible,
+  although DmmRuntime served exactly the edited chart, so the sword-drawn idle on
+  screen comes from another chart that plays the same clip. Timing, speed and
+  event edits are not checked in game yet.
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts

@@ -16151,7 +16151,7 @@
     "no skeleton list on this block": "此區塊上沒有骨架清單",
     "no-texture download": "無紋理下載",
     "node": "節點",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game": "節點、分支和大多數影格事件酬載的欄位仍為原始位元組；commonactioninfo_serialized.paac 保留一段 7,034 位元組的反射尾端；寫入（任意長度的字串重定向、時間與速度值）尚未在遊戲中驗證",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "節點、分支和大多數影格事件酬載的欄位仍為原始位元組；commonactioninfo_serialized.paac 保留一段 7,034 位元組的反射尾端；片段重定向在遊戲中有效，時間、速度與事件的修改尚未在遊戲中檢查",
     "none": "無",
     "none of this operation's sockets are shared": "此操作的掛點沒有任何一個是共用的",
     "none — an existing one is reused": "無 — 重用了一個現有插槽",

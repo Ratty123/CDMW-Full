@@ -16151,7 +16151,7 @@
     "no skeleton list on this block": "nenhuma lista de esqueleto neste bloco",
     "no-texture download": "sem download de textura",
     "node": "nó",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game": "os campos de nós, ramificações e da maioria das cargas de eventos de quadro continuam como bytes brutos; commonactioninfo_serialized.paac mantém uma cauda de reflexão de 7.034 bytes; as gravações (redirecionamentos de strings de qualquer comprimento, valores de tempo e velocidade) não foram comprovadas no jogo",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "os campos de nós, ramificações e da maioria das cargas de eventos de quadro continuam como bytes brutos; commonactioninfo_serialized.paac mantém uma cauda de reflexão de 7.034 bytes; os redirecionamentos de clipes funcionam no jogo, as alterações de tempo, velocidade e eventos ainda não foram verificadas no jogo",
     "none": "nenhum",
     "none of this operation's sockets are shared": "nenhum dos soquetes desta operação é compartilhado",
     "none — an existing one is reused": "nenhum — um existente é reutilizado",

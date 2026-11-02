@@ -16151,7 +16151,7 @@
     "no skeleton list on this block": "no skeleton list on this block",
     "no-texture download": "no-texture download",
     "node": "node",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet",
     "none": "none",
     "none of this operation's sockets are shared": "none of this operation's sockets are shared",
     "none — an existing one is reused": "none — an existing one is reused",

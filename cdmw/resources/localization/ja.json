@@ -16151,7 +16151,7 @@
     "no skeleton list on this block": "このブロックにはスケルトン リストがありません",
     "no-texture download": "テクスチャのダウンロードはありません",
     "node": "ノード",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game": "ノード、ブランチ、ほとんどのフレームイベントのペイロードのフィールドは生バイトのままです。commonactioninfo_serialized.paac には 7,034 バイトのリフレクション末尾が残ります。書き込み（任意長の文字列リターゲット、時間と速度の値）はゲーム内で実証されていません",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "ノード、ブランチ、ほとんどのフレームイベントのペイロードのフィールドは生バイトのままです。commonactioninfo_serialized.paac には 7,034 バイトのリフレクション末尾が残ります。クリップのリターゲットはゲーム内で動作します。時間、速度、イベントの編集はまだゲーム内で確認されていません",
     "none": "なし",
     "none of this operation's sockets are shared": "この操作のソケットはどれも共有されていません",
     "none — an existing one is reused": "なし — 既存のものを再利用します",
