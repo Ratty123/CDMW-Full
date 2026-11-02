@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
 
 from pathlib import PurePosixPath
 
-from cdmw.core.action_chart_binary import ANIMATION_TABLE, BLEND_TABLE, ChartValueEdit
+from cdmw.core.action_chart_binary import ANIMATION_TABLE, BLEND_TABLE, ActionChartError, ChartValueEdit
 from cdmw.services.action_chart_edit_service import (
     ActionChartChanges,
     ActionChartEditRequest,
@@ -77,6 +77,11 @@ _BLEND_TIME_FIELD = "blend time"
 #: Pending-list item tags; integers so they are never mistaken for interface text.
 _RETARGET, _RESOURCE, _EVENT, _VALUE, _LINKED = range(5)
 _RESOURCE_FIELDS = ("clip", "blend")
+
+
+@dataclass(frozen=True, slots=True)
+class _Refused:
+    message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +178,8 @@ class ActionChartEditorDialog(QDialog):
         catalogs: Optional[Mapping[int, TableCatalog]] = None,
         used_by: Sequence[str] = (),
         export_details: Optional[Callable[[ActionChartEditorResult], object]] = None,
+        export_writer: Optional[Callable[[ActionChartEditorResult, object, Callable[[str], None]], object]] = None,
+        export_done: Optional[Callable[[object, object], None]] = None,
         edited: Optional[bytes] = None,
         edited_changes: Optional[ActionChartChanges] = None,
         clip_info: Optional[Callable[[str], ClipInfo]] = None,
@@ -218,6 +225,10 @@ class ActionChartEditorDialog(QDialog):
         self.result_payload: Optional[ActionChartEditorResult] = None
         #: Asked on Export, before the editor closes; returning None keeps the editor open.
         self._export_details = export_details
+        #: Writes the mod on the editor's worker; the editor stays open until it succeeds,
+        #: so a refused or failed export keeps every edit.
+        self._export_writer = export_writer
+        self._export_done = export_done
         self.export_plan: object = None
 
         self.setWindowTitle(title or "Action Chart Editor")
@@ -1141,6 +1152,9 @@ class ActionChartEditorDialog(QDialog):
         self.export_button.setEnabled(not busy and not pending and (not self._changes.empty or bool(self._linked)))
         self.close_button.setEnabled(not busy)
         self.clip_length_button.setEnabled(not busy)
+        # Edits made while a task runs would be cleared when it finishes; lock them until then.
+        self.tabs.setEnabled(not busy)
+        self.rate_spin.setEnabled(not busy)
         self.remove_pending_button.setEnabled(not busy and pending)
         if pending:
             self.export_button.setToolTip("Apply the pending edits first.")
@@ -1193,7 +1207,15 @@ class ActionChartEditorDialog(QDialog):
 
     def _start_task(self, task: Callable[..., object], on_done: Callable[[UtilityTaskOutcome], None]) -> None:
         self._on_task_done = on_done
-        worker = UtilityWorker(task)
+
+        def guarded(log: Callable[[str], None]) -> object:
+            # A refused edit or export is an answer for the user, not a crash to report.
+            try:
+                return task(log)
+            except ActionChartError as exc:
+                return _Refused(str(exc))
+
+        worker = UtilityWorker(guarded)
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -1208,6 +1230,8 @@ class ActionChartEditorDialog(QDialog):
 
     def _task_outcome(self, outcome: UtilityTaskOutcome) -> None:
         handler, self._on_task_done = self._on_task_done, None
+        if isinstance(outcome.value, _Refused):
+            outcome = UtilityTaskOutcome("failed", message=outcome.value.message)
         if handler is not None:
             handler(outcome)
 
@@ -1251,17 +1275,34 @@ class ActionChartEditorDialog(QDialog):
         self._set_status("Back to the shipped chart.")
 
     def _export(self) -> None:
-        if (self._changes.empty and not self._linked) or self._pending_count():
+        if (self._changes.empty and not self._linked) or self._pending_count() or self.busy():
             return
         linked = tuple(LinkedClipChange(chart, old, new) for (chart, old), new in self._linked.items())
         payload = ActionChartEditorResult(self._data, self._changes, linked)
+        plan: object = None
         if self._export_details is not None:
             plan = self._export_details(payload)
             if plan is None:
                 return
+        if self._export_writer is None:
             self.export_plan = plan
-        self.result_payload = payload
-        self.accept()
+            self.result_payload = payload
+            self.accept()
+            return
+        writer = self._export_writer
+        self._set_status("Writing the DMM mod...")
+
+        def _exported(outcome: UtilityTaskOutcome) -> None:
+            if outcome.kind != "completed":
+                self._set_status(f"The export failed, and your edits are kept: {outcome.message}", error=True)
+                return
+            self.export_plan = plan
+            self.result_payload = payload
+            if self._export_done is not None:
+                self._export_done(plan, outcome.value)
+            self.accept()
+
+        self._start_task(lambda log: writer(payload, plan, log), _exported)
 
     def busy(self) -> bool:
         return self._thread is not None

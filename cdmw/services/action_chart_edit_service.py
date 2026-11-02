@@ -585,6 +585,13 @@ def apply_action_chart_edits(
     for resource in request.resources:
         patched = set_animation_resources(patched, resource.animation, clip=resource.clip, blend=resource.blend,
                                           virtual_path=virtual_path)
+    if request.events:
+        current = load_editable_chart(patched, virtual_path)
+        if current.frame_event_buffer is None:
+            raise ActionChartError("this chart has no frame events to edit")
+        # Every event must have a known size before any is changed, so a chart from
+        # another game version is refused rather than written at a wrong offset.
+        walk_frame_events(patched, current.frame_event_buffer)
     for edit in request.events:
         patched = apply_event_edits(patched, [EventEdit(edit.animation, edit.event, edit.field, edit.value)],
                                     only_this_animation=edit.only_this_animation, virtual_path=virtual_path)
@@ -920,12 +927,15 @@ def apply_linked_clip_changes(data: bytes, chart_path: str, changes: Iterable[Li
 
     patched = bytes(data)
     for change in changes:
-        if change.old == change.new or _normal(change.chart).lower() != _normal(chart_path).lower():
+        if change.old.lower() == change.new.lower() or _normal(change.chart).lower() != _normal(chart_path).lower():
             continue
         values = load_editable_chart(patched, chart_path).tables[ANIMATION_TABLE].values
-        if change.old not in values and change.new in values:
-            continue
-        patched, _count = retarget_chart_string(patched, ANIMATION_TABLE, change.old, change.new, virtual_path=chart_path)
+        # Charts write the same clip path in different cases; the archive index matches
+        # them case-insensitively, so this does too, and replaces each stored spelling.
+        stored = [value for value in values if value.lower() == change.old.lower()]
+        # None left: the clip was already changed here, to this clip or another one.
+        for value in dict.fromkeys(stored):
+            patched, _count = retarget_chart_string(patched, ANIMATION_TABLE, value, change.new, virtual_path=chart_path)
     return patched
 
 
@@ -1009,10 +1019,31 @@ def mod_destination(parent: Path, title: str) -> tuple[Path, bool]:
     folder = Path(parent) / sanitize_mod_package_folder_name(title)
     if not folder.exists():
         return folder, False
-    if folder.is_dir() and _written_by_cdmw(folder):
+    if folder.is_dir() and is_chart_mod(folder):
         return folder, True
+    if folder.is_dir() and _written_by_cdmw(folder):
+        raise ActionChartError(f"{folder.name} is another kind of mod CDMW wrote, not an action chart mod. "
+                               "Choose another mod name.")
     raise ActionChartError(f"A folder named {folder.name} already exists and CDMW did not write it. "
                            "Choose another mod name.")
+
+
+def _staging_parent(folder: Path) -> Path:
+    """Where to build a mod before swapping it in: beside its parent folder, on the same drive.
+
+    A manager lists every folder in its mods folder, so building inside it would show a
+    half-written mod; dmm_send stages one level up for the same reason.
+    """
+
+    above = folder.parent.parent
+    if above != folder.parent and above.drive.lower() == folder.parent.drive.lower():
+        try:
+            probe = Path(tempfile.mkdtemp(prefix=".cdmw-probe-", dir=above))
+        except OSError:
+            return folder.parent
+        probe.rmdir()
+        return above
+    return folder.parent
 
 
 def _game_root(entry: ArchiveEntry) -> Optional[Path]:
@@ -1109,7 +1140,7 @@ def write_action_chart_mod(
     if not requests:
         raise ActionChartError("the chart has no changes to export")
     folder.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=folder.parent) as staging:
+    with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=_staging_parent(folder)) as staging:
         stage = Path(staging) / folder.name
         stage.mkdir()
         shared = export_archive_overlay_package(

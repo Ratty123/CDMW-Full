@@ -32,6 +32,7 @@ from cdmw.services.action_chart_edit_service import (
     compare_charts,
     is_editable_action_chart_path,
     load_editable_chart,
+    mod_destination,
     read_chart_mod,
     write_action_chart_mod,
 )
@@ -179,6 +180,8 @@ class ArchiveActionChartActionsMixin:
                 clip_uses=prepared.clip_uses,
                 chart_users_of=lambda path: chart_users(prepared.character_rows, path, prepared.includes),
                 export_details=lambda payload: self._ask_action_chart_export(prepared.entry, payload, mod),
+                export_writer=self._action_chart_export_writer(prepared),
+                export_done=self._action_chart_mod_written,
                 title=f"Action Chart Editor - {PurePosixPath(prepared.path).name}",
                 parent=self,
             )
@@ -198,15 +201,10 @@ class ArchiveActionChartActionsMixin:
         dialog.show()
 
     def _action_chart_editor_finished(self, dialog: ActionChartEditorDialog, prepared: _PreparedChart) -> None:
+        # The export has already run inside the editor; nothing is left to write here.
         editors = getattr(self, "_action_chart_editors", [])
         if dialog in editors:
             editors.remove(dialog)
-        payload, plan = dialog.result_payload, dialog.export_plan
-        if payload is None or not isinstance(plan, _ExportPlan):
-            return
-        if payload.data == prepared.data and not payload.linked:
-            return
-        self._write_edited_action_chart(prepared.entry, prepared.data, payload, plan, prepared.index)
 
     def _show_action_chart_clip_in_browser(self, clip: str) -> None:
         name = PurePosixPath(str(clip).replace("\\", "/")).name
@@ -249,53 +247,50 @@ class ArchiveActionChartActionsMixin:
         parent = self._choose_action_chart_mod_parent(details.choice, owner, start)
         if parent is None:
             return None
+        try:
+            # Refuse a folder the export may not replace now, while the user can pick again.
+            mod_destination(parent, details.mod_title)
+        except ActionChartError as exc:
+            QMessageBox.warning(owner, "Export Action Chart Mod", str(exc))
+            return None
         return _ExportPlan(parent, details.choice == SEND_TO_DMM, details.mod_title, details.mod_author,
                            details.mod_version, details.mod_description, details.keep_existing)
 
-    def _write_edited_action_chart(
-        self,
-        entry: ArchiveEntry,
-        original: bytes,
-        payload: ActionChartEditorResult,
-        plan: _ExportPlan,
-        index: Optional[ChartArchiveIndex] = None,
-    ) -> None:
-        edited = payload.data
-        shipped = index.entry_for_path if index is not None else None
+    def _action_chart_export_writer(
+        self, prepared: _PreparedChart
+    ) -> Callable[[ActionChartEditorResult, object, Callable[[str], None]], ActionChartModResult]:
+        """The export the editor runs on its own worker; it stays open until this succeeds."""
 
-        def _write_action_chart_mod(log: Callable[[str], None], stop_event: threading.Event) -> ActionChartModResult:
+        entry, original, index = prepared.entry, prepared.data, prepared.index
+
+        def _write(payload: ActionChartEditorResult, plan: object, log: Callable[[str], None]) -> ActionChartModResult:
+            if not isinstance(plan, _ExportPlan):
+                raise ActionChartError("The export has no destination.")
             return write_action_chart_mod(
-                entry, original, edited, parent=plan.parent, title=plan.title, description=plan.description,
+                entry, original, payload.data, parent=plan.parent, title=plan.title, description=plan.description,
                 author=plan.author, version=plan.version, keep_existing=plan.keep_existing,
-                shipped_entries=shipped, linked=payload.linked, read_shipped=_read,
-                on_log=log, stop_event=stop_event,
+                shipped_entries=index.entry_for_path, linked=payload.linked, read_shipped=_read, on_log=log,
             )
 
-        def _action_chart_mod_written(result: object) -> None:
-            if not isinstance(result, ActionChartModResult):
-                self.shell.set_status_message("Action chart export finished with an unexpected result payload.", error=True)
-                return
-            charts = "\n".join(f"  {path}" for path in result.charts)
-            if plan.sent:
-                message = (f"Sent the action chart mod to DMM:\n{result.folder}\n\n"
-                           "In DMM, enable it and click Mount. Action chart edits have not been confirmed in game yet.")
-            else:
-                message = (f"Wrote the action chart DMM mod into:\n{result.folder}\n\n"
-                           "Add it in DMM and enable it there. Action chart edits have not been confirmed in game yet.")
-            if result.replaced:
-                message += "\n\n" + "It replaced the copy CDMW wrote earlier."
-            if charts:
-                message += "\n\n" + f"Charts in this mod:\n{charts}"
-            QMessageBox.information(self, "Action Chart Mod Complete", message)
-            self.shell.set_status_message(f"Wrote action chart DMM mod: {result.folder}")
+        return _write
 
-        self.shell._run_utility_task_when_idle(
-            status_message=f"Building action chart DMM mod for {entry.basename}...",
-            task=_write_action_chart_mod,
-            on_complete=_action_chart_mod_written,
-            show_archive_progress=True,
-            task_accepts_cancel=True,
-        )
+    def _action_chart_mod_written(self, plan: object, result: object) -> None:
+        if not isinstance(result, ActionChartModResult) or not isinstance(plan, _ExportPlan):
+            self.shell.set_status_message("Action chart export finished with an unexpected result payload.", error=True)
+            return
+        charts = "\n".join(f"  {path}" for path in result.charts)
+        if plan.sent:
+            message = (f"Sent the action chart mod to DMM:\n{result.folder}\n\n"
+                       "In DMM, enable it and click Mount. Action chart edits have not been confirmed in game yet.")
+        else:
+            message = (f"Wrote the action chart DMM mod into:\n{result.folder}\n\n"
+                       "Add it in DMM and enable it there. Action chart edits have not been confirmed in game yet.")
+        if result.replaced:
+            message += "\n\n" + "It replaced the copy CDMW wrote earlier."
+        if charts:
+            message += "\n\n" + f"Charts in this mod:\n{charts}"
+        QMessageBox.information(self, "Action Chart Mod Complete", message)
+        self.shell.set_status_message(f"Wrote action chart DMM mod: {result.folder}")
 
     # --- finder and mods ----------------------------------------------------------------
 

@@ -140,6 +140,10 @@ def test_dmm_extension_recovers_owned_item_history(tmp_path, monkeypatch, existi
     assert first.spec.item_key in {item["item_key"] for item in record["previous_items"]}
     assert record["item_key"] == second.spec.item_key
     assert not any((folder / name).exists() for name in HISTORY_FILES)
+    # The record must be filed for the published bytes, not for staging that still held
+    # the copied legacy group.
+    evidence = read_compatibility(folder)
+    assert evidence is not None and evidence.files
 
 
 @pytest.mark.parametrize("operation", ("extend", "merge", "update"))

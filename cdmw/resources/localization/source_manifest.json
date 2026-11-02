@@ -16,7 +16,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 289,
+          "line": 292,
           "sink": "information"
         }
       ]
@@ -46,7 +46,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 289,
+          "line": 292,
           "sink": "information"
         }
       ]
@@ -4042,6 +4042,16 @@
       ]
     },
     {
+      "key": "A clip path must be plain ASCII text of at most {value_0} characters.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
+          "line": 116,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "A color DDS also supplies another material role; edit that texture explicitly.",
       "origins": [
         {
@@ -4676,7 +4686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 431,
+          "line": 442,
           "sink": "setToolTip"
         }
       ]
@@ -5271,7 +5281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 223,
+          "line": 234,
           "sink": "setWindowTitle"
         }
       ]
@@ -5281,7 +5291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 170,
+          "line": 171,
           "sink": "ActionChartEditorDialog"
         }
       ]
@@ -5291,7 +5301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 289,
+          "line": 292,
           "sink": "information"
         }
       ]
@@ -5301,7 +5311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 87,
+          "line": 88,
           "sink": "setText"
         }
       ]
@@ -5336,7 +5346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 230,
+          "line": 241,
           "sink": "QLabel"
         }
       ]
@@ -5346,7 +5356,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1140,
+          "line": 1171,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -5356,7 +5366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 276,
+          "line": 279,
           "sink": "set_status_message"
         }
       ]
@@ -6896,7 +6906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 878,
+          "line": 889,
           "sink": "appendPlainText"
         }
       ]
@@ -9126,7 +9136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 972,
+          "line": 983,
           "sink": "_set_status"
         }
       ]
@@ -9911,7 +9921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 830,
+          "line": 841,
           "sink": "QListWidgetItem"
         }
       ]
@@ -9921,7 +9931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 862,
+          "line": 873,
           "sink": "appendPlainText"
         }
       ]
@@ -9931,7 +9941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 826,
+          "line": 837,
           "sink": "QListWidgetItem"
         }
       ]
@@ -9941,7 +9951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 860,
+          "line": 871,
           "sink": "appendPlainText"
         }
       ]
@@ -9951,7 +9961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 865,
+          "line": 876,
           "sink": "appendPlainText"
         }
       ]
@@ -9961,7 +9971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 836,
+          "line": 847,
           "sink": "QListWidgetItem"
         }
       ]
@@ -9971,12 +9981,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 847,
+          "line": 858,
           "sink": "QListWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 849,
+          "line": 860,
           "sink": "QListWidgetItem"
         }
       ]
@@ -9986,7 +9996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 876,
+          "line": 887,
           "sink": "appendPlainText"
         }
       ]
@@ -10006,12 +10016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 250,
+          "line": 261,
           "sink": "addTab"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 60,
+          "line": 61,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -10706,7 +10716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1233,
+          "line": 1257,
           "sink": "_set_status"
         }
       ]
@@ -11006,7 +11016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 267,
+          "line": 278,
           "sink": "QPushButton"
         }
       ]
@@ -11416,7 +11426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1146,
+          "line": 1160,
           "sink": "setToolTip"
         }
       ]
@@ -15311,7 +15321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 880,
+          "line": 891,
           "sink": "appendPlainText"
         }
       ]
@@ -15321,7 +15331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 816,
+          "line": 827,
           "sink": "QListWidgetItem"
         }
       ]
@@ -17041,7 +17051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1251,
+          "line": 1275,
           "sink": "_set_status"
         }
       ]
@@ -18021,7 +18031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 408,
+          "line": 419,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -18356,7 +18366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 304,
+          "line": 315,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -18366,7 +18376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 334,
+          "line": 345,
           "sink": "QLabel"
         }
       ]
@@ -18376,7 +18386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -18386,7 +18396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 157,
+          "line": 162,
           "sink": "QLabel"
         }
       ]
@@ -19126,7 +19136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 149,
+          "line": 154,
           "sink": "QLabel"
         }
       ]
@@ -19171,7 +19181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -21118,16 +21128,6 @@
           "path": "cdmw/ui/archive_browser/attachment_batch.py",
           "line": 474,
           "sink": "_run_utility_task"
-        }
-      ]
-    },
-    {
-      "key": "Building action chart DMM mod for {value_0}...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 292,
-          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -23231,7 +23231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -23431,7 +23431,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 90,
+          "line": 91,
           "sink": "QPushButton"
         },
         {
@@ -24136,7 +24136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 186,
+          "line": 189,
           "sink": "set_status_message"
         }
       ]
@@ -25086,7 +25086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 87,
+          "line": 88,
           "sink": "QPushButton"
         }
       ]
@@ -25206,7 +25206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 363,
+          "line": 374,
           "sink": "setToolTip"
         }
       ]
@@ -25351,7 +25351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 537,
+          "line": 548,
           "sink": "QGroupBox"
         }
       ]
@@ -25401,7 +25401,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1103,
+          "line": 1134,
           "sink": "on_log"
         }
       ]
@@ -26181,7 +26181,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 60,
+          "line": 61,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -26261,7 +26261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 238,
+          "line": 249,
           "sink": "QLabel"
         }
       ]
@@ -26271,7 +26271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 844,
+          "line": 855,
           "sink": "QListWidgetItem"
         }
       ]
@@ -26281,7 +26281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 873,
+          "line": 884,
           "sink": "appendPlainText"
         }
       ]
@@ -26291,7 +26291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 362,
+          "line": 357,
           "sink": "getItem"
         }
       ]
@@ -26311,7 +26311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 83,
+          "line": 84,
           "sink": "QPushButton"
         }
       ]
@@ -26331,7 +26331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1180,
+          "line": 1194,
           "sink": "question"
         }
       ]
@@ -27206,7 +27206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 145,
+          "line": 150,
           "sink": "QLabel"
         }
       ]
@@ -28051,7 +28051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 228,
+          "line": 226,
           "sink": "getExistingDirectory"
         }
       ]
@@ -28921,7 +28921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 344,
+          "line": 339,
           "sink": "getExistingDirectory"
         }
       ]
@@ -31906,7 +31906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 304,
+          "line": 315,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -31916,7 +31916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 327,
+          "line": 338,
           "sink": "QGroupBox"
         }
       ]
@@ -31926,7 +31926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 115,
+          "line": 120,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -31936,7 +31936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 374,
+          "line": 385,
           "sink": "QLabel"
         }
       ]
@@ -31956,7 +31956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 113,
+          "line": 118,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -31966,7 +31966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 329,
+          "line": 340,
           "sink": "QLabel"
         }
       ]
@@ -31986,7 +31986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -32131,7 +32131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 274,
+          "line": 285,
           "sink": "QPushButton"
         },
         {
@@ -32286,7 +32286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1274,
+          "line": 1315,
           "sink": "question"
         }
       ]
@@ -32381,7 +32381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1274,
+          "line": 1315,
           "sink": "question"
         }
       ]
@@ -37036,7 +37036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 154,
+          "line": 155,
           "sink": "set_status_message"
         }
       ]
@@ -37236,7 +37236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 316,
+          "line": 311,
           "sink": "set_status_message"
         }
       ]
@@ -37246,7 +37246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 999,
+          "line": 1010,
           "sink": "setText"
         }
       ]
@@ -37256,7 +37256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 357,
+          "line": 352,
           "sink": "set_status_message"
         },
         {
@@ -38686,7 +38686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 385,
+          "line": 396,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -47661,7 +47661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -47671,7 +47671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 147,
+          "line": 152,
           "sink": "QLabel"
         }
       ]
@@ -47691,7 +47691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         },
         {
@@ -48166,7 +48166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 336,
+          "line": 347,
           "sink": "setPlaceholderText"
         }
       ]
@@ -48176,7 +48176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 781,
+          "line": 792,
           "sink": "setPlaceholderText"
         }
       ]
@@ -48716,7 +48716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 304,
+          "line": 315,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -48956,7 +48956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 112,
+          "line": 113,
           "sink": "setText"
         }
       ]
@@ -48966,7 +48966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 945,
+          "line": 956,
           "sink": "_set_status"
         }
       ]
@@ -49006,7 +49006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 497,
+          "line": 508,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -49146,7 +49146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 141,
+          "line": 146,
           "sink": "QLabel"
         }
       ]
@@ -49156,7 +49156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -49356,7 +49356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 408,
+          "line": 419,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -49396,7 +49396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 304,
+          "line": 315,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -49406,7 +49406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 432,
+          "line": 443,
           "sink": "QRadioButton"
         }
       ]
@@ -49416,7 +49416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 759,
+          "line": 770,
           "sink": "setText"
         }
       ]
@@ -49531,7 +49531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 838,
+          "line": 849,
           "sink": "QListWidgetItem"
         }
       ]
@@ -50826,7 +50826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 765,
+          "line": 776,
           "sink": "addItems"
         }
       ]
@@ -50929,6 +50929,11 @@
     {
       "key": "Export Action Chart Mod",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_chart_actions.py",
+          "line": 254,
+          "sink": "warning"
+        },
         {
           "path": "cdmw/ui/archive_browser/action_chart_export_dialog.py",
           "line": 38,
@@ -51166,7 +51171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 272,
+          "line": 283,
           "sink": "QPushButton"
         }
       ]
@@ -55311,7 +55316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 299,
+          "line": 310,
           "sink": "setPlaceholderText"
         }
       ]
@@ -55486,7 +55491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 492,
+          "line": 503,
           "sink": "setPlaceholderText"
         }
       ]
@@ -56076,7 +56081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 91,
+          "line": 92,
           "sink": "addAction"
         },
         {
@@ -56111,7 +56116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 88,
+          "line": 89,
           "sink": "setToolTip"
         }
       ]
@@ -56281,7 +56286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 345,
+          "line": 356,
           "sink": "setToolTip"
         }
       ]
@@ -56446,7 +56451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 310,
+          "line": 305,
           "sink": "log"
         }
       ]
@@ -56456,7 +56461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 143,
+          "line": 144,
           "sink": "log"
         }
       ]
@@ -59166,7 +59171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 131,
+          "line": 136,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -59176,7 +59181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 133,
+          "line": 138,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -59186,7 +59191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 405,
+          "line": 416,
           "sink": "QGroupBox"
         }
       ]
@@ -59206,7 +59211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 125,
+          "line": 130,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -59216,7 +59221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 123,
+          "line": 128,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -65696,7 +65701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 317,
+          "line": 328,
           "sink": "setToolTip"
         }
       ]
@@ -68491,7 +68496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 765,
+          "line": 776,
           "sink": "addItems"
         },
         {
@@ -69876,12 +69881,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 123,
+          "line": 124,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 306,
+          "line": 301,
           "sink": "log"
         }
       ]
@@ -74201,7 +74206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 129,
+          "line": 134,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -74211,7 +74216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 127,
+          "line": 132,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -74711,7 +74716,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1089,
+          "line": 1120,
           "sink": "on_log"
         }
       ]
@@ -77056,7 +77061,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 855,
+          "line": 862,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -79486,12 +79491,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 673,
+          "line": 678,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 675,
+          "line": 680,
           "sink": "ValueError"
         },
         {
@@ -80706,7 +80711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 137,
+          "line": 138,
           "sink": "log"
         }
       ]
@@ -90501,7 +90506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 408,
+          "line": 419,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -90511,7 +90516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -90521,7 +90526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 251,
+          "line": 262,
           "sink": "addTab"
         }
       ]
@@ -91426,7 +91431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 385,
+          "line": 396,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -91591,32 +91596,32 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 684,
+          "line": 689,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 690,
+          "line": 695,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 692,
+          "line": 697,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 701,
+          "line": 706,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 708,
+          "line": 713,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 770,
+          "line": 775,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -92761,7 +92766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 882,
+          "line": 893,
           "sink": "appendPlainText"
         }
       ]
@@ -94576,7 +94581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 653,
+          "line": 664,
           "sink": "setText"
         }
       ]
@@ -98516,7 +98521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 430,
+          "line": 441,
           "sink": "QRadioButton"
         }
       ]
@@ -98526,7 +98531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 349,
+          "line": 360,
           "sink": "setToolTip"
         }
       ]
@@ -98536,7 +98541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 758,
+          "line": 769,
           "sink": "setText"
         }
       ]
@@ -98756,7 +98761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 362,
+          "line": 357,
           "sink": "getItem"
         }
       ]
@@ -98766,7 +98771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 93,
+          "line": 94,
           "sink": "addAction"
         }
       ]
@@ -102461,7 +102466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 44,
+          "line": 45,
           "sink": "setWindowTitle"
         }
       ]
@@ -102471,7 +102476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 362,
+          "line": 373,
           "sink": "QPushButton"
         }
       ]
@@ -102531,7 +102536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 765,
+          "line": 776,
           "sink": "addItems"
         },
         {
@@ -105586,7 +105591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 143,
+          "line": 148,
           "sink": "QLabel"
         }
       ]
@@ -107411,7 +107416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 529,
+          "line": 540,
           "sink": "QGroupBox"
         }
       ]
@@ -110251,7 +110256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 151,
+          "line": 156,
           "sink": "QLabel"
         }
       ]
@@ -110271,7 +110276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -110796,12 +110801,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 119,
+          "line": 120,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 158,
+          "line": 159,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -111106,7 +111111,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 638,
+          "line": 643,
           "sink": "on_log"
         }
       ]
@@ -118226,7 +118231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 341,
+          "line": 352,
           "sink": "setToolTip"
         }
       ]
@@ -118601,7 +118606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 367,
+          "line": 362,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -118611,7 +118616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 352,
+          "line": 347,
           "sink": "log"
         }
       ]
@@ -118621,7 +118626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 128,
+          "line": 129,
           "sink": "log"
         }
       ]
@@ -119061,7 +119066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 308,
+          "line": 303,
           "sink": "log"
         }
       ]
@@ -119071,7 +119076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 323,
+          "line": 318,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -119081,12 +119086,12 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 729,
+          "line": 736,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 740,
+          "line": 747,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -119216,7 +119221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 995,
+          "line": 1006,
           "sink": "setText"
         },
         {
@@ -123591,7 +123596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 533,
+          "line": 544,
           "sink": "QPushButton"
         }
       ]
@@ -124541,7 +124546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 516,
+          "line": 527,
           "sink": "QPushButton"
         }
       ]
@@ -124796,7 +124801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 821,
+          "line": 832,
           "sink": "QListWidgetItem"
         }
       ]
@@ -124976,7 +124981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 497,
+          "line": 508,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -124986,12 +124991,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 507,
+          "line": 518,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 55,
+          "line": 56,
           "sink": "QLabel"
         }
       ]
@@ -125011,7 +125016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 857,
+          "line": 868,
           "sink": "appendPlainText"
         }
       ]
@@ -125731,7 +125736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 467,
+          "line": 478,
           "sink": "QLabel"
         }
       ]
@@ -127036,7 +127041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 270,
+          "line": 281,
           "sink": "QPushButton"
         }
       ]
@@ -134091,7 +134096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 243,
+          "line": 254,
           "sink": "setToolTip"
         }
       ]
@@ -135721,7 +135726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 215,
+          "line": 213,
           "sink": "set_status_message"
         }
       ]
@@ -136546,7 +136551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 110,
+          "line": 111,
           "sink": "set_status_message"
         }
       ]
@@ -138306,7 +138311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 940,
+          "line": 951,
           "sink": "_set_status"
         }
       ]
@@ -140111,7 +140116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 419,
+          "line": 430,
           "sink": "QGroupBox"
         }
       ]
@@ -141411,7 +141416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 289,
+          "line": 292,
           "sink": "information"
         }
       ]
@@ -141521,7 +141526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 153,
+          "line": 158,
           "sink": "QLabel"
         }
       ]
@@ -141531,7 +141536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 476,
+          "line": 487,
           "sink": "addItems"
         }
       ]
@@ -141626,7 +141631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 442,
+          "line": 453,
           "sink": "QPushButton"
         }
       ]
@@ -141726,7 +141731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 348,
+          "line": 359,
           "sink": "QPushButton"
         }
       ]
@@ -142591,7 +142596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 408,
+          "line": 419,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -143746,7 +143751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 344,
+          "line": 355,
           "sink": "QPushButton"
         }
       ]
@@ -146826,7 +146831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 155,
+          "line": 160,
           "sink": "QLabel"
         }
       ]
@@ -147241,7 +147246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 397,
+          "line": 408,
           "sink": "QLabel"
         },
         {
@@ -147666,7 +147671,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1071,
+          "line": 1102,
           "sink": "on_log"
         }
       ]
@@ -148571,7 +148576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 119,
+          "line": 124,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -148581,7 +148586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 121,
+          "line": 126,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -148591,7 +148596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 117,
+          "line": 122,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -149116,7 +149121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 304,
+          "line": 315,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -151961,7 +151966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 474,
+          "line": 485,
           "sink": "QLabel"
         }
       ]
@@ -156871,7 +156876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1221,
+          "line": 1245,
           "sink": "_set_status"
         }
       ]
@@ -157158,6 +157163,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 669,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "The export failed, and your edits are kept: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
+          "line": 1297,
+          "sink": "_set_status"
         }
       ]
     },
@@ -161021,7 +161036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1175,
+          "line": 1189,
           "sink": "_set_status"
         }
       ]
@@ -161286,7 +161301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1180,
+          "line": 1194,
           "sink": "question"
         }
       ]
@@ -162141,7 +162156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 753,
+          "line": 764,
           "sink": "setText"
         }
       ]
@@ -163406,7 +163421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 115,
+          "line": 119,
           "sink": "setText"
         }
       ]
@@ -163671,7 +163686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 382,
+          "line": 393,
           "sink": "QGroupBox"
         }
       ]
@@ -165806,7 +165821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 393,
+          "line": 404,
           "sink": "setToolTip"
         }
       ]
@@ -166436,7 +166451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 85,
+          "line": 86,
           "sink": "QPushButton"
         }
       ]
@@ -166591,7 +166606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 353,
+          "line": 364,
           "sink": "QPushButton"
         },
         {
@@ -166671,7 +166686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 444,
+          "line": 455,
           "sink": "QPushButton"
         }
       ]
@@ -166691,7 +166706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 518,
+          "line": 529,
           "sink": "QPushButton"
         }
       ]
@@ -169246,7 +169261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 340,
+          "line": 351,
           "sink": "QPushButton"
         }
       ]
@@ -170656,7 +170671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 60,
+          "line": 61,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -170731,7 +170746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 497,
+          "line": 508,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -171271,7 +171286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 385,
+          "line": 396,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -173136,12 +173151,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1271,
+          "line": 1312,
           "sink": "_set_status"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1284,
+          "line": 1325,
           "sink": "_set_status"
         }
       ]
@@ -176376,7 +176391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1148,
+          "line": 1162,
           "sink": "setToolTip"
         }
       ]
@@ -176406,7 +176421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 268,
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -176617,6 +176632,16 @@
       ]
     },
     {
+      "key": "Writing the DMM mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
+          "line": 1293,
+          "sink": "_set_status"
+        }
+      ]
+    },
+    {
       "key": "Writing the combined mod...",
       "origins": [
         {
@@ -176631,7 +176656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1190,
+          "line": 1204,
           "sink": "_set_status"
         }
       ]
@@ -176796,7 +176821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 290,
+          "line": 293,
           "sink": "set_status_message"
         }
       ]
@@ -177061,7 +177086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
-          "line": 289,
+          "line": 292,
           "sink": "information"
         }
       ]
@@ -200081,7 +200106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 573,
+          "line": 584,
           "sink": "setText"
         }
       ]
@@ -200166,7 +200191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 569,
+          "line": 580,
           "sink": "setText"
         }
       ]
@@ -201791,7 +201816,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1072,
+          "line": 1103,
           "sink": "on_log"
         }
       ]
@@ -202276,7 +202301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 748,
+          "line": 759,
           "sink": "setText"
         }
       ]
@@ -202696,7 +202721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
-          "line": 47,
+          "line": 48,
           "sink": "QLabel"
         }
       ]
@@ -202706,7 +202731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 648,
+          "line": 659,
           "sink": "setText"
         }
       ]
@@ -202831,7 +202856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1122,
+          "line": 1133,
           "sink": "_set_status"
         }
       ]
@@ -203426,7 +203451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 675,
+          "line": 686,
           "sink": "_set_status"
         }
       ]
@@ -203536,7 +203561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 935,
+          "line": 946,
           "sink": "_set_status"
         }
       ]
@@ -206266,7 +206291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 717,
+          "line": 728,
           "sink": "QTableWidgetItem"
         },
         {
@@ -206591,7 +206616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 817,
+          "line": 828,
           "sink": "setToolTip"
         },
         {
@@ -206711,7 +206736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1002,
+          "line": 1013,
           "sink": "setText"
         }
       ]
