@@ -30747,7 +30747,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 386
+      "cdmw/services/new_item_variants.py": 394
     }
   },
   {
@@ -31243,7 +31243,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 365
+      "cdmw/services/new_item_variants.py": 373
     }
   },
   {
@@ -32864,7 +32864,7 @@ MESSAGE_REFERENCE = [
     "message": "No applied model for {old}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 321
+      "cdmw/services/new_item_variants.py": 329
     }
   },
   {
@@ -34521,7 +34521,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 388
+      "cdmw/services/new_item_variants.py": 396
     }
   },
   {
