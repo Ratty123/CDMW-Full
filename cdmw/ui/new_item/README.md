@@ -2165,9 +2165,14 @@ source mod, installed overlays or game archives.
 ### Build fingerprints and portable original data
 
 New exports record the full available game build and executable fingerprint, file hashes
-and original payloads in `cdmw-compatibility.json` and `cdmw-baseline.zip`. DMM exports
-keep these records and `new-item.json` under
-`%LOCALAPPDATA%/CrimsonDesertModWorkbench/mod_export_history`. The exported folder
+and original payloads in `cdmw-compatibility.json` and `cdmw-baseline.zip`. Every export
+files these records, and `new-item.json` for item exports, under
+`%LOCALAPPDATA%/CrimsonDesertModWorkbench/mod_export_history` and never in the mod,
+because DMM parses every `.json` a mod holds. The history is bound to the payload files
+in the mod's sub-folders, so top-level files such as `manifest.json` and `README.txt`
+can change, renaming, copying or zipping keeps it, an added file does not hide it, and
+an edited payload never reuses it. Packages that carry the records inline still work.
+The exported folder
 contains the standalone archive group `0036/`, `meta/0.pathc` when needed,
 `manifest.json`, `modinfo.json` and `README.txt`. DMM rebuilds its own `meta/0.papgt`,
 so that file is omitted too. This applies to New Item, merged and updated DMM packages.

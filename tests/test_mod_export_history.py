@@ -216,3 +216,67 @@ def test_extending_a_new_item_mod_without_its_record_is_refused(tmp_path):
     shutil.rmtree(history._history_root())
     with pytest.raises(ValueError, match="cannot find its record of the items"):
         build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)
+
+
+def test_records_never_land_in_a_loose_mod_and_survive_descriptor_rewrites_and_zips(tmp_path):
+    import zipfile
+
+    from cdmw.core.archive_loose_export import export_archive_payloads_to_mod_ready_loose
+    from cdmw.models import ArchiveEntry, ModPackageInfo
+    from cdmw.services.archive_mutation_service import ArchivePatchRequest
+
+    game = tmp_path / "game"
+    (game / "0004").mkdir(parents=True)
+    (game / "0004" / "0.pamt").write_bytes(b"index")
+    entry = ArchiveEntry("sound/windows/1.bnk", game / "0004" / "0.pamt", game / "0004" / "0.paz", 0, 3, 3, 0, 0)
+    result = export_archive_payloads_to_mod_ready_loose(
+        [ArchivePatchRequest(entry=entry, payload_data=b"new bank")],
+        parent_root=tmp_path / "out",
+        package_info=ModPackageInfo(title="Audio"),
+    )
+    root = result.package_root
+    names = {path.name for path in root.rglob("*") if path.is_file()}
+    assert not names & {"cdmw-compatibility.json", "cdmw-baseline.zip"}
+    assert read_compatibility(root) is not None
+
+    # Descriptors are rewritten after the record is saved; the record must still be found.
+    (root / "manifest.json").write_text('{"rewritten": true}')
+    (root / "README.txt").write_text("changed")
+    assert read_compatibility(root) is not None
+
+    zipped = tmp_path / "Audio.zip"
+    with zipfile.ZipFile(zipped, "w") as archive:
+        for path in root.rglob("*"):
+            if path.is_file():
+                archive.write(path, f"Audio/{path.relative_to(root).as_posix()}")
+    assert read_compatibility(zipped) is not None
+
+    (root / "sound/windows/1.bnk").write_bytes(b"edited bank")
+    assert read_compatibility(root) is None
+
+
+def test_moving_new_item_records_keeps_the_compatibility_already_in_history(tmp_path):
+    package = tmp_path / "mod"
+    evidence = _package(package)
+    retain_dmm_history(package)
+    assert read_compatibility(package).originals == evidence.originals
+    assert mod_metadata_path(package, "new-item.json").read_text() == '{"item_key": 1990001}'
+
+
+def test_histories_bound_with_the_old_descriptor_rules_are_still_found(tmp_path):
+    import hashlib
+
+    from cdmw.core import mod_export_history as history
+    from cdmw.core.mod_compatibility import hash_file
+
+    package = tmp_path / "mod"
+    (package / "0045").mkdir(parents=True)
+    (package / "0045/0.paz").write_bytes(b"payload")
+    (package / "manifest.json").write_text("{}")
+    # An earlier CDMW bound history to every file except authoring records, README and the mount list.
+    records = sorted((path.relative_to(package).as_posix().casefold(), hash_file(path))
+                     for path in package.rglob("*") if path.is_file())
+    legacy = history._history_root() / hashlib.sha256(json.dumps(records, separators=(",", ":")).encode("utf-8")).hexdigest()
+    legacy.mkdir(parents=True)
+    (legacy / "new-item.json").write_text('{"item_key": 7}')
+    assert mod_metadata_path(package, "new-item.json") == legacy / "new-item.json"
