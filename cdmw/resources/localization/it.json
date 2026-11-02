@@ -12534,6 +12534,7 @@
     "Send To Icon Creator": "Invia a Icon Creator",
     "Send To Texture Replacer": "Invia al sostitutore texture",
     "Send To Texture Workflow": "Invia a Texture Workflow",
+    "Send at most {value_0} item packages at a time.": "Invia al massimo {value_0} pacchetti di oggetti alla volta.",
     "Send damage to parent": "Trasmetti danni al genitore",
     "Send report": "Invia segnalazione",
     "Send the lines you have filtered to a translation model on your own API key.": "Invia le righe che hai filtrato a un modello di traduzione sulla tua chiave API.",

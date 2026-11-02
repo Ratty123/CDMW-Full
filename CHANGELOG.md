@@ -62,6 +62,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mod Management's **Send to DMM** builds the items in a separate process, so CDMW stays responsive while it works instead of lagging until the send finishes.
+
 - Combining item mods for DMM keeps every item in its shops and item groups. Since items are added to shops as DMM operations, the combined mod had dropped those additions.
 
 - Adding an item to an existing mod no longer loses the items already in it when a file was added to the mod folder after export. If CDMW cannot find its record of those items, it now refuses instead of dropping them.

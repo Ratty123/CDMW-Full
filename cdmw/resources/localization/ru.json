@@ -12534,6 +12534,7 @@
     "Send To Icon Creator": "Отправить создателю значков",
     "Send To Texture Replacer": "Отправить в заменитель текстур",
     "Send To Texture Workflow": "Отправить на Texture Workflow",
+    "Send at most {value_0} item packages at a time.": "Отправляйте не более {value_0} пакетов предметов за раз.",
     "Send damage to parent": "Передавать урон родителю",
     "Send report": "Отправить отчёт",
     "Send the lines you have filtered to a translation model on your own API key.": "Отправьте отфильтрованные вами строки в модель перевода на вашем собственном ключе API.",

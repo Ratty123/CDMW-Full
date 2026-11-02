@@ -82079,7 +82079,8 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 179
+      "cdmw/services/dmm_send.py": 179,
+      "cdmw/services/dmm_send_process.py": 71
     }
   },
   {
@@ -82304,6 +82305,46 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/core/mod_compatibility.py": 714
+    }
+  },
+  {
+    "area": "other",
+    "message": "Send at most {_MAX_PACKAGES} item packages at a time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_send_process.py": 73
+    }
+  },
+  {
+    "area": "other",
+    "message": "Send to DMM cancelled.",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/services/dmm_send_process.py": 132
+    }
+  },
+  {
+    "area": "other",
+    "message": "Send to DMM failed ({code}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_send_process.py": 133
+    }
+  },
+  {
+    "area": "other",
+    "message": "Send to DMM returned an invalid result. Send again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_send_process.py": 112
+    }
+  },
+  {
+    "area": "other",
+    "message": "Send to DMM returned an oversized record.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_send_process.py": 44
     }
   },
   {
@@ -97992,7 +98033,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. Windows did not accept the application job object.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 94
+      "cdmw/app/bootstrap.py": 98
     }
   },
   {
@@ -98000,7 +98041,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 94
+      "cdmw/app/bootstrap.py": 98
     }
   },
   {
@@ -98008,7 +98049,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose isolated renderer host without --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 102
+      "cdmw/app/bootstrap.py": 106
     }
   },
   {
@@ -98016,7 +98057,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose only one of --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 100
+      "cdmw/app/bootstrap.py": 104
     }
   },
   {
@@ -98184,7 +98225,7 @@ MESSAGE_REFERENCE = [
     "message": "Legacy isolated renderer hosts were removed; model previews use the resident Preview renderer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 104
+      "cdmw/app/bootstrap.py": 108
     }
   },
   {
@@ -103670,6 +103711,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/cditem_device_windows.py",
     "cdmw/services/character_context_service.py",
     "cdmw/services/dmm_dlc_tables.py",
+    "cdmw/services/dmm_send_process.py",
     "cdmw/services/effect_catalogue_process.py",
     "cdmw/services/effect_character_reference.py",
     "cdmw/services/effect_library_store.py",
@@ -105863,6 +105905,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/dmm_send.py": {
     "raise": 5
+  },
+  "cdmw/services/dmm_send_process.py": {
+    "raise": 8
   },
   "cdmw/services/effect_catalogue.py": {
     "raise": 2

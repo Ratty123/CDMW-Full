@@ -12534,6 +12534,7 @@
     "Send To Icon Creator": "Send To Icon Creator",
     "Send To Texture Replacer": "Send To Texture Replacer",
     "Send To Texture Workflow": "Send To Texture Workflow",
+    "Send at most {value_0} item packages at a time.": "Send at most {value_0} item packages at a time.",
     "Send damage to parent": "Send damage to parent",
     "Send report": "Send report",
     "Send the lines you have filtered to a translation model on your own API key.": "Send the lines you have filtered to a translation model on your own API key.",

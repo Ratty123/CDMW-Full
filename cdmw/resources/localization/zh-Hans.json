@@ -12534,6 +12534,7 @@
     "Send To Icon Creator": "发送到图标创建器",
     "Send To Texture Replacer": "发送到纹理替换器",
     "Send To Texture Workflow": "发送至 纹理工作流",
+    "Send at most {value_0} item packages at a time.": "一次最多发送 {value_0} 个物品包。",
     "Send damage to parent": "向父对象传递伤害",
     "Send report": "发送报告",
     "Send the lines you have filtered to a translation model on your own API key.": "使用您自己的 API 密钥将您筛选的行发送到翻译模型。",

@@ -9611,7 +9611,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 121,
+          "line": 125,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -23246,7 +23246,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 94,
+          "line": 98,
           "sink": "RuntimeError"
         }
       ]
@@ -30876,7 +30876,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 102,
+          "line": 106,
           "sink": "error"
         }
       ]
@@ -30956,7 +30956,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 100,
+          "line": 104,
           "sink": "error"
         }
       ]
@@ -38201,7 +38201,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 92,
+          "line": 96,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -78961,7 +78961,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 104,
+          "line": 108,
           "sink": "error"
         }
       ]
@@ -81526,7 +81526,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 126,
+          "line": 130,
           "sink": "update_pyinstaller_boot_splash"
         },
         {
@@ -143183,6 +143183,11 @@
           "path": "cdmw/services/dmm_send.py",
           "line": 179,
           "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/dmm_send_process.py",
+          "line": 71,
+          "sink": "ValueError"
         }
       ]
     },
@@ -145837,6 +145842,16 @@
       ]
     },
     {
+      "key": "Send at most {value_0} item packages at a time.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_send_process.py",
+          "line": 73,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Send damage to parent",
       "origins": [
         {
@@ -145923,6 +145938,21 @@
           "path": "cdmw/services/dmm_send.py",
           "line": 221,
           "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/dmm_send_process.py",
+          "line": 68,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/dmm_send_process.py",
+          "line": 130,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/dmm_send_process.py",
+          "line": 132,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -154711,7 +154741,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 118,
+          "line": 122,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]

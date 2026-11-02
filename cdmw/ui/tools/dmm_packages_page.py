@@ -271,7 +271,7 @@ class DmmPackagesPage(QWidget):
         self._when_idle(lambda: self._run(lambda log, stop: item_package_details(path, stop_event=stop), loaded))
 
     def _send_to_dmm(self):
-        from cdmw.services import dmm_send
+        from cdmw.services.dmm_send_process import send_item_packages_in_subprocess
         from cdmw.ui.new_item import dmm_send_ui
         packages = self._chosen()
         if not packages or not self.send_dmm_button.isEnabled():
@@ -291,7 +291,8 @@ class DmmPackagesPage(QWidget):
                 message += "\n" + self.tr("It replaced the copy CDMW sent earlier.")
             QMessageBox.information(self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder))
         self._when_idle(lambda: self._run(
-            lambda log, progress, stop: dmm_send.send_item_packages(
+            # In a child process: composing items in this interpreter made the whole window lag.
+            lambda log, progress, stop: send_item_packages_in_subprocess(
                 packages, root, mods, DMM_MOD_TITLE, stop_event=stop, on_log=log, on_progress=progress),
             sent, with_progress=True))
 

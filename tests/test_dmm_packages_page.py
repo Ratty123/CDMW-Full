@@ -73,14 +73,14 @@ def test_the_list_survives_a_restart_and_removal_keeps_files(tmp_path):
 
 
 def test_send_takes_the_selection_or_every_package(tmp_path, monkeypatch):
-    from cdmw.services import dmm_send
+    from cdmw.services import dmm_send, dmm_send_process
     from cdmw.ui.new_item import dmm_send_ui
     app, controller, page, _settings = _page(tmp_path)
     files = _files(tmp_path, "Amber.cdmw", "Azure.cdmw")
     page._append(files)
     sent = []
     monkeypatch.setattr(dmm_send_ui, "choose_dmm_mods_folder", lambda parent: tmp_path / "mods")
-    monkeypatch.setattr(dmm_send, "send_item_packages", lambda paths, root, mods, title, **_: sent.append((tuple(paths), title))
+    monkeypatch.setattr(dmm_send_process, "send_item_packages_in_subprocess", lambda paths, root, mods, title, **_: sent.append((tuple(paths), title))
                         or dmm_send.DmmSendResult(mods / title, False, title))
     monkeypatch.setattr(QMessageBox, "information", lambda *args: QMessageBox.Ok)
     page.selection.clearSelection()
@@ -97,13 +97,13 @@ def test_send_takes_the_selection_or_every_package(tmp_path, monkeypatch):
 
 
 def test_a_busy_worker_never_greys_out_the_list_and_send_waits_for_it(tmp_path, monkeypatch):
-    from cdmw.services import dmm_send
+    from cdmw.services import dmm_send, dmm_send_process
     from cdmw.ui.new_item import dmm_send_ui
     app, controller, page, _settings = _page(tmp_path)
     page._append(_files(tmp_path, "Amber.cdmw"))
     sent = []
     monkeypatch.setattr(dmm_send_ui, "choose_dmm_mods_folder", lambda parent: tmp_path / "mods")
-    monkeypatch.setattr(dmm_send, "send_item_packages", lambda paths, root, mods, title, **_: sent.append(tuple(paths))
+    monkeypatch.setattr(dmm_send_process, "send_item_packages_in_subprocess", lambda paths, root, mods, title, **_: sent.append(tuple(paths))
                         or dmm_send.DmmSendResult(mods / title, False, title))
     monkeypatch.setattr(QMessageBox, "information", lambda *args: QMessageBox.Ok)
     busy = {"value": True}
