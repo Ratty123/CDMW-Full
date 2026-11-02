@@ -103,8 +103,24 @@ matches them to archive entries; it does not convert OBJ models. Source scans
 and replacement source imports use the main window's background utility worker,
 with the requesting workspace/dialog retained as their result-lifetime guard.
 
-The Tools menu and archive-file context menu temporarily omit HKX actions.
-The underlying HKX editor and import/export code remain available for other workflows.
+### HKX Physics Editor
+
+**Tools > Physics / HKX > Edit HKX Physics** and the `.hkx` context menu open
+`hkx_physics_editor_dialog.py` for the selected file. The older XML-based HKX
+editor and its import/export buttons stay out of the menus.
+
+- Reading the file, building edits and writing output run in the main window's
+  utility worker (`hkx_physics_editor_actions.py`). A refused edit comes back as
+  an ordinary result, not a worker error, and the dialog ignores results once
+  it is closed.
+- The dialog only offers what `services/hkx_physics_editor_service.py` can
+  verify: joint limits and friction located by Havok constraint atom type
+  (`core/archive_hkx_joint_limits.py`), renamed `hkStringPtr` names, and a whole
+  collision file copied from another file with the same root class and patch
+  layout. Every save is parsed again and must read back; joint edits must leave
+  every byte outside their constraint records unchanged.
+- **Save as DMM Mod** uses the shared mod-ready export; **Save HKX File** writes
+  one loose file atomically. Neither writes to the game archives.
 
 ### Dialog cancellation
 

@@ -54,6 +54,7 @@ from cdmw.ui.archive_browser.prefab_inspector_actions import ArchivePrefabInspec
 from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin
 from cdmw.ui.archive_browser.hkx_document_actions import ArchiveHkxDocumentActionsMixin
 from cdmw.ui.archive_browser.hkx_editor_dialog import ArchiveHkxEditorDialogMixin
+from cdmw.ui.archive_browser.hkx_physics_editor_actions import ArchiveHkxPhysicsEditorMixin
 from cdmw.ui.archive_browser.static_replacement_dialog import ArchiveStaticReplacementDialogMixin
 from cdmw.ui.archive_browser.mesh_modify_original import ArchiveMeshModifyOriginalMixin
 from cdmw.ui.archive_browser.mesh_setup_helpers import ArchiveMeshSetupHelperMixin
@@ -145,6 +146,7 @@ class ArchiveBrowserWorkspace(
     ArchivePrefabJsonActionsMixin,
     ArchiveHkxDocumentActionsMixin,
     ArchiveHkxEditorDialogMixin,
+    ArchiveHkxPhysicsEditorMixin,
     ArchiveStaticReplacementDialogMixin,
     ArchiveMeshModifyOriginalMixin,
     ArchiveMeshSetupHelperMixin,

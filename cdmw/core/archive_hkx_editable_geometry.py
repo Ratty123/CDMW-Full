@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Mapping, Optional, Sequence
 
 from cdmw.core.archive_hkx_roles import _hkx_simulation_role_description, _hkx_simulation_role_from_parts
+from cdmw.core.archive_hkx_structural_edits import hkx_structural_edit_gate_document
 
 
 def _hkx_editable_char_strings(hkx, advanced_payloads: Sequence[Mapping[str, object]]) -> List[Dict[str, object]]:
@@ -406,6 +407,7 @@ def _hkx_editable_document_result(hkx, data, virtual_path, summary, shapes, char
         "semantic_writer_gate_v1": summary.native_semantic_writer_gate_v1,
         "edit_candidate_map_v1": summary.native_edit_candidate_map_v1,
         "hkx_edit_gate_v1": analysis["hkx_edit_gate_v1"],
+        "structural_edit_gate_v1": hkx_structural_edit_gate_document(data),
         "class_decoder_evidence_v2": summary.native_class_decoder_evidence_v2,
         "hkx_modding_readiness": analysis["modding_readiness"],
         "modding_workspace_v1": analysis["modding_workspace"],
