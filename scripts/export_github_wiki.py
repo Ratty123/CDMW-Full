@@ -834,6 +834,10 @@ def main() -> int:
     parser.add_argument("--source-wiki", type=Path, help="Preserve guides from an existing pre-manual Wiki checkout instead of regenerating prose.")
     parser.add_argument("--replace-legacy", action="store_true", help="Remove only obsolete generated guide files after writing the manuals.")
     args = parser.parse_args()
+    # Reports name native manuals such as ja/日本語.md; a cp1252 console or pipe
+    # cannot encode them and would abort the check instead of listing them.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
     legacy_names = {
         page_slug(page, language.code) + ".md"
         for page in PAGE_TOPICS for language in BUILTIN_LANGUAGES

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import os
 import re
 import html
@@ -351,6 +352,12 @@ def test_export_output_stays_in_the_named_folder_and_check_detects_stale_page(tm
     (folder / "Home.md").write_text("stale", encoding="utf-8")
     assert main() == 1
     assert "Stale Wiki pages: Home.md" in capsys.readouterr().out
+    (folder / "ja/日本語.md").write_text("stale", encoding="utf-8")
+    console = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr("sys.stdout", console)
+    assert main() == 1
+    console.flush()
+    assert "ja/\\u65e5\\u672c\\u8a9e.md" in console.buffer.getvalue().decode("cp1252")
 
 
 def test_migration_removes_only_known_legacy_pages_with_explicit_flag(tmp_path, monkeypatch, wiki_pages):
