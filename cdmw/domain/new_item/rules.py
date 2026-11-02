@@ -95,6 +95,9 @@ class TemplateFacts:
     model_stem: str = ""
     #: The prefab stems that belong to that family (`..._r`, `..._l`, ...), not borrowed ones.
     owned_stems: Tuple[str, ...] = ()
+    #: Some owned part is only in a DLC part-prefab table, so a new item gets its own
+    #: model family (and a stem) even when the spec keeps the template's look.
+    copies_dlc_parts: bool = False
     levels: Tuple[TemplateLevelFacts, ...] = ()
     price_items: Tuple[int, ...] = ()
     max_stack_count: int = 1
@@ -458,7 +461,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
             reason = _stem_family_taken(stem, context)
             if reason:
                 issues.append(_issue("stem.taken", "stem", f"Stem {stem} cannot be used: {reason}."))
-        if not spec.needs_new_stem:
+        if not spec.needs_new_stem and not template.copies_dlc_parts:
             issues.append(_issue("stem.unused", "stem", "A stem was given but the item keeps the template's model and icon, so it is not used.", "warning"))
     if spec.needs_own_family and not template.owned_stems:
         issues.append(_issue("template.no_owned_stems", "template_key", f"{template.internal_name} owns no prefab stems to clone (all of its parts are borrowed)."))

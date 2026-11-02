@@ -294,6 +294,25 @@ class NewItemSnapshot:
             self._families[key] = cached
         return cached
 
+    def dlc_only_owned_parts(self, item_key: int) -> Tuple[str, ...]:
+        """The template's own part stems that only a DLC part-prefab table holds.
+
+        A new item's row is written to the base ItemInfo, and in game (2026-11-01) a
+        base row naming a part only `partprefabtable_dlc_01.pappt` holds drew no model:
+        the copy of Dommsday plate armour showed nothing while the copy with parts of its
+        own in the base table rendered. Such a template's item therefore copies them.
+        """
+
+        base = self.pappt_base
+        if base is None or base is self.pappt:
+            return ()
+        try:
+            family = self.family(item_key)
+        except ItemModelFamilyError:
+            return ()
+        held, combined = base.index(), self.pappt.index()
+        return tuple(part.stem for part in family.owned_parts if part.stem in combined and part.stem not in held)
+
     def paloc_table(self, language: str) -> LocalizationTable:
         if language == "eng":
             return self.english
@@ -890,6 +909,7 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
         has_stat_block=row.stat_block_offset is not None,
         model_stem=model_stem,
         owned_stems=owned,
+        copies_dlc_parts=bool(snapshot.dlc_only_owned_parts(template_key)),
         levels=levels,
         price_items=price_items,
         max_stack_count=int(row.max_stack_count),
