@@ -17,7 +17,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Asset Family connects animation and voice files. An action chart lists the clips, blend spaces, sub-charts and prefabs it names. An animation clip lists its event metadata, distance LOD and copies in other voice languages. Lip-sync clips and voice lines with the same name and language are paired. Each row says whether it comes from the path layout or a matching line name, because neither file names the other.
 
-- Archive Browser previews of static game data tables show each row's fields for 58 tables: skills, characters, NPCs, inventories, buffs, knowledge, missions, quests, effects, regions, jobs, factions, mercenaries, vehicles, bounties and smaller tables, alongside the item, shop, group and crafting tables. A few quest, character, NPC and skill rows use layouts the game builds in code CDMW cannot read; they are listed without fields rather than guessed. The app does not offer editing these tables yet.
+- Archive Browser previews of static game data tables show each row's fields for 140 of the game's 142 tables, including skills, characters, NPCs, quests, missions, stages, gimmicks, conditions, interactions, inventories, buffs, knowledge, effects, regions, factions, mercenaries, vehicles and bounties, alongside the item, shop, group and crafting tables. Fourteen rows use layouts the game builds in code CDMW cannot read; they are listed without fields rather than guessed. The app does not offer editing these tables yet.
 
 - Archive Browser shows a Wwise sound's codec, length, speaker layout, loop points and markers in Details, and notes that Patch Audio To Game writes uncompressed PCM rather than re-encoding Vorbis.
 

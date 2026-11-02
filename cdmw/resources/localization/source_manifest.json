@@ -17977,6 +17977,16 @@
       ]
     },
     {
+      "key": "BitmapPosition keeps only row names and boundaries. Fourteen rows use readers in virtualized game code and stay refused. The units and in-game effect of every editable field are unverified, and no UI writes these tables yet.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Black",
       "origins": [
         {
@@ -130317,7 +130327,7 @@
       ]
     },
     {
-      "key": "Row data for the staticinfo tables; the header gives row boundaries and names for all 212 pairs. A closed schema taken from the game's table serializers decodes 58 tables, including items, shops, skills, characters, inventories, knowledge, missions, quests and effects. On the 1.0.0.3479 base and DLC data, 105,468 of the 105,691 rows in those tables decode exactly and the others are refused, none misread. Archive Browser previews show their fields, and whitelisted fixed-width fields can be rewritten in place as a loose table pair.",
+      "key": "Row data for the staticinfo tables; the header gives row boundaries and names for all 212 pairs. A closed schema taken from the game's table serializers decodes 140 of the 142 tables, including items, shops, skills, characters, quests, stages, gimmicks, conditions, knowledge and effects; StringInfo has its own reader. On the 1.0.0.3479 base and DLC data, 310,025 of the 310,039 rows in those tables decode exactly and the others are refused, none misread. Archive Browser previews show their fields, and whitelisted fixed-width fields can be rewritten in place as a loose table pair.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -156623,16 +156633,6 @@
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 356,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "The other 83 tables, including StageInfo, GimmickInfo and ConditionInfo, keep only row names and boundaries. Some condition, buff, quest and NPC variants are built in obfuscated code and stay refused. The units and in-game effect of every editable field are unverified, and no UI writes these tables yet.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
