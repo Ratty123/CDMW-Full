@@ -480,6 +480,10 @@ static std::vector<char> reconstruct_partial_dds(const ArchiveEntryRef& entry, c
     std::vector<char> output;
     output.reserve(static_cast<size_t>(entry.orig_size));
     output.insert(output.end(), header.begin(), header.begin() + static_cast<std::ptrdiff_t>(std::min(header_size, header.size())));
+    // The blocks are written unpacked, so clear the packed sizes the PATHC header records
+    // at +32; a loose DDS that keeps them makes the game unpack plain mips again.
+    const size_t packed_sizes_end = use_single_chunk ? 40u : 48u;
+    for (size_t offset = 32u; offset < packed_sizes_end; ++offset) output[offset] = 0;
     const size_t count = std::min(compressed_block_sizes.size(), decompressed_block_sizes.size());
     for (size_t i = 0; i < count; ++i) {
         const std::uint32_t compressed_size = compressed_block_sizes[i];

@@ -53,6 +53,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser accepts compact PAMT indexes whose final extension ends at the declared table boundary, avoiding an unnecessary extension-table error. Malformed and truncated tables are still rejected.
 
+- Textures extracted from the archives no longer show as noise in game when a mod ships them unchanged. The game stores the largest mips of many textures packed, and the extracted file unpacked them but kept the header note listing their packed sizes, so the game tried to unpack them again. Extracted textures now carry a clean header. Re-extract affected textures, or save them again in a DDS editor. Loading a re-extracted texture in game is untested.
+
 - Archive Browser previews the formats changed by the DLC update. PALOC text tables list their entries instead of compressed bytes, PAB skeletons show their bone summary again, and the new static game data tables list their rows. Empty DLC placeholder meshes say they contain no geometry. Format Explorer and Select Extension recognise the new game table, UI layout, shader cache and character customization formats.
 
 - OBJ export accepts Chinese and other non-English characters in output paths. Archive Browser previews models with unavailable textures, including affected ship PAM files, as geometry with a warning.
