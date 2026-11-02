@@ -349,8 +349,16 @@ def build_package(
     manifest: Optional[Mapping[str, object]] = None,
     replace_existing: bool = False,
     keep_backup: bool = True,
+    managed_folder: bool = False,
 ) -> PackageResult:
-    """Build fresh output; explicitly approved replacement retains the complete old folder."""
+    """Build fresh output; explicitly approved replacement retains the complete old folder.
+
+    `managed_folder` says the destination sits in a mod manager's own mods folder, which
+    lists every folder in it: the build is staged a level above, the way Send to DMM stages,
+    and no backup is kept beside it. The operation manifest stays in the package (the
+    inspection command checks a package against it) under a .txt name DMM does not read as a
+    mod (`preflight.MANIFEST_NAME`).
+    """
 
     profile = MANAGER_PROFILES.get(manager.upper())
     if profile is None:
@@ -385,7 +393,8 @@ def build_package(
         create_no_encrypt_file=bool(profile["create_no_encrypt_file"]),
     )
 
-    staging = Path(tempfile.mkdtemp(prefix=f".{resolved.name}.cdmw-stage-", dir=resolved.parent))
+    stage_in = resolved.parent.parent if managed_folder else resolved.parent
+    staging = Path(tempfile.mkdtemp(prefix=f".{resolved.name}.cdmw-stage-", dir=stage_in))
     try:
         _lay_out_payload(staging, files)
         result = finalize_mod_package_export(
@@ -397,7 +406,6 @@ def build_package(
             options=options,
             created_utc=created_utc,
         )
-
         if write_readme:
             (staging / "README.txt").write_text(
                 build_readme(
@@ -416,11 +424,22 @@ def build_package(
 
             write_operation_manifest(staging, manifest)
 
+        removed: tuple = ()
+        if manager.upper() == "DMM":
+            # DMM reads every .json in a mod folder as a mod and reports cdmw-compatibility.json
+            # as broken. CDMW's records go to local mod history instead, as New Item's and the
+            # Mesh Editor's DMM exports do. Last, once the package is complete: the history is
+            # filed under the package's files, and `mod_metadata_path` finds it by them.
+            from cdmw.core.mod_export_history import retain_dmm_history
+
+            removed = retain_dmm_history(staging)
+
         # Recheck after preparation in case another writer created the destination.
         _validate_destination(root, replace_existing=replace_existing)
         try:
             backup = atomic_publish_directory(
-                staging, resolved, replace_existing=replace_existing, retain_backup=keep_backup,
+                staging, resolved, replace_existing=replace_existing,
+                retain_backup=keep_backup and not managed_folder,
             )
         except FileExistsError as exc:
             raise PackagingError(f"Package destination already exists: {root}") from exc
@@ -432,6 +451,7 @@ def build_package(
         sorted(
             Path(path).name
             for path in getattr(result, "metadata_files", ()) or ()
+            if Path(path).name not in removed
         )
     )
     return PackageResult(
@@ -457,6 +477,7 @@ def build_all(
     manifest: Optional[Mapping[str, object]] = None,
     replace_existing: bool = False,
     keep_backup: bool = True,
+    managed_folder: bool = False,
 ) -> List[PackageResult]:
     """Emit every manager layout from one plan — the point of the operation model."""
 
@@ -479,6 +500,7 @@ def build_all(
                 manifest=manifest,
                 replace_existing=replace_existing,
                 keep_backup=keep_backup,
+                managed_folder=managed_folder,
             )
         )
     return results
@@ -525,6 +547,7 @@ def build_for_operations(
     replace_existing: bool = False,
     extra_files: Optional[Mapping[str, bytes]] = None,
     keep_backup: bool = True,
+    managed_folder: bool = False,
 ) -> Tuple[List[PackageResult], object]:
     """Package exactly these operations, replayed onto vanilla, or refuse and say why.
 
@@ -592,5 +615,6 @@ def build_for_operations(
         manifest=manifest,
         replace_existing=replace_existing,
         keep_backup=keep_backup,
+        managed_folder=managed_folder,
     )
     return results, verdict

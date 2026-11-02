@@ -14,6 +14,7 @@ with normalization enforced before any write.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import itertools
 import re
@@ -546,6 +547,30 @@ class EditSession:
             self._cursor += 1
         self._replay()
         return operation_id
+
+    @contextmanager
+    def keep_on_failure(self):
+        """Undo everything done inside the block if it raises, discarded operations included.
+
+        For replacing one operation with another: discard the old one, record the new one, and
+        if recording fails the old one is still there rather than lost with no replacement.
+        """
+
+        if self._active is not None:
+            raise EditError(
+                f"Operation {self._active.operation_id} is still open; commit or roll it back "
+                f"before starting another"
+            )
+        commands, cursor = list(self._commands), self._cursor
+        records = dict(self._operation_records)
+        try:
+            yield
+        except BaseException:
+            if self._active is not None:
+                self._rollback_operation(self._active)
+            self._commands, self._cursor, self._operation_records = commands, cursor, records
+            self._replay()
+            raise
 
     def discard_operation(self, operation_id: str) -> bool:
         """Remove an operation's commands outright, wherever it sits in the history.

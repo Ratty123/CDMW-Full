@@ -1041,6 +1041,7 @@ def render(edit: ClipEdit, skeleton, *, should_stop=None) -> MotionClip:
             raise EditError("Reach needs a hand or foot with an arm or leg above it")
         reach_bones |= {bones[i].name_hash for i in chain}
     root_hashes = {t.name_hash for t in base.tracks if t.root_motion}
+    base_roots = {t.name_hash for t in base.tracks if t.root_motion and t.translation}
     for join in edit.joins:
         root_hashes |= {t.name_hash for t in join.source.tracks if t.root_motion}
     root_edit = abs(edit.root_distance - 1.0) > 1e-9
@@ -1068,11 +1069,40 @@ def render(edit: ClipEdit, skeleton, *, should_stop=None) -> MotionClip:
     source_lengths = [duration_seconds(splice.source) or 1e-6 for splice in edit.splices]
     spans = edit.join_spans()
 
+    # Trimming the start or playing backwards begins the root part-way along its path, as
+    # though the character had already walked there. Every shipped clip starts its root
+    # travel at its own frame 0, so the retimed clip is moved to start there too: horizontally
+    # only, keeping the height, as `hold_pose` does. A constant shift changes no frame-to-frame
+    # step, so a game that reads root motion as steps sees the same motion, and one that reads
+    # it as a position sees the clip start where its kind of clip starts.
+    starts: Dict[int, Tuple[float, float]] = {}
+
+    def start_shift(name_hash: int) -> Tuple[float, float]:
+        if name_hash not in starts:
+            shift = (0.0, 0.0)
+            if timeline and abs(edit.base_seconds(0) - 0.0) > 1e-9:
+                bone = bone_by_hash.get(name_hash)
+                bind = bind_transform(bone) if bone is not None else Transform()
+                origin = compose(bind, _delta(base, name_hash, 0.0)).translation
+                begins = compose(bind, _delta(base, name_hash, edit.base_seconds(0))).translation
+                shift = (origin[0] - begins[0], origin[2] - begins[2])
+            starts[name_hash] = shift
+        return starts[name_hash]
+
     def own(name_hash: int, frame: float) -> Transform:
         """The base clip after timing and splices, at output `frame`."""
 
         at = edit.base_seconds(frame) if timeline else frame / FPS
         delta = _delta(base, name_hash, at)
+        if name_hash in base_roots:
+            shift = start_shift(name_hash)
+            if shift != (0.0, 0.0):
+                bone = bone_by_hash.get(name_hash)
+                bind = bind_transform(bone) if bone is not None else Transform()
+                local = compose(bind, delta)
+                moved = (local.translation[0] + shift[0], local.translation[1],
+                         local.translation[2] + shift[1])
+                delta = decompose(bind, replace(local, translation=moved))
         for splice, source_length in zip(edit.splices, source_lengths):
             if name_hash not in splice.bones or splice.weight <= 0:
                 continue

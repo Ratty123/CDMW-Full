@@ -293,8 +293,20 @@ def package_signature(root: Optional[Path] = None) -> List[list]:
     for mount_list in (base / "meta/0.papgt", *base.glob("dlc/*/meta/0.papgt")):
         if mount_list.exists():
             paths.add(mount_list)
+    # The archives the tables point into, skipping the folders the archive scan skips: a mod
+    # manager's own mount output (DMM's dmmsa and dmmgen) changes on every Mount, and
+    # signing it read every Mount as a game update that made saving refuse.
+    from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS
+
+    ignored = {name.replace("\\", "/").casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS}
     try:
-        paths |= set(base.rglob("*.paz"))
+        for directory, subdirectories, filenames in os.walk(base):
+            here = Path(directory)
+            subdirectories[:] = [
+                name for name in subdirectories
+                if (here / name).relative_to(base).as_posix().casefold() not in ignored
+            ]
+            paths.update(here / name for name in filenames if name.lower().endswith(".paz"))
     except OSError:
         pass  # an unreadable tree signs as whatever was reachable; the scan will fail anyway
 

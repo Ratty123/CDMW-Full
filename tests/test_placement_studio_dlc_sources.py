@@ -60,8 +60,9 @@ class MountListTests(unittest.TestCase):
             _install(root, ["0000", "0009"], ["0009", "0036"],
                      base_flags={"0036": 0x8001})
             labels = [label for label, _table in relationships.active_tables(root)]
-        # The base game first, then the DLC; its 0009 is not mistaken for the base 0009.
-        self.assertEqual(labels, ["0000", "0009", "dlc/dlc_01/0009", "dlc/dlc_01/0036"])
+        # Every mounted table, the DLC's 0009 told apart from the base 0009 and read first.
+        self.assertEqual(sorted(labels), ["0000", "0009", "dlc/dlc_01/0009", "dlc/dlc_01/0036"])
+        self.assertLess(labels.index("dlc/dlc_01/0009"), labels.index("0009"))
 
     def test_a_folder_the_game_does_not_mount_is_left_out(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -210,3 +211,31 @@ class BaselineRefreshTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReleaseReviewTests(unittest.TestCase):
+    """Findings from the alpha.32 release review."""
+
+    def test_a_dlc_copy_wins_over_the_base_copy_like_the_resident_index(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            # As shipped: the DLC lists its own copy of each base folder in the same order.
+            _install(root, ["0000", "0009"], ["0000", "0009", "0036"],
+                     base_flags={"0036": 0x8001})
+            labels = [label for label, _table in relationships.active_tables(root)]
+        self.assertEqual(labels, ["dlc/dlc_01/0000", "0000", "dlc/dlc_01/0009", "0009",
+                                  "dlc/dlc_01/0036"])
+
+    def test_a_dmm_mount_does_not_change_the_game_signature(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _install(root, ["0000"], [])
+            (root / "0000/0.paz").write_bytes(b"game")
+            before = corpus.package_signature(root)
+            for mounted in ("dmmsa", "dmmgen"):
+                (root / mounted / "0001").mkdir(parents=True)
+                (root / mounted / "0001/0.paz").write_bytes(b"mod")
+                (root / mounted / "0001/0.pamt").write_bytes(b"")
+            self.assertEqual(corpus.package_signature(root), before)
+            (root / "0000/0.paz").write_bytes(b"game, updated")
+            self.assertNotEqual(corpus.package_signature(root), before)

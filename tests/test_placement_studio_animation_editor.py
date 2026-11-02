@@ -307,3 +307,76 @@ def test_a_new_character_closes_the_edit(window) -> None:
     window._start_clip_edit()  # and the next edit still renders
     window._edit_speed.setValue(2.0)
     _wait(lambda: _rendered(window) is not None and abs(_rendered(window).duration - 0.5) < 1e-6)
+
+
+# ── alpha.32 release review ─────────────────────────────────────────
+
+
+def test_a_new_character_forgets_which_animation_the_edit_replaced(window) -> None:
+    window._start_clip_edit()
+    assert window._clip_edit_target == TARGET
+    window._clip_edit_model = "some_other_rig"  # the edit was made on another character
+    window._editor_follow_character()
+    assert window._clip_edit_target == "" and window._clip_edit_entry is None
+    window._playback.seek(5)
+    window._start_from_pose()  # must not inherit the other character's target
+    assert window._clip_edit_target == ""
+    assert not window._clip_edit_add_button.isEnabled()
+
+
+def test_an_edit_from_another_character_is_never_added(window) -> None:
+    window._start_clip_edit()
+    window._edit_mirror.setChecked(True)
+    _wait(lambda: _rendered(window) is not None and _rendered(window) is window._playback.clip)
+    window._clip_edit_model = "some_other_rig"
+    window._put_clip_edit_in_mod()
+    assert window._edits.operations() == []
+    assert "another character" in window._clip_edit_status.text()
+
+
+def test_a_failed_re_add_keeps_the_earlier_version(window, monkeypatch) -> None:
+    from tools.placement_studio import editing, window_animation_editor
+
+    window._start_clip_edit()
+    window._edit_mirror.setChecked(True)
+    window._add_clip_edit_to_mod()
+    _wait(lambda: len(window._edits.operations()) == 1)
+    first = window._edits.operations()[0].operation_id
+    window._edit_speed.setValue(1.5)
+    _wait(lambda: _rendered(window) is not None and abs(_rendered(window).duration - 1 / 1.5) < 2e-3)
+
+    def refuse(*_args, **_kwargs):
+        raise editing.EditError("refused")
+
+    monkeypatch.setattr(editing.OperationHandle, "replace_clip", refuse)
+    warnings = []
+    monkeypatch.setattr(window_animation_editor.QMessageBox, "warning",
+                        lambda *args, **kwargs: warnings.append(args))
+    window._put_clip_edit_in_mod()
+    assert warnings
+    assert [op.operation_id for op in window._edits.operations()] == [first]
+    assert [c.title for c in window._mod_changes()] == ["Edited animation: cd_phm_test_clip"]
+
+
+def test_the_replace_prompt_appears_in_any_language(window, tmp_path, monkeypatch) -> None:
+    from tools.placement_studio import window_save
+    from tools.placement_studio.save_mod import SaveOutcome
+
+    existing = tmp_path / "Hip sword - DMM"
+    existing.mkdir()
+    outcomes = [SaveOutcome(problems=("Ein Mod-Ordner mit diesem Namen existiert bereits",),
+                            destination=existing, already_exists=True),
+                SaveOutcome()]
+    monkeypatch.setattr(window, "_included_keys", lambda: ["x"])
+    monkeypatch.setattr(window, "_mod_changes", lambda: [])
+    monkeypatch.setattr(window, "_save_folder", lambda _into_dmm: tmp_path)
+    requests = []
+    monkeypatch.setattr(window, "_run_save", lambda request: (requests.append(request), outcomes.pop(0))[1])
+    asked = []
+    monkeypatch.setattr(window_save.QMessageBox, "question",
+                        lambda *args, **kwargs: (asked.append(args), window_save.QMessageBox.Yes)[1])
+    monkeypatch.setattr(window_save.QMessageBox, "exec", lambda self: 0)  # the "Not saved" box
+    window._mod_name_edit.setText("Hip sword")
+    window._on_save_mod()
+    assert asked
+    assert [r.replace_existing for r in requests] == [False, True]
