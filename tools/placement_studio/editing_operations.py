@@ -134,6 +134,8 @@ OP_MOVE_EQUIPMENT = "move_equipment"
 OP_REPLACE_ANIMATIONS = "replace_animations"
 OP_MANUAL_ORIENTATION = "manual_orientation"
 OP_FREEFORM = "freeform"
+#: An animation made or changed in the animation editor, written over one game clip.
+OP_EDIT_ANIMATION = "edit_animation"
 
 
 @dataclass(frozen=True, slots=True)

@@ -148,7 +148,7 @@ class CarryPickerMixin:
         )
         self._carry_box.currentIndexChanged.connect(self._on_carry_changed)
 
-        self._history_button = QPushButton("Recent actions...")
+        self._history_button = QPushButton("History…")
         self._history_button.setToolTip(
             "Everything changed so far, and a way to undo back to any point."
         )
@@ -163,7 +163,7 @@ class CarryPickerMixin:
         )
         self._carry_match.clicked.connect(lambda: self._start_carry_index(explicit=True))
 
-        self._carry_swap = QPushButton("Swap animations...")
+        self._carry_swap = QPushButton("Use another weapon's animations…")
         self._carry_swap.setToolTip(
             "Give this weapon the other grip's animations — the two-hand set for a one-hand "
             "weapon, or the reverse.\n\n"
@@ -221,7 +221,8 @@ class CarryPickerMixin:
 
     def _refresh_carry_status(self) -> None:
         if self._carry_index is None:
-            self._carry_status.setText(f"press {MATCH_LABEL} to link clips to positions")
+            self._carry_status.setText(
+                f"Optional: {MATCH_LABEL} works out which draw animations suit each spot.")
             return
         counts = self._carry_index.counts()
         parts = [
@@ -229,7 +230,8 @@ class CarryPickerMixin:
             for zone, count in sorted(counts.items(), key=lambda kv: -kv[1])
         ]
         self._carry_status.setText(
-            "draws found — " + ", ".join(parts) if parts else "no draws could be matched"
+            "Draw animations found for: " + ", ".join(parts) if parts
+            else "No draw animations could be matched to a spot"
         )
 
     def _on_carry_changed(self, _index: int) -> None:
@@ -269,7 +271,8 @@ class CarryPickerMixin:
         plan = plan_move(self._session, self._edits, request)
         if plan.blocked:
             self.statusBar().showMessage(
-                f"Use Swap animations… to move it there: {plan.blockers[0]}"
+                f"That spot needs other animations too; use Use another weapon's animations… on the "
+                f"Animations tab to move it there: {plan.blockers[0]}"
             )
             self._populate_carry_box()
             return
@@ -570,7 +573,7 @@ class CarryPickerMixin:
         destination = plan.request.destination_socket
         diagnostic = self._orientation_diagnostic(destination) if plan.placement_changes else ""
         self.statusBar().showMessage(
-            f"{operation.describe()}{note}.{diagnostic}  —  one action in Recent actions"
+            f"{operation.describe()}{note}.{diagnostic}  Listed under Your mod."
         )
         if applied:
             self._show_swap_result(applied, set(operation.replaced_clips()))
@@ -586,8 +589,7 @@ class CarryPickerMixin:
             lines += ["", diagnostic.strip()]
         lines += [
             "",
-            "Only this operation will be packaged. Earlier operations stay in Recent actions "
-            "until you select them.",
+            "It is listed under Your mod, where you can save it as a mod or remove it.",
         ]
         box = QMessageBox(self)
         box.setWindowTitle("Moved")
@@ -775,7 +777,7 @@ class CarryPickerMixin:
         loose = self._edits.loose_commands()
         dialog = QDialog(self)
         dialog.setObjectName("layout_tools_placement_studio_window_carry__show_history_dialog")
-        dialog.setWindowTitle("Recent actions")
+        dialog.setWindowTitle("History")
         dialog.setMinimumSize(760, 420)
         listing = QListWidget()
         for operation in reversed(operations):
@@ -783,37 +785,20 @@ class CarryPickerMixin:
             listing.item(listing.count() - 1).setData(Qt.UserRole, operation.operation_id)
         if loose:
             listing.addItem(
-                f"{len(loose)} free-form edit(s) outside any operation — never packaged"
+                f"{len(loose)} manual adjustment(s), saved together as one change"
             )
             listing.item(listing.count() - 1).setData(Qt.UserRole, "")
         if not operations and not loose:
             listing.addItem("(nothing has been changed yet)")
 
+        # Undo and redo here work a whole change at a time; removing one, or everything, is
+        # done from Your mod, which lists the same changes in the same words.
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        undo = buttons.addButton("Undo operation", QDialogButtonBox.ActionRole)
-        undo.setToolTip("Take back the newest operation whole, in one step.")
+        undo = buttons.addButton("Undo last change", QDialogButtonBox.ActionRole)
+        undo.setToolTip("Take back the newest change whole, in one step.")
         undo.setEnabled(bool(operations) or bool(loose))
-        redo = buttons.addButton("Redo operation", QDialogButtonBox.ActionRole)
+        redo = buttons.addButton("Redo", QDialogButtonBox.ActionRole)
         redo.setEnabled(self._edits.can_redo)
-        discard = buttons.addButton("Discard selected", QDialogButtonBox.ActionRole)
-        discard.setToolTip(
-            "Remove the selected operation wherever it sits in the history. The others are "
-            "replayed without it, so nothing of it is left behind."
-        )
-        discard.setEnabled(bool(operations))
-        clean = buttons.addButton("Start clean operation", QDialogButtonBox.ActionRole)
-        clean.setToolTip(
-            "Drop every free-form edit, keeping the accepted operations. The next move then "
-            "starts from vanilla plus what was actually decided."
-        )
-        clean.setEnabled(bool(loose))
-        reset = buttons.addButton("Reset all pending changes", QDialogButtonBox.ResetRole)
-        reset.setToolTip("Throw away everything in this session, operations included.")
-        reset.setEnabled(bool(operations) or bool(loose))
-
-        def _selected_id() -> str:
-            item = listing.currentItem()
-            return str(item.data(Qt.UserRole) or "") if item is not None else ""
 
         def _after(message: str) -> None:
             self._after_edit()
@@ -823,49 +808,21 @@ class CarryPickerMixin:
             dialog.accept()
 
         def _undo() -> None:
-            operation_id = self._edits.undo_operation()
-            _after(f"Undid {operation_id or 'the last free-form edit'}")
+            self._edits.undo_operation()
+            _after("Undid the last change")
 
         def _redo() -> None:
-            operation_id = self._edits.redo_operation()
-            _after(f"Redid {operation_id or 'the last free-form edit'}")
-
-        def _discard() -> None:
-            operation_id = _selected_id()
-            if not operation_id:
-                self.statusBar().showMessage("Select an operation to discard")
-                return
-            if self._edits.discard_operation(operation_id):
-                _after(f"Discarded {operation_id}")
-
-        def _clean() -> None:
-            dropped = self._edits.start_clean_operation()
-            _after(f"Dropped {dropped} free-form edit(s); {len(operations)} operation(s) kept")
-
-        def _reset() -> None:
-            confirmed = QMessageBox.question(
-                dialog,
-                "Reset all pending changes?",
-                f"This throws away {len(operations)} operation(s) and {len(loose)} free-form "
-                f"edit(s). The game files are untouched either way — only this session's "
-                f"pending changes are lost.",
-            )
-            if confirmed != QMessageBox.Yes:
-                return
-            self._edits.reset()
-            _after("Reset every pending change")
+            self._edits.redo_operation()
+            _after("Redid the change")
 
         undo.clicked.connect(_undo)
         redo.clicked.connect(_redo)
-        discard.clicked.connect(_discard)
-        clean.clicked.connect(_clean)
-        reset.clicked.connect(_reset)
         buttons.rejected.connect(dialog.reject)
         layout = QVBoxLayout(dialog)
         layout.addWidget(
             QLabel(
-                "Newest first. Each row is one accepted operation — one undo, and one entry to "
-                "include in or leave out of a package."
+                "Newest first. Each row is one change: undone in one step, and saved or left "
+                "out as one entry under Your mod."
             )
         )
         layout.addWidget(listing, 1)
@@ -935,7 +892,7 @@ class CarryPickerMixin:
         if swapped:
             lines.append(
                 f"Animations swapped: {swapped}. The action charts are untouched — the new "
-                f"animation is written in place of the old one. Check Pending changes to see "
+                f"animation is written in place of the old one. Advanced > File changes lists "
                 f"exactly which files."
             )
         else:

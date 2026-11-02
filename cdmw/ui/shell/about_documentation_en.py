@@ -589,16 +589,40 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "placement_studio",
                 "title": "Placement & Animations",
-                "summary": "Move equipment, change sockets, retarget draw/stow clips, and package the result.",
-                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package dmm",
+                "summary": "Move where a weapon is carried, fine-tune it, give it other animations, and save a DMM mod.",
+                "keywords": "placement animations weapon carried position fine-tune attach point socket draw put away armour clipping your mod save dmm edit animation keys timeline reach ik plant foot join blend mirror blender",
                 "html": """
-                <p><b>Placement &amp; Animations</b> is the focused workspace for changing where a weapon or piece of armour sits and how its draw/stow animation route behaves.</p>
+                <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. The 3D view is on the left; the tabs on the right are <b>Position</b>, <b>Animations</b>, <b>Edit animation</b>, <b>Armour</b>, <b>Your mod</b>, <b>Advanced</b> and <b>Help</b>.</p>
+                <p><b>Move a weapon somewhere else on the body</b></p>
+                <ol>
+                  <li>Choose the <b>Character</b> and <b>Weapon</b> at the top. The matching slot is picked for you.</li>
+                  <li>On <b>Position</b>, pick a spot in <b>Carried at</b>. The weapon moves there when put away, and gets an attach point of its own so nothing else moves with it.</li>
+                  <li>Set <b>Show it</b> to <b>Put away</b>, try armour on the <b>Armour</b> tab, and press <b>Check for clipping</b>.</li>
+                  <li>Optional: on <b>Animations</b>, choose <b>Use another weapon's animations…</b> to give it a draw that reaches the new spot. You see every file it would change, and can watch the result, before anything changes.</li>
+                </ol>
+                <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
-                  <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
-                  <li>Choose Prepare preview, compare Before and After, and inspect Details and exact files. Checks distinguish Passed, Warning, Unverified, and Blocked; unsupported runtime behavior remains unverified.</li>
-                  <li>Package reviewed changes for DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
+                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b>, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
+                  <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
                 </ul>
+                <p><b>Change an animation, or make a new one</b></p>
+                <ol>
+                  <li>Play the animation on <b>Animations</b>, open <b>Edit animation</b> and choose <b>Edit the animation that is playing</b>. <b>Start a new one from this pose</b> builds a new animation from the pose on screen instead.</li>
+                  <li>Pick a <b>Bone</b>, or click its joint in the view, move the playhead on the timeline at the top of the tab, and <b>Turn</b> or <b>Move</b> it. Each change keys that bone at that moment, on top of the animation; between keys the bone eases from one to the next. Drag a key on the timeline to move it to another moment, or right-click it to remove it.</li>
+                  <li>To place a hand or foot, use <b>Reach with a hand or foot</b>: <b>Move</b> it and the arm or leg bends to get it there. <b>Plant here</b> holds it where it is, such as a foot on the ground or a hand on a hilt, until <b>Let go here</b>. If the body moves further away than the arm or leg can reach, the limb straightens toward the spot.</li>
+                  <li>Change <b>Speed</b> or the part of the animation used, play it backwards, hold the end, change the <b>Distance travelled</b>, <b>Mirror left and right</b>, or borrow a body part such as the arms from the animation selected on <b>Animations</b>. The character shows each change as you make it.</li>
+                  <li><b>Join another animation after this one</b> plays the animation selected on <b>Animations</b> straight afterwards. The two blend over the <b>Fade</b>, and the character carries on from where the first one stops, facing the way it faces.</li>
+                  <li>To animate in Blender, choose <b>Export for Blender…</b>, import the .glb in Blender, animate the joints, export glTF 2.0 with the animation, and choose <b>Import from Blender…</b>. Bones are matched by name.</li>
+                  <li>Check <b>Replaces</b>, which names the game animation it will replace, then choose <b>Add to Your mod</b>. The game keeps asking for that file and gets the new motion; distance (LOD) copies are not edited.</li>
+                </ol>
+                <p><b>Save the mod</b></p>
+                <ol>
+                  <li>Open <b>Your mod</b>. Every change is listed in plain words; untick anything to leave out, or remove it.</li>
+                  <li>Give the mod a name and choose <b>Straight into DMM's mods folder</b> or <b>A folder I choose</b>, then press <b>Save as mod</b>.</li>
+                  <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
+                </ol>
+                <p><b>Advanced</b> holds the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <p>Each time the tab opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
             },
             {

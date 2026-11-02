@@ -52,3 +52,21 @@ def fit_popup(combo) -> None:
     if widest:
         # Room for the scrollbar and the frame, or the last character still clips.
         combo.view().setMinimumWidth(widest + 40)
+
+
+def is_current_page(widget) -> bool:
+    """Whether every tab or stack between `widget` and its window is showing it.
+
+    Answered from the stacks themselves rather than from `isVisible`, which is False for
+    everything in a window that has not been shown yet, and rather than from tab numbers,
+    which went stale every time a tab was added ahead of the one being tested.
+    """
+
+    from PySide6.QtWidgets import QStackedWidget
+
+    child, parent = widget, widget.parentWidget() if widget is not None else None
+    while parent is not None:
+        if isinstance(parent, QStackedWidget) and parent.currentWidget() is not child:
+            return False
+        child, parent = parent, parent.parentWidget()
+    return widget is not None

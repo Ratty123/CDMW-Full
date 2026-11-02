@@ -167,10 +167,11 @@ class ClipBrowserMixin:
         self._lower.currentChanged.connect(self._on_tab_changed_for_clips)
 
     def _on_tab_changed_for_clips(self, index: int) -> None:
-        # Matched by widget rather than by tab number: the index is a constant that has to be
-        # re-checked every time a tab is inserted, and `RIG_TAB_INDEX` already carries two of
-        # those.
-        if self._lower.widget(index) is getattr(self, "_animation_page", None):
+        # Matched by page rather than by tab number: a number has to be re-checked every
+        # time a tab is inserted.
+        from .layout_util import is_current_page
+
+        if is_current_page(getattr(self, "_animation_page", None)):
             self._ensure_clip_index()
 
     def _ensure_clip_index(self, *, wait: bool = False) -> None:
@@ -374,6 +375,8 @@ class ClipBrowserMixin:
             return
         self._stop_playback()
         self._playback.load(clip, entry.name)
+        # The animation editor starts from what is playing, and saves over its game path.
+        self._playback_entry = entry
         self._playback.looping = self._playback_loop_box.isChecked()
         self._playback_slider.setMaximum(max(self._playback.last_frame, 0))
         self._playback_slider.setEnabled(self._playback.last_frame > 0)
@@ -424,7 +427,8 @@ class ClipBrowserMixin:
         task = getattr(self, "_clip_task", None)
         if task is not None:
             task.shutdown()
-        for name in ("_stop_loading", "_stop_armour_index", "_stop_carry_index", "_stop_swap"):
+        for name in ("_stop_loading", "_stop_armour_index", "_stop_carry_index", "_stop_swap",
+                     "_stop_animation_editor"):
             stop = getattr(self, name, None)
             if stop is not None:
                 stop()
