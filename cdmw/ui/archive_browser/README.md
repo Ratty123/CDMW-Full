@@ -694,9 +694,10 @@ these previews are diagnostic text and are not translated.
 `archive_data_table_preview.py` lists a `.staticinfoheader`/`.staticinfobody` pair's
 rows once both halves come from the same archive index. For the 140 tables in the
 closed compact schema (`cdmw/core/_compact_static_schema.py`, listed by
-`static_table_records.DECODED_TABLES`), it also decodes the listed rows through
-`static_table_records.decode_record` and prints the top-level fields of the first five:
-integers by storage width, text, and nested lists or structures as byte counts.
+`static_table_records.DECODED_TABLES`), it also decodes the first five listed rows
+through `static_table_records.decode_record` and prints their top-level fields: integers by
+storage width, a member the game reads in parts as each part (`u32+u32`), text, and nested
+lists or structures as byte counts. Larger rows are never decoded just for the preview.
 A row the schema refuses keeps its listing line and is counted in Details; nothing is
 guessed; on the installed game that is 13 rows whose readers sit in virtualized game code.
 Tables named `skillinfo` or `reserveslotinfo` in older archives use the `skill` and

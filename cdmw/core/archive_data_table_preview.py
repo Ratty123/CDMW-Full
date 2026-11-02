@@ -128,14 +128,17 @@ def _append_decoded_fields(lines, detail, stem, body, key_width, shown) -> None:
     kind = table_kind_for_stem(stem)
     if kind is None:
         return
+    # Only the printed rows are decoded: quest, faction and gimmick rows reach 1.5 MiB and
+    # the walk is pure Python on the preview worker.
+    sample = shown[:_FIELD_PREVIEW_ROWS]
     records, refused = [], 0
-    for _row, start, end in shown:
+    for _row, start, end in sample:
         try:
             records.append(decode_record(kind, body[start:end], start=start, key_width=key_width))
         except (RecordError, StaticTableError, UnicodeDecodeError):
             refused += 1
-    lines.extend(["", f"Decoded fields ({len(records):,} of {len(shown):,} listed rows):"])
-    for record in records[:_FIELD_PREVIEW_ROWS]:
+    lines.extend(["", f"Decoded fields of the first {len(sample):,} rows ({len(records):,} decoded):"])
+    for record in records:
         lines.append(f"  key {record.key}  {record.name}")
         for field in record.fields:
             if field.name in ("_stringKey", "_key"):
@@ -144,12 +147,12 @@ def _append_decoded_fields(lines, detail, stem, body, key_width, shown) -> None:
                 value = f"{field.value:,} bytes"
             elif field.shape == "text":
                 value = repr(_one_line(field.value))
+            elif isinstance(field.value, tuple):
+                value = ", ".join(str(part) for part in field.value)
             else:
                 value = str(field.value)
             lines.append(f"    {field.name} ({field.shape}) = {value}")
-    if len(records) > _FIELD_PREVIEW_ROWS:
-        lines.append(f"  ... fields of {len(records) - _FIELD_PREVIEW_ROWS:,} more decoded rows not shown")
-    message = f"The closed {kind} record schema decoded {len(records):,} of the {len(shown):,} listed rows."
+    message = f"The closed {kind} record schema decoded {len(records):,} of the first {len(sample):,} rows."
     if refused:
         message += f" {refused:,} did not decode with it and are listed without fields."
     detail.append(message)

@@ -73362,7 +73362,7 @@ MESSAGE_REFERENCE = [
     "message": "A static table's header and body must come from the same archive.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/static_table_records.py": 151
+      "cdmw/core/static_table_records.py": 160
     }
   },
   {
@@ -76353,7 +76353,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit of row {key} changed bytes outside its fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 292
+      "cdmw/core/static_table_records.py": 321
     }
   },
   {
@@ -78524,7 +78524,7 @@ MESSAGE_REFERENCE = [
     "message": "Inventory {key}: default slots exceed the maximum.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/static_table_records.py": 286
+      "cdmw/core/static_table_records.py": 315
     }
   },
   {
@@ -79630,7 +79630,7 @@ MESSAGE_REFERENCE = [
     "message": "No edits were requested.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 260
+      "cdmw/core/static_table_records.py": 280
     }
   },
   {
@@ -83344,7 +83344,7 @@ MESSAGE_REFERENCE = [
     "message": "The row's inline key differs from its directory key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 219
+      "cdmw/core/static_table_records.py": 239
     }
   },
   {
@@ -88745,7 +88745,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 194
+      "cdmw/core/static_table_records.py": 214
     }
   },
   {
@@ -88753,7 +88753,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no editable fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 258
+      "cdmw/core/static_table_records.py": 278
     }
   },
   {
@@ -88761,7 +88761,23 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no row with key {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 270
+      "cdmw/core/static_table_records.py": 295
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} lists key {key} more than once.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 297
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} row {key} carries a different inline key; the header does not match the body.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/static_table_records.py": 301
     }
   },
   {
@@ -88769,7 +88785,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 275
+      "cdmw/core/static_table_records.py": 304
     }
   },
   {
@@ -88777,7 +88793,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} is not an editable field.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 268
+      "cdmw/core/static_table_records.py": 293
     }
   },
   {
@@ -89129,7 +89145,7 @@ MESSAGE_REFERENCE = [
     "message": "{number} is outside {rule.minimum}-{rule.maximum}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 231
+      "cdmw/core/static_table_records.py": 251
     }
   },
   {
@@ -89457,7 +89473,7 @@ MESSAGE_REFERENCE = [
     "message": "{stem} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 143
+      "cdmw/core/static_table_records.py": 152
     }
   },
   {
@@ -89537,7 +89553,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is not an integer.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 236
+      "cdmw/core/static_table_records.py": 256
     }
   },
   {
@@ -89545,7 +89561,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is outside {int(rule.minimum)}-{int(rule.maximum)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 238
+      "cdmw/core/static_table_records.py": 258
     }
   },
   {
@@ -103801,7 +103817,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/startup_splash_protocol.py": {},
   "cdmw/core/static_table_records.py": {
-    "raise": 16
+    "raise": 18
   },
   "cdmw/core/storeinfo_compact.py": {
     "raise": 5
