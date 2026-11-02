@@ -727,8 +727,8 @@ class AboutDocumentationEnglishMixin:
                 <p>Asset Research studies the textures in the current Archive Browser view: how they group into sets, what type each texture is, what refers to them, and how your rebuilt textures compare with the originals. It only reads the archives and does not change game files.</p>
                 <ol>
                   <li>Load the archives in Archive Browser and filter it to the files you want to study.</li>
-                  <li>Open Asset Research under Utilities and click Refresh Research. Every page uses this snapshot until you refresh again.</li>
-                  <li>Choose a page in the row of tabs. The Archive Files panel on the right lists the same files; select one to preview it.</li>
+                  <li>Open Asset Research under Utilities and click Refresh Research. Texture Sets, Classification Review, Heatmap and Texture Analysis show this snapshot until you refresh again; References looks things up in the current archive, and UI Constraints has its own scan.</li>
+                  <li>Choose a page in the row of tabs. On most pages the Archive Files panel on the right lists the same files; select one to preview it. Classification Review and Texture Analysis show their own details there instead.</li>
                 </ol>
                 <table>
                   <tr><th>Page</th><th>What it shows</th><th>What to do</th></tr>

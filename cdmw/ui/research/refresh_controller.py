@@ -110,6 +110,7 @@ def refresh_research(self) -> None:
     self.refresh_worker = worker
     self.refresh_thread = thread
     self.pending_archive_snapshot_cache_key = archive_snapshot_cache_key
+    self._pending_refresh_cache_generation = getattr(self.archive_snapshot_cache, "generation", 0)
     self._pending_refresh_full_archive_key = full_archive_key
     self._pending_research_view_entry_count = len(working_entries)
     self._pending_research_full_archive_entry_count = len(archive_entries)
@@ -208,7 +209,10 @@ def _handle_refresh_complete(self, payload: object) -> None:
             self._ui_constraint_scan_archive_key = ""
         self.ui_constraint_status_label.setText(ui_constraint_refresh_stale_status_text())
         set_progress_idle(self.ui_constraint_progress)
-    if self.pending_archive_snapshot_cache_key and self.research_payload:
+    # A label saved while this refresh ran cleared the cache; this snapshot predates it.
+    cache_still_current = (getattr(self.archive_snapshot_cache, "generation", 0)
+                           == getattr(self, "_pending_refresh_cache_generation", 0))
+    if self.pending_archive_snapshot_cache_key and self.research_payload and cache_still_current:
         self.archive_snapshot_cache[self.pending_archive_snapshot_cache_key] = {
             "classification_rows": self.research_payload.get("classification_rows", []),
             "texture_groups": self.research_payload.get("texture_groups", []),
@@ -488,13 +492,11 @@ def _finalize_budget_population(self) -> None:
     if self.budget_file_tree.topLevelItemCount() > 0:
         first = self.budget_file_tree.topLevelItem(0)
         if first is not None:
-            # A Mip or Normal row selected earlier already owns the detail panel.
+            # A Mip or Normal row selected earlier already owns the detail panel. Leave the
+            # budget list without a current row then, so clicking its first row shows its details.
             detail_owned = self.mip_tree.topLevelItemCount() > 0 or self.normal_tree.topLevelItemCount() > 0
-            self.budget_file_tree.blockSignals(detail_owned)
-            try:
+            if not detail_owned:
                 self.budget_file_tree.setCurrentItem(first)
-            finally:
-                self.budget_file_tree.blockSignals(False)
 
 def _finish_refresh_population(self) -> None:
     self._stop_refresh_population()

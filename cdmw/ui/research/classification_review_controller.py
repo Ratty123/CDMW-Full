@@ -360,9 +360,9 @@ def _current_unknown_resolver_groups(self) -> object:
     return self.research_payload.get("unknown_resolver_groups", [])
 
 def _refresh_classification_review_after_edit(self) -> None:
-    # Keep the whole review queue and the user's filters; only drop any focus left by a
-    # previous hand-off, so families that are still unknown stay listed.
-    self._clear_pending_classification_review_focus()
+    # Keep the list the user was working through and their filters. A hand-off (the files
+    # a Textures build is waiting on) stays focused until Refresh Research is pressed, so
+    # the remaining files are not buried in the whole queue after the first label.
     self.refresh_research()
 
 def focus_classification_review_for_paths(

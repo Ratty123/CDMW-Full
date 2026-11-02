@@ -2501,7 +2501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 404,
+          "line": 408,
           "sink": "setFormat"
         },
         {
@@ -29797,7 +29797,7 @@
       ]
     },
     {
-      "key": "Choose a page in the row of tabs. The Archive Files panel on the right lists the same files; select one to preview it.",
+      "key": "Choose a page in the row of tabs. On most pages the Archive Files panel on the right lists the same files; select one to preview it. Classification Review and Texture Analysis show their own details there instead.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -31856,7 +31856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 580,
+          "line": 595,
           "sink": "addTab"
         },
         {
@@ -66711,7 +66711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 583,
+          "line": 598,
           "sink": "addTab"
         },
         {
@@ -68936,7 +68936,7 @@
         },
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 562,
+          "line": 577,
           "sink": "setFormat"
         },
         {
@@ -100556,7 +100556,7 @@
         },
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 587,
+          "line": 602,
           "sink": "addTab"
         },
         {
@@ -100791,7 +100791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/notes_controller.py",
-          "line": 65,
+          "line": 74,
           "sink": "emit"
         }
       ]
@@ -102117,7 +102117,7 @@
       ]
     },
     {
-      "key": "Open Asset Research under Utilities and click Refresh Research. Every page uses this snapshot until you refresh again.",
+      "key": "Open Asset Research under Utilities and click Refresh Research. Texture Sets, Classification Review, Heatmap and Texture Analysis show this snapshot until you refresh again; References looks things up in the current archive, and UI Constraints has its own scan.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -123311,7 +123311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 554,
+          "line": 569,
           "sink": "QLabel"
         }
       ]
@@ -125751,7 +125751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 581,
+          "line": 596,
           "sink": "addTab"
         },
         {
@@ -126211,7 +126211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 553,
+          "line": 568,
           "sink": "QPushButton"
         },
         {
@@ -141456,12 +141456,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/archive_picker_controller.py",
-          "line": 324,
+          "line": 325,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/research/archive_picker_controller.py",
-          "line": 332,
+          "line": 334,
           "sink": "emit"
         }
       ]
@@ -142036,7 +142036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 476,
+          "line": 480,
           "sink": "setText"
         }
       ]
@@ -158726,7 +158726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 586,
+          "line": 601,
           "sink": "addTab"
         },
         {
@@ -159096,7 +159096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 579,
+          "line": 594,
           "sink": "addTab"
         },
         {
@@ -163712,6 +163712,16 @@
       ]
     },
     {
+      "key": "The note on the Notes page has unsaved changes. Save or delete it before adding a note for another file.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/archive_picker_controller.py",
+          "line": 341,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with",
       "origins": [
         {
@@ -163726,7 +163736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/notes_controller.py",
-          "line": 63,
+          "line": 72,
           "sink": "emit"
         }
       ]
@@ -166511,7 +166521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/notes_controller.py",
-          "line": 70,
+          "line": 79,
           "sink": "emit"
         }
       ]
@@ -171761,7 +171771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 582,
+          "line": 597,
           "sink": "addTab"
         },
         {
@@ -181871,12 +181881,12 @@
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 119,
+          "line": 120,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 154,
+          "line": 155,
           "sink": "setFormat"
         },
         {
@@ -191411,7 +191421,7 @@
         },
         {
           "path": "cdmw/ui/research/archive_picker_controller.py",
-          "line": 88,
+          "line": 89,
           "sink": "python-return:_archive_picker_view_mode"
         },
         {
@@ -207986,7 +207996,7 @@
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 440,
+          "line": 444,
           "sink": "setFormat"
         },
         {
@@ -208526,7 +208536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/archive_picker_controller.py",
-          "line": 161,
+          "line": 162,
           "sink": "setText"
         },
         {

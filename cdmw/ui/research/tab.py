@@ -278,6 +278,19 @@ from cdmw.ui.widgets import (
 )
 
 
+class ResearchSnapshotCache(dict):
+    """Archive snapshots by archive key. Clearing it, as a classification edit does, bumps its
+    generation, so a refresh that started before the edit does not store its stale snapshot."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.generation = 0
+
+    def clear(self) -> None:
+        super().clear()
+        self.generation += 1
+
+
 class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     status_message_requested = Signal(str, bool)
     extract_related_set_requested = Signal(object, str)
@@ -308,6 +321,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     use_selected_archive_picker_for_reference = _research_archive_picker_controller.use_selected_archive_picker_for_reference
     use_selected_archive_picker_for_note = _research_archive_picker_controller.use_selected_archive_picker_for_note
     _populate_note_target = _research_notes_controller._populate_note_target
+    _note_has_unsaved_changes = _research_notes_controller._note_has_unsaved_changes
     _populate_notes_tree = _research_notes_controller._populate_notes_tree
     _save_note = _research_notes_controller._save_note
     _delete_note = _research_notes_controller._delete_note
@@ -488,7 +502,8 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.research_payload: Dict[str, object] = {}
         self.reference_payload: Dict[str, object] = {}
         self.pending_mip_focus_relative_path = ""
-        self.archive_snapshot_cache: Dict[str, Dict[str, object]] = {}
+        self.archive_snapshot_cache = ResearchSnapshotCache()
+        self._pending_refresh_cache_generation = 0
         self.pending_archive_snapshot_cache_key = ""
         self.archive_picker_entries: List[ArchiveEntry] = []
         self.archive_picker_entry_index_by_path: Dict[str, int] = {}

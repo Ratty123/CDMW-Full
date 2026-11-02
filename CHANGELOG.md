@@ -82,9 +82,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Loose mods keep files from the game's sound, sequencer, material, texture and other top-level folders in their folders. They were written as bare file names at the top of the mod, so a mod manager could not place them, and two banks with the same name in `sound` and `soundcommon` overwrote each other.
 
-- Asset Research's Classification Review keeps the rest of the review list after you save or remove a label, instead of narrowing it to the edited files until a filter was typed. A label saved while Research was still refreshing is now reflected once that refresh ends.
+- Asset Research's Classification Review keeps the rest of the review list after you save or remove a label, instead of narrowing it to the edited files until a filter was typed. Files sent from a Textures build stay listed until you click Refresh Research. A label saved while Research was still refreshing is now reflected once that refresh ends.
 
-- Asset Research Notes no longer carry the previous note's text over to a newly picked target, where saving wrote it under the wrong file. Save and Delete now say when there was nothing to save or delete, and Export Report says to refresh first instead of writing an empty report.
+- Asset Research Notes no longer carry the previous note's text over to a newly picked target, where saving wrote it under the wrong file. Save and Delete now say when there was nothing to save or delete, and Export Report says to refresh first instead of writing an empty report. **Add Note** opens the Notes page and keeps an unsaved note instead of replacing it.
+
+- In Asset Research's Archive Files panel, **Find References** and double-clicking a file open the References page and look the file up, as their tooltips say.
 
 - Asset Research keeps the Texture Analysis details panel in place during a refresh, keeps a Mip Analysis row's details instead of switching to the first budget row, no longer shows a stale preview after the review list empties, and no longer enables Review In Text Search from a UI Constraints row.
 

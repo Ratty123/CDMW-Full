@@ -216,3 +216,54 @@ def test_new_note_target_replaces_previous_note_text(research_tab: ResearchTab) 
 def test_export_without_a_refresh_has_no_report_rows() -> None:
     assert research_analysis_report_rows({}) is None
     assert research_analysis_report_rows({"mip_rows": [], "normal_rows": []}) is not None
+
+
+def test_a_refresh_running_when_a_label_is_saved_does_not_cache_its_stale_snapshot(research_tab: ResearchTab) -> None:
+    tab = _refreshed(research_tab)
+    tab.archive_snapshot_cache.clear()
+    tab.refresh_research()
+    assert tab.refresh_thread is not None
+    tab.archive_snapshot_cache.clear()  # What a label saved during the refresh does.
+    assert _pump(lambda: tab.refresh_thread is None)
+    assert not tab.archive_snapshot_cache
+
+
+def test_a_hand_off_focus_survives_the_first_saved_label(research_tab: ResearchTab) -> None:
+    tab = _refreshed(research_tab)
+    focus = ["object/texture/mystery_blob.dds", "object/texture/odd_thing.dds"]
+    tab.focus_classification_review_for_paths(focus, include_classified=True)
+    assert _pump(lambda: _refresh_idle(tab))
+    keys = set(tab.pending_classification_review_focus_keys)
+    assert keys
+    tab._apply_unknown_current_file_label()
+    assert _pump(lambda: _refresh_idle(tab))
+    assert tab.pending_classification_review_focus_keys == keys
+
+
+def _select_archive_file(tab: ResearchTab, path: str) -> None:
+    tab.tab_widget.setCurrentWidget(tab.reference_tab)
+    tab._ensure_archive_picker_ready()
+    tab.archive_picker_view_combo.setCurrentIndex(tab.archive_picker_view_combo.findData("flat"))
+    for index in range(tab.archive_picker_tree.topLevelItemCount()):
+        item = tab.archive_picker_tree.topLevelItem(index)
+        if path in item.text(0) or path in str(item.toolTip(0)):
+            tab.archive_picker_tree.setCurrentItem(item)
+            return
+    raise AssertionError(f"{path} is not listed in Archive Files")
+
+
+def test_find_references_opens_the_references_page_and_add_note_keeps_an_unsaved_draft(research_tab: ResearchTab) -> None:
+    tab = research_tab
+    tab.resolve_references = lambda: None  # The resolve itself is covered elsewhere.
+    _select_archive_file(tab, "rock_01.dds")
+    tab.tab_widget.setCurrentWidget(tab.texture_sets_tab if hasattr(tab, "texture_sets_tab") else tab.notes_tab)
+    tab.use_selected_archive_picker_for_reference()
+    assert tab.tab_widget.currentWidget() is tab.reference_tab
+    assert tab.reference_target_edit.text() == "object/texture/rock_01.dds"
+
+    tab.notes_target_edit.setText("object/texture/odd_thing.dds")
+    tab.notes_edit.setPlainText("draft not saved yet")
+    tab.use_selected_archive_picker_for_note()
+    assert tab.tab_widget.currentWidget() is tab.notes_tab
+    assert tab.notes_target_edit.text() == "object/texture/odd_thing.dds"
+    assert tab.notes_edit.toPlainText() == "draft not saved yet"

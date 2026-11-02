@@ -36,6 +36,15 @@ def _populate_note_target(self, source_kind: str, target_key: str) -> None:
     self.notes_edit.setPlainText(target_state.note_text)
     self.status_message_requested.emit(target_state.status_text, False)
 
+def _note_has_unsaved_changes(self) -> bool:
+    """Whether the Notes editor differs from what is saved for its current target."""
+    target_key = normalize_research_target_key(self.notes_target_edit.text())
+    if not target_key:
+        return bool(self.notes_edit.toPlainText().strip() or self.notes_tags_edit.text().strip())
+    saved = research_note_target_state(source_kind="", target_key=target_key, notes=self.notes)
+    return (self.notes_edit.toPlainText().strip() != saved.note_text.strip()
+            or self.notes_tags_edit.text().strip() != saved.tags_text.strip())
+
 def _populate_notes_tree(self) -> None:
     self.notes_tree.clear()
     for key, note in sorted_research_note_items(self.notes):
