@@ -568,6 +568,15 @@ class ArchiveBrowserActionMixin:
                 import_audio_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
                 )
+            if entry.extension == ".bnk":
+                replace_bank_sound_action = menu.addAction(menu_icons["audio"], "Replace Embedded Sound as Loose Mod...")
+                replace_bank_sound_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_bank_media_replace(current_entry)
+                )
+                edit_bank_action = menu.addAction(menu_icons["audio"], "Edit Sound Bank as Loose Mod...")
+                edit_bank_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_sound_bank_edit(current_entry)
+                )
 
         elapsed_ms = max(0.0, (time.perf_counter() - context_started_at) * 1000.0)
         self.shell.append_archive_log(

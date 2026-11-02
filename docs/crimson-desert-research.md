@@ -2514,9 +2514,131 @@ Wwise BNK inspection recovers section tags and the DIDX media table; supported
 embedded sounds can be decoded through the bundled audio path. The 2026-10-30
 source expansion adds incoming texture/audio path searches and media-ID links in
 Asset Family / Used By. Standard little-endian HIRC Sound source headers in bank
-versions 113–154 expose embedded or streamed source IDs; generators, music graphs,
-event/action semantics and gameplay triggers remain outside the reader. Unknown
-versions report incomplete bank coverage while retaining valid DIDX IDs.
+versions 113–154 expose embedded or streamed source IDs for Find references.
+Unknown versions report incomplete bank coverage while retaining valid DIDX IDs.
+
+**HIRC decode (2026-11-02).** All 3,450 shipped banks are version 150 (Wwise
+2023.1 in wwiser's table). `cdmw/core/archive_wwise_hirc.py` decodes every
+object type they ship after wwiser's version-150 layouts (sounds, actions,
+events, random/sequence, switch and layer containers, actor-mixers, buses and aux
+buses, attenuations, effect share sets and custom effects, modulators, audio
+devices, music segments, tracks, switches and playlists), and counts an object
+only when its body ends exactly on its declared size. On the whole shipped
+corpus (the installed game on 2026-11-02, read-only extraction) all 260,852
+objects decode to the byte. The exact-end check caught the one wrong reading on
+the first pass: a music transition rule read as 24 bytes is 26. Plugin
+parameter blocks, music decision trees and curves are skipped as sized spans,
+not interpreted. Stored property types were measured on every occurrence:
+Volume, Pitch, LPF, HPF, MakeUpGain, Priority, bus and aux send volumes,
+InitialDelay and CenterPercent are floats; Loop is an unsigned count; DelayTime
+and TransitionTime are signed milliseconds (some ranges go negative);
+AttenuationID is an id. Properties and randomizer ranges are always stored
+sorted by id, container children are always sorted, and children always precede
+their parents in HIRC (203,208 of 203,208), as actions precede their events.
+Events are almost all Play actions (8,786 of 9,258 actions), with Seek, Stop,
+Pause, Resume, Trigger and SetState making up the rest. Event names are FNV
+hashes with no string table in the banks, and gameplay triggers are still
+outside the reader.
+
+**Media sizes in banks.** Every in-memory source stores its media's exact byte
+size: 29,912 Sounds whose media the bank embeds and 94,807 whose media is a loose
+`.wem` match to the byte. A prefetched or streamed source stores a prefix size:
+the stream's headers plus a few Vorbis packets (about 0.05 to 0.2 s), ending
+exactly on a packet boundary for 2,210 of 2,211 sources. Prefetched sources embed
+that prefix of the loose file, and a short file's prefetch can be the whole file.
+Walking u16-sized packets from data plus the audio offset ends exactly at the
+end of data on 3,000 of 3,000 sampled streams. Embedded media sit on 16-byte
+boundaries with zero padding, DIDX is sorted by id and precedes DATA, and DATA
+ends at the last sound. Embedded media are Wwise Vorbis (25,282) or PTADPCM
+(2,709, format 0x8311, plugin "ADPCM"); 3,152 embedded blobs are prefetch
+prefixes, not complete files. The 30 media ids played through the external
+source plugin exist as no file and no embedded copy: the game supplies those at
+run time.
+
+**Constrained bank writing (2026-11-02).** `archive_wwise_bank_edit.py`,
+`archive_wwise_bank_variations.py` and `archive_wwise_bank_plan.py` admit these
+edits, each re-decoded before it is returned, with the read-only corpus evidence
+for each:
+
+- in-place fixed-size values (properties of the measured types, randomizer
+  bounds, container loop and transition values, playlist weights, Set-property
+  action values): writing every shipped value back reproduced all 3,376 banks
+  with values byte for byte (637,629 edits);
+- replacing media, embedded or loose: replacing each of 24,839 complete embedded
+  sounds with itself reproduced its bank, and so did a 1,522-bank sample of loose
+  retargets. Prefetched and streamed sources get a prefix of the same playing
+  time cut at the replacement's next packet: replacing every one of the 2,204
+  such ids with its own file reproduced all 3,663 affected banks, and a copy cut
+  to half its packets gave valid prefixes in all of them. Of the 101,563 media ids
+  that decoded sources reference, 101,532 are replaceable; one streamed source's
+  prefix is not on a packet and the 30 external-source placeholders have no file;
+- adding or removing a stored property or range: allowed only for a property
+  some shipped object of the same type stores; removing every editable property
+  and range of every object and adding them back reproduced all 3,395 such banks
+  (95,911 changes; one bank with a duplicated object id is refused);
+- adding or removing a sound in a random/sequence container: an added sound is a
+  copy of a sibling with new ShortIDs and new media embedded in the bank.
+  Removing one sound from each of the 52,883 containers that have two or more and
+  inserting it back with its media reproduced every bank byte for byte; one-sound
+  containers are refused. A removed sound's embedded media stays in the bank,
+  since a Sound in another bank can play it (10 such cross-bank uses ship).
+
+`BKHD` is 40 bytes of header data followed by zero padding. In all 2,254 banks
+with media, DIDX and DATA follow BKHD directly, and the padding is the fewest
+zeros that put DATA's payload on a 16-byte boundary. A writer that changes
+DIDX's size recomputes that padding.
+
+Source-level runs on real game data rebuilt a bank, retargeted seven banks for
+one loose id, and added a PCM sound to a shipped container; vgmstream decoded the
+replaced, added and untouched subsongs and the PCM `.wem`. New events are not
+offered: nothing in the game posts an event id it does not already know.
+
+**In-game check (2026-11-02, game 1.0.0.3479, DmmRuntime 1.0.0, title screen and
+menus).** Each edit went in as a DMM loose mod, and DmmRuntime.log recorded the
+game reading the edited banks. The game loads the init bank only from `sound\`;
+it never asked for the `soundcommon\` copy.
+
+- A -96 dB `BusVolume` added to `Master Audio Bus` silenced everything; added to
+  bus 2093044213 it silenced music and menu sounds while the sea ambience
+  played. Added properties load and take effect, and the bus hierarchy read from
+  the bank matches what the game mixes.
+- Added to `BGM`, neither `Volume` nor `BusVolume` silenced the title music. The
+  title music reaches 2093044213 through a sibling of `BGM`, and `Volume` on a
+  bus is the voice volume of sounds routed straight to it, not the bus's own gain.
+- Raising the UI bus high-pass filter from 15 to 80 in place thinned the menu
+  sounds.
+- Replacing all 93 menu-sound media (embedded in 95 banks) with a shipped Vorbis
+  voice line played that line on every menu sound. DIDX and DATA were rebuilt and
+  every in-memory size updated.
+- The same replacement with a PCM beep, with the 108 sources switched from
+  Vorbis to Wwise's PCM codec, played the beep. The 2023.1 runtime plays PCM
+  under a bank that shipped as Vorbis.
+
+A second round the same day covered the rest:
+
+- the 78 music media on the title music's buses, replaced by the voice line
+  (74 loose `.wem` and 10 banks with recomputed prefetch prefixes), played it in
+  place of the title music; a PCM tone in their place played too, quietly, so
+  streamed PCM works;
+- 1,208 language-free sounds that load a loose `.wem` into memory, replaced by
+  the voice line: the one-handed light and heavy attacks and the two-handed
+  heavy attack spoke it, so loose in-memory replacement works (the other sounds
+  heard were not in that set);
+- a +1200 cent pitch added to the 112 menu Sound objects raised them an octave;
+- a beep added as an extra sound to 67 menu random containers played on some
+  clicks.
+
+DMM treats a mod's language folders (`sound\windows\english(us)\` and the
+like) as variants and serves only the selected language's files. A first
+ambience test shipped files in three language folders, and DMM served the
+Chinese set to an English game, so nothing changed. Audio mods that touch
+language folders have to be mounted with the game's language selected.
+
+Not yet checked in game: removed objects, and replacing a named voice line. A
+named line is handed to Wwise by the game, which also names its codec, so CDMW
+accepts only a `.wem` in the original's codec there. Music tracks keep their
+clip timing, so a replacement of a different length is cut off or followed by
+silence. CDMW warns about that and does not edit the timing.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).
@@ -2533,22 +2655,32 @@ named dialogue files need a path or filename reference. An isolated copy of the
 reported cached dialogue clip decodes to PCM and loads in Qt after removing the
 Windows I/O prefix from decoder arguments; this is cached-asset/headless evidence,
 not packaged-app or game acceptance.
-Swapping a known sound and adding a new event remain different capabilities.
 
 The same 2026-10-31 inventory found 488,038 `.wem` files. Numeric media IDs under
 `sound/windows/media/` are unique across languages (211,988 IDs, one file each),
 so an ID has no language copies to link. Named dialogue files repeat across
 `sound/windows/<language>/` in three or eight languages, and 330 banks repeat in
-three. All 3,000 sampled streams were Wwise Vorbis with a 0x42-byte `fmt `;
-a few carry `smpl` loops or a `cue` marker labelled with the source WAV name.
-The header reader's sample count, rate, channels, speaker mask and loop points
-matched `vgmstream-cli -m` on all 40 extracted samples. This is header evidence,
-not a decoder or encoder change.
+three. A 2026-11-02 header sweep of all 488,038 found every one Wwise Vorbis with
+a 0x42-byte `fmt ` (278,025 at 48 kHz, 210,013 at 44.1 kHz; 483,618 mono, 4,400
+stereo, 20 four-channel); a few carry `smpl` loops or a `cue` marker labelled with
+the source WAV name. The header reader's sample count, rate, channels, speaker
+mask and loop points matched `vgmstream-cli -m` on all 40 extracted samples.
 
-Supported WEM playback/export does not imply a general Wwise encoder. The
-implemented writer is limited to the admitted uncompressed PCM path; Vorbis
-and Opus authoring remain outside that contract. Other media/interchange
-formats retain their own decoder/tool availability limits.
+**Encoder finding (2026-11-02).** No redistributable route writes Wwise Vorbis.
+Open tools decode it (vgmstream, ww2ogg and its MIT successors) but none encodes
+it; the one open converter that writes `.wem` takes 16-bit WAV only and says other
+codecs need Wwise. A home-made encoder would need libvorbis plus a remap onto
+Wwise's packed codebook library and could not be checked except in game, so it was
+not attempted. The clean route is Audiokinetic's own authoring tool, installed and
+licensed by the user: `WwiseConsole convert-external-source` with a Vorbis
+conversion setting, ideally from Wwise 2023.1 to match the banks. CDMW must not
+bundle or download it; whether a free non-commercial licence covers a given mod is
+the user's call under Audiokinetic's terms. CDMW therefore accepts a `.wem` the
+user made that way as it is, and otherwise writes 16-bit PCM with the original's
+channels, rate and speaker layout and switches the banks that play it to Wwise's
+built-in PCM codec. PCM came to 4.3 and 5.3 times the Vorbis size in the two real
+cases tried. No shipped
+bank declares PCM, so PCM playback in game is unproven.
 
 ### 11.4 Text, UI and shader resources
 
@@ -3933,7 +4065,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.aac` | Open | Surface | None |
 | `.avi` | Open | Surface | None |
 | `.bk2` | Open | Surface | None |
-| `.bnk` | Middleware | Surface | None |
+| `.bnk` | Middleware | Partial | Constrained |
 | `.flac` | Open | Surface | None |
 | `.m4a` | Open | Surface | None |
 | `.m4v` | Open | Surface | None |

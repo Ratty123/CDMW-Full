@@ -67,7 +67,20 @@ _add(
     "resolve_material_texture_graph",
 )
 _add("cdmw.core.archive_sidecar_cache", "_extract_archive_sidecar_texture_lookup_paths")
-_add("cdmw.core.archive_audio", "build_archive_audio_patch_payload", "export_archive_audio_as_wav")
+_add(
+    "cdmw.core.archive_audio",
+    "apply_sound_bank_edits",
+    "build_archive_audio_patch_payload",
+    "build_wwise_media_replacement",
+    "build_wwise_replacement_media",
+    "export_archive_audio_as_wav",
+    "list_bank_embedded_media",
+    "plan_wwise_media_replacement",
+    "read_sound_bank_editor_model",
+    "wwise_media_source_id",
+)
+_add("cdmw.core.archive_wwise_bank_edit", "HircEdit", "HircPropertyChange")
+_add("cdmw.core.archive_wwise_bank_plan", "SoundBankEditPlan", "VariationRequest")
 _add("cdmw.core.prefab_json", "apply_prefab_edit_json", "dumps_prefab_edit_json")
 _add("cdmw.core.weapon_swap_templates", "weapon_swap_template_socket_rows")
 _add("cdmw.core.archive_name_search", "ArchiveNameSearchIndex", "parse_archive_search_query")

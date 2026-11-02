@@ -45,34 +45,34 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 86,
-        "decode_percent": 54.3,
-        "write_percent": 32.6,
+        "decode_percent": 54.7,
+        "write_percent": 33.1,
         "decode": {
           "full": 35,
           "none": 21,
-          "partial": 9,
-          "surface": 21
+          "partial": 10,
+          "surface": 20
         },
         "write": {
-          "constrained": 16,
+          "constrained": 17,
           "full": 20,
-          "none": 50
+          "none": 49
         }
       },
       "engine_formats": {
         "extensions": 100,
-        "decode_percent": 53.2,
-        "write_percent": 33.5,
+        "decode_percent": 53.5,
+        "write_percent": 34.0,
         "decode": {
           "full": 40,
           "none": 27,
-          "partial": 11,
-          "surface": 22
+          "partial": 12,
+          "surface": 21
         },
         "write": {
-          "constrained": 19,
+          "constrained": 20,
           "full": 24,
-          "none": 57
+          "none": 56
         }
       },
       "proprietary_formats": {
@@ -93,25 +93,25 @@
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 60.6,
-        "write_percent": 36.0,
+        "decode_percent": 60.8,
+        "write_percent": 36.4,
         "decode": {
           "full": 76,
           "none": 31,
-          "partial": 11,
-          "surface": 36
+          "partial": 12,
+          "surface": 35
         },
         "write": {
-          "constrained": 19,
+          "constrained": 20,
           "full": 46,
-          "none": 89
+          "none": 88
         }
       }
     },
     "coverage_by_file_count": {
       "files": 1697380,
       "decode_percent": 67.8,
-      "write_percent": 54.4
+      "write_percent": 54.5
     },
     "unlisted_in_manifest": [],
     "by_origin": {
@@ -133,17 +133,16 @@
       },
       "third_party": {
         "extensions": 8,
-        "decode_percent": 46.2,
-        "write_percent": 18.8,
+        "decode_percent": 50.0,
+        "write_percent": 25.0,
         "decode": {
           "full": 1,
           "none": 2,
-          "partial": 4,
-          "surface": 1
+          "partial": 5
         },
         "write": {
-          "constrained": 3,
-          "none": 5
+          "constrained": 4,
+          "none": 4
         }
       },
       "open": {
@@ -190,17 +189,17 @@
       },
       "audio_video": {
         "extensions": 18,
-        "decode_percent": 47.2,
-        "write_percent": 8.3,
+        "decode_percent": 48.9,
+        "write_percent": 11.1,
         "decode": {
           "full": 4,
-          "partial": 1,
-          "surface": 13
+          "partial": 2,
+          "surface": 12
         },
         "write": {
-          "constrained": 1,
+          "constrained": 2,
           "full": 1,
-          "none": 16
+          "none": 15
         }
       },
       "material_metadata": {
@@ -329,13 +328,13 @@
     { "extension": ".texture", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "no analyzer; raw bytes only", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: wrapper purpose unknown - likely a texture descriptor or streaming stub" },
 
     { "extension": ".aac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".bnk", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "bnk", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "decode_json", "wav"], "origin": "third_party", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3450, "evidence": "bnk analyzer recovers section tags and the DIDX media table; embedded sounds decode through bundled vgmstream as subsongs", "remaining": "HIRC event/action tables not parsed, so sounds can be swapped but not added" },
+    { "extension": ".bnk", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "bnk", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "decode_json", "wav"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "archive_files": 3450, "evidence": "cdmw/core/archive_wwise_hirc.py decodes every HIRC object type of version-150 banks; all 260,852 objects in the 3,450 shipped banks decode to the byte (2026-11-02). cdmw/core/archive_wwise_bank_edit.py, archive_wwise_bank_variations.py and archive_wwise_bank_plan.py replace embedded or loose media (stream prefixes cut to the same playing time), edit measured fixed-size values, add or remove stored properties, and add or remove sounds in random containers; round trips over the shipped banks reproduce them byte for byte. Embedded sounds decode through bundled vgmstream as subsongs. In game 2026-11-02 (build 1.0.0.3479, via DMM): added bus volumes, an in-place filter edit, embedded and loose sound swaps (in memory and streamed), PCM, added Sound properties and added container sounds all played as intended", "remaining": "Plugin parameter blocks, music decision trees and curves are sized but not interpreted. One streamed media id whose prefix is off a packet and the 30 external-source placeholders are refused. New events are not offered. Removing objects is not yet confirmed in game" },
     { "extension": ".flac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
     { "extension": ".m4a", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
     { "extension": ".mp3", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
     { "extension": ".ogg", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
     { "extension": ".wav", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": true, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/core/archive_audio.py writes .wav on export", "remaining": "" },
-    { "extension": ".wem", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "wem", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "wav"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "archive_files": 488038, "evidence": "cdmw/core/archive_audio.py: decodes to .wav and rebuilds PCM .wem", "remaining": "only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored" },
+    { "extension": ".wem", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "wem", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "wav"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "archive_files": 488038, "evidence": "cdmw/core/archive_audio.py decodes to .wav; a replacement is written as a loose mod with every bank that plays the media id updated. A user-made Wwise Vorbis/ADPCM/PCM .wem is used as is; other audio becomes PCM with the original's channels, rate and speaker layout and the banks are switched to PCM. All 488,038 shipped .wem are Wwise Vorbis (2026-11-02 header sweep)", "remaining": "No redistributable Wwise Vorbis encoder exists (2026-11-02 finding); Vorbis needs the user's own Wwise authoring install. Loose .wem replacement, in memory and streamed, and PCM under banks switched from Vorbis play in game (2026-11-02). Named voice lines take only a .wem in their original codec, and PCM is several times larger" },
     { "extension": ".wma", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
     { "extension": ".avi", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
     { "extension": ".bk2", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },

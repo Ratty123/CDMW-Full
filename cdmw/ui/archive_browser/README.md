@@ -620,8 +620,60 @@ companions already reach it.
 
 WEM Details read the RIFF header without decoding (`archive_wwise_stream.py`):
 codec, channel layout, sample rate, length, `smpl` loop range and `cue`/`labl`
-markers. Compressed streams report no bit depth. Patch Audio To Game still writes
-uncompressed PCM; Details says so for non-PCM sources.
+markers. Compressed streams report no bit depth.
+
+Bank previews decode the HIRC object graph of version-150 banks
+(`cdmw/core/archive_wwise_hirc.py`, layouts after wwiser): every object type the
+game ships, with properties, randomizer ranges, playlists, children, media
+sources and effect plugin media. An object is reported as decoded only when its
+body ends exactly on its declared size; a type outside the shipped set keeps its
+framing only. Plugin parameter blocks, decision trees and curves are skipped as
+sized spans, not interpreted.
+
+Audio replacement is written as a DMM loose mod, never into the installed
+archives. **Import WAV as Loose Mod** on a `.wem` and **Replace Embedded Sound
+as Loose Mod** on a `.bnk` both go through `plan_wwise_media_replacement`
+(`cdmw/core/archive_audio.py`): the loose `<id>.wem` copies get the new bytes,
+every bank embedding the id gets DIDX and DATA rebuilt on 16-byte boundaries, and
+every Sound or music-track source that plays the id gets its new size and the
+codec the new media declares (`archive_wwise_bank_edit.py`). In-memory sources
+get the file size. Prefetched and streamed sources get a prefix of the same
+playing time, cut at the replacement's next Vorbis packet (or PCM/ADPCM block),
+and an embedded prefetch prefix is replaced by that cut; this needs the
+complete original, which is the loose `.wem`. The banks are found by scanning
+every `.bnk` in the listing in the background. A `.wem` the user made with their
+own Wwise install is used as it is (Vorbis, ADPCM or PCM); any other audio
+becomes 16-bit PCM with the original's channels, rate and speaker layout, and the
+completion message warns when PCM is four or more times the original's size. The
+whole replacement is refused when any bank plays the id through a non-codec
+plugin, an effect loads it as plugin data, an undecoded object may name it, or a
+stream prefix does not end on a packet. Named `.wem` voice lines are not
+described by any bank, so only the file is replaced.
+
+**Edit Sound Bank as Loose Mod** on a `.bnk` (`sound_bank_editor.py`, model and
+plan in `archive_wwise_bank_plan.py`) lists every value the writer can change:
+stored properties of measured types, randomizer ranges, container loop and
+transition values, playlist weights and Set-property action values. It can also
+add a property or range that some shipped object of the same type stores
+(`change_hirc_properties`, kept sorted by id, objects and HIRC resized), remove
+one so the object inherits it again, add a sound to a random/sequence container
+as a copy of a sibling playing new media embedded in this bank, and remove a
+sound that nothing else names (`archive_wwise_bank_variations.py`). New object
+and media ids are Wwise ShortIDs checked against every bank and loose media id in
+the listing. The plan is applied in a fixed order (values, properties, removed
+then added sounds) in the background, and the bank is written as a loose mod.
+Owned fixtures, headless dialog and action tests, and read-only round trips over
+the shipped banks cover this. In game (2026-11-02, through DMM) added bus and
+Sound properties, an in-place value edit, embedded and loose media swaps (held in
+memory or streamed, with recomputed prefixes), PCM and added container sounds
+were heard working. On a bus, `Volume` affects only sounds routed straight to it;
+`BusVolume` is the bus's own gain. The banks and loose copies a replacement
+touches are the active entry per path, as the game loads them. Removing a sound
+keeps its embedded media, which another bank may play. A named voice line takes
+only a `.wem` in its original codec, because the game names its codec. Music
+tracks keep their clip timing, and the completion message says when a
+replacement is longer or shorter. DMM serves files in language folders only for
+the language selected in DMM.
 
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
