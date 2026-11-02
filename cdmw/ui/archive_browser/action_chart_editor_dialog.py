@@ -394,6 +394,12 @@ class ActionChartEditorDialog(QDialog):
         self.value_table.itemChanged.connect(self._value_edited)
         self.value_table.setMinimumHeight(140)
         timing_layout.addWidget(self.value_table)
+        timing_hint = QLabel(
+            "Some moves, such as dodges and rolls, may play from the character's lower-body chart "
+            "(for Kliff, basic_lower). If a timing change does not show in game, check that chart too."
+        )
+        timing_hint.setWordWrap(True)
+        timing_layout.addWidget(timing_hint)
         self.detail_splitter.addWidget(timing)
 
         events = QGroupBox("Frame events")

@@ -10304,7 +10304,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the clip: {outcome.message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 993
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 999
     }
   },
   {
@@ -15203,7 +15203,7 @@ MESSAGE_REFERENCE = [
     "message": "The edit was refused: {outcome.message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1215
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1221
     }
   },
   {
@@ -15853,7 +15853,7 @@ MESSAGE_REFERENCE = [
     "message": "These names are not in the game's archives or in this chart: {detail} A clip or file that does not exist cannot play, and a socket or part the character does not have does nothing. Apply anyway?",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1174
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1180
     }
   },
   {
