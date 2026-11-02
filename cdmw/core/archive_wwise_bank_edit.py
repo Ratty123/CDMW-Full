@@ -32,6 +32,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from cdmw.core.archive_wwise_bank import read_bank_chunks, read_embedded_media
 from cdmw.core.archive_wwise_hirc import (
+    KIND_MUSIC_TRACK,
     KIND_SOUND,
     PARSED,
     PROPERTY_NAMES,
@@ -573,12 +574,43 @@ def _retarget(
     return changes
 
 
-def bank_media_references(data: bytes, source_id: int) -> Tuple[bool, int]:
-    """Whether a bank embeds this media, and how many of its objects play it."""
+def bank_media_references(data: bytes, source_id: int) -> Tuple[bool, int, int]:
+    """Whether a bank embeds this media, how many decoded objects play it, and how
+    many undecoded objects hold its id (a bank that names it there cannot be judged)."""
 
     embedded = any(media.source_id == source_id for media in read_embedded_media(data))
     graph = read_hirc_graph(data)
-    return embedded, len(graph.sounds_for_source(source_id))
+    needle = struct.pack("<I", int(source_id))
+    undecoded = sum(1 for node in graph.nodes if node.status != PARSED and needle in data[node.offset + 9 : node.end])
+    return embedded, len(graph.sounds_for_source(source_id)), undecoded
+
+
+def bank_music_track_users(data: bytes, source_id: int) -> int:
+    """How many music tracks in a bank play this media; their clips keep the original's timing."""
+
+    return sum(1 for node in read_hirc_graph(data).sounds_for_source(source_id) if node.kind == KIND_MUSIC_TRACK)
+
+
+def media_duration_seconds(media: bytes) -> Optional[float]:
+    """Playing time from the stream header: Vorbis sample count, or PCM/ADPCM data size."""
+
+    layout = _media_layout(media)
+    if layout is None or layout.bytes_per_second <= 0:
+        return None
+    if layout.tag == 0xFFFF:
+        fmt_rate = None
+        offset = 12
+        while offset + 8 <= len(media):
+            size = struct.unpack_from("<I", media, offset + 4)[0]
+            if media[offset : offset + 4] == b"fmt ":
+                fmt_rate = struct.unpack_from("<I", media, offset + 12)[0], struct.unpack_from("<I", media, offset + 8 + 0x18)[0]
+                break
+            offset += 8 + size + (size & 1)
+        if not fmt_rate or not fmt_rate[0]:
+            return None
+        return fmt_rate[1] / fmt_rate[0]
+    data_start = layout.header_end
+    return (layout.data_end - data_start) / layout.bytes_per_second
 
 
 def retarget_loose_media(
@@ -709,8 +741,10 @@ __all__ = [
     "WwiseBankEditError",
     "apply_hirc_edits",
     "bank_media_references",
+    "bank_music_track_users",
     "change_hirc_properties",
     "codec_plugin_for_media",
+    "media_duration_seconds",
     "media_format_tag",
     "replace_embedded_media",
     "retarget_loose_media",

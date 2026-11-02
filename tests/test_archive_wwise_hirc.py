@@ -145,8 +145,10 @@ def attenuation(object_id: int) -> bytes:
 
 
 def bank(objects, media=(), *, version: int = 150) -> bytes:
-    header = chunk(b"BKHD", struct.pack("<II", version, 1234) + b"\x00" * 16)
-    parts = [header]
+    """A bank in the shipped layout: 40 header bytes padded so DATA's payload sits on 16 bytes."""
+
+    fields = struct.pack("<II", version, 1234) + b"\x00" * 32
+    parts = []
     if media:
         directory = bytearray()
         blob = bytearray()
@@ -155,7 +157,10 @@ def bank(objects, media=(), *, version: int = 150) -> bytes:
                 blob.extend(b"\x00" * (16 - len(blob) % 16))
             directory.extend(struct.pack("<III", source_id, len(blob), len(content)))
             blob.extend(content)
-        parts += [chunk(b"DIDX", bytes(directory)), chunk(b"DATA", bytes(blob))]
+        padding = -(8 + 40 + 8 + len(directory) + 8) % 16
+        parts += [chunk(b"BKHD", fields + b"\x00" * padding), chunk(b"DIDX", bytes(directory)), chunk(b"DATA", bytes(blob))]
+    else:
+        parts.append(chunk(b"BKHD", fields))
     parts.append(chunk(b"HIRC", struct.pack("<I", len(objects)) + b"".join(objects)))
     return b"".join(parts)
 

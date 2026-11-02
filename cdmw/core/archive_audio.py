@@ -292,7 +292,29 @@ def build_archive_audio_patch_payload(entry: ArchiveEntry, replacement_audio_pat
         raise ValueError(f"Archive audio patching currently supports .wav and .wem targets only, not {entry.extension}.")
 
     original_data, _decompressed, _note = read_archive_entry_data(entry)
+    if wwise_media_source_id(entry) is None:
+        return _named_wem_replacement(original_data, normalized_path)
     return build_wwise_replacement_media(original_data, normalized_path)
+
+
+def _named_wem_replacement(original_media: bytes, replacement_path: Path) -> bytes:
+    """A named voice line is handed to Wwise by the game, which also names its codec,
+    so the replacement must be a Wwise .wem in the original's codec; PCM would be read as Vorbis."""
+
+    from cdmw.core.archive_wwise_bank_edit import media_format_tag
+
+    if replacement_path.suffix.lower() != ".wem":
+        raise ValueError(
+            "This voice line is chosen by name while the game runs, and the game tells Wwise which codec to decode "
+            "it with (Wwise Vorbis), so converted audio would not play. Use a .wem made with your own Wwise install."
+        )
+    media = replacement_path.read_bytes()
+    if media_format_tag(media) != media_format_tag(original_media):
+        raise ValueError(
+            "This voice line is chosen by name while the game runs and keeps the codec the game asks for; "
+            "the replacement .wem uses a different codec. Encode it as Wwise Vorbis."
+        )
+    return media
 
 
 #: PCM larger than this many times the media it replaces is called out to the user.
@@ -337,7 +359,9 @@ def build_wwise_media_replacement(
     from cdmw.core.archive_wwise_bank_edit import (
         WwiseBankEditError,
         bank_media_references,
+        bank_music_track_users,
         codec_plugin_for_media,
+        media_duration_seconds,
         replace_embedded_media,
         retarget_loose_media,
     )
@@ -353,6 +377,7 @@ def build_wwise_media_replacement(
     plugin = codec_plugin_for_media(media)
     payloads: List[Tuple[ArchiveEntry, bytes]] = [(entry, media) for entry in wem_entries]
     notes: List[str] = []
+    music_tracks = 0
     needle = struct.pack("<I", int(source_id))
     for index, bank in enumerate(bank_entries):
         if index % 200 == 0:
@@ -360,9 +385,15 @@ def build_wwise_media_replacement(
         data = read_entry(bank)
         if needle not in data:
             continue
-        embedded, sounds = bank_media_references(data, source_id)
+        embedded, sounds, undecoded = bank_media_references(data, source_id)
+        if undecoded:
+            raise WwiseBankEditError(
+                f"{bank.path}: {undecoded} object(s) this reader does not decode hold media id {source_id}; "
+                "refusing to change that media."
+            )
         if not embedded and not sounds:
             continue
+        music_tracks += bank_music_track_users(data, source_id)
         try:
             if embedded:
                 result = replace_embedded_media(data, source_id, media, original_media=original_media)
@@ -376,6 +407,14 @@ def build_wwise_media_replacement(
         notes.append(
             f"No bank declares media {source_id}; the replacement is written, but nothing in the shipped banks plays it."
         )
+    if music_tracks:
+        before, after = media_duration_seconds(original_media), media_duration_seconds(media)
+        if before and after and abs(after - before) > max(0.05, 0.01 * before):
+            notes.append(
+                f"{music_tracks} music track(s) play media {source_id}. Music keeps the original's clip timing "
+                f"({before:,.2f} s), so the {after:,.2f} s replacement "
+                + ("is cut off at that point." if after > before else "is followed by silence until then.")
+            )
     if plugin == 0x00010001:
         ratio = len(media) / max(1, len(original_media))
         notes.append(
@@ -428,7 +467,7 @@ def apply_sound_bank_edits(
             taken.add(source_id)
             loose_by_id.setdefault(source_id, item)
     if plan.added_variations:
-        banks = [item for item in archive_entries if item.extension == ".bnk"]
+        banks = active_archive_entries([item for item in archive_entries if item.extension == ".bnk"])
         log(f"Collecting the ids {len(banks):,} banks use, so added sounds get unused ones...")
         for index, bank in enumerate(banks):
             if index % 200 == 0:
@@ -449,6 +488,17 @@ def apply_sound_bank_edits(
         taken_ids=sorted(taken),
         on_log=log,
     )
+
+
+def active_archive_entries(entries: Sequence[ArchiveEntry]) -> List[ArchiveEntry]:
+    """One entry per virtual path: the one the game loads when a package or DLC shadows another."""
+
+    from cdmw.domain.archives.filters import active_archive_entry_for_virtual_path
+
+    grouped: Dict[str, List[ArchiveEntry]] = {}
+    for item in entries:
+        grouped.setdefault(item.path.replace("\\", "/").lower(), []).append(item)
+    return [group[0] if len(group) == 1 else active_archive_entry_for_virtual_path(group) for group in grouped.values()]
 
 
 def list_bank_embedded_media(entry: ArchiveEntry):
@@ -479,9 +529,9 @@ def plan_wwise_media_replacement(
     from cdmw.core.archive_wwise_bank import read_bank_embedded_bytes, read_embedded_media
 
     wem_name = f"{int(source_id)}.wem"
-    wem_entries = [item for item in archive_entries if item.basename.lower() == wem_name]
-    bank_entries = [item for item in archive_entries if item.extension == ".bnk"]
-    if entry.extension == ".bnk" and not any(item is entry for item in bank_entries):
+    wem_entries = active_archive_entries([item for item in archive_entries if item.basename.lower() == wem_name])
+    bank_entries = active_archive_entries([item for item in archive_entries if item.extension == ".bnk"])
+    if entry.extension == ".bnk" and not any(item.path.lower() == entry.path.lower() for item in bank_entries):
         bank_entries.append(entry)
     data = read_archive_entry_data(entry)[0]
     if entry.extension == ".bnk":
@@ -519,6 +569,7 @@ __all__ = [
     "_read_wav_format_info",
     "_read_wav_format_info_from_bytes",
     "_run_hidden_process",
+    "active_archive_entries",
     "apply_sound_bank_edits",
     "build_archive_audio_patch_payload",
     "build_wwise_media_replacement",

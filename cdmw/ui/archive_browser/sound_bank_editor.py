@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QLineEdit, QListWidget, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
@@ -58,14 +58,23 @@ class SoundBankEditorDialog(QDialog):
 
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("Filter by object id or value name")
-        self.filter_edit.textChanged.connect(self._apply_filter)
+        # The largest shipped bank lists 3,242 values; filter once typing pauses.
+        self._filter_timer = QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(200)
+        self._filter_timer.timeout.connect(lambda: self._apply_filter(self.filter_edit.text()))
+        self.filter_edit.textChanged.connect(lambda _text: self._filter_timer.start())
+        self._haystacks = [f"{item.object_id} {item.target}".lower() for item in model.rows]
         layout.addWidget(self.filter_edit)
 
         self.table = QTableWidget(len(model.rows), len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(list(_COLUMNS))
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setResizeContentsPrecision(200)
+        header.setStretchLastSection(True)
+        self.table.setUpdatesEnabled(False)
         for row, item in enumerate(model.rows):
             cells = (str(item.object_id), item.kind_name, item.target, _format(item.value, item.integer), "", item.unit)
             for column, text in enumerate(cells):
@@ -73,6 +82,8 @@ class SoundBankEditorDialog(QDialog):
                 if column != 4:
                     cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(row, column, cell)
+        self.table.resizeColumnsToContents()
+        self.table.setUpdatesEnabled(True)
         layout.addWidget(self.table, 1)
 
         add_row = QHBoxLayout()
@@ -144,9 +155,12 @@ class SoundBankEditorDialog(QDialog):
 
     def _apply_filter(self, text: str) -> None:
         needle = text.strip().lower()
-        for row in range(self.table.rowCount()):
-            haystack = f"{self.table.item(row, 0).text()} {self.table.item(row, 2).text()}".lower()
-            self.table.setRowHidden(row, bool(needle) and needle not in haystack)
+        self.table.setUpdatesEnabled(False)
+        for row, haystack in enumerate(self._haystacks):
+            hidden = bool(needle) and needle not in haystack
+            if self.table.isRowHidden(row) != hidden:
+                self.table.setRowHidden(row, hidden)
+        self.table.setUpdatesEnabled(True)
 
     def _pending(self, text: str) -> None:
         self.pending_list.addItem(text)

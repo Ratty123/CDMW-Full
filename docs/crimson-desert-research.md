@@ -2247,8 +2247,14 @@ for each:
 - adding or removing a sound in a random/sequence container: an added sound is a
   copy of a sibling with new ShortIDs and new media embedded in the bank.
   Removing one sound from each of the 52,883 containers that have two or more and
-  inserting it back reproduced every bank byte for byte; one-sound containers are
-  refused.
+  inserting it back with its media reproduced every bank byte for byte; one-sound
+  containers are refused. A removed sound's embedded media stays in the bank,
+  since a Sound in another bank can play it (10 such cross-bank uses ship).
+
+`BKHD` is 40 bytes of header data followed by zero padding. In all 2,254 banks
+with media, DIDX and DATA follow BKHD directly, and the padding is the fewest
+zeros that put DATA's payload on a 16-byte boundary. A writer that changes
+DIDX's size recomputes that padding.
 
 Source-level runs on real game data rebuilt a bank, retargeted seven banks for
 one loose id, and added a PCM sound to a shipped container; vgmstream decoded the
@@ -2276,9 +2282,31 @@ it never asked for the `soundcommon\` copy.
   Vorbis to Wwise's PCM codec, played the beep. The 2023.1 runtime plays PCM
   under a bank that shipped as Vorbis.
 
-Not yet checked in game: replacing loose `.wem` files, stream prefixes for
-prefetched and streamed music, added container sounds, removed objects, and
-properties added to anything other than a bus.
+A second round the same day covered the rest:
+
+- the 78 music media on the title music's buses, replaced by the voice line
+  (74 loose `.wem` and 10 banks with recomputed prefetch prefixes), played it in
+  place of the title music; a PCM tone in their place played too, quietly, so
+  streamed PCM works;
+- 1,208 language-free sounds that load a loose `.wem` into memory, replaced by
+  the voice line: the one-handed light and heavy attacks and the two-handed
+  heavy attack spoke it, so loose in-memory replacement works (the other sounds
+  heard were not in that set);
+- a +1200 cent pitch added to the 112 menu Sound objects raised them an octave;
+- a beep added as an extra sound to 67 menu random containers played on some
+  clicks.
+
+DMM treats a mod's language folders (`sound\windows\english(us)\` and the
+like) as variants and serves only the selected language's files. A first
+ambience test shipped files in three language folders, and DMM served the
+Chinese set to an English game, so nothing changed. Audio mods that touch
+language folders have to be mounted with the game's language selected.
+
+Not yet checked in game: removed objects, and replacing a named voice line. A
+named line is handed to Wwise by the game, which also names its codec, so CDMW
+accepts only a `.wem` in the original's codec there. Music tracks keep their
+clip timing, so a replacement of a different length is cut off or followed by
+silence. CDMW warns about that and does not edit the timing.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).

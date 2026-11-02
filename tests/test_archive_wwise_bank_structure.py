@@ -6,7 +6,7 @@ import struct
 
 import pytest
 
-from cdmw.core.archive_wwise_bank import read_bank_embedded_bytes, read_embedded_media
+from cdmw.core.archive_wwise_bank import read_bank_chunks, read_bank_embedded_bytes, read_embedded_media
 from cdmw.core.archive_wwise_bank_edit import (
     HircEdit,
     HircPropertyChange,
@@ -141,7 +141,11 @@ def test_property_changes_outside_the_measured_set_are_refused(change, reason):
         change_hirc_properties(data, [change])
 
 
-def test_a_variation_is_added_like_its_sibling_and_removing_it_restores_the_bank():
+def data_payload_offset(data: bytes) -> int:
+    return next(c for c in read_bank_chunks(data)[0] if c.identifier == "DATA").offset
+
+
+def test_a_variation_is_added_like_its_sibling_and_removing_it_keeps_its_media():
     data = bank(
         [
             sound(101, 9001, len(EMBEDDED_A), properties=[(0x00, -4.0)]),
@@ -166,7 +170,13 @@ def test_a_variation_is_added_like_its_sibling_and_removing_it_restores_the_bank
     assert added.property(0x00).as_float == -4.0
     assert [item.source_id for item in read_embedded_media(result.data)] == [9001, 9002, 9500]
     assert all(item.offset % 16 == 0 for item in read_embedded_media(result.data))
-    assert remove_sound_variation(result.data, 200, 150).data == data
+    assert data_payload_offset(result.data) % 16 == 0 and data_payload_offset(data) % 16 == 0
+    removed = remove_sound_variation(result.data, 200, 150)
+    nodes = read_hirc_graph(removed.data).by_id()
+    assert 150 not in nodes and nodes[200].children == (101, 102)
+    # Another bank's Sound may play media this bank holds, so removing a sound keeps it.
+    assert [item.source_id for item in read_embedded_media(removed.data)] == [9001, 9002, 9500]
+    assert data_payload_offset(removed.data) % 16 == 0
 
 
 def test_a_variation_can_be_added_to_a_bank_without_embedded_media():
@@ -174,8 +184,8 @@ def test_a_variation_can_be_added_to_a_bank_without_embedded_media():
     result = add_sound_variation(data, 3, 1, wem(b"\x01" * 10), new_sound_id=4, new_source_id=9000, weight=1000)
     assert [item.source_id for item in read_embedded_media(result.data)] == [9000]
     assert result.data.index(b"BKHD") < result.data.index(b"DIDX") < result.data.index(b"DATA") < result.data.index(b"HIRC")
+    assert data_payload_offset(result.data) % 16 == 0
     assert read_hirc_graph(result.data).by_id()[3].playlist[-1].weight == 1000
-    assert remove_sound_variation(result.data, 3, 4).data == data
 
 
 @pytest.mark.parametrize(
@@ -318,3 +328,17 @@ def test_the_editor_model_and_plan_apply_values_properties_and_variations(tmp_pa
     added = [child for child in nodes[200].children if child not in (101, 102)]
     assert len(added) == 1 and nodes[added[0]].property(0x01).as_float == -200.0
     assert len(changes) == 4
+
+
+def test_bank_header_padding_tracks_the_media_table_and_refuses_unknown_headers():
+    one = bank([sound(1, 7000, 100), sound(2, 7001, 100), random_container(3, [1, 2])], media=[(7000, wem(b"\x01" * 9))])
+    for count in range(1, 5):
+        one = add_sound_variation(one, 3, 1, wem(b"\x02" * 9), new_sound_id=100 + count, new_source_id=9000 + count).data
+        assert data_payload_offset(one) % 16 == 0
+        header = next(c for c in read_bank_chunks(one)[0] if c.identifier == "BKHD")
+        assert 40 <= header.size < 56
+    odd = bytearray(bank([sound(1, 7000, 100), sound(2, 7001, 100), random_container(3, [1, 2])], media=[(7000, wem(b"\x01" * 9))]))
+    assert next(c for c in read_bank_chunks(bytes(odd))[0] if c.identifier == "BKHD").size == 44
+    odd[8 + 42] = 1  # a non-zero byte in the header's padding
+    with pytest.raises(WwiseBankEditError, match="40 bytes plus zero padding"):
+        add_sound_variation(bytes(odd), 3, 1, wem(b"\x02" * 9), new_sound_id=9, new_source_id=9001)

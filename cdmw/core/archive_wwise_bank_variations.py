@@ -37,6 +37,7 @@ from cdmw.core.archive_wwise_hirc import (
 )
 
 _MEDIA_ALIGNMENT = 16
+_BANK_HEADER_FIELDS = 40
 _REPLACEABLE_CODECS = {0x00010001, 0x00020001, 0x00040001}
 #: Wwise's default playlist weight (50 in the authoring tool).
 DEFAULT_PLAYLIST_WEIGHT = 50000
@@ -144,20 +145,37 @@ def _assemble(data: bytes, objects: Sequence[bytes], media: Dict[int, bytes]) ->
     had_media = "DIDX" in names
     output = bytearray()
     for item in chunks:
-        if item.identifier == "DIDX":
-            if media:
-                output.extend(chunk("DIDX", bytes(records)))
-        elif item.identifier == "DATA":
-            if media:
-                output.extend(chunk("DATA", bytes(blob)))
-        elif item.identifier == "HIRC":
-            if media and not had_media:
-                # Shipped banks keep the media table right before HIRC.
-                output.extend(chunk("DIDX", bytes(records)) + chunk("DATA", bytes(blob)))
+        if item.identifier in {"DIDX", "DATA"}:
+            continue
+        if item.identifier == "BKHD":
+            header = bytes(data[item.offset : item.offset + item.size])
+            if not media:
+                body = header if not had_media else header[:_BANK_HEADER_FIELDS]
+                output.extend(chunk("BKHD", body))
+                continue
+            output.extend(chunk("BKHD", _padded_bank_header(header, len(records))))
+            output.extend(chunk("DIDX", bytes(records)) + chunk("DATA", bytes(blob)))
+            continue
+        if item.identifier == "HIRC":
             output.extend(chunk("HIRC", hirc))
-        else:
-            output.extend(chunk(item.identifier, data[item.offset : item.offset + item.size]))
+            continue
+        output.extend(chunk(item.identifier, data[item.offset : item.offset + item.size]))
+    if names[0] != "BKHD":
+        raise WwiseBankEditError("The bank does not start with its header; refusing to rebuild it.")
     return bytes(output)
+
+
+def _padded_bank_header(header: bytes, directory_size: int) -> bytes:
+    """BKHD with the zero padding that puts DATA's payload on a 16-byte boundary.
+
+    Every shipped bank with media stores 40 header bytes, then the fewest zeros
+    that align DATA, with DIDX and DATA straight after BKHD (2,254 of 2,254).
+    """
+
+    if len(header) < _BANK_HEADER_FIELDS or any(header[_BANK_HEADER_FIELDS:]):
+        raise WwiseBankEditError("The bank header is not 40 bytes plus zero padding; refusing to resize it.")
+    padding = -(8 + _BANK_HEADER_FIELDS + 8 + directory_size + 8) % _MEDIA_ALIGNMENT
+    return header[:_BANK_HEADER_FIELDS] + b"\x00" * padding
 
 
 def _referrers(graph: HircGraph, sound_id: int, container_id: int) -> List[int]:
@@ -170,7 +188,14 @@ def _referrers(graph: HircGraph, sound_id: int, container_id: int) -> List[int]:
     return others
 
 
-def _remove(data: bytes, graph: HircGraph, container: HircNode, sound: HircNode) -> Tuple[bytes, _Variation]:
+def _remove(
+    data: bytes,
+    graph: HircGraph,
+    container: HircNode,
+    sound: HircNode,
+    *,
+    drop_media: bool = False,
+) -> Tuple[bytes, _Variation]:
     if sound.object_id not in container.children:
         raise WwiseBankEditError(f"Sound {sound.object_id} is not a child of container {container.object_id}.")
     if len(container.children) < 2:
@@ -184,7 +209,7 @@ def _remove(data: bytes, graph: HircGraph, container: HircNode, sound: HircNode)
     media = _media_table(data)
     source = sound.source
     embedded: Optional[Tuple[int, bytes]] = None
-    if source is not None and source.source_id in media:
+    if drop_media and source is not None and source.source_id in media:
         users = [node for node in graph.nodes if any(item.source_id == source.source_id for item in node.sources)]
         if users == [sound]:
             embedded = (source.source_id, media.pop(source.source_id))
@@ -243,7 +268,11 @@ def _check(result: bytes, before: HircGraph, *, added: Sequence[int] = (), remov
 
 
 def remove_sound_variation(data: bytes, container_id: int, sound_id: int) -> BankEditResult:
-    """Takes one Sound out of a random/sequence container, and its media if nothing else plays it."""
+    """Takes one Sound out of a random/sequence container.
+
+    Its embedded media stays: a Sound in another bank can play media this bank
+    holds, which no single bank can see.
+    """
 
     graph = _require_graph(data)
     container = _node(graph, container_id, KIND_RANDOM_SEQUENCE, "random/sequence container")

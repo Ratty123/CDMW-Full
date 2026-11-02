@@ -103,17 +103,19 @@ class ArchivePatchActionsMixin:
         # The game refuses rewritten archive indexes and mount lists since the DLC
         # update, so replacement audio is written as a loose mod for DMM instead of
         # being patched into the installed archives.
-        source_path = self._select_replacement_audio(allow_wem=entry.extension == ".wem")
-        if not source_path:
-            return
         source_id = wwise_media_source_id(entry)
-        if entry.extension == ".wem" and source_id is None:
+        named_line = entry.extension == ".wem" and source_id is None
+        if named_line:
             QMessageBox.information(
                 self,
                 "Audio Loose Mod",
-                "This sound is chosen by name while the game runs, so no sound bank describes it and only the "
-                ".wem is replaced. Audio other than a Wwise .wem is written as uncompressed PCM.",
+                "This voice line is chosen by name while the game runs, and the game tells Wwise to decode it as "
+                "Wwise Vorbis, so only the .wem is replaced and it must be a Wwise Vorbis .wem made with your own "
+                "Wwise install.",
             )
+        source_path = self._select_replacement_audio(allow_wem=entry.extension == ".wem", wem_only=named_line)
+        if not source_path:
+            return
         self._export_audio_replacement(entry, source_path, source_id=source_id)
 
     def _start_archive_bank_media_replace(self, entry: ArchiveEntry) -> None:
@@ -147,8 +149,8 @@ class ArchivePatchActionsMixin:
             show_archive_progress=True,
         )
 
-    def _select_replacement_audio(self, *, allow_wem: bool) -> str:
-        patterns = "*.wav *.ogg *.mp3" + (" *.wem" if allow_wem else "")
+    def _select_replacement_audio(self, *, allow_wem: bool, wem_only: bool = False) -> str:
+        patterns = "*.wem" if wem_only else "*.wav *.ogg *.mp3" + (" *.wem" if allow_wem else "")
         source_path, _selected = QFileDialog.getOpenFileName(
             self,
             "Select Replacement Audio",

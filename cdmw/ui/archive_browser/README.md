@@ -647,11 +647,17 @@ and media ids are Wwise ShortIDs checked against every bank and loose media id i
 the listing. The plan is applied in a fixed order (values, properties, removed
 then added sounds) in the background, and the bank is written as a loose mod.
 Owned fixtures, headless dialog and action tests, and read-only round trips over
-the shipped banks cover this. In game (2026-11-02, through DMM) added bus
-properties, an in-place value edit, embedded media swaps across 95 banks and the
-switch to PCM were heard working; loose `.wem` replacement, stream prefixes and
-added container sounds are not yet checked. On a bus, `Volume` affects only
-sounds routed straight to it; `BusVolume` is the bus's own gain.
+the shipped banks cover this. In game (2026-11-02, through DMM) added bus and
+Sound properties, an in-place value edit, embedded and loose media swaps (held in
+memory or streamed, with recomputed prefixes), PCM and added container sounds
+were heard working. On a bus, `Volume` affects only sounds routed straight to it;
+`BusVolume` is the bus's own gain. The banks and loose copies a replacement
+touches are the active entry per path, as the game loads them. Removing a sound
+keeps its embedded media, which another bank may play. A named voice line takes
+only a `.wem` in its original codec, because the game names its codec. Music
+tracks keep their clip timing, and the completion message says when a
+replacement is longer or shorter. DMM serves files in language folders only for
+the language selected in DMM.
 
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
