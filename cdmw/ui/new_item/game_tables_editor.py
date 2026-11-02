@@ -131,18 +131,18 @@ class GameTablesEditor(QWidget):
         top.addWidget(self.search, 1)
         layout.addLayout(top)
 
-        lists = QHBoxLayout()
+        # Stacked, each with its own stretch: Create New Item's Rust view gives a table room
+        # only as a stretched child of a column; side by side in a row both collapse to a line.
         self.rows = QTableWidget(0, 3)
         self.rows.setHorizontalHeaderLabels(["Key", "Name", "Copy"])
         self._configure(self.rows)
         self.rows.itemSelectionChanged.connect(self._fill_values)
-        lists.addWidget(self.rows, 1)
+        layout.addWidget(self.rows, 3)
         self.values = QTableWidget(0, 4)
         self.values.setHorizontalHeaderLabels(["Value", "Current", "In this mod", "About"])
         self._configure(self.values)
         self.values.itemSelectionChanged.connect(self._value_selected)
-        lists.addWidget(self.values, 2)
-        layout.addLayout(lists, 3)
+        layout.addWidget(self.values, 2)
 
         edit = QHBoxLayout()
         edit.addWidget(QLabel("New value:"))

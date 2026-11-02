@@ -5576,7 +5576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 141,
+          "line": 142,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -37691,7 +37691,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 136,
+          "line": 137,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -40476,7 +40476,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 141,
+          "line": 142,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -71711,7 +71711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 141,
+          "line": 142,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -78046,7 +78046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 136,
+          "line": 137,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -93666,7 +93666,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 136,
+          "line": 137,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -178446,7 +178446,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 141,
+          "line": 142,
           "sink": "setHorizontalHeaderLabels"
         },
         {

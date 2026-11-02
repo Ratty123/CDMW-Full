@@ -88,8 +88,20 @@ def test_the_draft_refills_the_editor_and_the_page_projects(panel):
     stats.open_game_tables.click()
     stats.game_tables.load.click()
     document = PresentationDocument()
-    document.snapshot(stats)
+    snapshot = document.snapshot(stats)
     assert document.unsupported == []
+
+    def tables(node):
+        if node.get("kind") == "table":
+            yield node
+        for child in node.get("children", ()):
+            yield from tables(child)
+
+    # The Rust view sizes a table only as a stretched child of a column; tables placed
+    # side by side in a row were drawn as one line each.
+    stretch = {tuple(column.get("text") for column in node["props"].get("columns", ()))[:1]: node.get("stretch", 0)
+               for node in tables(snapshot["root"])}
+    assert stretch[("Key",)] > 0 and stretch[("Value",)] > 0
 
 
 def test_typed_values_follow_the_field_rule():
