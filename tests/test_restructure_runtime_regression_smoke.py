@@ -11,7 +11,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.app.events import AppEventBus
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import configure_synthetic_archive_context
@@ -177,36 +177,30 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
                 open_archive.assert_called_once_with(package_root, force_refresh=False, activate_tab=False)
                 self.assertIsNone(self.window.archive.archive_game_fingerprint_task)
 
-    def test_retrofit_repackage_action_opens_tab_not_modal_dialog(self) -> None:
+    def test_retired_retrofit_action_is_hidden_and_legacy_route_opens_mod_management(self) -> None:
+        self.assertFalse(self.window.mod_package_tool_action.isEnabled())
+        self.assertFalse(self.window.mod_package_tool_action.isVisible())
+        self.assertIs(self.window.tool_stack.currentWidget(), self.window.archive_browser_tab)
         with patch("cdmw.ui.tools.mod_package_retrofit.ArchiveModPackageRetrofitDialogMixin._show_mod_package_retrofit_dialog") as open_dialog:
             self.window.mod_package_tool_action.trigger()
+            self.assertIs(self.window.tool_stack.currentWidget(), self.window.archive_browser_tab)
+
+            # The retired QAction is inert; retained navigation aliases still
+            # open the supported Mod Management workspace, not Convert.
+            self.window._activate_tool_key("mod_package_retrofit")
+            self.assertIs(self.window.tool_stack.currentWidget(), self.window.mod_management_tab)
+            management = self._wait_for_created_tool(self.window.mod_management_tab)
+            self.assertIs(management.workflow.pages.current_page(), management.workflow.mods_pages)
+            self.assertIs(management.workflow.mods_pages.currentWidget(), management.workflow.virtual_page)
+            self.assertEqual(-1, management.workflow.pages.indexOf(management.workflow.pages.task))
+            self.assertIsNone(management.workflow.repackage_ui)
+            open_dialog.assert_not_called()
 
         menu_titles = {action.text().replace("&", "") for action in self.window.menuBar().actions()}
         self.assertNotIn("Tools", menu_titles)
-        self.assertIs(self.window.tool_stack.currentWidget(), self.window.mod_package_retrofit_tab)
+        self.assertIs(self.window.mod_package_retrofit_tab, self.window.mod_management_tab)
         self.assertEqual("Retrofit/Repackage Mods", self.window.mod_package_tool_action.text())
         self.assertNotIn("mod_package_retrofit", self.window.tab_registry.titles)
-        management = self._wait_for_created_tool(self.window.mod_management_tab)
-        retrofit_tool = management.workflow.repackage_page
-        self.assertIs(management.workflow.pages.current_page(), retrofit_tool)
-        button_labels = {
-            button.text()
-            for button in retrofit_tool.findChildren(QPushButton)
-        }
-        self.assertIn("Scan", button_labels)
-        self.assertIn("Preview plan", button_labels)
-        self.assertNotIn("Refresh Game Index", button_labels)
-        label_text = " ".join(
-            label.text()
-            for label in retrofit_tool.findChildren(QLabel)
-        )
-        self.assertIn("Scan loose or zipped mod packages", management.workflow.repackage_ui.scan_button.toolTip())
-        self.assertNotIn("Game build", label_text)
-        self.assertNotIn("current game", label_text)
-        self.assertFalse(
-            any(label.startswith("Open ") and "Repackage Tool" in label for label in button_labels)
-        )
-        open_dialog.assert_not_called()
 
     def test_archive_hkx_edit_button_opens_editor_for_current_hkx_entry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
