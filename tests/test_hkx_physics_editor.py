@@ -217,6 +217,23 @@ class HkxPhysicsEditorDialogTests(unittest.TestCase):
         dialog._reset_all()
         self.assertEqual(dialog.change_count(), 0)
 
+    def test_overview_wording_follows_the_file_kind(self) -> None:
+        from PySide6.QtWidgets import QLabel
+
+        def overview_texts(dialog) -> list[str]:
+            return [label.text() for label in dialog.tabs.widget(0).findChildren(QLabel)]
+
+        collision, _ = self._dialog(build_convex_fixture())
+        texts = overview_texts(collision)
+        self.assertTrue(any("The one change available for this kind of file" in text for text in texts))
+        self.assertTrue(any(text.startswith("How to make a mod:\n1. On the Collision tab") for text in texts))
+        self.assertNotIn("Joints:", texts)
+        self.assertNotIn("Renameable names:", texts)
+        ragdoll, _ = self._dialog(build_physics_fixture())
+        texts = overview_texts(ragdoll)
+        self.assertTrue(any(text.startswith("How to make a mod:\n1. Change values on the other tabs") for text in texts))
+        self.assertIn("Joints:", texts)
+
     def test_inverted_range_is_caught_before_saving(self) -> None:
         dialog, saved = self._dialog(build_physics_fixture())
         hinge = next(joint for joint in dialog.session.joints if joint.class_name == HINGE_CLASS)
