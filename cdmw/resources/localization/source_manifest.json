@@ -6723,6 +6723,11 @@
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
           "line": 329,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -6733,11 +6738,6 @@
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
           "line": 372,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 365,
-          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
