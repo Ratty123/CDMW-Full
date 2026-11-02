@@ -9501,7 +9501,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {clash} already exists; choose another prefix.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 565
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 722
     }
   },
   {
@@ -10481,7 +10481,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save the draft: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 663
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 820
     }
   },
   {
@@ -11018,7 +11018,7 @@ MESSAGE_REFERENCE = [
     "message": "Fix the error above to see it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 451
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 576
     }
   },
   {
@@ -106890,6 +106890,7 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": {
+    "diagnostic_field": 1,
     "dialog": 3,
     "display": 1,
     "raise": 1

@@ -159,8 +159,13 @@ def test_dialog_keeps_game_bones_read_only_and_the_sketch_picks_bones(monkeypatc
     dialog = module.PabBoneEditorDialog(pab(), PATH)
     try:
         dialog._select_bone("Bip01 Spine")
-        assert not dialog.name_edit.isEnabled() and dialog.details_group.title() == "Game bone (read-only)"
-        assert close([box.value() for box in dialog.position_boxes], (0.0, 2.0, 0.0), 1e-4)
+        # A game bone gets an explanation and "add here" actions, not greyed-out fields.
+        assert dialog.detail_pages.currentWidget() is dialog.game_page
+        assert dialog.details_group.title() == "Game bone" and not dialog.remove_button.isEnabled()
+        summary = dialog.game_summary.text()
+        assert "Bip01 Spine" in summary and "Attached to: Bip01" in summary and "10.000, 22.000, 0.000 m" in summary
+        assert "bone offset table" in dialog.game_reason.text()
+        assert dialog.add_chain_here_button.isEnabled() and dialog.game_marker_warning.isHidden()
         warnings = []
         monkeypatch.setattr(module.QMessageBox, "warning", lambda *args: warnings.append(args))
         assert dialog.add_chain("Tail", 2, 0.1, "back")
@@ -271,5 +276,38 @@ def test_dialog_reopens_given_bones_and_takes_a_caller_label():
         assert dialog._selected == "Tail_02"
         assert all(close(a.position, b.position) and close(a.rotation, b.rotation)
                    for a, b in zip(dialog.edits(), edits, strict=True))
+    finally:
+        dialog.close()
+
+
+def test_markers_are_grouped_and_warned_and_quick_picks_select_body_bones():
+    from cdmw.ui.archive_browser.pab_bone_editor_dialog import (
+        PabBoneEditorDialog,
+        body_bone_names,
+    )
+    from tests.test_pab_skeleton_writer import BONES, IDENTITY
+
+    application()
+    marker = ("B_TL_Position_01", -1, IDENTITY, IDENTITY, IDENTITY, IDENTITY, (0., 0., 0., 1.), (0., 0., 0.))
+    data = pab(bones=BONES + (marker,), secondary=(-1, 0, 1, -1), core=(1, 1, 0, 1))
+    assert body_bone_names(read_pab_document(data)) == {"Bip01", "Bip01 Spine", "Bip01 Head"}
+    dialog = PabBoneEditorDialog(data, PATH)
+    try:
+        group = dialog._tree_items["B_TL_Position_01"].parent()
+        assert group is not None and group.data(0, 0x0100) is None and "Markers" in group.text(0)
+        assert dialog._tree_items["B_TL_Position_01"].text(1) == "Marker"
+        assert set(dialog.quick_pick_buttons) == {"upper_back", "head"}
+        dialog.quick_pick_buttons["head"].click()
+        assert dialog._selected == "Bip01 Head"
+        dialog._select_bone("B_TL_Position_01")
+        assert not dialog.game_marker_warning.isHidden()
+        assert "does not move with the body" in dialog.game_marker_warning.text()
+        dialog._add_child()
+        assert dialog.detail_pages.currentWidget() is dialog.added_page
+        assert not dialog.added_marker_warning.isHidden() and dialog.details_group.title() == "New bone"
+        assert [label.font().bold() for label in dialog.step_labels] == [False, False, True]
+        group = dialog._tree_items["B_TL_Position_01"].parent()  # rebuilt with the new bone
+        dialog.bone_tree.setCurrentItem(group)  # the group is not a bone
+        assert dialog._selected == "NewBone_00"
     finally:
         dialog.close()

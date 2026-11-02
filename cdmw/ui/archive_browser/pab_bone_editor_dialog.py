@@ -23,8 +23,10 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -50,14 +52,7 @@ from cdmw.services.pab_skeleton_edit_service import (
 )
 
 _SELECTED_COLOUR = QColor("#ff9f1c")
-_DIRECTION_LABELS = (
-    ("down", "Down"),
-    ("back", "Back"),
-    ("forward", "Forward"),
-    ("left", "Character's left"),
-    ("right", "Character's right"),
-    ("up", "Up"),
-)
+_DIRECTIONS = ("down", "back", "forward", "left", "right", "up")
 
 
 @dataclass
@@ -90,6 +85,39 @@ class AddedBoneRow:
         angles = quaternion_to_euler_degrees(edit.rotation)
         return cls(edit.parent, edit.name, tuple(edit.position), angles, tuple(edit.scale), edit.core_flag,
                    tuple(edit.rotation), angles)
+
+
+#: Common attach points, each with the bone names that serve it on shipped rigs.
+_QUICK_PICKS = (
+    ("upper_back", ("Bip01 Spine2", "Bip01 Spine3", "Bip01 Spine1", "Bip01 Spine")),
+    ("neck", ("Bip01 Neck",)),
+    ("head", ("Bip01 Head",)),
+    ("hips", ("Bip01 Pelvis",)),
+    ("left_shoulder", ("Bip01 L Clavicle",)),
+    ("right_shoulder", ("Bip01 R Clavicle",)),
+)
+
+
+def body_bone_names(document: PabDocument) -> set[str]:
+    """Bones under the rig's largest root. The other roots are markers.
+
+    Shipped rigs keep root-motion, IK and climb targets (``B_TL_*``,
+    ``B_MoveControl_01``) as separate roots at the feet or the origin. They do not
+    move with the body, so a cape or hair bone under one stays behind.
+    """
+    bones = document.bones
+    roots = [index for index, bone in enumerate(bones) if bone.parent_index < 0]
+    if not roots:
+        return set()
+
+    def root_of(index: int) -> int:
+        while bones[index].parent_index >= 0:
+            index = bones[index].parent_index
+        return index
+
+    owner = [root_of(index) for index in range(len(bones))]
+    body_root = max(roots, key=owner.count)
+    return {bone.name for bone, root in zip(bones, owner) if root == body_root}
 
 
 def _bone_name_stem(text: str) -> str:
@@ -230,6 +258,7 @@ class PabBoneEditorDialog(QDialog):
         self._selected = (self._rows[-1].name if self._rows
                           else self._source.bones[0].name if self._source.bones else "")
         self._loading_form = False
+        self._body = body_bone_names(self._source)
         stem = Path(virtual_path.replace("\\", "/")).name or "skeleton"
         self.setWindowTitle(f"Add Bones - {stem}")
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
@@ -244,6 +273,16 @@ class PabBoneEditorDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
+        steps = QHBoxLayout()
+        self.step_labels = [QLabel(self.tr("1. Choose where the new bones attach"), self),
+                            QLabel(self.tr("2. Add a child bone or a chain"), self),
+                            QLabel(self.tr("3. Adjust them, then save"), self)]
+        for label in self.step_labels:
+            label.setObjectName("PabBoneEditorStep")
+            steps.addWidget(label)
+            steps.addSpacing(18)
+        steps.addStretch(1)
+        layout.addLayout(steps)
         intro = QLabel(
             "Add child bones for capes, long hair or tails. Pick a bone, then add a child bone or a chain. "
             "The game's own bones stay as they are, so existing meshes, animations and sockets keep working.")
@@ -257,6 +296,25 @@ class PabBoneEditorDialog(QDialog):
         left = QWidget(splitter)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        picks = QHBoxLayout()
+        picks.addWidget(QLabel("Quick pick:", left))
+        labels = {"upper_back": self.tr("Upper back"), "neck": self.tr("Neck"), "head": self.tr("Head"),
+                  "hips": self.tr("Hips"), "left_shoulder": self.tr("Left shoulder"),
+                  "right_shoulder": self.tr("Right shoulder")}
+        self.quick_pick_buttons: dict[str, QPushButton] = {}
+        names = {bone.name for bone in self._source.bones}
+        for key, candidates in _QUICK_PICKS:
+            target = next((name for name in candidates if name in names), "")
+            if not target:
+                continue
+            button = QPushButton(labels[key], left)
+            button.setToolTip(f"Select {target}.")
+            button.clicked.connect(lambda _checked=False, name=target: self._select_bone(name))
+            self.quick_pick_buttons[key] = button
+            picks.addWidget(button)
+        picks.addStretch(1)
+        if self.quick_pick_buttons:
+            left_layout.addLayout(picks)
         self.search_edit = QLineEdit(left)
         self.search_edit.setPlaceholderText("Find a bone...")
         self.search_edit.setClearButtonEnabled(True)
@@ -264,7 +322,7 @@ class PabBoneEditorDialog(QDialog):
         left_layout.addWidget(self.search_edit)
         self.bone_tree = QTreeWidget(left)
         self.bone_tree.setHeaderLabels(["Bone", "Status"])
-        self.bone_tree.setColumnWidth(0, 260)
+        self.bone_tree.setColumnWidth(0, 380)
         self.bone_tree.currentItemChanged.connect(self._tree_selection_changed)
         left_layout.addWidget(self.bone_tree, 1)
         buttons = QHBoxLayout()
@@ -289,24 +347,63 @@ class PabBoneEditorDialog(QDialog):
         right_layout.addWidget(self.sketch, 1)
 
         self.details_group = QGroupBox("Selected bone", right)
-        details = QFormLayout(self.details_group)
-        self.name_edit = QLineEdit(self.details_group)
+        details_layout = QVBoxLayout(self.details_group)
+        self.detail_pages = QStackedWidget(self.details_group)
+        details_layout.addWidget(self.detail_pages)
+
+        # Game bone: an explanation and where to go next, not greyed-out fields.
+        self.game_page = QWidget(self.detail_pages)
+        game_layout = QVBoxLayout(self.game_page)
+        game_layout.setContentsMargins(0, 0, 0, 0)
+        self.game_summary = QLabel(self.game_page)
+        self.game_summary.setWordWrap(True)
+        self.game_summary.setTextFormat(Qt.PlainText)
+        game_layout.addWidget(self.game_summary)
+        self.game_reason = QLabel(
+            "This is one of the game's own bones, so it cannot be changed here: meshes, animations and "
+            "sockets depend on it. To reshape a game bone while an item is worn, use the game's bone offset "
+            "table. You can attach new bones to it.", self.game_page)
+        self.game_reason.setObjectName("HintLabel")
+        self.game_reason.setWordWrap(True)
+        game_layout.addWidget(self.game_reason)
+        self.game_marker_warning = self._warning_label(self.game_page)
+        game_layout.addWidget(self.game_marker_warning)
+        here = QHBoxLayout()
+        self.add_child_here_button = QPushButton("Add Child Bone Here", self.game_page)
+        self.add_child_here_button.clicked.connect(self._add_child)
+        self.add_chain_here_button = QPushButton("Add Chain Here...", self.game_page)
+        self.add_chain_here_button.clicked.connect(self._add_chain)
+        here.addWidget(self.add_child_here_button)
+        here.addWidget(self.add_chain_here_button)
+        here.addStretch(1)
+        game_layout.addLayout(here)
+        game_layout.addStretch(1)
+        self.detail_pages.addWidget(self.game_page)
+
+        # Added bone: the editable form.
+        self.added_page = QWidget(self.detail_pages)
+        details = QFormLayout(self.added_page)
+        details.setContentsMargins(0, 0, 0, 0)
+        self.name_edit = QLineEdit(self.added_page)
         self.name_edit.editingFinished.connect(self._rename_selected)
         details.addRow("Name:", self.name_edit)
-        self.parent_label = QLabel(self.details_group)
-        details.addRow("Parent:", self.parent_label)
+        self.parent_label = QLabel(self.added_page)
+        details.addRow("Attached to:", self.parent_label)
+        self.added_marker_warning = self._warning_label(self.added_page)
+        details.addRow("", self.added_marker_warning)
         self.position_boxes = self._vector_boxes(-100.0, 100.0, 4, 0.01, " m")
-        self.rotation_boxes = self._vector_boxes(-360.0, 360.0, 2, 5.0, "°")
+        self.rotation_boxes = self._vector_boxes(-360.0, 360.0, 2, 5.0, "\u00b0")
         self.scale_boxes = self._vector_boxes(0.01, 100.0, 3, 0.05, "")
         details.addRow("Offset from parent:", self._vector_row(self.position_boxes))
-        axes = QLabel("X is the character's left, Y is up, Z is back.", self.details_group)
+        axes = QLabel("X is the character's left, Y is up, Z is back.", self.added_page)
         axes.setObjectName("HintLabel")
         details.addRow("", axes)
         details.addRow("Rotation from parent:", self._vector_row(self.rotation_boxes))
         details.addRow("Scale:", self._vector_row(self.scale_boxes))
-        self.world_label = QLabel(self.details_group)
+        self.world_label = QLabel(self.added_page)
         self.world_label.setObjectName("HintLabel")
         details.addRow("Character position:", self.world_label)
+        self.detail_pages.addWidget(self.added_page)
         right_layout.addWidget(self.details_group)
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 3)
@@ -344,6 +441,15 @@ class PabBoneEditorDialog(QDialog):
         bottom.addWidget(box)
         layout.addLayout(bottom)
 
+    @staticmethod
+    def _warning_label(parent: QWidget) -> QLabel:
+        label = QLabel(parent)
+        label.setWordWrap(True)
+        label.setStyleSheet(f"color: {_SELECTED_COLOUR.name()};")
+        label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        label.hide()
+        return label
+
     def _vector_boxes(self, low: float, high: float, decimals: int, step: float, suffix: str) -> list[QDoubleSpinBox]:
         boxes = []
         for _axis in range(3):
@@ -366,7 +472,7 @@ class PabBoneEditorDialog(QDialog):
             grid.addWidget(box, 0, column * 2 + 1)
         return row
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
+    def keyPressEvent(self, event) -> None:
         # Enter in a name or number field must not press Save as Mod / Use These Bones.
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             event.accept()
@@ -381,11 +487,32 @@ class PabBoneEditorDialog(QDialog):
         bone = next((item for item in self._preview.bones if item.name == name), None)
         return bone.bind_matrix if bone is not None else None
 
+    def _marker_root(self, name: str) -> str:
+        """The marker a bone hangs from, or "" when it is on the body."""
+        while True:
+            row = self._row(name)
+            if row is None:
+                break
+            name = row.parent
+        bone = next((item for item in self._source.bones if item.name == name), None)
+        if bone is None or name in self._body:
+            return ""
+        while bone.parent_index >= 0:
+            bone = self._source.bones[bone.parent_index]
+        return bone.name
+
+    def _marker_warning(self, name: str) -> str:
+        marker = self._marker_root(name)
+        if not marker:
+            return ""
+        return (f"{marker} is a marker that does not move with the body, so bones attached here stay behind "
+                "when the character moves. For a cape choose Upper back; for hair choose Head.")
+
     def _row(self, name: str) -> AddedBoneRow | None:
         return next((row for row in self._rows if row.name == name), None)
 
     def _default_name(self, stem: str) -> str:
-        return "_".join((self._name_stem, stem)) if self._name_stem else stem
+        return "_".join((self._name_stem, stem)) if self._name_stem else stem  # noqa: FLY002 - not interface text
 
     def _unique_name(self, stem: str) -> str:
         taken = {bone.name for bone in self._source.bones} | {row.name for row in self._rows}
@@ -393,6 +520,13 @@ class PabBoneEditorDialog(QDialog):
         while f"{stem}_{index:02d}" in taken:
             index += 1
         return f"{stem}_{index:02d}"
+
+    def _update_steps(self) -> None:
+        current = 3 if self._rows and not self._error else 2 if self._selected else 1
+        for number, label in enumerate(self.step_labels, 1):
+            font = QFont(self.font())
+            font.setBold(number == current)
+            label.setFont(font)
 
     def _refresh(self) -> None:
         self._preview, self._error = build_added_bones(self._source, self._rows)
@@ -410,21 +544,23 @@ class PabBoneEditorDialog(QDialog):
             self.status_label.setStyleSheet("")
         self.save_mod_button.setEnabled(bool(self._rows) and not self._error)
         self.save_draft_button.setEnabled(bool(self._rows))
+        self._update_steps()
         self._load_form()
 
     def _load_form(self) -> None:
         row = self._row(self._selected)
         self._loading_form = True
         try:
-            self.name_edit.setText(self._selected)
-            editable = row is not None
-            for widget in (self.name_edit, *self.position_boxes, *self.rotation_boxes, *self.scale_boxes):
-                widget.setEnabled(editable)
-            self.remove_button.setEnabled(editable)
+            self.remove_button.setEnabled(row is not None)
             bone = next((item for item in self._preview.bones if item.name == self._selected), None)
+            warning = self._marker_warning(self._selected)
             if row is not None:
-                self.details_group.setTitle("Added bone")
+                self.details_group.setTitle("New bone")
+                self.detail_pages.setCurrentWidget(self.added_page)
+                self.name_edit.setText(row.name)
                 self.parent_label.setText(row.parent)
+                self.added_marker_warning.setText(warning)
+                self.added_marker_warning.setVisible(bool(warning))
                 parent_matrix = self._bind_matrix(row.parent)
                 offset = _to_character(row.position, parent_matrix) if parent_matrix else row.position
                 for box in self.position_boxes:
@@ -433,24 +569,24 @@ class PabBoneEditorDialog(QDialog):
                                       (self.scale_boxes, row.scale)):
                     for box, value in zip(boxes, values):
                         box.setValue(value)
-            elif bone is not None:
-                self.details_group.setTitle("Game bone (read-only)")
-                parent = self._preview.bones[bone.parent_index].name if bone.parent_index >= 0 else "none"
-                self.parent_label.setText(parent)
-                angles = quaternion_to_euler_degrees(bone.rotation)
-                parent_matrix = self._preview.bones[bone.parent_index].bind_matrix if bone.parent_index >= 0 else None
-                offset = _to_character(bone.position, parent_matrix) if parent_matrix else bone.position
-                for boxes, values in ((self.position_boxes, offset), (self.rotation_boxes, angles),
-                                      (self.scale_boxes, bone.scale)):
-                    for box, value in zip(boxes, values):
-                        box.setValue(value)
-            if bone is not None:
-                x, y, z = bone.bind_matrix[12:15]
-                self.world_label.setText(f"{x:.3f}, {y:.3f}, {z:.3f} m")
+                if bone is not None:
+                    x, y, z = bone.bind_matrix[12:15]
+                    self.world_label.setText(f"{x:.3f}, {y:.3f}, {z:.3f} m")
+                else:
+                    self.world_label.setText("Fix the error above to see it.")
             else:
-                self.world_label.setText("Fix the error above to see it.")
-            self.add_child_button.setEnabled(bone is not None)
-            self.add_chain_button.setEnabled(bone is not None)
+                self.details_group.setTitle("Game bone")
+                self.detail_pages.setCurrentWidget(self.game_page)
+                if bone is not None:
+                    parent = self._preview.bones[bone.parent_index].name if bone.parent_index >= 0 else "none"
+                    x, y, z = bone.bind_matrix[12:15]
+                    self.game_summary.setText(
+                        f"{bone.name}\nAttached to: {parent}\nPosition on the character: {x:.3f}, {y:.3f}, {z:.3f} m")
+                self.game_marker_warning.setText(warning)
+                self.game_marker_warning.setVisible(bool(warning))
+            for button in (self.add_child_button, self.add_chain_button,
+                           self.add_child_here_button, self.add_chain_here_button):
+                button.setEnabled(bone is not None)
         finally:
             self._loading_form = False
 
@@ -461,19 +597,35 @@ class PabBoneEditorDialog(QDialog):
         items: dict[str, QTreeWidgetItem] = {}
         bold = QFont(self.bone_tree.font())
         bold.setBold(True)
+        dim = self.palette().color(self.palette().ColorGroup.Disabled, self.palette().ColorRole.Text)
+        markers = None
         entries = [(bone.name, self._source.bones[bone.parent_index].name if bone.parent_index >= 0 else None, False)
                    for bone in self._source.bones]
         entries += [(row.name, row.parent, True) for row in self._rows]
         for name, parent, added in entries:
             owner = items.get(parent) if parent else None
+            if owner is None and name not in self._body:
+                if markers is None:
+                    markers = QTreeWidgetItem(self.bone_tree)
+                    markers.setText(0, "Markers (do not follow the body)")
+                    markers.setToolTip(0, "Root-motion, IK and climb targets at the feet or the origin.")
+                    markers.setForeground(0, dim)
+                    markers.setFlags(markers.flags() & ~Qt.ItemIsSelectable)
+                owner = markers
             item = QTreeWidgetItem(owner if owner is not None else self.bone_tree)
             item.setText(0, name)
-            item.setText(1, "Added" if added else "")
             item.setData(0, Qt.UserRole, name)
             if added:
+                item.setText(1, "Added")
                 item.setFont(0, bold)
                 item.setFont(1, bold)
+            elif name not in self._body:
+                item.setText(1, "Marker")
+                for column in (0, 1):
+                    item.setForeground(column, dim)
             items[name] = item
+        if self._source.bones:
+            items[self._source.bones[0].name].setExpanded(True)
         self._tree_items = items
         self.bone_tree.blockSignals(False)
         self._apply_search(self.search_edit.text())
@@ -483,6 +635,9 @@ class PabBoneEditorDialog(QDialog):
         needle = text.strip().casefold()
         for name, item in getattr(self, "_tree_items", {}).items():
             item.setHidden(bool(needle) and needle not in name.casefold())
+            parent = item.parent()
+            if parent is not None and parent.data(0, Qt.UserRole) is None:
+                parent.setHidden(bool(needle))
         if needle:
             for name, item in self._tree_items.items():
                 if not item.isHidden():
@@ -501,7 +656,7 @@ class PabBoneEditorDialog(QDialog):
         self._refresh_selection_only()
 
     def _tree_selection_changed(self, current: QTreeWidgetItem | None, _previous=None) -> None:
-        if current is None:
+        if current is None or current.data(0, Qt.UserRole) is None:
             return
         self._selected = str(current.data(0, Qt.UserRole))
         self._refresh_selection_only()
@@ -543,8 +698,10 @@ class PabBoneEditorDialog(QDialog):
         length.setSuffix(" m")
         form.addRow("Segment length:", length)
         direction = QComboBox(dialog)
-        for key, label in _DIRECTION_LABELS:
-            direction.addItem(label, key)
+        labels = {"down": self.tr("Down"), "back": self.tr("Back"), "forward": self.tr("Forward"),
+                  "left": self.tr("Character's left"), "right": self.tr("Character's right"), "up": self.tr("Up")}
+        for key in _DIRECTIONS:
+            direction.addItem(labels[key], key)
         form.addRow("Direction:", direction)
         box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
         box.accepted.connect(dialog.accept)
