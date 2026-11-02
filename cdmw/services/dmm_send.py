@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -167,12 +168,13 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
     owned = {key for row in resolved.registry["items"].values() for key in row["values"].get("iteminfo", {}).values()}
     files, targets = field_operations(files, read_game, owned)
     progress(90, "Writing the DMM mod…")
-    additions = tuple(ArchiveAddRequest(Path(), path, data, int(flags.get(path) or 0)) for path, data in sorted(files.items()))
-    # The texture registry goes along only when the items register textures: a copy of
-    # the shipped one would hide the next game update's registry.
-    installed = root / "meta" / "0.pathc"
-    changed_pathc = pathc is not None and (not installed.is_file() or installed.read_bytes() != pathc)
-    composed = _ComposedMod(additions, (_Meta("meta/0.pathc", pathc),) if changed_pathc else (), _Spec(title))
+    files = {path: _plain_copy(path, data) for path, data in files.items()}
+    additions = tuple(ArchiveAddRequest(Path(), path, data, _storage_flags(path, data, int(flags.get(path) or 0)))
+                      for path, data in sorted(files.items()))
+    # DMM registers a mod's new textures itself and reports a mod's own meta/0.pathc as
+    # "loose archive files not applied", so the registry stays out of the mod.
+    del pathc
+    composed = _ComposedMod(additions, (), _Spec(title))
     description = f"{len(paths)} item package(s) sent to DMM by CDMW."
     with tempfile.TemporaryDirectory(prefix=".cdmw-send-", dir=folder.parent.parent) as staging:
         staged = Path(staging) / folder.name
@@ -194,6 +196,34 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
     if on_progress:
         on_progress(100, 100, "Sent to DMM.")
     return DmmSendResult(folder, replaced, title)
+
+
+# The flags CDMW's generated textures carry, which render through DMM.
+_PLAIN_DDS_FLAGS = 0x201
+_PRIVATE_COPY = re.compile(r"_r[0-9a-f]{16}(?:_[a-z]+)?\.dds$")
+
+
+def _plain_copy(path: str, data: bytes) -> bytes:
+    """A private copy of a partially compressed game texture, read back whole, keeps the
+    compressed mip sizes in its header; the game then reads the whole mips short and
+    draws noise. DMM serves the file as it is, so its header must give the real sizes."""
+    if _PRIVATE_COPY.search(path) and data[:4] == b"DDS ":
+        from cdmw.core.pathc_format import PathcError, with_stored_mip_sizes
+        try:
+            return with_stored_mip_sizes(data)
+        except PathcError:
+            return data
+    return data
+
+
+def _storage_flags(path: str, data: bytes, flags: int) -> int:
+    """Private copies of game textures are complete DDS files, but carry their source's
+    flags, which describe the game's partial DDS layout (top mips compressed separately,
+    sizes in its registry). Through DMM those copies render as noise; store them as the
+    plain textures CDMW generates."""
+    if _PRIVATE_COPY.search(path) and data[:4] == b"DDS ":
+        return _PLAIN_DDS_FLAGS
+    return flags
 
 
 def _keep_identities(root: Path, registry) -> None:

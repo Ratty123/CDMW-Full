@@ -69,7 +69,7 @@ def field_operations(files: Mapping[str, bytes], read_game: Callable[[str], Opti
     """Shop and group additions in the base tables as DMM V3 operations; those tables leave `files`.
 
     DMM turns a changed table row into a whole-row edit and carries it into the DLC's copy
-    of that row, which drops what the DLC adds there. An append or union operation adds
+    of that row, which drops what the DLC adds there. An append operation adds
     CDMW's items to the base and DLC rows alike and leaves everything else in place.
     """
     from dataclasses import replace
@@ -85,7 +85,8 @@ def field_operations(files: Mapping[str, bytes], read_game: Callable[[str], Opti
 
     def group(row, original):
         added = _group_additions(original, row)
-        return [dict(op="array_union", key=row.key, field="item_info_list", new=added)] if added else [], added
+        # DMM has no union operation; CDMW's new item keys are in no group yet, so appending each is the same.
+        return [dict(op="array_append", key=row.key, field="item_info_list", new=key) for key in added], added
 
     result, targets = dict(files), []
     owned = {int(key) for key in owned_items}

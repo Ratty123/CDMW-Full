@@ -488,7 +488,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "prefab_inspector",
                 "title": "Prefab Inspector",
                 "summary": "Change a prefab's files, text, placements, values and objects, then save it as an item package or a DMM mod folder.",
-                "keywords": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cditem loose folder dmm prefab edit json",
+                "keywords": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cdmw cditem loose folder dmm prefab edit json",
                 "html": """
                 <p>A prefab lists the parts an item or object is built from: its mesh and other files, sockets, effects, and where each part sits. Prefab Inspector shows that list and lets you change it. The game's archives are never changed; you save the result as a mod.</p>
                 <h4>Open a prefab</h4>
@@ -509,7 +509,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Save it</h4>
                 <ol>
                   <li>Click Save changes..., read the list of changes and any warnings, and confirm.</li>
-                  <li>Close the window and choose how to save: Item Package (.cditem)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.</li>
+                  <li>Close the window and choose how to save: Item Package (.cdmw)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.</li>
                 </ol>
                 <p>With Add to Item Package..., the prefab can use a mesh that the package's own item adds.</p>
                 <p>To reuse edits, Export Prefab Edit JSON... saves them as a text file, and Import Prefab Edit JSON... applies one to the selected prefab and offers the same three ways to save.</p>

@@ -4296,7 +4296,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 431,
+          "line": 432,
           "sink": "ValueError"
         }
       ]
@@ -9341,7 +9341,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_resource_copies.py",
-          "line": 46,
+          "line": 52,
           "sink": "ValueError"
         }
       ]
@@ -21766,7 +21766,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 157,
+          "line": 158,
           "sink": "on_log"
         }
       ]
@@ -24276,7 +24276,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 413,
+          "line": 414,
           "sink": "ValueError"
         }
       ]
@@ -27066,7 +27066,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 313,
+          "line": 314,
           "sink": "report"
         }
       ]
@@ -28611,7 +28611,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 429,
+          "line": 430,
           "sink": "ValueError"
         }
       ]
@@ -32417,7 +32417,7 @@
       "manual": true
     },
     {
-      "key": "Close the window and choose how to save: Item Package (.cditem)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.",
+      "key": "Close the window and choose how to save: Item Package (.cdmw)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -34236,7 +34236,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 389,
+          "line": 390,
           "sink": "report"
         }
       ]
@@ -40006,7 +40006,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 106,
+          "line": 107,
           "sink": "export_loose"
         }
       ]
@@ -40101,7 +40101,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 89,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -40171,7 +40171,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 58,
+          "line": 59,
           "sink": "ValueError"
         }
       ]
@@ -73771,22 +73771,22 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 637,
+          "line": 659,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 639,
+          "line": 661,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 642,
+          "line": 664,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 644,
+          "line": 666,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -79721,12 +79721,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 686,
+          "line": 687,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 688,
+          "line": 689,
           "sink": "ValueError"
         },
         {
@@ -89691,7 +89691,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_dlc_tables.py",
-          "line": 158,
+          "line": 159,
           "sink": "on_log"
         }
       ]
@@ -91931,42 +91931,42 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 458,
+          "line": 459,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 547,
+          "line": 548,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 697,
+          "line": 698,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 703,
+          "line": 704,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 705,
+          "line": 706,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 712,
+          "line": 713,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 719,
+          "line": 720,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 781,
+          "line": 782,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -92016,17 +92016,17 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 182,
+          "line": 192,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 312,
+          "line": 313,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 352,
+          "line": 353,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -92036,37 +92036,37 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 170,
+          "line": 171,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 548,
+          "line": 567,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 611,
+          "line": 630,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 628,
+          "line": 647,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 646,
+          "line": 665,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 716,
+          "line": 735,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 769,
+          "line": 788,
           "sink": "raise_if_cancelled"
         },
         {
@@ -109466,7 +109466,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 974,
+          "line": 989,
           "sink": "log"
         }
       ]
@@ -111291,7 +111291,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 651,
+          "line": 652,
           "sink": "on_log"
         }
       ]
@@ -112021,7 +112021,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 387,
+          "line": 388,
           "sink": "report"
         }
       ]
@@ -112231,7 +112231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 993,
+          "line": 1008,
           "sink": "add"
         }
       ]
@@ -116186,7 +116186,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_resource_copies.py",
-          "line": 73,
+          "line": 79,
           "sink": "add"
         }
       ]
@@ -118816,7 +118816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 612,
+          "line": 631,
           "sink": "_log_progress"
         }
       ]
@@ -118846,7 +118846,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 647,
+          "line": 666,
           "sink": "_log_progress"
         }
       ]
@@ -118856,7 +118856,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 629,
+          "line": 648,
           "sink": "_log_progress"
         }
       ]
@@ -119246,7 +119246,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 717,
+          "line": 736,
           "sink": "_log_progress"
         }
       ]
@@ -119306,7 +119306,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 123,
+          "line": 124,
           "sink": "on_log"
         }
       ]
@@ -119396,7 +119396,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 781,
+          "line": 800,
           "sink": "_log_progress"
         }
       ]
@@ -130311,7 +130311,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 172,
+          "line": 173,
           "sink": "on_log"
         }
       ]
@@ -130321,7 +130321,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 255,
+          "line": 277,
           "sink": "on_log"
         }
       ]
@@ -139061,7 +139061,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 147,
+          "line": 148,
           "sink": "ValueError"
         }
       ]
@@ -141761,17 +141761,17 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 108,
+          "line": 109,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 152,
+          "line": 153,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 188,
+          "line": 190,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -146951,7 +146951,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 850,
+          "line": 869,
           "sink": "_log_progress"
         }
       ]
@@ -161286,7 +161286,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 787,
+          "line": 806,
           "sink": "_log_progress"
         }
       ]
@@ -167806,7 +167806,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 424,
+          "line": 425,
           "sink": "ValueError"
         }
       ]
@@ -177291,7 +177291,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 169,
+          "line": 170,
           "sink": "progress"
         }
       ]
@@ -186901,7 +186901,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 849,
+          "line": 862,
           "sink": "add"
         }
       ]
@@ -192907,7 +192907,7 @@
       ]
     },
     {
-      "key": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cditem loose folder dmm prefab edit json",
+      "key": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cdmw cditem loose folder dmm prefab edit json",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -196566,7 +196566,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 810,
+          "line": 823,
           "sink": "add"
         }
       ]
@@ -198181,7 +198181,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 798,
+          "line": 811,
           "sink": "add"
         }
       ]
@@ -203881,7 +203881,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 49,
+          "line": 50,
           "sink": "ValueError"
         }
       ]
@@ -207366,7 +207366,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 782,
+          "line": 795,
           "sink": "add"
         },
         {

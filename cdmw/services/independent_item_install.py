@@ -25,7 +25,7 @@ from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemEr
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_package import (
-    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, dlc_content, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
+    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, dlc_content, package_bytes, package_metadata, pinned_digests, read_package, stock_snapshot, unpack_recipe, virtual_path,
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
@@ -213,7 +213,7 @@ def _external_paths(root, state, stop_event=None):
 def _check_dependencies(package, snapshot, stop_event):
     for path, checksum in package.dependencies.items():
         raise_if_cancelled(stop_event)
-        if not snapshot.has_entry(path) or digest(snapshot.payload(path)) != checksum:
+        if not snapshot.has_entry(path) or checksum not in pinned_digests(snapshot, path):
             names = ', '.join(dlc_content(pin for pin in package.dependencies if not snapshot.has_entry(pin)))
             if names:
                 raise IndependentItemError(f'{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.')

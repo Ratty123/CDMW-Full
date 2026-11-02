@@ -143,6 +143,42 @@ def test_dlc_prefabs_resolve_and_clone_without_copying_the_dlc_table_into_base(t
     assert snapshot.payload(dlc_path) == encode_pappt(dlc)
 
 
+@pytest.mark.parametrize('in_dlc', [True, False])
+def test_a_plain_copy_of_a_template_whose_parts_are_dlc_only_gets_its_own(tmp_path, in_dlc):
+    # In game a base ItemInfo row naming a part only the DLC part table holds drew no
+    # model, so such a template's copy gets parts, a model and a stem of its own.
+    from cdmw.core.pappt_format import parse_pappt, encode_pappt
+    source = files()
+    path = 'character/bin__/partprefabtable.pappt'
+    dlc_path = 'character/bin__/partprefabtable_dlc_01.pappt'
+    original = parse_pappt(source[path])
+    service = NewItemService()
+    owned = {part.stem for part in service.build_snapshot(
+        parse_archive_pamt(build_package(tmp_path/'probe', dict(source))), read_entry=_read).family(TEMPLATE).owned_parts}
+    moved = owned if in_dlc else set()
+    source[path] = encode_pappt(replace(original, records=tuple(r for r in original.records if r.stem not in moved)))
+    entries = parse_archive_pamt(build_package(tmp_path/'game', source))
+    if in_dlc:
+        dlc = replace(original, records=tuple(r for r in original.records if r.stem in moved))
+        entries += parse_archive_pamt(build_package(tmp_path/'game/dlc/dlc_01', {dlc_path: encode_pappt(dlc)}))
+    snapshot = service.build_snapshot(entries, read_entry=_read)
+    assert set(snapshot.dlc_only_owned_parts(TEMPLATE)) == moved
+    choice = spec('DlcOnlyParts')
+    assert not choice.needs_own_family
+    plan = service.plan(choice, snapshot)
+    assert not any(issue.code == 'stem.unused' for issue in plan.issues)
+    if not in_dlc:
+        assert plan.spec.stem is None and 'pappt_records' not in plan.manifest and not plan.manifest['model_files']
+        return
+    assert plan.spec.stem and set(plan.manifest['pappt_records']) == owned
+    assert sorted(plan.manifest['dlc_part_copies']) == sorted(owned)
+    exported = parse_pappt(plan.loose_files[path]).index()
+    assert set(plan.manifest['pappt_records'].values()) <= set(exported) and not owned & set(exported)
+    assert any(p.endswith('.pac') for p in plan.manifest['model_files'])
+    assert any(p.endswith('.prefab') for p in plan.new_paths)
+    assert dlc_path not in plan.loose_files
+
+
 def test_unavailable_dlc_recipe_and_reward_keys_are_still_reserved(tmp_path):
     from cdmw.core.item_layout import replace_layout_fields
     from cdmw.services.new_item_acquisition_index import load_acquisition_index

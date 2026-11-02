@@ -39,6 +39,7 @@ from cdmw.services.new_item_planning import (
     NewItemPlanError,
     build_plan,
     model_files_from_import,
+    needs_own_parts,
     planned_icon_string,
 )
 from cdmw.services.new_item_snapshot import NewItemSnapshot, build_context, build_snapshot
@@ -227,7 +228,7 @@ class NewItemService:
             used = set(snapshot.rows) | {int(value) for value in reserved_keys}
             item_key = allocate_item_key(used, preferred=spec.item_key)
             stem = spec.stem
-            if spec.needs_new_stem and stem is None:
+            if (spec.needs_new_stem or needs_own_parts(spec, snapshot)) and stem is None:
                 family = snapshot.family(spec.template_key)
                 taken = set(snapshot.pappt.index()) | set(snapshot.stringinfo_texts.values()) | set(snapshot.model_stems)
                 taken |= {str(value) for value in reserved_stems if value}
