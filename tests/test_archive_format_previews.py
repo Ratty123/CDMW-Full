@@ -109,6 +109,26 @@ def test_static_table_preview_lists_rows_from_its_pair(stored, selected):
     assert "  [1] key 11  Ship_Sail  (20 bytes)" in text
 
 
+def test_static_table_preview_shows_fields_of_a_decoded_table(stored):
+    from tests.compact_item_fixtures import table
+    from tests.test_static_table_records import inventory_row
+
+    body, header = table([(1, inventory_row(1, "Money", 20, 240)), (2, inventory_row(2, "Character", 50, 240))], width=2)
+    stem = "gamedata/binarystaticinfo__/bin/inventory"
+    header_entry = stored(f"{stem}.staticinfoheader", header, package="0008")
+    body_entry = stored(f"{stem}.staticinfobody", body, package="0008")
+
+    result = build_archive_preview_result(
+        body_entry, texture_entries_by_normalized_path={header_entry.path.casefold(): (header_entry,)})
+
+    text = result.preview_text
+    assert "Decoded fields (2 of 2 listed rows):" in text
+    assert "  key 2  Character" in text
+    assert "    _defaultSlotCount (u16) = 50" in text
+    assert "    _maxSlotCount (u16) = 240" in text
+    assert "The closed inventory record schema decoded 2 of the 2 listed rows." in result.detail_text
+
+
 def test_static_table_halves_are_never_mixed_across_archive_layers(stored):
     header, body = _named_table([(7, "Sword_Cutlass", b"")])
     stem = "gamedata/binarystaticinfo__/bin/iteminfo"

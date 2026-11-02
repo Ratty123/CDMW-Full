@@ -72348,7 +72348,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 108
+      "cdmw/core/compact_static.py": 115
     }
   },
   {
@@ -72397,6 +72397,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/iteminfo_declared_fields.py": 76
+    }
+  },
+  {
+    "area": "other",
+    "message": "A static table's header and body must come from the same archive.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/static_table_records.py": 151
     }
   },
   {
@@ -72548,7 +72556,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 55
+      "cdmw/core/compact_static.py": 62
     }
   },
   {
@@ -74287,7 +74295,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 43
+      "cdmw/core/compact_static.py": 50
     }
   },
   {
@@ -74295,7 +74303,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 21
+      "cdmw/core/compact_static.py": 28
     }
   },
   {
@@ -75380,6 +75388,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_state.py": 454
+    }
+  },
+  {
+    "area": "other",
+    "message": "Edit of row {key} changed bytes outside its fields.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 277
     }
   },
   {
@@ -76901,7 +76917,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 37
+      "cdmw/core/compact_static.py": 44
     }
   },
   {
@@ -77543,6 +77559,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/core/iteminfo_definition.py": 105
+    }
+  },
+  {
+    "area": "other",
+    "message": "Inventory {key}: default slots exceed the maximum.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/static_table_records.py": 271
     }
   },
   {
@@ -78621,6 +78645,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "No edits were requested.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 245
+    }
+  },
+  {
+    "area": "other",
     "message": "No exact authored appearance references this model; heuristic matches were not auto-selected.",
     "recovery": "input",
     "sources": {
@@ -79080,7 +79112,7 @@ MESSAGE_REFERENCE = [
     "message": "PABGH replacement offset is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/structured_sidecar_edit_service.py": 75
+      "cdmw/services/structured_sidecar_edit_service.py": 77
     }
   },
   {
@@ -80185,7 +80217,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected PABGH row is no longer available.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/structured_sidecar_edit_service.py": 73
+      "cdmw/services/structured_sidecar_edit_service.py": 75
     }
   },
   {
@@ -80209,7 +80241,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected structured string field is no longer available.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/structured_sidecar_edit_service.py": 89
+      "cdmw/services/structured_sidecar_edit_service.py": 91
     }
   },
   {
@@ -82263,6 +82295,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The row's inline key differs from its directory key.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 204
+    }
+  },
+  {
+    "area": "other",
     "message": "The run directory already exists; explicitly reconcile/resume it.",
     "recovery": "conflict",
     "sources": {
@@ -82683,7 +82723,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 89
+      "cdmw/core/compact_static.py": 96
     }
   },
   {
@@ -82691,7 +82731,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 24
+      "cdmw/core/compact_static.py": 31
     }
   },
   {
@@ -83043,7 +83083,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 68
+      "cdmw/core/compact_static.py": 75
     }
   },
   {
@@ -83379,7 +83419,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 63
+      "cdmw/core/compact_static.py": 70
     }
   },
   {
@@ -83387,7 +83427,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 12
+      "cdmw/core/compact_static.py": 19
     }
   },
   {
@@ -87184,6 +87224,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{kind} has no closed record schema.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/core/static_table_records.py": 180
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} has no editable fields.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 243
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} has no row with key {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 255
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 260
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind}.{field} is not an editable field.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/static_table_records.py": 253
+    }
+  },
+  {
+    "area": "other",
     "message": "{label} must be between {minimum} and {maximum}.",
     "recovery": "input",
     "sources": {
@@ -87472,6 +87552,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{number} is outside {rule.minimum}-{rule.maximum}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 216
+    }
+  },
+  {
+    "area": "other",
     "message": "{occupied_count} occupied equip slots at 0x{cursor}",
     "recovery": "internal",
     "sources": {
@@ -87752,6 +87840,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{stem} has no closed record schema.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/core/static_table_records.py": 143
+    }
+  },
+  {
+    "area": "other",
     "message": "{stem} is not a usable icon stem (letters, digits and underscores)",
     "recovery": "input",
     "sources": {
@@ -87820,6 +87916,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/itemgroupinfo_table.py": 148
+    }
+  },
+  {
+    "area": "other",
+    "message": "{value} is not an integer.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/static_table_records.py": 221
+    }
+  },
+  {
+    "area": "other",
+    "message": "{value} is outside {int(rule.minimum)}-{int(rule.maximum)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 223
     }
   },
   {
@@ -100879,6 +100991,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/recolor_variants.py",
     "cdmw/core/replace_assistant.py",
     "cdmw/core/source_mix.py",
+    "cdmw/core/static_table_records.py",
     "cdmw/core/temp_cache.py",
     "cdmw/core/text_search.py",
     "cdmw/core/upscale_postprocess.py",
@@ -101972,6 +102085,9 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/core/startup_splash_protocol.py": {},
+  "cdmw/core/static_table_records.py": {
+    "raise": 16
+  },
   "cdmw/core/storeinfo_compact.py": {
     "raise": 5
   },

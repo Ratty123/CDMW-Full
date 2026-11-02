@@ -5,10 +5,17 @@ from cdmw.core._compact_static_schema import READERS, TABLE_READERS
 from cdmw.core.new_item_record import Cursor, RecordError
 
 
+# (record bytes, walk steps). Faction and quest rows carry whole relation and
+# stage graphs; the largest shipped rows are about 204 KiB.
+_RECORD_LIMITS = {"faction": (1 << 20, 4_000_000), "questinfo": (1 << 20, 4_000_000)}
+_DEFAULT_LIMITS = (65536, 200000)
+
+
 def read_compact_layout(raw, kind="iteminfo"):
     from cdmw.core.item_layout import ItemLayout, Member, Span
 
-    if kind not in TABLE_READERS or not isinstance(raw, (bytes, bytearray)) or not 1 <= len(raw) <= 65536:
+    size_limit, step_limit = _RECORD_LIMITS.get(kind, _DEFAULT_LIMITS)
+    if kind not in TABLE_READERS or not isinstance(raw, (bytes, bytearray)) or not 1 <= len(raw) <= size_limit:
         raise RecordError("Unsupported compact static record.")
     cursor = Cursor(raw)
     fields, members = {}, []
@@ -17,7 +24,7 @@ def read_compact_layout(raw, kind="iteminfo"):
     def walk(op, path=(), depth=0):
         nonlocal steps
         steps += 1
-        if depth > 40 or steps > 200000:
+        if depth > 40 or steps > step_limit:
             raise RecordError("Compact static record exceeds the layout limit.")
         code = op[0]
         if code == 'unsupported':
