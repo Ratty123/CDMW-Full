@@ -946,6 +946,22 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     return count
 
 
+def _string_list_count(cursor: _BlobCursor, member: PrefabMember) -> int:
+    """A selected string list's count, read like a numeric array's: kind byte, then u32.
+
+    ``00`` and a count, or ``01`` alone for an empty list. Read as a bare u32,
+    ``00 02 00 00 00`` came out as 512 strings, and the first "string length"
+    was the real count's second byte onward; that stopped 165 trigger prefabs
+    (``TriggerEventHandler_GamePlayTriggerInfo``, ``TriggerEventItem``).
+    """
+    kind = cursor.take(1)[0]
+    if kind == 1:
+        return 0
+    if kind != 0:
+        raise PrefabBinaryError(f"string array {member.name} opens with kind {kind}, not 0 or 1")
+    return cursor.u32()
+
+
 def _motion_array_count(cursor: _BlobCursor) -> int:
     if cursor.revision >= 15:
         kind = cursor.take(1)[0]
@@ -970,7 +986,12 @@ def _read_member(
         into.ordered.append((member.name, recovered))
         return
     if flags == KIND_STRING_COLLECTION:
-        count = _motion_array_count(cursor) if cursor.plain_counts else cursor.u32()
+        if cursor.plain_counts:
+            count = _motion_array_count(cursor)
+        elif cursor.group_lists:
+            count = _string_list_count(cursor, member)
+        else:
+            count = cursor.u32()
         if count > _MAX_COUNT:
             raise PrefabBinaryError(f"string array {member.name} has {count} elements")
         for _ in range(count):

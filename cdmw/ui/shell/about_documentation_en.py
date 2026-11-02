@@ -395,6 +395,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Use <b>Body &amp; Face Finder</b> to browse character models and appearance variants, including creatures and mounts, with thumbnails and an independent interactive preview.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
+                  <li>Use <a href="topic:prefab_inspector">Prefab Inspector</a> to change what a prefab is built from and save it as a mod.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
@@ -479,6 +480,38 @@ class AboutDocumentationEnglishMixin:
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
                 <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>
+                """,
+            },
+            {
+                "id": "prefab_inspector",
+                "title": "Prefab Inspector",
+                "summary": "Change a prefab's files, text, placements, values and objects, then save it as an item package or a DMM mod folder.",
+                "keywords": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cditem loose folder dmm prefab edit json",
+                "html": """
+                <p>A prefab lists the parts an item or object is built from: its mesh and other files, sockets, effects, and where each part sits. Prefab Inspector shows that list and lets you change it. The game's archives are never changed; you save the result as a mod.</p>
+                <h4>Open a prefab</h4>
+                <ol>
+                  <li>In Archive Browser, right-click a .prefab file and choose Open Prefab Inspector... The progress bar shows the file being read and the archives being indexed.</li>
+                  <li>Tick Only rows I can change to hide everything you cannot edit.</li>
+                </ol>
+                <p>Each object is a heading with its files, text and values below it.</p>
+                <h4>Change it</h4>
+                <ul>
+                  <li>Double-click a file path to type a new one, or choose Swap for another file... to pick from the files of that kind in the game. Any length is fine.</li>
+                  <li>Double-click text such as a socket name, tag or alias to change it. Leave a row empty to clear it.</li>
+                  <li>Double-click a placement to move, rotate or rescale it. Each entry of a placement list has its own row.</li>
+                  <li>Double-click a number, switch or vector to change it. Values whose layout is not confirmed, such as colours, are shown but cannot be changed.</li>
+                  <li>Right-click an object and choose Duplicate this object or Remove this object. These apply at once, so save or undo row changes first.</li>
+                  <li>Right-click a row and choose Undo this row, or click Undo all changes to start again.</li>
+                </ul>
+                <h4>Save it</h4>
+                <ol>
+                  <li>Click Save changes..., read the list of changes and any warnings, and confirm.</li>
+                  <li>Close the window and choose how to save: Item Package (.cditem)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.</li>
+                </ol>
+                <p>With Add to Item Package..., the prefab can use a mesh that the package's own item adds.</p>
+                <p>To reuse edits, Export Prefab Edit JSON... saves them as a text file, and Import Prefab Edit JSON... applies one to the selected prefab and offers the same three ways to save.</p>
+                <div class="doc-callout doc-warning"><b>Limitations:</b> Loading edited prefabs in game is untested. About 0.5% of prefabs are read only in part; on those, a file path can only be replaced by one of exactly the same length, and nothing else can be changed. An item package will not load after a game update changes the original prefab, when the edit was made on another mod's version of it, or when a path points at a file that neither the game nor the package provides. Prefabs saved with Duplicate this object or Remove this object in 0.11.0-alpha.31 or earlier are damaged; redo those edits from the game's copy.</div>
                 """,
             },
             {

@@ -44,13 +44,16 @@ def _member(name: str, type_name: str, flags: int, size: int) -> bytes:
     return _text(name) + _text(type_name) + struct.pack("<HHHH", flags, size, 0, 0)
 
 
-def _build() -> bytes:
+def _build(*, tint: bool = False) -> bytes:
+    """``tint`` adds a set ``Color``, a value shown but never offered an editor."""
     types = bytearray()
-    types += _text("SceneObject") + struct.pack("<H", 3)
+    types += _text("SceneObject") + struct.pack("<H", 4 if tint else 3)
     types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
     types += _member("_meshFile", "ReflectObjectPtr", KIND_POINTER, 8)
     # Declared but never set, so the "only fields in use" filter has something to hide.
     types += _member("_unusedFlag", "bool", 0x0000, 1)
+    if tint:
+        types += _member("_tintColor", "Color", 0x0000, 4)
     types += _text("ResourceReferencePath_SkinnedMesh") + struct.pack("<H", 0)
 
     header = bytearray()
@@ -60,12 +63,15 @@ def _build() -> bytes:
     blob_offset = len(header) + len(pool) + 28
 
     blob = bytearray()
-    blob += struct.pack("<H", 2) + (0b11).to_bytes(6, "little")
+    blob += struct.pack("<H", 2) + (0b1011 if tint else 0b11).to_bytes(6, "little")
     blob += _text("Pelvis_R_Socket")
     blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     blob += struct.pack("<I", blob_offset + len(blob) + 4)
     pointee = bytearray(struct.pack("<I", 0) + _text(PATH))
-    blob += pointee + struct.pack("<I", len(pointee)) + b"\x00" * 5
+    blob += pointee + struct.pack("<I", len(pointee))
+    if tint:
+        blob += bytes((0x40, 0x80, 0xFF, 0xFF))
+    blob += b"\x00" * 5
 
     data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
@@ -718,7 +724,7 @@ def test_the_objects_tab_can_be_filtered(qt_app: QApplication) -> None:
 
 
 def test_only_changeable_rows_hides_the_read_only_ones(qt_app: QApplication) -> None:
-    dialog = PrefabInspectorDialog(_build())
+    dialog = PrefabInspectorDialog(_build(tint=True))
     everything = _visible_object_rows(dialog)
     dialog.changeable_only_box.setChecked(True)
     changeable = _visible_object_rows(dialog)

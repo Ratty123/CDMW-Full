@@ -114,7 +114,7 @@ def _retarget_warning(original: str, replacement: str) -> str:
     """
     text = replacement.strip()
     if not text:
-        return "Path is empty."
+        return "Path is empty, so this object will no longer name a file here."
     if not is_asset_path(text):
         return "That does not look like a file path (expected folders and a file extension)."
     was, now = asset_role(original), asset_role(text)
@@ -405,15 +405,21 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         """Start on something changeable, so the buttons are live on open.
 
         Otherwise every action button is greyed until the modder guesses that a
-        row has to be selected first.
+        row has to be selected first. A file row wins over a text row, because
+        Choose file... only helps there.
         """
-        for index in range(self.tree.topLevelItemCount()):
-            parent = self.tree.topLevelItem(index)
-            for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                if child.flags() & Qt.ItemFlag.ItemIsEditable or child.data(0, _PLACEMENT_ROLE):
-                    self.tree.setCurrentItem(child)
-                    return
+        rows = [
+            self.tree.topLevelItem(index).child(child_index)
+            for index in range(self.tree.topLevelItemCount())
+            for child_index in range(self.tree.topLevelItem(index).childCount())
+        ]
+        editable = [
+            row for row in rows
+            if row.flags() & Qt.ItemFlag.ItemIsEditable or row.data(0, _PLACEMENT_ROLE)
+        ]
+        files = [row for row in editable if is_asset_path(str(row.data(2, _EDIT_ROLE) or ""))]
+        if files or editable:
+            self.tree.setCurrentItem((files or editable)[0])
 
     def _objects_hint(self) -> str:
         """Say what can be done here, which depends on whether editing is on."""
@@ -578,7 +584,13 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         ]
 
     def _warning_for(self, original: str, replacement: str) -> str:
-        """Shape check first, then existence when an index covers this kind."""
+        """Shape check first, then existence when an index covers this kind.
+
+        Only for a row that held a file path. A socket name, tag or alias is
+        free text, so there is no shape to check and no file to look up.
+        """
+        if not is_asset_path(original):
+            return ""
         shape = _retarget_warning(original, replacement)
         if shape:
             return shape
@@ -600,6 +612,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             reason = "This file is read-only because it was only partly read."
         elif not editable:
             reason = "Select a row with a file in it, then pick a replacement."
+        elif not is_asset_path(str(item.data(2, _EDIT_ROLE) or "")):
+            reason = "This row holds text, not a file. Double-click it to type a new value."
         elif not candidates:
             reason = "No index of this asset kind is loaded, so there is nothing to pick from."
         else:
@@ -829,7 +843,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
                 original = child.data(2, _EDIT_ROLE)
                 offset = child.data(2, _OFFSET_ROLE)
                 current = child.text(2).strip()
-                if not isinstance(original, str) or not current or current == original:
+                # An emptied row is a choice to clear the string, not a no-op.
+                if not isinstance(original, str) or current == original:
                     continue
                 if not isinstance(offset, int) or offset < 0:
                     continue

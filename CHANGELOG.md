@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Added
 
 - The Prefab Inspector and Prefab Edit JSON import can save an edited prefab as an item package (.cditem) to add on the Mods page, alongside the loose folder for other mod managers. Prefabs from the DLC work too. **Add to Item Package...** puts the edit into an existing item package as its next release, so a game prefab can use the mesh that package's new item adds. The package replaces only the game's own copy of that prefab. It refuses to load after a game update changes that copy, when the edit was made on another mod's version, or when the prefab points at a file that neither the game nor the package provides. Two packages that want different versions of one prefab refuse instead of one silently winning. Loading edited prefabs in game is still untested.
+- The Prefab Inspector can change more of a prefab: socket names, tags, aliases and other text at any length, each transform in a placement list, whole numbers, item keys and two- and four-number vectors. Emptying a row clears that text or path. Colours and other values whose layout is not confirmed stay read-only, and a prefab with only numbers at its top level now lists them. Loading edited prefabs in game is still untested.
 
 - Create New Item and Mod Management can send an item straight to DMM. **Send to DMM** writes the DMM mod folder into DMM's mods folder, and on Mod Management's Mods page a .cditem package is rebuilt as a DMM mod for the installed game first. CDMW finds DMM in its usual folder or asks once; enable the mod in DMM and click Mount. A mod folder another tool wrote is never replaced.
 
@@ -62,6 +63,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor Hair Tools find Kliff's, Damiane's and Oongka's base bodies and heads again after the DLC update renamed the player body files, and Archive Browser attachment previews show the player body again. Mesh Editor previews equipment whose game material uses a normal map as its colour texture, including some DLC armour, instead of failing to show the model. Exact export of static PAM models now works after moving, rotating or scaling their parts, instead of stopping with a topology error, and PAMLOD models open in the Mesh Editor instead of failing to load.
 - Mesh Editor replacement imports keep separate part materials when the game reuses a material name, preserve glTF/GLB texture orientation, and use compatible formats for generated colour and glow textures.
 - Imported materials no longer gain glow from Blender's default black emission setting, OBJ surface shading settings or texture folder names. Material previews refresh their shader and glow settings when replaced, and reopening exported materials preserves authored glow strength, including zero.
+- Several translated Prefab Inspector labels are corrected: some languages called prefabs "prefab houses", turned "Only rows I can change" into "I can only change rows", or scrambled the Prefab Edit JSON menu entries. The Russian X, Y, Z axis label uses Latin letters again.
+
+### Docs
+
+- Help and the Wiki have a Prefab Inspector guide in all 14 languages: opening a prefab, what can be changed, the three ways to save, Prefab Edit JSON, and the current limits, including which prefabs saved with older versions need redoing.
 
 ## [0.11.0-alpha.31] - 2026-10-30
 

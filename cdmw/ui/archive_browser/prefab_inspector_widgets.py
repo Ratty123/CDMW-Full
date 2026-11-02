@@ -280,7 +280,7 @@ class ValueEditDialog(QDialog):
             box.setValue(float(current))
             self._boxes.append(box)
             form.addRow("Number", box)
-        elif self._kind == "float3":
+        elif self._kind in ("float2", "float3", "float4"):
             holder = QWidget()
             row = QHBoxLayout(holder)
             row.setContentsMargins(0, 0, 0, 0)
@@ -291,7 +291,13 @@ class ValueEditDialog(QDialog):
                 box.setValue(float(value))
                 self._boxes.append(box)
                 row.addWidget(box)
-            form.addRow("X, Y, Z", holder)
+            # Literal labels, one per width, so each is a catalogue entry.
+            if self._kind == "float2":
+                form.addRow("X, Y", holder)
+            elif self._kind == "float3":
+                form.addRow("X, Y, Z", holder)
+            else:
+                form.addRow("X, Y, Z, W", holder)
         layout.addLayout(form)
 
         self.error = QLabel("")
@@ -309,7 +315,7 @@ class ValueEditDialog(QDialog):
     def _current(self) -> object:
         if self._flag is not None:
             return self._flag.isChecked()
-        if self._kind == "float3":
+        if self._kind in ("float2", "float3", "float4"):
             return tuple(box.value() for box in self._boxes)
         return self._boxes[0].value()
 
