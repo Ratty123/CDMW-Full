@@ -48,6 +48,11 @@
           "path": "cdmw/ui/archive_browser/action_chart_actions.py",
           "line": 292,
           "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 173,
+          "sink": "information"
         }
       ]
     },
@@ -1297,6 +1302,16 @@
       ]
     },
     {
+      "key": " {value_0} exist only in the DLC copy, which a DMM mod cannot change.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 216,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": " {value_0} file(s) could not be read.",
       "origins": [
         {
@@ -1313,6 +1328,16 @@
           "path": "cdmw/ui/text_search/controller.py",
           "line": 478,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": " {value_0} rows use a layout this build cannot read and are not listed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 216,
+          "sink": "setText"
         }
       ]
     },
@@ -1692,6 +1717,16 @@
       ]
     },
     {
+      "key": "), such as inventory or dropsetinfo, and choose Edit Game Table Values....",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "* Required",
       "origins": [
         {
@@ -1791,12 +1826,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1806,7 +1841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -1816,7 +1851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1846,12 +1881,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1871,7 +1906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1881,7 +1916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1896,7 +1931,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -1906,7 +1941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1916,7 +1951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1926,7 +1961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1946,7 +1981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1956,7 +1991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2001,7 +2036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2011,7 +2046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2021,7 +2056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2031,7 +2066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2321,7 +2356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2341,7 +2376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2371,7 +2406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2391,7 +2426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2431,7 +2466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2441,7 +2476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2461,7 +2496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2538,6 +2573,16 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "0 or 1",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 91,
+          "sink": "ValueError"
         }
       ]
     },
@@ -3431,7 +3476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3536,7 +3581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3566,7 +3611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3696,7 +3741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3706,7 +3751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3876,7 +3921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -3936,7 +3981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4036,7 +4081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4206,7 +4251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -4526,7 +4571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -4691,7 +4736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 243,
+          "line": 297,
           "sink": "setToolTip"
         }
       ]
@@ -5499,6 +5544,11 @@
     {
       "key": "About",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 141,
+          "sink": "setHorizontalHeaderLabels"
+        },
         {
           "path": "cdmw/ui/shell/menus.py",
           "line": 39,
@@ -6691,7 +6741,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -6941,7 +6991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 214,
+          "line": 268,
           "sink": "QPushButton"
         }
       ]
@@ -6991,7 +7041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 236,
+          "line": 290,
           "sink": "addRow"
         }
       ]
@@ -7121,7 +7171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 242,
+          "line": 296,
           "sink": "QPushButton"
         }
       ]
@@ -7496,7 +7546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -7641,7 +7691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 390,
+          "line": 447,
           "sink": "setText"
         }
       ]
@@ -7896,7 +7946,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -7921,7 +7971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 148,
+          "line": 202,
           "sink": "setText"
         }
       ]
@@ -8011,7 +8061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 169,
+          "line": 223,
           "sink": "QGroupBox"
         }
       ]
@@ -8571,7 +8621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -9627,6 +9677,16 @@
       ]
     },
     {
+      "key": "Also change values in other game tables, such as bag sizes, drop chances or skill levels. They travel with DMM mod folders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 97,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Also create a ZIP file",
       "origins": [
         {
@@ -9926,7 +9986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -10091,7 +10151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -10371,7 +10431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -10786,7 +10846,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -10902,6 +10962,16 @@
       ]
     },
     {
+      "key": "Another background task is running. Try again when it has finished.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 100,
+          "sink": "show_error"
+        }
+      ]
+    },
+    {
       "key": "Another background task is running. Wait for it to finish before loading a 3D preview.",
       "origins": [
         {
@@ -11011,7 +11081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1027,
+          "line": 1028,
           "sink": "set_part_editor_state"
         },
         {
@@ -11046,7 +11116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1064,
+          "line": 1065,
           "sink": "failed"
         }
       ]
@@ -11161,7 +11231,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -11621,7 +11691,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 765,
+          "line": 766,
           "sink": "addButton"
         },
         {
@@ -12031,7 +12101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 763,
+          "line": 764,
           "sink": "setWindowTitle"
         }
       ]
@@ -12636,7 +12706,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -13751,7 +13821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -13941,7 +14011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 582,
+          "line": 597,
           "sink": "append_archive_log"
         }
       ]
@@ -14691,7 +14761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -14911,7 +14981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -14996,7 +15066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 423,
+          "line": 424,
           "sink": "_append_log"
         }
       ]
@@ -15466,7 +15536,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -15766,7 +15836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -16616,7 +16686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 71,
+          "line": 72,
           "sink": "setToolTip"
         }
       ]
@@ -16626,7 +16696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 561,
+          "line": 576,
           "sink": "_add_menu_section"
         },
         {
@@ -17001,7 +17071,7 @@
         },
         {
           "path": "cdmw/workers/new_item_authoring_index.py",
-          "line": 28,
+          "line": 31,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -17231,7 +17301,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -17241,7 +17311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -17871,7 +17941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 593,
+          "line": 594,
           "sink": "QPushButton"
         },
         {
@@ -17933,6 +18003,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
           "line": 161,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Back to stats and prices",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 118,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -18533,6 +18613,11 @@
           "path": "cdmw/ui/archive_browser/mesh_dds_preview.py",
           "line": 253,
           "sink": "getItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 259,
+          "sink": "QTableWidgetItem"
         }
       ]
     },
@@ -19227,7 +19312,7 @@
       ]
     },
     {
-      "key": "BitmapPosition keeps only row names and boundaries. Thirteen rows use readers in virtualized game code and stay refused. The units and in-game effect of every editable field are unverified, and no UI writes these tables yet.",
+      "key": "BitmapPosition keeps only row names and boundaries. Thirteen rows use readers in virtualized game code and stay refused. Character stats, buff values and quest rewards are not editable, rows only the DLC has cannot be changed through DMM, and the units and in-game effect of every editable field are unverified.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -19561,7 +19646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 387,
+          "line": 444,
           "sink": "setToolTip"
         }
       ]
@@ -19996,7 +20081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -20036,7 +20121,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -20408,6 +20493,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4200,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bounties",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 32,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Bounty increase",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 43,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -20791,7 +20896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -21241,7 +21346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1078,
+          "line": 1079,
           "sink": "set_part_editor_state"
         }
       ]
@@ -21446,7 +21551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 653,
+          "line": 668,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -21551,7 +21656,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -21911,7 +22016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24466,7 +24571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25601,7 +25706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -26086,7 +26191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -26136,7 +26241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -26312,6 +26417,16 @@
       ]
     },
     {
+      "key": "Change proven values in this table's rows, such as bag sizes or drop chances, and write them as a DMM mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 567,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.",
       "origins": [
         {
@@ -26331,7 +26446,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -26433,6 +26548,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Change values in existing rows of the game's tables. Only values whose storage is proven on every shipped row are offered. Their effect in game has not been verified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 113,
+          "sink": "QLabel"
         }
       ]
     },
@@ -26558,6 +26683,16 @@
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 548,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Changes in this mod:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 162,
+          "sink": "QLabel"
         }
       ]
     },
@@ -26696,7 +26831,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -27382,6 +27517,16 @@
       ]
     },
     {
+      "key": "Characters and NPCs",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 26,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Charge type:",
       "origins": [
         {
@@ -27526,7 +27671,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -27636,7 +27781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -27696,7 +27841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 198,
+          "line": 199,
           "sink": "QPushButton"
         }
       ]
@@ -28546,7 +28691,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -28611,7 +28756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -28746,7 +28891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1097,
+          "line": 1098,
           "sink": "set_part_editor_state"
         }
       ]
@@ -28761,7 +28906,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -28916,7 +29061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -29676,7 +29821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -29686,7 +29831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -29801,7 +29946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -30001,7 +30146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -30041,7 +30186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -30091,7 +30236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 440,
+          "line": 442,
           "sink": "ValueError"
         }
       ]
@@ -31131,7 +31276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -31861,7 +32006,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -32326,7 +32471,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -33026,7 +33171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -33056,7 +33201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -33086,7 +33231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -34206,7 +34351,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -34741,7 +34886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 554,
+          "line": 557,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -34751,7 +34896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 571,
+          "line": 574,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -34871,7 +35016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -34966,7 +35111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -34976,7 +35121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -35018,6 +35163,16 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 36,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Companion call cooldown (raw)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 48,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -35971,7 +36126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -36696,7 +36851,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 595,
+          "line": 596,
           "sink": "QPushButton"
         },
         {
@@ -36861,12 +37016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -37151,7 +37306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -37166,7 +37321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -37207,6 +37362,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
           "line": 110,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Cooldown (raw)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 41,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -37276,7 +37441,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 610,
+          "line": 625,
           "sink": "set_status_message"
         }
       ]
@@ -37410,6 +37575,11 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 136,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
           "line": 131,
           "sink": "translate_active_ui_text"
@@ -37466,7 +37636,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 606,
+          "line": 621,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -39161,7 +39331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 229,
+          "line": 230,
           "sink": "_append_log"
         }
       ]
@@ -39171,7 +39341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 188,
+          "line": 189,
           "sink": "QLabel"
         }
       ]
@@ -39811,7 +39981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -40171,7 +40341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 591,
+          "line": 648,
           "sink": "note"
         }
       ]
@@ -40188,6 +40358,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 256,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 141,
+          "sink": "setHorizontalHeaderLabels"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
@@ -41537,6 +41712,16 @@
       ]
     },
     {
+      "key": "DLC",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 259,
+          "sink": "QTableWidgetItem"
+        }
+      ]
+    },
+    {
       "key": "DMM",
       "origins": [
         {
@@ -41551,7 +41736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -44606,7 +44791,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -44811,7 +44996,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 766,
+          "line": 767,
           "sink": "addButton"
         },
         {
@@ -45076,7 +45261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -45126,7 +45311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -45136,7 +45321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -45146,7 +45331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -45546,7 +45731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -46482,6 +46667,16 @@
       ]
     },
     {
+      "key": "Drop",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 61,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Drop defaults",
       "origins": [
         {
@@ -46493,6 +46688,16 @@
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 98,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Drop sets (loot)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 27,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -46551,7 +46756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 248,
+          "line": 302,
           "sink": "setToolTip"
         }
       ]
@@ -46561,7 +46766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 219,
+          "line": 273,
           "sink": "setToolTip"
         }
       ]
@@ -46571,7 +46776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -47266,7 +47471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -47692,6 +47897,26 @@
       ]
     },
     {
+      "key": "Edit Game Table Values",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 48,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Edit Game Table Values...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 566,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Edit HKX - {value_0}",
       "origins": [
         {
@@ -48006,7 +48231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 576,
+          "line": 591,
           "sink": "addAction"
         }
       ]
@@ -48151,7 +48376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -48203,6 +48428,16 @@
           "path": "cdmw/ui/new_item/panels_placement.py",
           "line": 148,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Edit game table values",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -48461,7 +48696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -48916,7 +49151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -49301,7 +49536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 283,
+          "line": 284,
           "sink": "_append_log"
         }
       ]
@@ -50511,7 +50746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 95,
+          "line": 106,
           "sink": "addTab"
         }
       ]
@@ -50521,7 +50756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 117,
+          "line": 171,
           "sink": "QGroupBox"
         }
       ]
@@ -50531,7 +50766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 223,
+          "line": 277,
           "sink": "addRow"
         }
       ]
@@ -50682,6 +50917,16 @@
       ]
     },
     {
+      "key": "Enter a value from {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 330,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Enter a whole number within the field's range.",
       "origins": [
         {
@@ -50691,7 +50936,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 779,
+          "line": 836,
           "sink": "setToolTip"
         }
       ]
@@ -50721,7 +50966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1157,
+          "line": 1158,
           "sink": "warning"
         }
       ]
@@ -50859,6 +51104,11 @@
     {
       "key": "Equipment",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 62,
+          "sink": "translate_active_ui_text"
+        },
         {
           "path": "tools/placement_studio/move_weapon.py",
           "line": 165,
@@ -51086,7 +51336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -51326,7 +51576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 235,
+          "line": 289,
           "sink": "setToolTip"
         }
       ]
@@ -51711,7 +51961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 211,
+          "line": 265,
           "sink": "addRow"
         }
       ]
@@ -52251,7 +52501,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 70,
+          "line": 71,
           "sink": "NoteLabel"
         },
         {
@@ -52801,7 +53051,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 616,
+          "line": 631,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -52871,7 +53121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 659,
+          "line": 674,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -53016,7 +53266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -53146,7 +53396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 647,
+          "line": 662,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -53181,7 +53431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 613,
+          "line": 628,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -53736,7 +53986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 562,
+          "line": 577,
           "sink": "addAction"
         }
       ]
@@ -53976,7 +54226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -54061,7 +54311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -54381,7 +54631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -55351,7 +55601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -55451,7 +55701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 619,
+          "line": 634,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -55786,12 +56036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 628,
+          "line": 643,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 634,
+          "line": 649,
           "sink": "_run_archive_extract"
         }
       ]
@@ -55841,7 +56091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 172,
+          "line": 226,
           "sink": "set_note"
         }
       ]
@@ -55976,7 +56226,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -56276,7 +56526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -57567,6 +57817,16 @@
       ]
     },
     {
+      "key": "Filter rows by name or key",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 129,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Filter source candidates to one archive extension.",
       "origins": [
         {
@@ -57656,7 +57916,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 641,
+          "line": 656,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -58521,7 +58781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -61046,12 +61306,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -62127,6 +62387,16 @@
       ]
     },
     {
+      "key": "Game Data Table",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 565,
+          "sink": "_add_menu_section"
+        }
+      ]
+    },
+    {
       "key": "Game File Updated",
       "origins": [
         {
@@ -62196,7 +62466,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -62472,12 +62742,32 @@
       ]
     },
     {
+      "key": "Game table changes…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 96,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Game table path",
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
           "line": 580,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Game tables",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 124,
+          "sink": "addTab"
         }
       ]
     },
@@ -62526,7 +62816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 350,
+          "line": 351,
           "sink": "tr"
         }
       ]
@@ -62613,6 +62903,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 62,
           "sink": "intro_label"
+        }
+      ]
+    },
+    {
+      "key": "Gameplay switches",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 28,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -62766,7 +63066,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -63321,7 +63621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -64806,7 +65106,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -64836,7 +65136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -66716,7 +67016,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -66906,7 +67206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -67812,6 +68112,26 @@
       ]
     },
     {
+      "key": "Hire limit",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 44,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Hire limit ceiling",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 45,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "History",
       "origins": [
         {
@@ -68071,7 +68391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -68111,7 +68431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -68261,7 +68581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -68271,7 +68591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 293,
+          "line": 347,
           "sink": "setToolTip"
         }
       ]
@@ -69071,7 +69391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -69756,7 +70076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -69871,7 +70191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 567,
+          "line": 582,
           "sink": "addAction"
         },
         {
@@ -69916,7 +70236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1024,
+          "line": 1025,
           "sink": "set_part_editor_state"
         }
       ]
@@ -70116,7 +70436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -70256,7 +70576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -71112,11 +71432,21 @@
       ]
     },
     {
+      "key": "In Archive Browser, right-click a game data table (",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -71126,7 +71456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -71136,7 +71466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -71156,7 +71486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -71166,7 +71496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -71198,6 +71528,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 226,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "In this mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 141,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -71676,7 +72016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 274,
+          "line": 328,
           "sink": "QCheckBox"
         }
       ]
@@ -72956,7 +73296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 240,
+          "line": 294,
           "sink": "addRow"
         }
       ]
@@ -73461,7 +73801,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1163,
+          "line": 1164,
           "sink": "warning"
         }
       ]
@@ -73481,7 +73821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1167,
+          "line": 1168,
           "sink": "question"
         }
       ]
@@ -73556,7 +73896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1167,
+          "line": 1168,
           "sink": "question"
         }
       ]
@@ -74908,6 +75248,16 @@
           "path": "cdmw/ui/preview/dotnet_host.py",
           "line": 766,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Inventories and bags",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 29,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -76376,7 +76726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 98,
+          "line": 109,
           "sink": "addTab"
         }
       ]
@@ -76841,7 +77191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -76901,7 +77251,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76991,7 +77341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77036,7 +77386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -77086,7 +77436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77519,6 +77869,11 @@
     {
       "key": "Key",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 136,
+          "sink": "setHorizontalHeaderLabels"
+        },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
           "line": 78,
@@ -78121,7 +78476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -78586,7 +78941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -79056,7 +79411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -79080,6 +79435,11 @@
       "key": "Level",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 63,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "cdmw/ui/new_item/item_settings_editor.py",
           "line": 134,
           "sink": "_table"
@@ -79101,7 +79461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 399,
+          "line": 456,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -79111,7 +79471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 399,
+          "line": 456,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -79121,7 +79481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 578,
+          "line": 635,
           "sink": "note"
         }
       ]
@@ -79206,7 +79566,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -79516,7 +79876,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -79906,7 +80266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 397,
+          "line": 398,
           "sink": "setText"
         }
       ]
@@ -80551,7 +80911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -80637,6 +80997,16 @@
       ]
     },
     {
+      "key": "Load table",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 124,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Load textures",
       "origins": [
         {
@@ -80716,7 +81086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -80788,6 +81158,16 @@
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 212,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Load these tables again before writing: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 131,
+          "sink": "show_error"
         }
       ]
     },
@@ -81651,7 +82031,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -81691,7 +82071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82036,7 +82416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82736,7 +83116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -84601,7 +84981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -84631,7 +85011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 318,
+          "line": 372,
           "sink": "addRow"
         }
       ]
@@ -84661,7 +85041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 303,
+          "line": 357,
           "sink": "addRow"
         }
       ]
@@ -84752,6 +85132,16 @@
       ]
     },
     {
+      "key": "Maximum level",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 40,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Maximum movement speed, relative to model size. For example, a low limit makes a displaced bone catch up slowly. It has no effect until that speed is reached.",
       "origins": [
         {
@@ -84768,6 +85158,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 21,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Maximum slots",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 39,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -84898,6 +85298,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 331,
           "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Mercenaries and pets",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 30,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -85881,7 +86291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1053,
+          "line": 1054,
           "sink": "set_part_editor_state"
         }
       ]
@@ -86156,12 +86566,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1046,
+          "line": 1047,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1060,
+          "line": 1061,
           "sink": "set_part_editor_state"
         }
       ]
@@ -86411,12 +86821,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1016,
+          "line": 1017,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1049,
+          "line": 1050,
           "sink": "set_part_editor_state"
         }
       ]
@@ -88621,7 +89031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -88841,7 +89251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -89056,7 +89466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -89141,7 +89551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89306,7 +89716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89551,7 +89961,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -89606,7 +90016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -89943,6 +90353,11 @@
           "path": "cdmw/ui/archive_browser/action_chart_export_dialog.py",
           "line": 53,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 54,
+          "sink": "QLabel"
         }
       ]
     },
@@ -90011,7 +90426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -90797,6 +91212,16 @@
       ]
     },
     {
+      "key": "Model scale",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 47,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Model shares the selected texture stem in the current archive index; shown as a same-stem relationship hint.",
       "origins": [
         {
@@ -90861,7 +91286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -90871,7 +91296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 837,
+          "line": 838,
           "sink": "note"
         }
       ]
@@ -90891,7 +91316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 835,
+          "line": 836,
           "sink": "note"
         }
       ]
@@ -90901,7 +91326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 833,
+          "line": 834,
           "sink": "note"
         }
       ]
@@ -90911,7 +91336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -90921,7 +91346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -91286,7 +91711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 270,
+          "line": 324,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -91936,7 +92361,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -92046,7 +92471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -92251,7 +92676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -92691,7 +93116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 190,
+          "line": 244,
           "sink": "setToolTip"
         }
       ]
@@ -93035,6 +93460,11 @@
           "sink": "getText"
         },
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 136,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 57,
           "sink": "tr"
@@ -93357,6 +93787,26 @@
       ]
     },
     {
+      "key": "Name the mod and click Write DMM Mod…, then enable it in DMM and click Mount.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Name the mod before writing it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 135,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "Name the mod first.",
       "origins": [
         {
@@ -93556,7 +94006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 826,
+          "line": 827,
           "sink": "note"
         }
       ]
@@ -93566,7 +94016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -93576,7 +94026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 824,
+          "line": 825,
           "sink": "note"
         }
       ]
@@ -93586,7 +94036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 824,
+          "line": 825,
           "sink": "note"
         }
       ]
@@ -93616,7 +94066,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -94601,7 +95051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 464,
+          "line": 465,
           "sink": "_append_log"
         }
       ]
@@ -94955,9 +95405,24 @@
       "key": "New value",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 164,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 338,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "New value:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 148,
+          "sink": "QLabel"
         }
       ]
     },
@@ -96296,7 +96761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 685,
+          "line": 686,
           "sink": "ValueError"
         }
       ]
@@ -97301,7 +97766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -97793,6 +98258,21 @@
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
           "line": 140,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "No other game table values are changed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 93,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 151,
+          "sink": "setText"
         }
       ]
     },
@@ -98826,7 +99306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 682,
+          "line": 739,
           "sink": "setToolTip"
         }
       ]
@@ -98846,7 +99326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 681,
+          "line": 738,
           "sink": "set_note"
         }
       ]
@@ -98861,7 +99341,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 459,
+          "line": 516,
           "sink": "set_note"
         }
       ]
@@ -99571,7 +100051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -99581,7 +100061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -100571,7 +101051,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -101301,7 +101781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 227,
+          "line": 281,
           "sink": "setToolTip"
         }
       ]
@@ -101323,6 +101803,16 @@
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 389,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Offered values are bag sizes, drop chances and quantities in drop sets, the chance an NPC drops its equipment, the experience for each level, skill levels and cooldowns, bounty increases, mercenary limits and gameplay switches. Drop chances are in millionths: 1,000,000 is every time. Rows the DLC changes keep the DLC's other values, and rows that exist only in the DLC cannot be changed, because DMM does not take a mod's copy of a DLC table. To ship table changes with a new item, use Game table changes… on Create New Item's Stats step; item packages (.cdmw) do not carry them. None of these changes have been tested in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -101441,7 +101931,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -101456,7 +101946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -101546,7 +102036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 215,
+          "line": 269,
           "sink": "setToolTip"
         }
       ]
@@ -101726,7 +102216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -101991,12 +102481,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -102121,7 +102611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -102301,7 +102791,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -102666,7 +103156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 600,
+          "line": 615,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -103201,7 +103691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -103536,7 +104026,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -104016,12 +104506,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1093,
+          "line": 1094,
           "sink": "set_part_editor_state"
         }
       ]
@@ -104301,7 +104791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 758,
+          "line": 759,
           "sink": "_append_log"
         }
       ]
@@ -104976,7 +105466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -105141,7 +105631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -106156,7 +106646,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -106221,7 +106711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -106231,7 +106721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -106491,7 +106981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1157,
+          "line": 1158,
           "sink": "warning"
         }
       ]
@@ -107386,7 +107876,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -108356,7 +108846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -108426,7 +108916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -110426,7 +110916,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -110826,7 +111316,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -110856,7 +111346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 846,
+          "line": 847,
           "sink": "note"
         }
       ]
@@ -110866,7 +111356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 846,
+          "line": 847,
           "sink": "note"
         }
       ]
@@ -111371,7 +111861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -111421,7 +111911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -111483,6 +111973,16 @@
           "path": "tools/placement_studio/window_tasks.py",
           "line": 134,
           "sink": "_hint"
+        }
+      ]
+    },
+    {
+      "key": "Pick a table and click Load table, then select a row. Type part of a name or a key to filter the rows.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -111846,12 +112346,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -112471,7 +112971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 859,
+          "line": 860,
           "sink": "note"
         }
       ]
@@ -112481,7 +112981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 857,
+          "line": 858,
           "sink": "note"
         }
       ]
@@ -112716,7 +113216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -112726,7 +113226,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1040,
+          "line": 1045,
           "sink": "log"
         }
       ]
@@ -112746,7 +113246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -112926,7 +113426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -113231,7 +113731,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -113266,7 +113766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -114401,7 +114901,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1058,
+          "line": 1059,
           "sink": "set_part_editor_state"
         }
       ]
@@ -115266,7 +115766,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1114,
+          "line": 1115,
           "sink": "set_part_editor_state"
         }
       ]
@@ -115276,7 +115776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 441,
+          "line": 442,
           "sink": "_append_log"
         }
       ]
@@ -115536,7 +116036,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1059,
+          "line": 1064,
           "sink": "add"
         }
       ]
@@ -115661,7 +116161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -115856,7 +116356,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 594,
+          "line": 609,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -116476,7 +116976,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -116561,7 +117061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119126,7 +119626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 287,
+          "line": 288,
           "sink": "_append_log"
         }
       ]
@@ -119341,7 +119841,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 270,
+          "line": 324,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -119681,7 +120181,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119691,7 +120191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -120046,7 +120546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -120836,7 +121336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -121316,7 +121816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121571,7 +122071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 315,
+          "line": 369,
           "sink": "setToolTip"
         }
       ]
@@ -121601,7 +122101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 118,
+          "line": 172,
           "sink": "setToolTip"
         }
       ]
@@ -121716,7 +122216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -121806,7 +122306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 195,
+          "line": 196,
           "sink": "QPushButton"
         }
       ]
@@ -121837,6 +122337,26 @@
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 352,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Read the game archives first, or wait for the current step to finish.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 138,
+          "sink": "show_error"
+        }
+      ]
+    },
+    {
+      "key": "Read the selected table from the game's archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 125,
           "sink": "setToolTip"
         }
       ]
@@ -122281,7 +122801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 377,
+          "line": 378,
           "sink": "emit"
         }
       ]
@@ -122656,7 +123176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 390,
+          "line": 391,
           "sink": "append_log"
         }
       ]
@@ -122732,6 +123252,16 @@
         {
           "path": "cdmw/services/action_chart_edit_service.py",
           "line": 747,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/game_table_edits.py",
+          "line": 262,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/game_table_edits.py",
+          "line": 271,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -122837,11 +123367,31 @@
       ]
     },
     {
+      "key": "Reading the table from the game's archives…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 199,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Reading the table returned unexpected data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 118,
+          "sink": "show_error"
+        }
+      ]
+    },
+    {
       "key": "Reading the tables from {value_0} archive entries...",
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 395,
+          "line": 396,
           "sink": "setText"
         }
       ]
@@ -122863,6 +123413,16 @@
           "path": "cdmw/services/new_item_snapshot.py",
           "line": 800,
           "sink": "_log_progress"
+        }
+      ]
+    },
+    {
+      "key": "Reading the {value_0} table...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 123,
+          "sink": "_run_utility_task"
         }
       ]
     },
@@ -123396,12 +123956,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -123431,7 +123991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -124411,7 +124971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -124641,7 +125201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -125436,7 +125996,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -125756,12 +126316,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -126721,7 +127281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -126876,7 +127436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 196,
+          "line": 250,
           "sink": "addRow"
         }
       ]
@@ -127016,7 +127576,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -127316,7 +127876,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -127391,12 +127951,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 247,
+          "line": 301,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 625,
+          "line": 682,
           "sink": "setText"
         }
       ]
@@ -127590,6 +128150,11 @@
       "key": "Remove selected change",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 168,
+          "sink": "QPushButton"
+        },
+        {
           "path": "tools/placement_studio/window_save.py",
           "line": 81,
           "sink": "QPushButton"
@@ -127691,7 +128256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 218,
+          "line": 272,
           "sink": "QPushButton"
         }
       ]
@@ -127771,7 +128336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 622,
+          "line": 679,
           "sink": "setText"
         }
       ]
@@ -127792,6 +128357,16 @@
         {
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 724,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Remove this mod's change to the selected value.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 157,
           "sink": "setToolTip"
         }
       ]
@@ -128481,7 +129056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 572,
+          "line": 587,
           "sink": "addAction"
         },
         {
@@ -128923,6 +129498,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 316,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Replace the mod named {value_0} that CDMW wrote earlier?",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 147,
+          "sink": "question"
         }
       ]
     },
@@ -129696,7 +130281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -129816,7 +130401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -129831,7 +130416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129871,7 +130456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130101,7 +130686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 318,
+          "line": 372,
           "sink": "addRow"
         }
       ]
@@ -130261,7 +130846,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -130716,7 +131301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -131976,7 +132561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -133266,7 +133851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 141,
+          "line": 195,
           "sink": "QPushButton"
         }
       ]
@@ -133288,6 +133873,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_history.rs",
           "line": 73,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Restore value",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 156,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -133941,7 +134536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 142,
+          "line": 196,
           "sink": "setToolTip"
         }
       ]
@@ -134296,7 +134891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -134351,7 +134946,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -134371,7 +134966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -135561,7 +136156,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -136028,11 +136623,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 589,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 164,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
     {
-      "key": "Row data for the staticinfo tables; the header gives row boundaries and names for all 212 pairs. A closed schema taken from the game's table serializers decodes 140 of the 142 tables, including items, shops, skills, characters, quests, stages, gimmicks, conditions, knowledge and effects; StringInfo has its own reader. On the 1.0.0.3479 base and DLC data, 310,026 of the 310,039 rows in those tables decode exactly and the others are refused, none misread. Archive Browser previews show their fields, and whitelisted fixed-width fields can be rewritten in place as a loose table pair.",
+      "key": "Row data for the staticinfo tables; the header gives row boundaries and names for all 212 pairs. A closed schema taken from the game's table serializers decodes 140 of the 142 tables, including items, shops, skills, characters, quests, stages, gimmicks, conditions, knowledge and effects; StringInfo has its own reader. On the 1.0.0.3479 base and DLC data, 310,026 of the 310,039 rows in those tables decode exactly and the others are refused, none misread. Archive Browser previews show their fields. Whitelisted fixed-width fields and nested members, such as bag sizes, drop chances and level experience, can be changed in place and written as a DMM mod from Archive Browser or Create New Item.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -136686,7 +137286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -137211,7 +137811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -137556,7 +138156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -137851,7 +138451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -138481,7 +139081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 189,
+          "line": 243,
           "sink": "QPushButton"
         }
       ]
@@ -139556,7 +140156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -139566,7 +140166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -139826,7 +140426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -140001,7 +140601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -140206,7 +140806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140216,7 +140816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -141256,7 +141856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 568,
+          "line": 625,
           "sink": "set_note"
         }
       ]
@@ -141471,7 +142071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -142056,7 +142656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -142076,7 +142676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -142136,7 +142736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 841,
+          "line": 898,
           "sink": "emit"
         }
       ]
@@ -142347,12 +142947,32 @@
       ]
     },
     {
+      "key": "Select a value above",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 150,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Select a value, relationship, or decoded row to see original/current value, confidence, risk, byte offset, and editing guidance.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 193,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Select a value, type the new value and click Set value. The changes list collects every change for this mod, across tables.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 365,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -142626,7 +143246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 626,
+          "line": 641,
           "sink": "set_status_message"
         }
       ]
@@ -144006,7 +144626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -144131,7 +144751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -144716,7 +145336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -145116,7 +145736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 280,
+          "line": 281,
           "sink": "_append_log"
         }
       ]
@@ -146001,7 +146621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -146121,7 +146741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 226,
+          "line": 280,
           "sink": "QCheckBox"
         }
       ]
@@ -146246,7 +146866,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -146341,7 +146961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 136,
+          "line": 190,
           "sink": "setToolTip"
         }
       ]
@@ -146431,7 +147051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 205,
+          "line": 259,
           "sink": "setToolTip"
         }
       ]
@@ -146446,12 +147066,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 135,
+          "line": 189,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 282,
+          "line": 336,
           "sink": "QPushButton"
         }
       ]
@@ -146501,12 +147121,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 204,
+          "line": 258,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 618,
+          "line": 675,
           "sink": "setText"
         }
       ]
@@ -146652,11 +147272,21 @@
       ]
     },
     {
+      "key": "Set value",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 153,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Set {value_0} at every level",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 615,
+          "line": 672,
           "sink": "setText"
         }
       ]
@@ -146766,7 +147396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146776,7 +147406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146786,7 +147416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146796,7 +147426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146806,7 +147436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146911,7 +147541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146931,12 +147561,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -146961,7 +147591,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -147521,7 +148151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 689,
+          "line": 746,
           "sink": "setToolTip"
         }
       ]
@@ -147531,7 +148161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 595,
+          "line": 652,
           "sink": "note"
         }
       ]
@@ -147541,7 +148171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 601,
+          "line": 658,
           "sink": "note"
         }
       ]
@@ -147551,7 +148181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 599,
+          "line": 656,
           "sink": "note"
         }
       ]
@@ -147561,7 +148191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 685,
+          "line": 742,
           "sink": "set_note"
         }
       ]
@@ -147606,7 +148236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 262,
+          "line": 316,
           "sink": "QGroupBox"
         }
       ]
@@ -147631,7 +148261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 855,
+          "line": 856,
           "sink": "note"
         }
       ]
@@ -147641,7 +148271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 853,
+          "line": 854,
           "sink": "note"
         }
       ]
@@ -147661,7 +148291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -147696,7 +148326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -148476,7 +149106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -149178,6 +149808,16 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 1194,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Showing the first {value_0} of {value_1} matching rows; type more of a name to narrow them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 264,
+          "sink": "setText"
         }
       ]
     },
@@ -150633,6 +151273,16 @@
           "path": "cdmw/ui/new_item/item_stats_editor.py",
           "line": 58,
           "sink": "_table"
+        }
+      ]
+    },
+    {
+      "key": "Skills",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 31,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -153446,7 +154096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -154146,7 +154796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -154527,6 +155177,16 @@
       ]
     },
     {
+      "key": "Starting slots",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 38,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Starting text result export...",
       "origins": [
         {
@@ -154628,6 +155288,16 @@
           "path": "cdmw/ui/text_search/remote_catalogue.py",
           "line": 206,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Starts switched on",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 49,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -154771,7 +155441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 125,
+          "line": 179,
           "sink": "setToolTip"
         }
       ]
@@ -155061,7 +155731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 92,
+          "line": 103,
           "sink": "addTab"
         }
       ]
@@ -155271,7 +155941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 767,
+          "line": 768,
           "sink": "addButton"
         }
       ]
@@ -155286,7 +155956,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -155296,7 +155966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 755,
+          "line": 756,
           "sink": "setText"
         }
       ]
@@ -155316,7 +155986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 944,
+          "line": 945,
           "sink": "setAccessibleText"
         }
       ]
@@ -155786,7 +156456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -156307,6 +156977,16 @@
       ]
     },
     {
+      "key": "Summon limit",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 46,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Summon tag hashes",
       "origins": [
         {
@@ -156806,7 +157486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -156961,8 +157641,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Table",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 164,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -156997,11 +157687,36 @@
       ]
     },
     {
+      "key": "Table loading cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/game_table_edits.py",
+          "line": 155,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Table mod export cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/game_table_edits.py",
+          "line": 385,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "Table:",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 485,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 119,
           "sink": "QLabel"
         }
       ]
@@ -157381,7 +158096,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -158051,7 +158766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158271,7 +158986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 390,
+          "line": 447,
           "sink": "setText"
         }
       ]
@@ -158326,7 +159041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 821,
+          "line": 822,
           "sink": "note"
         }
       ]
@@ -158336,7 +159051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 580,
+          "line": 637,
           "sink": "note"
         }
       ]
@@ -158346,17 +159061,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 487,
+          "line": 544,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 821,
+          "line": 822,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]
@@ -158366,7 +159081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 589,
+          "line": 646,
           "sink": "note"
         }
       ]
@@ -158376,7 +159091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 587,
+          "line": 644,
           "sink": "note"
         }
       ]
@@ -158386,7 +159101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 582,
+          "line": 639,
           "sink": "note"
         }
       ]
@@ -158471,7 +159186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -158511,7 +159226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -158546,12 +159261,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -158761,7 +159476,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -159036,7 +159751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -159066,7 +159781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -159131,7 +159846,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -159591,7 +160306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -159826,7 +160541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -159956,7 +160671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -159966,7 +160681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -159976,7 +160691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -160071,7 +160786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -160096,7 +160811,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -160111,7 +160826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -160126,7 +160841,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -160286,7 +161001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 764,
+          "line": 765,
           "sink": "setText"
         }
       ]
@@ -160506,7 +161221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -160616,7 +161331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -160626,7 +161341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -160636,7 +161351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -160786,7 +161501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 386,
+          "line": 387,
           "sink": "_snapshot_failed"
         }
       ]
@@ -160856,7 +161571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1163,
+          "line": 1164,
           "sink": "warning"
         },
         {
@@ -161136,12 +161851,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 429,
+          "line": 430,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 435,
+          "line": 436,
           "sink": "setText"
         }
       ]
@@ -161656,7 +162371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -163016,12 +163731,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 271,
+          "line": 325,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 283,
+          "line": 337,
           "sink": "setToolTip"
         }
       ]
@@ -163756,7 +164471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -166081,7 +166796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 485,
+          "line": 542,
           "sink": "setToolTip"
         }
       ]
@@ -166716,7 +167431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 176,
+          "line": 230,
           "sink": "setToolTip"
         }
       ]
@@ -167211,7 +167926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -167456,12 +168171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 552,
+          "line": 609,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 576,
+          "line": 633,
           "sink": "set_note"
         }
       ]
@@ -168492,6 +169207,21 @@
       ]
     },
     {
+      "key": "This row exists only in the DLC copy; a DMM mod cannot change it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 261,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 325,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This row has a recovered 3D target, but no matching model preview is loaded yet. Click Show in 3D, then use Load Model in the embedded preview pane.",
       "origins": [
         {
@@ -168791,7 +169521,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 459,
+          "line": 516,
           "sink": "set_note"
         }
       ]
@@ -169101,7 +169831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 318,
+          "line": 372,
           "sink": "addRow"
         }
       ]
@@ -169176,7 +169906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -169456,7 +170186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169506,7 +170236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -170006,7 +170736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -170766,12 +171496,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -171066,7 +171796,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171141,7 +171871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 434,
+          "line": 435,
           "sink": "setText"
         },
         {
@@ -171176,7 +171906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171186,7 +171916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -171251,7 +171981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 275,
+          "line": 329,
           "sink": "setToolTip"
         }
       ]
@@ -171806,7 +172536,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -171866,7 +172596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -172351,7 +173081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -173591,7 +174321,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_authoring_index.py",
-          "line": 27,
+          "line": 30,
           "sink": "ValueError"
         }
       ]
@@ -174911,7 +175641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175057,6 +175787,16 @@
       ]
     },
     {
+      "key": "Usable with low resource",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 42,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Use",
       "origins": [
         {
@@ -175096,12 +175836,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -175671,7 +176411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -176011,7 +176751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -176416,7 +177156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -176936,7 +177676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1121,
+          "line": 1122,
           "sink": "set_part_editor_state"
         }
       ]
@@ -177400,6 +178140,16 @@
           "sink": "setHorizontalHeaderLabels"
         },
         {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 141,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 164,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 43,
           "sink": "tr"
@@ -177563,6 +178313,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 144,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Values changed in other game tables travel with DMM mod folders; item packages do not carry them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 112,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -178616,7 +179376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 851,
+          "line": 852,
           "sink": "note"
         }
       ]
@@ -178626,7 +179386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 851,
+          "line": 852,
           "sink": "note"
         }
       ]
@@ -178991,7 +179751,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1105,
+          "line": 1106,
           "sink": "set_part_editor_state"
         }
       ]
@@ -179716,7 +180476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -180461,7 +181221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -180511,7 +181271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180586,7 +181346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -180626,7 +181386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -180696,7 +181456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -180726,7 +181486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -180921,7 +181681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180931,7 +181691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180991,7 +181751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -181276,7 +182036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -181286,7 +182046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -181431,7 +182191,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -181586,7 +182346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -181616,7 +182376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -181816,7 +182576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 572,
+          "line": 573,
           "sink": "QGroupBox"
         }
       ]
@@ -182148,6 +182908,41 @@
           "path": "cdmw/ui/texture_workflow/settings_panel.py",
           "line": 48,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Write DMM Mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 135,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 145,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 147,
+          "sink": "question"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 173,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Write DMM Mod…",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 57,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -182527,6 +183322,16 @@
       ]
     },
     {
+      "key": "Write the changed tables into a new mod folder in DMM's mods folder. The game archives are not changed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 58,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Write the current combat and item settings for the selected stock item. It keeps its existing identity. Appearance, names and shop placement belong to new-item export.",
       "origins": [
         {
@@ -182772,6 +183577,16 @@
       ]
     },
     {
+      "key": "Writing game table mod {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 175,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
       "key": "Writing loose mod overlay package from {value_0}...",
       "origins": [
         {
@@ -182907,6 +183722,16 @@
       ]
     },
     {
+      "key": "Writing the mod returned unexpected data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 165,
+          "sink": "show_error"
+        }
+      ]
+    },
+    {
       "key": "Writing the reviewed prefab package...",
       "origins": [
         {
@@ -183026,7 +183851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -183163,6 +183988,16 @@
           "path": "cdmw/ui/archive_browser/attachment_socket_editor.py",
           "line": 794,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Wrote game table mod {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 172,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -183383,6 +184218,16 @@
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 599,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Wrote the DMM mod into:\n{value_0}\n\nIn DMM, enable it and click Mount. Game table edits have not been confirmed in game yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 173,
+          "sink": "information"
         }
       ]
     },
@@ -183901,7 +184746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -184001,7 +184846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -184251,7 +185096,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 270,
+          "line": 271,
           "sink": "appendPlainText"
         },
         {
@@ -184751,7 +185596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -184841,7 +185686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -184966,7 +185811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -184976,7 +185821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 578,
+          "line": 579,
           "sink": "tinted"
         }
       ]
@@ -185031,22 +185876,22 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185056,7 +185901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185091,7 +185936,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -185111,7 +185956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -185121,7 +185966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185131,7 +185976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185141,7 +185986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185321,7 +186166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -185366,7 +186211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -185446,7 +186291,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -185501,7 +186346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185521,7 +186366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185551,7 +186396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -185581,7 +186426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -185631,7 +186476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 561,
+          "line": 576,
           "sink": "_add_menu_section"
         },
         {
@@ -186436,7 +187281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186481,7 +187326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -186556,7 +187401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -186921,17 +187766,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187451,12 +188296,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -187506,7 +188351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187581,7 +188426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187601,7 +188446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -188046,7 +188891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188481,7 +189326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188491,7 +189336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188611,7 +189456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188621,7 +189466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188837,6 +189682,11 @@
         {
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 540,
+          "sink": "_add_menu_section"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 565,
           "sink": "_add_menu_section"
         }
       ]
@@ -189322,6 +190172,36 @@
       ]
     },
     {
+      "key": "drop chance",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 50,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "drop chance on death",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 53,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "drop chance when thrown",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 54,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "dropsetinfo",
       "origins": [
         {
@@ -189721,7 +190601,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1067,
+          "line": 1068,
           "sink": "open_mesh_session"
         },
         {
@@ -189856,7 +190736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -190378,6 +191258,16 @@
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 625,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "experience",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 55,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -191151,7 +192041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191161,7 +192051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191396,7 +192286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191551,7 +192441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -191561,7 +192451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -191651,7 +192541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192561,7 +193451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192571,7 +193461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -192581,7 +193471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -192591,7 +193481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192601,7 +193491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192681,7 +193571,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 912,
+          "line": 916,
           "sink": "add"
         }
       ]
@@ -192916,7 +193806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193056,7 +193946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -193151,7 +194041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193161,7 +194051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193181,7 +194071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193201,7 +194091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193221,7 +194111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193251,7 +194141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193271,7 +194161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -193281,7 +194171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -193356,7 +194246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193991,7 +194881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -194733,6 +195623,16 @@
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 457,
           "sink": "_finite"
+        }
+      ]
+    },
+    {
+      "key": "maximum quantity",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 52,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -195492,6 +196392,16 @@
       ]
     },
     {
+      "key": "minimum quantity",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 51,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "mip",
       "origins": [
         {
@@ -195581,7 +196491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -195591,7 +196501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195846,7 +196756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196031,7 +196941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197046,7 +197956,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -197751,7 +198661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197771,7 +198681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197831,7 +198741,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197841,7 +198751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197861,7 +198771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -198236,7 +199146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198411,7 +199321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -198656,7 +199566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198706,7 +199616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -199366,7 +200276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199376,7 +200286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199571,7 +200481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -199846,7 +200756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -200486,7 +201396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -200541,7 +201451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -200581,7 +201491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -201051,7 +201961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201086,7 +201996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -201391,7 +202301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -201506,7 +202416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201516,7 +202426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -202181,7 +203091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -202416,7 +203326,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 873,
+          "line": 877,
           "sink": "add"
         }
       ]
@@ -203296,7 +204206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -203586,7 +204496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -203616,7 +204526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -203866,7 +204776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -203906,7 +204816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -203981,7 +204891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204021,7 +204931,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 861,
+          "line": 865,
           "sink": "add"
         }
       ]
@@ -204386,7 +205296,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -204431,7 +205341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204451,7 +205361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204481,7 +205391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204491,7 +205401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 656,
+          "line": 664,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204806,7 +205716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -204816,7 +205726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204826,7 +205736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -205416,7 +206326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
+          "line": 728,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206071,7 +206981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 944,
+          "line": 952,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206206,7 +207116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206291,7 +207201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206301,7 +207211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 846,
+          "line": 854,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206386,7 +207296,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 186,
+          "line": 240,
           "sink": "setPrefix"
         }
       ]
@@ -209582,6 +210492,16 @@
       ]
     },
     {
+      "key": "{value_0} has no values CDMW can change yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 80,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "{value_0} has weights without their imported rig identity.",
       "origins": [
         {
@@ -210497,6 +211417,16 @@
       ]
     },
     {
+      "key": "{value_0} other game table value(s) are changed in this mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 151,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0} overlay",
       "origins": [
         {
@@ -210862,6 +211792,16 @@
       "manual": true
     },
     {
+      "key": "{value_0} row {value_1}, {value_2} = {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/services/game_table_edits.py",
+          "line": 236,
+          "sink": "python-return:describe_edit"
+        }
+      ]
+    },
+    {
       "key": "{value_0} row(s)",
       "origins": [
         {
@@ -210893,6 +211833,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 635,
           "sink": "setData"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} rows loaded.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 216,
+          "sink": "setText"
         }
       ]
     },
@@ -211071,7 +212021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 579,
+          "line": 580,
           "sink": "setToolTip"
         }
       ]
@@ -211276,7 +212226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 829,
+          "line": 830,
           "sink": "note"
         }
       ]
@@ -211285,6 +212235,26 @@
       "key": "{value_0} tiny",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "{value_0} to {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 83,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 93,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "{value_0} tool active.",
@@ -211608,6 +212578,16 @@
           "path": "cdmw/services/mesh_skinning_preflight.py",
           "line": 255,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} {value_1}: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 73,
+          "sink": "python-return:value_label"
         }
       ]
     },
@@ -212251,7 +213231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 662,
+          "line": 719,
           "sink": "addItem"
         }
       ]
@@ -212261,7 +213241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 393,
+          "line": 450,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -212661,7 +213641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 519,
+          "line": 522,
           "sink": "python-return:effect_reference"
         }
       ]
@@ -213431,7 +214411,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 845,
+          "line": 849,
           "sink": "add"
         },
         {
@@ -214156,7 +215136,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 943,
+          "line": 944,
           "sink": "setToolTip"
         }
       ]

@@ -113,6 +113,7 @@ _CONTROLS = (
     "Remove this object", "Undo this row", "Undo all changes", "Save changes...", "Item Package (.cdmw)...",
     "Add to Item Package...", "Loose Folder...", "Export Prefab Edit JSON...", "Import Prefab Edit JSON...",
     "Save as DMM Mod", "Edit HKX Physics",
+    "Edit Game Table Values...", "Load table", "Set value", "Write DMM Mod…", "Game table changes…",
     "Edit Action Chart...", "Find Action Chart by Character...", "Edit Chart", "Set for This Animation",
     "Set Event Fields", "Replace Everywhere", "Apply and Re-read", "Export DMM Mod...", "Send to DMM",
     "Save Mod Folder...", "Action Charts", "Open Action Chart Mod...", "Use Clip Length", "Show in Archive Browser",

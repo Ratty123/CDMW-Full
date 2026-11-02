@@ -96,6 +96,7 @@ class EditableValue:
     label: str
     value: object
     rule: FieldRule
+    owner: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,7 +161,7 @@ def load_table_index(table: str, layers: Sequence[TableLayer], *,
                                     top[field.name])
                       for field in record.fields if field.name in top and isinstance(field.value, int)]
             values.extend(EditableValue(member.target, target_label(member.target, member.owner),
-                                        _value_of(member.rule, member.value), member.rule)
+                                        _value_of(member.rule, member.value), member.rule, member.owner)
                           for member in record.members)
             if layer.is_base:
                 base_keys.add(record.key)

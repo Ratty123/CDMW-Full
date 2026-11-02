@@ -557,6 +557,21 @@ class ArchiveBrowserActionMixin:
                 lambda _checked=False, current_entry=entry: self._edit_archive_structured_binary_sidecar(current_entry)
             )
 
+        if entry.extension in {".staticinfoheader", ".staticinfobody"}:
+            from cdmw.core.static_table_records import editable_kinds
+            from cdmw.ui.archive_browser.game_table_actions import table_kind
+
+            if table_kind(entry.path) in editable_kinds():
+                _add_menu_section("data", "Game Data Table")
+                edit_table_action = menu.addAction(menu_icons["data"], "Edit Game Table Values...")
+                edit_table_action.setToolTip(
+                    "Change proven values in this table's rows, such as bag sizes or drop chances, "
+                    "and write them as a DMM mod."
+                )
+                edit_table_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._open_game_table_editor(current_entry)
+                )
+
         if entry.extension in ARCHIVE_AUDIO_EXPORT_EXTENSIONS or entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
             _add_menu_section("audio", "Audio")
             export_audio_action = menu.addAction(menu_icons["audio"], "Export WAV...")
