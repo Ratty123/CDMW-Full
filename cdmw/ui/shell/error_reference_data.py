@@ -8409,7 +8409,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive entry has an invalid path: {entry.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 264
+      "cdmw/core/archive_extraction.py": 269
     }
   },
   {
@@ -8585,7 +8585,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction complete: {extracted} extracted, {failed} failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 748
+      "cdmw/core/archive_extraction.py": 753
     }
   },
   {
@@ -10376,7 +10376,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 534
+      "cdmw/core/archive_extraction.py": 539
     }
   },
   {
@@ -10392,7 +10392,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS header is truncated",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 943
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 947
     }
   },
   {
@@ -10408,7 +10408,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS output size {entry.orig_size} exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 527
+      "cdmw/core/archive_extraction.py": 532
     }
   },
   {
@@ -10656,7 +10656,7 @@ MESSAGE_REFERENCE = [
     "message": "Extracted {index} / {total} with {failed} failure(s): {entry.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 746
+      "cdmw/core/archive_extraction.py": 751
     }
   },
   {
@@ -11257,7 +11257,7 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 block decoded to {} bytes instead of {decoded_size}",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 916
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 920
     }
   },
   {
@@ -11282,7 +11282,7 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 block failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 913
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 917
     }
   },
   {
@@ -11785,7 +11785,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing PAZ file: {entry.paz_file}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 314
+      "cdmw/core/archive_extraction.py": 319
     }
   },
   {
@@ -12716,7 +12716,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM decoder accepted an incorrect geometry size",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 747
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 751
     }
   },
   {
@@ -12732,7 +12732,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM geometry decompression changed vertex bytes",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 740
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 744
     }
   },
   {
@@ -12740,7 +12740,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM geometry decompression lost its header or trailer",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 737
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 741
     }
   },
   {
@@ -13225,7 +13225,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS LZ4 block decompressed to the wrong size",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 495
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 499
     }
   },
   {
@@ -13241,7 +13241,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 253
+      "cdmw/core/archive_extraction.py": 258
     }
   },
   {
@@ -13249,7 +13249,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 489
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 493
     }
   },
   {
@@ -13313,7 +13313,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 423
+      "cdmw/core/archive_extraction.py": 428
     }
   },
   {
@@ -13321,7 +13321,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block has inconsistent sizes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 416
+      "cdmw/core/archive_extraction.py": 421
     }
   },
   {
@@ -13329,7 +13329,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 383
+      "cdmw/core/archive_extraction.py": 388
     }
   },
   {
@@ -13337,7 +13337,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block has inconsistent sizes or offsets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 367
+      "cdmw/core/archive_extraction.py": 372
     }
   },
   {
@@ -13345,7 +13345,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry blocks do not match the archive size.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 375
+      "cdmw/core/archive_extraction.py": 380
     }
   },
   {
@@ -13353,7 +13353,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid or ambiguous.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 351
+      "cdmw/core/archive_extraction.py": 356
     }
   },
   {
@@ -13361,7 +13361,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 346
+      "cdmw/core/archive_extraction.py": 351
     }
   },
   {
@@ -13369,7 +13369,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial static mesh exceeds the one GiB resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 357
+      "cdmw/core/archive_extraction.py": 362
     }
   },
   {
@@ -13449,7 +13449,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source changed while reading {entry.path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 582
+      "cdmw/core/archive_extraction.py": 587
     }
   },
   {
@@ -13457,7 +13457,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source checksum changed for {entry.path}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_extraction.py": 587
+      "cdmw/core/archive_extraction.py": 592
     }
   },
   {
@@ -13465,7 +13465,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; read failed: {exc})",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 576
+      "cdmw/core/archive_extraction.py": 581
     }
   },
   {
@@ -13473,7 +13473,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; stat failed: {exc})",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 561
+      "cdmw/core/archive_extraction.py": 566
     }
   },
   {
@@ -13481,7 +13481,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source size changed for {entry.path}: expected {expected_size} bytes, found {size}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 568
+      "cdmw/core/archive_extraction.py": 573
     }
   },
   {
@@ -13827,7 +13827,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to clear root directory: {resolved}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 783
+      "cdmw/core/archive_extraction.py": 788
     }
   },
   {
@@ -14387,7 +14387,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS header is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 328
+      "cdmw/core/archive_extraction.py": 333
     }
   },
   {
@@ -14395,7 +14395,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 334
+      "cdmw/core/archive_extraction.py": 339
     }
   },
   {
@@ -15830,7 +15830,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses LZ4 compression, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 525
+      "cdmw/core/archive_extraction.py": 530
     }
   },
   {
@@ -15838,7 +15838,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses Partial DDS reconstruction, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 247
+      "cdmw/core/archive_extraction.py": 252
     }
   },
   {
@@ -16110,7 +16110,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported archive compression type {entry.compression_type} for {entry.path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_extraction.py": 543
+      "cdmw/core/archive_extraction.py": 548
     }
   },
   {
@@ -16587,7 +16587,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {entry.path} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 745
+      "cdmw/core/archive_extraction.py": 750
     }
   },
   {
@@ -16818,7 +16818,7 @@ MESSAGE_REFERENCE = [
     "message": "changed prepared payload size accepted",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 704
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 708
     }
   },
   {
@@ -16874,7 +16874,7 @@ MESSAGE_REFERENCE = [
     "message": "compressed geometry accepted as decoded payload",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 693
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 697
     }
   },
   {
@@ -17114,7 +17114,7 @@ MESSAGE_REFERENCE = [
     "message": "declared output size {output_size} is not larger than the {} stored bytes",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 962
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 966
     }
   },
   {
@@ -17122,7 +17122,7 @@ MESSAGE_REFERENCE = [
     "message": "decoded archive dependency size does not match its entry metadata",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 681
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 685
     }
   },
   {
@@ -17469,7 +17469,7 @@ MESSAGE_REFERENCE = [
     "message": "incomplete DDS payload accepted",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 697
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 701
     }
   },
   {
@@ -17477,7 +17477,7 @@ MESSAGE_REFERENCE = [
     "message": "incomplete LZ4 payload accepted",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 700
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 704
     }
   },
   {
@@ -17624,7 +17624,7 @@ MESSAGE_REFERENCE = [
     "message": "legacy prepared size check was bypassed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 713
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 717
     }
   },
   {
@@ -17857,7 +17857,7 @@ MESSAGE_REFERENCE = [
     "message": "nonempty prepared payload accepted as empty",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 710
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 714
     }
   },
   {
@@ -17921,7 +17921,7 @@ MESSAGE_REFERENCE = [
     "message": "output exceeds the {max_entry_bytes}-byte limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 954
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 958
     }
   },
   {
@@ -18026,7 +18026,7 @@ MESSAGE_REFERENCE = [
     "message": "prepared archive dependency size does not match its entry metadata",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 678
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 682
     }
   },
   {
@@ -18034,7 +18034,7 @@ MESSAGE_REFERENCE = [
     "message": "prepared size absent from cache identity",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 707
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 711
     }
   },
   {
@@ -18279,7 +18279,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated partial raw payload accepted",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 695
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 699
     }
   },
   {
@@ -18370,7 +18370,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "native/cdmw_archive_core/src/archive_decode.cpp": 254,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 260,
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 588
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 592
     }
   },
   {
@@ -18388,7 +18388,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "native/cdmw_archive_core/src/archive_decode.cpp": 233,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 234,
-      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 567
+      "native/cdmw_preview_core/src/owners/archive_decode.cpp": 571
     }
   },
   {
@@ -18412,7 +18412,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported pixel format DXGI={dxgi_format} FOURCC={:?}",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 1062
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 1066
     }
   },
   {
@@ -18757,7 +18757,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} dimensions {width}x{height}x{depth} are invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 984
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 988
     }
   },
   {
@@ -18765,7 +18765,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} mip count {mip_count} is invalid for {width}x{height}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 990
+      "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs": 994
     }
   },
   {
@@ -99662,8 +99662,8 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 370,
-      "native/cdmw_full_archive_core/src/partial_dds.cpp": 370
+      "native/cdmw_archive_core/src/partial_dds.cpp": 374,
+      "native/cdmw_full_archive_core/src/partial_dds.cpp": 374
     }
   },
   {
@@ -99680,8 +99680,8 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS exceeds the decoded resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 373,
-      "native/cdmw_full_archive_core/src/partial_dds.cpp": 373
+      "native/cdmw_archive_core/src/partial_dds.cpp": 377,
+      "native/cdmw_full_archive_core/src/partial_dds.cpp": 377
     }
   },
   {
