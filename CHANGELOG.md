@@ -21,6 +21,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser previews more game formats instead of listing readable strings. Shader cache entries show their stage, entry point, inputs, outputs and resource bindings, and root signatures show their parameters and samplers. Effect render and simulation presets, save presets and UI animation states show their decoded values, and effects and emitters now list their exact decoded values first. All convex collision files open as 3D hulls, tree impostors show their view atlas and link their colour and depth atlases, and fonts and animated cursors show a rendered sample. Format Explorer reflects the improved read support.
 
+- Archive Browser opens action charts (.paac) as a structured view instead of a strings list. It lists every animation the chart plays with its start and end time, clip and blend space, the nodes that group them, the frame events by kind (attacks, effects, sounds, socket changes and the rest), and the chart's string tables. The character action package description (.paacdesc) lists which chart each character uses for its main actions and for each weapon slot. Format Explorer reflects the improved read support.
+
 - Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
 
 ### Changed
@@ -47,6 +49,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Opening the Prefab Inspector shows its progress in the Archive Browser's progress bar and log while the prefab is read and the archives are indexed, instead of appearing to do nothing for several seconds.
 - The Prefab Inspector's **Duplicate this object** and **Remove this object** no longer write a damaged prefab. Each object ends with a field that records the size of its data, and the edit cut that field off the object or left it with the neighbouring object, so most results stored a wrong size. The Inspector read those files back without complaint. Objects are now copied and removed whole, and when an object sits inside another one, the outer object's recorded size is updated too. Redo prefabs saved with either action in an earlier version from the game's copy. Loading edited prefabs in game is still untested.
+
+- Placement & Animations reads socket changes from action charts again. Since the game update it could not read any chart, so the times at which an action moves a weapon between hand and holster were missing.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.
 

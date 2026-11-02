@@ -10400,7 +10400,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 334
+      "cdmw/core/archive_preview_result_builder.py": 336
     }
   },
   {
@@ -10472,7 +10472,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded preview failed: {exc}",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1634
+      "cdmw/core/archive_preview_result_builder.py": 1680
     }
   },
   {
@@ -11833,7 +11833,7 @@ MESSAGE_REFERENCE = [
     "message": "Model preview fallback",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1603
+      "cdmw/core/archive_preview_result_builder.py": 1649
     }
   },
   {
@@ -13627,7 +13627,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw bytes",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1648
+      "cdmw/core/archive_preview_result_builder.py": 1694
     }
   },
   {
@@ -14107,7 +14107,7 @@ MESSAGE_REFERENCE = [
     "message": "Showing raw stored bytes because the decoded preview path failed.",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1648
+      "cdmw/core/archive_preview_result_builder.py": 1694
     }
   },
   {
@@ -14824,6 +14824,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The action chart could not be decoded: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_preview_result_builder.py": 1200
+    }
+  },
+  {
+    "area": "archive",
     "message": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
     "recovery": "internal",
     "sources": {
@@ -15075,7 +15083,7 @@ MESSAGE_REFERENCE = [
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 603
+      "cdmw/core/archive_preview_result_builder.py": 649
     }
   },
   {
@@ -15219,7 +15227,7 @@ MESSAGE_REFERENCE = [
     "message": "The file could not be read as a font or cursor: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15291,7 +15299,7 @@ MESSAGE_REFERENCE = [
     "message": "The impostor descriptor could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15595,7 +15603,7 @@ MESSAGE_REFERENCE = [
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15699,7 +15707,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader container could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15797,7 +15805,7 @@ MESSAGE_REFERENCE = [
     "message": "This archive DDS is stored as truncated type 1 data. The image shown here is a padded best-effort preview and may be corrupted, noisy, or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 358
+      "cdmw/core/archive_preview_result_builder.py": 360
     }
   },
   {
@@ -15910,7 +15918,7 @@ MESSAGE_REFERENCE = [
     "message": "Type 1 DDS: Unsupported Preview",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 358
+      "cdmw/core/archive_preview_result_builder.py": 360
     }
   },
   {
@@ -16355,7 +16363,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual PAT preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1367
+      "cdmw/core/archive_preview_result_builder.py": 1413
     }
   },
   {
@@ -16363,7 +16371,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual model preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1237
+      "cdmw/core/archive_preview_result_builder.py": 1283
     }
   },
   {
@@ -16371,7 +16379,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual preview is not available for this model format yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1370
+      "cdmw/core/archive_preview_result_builder.py": 1416
     }
   },
   {
@@ -18080,7 +18088,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_media_preview.py": 697,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1150,
-      "cdmw/core/archive_preview_result_builder.py": 1061,
+      "cdmw/core/archive_preview_result_builder.py": 1107,
       "cdmw/core/archive_preview_support.py": 377,
       "cdmw/core/archive_reverse_references.py": 216,
       "cdmw/core/archive_scan_cache.py": 608,
@@ -80406,6 +80414,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "ShareValue sections {share_counts} are not decoded (every shipped chart has none)",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 390
+    }
+  },
+  {
+    "area": "other",
     "message": "Sidecar texture refs used: {len(binding_rows)}; found {ready_binding_count}; missing {missing_binding_count}",
     "recovery": "missing",
     "sources": {
@@ -84179,6 +84195,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "a string table holds at most 65,535 strings",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 573
+    }
+  },
+  {
+    "area": "other",
     "message": "a tag without a name",
     "recovery": "internal",
     "sources": {
@@ -84299,6 +84323,54 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "animation count {animation_count} cannot fit in {len(data)} bytes",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 359
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {animation.index}: frame event offset {ref.dword_offset * 4} is outside the buffer",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 427
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} does not exist",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 688
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} has no frame event {edit.item}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 694
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} has no {record} entry {edit.item}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 698
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {index}: frame event {sequence} carries sequence {ref.sequence}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 370
+    }
+  },
+  {
+    "area": "other",
     "message": "append_scene_import_to_mesh requires a SceneImportResult.",
     "recovery": "input",
     "sources": {
@@ -84395,6 +84467,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "byte {index} changed outside the edited fields",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 742
+    }
+  },
+  {
+    "area": "other",
+    "message": "bytes outside the string table changed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 620
+    }
+  },
+  {
+    "area": "other",
     "message": "cdmw_mesh_core auto-uv-json is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -84435,6 +84523,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "chart strings hold at most {MAX_STRING_BYTES} characters: {value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 587
+    }
+  },
+  {
+    "area": "other",
+    "message": "chart strings must be printable ASCII and not empty: {value}",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 584
+    }
+  },
+  {
+    "area": "other",
     "message": "checksum {checksum} of {path} is already registered (a collision would need the collision table)",
     "recovery": "integrity",
     "sources": {
@@ -84463,6 +84567,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/bone_offset_table.py": 100
+    }
+  },
+  {
+    "area": "other",
+    "message": "descriptor string index {index} is out of range",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 552
     }
   },
   {
@@ -84511,6 +84623,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/iteminfo_row.py": 764
+    }
+  },
+  {
+    "area": "other",
+    "message": "event at {event.offset} is {event.kind_name}, not ModelAttachmentSocket",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 513
     }
   },
   {
@@ -84567,6 +84687,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/scene_import_result_ops.py": 287
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame event at {base} would end before it begins",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 731
     }
   },
   {
@@ -85925,6 +86053,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "node {index} names animations {first}..{first + count} of {animation_count}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 408
+    }
+  },
+  {
+    "area": "other",
     "message": "not UTF-8",
     "recovery": "format",
     "sources": {
@@ -85977,6 +86113,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/core/pathc_format.py": 102
+    }
+  },
+  {
+    "area": "other",
+    "message": "only standard action charts can be edited, not the commonactioninfo tables",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 593
     }
   },
   {
@@ -86041,6 +86185,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/projectile_package.py": 122
+    }
+  },
+  {
+    "area": "other",
+    "message": "package {item} names sub-packages {first}..{first + count} of {sub_count}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 560
     }
   },
   {
@@ -86600,6 +86752,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "string table {table} ({chart.tables[table].role}) has no entry {old}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 638
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} does not exist",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 608
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} has no entry {index}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 613
+    }
+  },
+  {
+    "area": "other",
     "message": "string {text} is not 1..{_MAX_STRING - 1} bytes",
     "recovery": "internal",
     "sources": {
@@ -86660,6 +86836,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/storeinfo_table.py": 148
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart's sections changed after a value edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 745
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart's sections changed shape after the edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 626
     }
   },
   {
@@ -86756,6 +86948,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/iteminfo_row.py": 600
+    }
+  },
+  {
+    "area": "other",
+    "message": "the rebuilt string table does not read back",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 622
     }
   },
   {
@@ -86860,6 +87060,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/pappt_format.py": 183
+    }
+  },
+  {
+    "area": "other",
+    "message": "this chart has no frame event buffer",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 490
     }
   },
   {
@@ -86988,6 +87196,46 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/services/diagnostics_service.py": 344
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} is not an editable chart field",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 683
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be -1 (instant) or between 0 and 3600 seconds",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 721
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be above 0 and at most 100",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 717
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be between 0 and 3600 seconds",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 719
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be finite",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 715
     }
   },
   {
@@ -87256,6 +87504,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{len(data) - stream.pos} bytes follow the last chart section",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 423
+    }
+  },
+  {
+    "area": "other",
+    "message": "{len(data) - stream.pos} bytes follow the last commonactioninfo section",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 467
+    }
+  },
+  {
+    "area": "other",
     "message": "{len(donor_texture_missing_paths)} donor sidecar DDS reference(s) were not found in the archive index.",
     "recovery": "missing",
     "sources": {
@@ -87268,6 +87532,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/asset_authoring_service.py": 1073
+    }
+  },
+  {
+    "area": "other",
+    "message": "{len(stream.data) - stream.pos} bytes follow the descriptor",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 548
     }
   },
   {
@@ -87408,6 +87680,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{name}: string at offset {self.pos - length} is not NUL-terminated",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 316
+    }
+  },
+  {
+    "area": "other",
     "message": "{name}: tar extract failed",
     "recovery": "internal",
     "sources": {
@@ -87460,6 +87740,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/eye_cover_overlap.py": 60
+    }
+  },
+  {
+    "area": "other",
+    "message": "{name}: {size} bytes at offset {self.pos} run past the end ({len(self.data)} bytes)",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 285
     }
   },
   {
@@ -87604,6 +87892,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/dashboard_controller.py": 160
+    }
+  },
+  {
+    "area": "other",
+    "message": "{record} at {base} would end before it starts",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 735
     }
   },
   {
@@ -89339,14 +89635,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Action tail records are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 105
-    }
-  },
-  {
-    "area": "placement",
     "message": "Active Mesh Editor copied-original append requires native geometry execution; Python mesh mutation fallback is disabled.",
     "recovery": "input",
     "sources": {
@@ -89494,7 +89782,7 @@ MESSAGE_REFERENCE = [
     "message": "All-parts mode is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 90
+      "tools/placement_studio/paac_events.py": 96
     }
   },
   {
@@ -89679,8 +89967,8 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/placement_studio/event_timeline.py": 85,
-      "tools/placement_studio/paac_events.py": 105,
-      "tools/placement_studio/paac_layout.py": 87
+      "tools/placement_studio/paac_events.py": 111,
+      "tools/placement_studio/paac_layout.py": 49
     }
   },
   {
@@ -89696,7 +89984,7 @@ MESSAGE_REFERENCE = [
     "message": "Chart table {table} index {index} is out of range",
     "recovery": "limits",
     "sources": {
-      "tools/placement_studio/paac_events.py": 59
+      "tools/placement_studio/paac_events.py": 63
     }
   },
   {
@@ -90130,7 +90418,7 @@ MESSAGE_REFERENCE = [
     "message": "Event execution flags are unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 80
+      "tools/placement_studio/paac_events.py": 86
     }
   },
   {
@@ -90138,7 +90426,7 @@ MESSAGE_REFERENCE = [
     "message": "Event interval is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 82
+      "tools/placement_studio/paac_events.py": 88
     }
   },
   {
@@ -90146,7 +90434,7 @@ MESSAGE_REFERENCE = [
     "message": "Event payload offset is out of range",
     "recovery": "limits",
     "sources": {
-      "tools/placement_studio/paac_events.py": 67
+      "tools/placement_studio/paac_events.py": 71
     }
   },
   {
@@ -90154,7 +90442,7 @@ MESSAGE_REFERENCE = [
     "message": "Event uses an unsupported execution branch",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 86
+      "tools/placement_studio/paac_events.py": 92
     }
   },
   {
@@ -90925,7 +91213,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid attachment event value",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_events.py": 75
+      "tools/placement_studio/paac_events.py": 80
     }
   },
   {
@@ -90978,50 +91266,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Invalid chart action array length",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 99
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart action array offset",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 96
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart action count",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 83
-    }
-  },
-  {
-    "area": "placement",
     "message": "Invalid chart action duration",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_layout.py": 91
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart string boundary",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 60
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart string encoding",
-    "recovery": "format",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 64
+      "tools/placement_studio/paac_layout.py": 55
     }
   },
   {
@@ -91070,14 +91318,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/placement_studio/event_timeline.py": 27
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid event sequence index",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 74
     }
   },
   {
@@ -91269,7 +91509,7 @@ MESSAGE_REFERENCE = [
     "message": "Length changed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 125
+      "tools/placement_studio/paac.py": 129
     }
   },
   {
@@ -91861,7 +92101,7 @@ MESSAGE_REFERENCE = [
     "message": "No length-prefixed occurrence of {old} found",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 96
+      "tools/placement_studio/paac.py": 100
     }
   },
   {
@@ -92005,7 +92245,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-finite event time",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_layout.py": 72
+      "tools/placement_studio/paac_layout.py": 42
     }
   },
   {
@@ -92158,7 +92398,7 @@ MESSAGE_REFERENCE = [
     "message": "Offset {offset} does not hold {old}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 107
+      "tools/placement_studio/paac.py": 111
     }
   },
   {
@@ -92166,7 +92406,7 @@ MESSAGE_REFERENCE = [
     "message": "Offset {offset} is not a length-prefixed string boundary; refusing to patch",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 103
+      "tools/placement_studio/paac.py": 107
     }
   },
   {
@@ -92390,7 +92630,7 @@ MESSAGE_REFERENCE = [
     "message": "Patch changed file length",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 112
+      "tools/placement_studio/paac.py": 116
     }
   },
   {
@@ -92920,7 +93160,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement must be ASCII: {new}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 90
+      "tools/placement_studio/paac.py": 94
     }
   },
   {
@@ -93314,14 +93554,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Structured chart condition tables are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 114
-    }
-  },
-  {
-    "area": "placement",
     "message": "Submesh mapping could not be prepared automatically. Mesh replacement can still continue with built-in suggestions. {error}",
     "recovery": "internal",
     "sources": {
@@ -93661,7 +93893,7 @@ MESSAGE_REFERENCE = [
     "message": "Tier C requires equal length: {old} ({len(old)}) != {new} ({len(new)})",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 86
+      "tools/placement_studio/paac.py": 90
     }
   },
   {
@@ -93757,15 +93989,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated attachment event",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/paac_events.py": 72
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Truncated chart section at {self.pos}: {size} bytes",
-    "recovery": "format",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 44
+      "tools/placement_studio/paac_events.py": 76
     }
   },
   {
@@ -93786,18 +94010,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Unconsumed chart bytes",
-    "recovery": "internal",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 131
-    }
-  },
-  {
-    "area": "placement",
     "message": "Unexpected byte change at offset {index} outside patched spans",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 131
+      "tools/placement_studio/paac.py": 135
     }
   },
   {
@@ -100859,6 +101075,7 @@ DYNAMIC_REFERENCE = {
     "tools/rust_mesh_lab/crates/cdmw_win32_embed/src/lib.rs"
   ],
   "other": [
+    "cdmw/core/action_chart_binary.py",
     "cdmw/core/appearance_composite.py",
     "cdmw/core/atomic_file.py",
     "cdmw/core/common.py",
@@ -101149,6 +101366,9 @@ SOURCE_COVERAGE = {
   "cdmw/core/acquisition_compact.py": {
     "raise": 10
   },
+  "cdmw/core/action_chart_binary.py": {
+    "raise": 38
+  },
   "cdmw/core/appearance_composite.py": {
     "diagnostic_field": 12,
     "finding": 16,
@@ -101164,6 +101384,7 @@ SOURCE_COVERAGE = {
     "validation": 5
   },
   "cdmw/core/archive_action_chart.py": {},
+  "cdmw/core/archive_action_chart_preview.py": {},
   "cdmw/core/archive_asset_family.py": {
     "diagnostic_field": 9,
     "validation": 2
@@ -101489,7 +101710,7 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 9,
     "diagnostic_text": 2,
     "raise": 11,
-    "report": 13
+    "report": 14
   },
   "cdmw/core/archive_preview_support.py": {
     "diagnostic_field": 1,
@@ -106777,7 +106998,7 @@ SOURCE_COVERAGE = {
     "report": 4
   },
   "tools/placement_studio/paac_layout.py": {
-    "raise": 13
+    "raise": 4
   },
   "tools/placement_studio/packaging.py": {
     "raise": 12

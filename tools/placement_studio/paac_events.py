@@ -1,7 +1,9 @@
 """Decoded attachment events, kept distinct from the runtime action graph.
 
-Opcode 60 is ModelAttachmentSocket in the inspected installation. Its 28-byte
-payload uses table 7 for parts and table 6 for sockets. Modes 0/1 select the
+Kind 62 is ModelAttachmentSocket in game 2.04.03 (it was 60 before that update;
+`cdmw.core.action_chart_binary.FRAME_EVENT_KINDS` holds the full list). The event
+starts with a 12-byte header and its 20-byte payload uses table 7 for parts and
+table 6 for sockets. Modes 0/1 select the
 descriptor's In/Out frames; mode 2 names explicit frames. Conditional events,
 blended socket motion and equipment-slot lookups are retained but not simulated.
 """
@@ -11,6 +13,8 @@ from dataclasses import dataclass
 import hashlib
 import math
 import struct
+
+from cdmw.core.action_chart_binary import FRAME_EVENT_HEADER_SIZE, MODEL_ATTACHMENT_SOCKET_KIND
 
 from .paac_layout import ChartError, read_layout
 
@@ -63,20 +67,22 @@ def table_value(tables, table, index):
 def socket_event(blob, ref, tables):
     # The reference is a DWORD offset, not a byte offset or an opcode.
     offset = ref.word_offset * 4
-    if offset + 8 > len(blob):
+    if offset + FRAME_EVENT_HEADER_SIZE > len(blob):
         raise ChartError('Event payload offset is out of range')
     kind, condition_count, condition_offset, flags = struct.unpack_from('<4H', blob, offset)
-    if kind != 60:
+    if kind != MODEL_ATTACHMENT_SOCKET_KIND:
         return kind, None
-    if offset + 28 > len(blob):
+    if offset + FRAME_EVENT_HEADER_SIZE + 20 > len(blob):
         raise ChartError('Truncated attachment event')
-    blend, _equip_type, part, parent, child, mode, all_parts, disabled, _slot = struct.unpack_from('<fIHHHBBBb', blob, offset + 8)
+    blend, _equip_type, part, parent, child, mode, all_parts, disabled, _slot = struct.unpack_from(
+        '<fIHHHBBBb', blob, offset + FRAME_EVENT_HEADER_SIZE)
     if not math.isfinite(blend) or blend < 0 or mode > 2 or all_parts > 1 or disabled > 1:
         raise ChartError('Invalid attachment event value')
     notes = []
-    if condition_count or condition_offset or ref.condition != 0xffffffff:
+    # Shipped instances carry 0x0001FFFF here; the low half is the condition slot.
+    if condition_count or condition_offset or ref.condition & 0xffff != 0xffff:
         notes.append('Event conditions are not simulated')
-    if flags not in (2, 3):
+    if flags & 0xff not in (2, 3):
         notes.append('Event execution flags are unsupported')
     if ref.end != -1 or ref.begin < 0:
         notes.append('Event interval is unsupported')

@@ -584,9 +584,9 @@ exact match under a root as an explicit path; a path to another folder stays a
 basename guess or no match. A one-byte length prefix leaking into a scanned string
 is removed only when its value equals the length a chart (`strlen + 1`) or clip
 (`strlen`) frame implies. Animation targets read charts, blend spaces and
-sequences before other containers. `.paac` previews list up to 256 framed
-resource paths (`cdmw/core/archive_action_chart.py`); extensionless strings that
-resolve to nothing are dropped rather than reported missing.
+sequences before other containers. A `.paac` chart's Asset Family lists up to 256
+framed resource paths (`cdmw/core/archive_action_chart.py`); extensionless strings
+that resolve to nothing are dropped rather than reported missing.
 
 The same module owns installed-layout companions, matched by exact path and
 labelled **Path layout** or **Line name** rather than as package guesses:
@@ -639,6 +639,12 @@ inspectors before the readable-strings fallback:
 - `.imp` tree impostors: `archive_impostor_preview.py` labels the 72-byte record,
   and the builder shows the `_impostor_color.dds` atlas the worker supplies as a
   preview companion (`ArchiveLookupService.AddPreviewCompanionPaths`).
+- `.paac` action charts and the `.paacdesc` package description:
+  `archive_action_chart_preview.py` decodes them with `action_chart_binary.py`
+  (the game loader's member order) and lists animations with time ranges, nodes,
+  frame events by kind, string tables, byte totals per section and the in-place
+  edit scope. The two `commonactioninfo` files show their sections; the serialized
+  one marks its undecoded reflection tail.
 - `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
   reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
   pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).

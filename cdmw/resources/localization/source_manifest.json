@@ -159157,6 +159157,16 @@
       ]
     },
     {
+      "key": "There is no writer.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "There was no overlay to remove: the mount list names none.",
       "origins": [
         {
@@ -178372,6 +178382,26 @@
       ]
     },
     {
+      "key": "cdmw/core/action_chart_binary.py decodes the package table: each character package's main chart and its weapon-slot charts",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
+      "key": "cdmw/core/action_chart_binary.py follows the game's chart loader: all 560 charts read to the last byte into named sections (animations with time ranges, nodes, branches, ten string tables, frame-event buffers), and the 185 frame-event kinds are named from the executable",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
       "key": "cdmw/core/archive_audio.py writes .wav on export",
       "origins": [
         {
@@ -178968,16 +178998,6 @@
           "path": "cdmw/ui/archive_browser/attachment_visual_context.py",
           "line": 438,
           "sink": "add"
-        }
-      ]
-    },
-    {
-      "key": "chart node structure around the strings is not parsed, so only same-length retargets are allowed",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -185027,16 +185047,6 @@
       ]
     },
     {
-      "key": "magic 9c010d50; action chart descriptor naming upper-action packages",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
       "key": "magic PBD; unknown; 584 files",
       "origins": [
         {
@@ -187958,6 +187968,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 669,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; writes (any-length string retargets, timing and speed values) are not proven in game",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -195563,16 +195583,6 @@
     },
     {
       "key": "tools/paa_motion/format.py and docs/features/paa-motion-format.md decode the container, flags, track table and quantised codec; tools/paa_motion/encode.py writes them back. 12,000 clips sampled from the archives across 45 distinct flag words plus all 188 in the extracted tree rebuild byte for byte",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
-      "key": "tools/placement_studio/paac.py: length-prefixed string table indexed and retargeted",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",

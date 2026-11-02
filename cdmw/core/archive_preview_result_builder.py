@@ -38,7 +38,9 @@ from cdmw.core.archive_data_table_preview import (
     build_static_table_preview,
     find_static_table_companion,
 )
+from cdmw.core.action_chart_binary import ActionChartError
 from cdmw.core.archive_action_chart import MAX_ACTION_CHART_RESOURCE_NAMES, action_chart_resource_names
+from cdmw.core.archive_action_chart_preview import ACTION_CHART_EXTENSIONS, build_action_chart_preview
 from cdmw.core.archive_impostor_preview import IMPOSTOR_EXTENSION, ImpostorError, build_impostor_preview
 from cdmw.core.archive_reflect_preview import (
     REFLECT_OBJECT_EXTENSIONS,
@@ -546,6 +548,50 @@ def build_archive_preview_result(
                     model_texture_references=related_references,
                     asset_family_graph=build_archive_asset_family_graph(entry, related_references),
                     preferred_view="model" if reflect_preview.model is not None else "text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension in ACTION_CHART_EXTENSIONS:
+            try:
+                chart_preview = build_action_chart_preview(data, entry.path, extension=extension)
+            except (ActionChartError, struct.error) as exc:
+                inspector_note = f"The action chart could not be decoded: {exc}"
+            else:
+                chart_names = action_chart_resource_names(data) if extension == ".paac" else ()
+                related_references = build_archive_related_file_references(
+                    entry,
+                    explicit_reference_names=chart_names,
+                    archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                    archive_entries_by_basename=texture_entries_by_basename,
+                )
+                detail_extra = "\n\n".join(
+                    part
+                    for part in [
+                        ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                        "\n".join(chart_preview.detail_lines),
+                        (
+                            f"Asset Family lists the first {MAX_ACTION_CHART_RESOURCE_NAMES:,} resource paths this chart names."
+                            if len(chart_names) >= MAX_ACTION_CHART_RESOURCE_NAMES
+                            else ""
+                        ),
+                    ]
+                    if part
+                )
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {chart_preview.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                    preview_text=chart_preview.preview_text,
+                    model_texture_references=related_references,
+                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
+                    preferred_view="text",
                     loose_file_path=loose_file_path,
                     loose_preview_image_path=loose_preview_image_path,
                     loose_preview_media_path=loose_preview_media_path,

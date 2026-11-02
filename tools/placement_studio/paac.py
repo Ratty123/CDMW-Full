@@ -13,6 +13,10 @@ Two consequences drive Tier C:
 2. The prefix is a precondition, not just a description. Requiring
    ``data[start - 1] == len(name) + 1`` and a NUL terminator rejects coincidental byte
    matches inside compressed blobs — a corruption class a naive find/replace would hit.
+
+The full chart grammar, with any-length string retargets and in-place timing edits,
+is `cdmw.core.action_chart_binary`; this module keeps the socket workflow's
+same-length rule.
 """
 
 from __future__ import annotations
