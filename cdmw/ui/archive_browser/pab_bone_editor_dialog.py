@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -185,17 +186,23 @@ class PabBoneEditorDialog(QDialog):
     """Pick a bone, add children or a chain, and save the skeleton as a mod."""
 
     def __init__(self, data: bytes, virtual_path: str, parent: QWidget | None = None,
-                 *, draft_directory: Path | None = None) -> None:
+                 *, draft_directory: Path | None = None, initial_edits: Sequence[PabAppendEdit] = (),
+                 accept_text: str = "", accept_tooltip: str = "") -> None:
+        """``initial_edits`` reopens bones added earlier. A caller other than the
+        Archive Browser passes its own (already translated) accept label and tooltip;
+        ``edits()`` then returns the rows to apply to ``data``."""
         super().__init__(parent)
         self.setObjectName("PabBoneEditorDialog")
         self._data = bytes(data)
         self._path = virtual_path
         self._draft_directory = draft_directory
         self._source = read_pab_document(self._data, virtual_path)
-        self._rows: list[AddedBoneRow] = []
+        self._rows: list[AddedBoneRow] = [AddedBoneRow.from_edit(edit) for edit in initial_edits]
+        self._accept_text, self._accept_tooltip = accept_text, accept_tooltip
         self._preview = self._source
         self._error = ""
-        self._selected = self._source.bones[0].name if self._source.bones else ""
+        self._selected = (self._rows[-1].name if self._rows
+                          else self._source.bones[0].name if self._source.bones else "")
         self._loading_form = False
         stem = Path(virtual_path.replace("\\", "/")).name or "skeleton"
         self.setWindowTitle(f"Add Bones - {stem}")
@@ -302,6 +309,9 @@ class PabBoneEditorDialog(QDialog):
         self.save_mod_button = box.addButton("Save as Mod...", QDialogButtonBox.AcceptRole)
         self.save_mod_button.setDefault(True)
         self.save_mod_button.setToolTip("Write the skeleton with the added bones as a mod-ready loose package.")
+        if self._accept_text:
+            self.save_mod_button.setText(self._accept_text)
+            self.save_mod_button.setToolTip(self._accept_tooltip)
         box.addButton(QDialogButtonBox.Cancel)
         box.accepted.connect(self.accept)
         box.rejected.connect(self.reject)
@@ -604,7 +614,7 @@ class PabBoneEditorDialog(QDialog):
 
     def load_draft_text(self, text: str) -> bool:
         try:
-            edits = read_pab_edit_json(self._data, text, virtual_path=self._path)
+            edits = read_pab_edit_json(self._data, text, virtual_path=self._path).add_bones
         except PabEditJsonError as exc:
             QMessageBox.warning(self, "Open Draft", str(exc))
             return False

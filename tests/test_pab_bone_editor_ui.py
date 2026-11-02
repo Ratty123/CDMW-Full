@@ -102,7 +102,8 @@ def test_preview_names_the_first_bad_bone_and_drafts_round_trip():
         preview_pab_edits(data, (edits[0], PabAppendEdit("Hair_00", "Bip01 Spine")))
     draft = dumps_pab_edit_json(data, PATH, edits)
     assert [row["name"] for row in json.loads(draft)["add_bones"]] == ["Hair_00", "Hair_01"]
-    assert read_pab_edit_json(data, draft, virtual_path=PATH) == edits
+    recipe = read_pab_edit_json(data, draft, virtual_path=PATH)
+    assert recipe.add_bones == edits and recipe.path == PATH
 
 
 def test_dialog_adds_offsets_chains_renames_and_removes_bones(tmp_path):
@@ -143,7 +144,7 @@ def test_dialog_adds_offsets_chains_renames_and_removes_bones(tmp_path):
         assert dialog.load_draft_text(draft)
         assert [edit.name for edit in dialog.edits()] == ["Hair_Root", "Hair_A", "Hair_01", "Hair_02"]
         assert close(preview_pab_edits(data, dialog.edits()).bones[-1].bind_matrix,
-                     preview_pab_edits(data, read_pab_edit_json(data, draft)).bones[-1].bind_matrix)
+                     preview_pab_edits(data, read_pab_edit_json(data, draft).add_bones).bones[-1].bind_matrix)
     finally:
         dialog.close()
 
@@ -253,3 +254,19 @@ def test_add_bones_action_opens_the_dialog_and_writes_its_bones(tmp_path, monkey
         task["on_complete"](task["task"](lambda _message: None))
     (request,) = exports[0]
     assert parse_pab(request.payload_data).bones[-1].name == "Tail_00"
+
+
+def test_dialog_reopens_given_bones_and_takes_a_caller_label():
+    from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+
+    application()
+    edits = plan_bone_chain(read_pab_document(pab()), "Bip01 Spine", "Tail", 3, 0.1, PAB_CHAIN_DIRECTIONS["back"])
+    dialog = PabBoneEditorDialog(pab(), PATH, initial_edits=edits, accept_text="Use These Bones",
+                                 accept_tooltip="Bind the model to this rig.")
+    try:
+        assert dialog.save_mod_button.text() == "Use These Bones" and dialog.save_mod_button.isEnabled()
+        assert dialog._selected == "Tail_02"
+        assert all(close(a.position, b.position) and close(a.rotation, b.rotation)
+                   for a, b in zip(dialog.edits(), edits, strict=True))
+    finally:
+        dialog.close()

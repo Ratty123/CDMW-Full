@@ -158,8 +158,45 @@ def dumps_pab_edit_json(
     return json.dumps(payload, indent=2) + "\n"
 
 
-def read_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> tuple[PabAppendEdit, ...]:
-    """Validate a Skeleton Edit JSON document against its skeleton and return its added bones."""
+@dataclass(frozen=True, slots=True)
+class SkeletonEditRecipe:
+    """Bones a New Item model appends to its template's rig, kept as a recipe.
+
+    The item package stores this rather than the edited file, so the planner
+    re-applies it to the installed skeleton and Send to DMM can merge two items'
+    added bones by name.
+    """
+
+    path: str
+    add_bones: tuple[PabAppendEdit, ...]
+
+    @property
+    def bone_names(self) -> tuple[str, ...]:
+        return tuple(edit.name for edit in self.add_bones)
+
+    def apply(self, data: bytes) -> PabEditOutcome:
+        return apply_pab_edits(data, self.add_bones, path=self.path)
+
+    def to_dict(self) -> dict:
+        return {"path": self.path, "add_bones": [
+            {"parent": edit.parent, "name": edit.name, "position": list(edit.position),
+             "rotation": list(edit.rotation), "scale": list(edit.scale), "core": edit.core_flag}
+            for edit in self.add_bones]}
+
+    @classmethod
+    def from_dict(cls, value: object) -> SkeletonEditRecipe:
+        if (not isinstance(value, dict) or set(value) != {"path", "add_bones"}
+                or not isinstance(value["path"], str) or not value["path"].lower().endswith(".pab")
+                or not isinstance(value["add_bones"], list)):
+            raise PabEditJsonError("Invalid skeleton edit recipe.")
+        edits = _append_edits(value["add_bones"])
+        if not edits:
+            raise PabEditJsonError("A skeleton edit recipe must add at least one bone.")
+        return cls(value["path"].replace("\\", "/").lower(), edits)
+
+
+def read_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> SkeletonEditRecipe:
+    """Check a Skeleton Edit JSON document against its source skeleton and return its added bones."""
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -184,6 +221,20 @@ def read_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> tup
     rows = payload.get("add_bones")
     if not isinstance(rows, list):
         raise PabEditJsonError("add_bones must be a list.")
+    path = str(virtual_path or source.get("path") or "").replace("\\", "/").lower()
+    return SkeletonEditRecipe(path, _append_edits(rows))
+
+
+def apply_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> PabEditOutcome:
+    """Apply a Skeleton Edit JSON document to the skeleton it was exported from."""
+    recipe = read_pab_edit_json(data, text, virtual_path=virtual_path)
+    try:
+        return apply_pab_edits(data, recipe.add_bones, path=virtual_path)
+    except PabEditRefused as exc:
+        raise PabEditJsonError(str(exc)) from exc
+
+
+def _append_edits(rows: list) -> tuple[PabAppendEdit, ...]:
     edits = []
     for number, row in enumerate(rows, 1):
         if not isinstance(row, dict) or not isinstance(row.get("parent"), str) or not isinstance(row.get("name"), str):
@@ -202,17 +253,6 @@ def read_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> tup
             core_flag=core,
         ))
     return tuple(edits)
-
-
-def apply_pab_edit_json(data: bytes, text: str, *, virtual_path: str = "") -> PabEditOutcome:
-    """Apply a Skeleton Edit JSON document to the skeleton it was exported from."""
-    edits = read_pab_edit_json(data, text, virtual_path=virtual_path)
-    try:
-        return apply_pab_edits(data, edits, path=virtual_path)
-    except PabEditRefused as exc:
-        raise PabEditJsonError(str(exc)) from exc
-
-
 
 
 #: Character-space directions for bone chains: Y is up, the character faces -Z, its left is +X.
