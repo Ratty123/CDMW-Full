@@ -367,7 +367,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "archive_browser",
                 "title": "Archive Browser",
                 "summary": "Archive scan, preview, item lookup, active mod/original state, extraction, and supported patch surface.",
-                "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx",
+                "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx bnk wem wwise sound bank",
                 "html": """
                 <p><b>Archive Browser</b> is the in-app inspection surface for Crimson Desert package data. It can browse archives in flat or tree view, preview many supported formats directly, extract files, and for supported workflows either patch the game archives or write mod-ready loose output with confirmation and backup support.</p>
                 <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Paths &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Performance</b>.</div>
@@ -396,7 +396,8 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
                   <li>Use <a href="topic:prefab_inspector">Prefab Inspector</a> to change what a prefab is built from and save it as a mod.</li>
-                  <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Inspect and extract DDS entries without editing them here, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Replace sounds and edit sound banks as DMM loose mods: <b>Import WAV as Loose Mod</b> on a <code>.wem</code>, and <b>Replace Embedded Sound as Loose Mod</b> or <b>Edit Sound Bank as Loose Mod</b> on a <code>.bnk</code>. The installed game archives are not changed. See <a href="topic:archive_guides">Archive Browser Guides</a>.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
@@ -464,6 +465,20 @@ class AboutDocumentationEnglishMixin:
                 <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Clip changes (once every chart that plays the clip was changed), the chart speed rate and speed windows worked in game; other timing values and event edits have not been tested in game yet.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
+                <h4>Replace sounds and edit sound banks</h4>
+                <ol>
+                  <li>To replace a sound, right-click a <code>.wem</code> and choose <b>Import WAV as Loose Mod</b>, or right-click a <code>.bnk</code> and choose <b>Replace Embedded Sound as Loose Mod</b> to pick one of the sounds it carries.</li>
+                  <li>Pick the new audio. A <code>.wem</code> made with your own Wwise install is used as it is; other audio becomes uncompressed PCM with the original's channels and sample rate, which is several times larger.</li>
+                  <li>CDMW finds every sound bank that plays that sound and writes them with the new file into one mod, so the banks describe the new size and format. This can take a minute on the first scan of all banks.</li>
+                  <li>To change a bank's stored values, right-click a <code>.bnk</code> and choose <b>Edit Sound Bank as Loose Mod</b>. Change volume, pitch, filters, delays, loop counts or playlist weights in the <b>New</b> column, add or remove those properties, or add a sound to a random container (a copy of one of its sounds playing your audio) or remove one.</li>
+                  <li>Choose the export folder, then copy the mod into DMM's mods folder, enable it and Mount.</li>
+                </ol>
+                <ul>
+                  <li>On a bus, Volume only affects sounds routed straight to that bus; BusVolume is the bus's own volume.</li>
+                  <li>Music keeps the original sound's clip length: a longer replacement is cut off and a shorter one is followed by silence. The completion message says so.</li>
+                  <li>DMM treats files in a language folder (for example <code>sound\\windows\\english(us)\\</code>) as a language variant and only uses them when that language is selected in DMM.</li>
+                </ul>
+                <div class="doc-callout doc-warning"><b>Limits:</b> CDMW cannot encode Wwise Vorbis itself. A named voice line (a <code>.wem</code> with a name instead of a number) accepts only a Wwise Vorbis <code>.wem</code>, because the game decides how it is decoded; replacing one has not been tested in game yet, and neither has removing a sound from a container. Sounds that a bank only streams with an unrecognised prefix, or that play through the game's external sources, are refused. Value edits, added properties, swapped sounds, PCM and added container sounds were tested in game through DMM.</div>
                 <h4>Find bodies and faces</h4>
                 <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
                 <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>
@@ -497,7 +512,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Exports wait until every file is on disk before reporting success. Turn off <b>Settings &gt; Performance &gt; Export safety</b> for much faster exports of many files; a power loss or system crash right after such an export can leave some exported files empty or incomplete.</li>
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
-                <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>
+                <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available. Audio is written as DMM loose mods instead.</p>
                 """,
             },
             {
