@@ -785,6 +785,93 @@ def clip_info(index: ChartArchiveIndex, clip: str, read: Callable[[ArchiveEntry]
     return ClipInfo(clip, _normal(entry.path), duration, int(motion.frame_count))
 
 
+# --- other charts that play a clip -----------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ClipUse:
+    """One chart that plays a clip, and how many of its animations do."""
+
+    chart: str
+    animations: int
+
+
+@dataclass(frozen=True, slots=True)
+class LinkedClipChange:
+    """Replace clip `old` with `new` everywhere in another chart of the same mod."""
+
+    chart: str
+    old: str
+    new: str
+
+
+_USAGE_LOCK = threading.Lock()
+_USAGE_CACHE: dict[int, tuple[ChartArchiveIndex, dict[str, tuple[ClipUse, ...]]]] = {}
+
+
+def clip_usage_index(
+    index: ChartArchiveIndex,
+    read: Callable[[ArchiveEntry], bytes],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Mapping[str, tuple[ClipUse, ...]]:
+    """Which charts play each clip, across every standard chart in the game.
+
+    Reading and decoding all charts takes a few seconds, so the result is kept for
+    as long as `index` is the current one.
+    """
+
+    with _USAGE_LOCK:
+        cached = _USAGE_CACHE.get(id(index))
+    if cached is not None and cached[0] is index:
+        return cached[1]
+    uses: dict[str, list[ClipUse]] = {}
+    for path in index.paths_by_extension.get(ACTION_CHART_EXTENSION, ()):
+        if not is_editable_action_chart_path(path):
+            continue
+        raise_if_cancelled(stop_event, "Listing the charts that play a clip was cancelled.")
+        entry = index.entry_for_path(path)
+        if entry is None:
+            continue
+        try:
+            data = read(entry)
+            chart = load_editable_chart(data, path)
+        except (ActionChartError, OSError, ValueError):
+            continue
+        for row in string_rows(chart, data, ANIMATION_TABLE):
+            if row.uses:
+                uses.setdefault(row.value.lower(), []).append(ClipUse(path, int(row.uses)))
+    result = {clip: tuple(items) for clip, items in uses.items()}
+    with _USAGE_LOCK:
+        _USAGE_CACHE.clear()
+        _USAGE_CACHE[id(index)] = (index, result)
+    return result
+
+
+def charts_playing_clip(
+    index: ChartArchiveIndex,
+    clip: str,
+    read: Callable[[ArchiveEntry], bytes],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> tuple[ClipUse, ...]:
+    return clip_usage_index(index, read, stop_event=stop_event).get(_normal(clip).lower(), ())
+
+
+def apply_linked_clip_changes(data: bytes, chart_path: str, changes: Iterable[LinkedClipChange]) -> bytes:
+    """Replace each linked clip everywhere in one chart; a change already made is skipped."""
+
+    patched = bytes(data)
+    for change in changes:
+        if change.old == change.new or _normal(change.chart).lower() != _normal(chart_path).lower():
+            continue
+        values = load_editable_chart(patched, chart_path).tables[ANIMATION_TABLE].values
+        if change.old not in values and change.new in values:
+            continue
+        patched, _count = retarget_chart_string(patched, ANIMATION_TABLE, change.old, change.new, virtual_path=chart_path)
+    return patched
+
+
 # --- chart mods CDMW wrote --------------------------------------------------------
 
 
@@ -888,6 +975,8 @@ def write_action_chart_mod(
     version: str = "1.0",
     keep_existing: bool = True,
     shipped_entries: Optional[Callable[[str], Optional[ArchiveEntry]]] = None,
+    linked: Iterable[LinkedClipChange] = (),
+    read_shipped: Optional[Callable[[ArchiveEntry], bytes]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> ActionChartModResult:
@@ -901,6 +990,9 @@ def write_action_chart_mod(
     With `keep_existing`, the other charts an earlier export put in the same mod stay
     in it, so one mod can carry a whole moveset; `shipped_entries` finds their game
     entries by path. The edited chart replaces its own earlier version.
+
+    `linked` replaces clips in other charts of the same mod, on top of the version
+    the mod already holds or else the shipped chart (`read_shipped` reads that).
     """
 
     from cdmw.core.archive_extraction import read_archive_entry_data
@@ -914,26 +1006,51 @@ def write_action_chart_mod(
     if not title:
         raise ActionChartError("Name the mod before exporting it.")
     changes = compare_charts(original, edited, virtual_path=entry.path)
-    if changes.empty:
+    linked = tuple(item for item in linked if item.old != item.new)
+    if changes.empty and not linked:
         raise ActionChartError("the chart has no changes to export")
     folder, replaced = mod_destination(parent, title)
     if on_log is not None:
         on_log(f"Source action chart: {entry.path}")
         on_log(f"{changes.count} change(s), read back from the edited chart.")
     edited = bytes(edited)
-    requests = [ArchivePatchRequest(entry, edited)]
+    own = _normal(entry.path).lower()
+    # path -> (game entry, bytes); the edited chart goes in last so it wins.
+    charts: dict[str, tuple[ArchiveEntry, bytes]] = {}
+
+    def _shipped(path: str) -> ArchiveEntry:
+        shipped = shipped_entries(path) if shipped_entries is not None else None
+        if shipped is None:
+            raise ActionChartError(f"{path} is not in the game archives. Export to a new mod name instead.")
+        return shipped
+
     if replaced and keep_existing and is_chart_mod(folder):
-        own = _normal(entry.path).lower()
         for path, data in read_chart_mod(folder).charts.items():
-            if path.lower() == own:
-                continue
-            shipped = shipped_entries(path) if shipped_entries is not None else None
-            if shipped is None:
-                raise ActionChartError(f"{folder.name} also holds {path}, which is not in the game archives. "
-                                       "Export to a new mod name instead.")
-            requests.append(ArchivePatchRequest(shipped, data))
-            if on_log is not None:
-                on_log(f"Keeping {path} from the earlier export.")
+            if path.lower() != own:
+                charts[path.lower()] = (_shipped(path), data)
+                if on_log is not None:
+                    on_log(f"Keeping {path} from the earlier export.")
+    for path in sorted({_normal(item.chart) for item in linked}, key=str.lower):
+        if path.lower() == own:
+            continue
+        shipped = _shipped(path)
+        if path.lower() in charts:
+            base = charts[path.lower()][1]
+        elif read_shipped is not None:
+            base = read_shipped(shipped)
+        else:
+            raise ActionChartError(f"{path} cannot be read to change its clips.")
+        patched = apply_linked_clip_changes(base, path, linked)
+        charts[path.lower()] = (shipped, patched)
+        if on_log is not None:
+            on_log(f"Changing clips in {path} as well.")
+    if changes.empty:
+        charts.pop(own, None)
+    else:
+        charts[own] = (entry, edited)
+    requests = [ArchivePatchRequest(shipped, data) for shipped, data in charts.values()]
+    if not requests:
+        raise ActionChartError("the chart has no changes to export")
     folder.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=folder.parent) as staging:
         stage = Path(staging) / folder.name
@@ -982,6 +1099,8 @@ __all__ = [
     "ChartArchiveIndex",
     "ChartMod",
     "ClipInfo",
+    "ClipUse",
+    "LinkedClipChange",
     "INDEX_EXTENSIONS",
     "AnimationResourceEdit",
     "CharacterChartRow",
@@ -997,6 +1116,9 @@ __all__ = [
     "ValueChange",
     "animation_event_rows",
     "animation_value_rows",
+    "apply_linked_clip_changes",
+    "charts_playing_clip",
+    "clip_usage_index",
     "apply_action_chart_edits",
     "build_resource_catalog",
     "change_summary",

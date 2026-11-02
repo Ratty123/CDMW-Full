@@ -50,6 +50,8 @@ from cdmw.services.action_chart_edit_service import (
     ActionChartEditResult,
     AnimationResourceEdit,
     ClipInfo,
+    ClipUse,
+    LinkedClipChange,
     ChartValueRow,
     EventFieldEdit,
     EventRow,
@@ -73,7 +75,7 @@ _PATH_ROLE = Qt.ItemDataRole.UserRole + 2
 _MODE_FIELD = "mode"
 _BLEND_TIME_FIELD = "blend time"
 #: Pending-list item tags; integers so they are never mistaken for interface text.
-_RETARGET, _RESOURCE, _EVENT, _VALUE = range(4)
+_RETARGET, _RESOURCE, _EVENT, _VALUE, _LINKED = range(5)
 _RESOURCE_FIELDS = ("clip", "blend")
 
 
@@ -81,6 +83,7 @@ _RESOURCE_FIELDS = ("clip", "blend")
 class ActionChartEditorResult:
     data: bytes
     changes: ActionChartChanges
+    linked: tuple[LinkedClipChange, ...] = ()
 
 
 def _number(value: float) -> str:
@@ -174,6 +177,8 @@ class ActionChartEditorDialog(QDialog):
         edited_changes: Optional[ActionChartChanges] = None,
         clip_info: Optional[Callable[[str], ClipInfo]] = None,
         show_in_browser: Optional[Callable[[str], None]] = None,
+        clip_uses: Optional[Mapping[str, Sequence[ClipUse]]] = None,
+        chart_users_of: Optional[Callable[[str], Sequence[str]]] = None,
         title: str = "",
         parent: Optional[QWidget] = None,
     ) -> None:
@@ -192,6 +197,11 @@ class ActionChartEditorDialog(QDialog):
             self._changes = edited_changes or ActionChartChanges()
         self._clip_info = clip_info
         self._show_in_browser = show_in_browser
+        self._clip_uses = clip_uses
+        self._chart_users_of = chart_users_of
+        #: Clip changes for other charts of the same mod: (chart, old clip) -> new clip.
+        #: They are applied at export, so Apply and Re-read leaves them pending.
+        self._linked: dict[tuple[str, str], str] = {}
         self._on_task_done: Optional[Callable[[UtilityTaskOutcome], None]] = None
         self._catalogs: dict[int, TableCatalog] = dict(catalogs) if catalogs else build_resource_catalog(self._chart, {})
         self._used_by = tuple(used_by)
@@ -349,6 +359,13 @@ class ActionChartEditorDialog(QDialog):
         clip_buttons = QHBoxLayout()
         clip_buttons.addWidget(self.clip_length_button)
         clip_buttons.addWidget(self.show_clip_button)
+        self.other_charts_button = QPushButton("Other Charts Playing This Clip...")
+        self.other_charts_button.setToolTip(
+            "Change this clip in other charts too. The game may play it from another chart than this one."
+        )
+        self.other_charts_button.clicked.connect(self._open_other_charts)
+        self.other_charts_button.setVisible(self._clip_uses is not None)
+        clip_buttons.addWidget(self.other_charts_button)
         clip_buttons.addStretch(1)
         grid.addLayout(clip_buttons, 3, 1)
         self.clip_info_label = QLabel()
@@ -533,7 +550,7 @@ class ActionChartEditorDialog(QDialog):
     def _sync_review_panel(self) -> None:
         """Hide the pending and changes lists until either has something in it."""
 
-        wanted = bool(self._pending_count() or not self._changes.empty)
+        wanted = bool(self._pending_count() or not self._changes.empty or self._linked)
         sizes = self.review_splitter.sizes()
         if wanted and sizes[1] == 0:
             total = sum(sizes) if sum(sizes) > 400 else max(self.height() - 200, 600)
@@ -608,6 +625,51 @@ class ActionChartEditorDialog(QDialog):
         bold.setBold("blend" in pending)
         self.blend_edit.setFont(bold)
         self.blend_edit.setText(pending.get("blend", self._chart.blend_name(animation)))
+        self._show_other_charts(self._chart.clip_name(animation))
+
+    def _other_charts(self, clip: str) -> tuple[ClipUse, ...]:
+        if self._clip_uses is None:
+            return ()
+        own = self._path.replace("\\", "/").lower()
+        return tuple(use for use in self._clip_uses.get(clip.lower(), ()) if use.chart.lower() != own)
+
+    def _show_other_charts(self, clip: str) -> None:
+        if self._clip_uses is None:
+            return
+        others = self._other_charts(clip)
+        self.other_charts_button.setEnabled(bool(others) and not self.busy())
+        if others:
+            self.clip_info_label.setText(
+                f"{_file_name(clip)} is also played by {len(others)} other chart(s). "
+                "If an edit shows no change in game, the animation may come from one of them."
+            )
+        else:
+            self.clip_info_label.setText(f"No other chart plays {_file_name(clip)}.")
+
+    def _open_other_charts(self) -> None:
+        from cdmw.ui.archive_browser.action_chart_link_dialog import ActionChartLinkDialog
+
+        index = self._selected_animation()
+        if index is None:
+            return
+        clip = self._chart.clip_name(self._chart.animations[index])
+        others = self._other_charts(clip)
+        if not others:
+            return
+        new_clip = self._clip_field()
+        dialog = ActionChartLinkDialog(
+            clip, others, new_clip=new_clip if new_clip != clip else "", users_of=self._chart_users_of, parent=self
+        )
+        if not dialog.exec():
+            return
+        for chart in dialog.selected_charts:
+            self._linked[(chart, clip)] = dialog.new_clip
+        self._pending_changed()
+        self._show_changes()
+        self._set_status(
+            f"{len(dialog.selected_charts)} other chart(s) will play {_file_name(dialog.new_clip)} instead "
+            "when you export."
+        )
 
     def _fill_values(self, index: Optional[int]) -> None:
         self._filling = True
@@ -744,6 +806,11 @@ class ActionChartEditorDialog(QDialog):
 
     def _fill_pending(self) -> None:
         self.pending_list.clear()
+        for (chart, old), new in self._linked.items():
+            item = QListWidgetItem(f"At export, in {_file_name(chart)}: {_file_name(old)} -> {_file_name(new)}")
+            item.setToolTip(f"{chart}: {old} -> {new}")
+            item.setData(_KEY_ROLE, (_LINKED, (chart, old)))
+            self.pending_list.addItem(item)
         for (table, old), new in self._pending_retargets.items():
             item = QListWidgetItem(f"Replace in {self.table_combo.itemText(table)}: {old} -> {new}")
             item.setData(_KEY_ROLE, (_RETARGET, (table, old)))
@@ -803,7 +870,9 @@ class ActionChartEditorDialog(QDialog):
                 view.appendPlainText(f"Animation {row.animation}, {label}: {old} -> {new}")
         for table, value in self._changes.appended:
             view.appendPlainText(f"Added to {self.table_combo.itemText(table)}: {value}")
-        if self._changes.empty:
+        for (chart, old), new in self._linked.items():
+            view.appendPlainText(f"At export, also in {chart}: {old} -> {new}")
+        if self._changes.empty and not self._linked:
             view.appendPlainText("No changes yet.")
 
     # --- selection and filters --------------------------------------------------------
@@ -1001,6 +1070,9 @@ class ActionChartEditorDialog(QDialog):
                 self._pending_resources.pop(animation, None)
         elif kind == _EVENT:
             self._pending_events.pop(tuple(key), None)
+        elif kind == _LINKED:
+            self._linked.pop(tuple(key), None)
+            self._show_changes()
         elif kind == _VALUE:
             self._pending_values.pop(tuple(key), None)
             if key[0] == "chart.action_speed_rate":
@@ -1060,7 +1132,7 @@ class ActionChartEditorDialog(QDialog):
         pending = self._pending_count() > 0
         self.apply_button.setEnabled(not busy and pending)
         self.reset_button.setEnabled(not busy and (pending or self._data != self._original))
-        self.export_button.setEnabled(not busy and not pending and not self._changes.empty)
+        self.export_button.setEnabled(not busy and not pending and (not self._changes.empty or bool(self._linked)))
         self.close_button.setEnabled(not busy)
         self.clip_length_button.setEnabled(not busy)
         self.remove_pending_button.setEnabled(not busy and pending)
@@ -1168,13 +1240,15 @@ class ActionChartEditorDialog(QDialog):
         self._chart = self._original_chart
         self._changes = ActionChartChanges()
         self._clear_pending()
+        self._linked.clear()
         self._refresh_all()
         self._set_status("Back to the shipped chart.")
 
     def _export(self) -> None:
-        if self._changes.empty or self._pending_count():
+        if (self._changes.empty and not self._linked) or self._pending_count():
             return
-        payload = ActionChartEditorResult(self._data, self._changes)
+        linked = tuple(LinkedClipChange(chart, old, new) for (chart, old), new in self._linked.items())
+        payload = ActionChartEditorResult(self._data, self._changes, linked)
         if self._export_details is not None:
             plan = self._export_details(payload)
             if plan is None:
@@ -1190,7 +1264,7 @@ class ActionChartEditorDialog(QDialog):
         if self.busy():
             self._set_status("Wait for the edit to finish.")
             return
-        if self._pending_count() or not self._changes.empty:
+        if self._pending_count() or not self._changes.empty or self._linked:
             answer = QMessageBox.question(
                 self, "Close Action Chart Editor", "Close the editor and discard your edits?"
             )

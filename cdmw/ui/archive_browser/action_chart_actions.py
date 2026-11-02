@@ -28,6 +28,7 @@ from cdmw.services.action_chart_edit_service import (
     chart_archive_index,
     chart_users,
     clip_info,
+    clip_usage_index,
     compare_charts,
     is_editable_action_chart_path,
     load_editable_chart,
@@ -69,6 +70,8 @@ class _PreparedChart:
     changes: Optional[ActionChartChanges]
     catalogs: dict
     used_by: tuple[str, ...]
+    character_rows: tuple = ()
+    clip_uses: Optional[dict] = None
 
 
 class ArchiveActionChartActionsMixin:
@@ -133,10 +136,16 @@ class ArchiveActionChartActionsMixin:
             log("Matching the chart's clips, blend spaces and sequencers to archive files")
             catalogs = build_resource_catalog(chart, index.paths_by_extension)
             try:
-                used_by = chart_users(character_rows_from_index(index, _read), entry.path)
+                rows = character_rows_from_index(index, _read)
             except (ActionChartError, OSError, ValueError):
-                used_by = ()
-            return _PreparedChart(index, entry, entry.path, data, edited, changes, catalogs, used_by)
+                rows = ()
+            log("Finding which charts play each clip (the first time takes a few seconds)")
+            try:
+                clip_uses = dict(clip_usage_index(index, _read))
+            except (ActionChartError, OSError, ValueError):
+                clip_uses = None
+            return _PreparedChart(index, entry, entry.path, data, edited, changes, catalogs,
+                                  chart_users(rows, entry.path), tuple(rows), clip_uses)
 
         def _open_prepared_action_chart(result: object) -> None:
             if not isinstance(result, _PreparedChart):
@@ -165,6 +174,8 @@ class ArchiveActionChartActionsMixin:
                 edited_changes=prepared.changes,
                 clip_info=lambda clip: clip_info(index, clip, _read),
                 show_in_browser=self._show_action_chart_clip_in_browser,
+                clip_uses=prepared.clip_uses,
+                chart_users_of=lambda path: chart_users(prepared.character_rows, path),
                 export_details=lambda payload: self._ask_action_chart_export(prepared.entry, payload, mod),
                 title=f"Action Chart Editor - {PurePosixPath(prepared.path).name}",
                 parent=self,
@@ -189,7 +200,9 @@ class ArchiveActionChartActionsMixin:
         if dialog in editors:
             editors.remove(dialog)
         payload, plan = dialog.result_payload, dialog.export_plan
-        if payload is None or not isinstance(plan, _ExportPlan) or payload.data == prepared.data:
+        if payload is None or not isinstance(plan, _ExportPlan):
+            return
+        if payload.data == prepared.data and not payload.linked:
             return
         self._write_edited_action_chart(prepared.entry, prepared.data, payload, plan, prepared.index)
 
@@ -252,7 +265,8 @@ class ArchiveActionChartActionsMixin:
             return write_action_chart_mod(
                 entry, original, edited, parent=plan.parent, title=plan.title, description=plan.description,
                 author=plan.author, version=plan.version, keep_existing=plan.keep_existing,
-                shipped_entries=shipped, on_log=log, stop_event=stop_event,
+                shipped_entries=shipped, linked=payload.linked, read_shipped=_read,
+                on_log=log, stop_event=stop_event,
             )
 
         def _action_chart_mod_written(result: object) -> None:

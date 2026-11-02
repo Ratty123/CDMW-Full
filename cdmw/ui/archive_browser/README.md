@@ -654,7 +654,11 @@ inspectors before the readable-strings fallback:
   `scan_archive_entries` (charts, the descriptor, clips, blend spaces, sequencers,
   prefabs), cached per game folder until a `.pamt` changes. The editor is not modal, so
   **Show in Archive Browser** can search for a clip while it stays open; **Use Clip
-  Length** reads the clip on the dialog's worker. Edits apply on that worker through
+  Length** reads the clip on the dialog's worker. The worker also builds
+  `clip_usage_index` (every standard chart's clip table, about 4 s, cached with the
+  index), so the editor names the other charts that play a clip; **Other Charts Playing
+  This Clip...** queues `LinkedClipChange`s that export applies to those charts in the
+  same mod. Edits apply on that worker through
   `cdmw/services/action_chart_edit_service.py` and every table is rebuilt from the
   edited bytes. Export writes a DMM archive-group mod (`0036/0.pamt` + `0.paz`,
   manifest.json, modinfo.json) into DMM's mods folder or a chosen folder, keeps the

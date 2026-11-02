@@ -726,3 +726,92 @@ def test_the_action_charts_button_works_with_nothing_selected(qt_app):
     for action in actions:
         action.trigger()
     assert triggered == ["find", "mod"]
+
+
+# --- other charts that play a clip ---------------------------------------------------
+
+
+def test_the_usage_index_lists_every_chart_that_plays_a_clip(stored, tmp_path):
+    from cdmw.services.action_chart_edit_service import apply_linked_clip_changes, charts_playing_clip, clip_usage_index
+
+    data = chart_bytes()
+    index, _scans, _root = _index(tmp_path, [stored(PATH, data), stored(BASIC, data)])
+    read = lambda entry: entry.paz_file.read_bytes()  # noqa: E731
+    uses = charts_playing_clip(index, CLIPS[0].upper(), read)
+    assert sorted((use.chart, use.animations) for use in uses) == [(BASIC, 1), (PATH, 1)]
+    assert clip_usage_index(index, read) is clip_usage_index(index, lambda entry: b"unread")
+
+    from cdmw.services.action_chart_edit_service import LinkedClipChange
+    change = LinkedClipChange(BASIC, CLIPS[0], NEW_CLIP)
+    patched = apply_linked_clip_changes(data, BASIC, [change, LinkedClipChange(PATH, CLIPS[1], NEW_CLIP)])
+    assert load_editable_chart(patched, BASIC).tables[1].values == (NEW_CLIP, CLIPS[1])
+    assert apply_linked_clip_changes(patched, BASIC, [change]) == patched, "a change already made is skipped"
+
+
+def test_linked_clip_changes_ship_in_the_same_mod(stored, tmp_path, accelerator):
+    from cdmw.services.action_chart_edit_service import LinkedClipChange, read_chart_mod
+
+    data = chart_bytes()
+    sword, basic = stored(PATH, data), stored(BASIC, data)
+    index, _scans, _root = _index(tmp_path, [sword, basic])
+    read = lambda entry: entry.paz_file.read_bytes()  # noqa: E731
+    edited = apply_action_chart_edits(data, ActionChartEditRequest((_clip_retarget(CLIPS[0], NEW_CLIP),)), virtual_path=PATH).data
+    linked = (LinkedClipChange(BASIC, CLIPS[0], NEW_CLIP),)
+    mods = tmp_path / "mods"
+
+    result = write_action_chart_mod(sword, data, edited, parent=mods, title="Idle", shipped_entries=index.entry_for_path,
+                                    linked=linked, read_shipped=read)
+
+    assert set(result.charts) == {PATH, BASIC}
+    charts = read_chart_mod(result.folder).charts
+    assert load_editable_chart(charts[BASIC], BASIC).tables[1].values[0] == NEW_CLIP
+    json_files = sorted(path.name for path in result.folder.rglob("*.json"))
+    assert json_files == ["manifest.json", "modinfo.json"], "DMM reads every .json in a mod folder"
+
+    only_linked = write_action_chart_mod(sword, data, data, parent=mods, title="Only linked", linked=linked,
+                                         shipped_entries=index.entry_for_path, read_shipped=read)
+    assert only_linked.charts == (BASIC,)
+
+
+def test_the_editor_offers_the_other_charts_and_exports_them(qt_app, monkeypatch):
+    from cdmw.services.action_chart_edit_service import ClipUse
+    from cdmw.ui.archive_browser import action_chart_link_dialog as link
+
+    uses = {CLIPS[0].lower(): (ClipUse(PATH, 1), ClipUse(BASIC, 3))}
+    dialog = _editor(clip_uses=uses, chart_users_of=lambda path: ("Player_Kliff (Sword)",))
+    dialog.animation_table.selectRow(0)
+    assert "also played by 1 other chart" in dialog.clip_info_label.text() and dialog.other_charts_button.isEnabled()
+    dialog.animation_table.selectRow(1)
+    assert "No other chart plays" in dialog.clip_info_label.text() and not dialog.other_charts_button.isEnabled()
+
+    class _Link:
+        def __init__(self, clip, others, *, new_clip, users_of, parent):
+            assert clip == CLIPS[0] and [use.chart for use in others] == [BASIC] and new_clip == NEW_CLIP
+            assert users_of(BASIC) == ("Player_Kliff (Sword)",)
+            self.selected_charts, self.new_clip = (BASIC,), NEW_CLIP
+
+        def exec(self):
+            return 1
+
+    monkeypatch.setattr(link, "ActionChartLinkDialog", _Link)
+    dialog.animation_table.selectRow(0)
+    dialog.clip_edit.setText(NEW_CLIP)
+    dialog.other_charts_button.click()
+    assert dialog.pending_list.count() == 1 and "basic_upper.paac" in dialog.pending_list.item(0).text()
+    assert f"At export, also in {BASIC}" in dialog.changes_view.toPlainText()
+    assert dialog.export_button.isEnabled() and not dialog.apply_button.isEnabled(), "linked changes need no Apply"
+    dialog.export_button.click()
+    assert [(item.chart, item.old, item.new) for item in dialog.result_payload.linked] == [(BASIC, CLIPS[0], NEW_CLIP)]
+
+
+def test_link_dialog_needs_a_new_clip_and_a_ticked_chart(qt_app):
+    from cdmw.services.action_chart_edit_service import ClipUse
+    from cdmw.ui.archive_browser.action_chart_link_dialog import ActionChartLinkDialog
+
+    dialog = ActionChartLinkDialog(CLIPS[0], (ClipUse(BASIC, 3), ClipUse(PATH, 1)), users_of=lambda path: ())
+    dialog.add_button.click()
+    assert "Enter the clip" in dialog.error_label.text() and not dialog.selected_charts
+    dialog.new_clip_edit.setText(NEW_CLIP)
+    dialog.table.item(1, 0).setCheckState(dialog.table.item(1, 0).checkState().Unchecked)
+    dialog.add_button.click()
+    assert dialog.selected_charts == (BASIC,) and dialog.new_clip == NEW_CLIP
