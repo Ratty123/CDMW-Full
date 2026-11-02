@@ -12,15 +12,18 @@ from cdmw.domain.archives.format import is_material_sidecar_extension as _is_mat
 from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_workflow_service import (
+    apply_sound_bank_edits,
     build_archive_audio_patch_payload,
     export_archive_audio_as_wav,
     export_archive_payloads_to_mod_ready_loose,
     list_bank_embedded_media,
     plan_wwise_media_replacement,
+    read_sound_bank_editor_model,
     wwise_media_source_id,
 )
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
+from cdmw.ui.archive_browser.sound_bank_editor import SoundBankEditorDialog
 
 
 class ArchivePatchActionsMixin:
@@ -161,6 +164,58 @@ class ArchivePatchActionsMixin:
         *,
         source_id: int | None,
     ) -> None:
+        archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+        def _requests(log, stop_event, notes):
+            log(f"Preparing replacement audio for {entry.path}...")
+            if source_id is None:
+                payload = build_archive_audio_patch_payload(entry, Path(source_path))
+                return [ArchivePatchRequest(entry=entry, payload_data=payload)]
+            replacement = plan_wwise_media_replacement(
+                entry, Path(source_path), source_id, archive_entries, stop_event=stop_event, on_log=log
+            )
+            notes.extend(replacement.notes)
+            return [ArchivePatchRequest(entry=item, payload_data=data) for item, data in replacement.payloads]
+
+        self._write_audio_loose_mod(entry, _requests)
+
+    def _start_archive_sound_bank_edit(self, entry: ArchiveEntry) -> None:
+        def _task(log: Callable[[str], None]) -> object:
+            log(f"Reading {entry.path}...")
+            return read_sound_bank_editor_model(entry)
+
+        def _handle_complete(model: object) -> None:
+            if not getattr(model, "rows", None) and not getattr(model, "objects", None):
+                notes = " ".join(getattr(model, "notes", ())) or "This bank stores nothing the editor can change."
+                QMessageBox.information(self, "Edit Sound Bank", notes)
+                return
+            dialog = SoundBankEditorDialog(self, entry.basename, model)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            plan = dialog.plan()
+            archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+            def _requests(log, stop_event, notes):
+                data, changes = apply_sound_bank_edits(entry, plan, archive_entries, stop_event=stop_event, on_log=log)
+                for change in changes:
+                    log(change)
+                notes.append(f"{len(changes):,} change(s) written to {entry.basename}. Not yet confirmed in game.")
+                return [ArchivePatchRequest(entry=entry, payload_data=data)]
+
+            self._write_audio_loose_mod(entry, _requests)
+
+        self.shell._run_utility_task(
+            status_message=f"Reading {entry.basename}...",
+            task=_task,
+            on_complete=_handle_complete,
+            show_archive_progress=True,
+        )
+
+    def _write_audio_loose_mod(
+        self,
+        entry: ArchiveEntry,
+        build_requests: Callable[[Callable[[str], None], threading.Event, list[str]], list[ArchivePatchRequest]],
+    ) -> None:
         loose_export_settings = self._collect_archive_mod_ready_export_target(
             browse_title="Select Audio Mod-Ready Export Parent Root",
             prompt_for_metadata=True,
@@ -172,23 +227,13 @@ class ArchivePatchActionsMixin:
         if loose_export_settings is None:
             return
         parent_root, package_info, create_no_encrypt_file, _include_related_files, export_options = loose_export_settings
-        archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
         notes: list[str] = []
 
         def _task(
             log: Callable[[str], None],
             stop_event: threading.Event,
         ) -> ArchiveLooseExportResult:
-            log(f"Preparing replacement audio for {entry.path}...")
-            if source_id is None:
-                payload = build_archive_audio_patch_payload(entry, Path(source_path))
-                requests = [ArchivePatchRequest(entry=entry, payload_data=payload)]
-            else:
-                replacement = plan_wwise_media_replacement(
-                    entry, Path(source_path), source_id, archive_entries, stop_event=stop_event, on_log=log
-                )
-                notes.extend(replacement.notes)
-                requests = [ArchivePatchRequest(entry=item, payload_data=data) for item, data in replacement.payloads]
+            requests = build_requests(log, stop_event, notes)
             raise_if_cancelled(stop_event, "Audio loose mod export cancelled.")
             return export_archive_payloads_to_mod_ready_loose(
                 requests,

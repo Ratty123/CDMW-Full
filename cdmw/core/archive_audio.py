@@ -329,8 +329,8 @@ def build_wwise_media_replacement(
     """Replaces one media id everywhere the game reads it.
 
     The loose `.wem` copies get the new bytes, every bank that embeds the id
-    gets its embedded copy replaced, and every bank whose Sounds load it from
-    memory gets the new size and codec. A bank that prefetches or streams the id
+    gets its embedded copy (or stream prefix) replaced, and every bank whose
+    sources play it gets the new size or prefix size and codec. Any refusal
     refuses the whole replacement, so no partial set of files is produced.
     """
 
@@ -364,7 +364,10 @@ def build_wwise_media_replacement(
         if not embedded and not sounds:
             continue
         try:
-            result = replace_embedded_media(data, source_id, media) if embedded else retarget_loose_media(data, source_id, media)
+            if embedded:
+                result = replace_embedded_media(data, source_id, media, original_media=original_media)
+            else:
+                result = retarget_loose_media(data, source_id, media, original_media=original_media)
         except WwiseBankEditError as error:
             raise WwiseBankEditError(f"{bank.path}: {error}") from error
         payloads.append((bank, result.data))
@@ -385,6 +388,67 @@ def build_wwise_media_replacement(
                 f"({len(media):,} bytes against {len(original_media):,}); sounds held in memory cost that much more."
             )
     return WwiseMediaReplacement(int(source_id), tuple(payloads), tuple(notes))
+
+
+def read_sound_bank_editor_model(entry: ArchiveEntry):
+    """What the sound bank editor can change in one bank archive entry."""
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_wwise_bank_plan import build_sound_bank_editor_model
+
+    return build_sound_bank_editor_model(read_archive_entry_data(entry)[0])
+
+
+def apply_sound_bank_edits(
+    entry: ArchiveEntry,
+    plan,
+    archive_entries: Sequence[ArchiveEntry],
+    *,
+    stop_event=None,
+    on_log=None,
+) -> Tuple[bytes, Tuple[str, ...]]:
+    """Applies a sound bank editor plan to one bank and returns its new bytes and changes.
+
+    Added variations get ids no bank or loose media uses, so every bank in the
+    listing is read when the plan adds one.
+    """
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_wwise_bank_plan import apply_sound_bank_edit_plan
+    from cdmw.core.archive_wwise_bank_variations import bank_ids
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    log = on_log or (lambda _message: None)
+    data = read_archive_entry_data(entry)[0]
+    taken: set[int] = set()
+    loose_by_id: Dict[int, ArchiveEntry] = {}
+    for item in archive_entries:
+        source_id = wwise_media_source_id(item)
+        if source_id is not None:
+            taken.add(source_id)
+            loose_by_id.setdefault(source_id, item)
+    if plan.added_variations:
+        banks = [item for item in archive_entries if item.extension == ".bnk"]
+        log(f"Collecting the ids {len(banks):,} banks use, so added sounds get unused ones...")
+        for index, bank in enumerate(banks):
+            if index % 200 == 0:
+                raise_if_cancelled(stop_event, "Sound bank edit cancelled.")
+            taken |= bank_ids(read_archive_entry_data(bank)[0])
+
+    def template_media(source_id: int) -> bytes:
+        loose = loose_by_id.get(source_id)
+        if loose is None:
+            raise ValueError(f"No loose {source_id}.wem is in the archive listing.")
+        return read_archive_entry_data(loose)[0]
+
+    return apply_sound_bank_edit_plan(
+        data,
+        plan,
+        build_media=build_wwise_replacement_media,
+        template_media=template_media,
+        taken_ids=sorted(taken),
+        on_log=log,
+    )
 
 
 def list_bank_embedded_media(entry: ArchiveEntry):
@@ -424,7 +488,9 @@ def plan_wwise_media_replacement(
         embedded = next((item for item in read_embedded_media(data) if item.source_id == int(source_id)), None)
         if embedded is None:
             raise ValueError(f"{entry.path} does not embed media {source_id}.")
-        original = read_bank_embedded_bytes(data, embedded)
+        # A bank may embed only a stream prefix; the loose file, when there is
+        # one, is the complete original that prefixes are measured against.
+        original = read_archive_entry_data(wem_entries[0])[0] if wem_entries else read_bank_embedded_bytes(data, embedded)
     else:
         original = data
     media = build_wwise_replacement_media(original, replacement_audio_path)
@@ -453,11 +519,13 @@ __all__ = [
     "_read_wav_format_info",
     "_read_wav_format_info_from_bytes",
     "_run_hidden_process",
+    "apply_sound_bank_edits",
     "build_archive_audio_patch_payload",
     "build_wwise_media_replacement",
     "build_wwise_replacement_media",
     "export_archive_audio_as_wav",
     "list_bank_embedded_media",
     "plan_wwise_media_replacement",
+    "read_sound_bank_editor_model",
     "wwise_media_source_id",
 ]

@@ -2186,49 +2186,77 @@ versions 113–154 expose embedded or streamed source IDs for Find references.
 Unknown versions report incomplete bank coverage while retaining valid DIDX IDs.
 
 **HIRC decode (2026-11-02).** All 3,450 shipped banks are version 150 (Wwise
-2023.1 in wwiser's table). `cdmw/core/archive_wwise_hirc.py` decodes Sounds,
-actions, events, random/sequence, switch and layer containers, actor-mixers and
-music tracks after wwiser's version-150 layouts, and counts an object only when
-its body ends exactly on its declared size. On the whole shipped corpus (the
-installed game on 2026-11-02, read-only extraction) every one of the 260,852 objects frames, and all
-229,311 objects of those eight types decode to the byte, none left over or
-overrun. The remaining 31,541 (buses, attenuations, effect share sets and custom
-effects, modulators, audio devices, music segments, music switch and playlist
-containers) keep framing only. Stored property types were measured on every
-occurrence: Volume, Pitch, LPF, HPF, MakeUpGain, Priority, aux send volumes,
-InitialDelay and CenterPercent are floats; Loop, DelayTime and TransitionTime are
-integers; AttenuationID is an id. Events are almost all Play actions (8,786 of
-9,258 actions), with Seek, Stop, Pause, Resume, Trigger and SetState making up the
-rest. Event names are FNV hashes with no string table in the banks, and gameplay
-triggers are still outside the reader.
+2023.1 in wwiser's table). `cdmw/core/archive_wwise_hirc.py` decodes every
+object type they ship after wwiser's version-150 layouts (sounds, actions,
+events, random/sequence, switch and layer containers, actor-mixers, buses and aux
+buses, attenuations, effect share sets and custom effects, modulators, audio
+devices, music segments, tracks, switches and playlists), and counts an object
+only when its body ends exactly on its declared size. On the whole shipped
+corpus (the installed game on 2026-11-02, read-only extraction) all 260,852
+objects decode to the byte. The exact-end check caught the one wrong reading on
+the first pass: a music transition rule read as 24 bytes is 26. Plugin
+parameter blocks, music decision trees and curves are skipped as sized spans,
+not interpreted. Stored property types were measured on every occurrence:
+Volume, Pitch, LPF, HPF, MakeUpGain, Priority, bus and aux send volumes,
+InitialDelay and CenterPercent are floats; Loop is an unsigned count; DelayTime
+and TransitionTime are signed milliseconds (some ranges go negative);
+AttenuationID is an id. Properties and randomizer ranges are always stored
+sorted by id, container children are always sorted, and children always precede
+their parents in HIRC (203,208 of 203,208), as actions precede their events.
+Events are almost all Play actions (8,786 of 9,258 actions), with Seek, Stop,
+Pause, Resume, Trigger and SetState making up the rest. Event names are FNV
+hashes with no string table in the banks, and gameplay triggers are still
+outside the reader.
 
 **Media sizes in banks.** Every in-memory source stores its media's exact byte
 size: 29,912 Sounds whose media the bank embeds and 94,807 whose media is a loose
-`.wem` match to the byte. Prefetched sources (579) embed an exact prefix of the
-loose file; streamed sources (516) store a smaller size whose rule did not match
-the data offset or the Vorbis setup/audio offsets, so it is not derived. Embedded
-media sit on 16-byte boundaries with zero padding, DIDX is sorted by id and
-precedes DATA, and DATA ends at the last sound. Embedded media are Wwise Vorbis
-(25,282) or PTADPCM (2,709, format 0x8311, plugin "ADPCM"); 3,152 embedded blobs
-are prefetch prefixes, not complete files.
+`.wem` match to the byte. A prefetched or streamed source stores a prefix size:
+the stream's headers plus a few Vorbis packets (about 0.05 to 0.2 s), ending
+exactly on a packet boundary for 2,210 of 2,211 sources. Prefetched sources embed
+that prefix of the loose file, and a short file's prefetch can be the whole file.
+Walking u16-sized packets from data plus the audio offset ends exactly at the
+end of data on 3,000 of 3,000 sampled streams. Embedded media sit on 16-byte
+boundaries with zero padding, DIDX is sorted by id and precedes DATA, and DATA
+ends at the last sound. Embedded media are Wwise Vorbis (25,282) or PTADPCM
+(2,709, format 0x8311, plugin "ADPCM"); 3,152 embedded blobs are prefetch
+prefixes, not complete files. The 30 media ids played through the external
+source plugin exist as no file and no embedded copy: the game supplies those at
+run time.
 
-**Constrained bank writing (2026-11-02).** `archive_wwise_bank_edit.py` admits
-three edits, each re-decoded before it is returned: in-place fixed-size values
-(existing properties of the measured types, randomizer bounds, container loop and
-transition values, playlist weights, Set-property action values); replacing an
-embedded sound with DIDX and DATA rebuilt; and retargeting the sources that load
-a loose `.wem` (size and codec plugin). Writing every shipped value back unchanged
-reproduced all 3,376 banks with values byte for byte (637,629 edits), replacing
-each of 24,839 complete embedded sounds with itself reproduced its bank, and a
-1,522-bank sample of loose retargets did the same. Of the 101,563 media ids that
-decoded sources reference, 99,329 are replaceable; 2,204 are refused because some
-source prefetches or streams them and 30 because they play through the external
-source plugin. Adding or removing objects, events or sounds is not implemented.
-A source-level run on real game data rebuilt a bank and retargeted seven banks
-for one loose id; vgmstream decoded the replaced and an untouched subsong and the
-PCM `.wem`. None of this is game evidence: whether the 2023.1 runtime accepts PCM
-under a bank that declared Vorbis, or a resized in-memory sound, needs an
-in-game check.
+**Constrained bank writing (2026-11-02).** `archive_wwise_bank_edit.py`,
+`archive_wwise_bank_variations.py` and `archive_wwise_bank_plan.py` admit these
+edits, each re-decoded before it is returned, with the read-only corpus evidence
+for each:
+
+- in-place fixed-size values (properties of the measured types, randomizer
+  bounds, container loop and transition values, playlist weights, Set-property
+  action values): writing every shipped value back reproduced all 3,376 banks
+  with values byte for byte (637,629 edits);
+- replacing media, embedded or loose: replacing each of 24,839 complete embedded
+  sounds with itself reproduced its bank, and so did a 1,522-bank sample of loose
+  retargets. Prefetched and streamed sources get a prefix of the same playing
+  time cut at the replacement's next packet: replacing every one of the 2,204
+  such ids with its own file reproduced all 3,663 affected banks, and a copy cut
+  to half its packets gave valid prefixes in all of them. Of the 101,563 media ids
+  that decoded sources reference, 101,532 are replaceable; one streamed source's
+  prefix is not on a packet and the 30 external-source placeholders have no file;
+- adding or removing a stored property or range: allowed only for a property
+  some shipped object of the same type stores; removing every editable property
+  and range of every object and adding them back reproduced all 3,395 such banks
+  (95,911 changes; one bank with a duplicated object id is refused);
+- adding or removing a sound in a random/sequence container: an added sound is a
+  copy of a sibling with new ShortIDs and new media embedded in the bank.
+  Removing one sound from each of the 52,883 containers that have two or more and
+  inserting it back reproduced every bank byte for byte; one-sound containers are
+  refused.
+
+Source-level runs on real game data rebuilt a bank, retargeted seven banks for
+one loose id, and added a PCM sound to a shipped container; vgmstream decoded the
+replaced, added and untouched subsongs and the PCM `.wem`. New events are not
+offered: nothing in the game posts an event id it does not already know. None of
+this is game evidence: whether the 2023.1 runtime accepts PCM under a bank that
+declared Vorbis, a resized or newly cut stream prefix, an added property, or an
+added container sound needs an in-game check.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).

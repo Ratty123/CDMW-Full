@@ -140,6 +140,10 @@ def music_track(object_id: int, source_id: int, size: int, *, stream: int = 0) -
     return hirc_object(11, object_id, body)
 
 
+def attenuation(object_id: int) -> bytes:
+    return hirc_object(14, object_id, b"\x00\x00" + b"\xff" * 19 + b"\x00" + b"\x00\x00")
+
+
 def bank(objects, media=(), *, version: int = 150) -> bytes:
     header = chunk(b"BKHD", struct.pack("<II", version, 1234) + b"\x00" * 16)
     parts = [header]
@@ -176,7 +180,8 @@ def sample_bank() -> bytes:
             set_volume_action(301, 200),
             event(400, [300, 301]),
             actor_mixer(500, [200, 210, 220, 230]),
-            hirc_object(14, 600, b"\x01\x02\x03"),  # attenuation: framed only
+            attenuation(600),
+            hirc_object(23, 700, b"\x01\x02"),  # a type the decoder does not model
         ],
         media=[(9001, EMBEDDED_A), (9002, EMBEDDED_B)],
     )
@@ -186,7 +191,7 @@ def test_every_modelled_object_decodes_to_the_byte(sample_bank):
     graph = read_hirc_graph(sample_bank)
     assert graph.version == 150 and graph.framing_complete
     statuses = {node.object_id: node.status for node in graph.nodes}
-    assert statuses.pop(600) == FRAMED
+    assert statuses.pop(700) == FRAMED
     assert set(statuses.values()) == {PARSED}
     nodes = graph.by_id()
     assert nodes[101].source.source_id == 9001 and nodes[101].parent_id == 500
@@ -220,8 +225,8 @@ def test_other_bank_versions_are_not_decoded(sample_bank):
 
 def test_preview_lines_summarise_events_containers_and_coverage(sample_bank):
     text = "\n".join(hirc_graph_preview_lines(sample_bank))
-    assert "12 of 13 objects decoded to the byte" in text
-    assert "framed only, layout not modelled: Attenuation" in text
+    assert "13 of 14 objects decoded to the byte" in text
+    assert "framed only, layout not modelled: type 23" in text
     assert "event 400: Play -> 200; SetVolume -> 200" in text
     assert "container 200: random, plays 2x, 2 in its playlist" in text
 
@@ -259,7 +264,7 @@ def test_value_edits_change_only_their_bytes(sample_bank):
         (HircEdit(200, "property:Loop", 1.5), "whole number"),
         (HircEdit(200, "weight:999", 1), "no playlist entry"),
         (HircEdit(200, "weight:101", -1), "cannot be negative"),
-        (HircEdit(600, "property:Volume", 1.0), "did not decode exactly"),
+        (HircEdit(700, "property:Volume", 1.0), "did not decode exactly"),
         (HircEdit(999, "property:Volume", 1.0), "no HIRC object"),
         (HircEdit(101, "colour", 1), "not recognised"),
     ],
@@ -304,7 +309,7 @@ def test_loose_media_retarget_updates_every_in_memory_source(sample_bank):
 @pytest.mark.parametrize(
     ("source_id", "media", "reason"),
     [
-        (8000, wem(b"\x00" * 10), "prefetches or streams"),
+        (8000, wem(b"\x00" * 10), "original file is needed"),
         (9001, wem(b"\x00" * 10), "replace the embedded copy"),
         (7000, b"OggS" + b"\x00" * 40, "not a RIFF/WAVE"),
         (7000, wem(b"\x00" * 10, tag=0x3041), "not one this game's banks play"),
@@ -348,7 +353,7 @@ def test_media_replacement_collects_the_wem_and_every_bank_that_plays_it(sample_
     assert any("PCM codec" in note for note in result.notes)
     assert any("times the size" in note for note in result.notes)
 
-    with pytest.raises(WwiseBankEditError, match=r"c\.bnk: .*prefetches or streams"):
+    with pytest.raises(WwiseBankEditError, match=r"c\.bnk: .*does not fit the original media"):
         build_wwise_media_replacement(
             7000,
             media,

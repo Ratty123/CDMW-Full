@@ -33,8 +33,20 @@ KIND_EVENT = 4
 KIND_RANDOM_SEQUENCE = 5
 KIND_SWITCH = 6
 KIND_ACTOR_MIXER = 7
+KIND_BUS = 8
 KIND_LAYER = 9
+KIND_MUSIC_SEGMENT = 10
 KIND_MUSIC_TRACK = 11
+KIND_MUSIC_SWITCH = 12
+KIND_MUSIC_RANDOM_SEQUENCE = 13
+KIND_ATTENUATION = 14
+KIND_FX_SHARE_SET = 16
+KIND_FX_CUSTOM = 17
+KIND_AUX_BUS = 18
+KIND_LFO_MODULATOR = 19
+KIND_ENVELOPE_MODULATOR = 20
+KIND_AUDIO_DEVICE = 21
+KIND_TIME_MODULATOR = 22
 
 PARSED = "parsed"
 FRAMED = "framed"
@@ -185,6 +197,9 @@ class HircNode:
     sources: Tuple[HircSource, ...] = ()
     """A Sound's one media reference, or every source a music track plays."""
 
+    plugin_media: Tuple[int, ...] = ()
+    """Media ids an effect plugin loads as data (an impulse response, say), not as a sound."""
+
     action_type: int = 0
     target_id: int = 0
     actions: Tuple[int, ...] = ()
@@ -240,7 +255,7 @@ class HircGraph:
 
 
 class _Reader:
-    __slots__ = ("data", "pos", "end", "values", "properties", "ranged")
+    __slots__ = ("data", "pos", "end", "values", "properties", "ranged", "bundles")
 
     def __init__(self, data: bytes, start: int, end: int) -> None:
         self.data = data
@@ -249,6 +264,7 @@ class _Reader:
         self.values: List[HircValue] = []
         self.properties: List[HircProperty] = []
         self.ranged: List[HircRangedProperty] = []
+        self.bundles: Dict[str, int] = {}
 
     def _take(self, size: int) -> int:
         start = self.pos
@@ -302,20 +318,27 @@ class _Reader:
         return value
 
 
-def _prop_bundle(reader: _Reader) -> None:
+def _prop_bundle(reader: _Reader, *, record: bool = True) -> None:
+    if record:
+        reader.bundles["property_bundle"] = reader.pos
     count = reader.count(reader.u8(), 5)
     ids = [reader.u8() for _ in range(count)]
     for prop_id in ids:
         offset = reader._take(4)
-        reader.properties.append(HircProperty(prop_id, offset, struct.unpack_from("<I", reader.data, offset)[0]))
+        if record:
+            reader.properties.append(HircProperty(prop_id, offset, struct.unpack_from("<I", reader.data, offset)[0]))
 
 
-def _ranged_bundle(reader: _Reader) -> None:
+def _ranged_bundle(reader: _Reader, *, record: bool = True) -> None:
+    if record:
+        reader.bundles["ranged_bundle"] = reader.pos
     count = reader.count(reader.u8(), 9)
     ids = [reader.u8() for _ in range(count)]
     for prop_id in ids:
         low = reader._take(4)
         high = reader._take(4)
+        if not record:
+            continue
         reader.ranged.append(
             HircRangedProperty(
                 prop_id,
@@ -383,6 +406,7 @@ def _node_base(reader: _Reader, node: HircNode) -> None:
 
 
 def _children(reader: _Reader) -> Tuple[int, ...]:
+    reader.bundles["children"] = reader.pos
     return tuple(reader.u32() for _ in range(reader.count(reader.u32(), 4)))
 
 
@@ -465,6 +489,7 @@ def _read_random_sequence(reader: _Reader, node: HircNode) -> None:
     node.details["mode"] = reader.u8()
     node.details["flags"] = reader.u8()
     node.children = _children(reader)
+    reader.bundles["playlist"] = reader.pos
     items: List[HircPlaylistItem] = []
     for _ in range(reader.count(reader.u16(), 8)):
         object_id = reader.u32()
@@ -519,6 +544,132 @@ def _read_music_track(reader: _Reader, node: HircNode) -> None:
     reader.skip(4)  # look-ahead time
 
 
+def _effect_slots(reader: _Reader) -> None:
+    count = reader.u8()
+    if count:
+        reader.skip(1 + reader.count(count, 6) * 6)  # bypass-all, then index, id, bits
+
+
+def _aux_params(reader: _Reader) -> None:
+    aux = reader.u8()
+    if (aux >> 3) & 1:
+        reader.skip(16)
+    reader.skip(4)  # reflections aux bus
+
+
+def _read_bus(reader: _Reader, node: HircNode) -> None:
+    node.bus_id = reader.u32()
+    if node.bus_id == 0:
+        node.details["device_share_set"] = reader.u32()
+    _prop_bundle(reader)
+    _positioning(reader)
+    _aux_params(reader)
+    reader.skip(1 + 2 + 4 + 1)  # behaviour bits, max instances, channel config, HDR bits
+    reader.record("recovery_time", "<i")
+    reader.record("max_duck_volume", "<f")
+    reader.skip(18 * reader.count(reader.u32(), 18))  # ducks
+    _effect_slots(reader)
+    reader.skip(6 * reader.count(reader.u8(), 6))  # metadata effects
+    _rtpc_curves(reader)
+    _state_chunk(reader)
+
+
+def _read_attenuation(reader: _Reader, node: HircNode) -> None:
+    reader.skip(1)  # height spread
+    if reader.u8() & 1:
+        reader.skip(20)  # cone: inside, outside, volume, low pass, high pass
+    reader.skip(19)  # curve to use per parameter
+    for _ in range(reader.count(reader.u8(), 3)):
+        reader.skip(1)  # scaling
+        reader.skip(12 * reader.count(reader.u16(), 12))
+    _rtpc_curves(reader)
+
+
+def _read_fx(reader: _Reader, node: HircNode) -> None:
+    plugin = reader.u32()
+    node.details["plugin_id"] = plugin
+    if plugin:
+        reader.skip(reader.u32())  # plugin parameter block
+    media: List[int] = []
+    for _ in range(reader.count(reader.u8(), 5)):
+        reader.skip(1)
+        media.append(reader.u32())
+    node.plugin_media = tuple(media)
+    _rtpc_curves(reader)
+    _state_chunk(reader)
+    for _ in range(reader.count(reader.u16(), 6)):
+        reader.var()
+        reader.skip(1 + 4)  # accumulation, value
+
+
+def _read_modulator(reader: _Reader, node: HircNode) -> None:
+    # Modulator property ids are their own enumeration, so they are not exposed as AkPropIDs.
+    _prop_bundle(reader, record=False)
+    _ranged_bundle(reader, record=False)
+    _rtpc_curves(reader)
+
+
+def _music_node(reader: _Reader, node: HircNode) -> None:
+    node.details["flags"] = reader.u8()
+    _node_base(reader, node)
+    node.children = _children(reader)
+    reader.skip(8 + 8 + 4 + 1 + 1 + 1)  # grid period, grid offset, tempo, time signature, meter override
+    reader.skip(24 * reader.count(reader.u32(), 24))  # stingers
+
+
+def _music_transitions(reader: _Reader, node: HircNode) -> None:
+    _music_node(reader, node)
+    for _ in range(reader.count(reader.u32(), 4 + 4 + 21 + 26 + 1)):
+        reader.skip(4 * reader.count(reader.u32(), 4))  # sources
+        reader.skip(4 * reader.count(reader.u32(), 4))  # destinations
+        reader.skip(21 + 26)  # source rule, destination rule
+        if reader.u8():
+            reader.skip(4 + 24 + 2)  # transition segment, fades, pre-entry/post-exit
+
+
+def _read_music_segment(reader: _Reader, node: HircNode) -> None:
+    _music_node(reader, node)
+    reader.record("duration", "<d")
+    for _ in range(reader.count(reader.u32(), 13)):
+        reader.skip(4 + 8)  # id, position
+        while reader.u8():  # null-terminated marker name
+            pass
+
+
+def _read_music_switch(reader: _Reader, node: HircNode) -> None:
+    _music_transitions(reader, node)
+    reader.skip(1)  # continue playback
+    depth = reader.count(reader.u32(), 5)
+    reader.skip(depth * 5)  # group ids, group types
+    tree_size = reader.u32()
+    reader.skip(1)  # mode
+    reader.skip(tree_size)  # decision tree
+
+
+def _music_playlist(reader: _Reader, depth: int = 0) -> int:
+    if depth > 64:
+        raise _HircError("music playlist nests deeper than 64 levels")
+    reader.skip(4 + 4)  # segment, playlist item id
+    children = reader.count(reader.u32(), 30)
+    reader.skip(4 + 2 + 2 + 2 + 4 + 2 + 1 + 1)  # type, loops, weight, avoid repeat, flags
+    total = 1
+    for _ in range(children):
+        total += _music_playlist(reader, depth + 1)
+    return total
+
+
+def _read_music_random_sequence(reader: _Reader, node: HircNode) -> None:
+    _music_transitions(reader, node)
+    declared = reader.u32()
+    if _music_playlist(reader) != declared:
+        raise _HircError("music playlist item count does not match its tree")
+
+
+def _read_audio_device(reader: _Reader, node: HircNode) -> None:
+    _read_fx(reader, node)
+    _effect_slots(reader)
+
+
 def _read_state(reader: _Reader, node: HircNode) -> None:
     count = reader.count(reader.u16(), 6)
     reader.skip(count * 6)
@@ -547,6 +698,22 @@ def _parse_body(data: bytes, node: HircNode) -> None:
         _read_layer(reader, node)
     elif kind == KIND_STATE:
         _read_state(reader, node)
+    elif kind in (KIND_BUS, KIND_AUX_BUS):
+        _read_bus(reader, node)
+    elif kind == KIND_ATTENUATION:
+        _read_attenuation(reader, node)
+    elif kind in (KIND_FX_SHARE_SET, KIND_FX_CUSTOM):
+        _read_fx(reader, node)
+    elif kind in (KIND_LFO_MODULATOR, KIND_ENVELOPE_MODULATOR, KIND_TIME_MODULATOR):
+        _read_modulator(reader, node)
+    elif kind == KIND_AUDIO_DEVICE:
+        _read_audio_device(reader, node)
+    elif kind == KIND_MUSIC_SEGMENT:
+        _read_music_segment(reader, node)
+    elif kind == KIND_MUSIC_SWITCH:
+        _read_music_switch(reader, node)
+    elif kind == KIND_MUSIC_RANDOM_SEQUENCE:
+        _read_music_random_sequence(reader, node)
     else:
         return
     if reader.pos != node.end:
@@ -554,6 +721,7 @@ def _parse_body(data: bytes, node: HircNode) -> None:
     node.properties = tuple(reader.properties)
     node.ranged_properties = tuple(reader.ranged)
     node.values = tuple(reader.values)
+    node.details.update(reader.bundles)
     node.status = PARSED
 
 
@@ -597,6 +765,7 @@ def read_hirc_graph(data: bytes) -> HircGraph:
             node.ranged_properties = ()
             node.values = ()
             node.sources = ()
+            node.plugin_media = ()
         nodes.append(node)
         cursor = node.end
     return HircGraph(version, hirc.offset, declared, tuple(nodes), len(nodes) == declared and cursor == end)
