@@ -647,7 +647,11 @@ and media ids are Wwise ShortIDs checked against every bank and loose media id i
 the listing. The plan is applied in a fixed order (values, properties, removed
 then added sounds) in the background, and the bank is written as a loose mod.
 Owned fixtures, headless dialog and action tests, and read-only round trips over
-the shipped banks cover this; none of it is confirmed in game.
+the shipped banks cover this. In game (2026-11-02, through DMM) added bus
+properties, an in-place value edit, embedded media swaps across 95 banks and the
+switch to PCM were heard working; loose `.wem` replacement, stream prefixes and
+added container sounds are not yet checked. On a bus, `Volume` affects only
+sounds routed straight to it; `BusVolume` is the bus's own gain.
 
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a

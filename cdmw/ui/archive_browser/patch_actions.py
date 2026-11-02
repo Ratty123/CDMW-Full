@@ -199,7 +199,7 @@ class ArchivePatchActionsMixin:
                 data, changes = apply_sound_bank_edits(entry, plan, archive_entries, stop_event=stop_event, on_log=log)
                 for change in changes:
                     log(change)
-                notes.append(f"{len(changes):,} change(s) written to {entry.basename}. Not yet confirmed in game.")
+                notes.append(f"{len(changes):,} change(s) written to {entry.basename}.")
                 return [ArchivePatchRequest(entry=entry, payload_data=data)]
 
             self._write_audio_loose_mod(entry, _requests)

@@ -46,7 +46,8 @@ class SoundBankEditorDialog(QDialog):
         intro = QLabel(
             "Edit the values this bank stores, add or remove properties, and add or remove sounds in random "
             "containers. The result is written as a DMM loose mod; the installed game is not changed. "
-            "These edits are not yet confirmed in game."
+            "On a bus, Volume affects only sounds routed straight to it; BusVolume is the bus's own volume. "
+            "Added sounds have not been confirmed in game yet."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)

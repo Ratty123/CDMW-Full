@@ -2253,10 +2253,32 @@ for each:
 Source-level runs on real game data rebuilt a bank, retargeted seven banks for
 one loose id, and added a PCM sound to a shipped container; vgmstream decoded the
 replaced, added and untouched subsongs and the PCM `.wem`. New events are not
-offered: nothing in the game posts an event id it does not already know. None of
-this is game evidence: whether the 2023.1 runtime accepts PCM under a bank that
-declared Vorbis, a resized or newly cut stream prefix, an added property, or an
-added container sound needs an in-game check.
+offered: nothing in the game posts an event id it does not already know.
+
+**In-game check (2026-11-02, game 1.0.0.3479, DmmRuntime 1.0.0, title screen and
+menus).** Each edit went in as a DMM loose mod, and DmmRuntime.log recorded the
+game reading the edited banks. The game loads the init bank only from `sound\`;
+it never asked for the `soundcommon\` copy.
+
+- A -96 dB `BusVolume` added to `Master Audio Bus` silenced everything; added to
+  bus 2093044213 it silenced music and menu sounds while the sea ambience
+  played. Added properties load and take effect, and the bus hierarchy read from
+  the bank matches what the game mixes.
+- Added to `BGM`, neither `Volume` nor `BusVolume` silenced the title music. The
+  title music reaches 2093044213 through a sibling of `BGM`, and `Volume` on a
+  bus is the voice volume of sounds routed straight to it, not the bus's own gain.
+- Raising the UI bus high-pass filter from 15 to 80 in place thinned the menu
+  sounds.
+- Replacing all 93 menu-sound media (embedded in 95 banks) with a shipped Vorbis
+  voice line played that line on every menu sound. DIDX and DATA were rebuilt and
+  every in-memory size updated.
+- The same replacement with a PCM beep, with the 108 sources switched from
+  Vorbis to Wwise's PCM codec, played the beep. The 2023.1 runtime plays PCM
+  under a bank that shipped as Vorbis.
+
+Not yet checked in game: replacing loose `.wem` files, stream prefixes for
+prefetched and streamed music, added container sounds, removed objects, and
+properties added to anything other than a bus.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).

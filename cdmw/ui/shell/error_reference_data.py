@@ -7441,7 +7441,7 @@ MESSAGE_REFERENCE = [
     "message": "A new value is not a number: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/sound_bank_editor.py": 241
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 242
     }
   },
   {
@@ -7490,7 +7490,7 @@ MESSAGE_REFERENCE = [
     "message": "A range needs two numbers, minimum then maximum.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/sound_bank_editor.py": 164
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 165
     }
   },
   {
@@ -10714,7 +10714,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter one number for the property.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/sound_bank_editor.py": 170
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 171
     }
   },
   {
@@ -19408,7 +19408,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.target} of object {item.object_id} takes a whole number.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/sound_bank_editor.py": 225
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 226
     }
   },
   {

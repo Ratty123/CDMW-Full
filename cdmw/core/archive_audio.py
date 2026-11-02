@@ -380,7 +380,7 @@ def build_wwise_media_replacement(
         ratio = len(media) / max(1, len(original_media))
         notes.append(
             "The replacement is uncompressed PCM, which no shipped bank declares; the banks that play it were switched "
-            "to Wwise's built-in PCM codec. This is not yet confirmed in game."
+            "to Wwise's built-in PCM codec, which the game plays."
         )
         if ratio >= _PCM_SIZE_WARNING_RATIO:
             notes.append(
