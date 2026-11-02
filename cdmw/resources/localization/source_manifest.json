@@ -1796,7 +1796,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1896,7 +1896,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2501,7 +2501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 394,
+          "line": 404,
           "sink": "setFormat"
         },
         {
@@ -3096,7 +3096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -3326,7 +3326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -3431,7 +3431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3536,7 +3536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3566,7 +3566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3696,7 +3696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3706,7 +3706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3876,7 +3876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -3936,7 +3936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4036,7 +4036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6797,6 +6797,16 @@
       ]
     },
     {
+      "key": "Add Note",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 57,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Add PNG or DDS files to build a replacement package. The queue will show matched originals, package targets, and any unresolved items.",
       "origins": [
         {
@@ -7181,7 +7191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 248,
+          "line": 263,
           "sink": "setPlaceholderText"
         }
       ]
@@ -8216,7 +8226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 641,
+          "line": 654,
           "sink": "setHeaderLabels"
         }
       ]
@@ -8251,7 +8261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -9661,7 +9671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 166,
+          "line": 156,
           "sink": "QCheckBox"
         }
       ]
@@ -9916,7 +9926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -10831,8 +10841,8 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 222,
-          "sink": "_add_titled_help_header"
+          "line": 232,
+          "sink": "intro_label"
         }
       ]
     },
@@ -11151,7 +11161,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -11723,56 +11733,6 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_dialogs.py",
           "line": 117,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Apply To Current Family",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 227,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Apply To Current File",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 237,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Apply To Selected Families",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 228,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Apply To Unknown Files In Current Family",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 239,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Apply To Unknown Files In Selected Families",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 240,
-          "sink": "setText"
         }
       ]
     },
@@ -12676,7 +12636,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -12936,7 +12896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 37,
+          "line": 39,
           "sink": "FlatSectionPanel"
         },
         {
@@ -12953,16 +12913,6 @@
           "path": "cdmw/ui/research/archive_picker_state.py",
           "line": 241,
           "sink": "python-return:archive_picker_available_status_text"
-        }
-      ]
-    },
-    {
-      "key": "Archive Insights",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab.py",
-          "line": 568,
-          "sink": "addTab"
         }
       ]
     },
@@ -13801,7 +13751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -14741,7 +14691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -14801,7 +14751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 387,
+          "line": 378,
           "sink": "setPlaceholderText"
         }
       ]
@@ -14813,6 +14763,16 @@
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
           "line": 34,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Archive path, search result, or any name",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 254,
+          "sink": "setPlaceholderText"
         }
       ]
     },
@@ -14951,7 +14911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -15406,7 +15366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 441,
+          "line": 439,
           "sink": "QGroupBox"
         }
       ]
@@ -15798,6 +15758,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 124,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Asset Research studies the textures in the current Archive Browser view: how they group into sets, what type each texture is, what refers to them, and how your rebuilt textures compare with the originals. It only reads the archives and does not change game files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -17681,7 +17651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -17696,7 +17666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -17711,7 +17681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -17721,7 +17691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         }
       ]
@@ -17731,7 +17701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 641,
+          "line": 654,
           "sink": "setHeaderLabels"
         }
       ]
@@ -18516,12 +18486,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 641,
+          "line": 654,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         }
       ]
@@ -20821,7 +20791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -21341,7 +21311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 619,
+          "line": 632,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -21351,7 +21321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -21361,7 +21331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -21371,7 +21341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -21581,7 +21551,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -21941,7 +21911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -22851,7 +22821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 597,
+          "line": 610,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -22861,12 +22831,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 151,
+          "line": 173,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 165,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -22896,7 +22866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 102,
+          "line": 91,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -22946,12 +22916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 641,
+          "line": 654,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         }
       ]
@@ -22991,17 +22961,17 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -23026,7 +22996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -23766,7 +23736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 199,
+          "line": 221,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -24496,7 +24466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26481,7 +26451,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 656,
+          "line": 669,
           "sink": "setHeaderLabels"
         },
         {
@@ -26541,7 +26511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -28462,6 +28432,16 @@
       ]
     },
     {
+      "key": "Checks your rebuilt textures in the Output root against the originals in the Original DDS root: mip chains, normal maps and memory budget. Set both folders in the Textures tool, then click Refresh Research.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 548,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
       "key": "Checks: Unverified — prepare the complete selection",
       "origins": [
         {
@@ -28631,7 +28611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -29692,6 +29672,16 @@
       ]
     },
     {
+      "key": "Choose a label. Under Save to, pick this file, the unknown files in this family, or the unknown files in the selected families. Remove from deletes saved labels again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Choose a language and optional reference, load them, then search keys and text or filter by group.",
       "origins": [
         {
@@ -29803,6 +29793,16 @@
           "path": "cdmw/services/new_item_service.py",
           "line": 430,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose a page in the row of tabs. The Archive Files panel on the right lists the same files; select one to preview it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -29993,6 +29993,16 @@
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 228,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose a target, write the note and click Save Note. Notes are stored beside the EXE.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -31791,7 +31801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 643,
+          "line": 656,
           "sink": "addTab"
         }
       ]
@@ -31801,7 +31811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 637,
+          "line": 650,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -31836,7 +31846,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 204,
+          "line": 192,
           "sink": "setHeaderLabels"
         }
       ]
@@ -31845,9 +31855,14 @@
       "key": "Classification Review",
       "origins": [
         {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 364,
+          "path": "cdmw/ui/research/tab.py",
+          "line": 580,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -31866,7 +31881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 233,
+          "line": 236,
           "sink": "python-return:unknown_group_classification_text"
         }
       ]
@@ -31891,7 +31906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 124,
+          "line": 113,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -32327,31 +32342,6 @@
       ]
     },
     {
-      "key": "Clear Current Family",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 229,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 241,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Clear Current File",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 238,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
       "key": "Clear Folders",
       "origins": [
         {
@@ -32512,21 +32502,6 @@
       ]
     },
     {
-      "key": "Clear Selected Families",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 230,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 242,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Clear Selected Target",
       "origins": [],
       "manual": true
@@ -32536,7 +32511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 175,
+          "line": 204,
           "sink": "QPushButton"
         },
         {
@@ -33047,6 +33022,16 @@
       ]
     },
     {
+      "key": "Click Find References in Archive Files or double-click a file. You can also type an archive path and click Resolve.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Click Load Model to choose a related .pac/.pam/.pamlod inside this editor.",
       "origins": [
         {
@@ -33083,6 +33068,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Click Scan UI Rect References to find UI textures whose displayed size is fixed by XML.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 487,
+          "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Click Scan UI Rect References. Upscaling such a texture alone does not make it bigger in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -34866,7 +34871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -34961,7 +34966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -34971,7 +34976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -35296,7 +35301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 576,
+          "line": 589,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -35936,12 +35941,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 136,
+          "line": 125,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 452,
+          "line": 450,
           "sink": "setHeaderLabels"
         }
       ]
@@ -35966,7 +35971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -36256,12 +36261,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         }
       ]
@@ -36856,12 +36861,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -38336,12 +38341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 172,
+          "line": 194,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 173,
+          "line": 195,
           "sink": "emit"
         }
       ]
@@ -39806,7 +39811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -40062,6 +40067,16 @@
       ]
     },
     {
+      "key": "Ctrl+click or Shift+click to select several families.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 205,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Ctrl+right-click sets the clone/heal source point. Use aligned sampling for classic retouching, or turn it off to stamp from a fixed source.",
       "origins": [
         {
@@ -40186,7 +40201,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         },
         {
@@ -41276,7 +41291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         }
       ]
@@ -42626,7 +42641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 254,
+          "line": 269,
           "sink": "QPushButton"
         }
       ]
@@ -43191,7 +43206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         }
       ]
@@ -43636,7 +43651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 201,
+          "line": 211,
           "sink": "setPlaceholderText"
         }
       ]
@@ -43721,12 +43736,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 350,
+          "line": 349,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 165,
+          "line": 175,
           "sink": "addTab"
         },
         {
@@ -44591,7 +44606,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -45131,7 +45146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -46556,7 +46571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -51071,7 +51086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -51571,7 +51586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 619,
+          "line": 632,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -53001,7 +53016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -53566,7 +53581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 548,
+          "line": 562,
           "sink": "QPushButton"
         }
       ]
@@ -53576,7 +53591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 549,
+          "line": 563,
           "sink": "QPushButton"
         }
       ]
@@ -53706,7 +53721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 199,
+          "line": 221,
           "sink": "getSaveFileName"
         }
       ]
@@ -54501,7 +54516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 134,
+          "line": 136,
           "sink": "python-return:analysis_report_exported_status_text"
         }
       ]
@@ -54911,7 +54926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 219,
+          "line": 241,
           "sink": "setText"
         }
       ]
@@ -55336,7 +55351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -55526,7 +55541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 80,
+          "line": 73,
           "sink": "QPushButton"
         }
       ]
@@ -55961,7 +55976,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -56401,7 +56416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 267,
+          "line": 213,
           "sink": "QGroupBox"
         }
       ]
@@ -56746,12 +56761,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 136,
+          "line": 125,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         }
       ]
@@ -56996,7 +57011,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 636,
+          "line": 649,
           "sink": "addTab"
         },
         {
@@ -57041,7 +57056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 278,
+          "line": 224,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -58087,6 +58102,16 @@
       ]
     },
     {
+      "key": "Find References",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 53,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Find a bone...",
       "origins": [
         {
@@ -58280,6 +58305,16 @@
       "key": "Find the existing game texture before reviewing its replacement.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Find the materials, sidecars and XML files that point at a texture, or the textures a material uses. Pick a file in Archive Files on the right (double-click works too) or type its archive path, then click Resolve.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 368,
+          "sink": "intro_label"
+        }
+      ]
     },
     {
       "key": "Find useful files",
@@ -58991,18 +59026,8 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 307,
+          "line": 534,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 107,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 110,
-          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
@@ -59191,7 +59216,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 308,
+          "line": 535,
           "sink": "setToolTip"
         }
       ]
@@ -59526,7 +59551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 51,
+          "line": 60,
           "sink": "addItem"
         }
       ]
@@ -59536,7 +59561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 53,
+          "line": 62,
           "sink": "setToolTip"
         }
       ]
@@ -59911,7 +59936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -60096,7 +60121,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 52,
+          "line": 61,
           "sink": "addItem"
         }
       ]
@@ -60981,7 +61006,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 609,
+          "line": 622,
           "sink": "setHeaderLabels"
         },
         {
@@ -61076,7 +61101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -62741,7 +62766,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -63171,12 +63196,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         }
       ]
@@ -64166,12 +64191,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 114,
+          "line": 103,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         },
         {
@@ -64191,12 +64216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -64216,18 +64241,8 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 644,
+          "line": 657,
           "sink": "EmptyStateTreeWidget"
-        }
-      ]
-    },
-    {
-      "key": "Groups",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 145,
-          "sink": "addTab"
         }
       ]
     },
@@ -66686,7 +66701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -66695,9 +66710,14 @@
       "key": "Heatmap",
       "origins": [
         {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 533,
+          "path": "cdmw/ui/research/tab.py",
+          "line": 583,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -67321,7 +67341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -67421,7 +67441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -68047,6 +68067,16 @@
       ]
     },
     {
+      "key": "Hover a row to see sample paths.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Hover an island name in Mesh islands or Morph & Refit > Choose mesh islands to highlight only that island in the viewport. Hover a visible island in the viewport to highlight and reveal its name in the open lists. Move away to clear the highlight. Selection and pending fitting edits stay unchanged; hidden geometry stays hidden.",
       "origins": [
         {
@@ -68231,7 +68261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -68906,17 +68936,17 @@
         },
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 550,
+          "line": 562,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 411,
+          "line": 404,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 486,
+          "line": 480,
           "sink": "setFormat"
         },
         {
@@ -69041,7 +69071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -69726,7 +69756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -70226,7 +70256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -71036,7 +71066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -71086,7 +71116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -71123,6 +71153,16 @@
     },
     {
       "key": "In Path filter, plain text matches anywhere in the path. With * or ? as wildcards, *.xml matches file names and object/* matches that folder at any depth.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "In Textures, set both DDS folders, the originals and your rebuilt textures, then refresh. Select a row for details, or export the report as CSV or JSON.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -71511,7 +71551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 167,
+          "line": 157,
           "sink": "setToolTip"
         }
       ]
@@ -73143,16 +73183,6 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 125,
           "sink": "python-data:REPORT_TOOLS"
-        }
-      ]
-    },
-    {
-      "key": "Inspect grouped DDS families and their inferred semantic roles.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -75366,7 +75396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 609,
+          "line": 622,
           "sink": "setHeaderLabels"
         }
       ]
@@ -76686,7 +76716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 199,
+          "line": 221,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -76932,6 +76962,16 @@
       ]
     },
     {
+      "key": "Keep Current Role",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 256,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Keep Existing",
       "origins": [
         {
@@ -76951,7 +76991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77046,7 +77086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77676,7 +77716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 114,
+          "line": 103,
           "sink": "setHeaderLabels"
         }
       ]
@@ -77991,12 +78031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 231,
+          "line": 283,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -78081,7 +78121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -79166,7 +79206,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -80531,7 +80571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 67,
+          "line": 76,
           "sink": "QLabel"
         }
       ]
@@ -80668,6 +80708,16 @@
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 108,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Load the archives in Archive Browser and filter it to the files you want to study.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -80901,7 +80951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 155,
+          "line": 177,
           "sink": "setPlainText"
         }
       ]
@@ -80991,7 +81041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 134,
+          "line": 156,
           "sink": "setPlainText"
         }
       ]
@@ -81546,7 +81596,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         },
         {
@@ -81561,7 +81611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 204,
+          "line": 192,
           "sink": "setHeaderLabels"
         }
       ]
@@ -81641,7 +81691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -81986,7 +82036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83501,7 +83551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         },
         {
@@ -84472,16 +84522,6 @@
       ]
     },
     {
-      "key": "Material-To-Texture Reference Resolver",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 375,
-          "sink": "_add_titled_help_header"
-        }
-      ]
-    },
-    {
       "key": "Material: {value_0}",
       "origins": [
         {
@@ -84557,6 +84597,16 @@
       ]
     },
     {
+      "key": "Materials, sidecars and XML files that point at a texture, or the textures a material uses.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Materials: {value_0}; property overrides: {value_1}",
       "origins": [
         {
@@ -84591,7 +84641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -84821,7 +84871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 114,
+          "line": 103,
           "sink": "setHeaderLabels"
         }
       ]
@@ -88571,7 +88621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -88756,7 +88806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 576,
+          "line": 589,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -88766,12 +88816,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 130,
+          "line": 152,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/research/analysis_controller.py",
-          "line": 165,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -88783,6 +88833,16 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 335,
           "sink": "_add_slider_row"
+        }
+      ]
+    },
+    {
+      "key": "Mip chains, normal maps and memory budget of your rebuilt textures compared with the originals.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -88841,7 +88901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 587,
+          "line": 600,
           "sink": "setHeaderLabels"
         }
       ]
@@ -88851,7 +88911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -89081,7 +89141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89246,7 +89306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89546,7 +89606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -89951,7 +90011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -92991,17 +93051,17 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 177,
+          "line": 166,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 204,
+          "line": 192,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 84,
+          "line": 93,
           "sink": "setHeaderLabels"
         },
         {
@@ -93106,7 +93166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 171,
+          "line": 161,
           "sink": "setPlaceholderText"
         }
       ]
@@ -95056,7 +95116,7 @@
         },
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 244,
+          "line": 247,
           "sink": "python-return:unknown_member_local_text"
         },
         {
@@ -95351,7 +95411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 493,
+          "line": 487,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -95601,7 +95661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 80,
+          "line": 89,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -95956,7 +96016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 637,
+          "line": 650,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -95966,7 +96026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 129,
+          "line": 118,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -96156,7 +96216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 90,
+          "line": 93,
           "sink": "python-return:unknown_group_empty_status_text"
         }
       ]
@@ -96731,7 +96791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 644,
+          "line": 657,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -96741,7 +96801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 81,
+          "line": 75,
           "sink": "QLabel"
         }
       ]
@@ -96886,7 +96946,7 @@
         },
         {
           "path": "cdmw/ui/research/preview_controller.py",
-          "line": 329,
+          "line": 332,
           "sink": "clear_preview"
         }
       ]
@@ -97241,7 +97301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -97361,7 +97421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 424,
+          "line": 422,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -97486,7 +97546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 581,
+          "line": 594,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -97691,7 +97751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 603,
+          "line": 616,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -97711,7 +97771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 265,
+          "line": 280,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -98111,7 +98171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 652,
+          "line": 665,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -98581,7 +98641,17 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 94,
+          "line": 97,
+          "sink": "python-return:unknown_group_empty_status_text"
+        }
+      ]
+    },
+    {
+      "key": "No review items match the Name or Package filter. Clear the filters to see the whole list.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/classification_review_state.py",
+          "line": 91,
           "sink": "python-return:unknown_group_empty_status_text"
         }
       ]
@@ -98801,7 +98871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 445,
+          "line": 443,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -99166,7 +99236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 626,
+          "line": 639,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -99261,7 +99331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 139,
+          "line": 142,
           "sink": "python-return:unknown_no_current_family_unknown_status_text"
         }
       ]
@@ -99271,7 +99341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 143,
+          "line": 146,
           "sink": "python-return:unknown_no_selected_families_unknown_status_text"
         }
       ]
@@ -99281,7 +99351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 195,
+          "line": 183,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -99291,7 +99361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 94,
+          "line": 97,
           "sink": "python-return:unknown_group_empty_status_text"
         }
       ]
@@ -99351,7 +99421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 521,
+          "line": 516,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -99501,7 +99571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -99511,7 +99581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -99851,7 +99921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 603,
+          "line": 616,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -99991,7 +100061,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         },
         {
@@ -100397,6 +100467,16 @@
       ]
     },
     {
+      "key": "Note target",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 237,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Note: Regex is off, so '{value_0}' is treated as a literal character. Enable Regex for wildcard-style matching.",
       "origins": [
         {
@@ -100476,13 +100556,8 @@
         },
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 570,
+          "line": 587,
           "sink": "addTab"
-        },
-        {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 49,
-          "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/safe_upscale_wizard.py",
@@ -100493,6 +100568,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/texture_workflow/setup_overview_panel.py",
@@ -100703,6 +100783,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 110,
           "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Nothing to save: add tags or note text first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/notes_controller.py",
+          "line": 65,
+          "sink": "emit"
         }
       ]
     },
@@ -101636,7 +101726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -102027,6 +102117,16 @@
       ]
     },
     {
+      "key": "Open Asset Research under Utilities and click Refresh Research. Every page uses this snapshot until you refresh again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Open Browse Archives, select a file with this extension, then use its context menu. The link opens the tool; it does not select an asset or perform an edit.",
       "origins": [
         {
@@ -102063,16 +102163,6 @@
           "path": "cdmw/ui/shell/menus.py",
           "line": 38,
           "sink": "addAction"
-        }
-      ]
-    },
-    {
-      "key": "Open DDS analysis, reports, references, and local notes.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -103857,6 +103947,36 @@
       ]
     },
     {
+      "key": "Open the selected file on the Notes page.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 58,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Open the selected file on the References page and resolve what points at it. Double-clicking a file does the same.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 54,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Open the selected reference row in Text Search to read the XML around it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 395,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Open the verified save copies created before virtual launches.",
       "origins": [
         {
@@ -105231,7 +105351,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 587,
+          "line": 600,
           "sink": "setHeaderLabels"
         },
         {
@@ -105317,6 +105437,56 @@
       ]
     },
     {
+      "key": "Original DDS root and Output root are not set. Set them in the Textures tool to use these checks.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/analysis_controller.py",
+          "line": 108,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Original DDS root is not set. Output root: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/analysis_controller.py",
+          "line": 112,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Original DDS root: {value_0}\nOutput root: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/analysis_controller.py",
+          "line": 121,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Original DDS root: {value_0}\nOutput root: {value_1}\nAt least one of these folders does not exist; checks cover only the folders that do.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/analysis_controller.py",
+          "line": 116,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Original DDS root: {value_0}. Output root is not set.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/analysis_controller.py",
+          "line": 114,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Original XML",
       "origins": [
         {
@@ -105351,17 +105521,17 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         },
         {
@@ -105491,7 +105661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -105986,7 +106156,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -107756,42 +107926,42 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 136,
+          "line": 125,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 179,
+          "line": 168,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 204,
+          "line": 192,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 452,
+          "line": 450,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 84,
+          "line": 93,
           "sink": "setHeaderLabels"
         },
         {
@@ -107931,7 +108101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 173,
+          "line": 164,
           "sink": "setPlaceholderText"
         }
       ]
@@ -108171,7 +108341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 114,
+          "line": 103,
           "sink": "setHeaderLabels"
         },
         {
@@ -108248,6 +108418,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1206,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Page",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -110121,17 +110301,17 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 587,
+          "line": 600,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 609,
+          "line": 622,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         },
         {
@@ -110221,7 +110401,7 @@
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
@@ -110246,7 +110426,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -110596,7 +110776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 626,
+          "line": 639,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -110646,7 +110826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -111511,7 +111691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -112466,7 +112646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -112496,7 +112676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -112526,7 +112706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -112536,7 +112716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -115481,7 +115661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -115791,7 +115971,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 164,
+          "line": 174,
           "sink": "addTab"
         },
         {
@@ -116236,7 +116416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 226,
+          "line": 261,
           "sink": "QPushButton"
         }
       ]
@@ -116296,7 +116476,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -116381,7 +116561,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119451,12 +119631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 656,
+          "line": 669,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 658,
+          "line": 671,
           "sink": "addTab"
         },
         {
@@ -119501,7 +119681,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119511,7 +119691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119551,7 +119731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 652,
+          "line": 665,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -119826,7 +120006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -119866,7 +120046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -121136,7 +121316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121321,7 +121501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         }
       ]
@@ -123111,7 +123291,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 550,
+          "line": 564,
           "sink": "QLabel"
         },
         {
@@ -123131,7 +123311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 542,
+          "line": 554,
           "sink": "QLabel"
         }
       ]
@@ -123216,12 +123396,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -123251,7 +123431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -123316,17 +123496,17 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 136,
+          "line": 125,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 452,
+          "line": 450,
           "sink": "setHeaderLabels"
         }
       ]
@@ -123346,7 +123526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -123726,7 +123906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 587,
+          "line": 600,
           "sink": "setHeaderLabels"
         }
       ]
@@ -123776,17 +123956,17 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         },
         {
@@ -123871,7 +124051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -124461,7 +124641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -125256,7 +125436,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -125291,7 +125471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 420,
+          "line": 418,
           "sink": "QGroupBox"
         }
       ]
@@ -125570,18 +125750,18 @@
       "key": "References",
       "origins": [
         {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 461,
+          "path": "cdmw/ui/research/tab.py",
+          "line": 581,
           "sink": "addTab"
         },
         {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 48,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -125880,11 +126060,6 @@
           "sink": "QPushButton"
         },
         {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 47,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 410,
           "sink": "QPushButton"
@@ -126036,12 +126211,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 541,
+          "line": 553,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 107,
+          "line": 96,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -126051,7 +126226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 130,
+          "line": 132,
           "sink": "python-return:analysis_report_missing_status_text"
         }
       ]
@@ -126061,7 +126236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 157,
+          "line": 147,
           "sink": "QLabel"
         }
       ]
@@ -126071,7 +126246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 581,
+          "line": 594,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -126083,16 +126258,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 392,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Refresh UI constraints to identify referenced files that must preserve dimensions or format.",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 493,
-          "sink": "EmptyStateTreeWidget"
         }
       ]
     },
@@ -126146,7 +126311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_controller.py",
-          "line": 421,
+          "line": 398,
           "sink": "setText"
         }
       ]
@@ -126446,7 +126611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         }
       ]
@@ -126461,7 +126626,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 452,
+          "line": 450,
           "sink": "setHeaderLabels"
         }
       ]
@@ -126542,6 +126707,26 @@
       ]
     },
     {
+      "key": "Related textures grouped into sets, and the type Research gave each texture. Select a set to extract its textures and sidecar files together.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 65,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
+      "key": "Related textures grouped into sets, and the type given to each texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Related-File Indexing",
       "origins": [
         {
@@ -126611,7 +126796,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 452,
+          "line": 450,
           "sink": "setHeaderLabels"
         }
       ]
@@ -126837,6 +127022,16 @@
       ]
     },
     {
+      "key": "Reload List",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 49,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Reload Preview",
       "origins": [
         {
@@ -126873,6 +127068,16 @@
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 405,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Reload this list from the current Archive Browser view and filter.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 50,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -127227,6 +127432,16 @@
       ]
     },
     {
+      "key": "Remove from",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 290,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Remove from List",
       "origins": [
         {
@@ -127298,6 +127513,26 @@
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
           "line": 586,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Remove saved labels from every DDS file in all selected families.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 280,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Remove saved labels from every DDS file in the selected family.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 276,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -127497,6 +127732,16 @@
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
           "line": 71,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Remove the saved label from the selected DDS file.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 274,
           "sink": "setToolTip"
         }
       ]
@@ -127716,7 +127961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 177,
+          "line": 180,
           "sink": "python-return:unknown_removed_current_file_status_text"
         }
       ]
@@ -127746,7 +127991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 185,
+          "line": 188,
           "sink": "python-return:unknown_removed_selected_families_status_text"
         }
       ]
@@ -127756,7 +128001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 181,
+          "line": 184,
           "sink": "python-return:unknown_removed_family_status_text"
         }
       ]
@@ -129571,7 +129816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -129586,7 +129831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129626,7 +129871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130018,11 +130263,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 720,
           "sink": "python-return:_build_utility_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -130095,16 +130335,6 @@
       "key": "Research rows in this tab are built from the current Archive Browser view/filter.",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Research rows in this tab are built from the current Archive Browser view/filter. When available, DDS classification can still consult loaded archive sidecars such as .pac.xml and .pami so color/albedo and other roles do not depend only on filename guessing.",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 64,
-          "sink": "_make_help_button"
-        }
-      ]
     },
     {
       "key": "Research snapshot ready for the current Archive Browser view ({value_0} file(s)).",
@@ -131726,7 +131956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 391,
+          "line": 383,
           "sink": "QPushButton"
         }
       ]
@@ -131738,16 +131968,6 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 307,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Resolve material/shader/XML references for a selected texture, or inspect outbound texture references from a selected material sidecar.",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 375,
-          "sink": "_add_titled_help_header"
         }
       ]
     },
@@ -131766,7 +131986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 424,
+          "line": 422,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -134372,16 +134592,6 @@
       ]
     },
     {
-      "key": "Review planner/path/profile summaries and family-level context before committing to risky workflow overrides.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "Review ready. Verify the target and package identity, then write the package.",
       "origins": [
         {
@@ -135056,12 +135266,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         }
       ]
@@ -135081,12 +135291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -135161,7 +135371,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 286,
+          "line": 232,
           "sink": "setHeaderLabels"
         }
       ]
@@ -135236,7 +135446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 609,
+          "line": 622,
           "sink": "setHeaderLabels"
         },
         {
@@ -135951,7 +136161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 129,
+          "line": 118,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -136476,7 +136686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -136596,7 +136806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -136747,6 +136957,16 @@
       ]
     },
     {
+      "key": "Save A Label",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 242,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Save All",
       "origins": [],
       "manual": true
@@ -136757,16 +136977,6 @@
         {
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 293,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Save Current Role Locally",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 236,
           "sink": "QPushButton"
         }
       ]
@@ -136841,7 +137051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 253,
+          "line": 268,
           "sink": "QPushButton"
         }
       ]
@@ -137302,6 +137512,36 @@
       ]
     },
     {
+      "key": "Save the label for every still-unknown DDS file in all selected families.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 270,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Save the label for every still-unknown DDS file in the selected family.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 266,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Save the label for the selected DDS file only.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 264,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Save the last generated rebuild report as JSON.",
       "origins": [
         {
@@ -137338,6 +137578,26 @@
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 295,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Save the role Research already inferred for the selected file, without changing it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 257,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Save to",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 286,
+          "sink": "QLabel"
         }
       ]
     },
@@ -137386,7 +137646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 261,
+          "line": 276,
           "sink": "QGroupBox"
         }
       ]
@@ -137396,7 +137656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 154,
+          "line": 157,
           "sink": "python-return:unknown_saved_current_file_status_text"
         }
       ]
@@ -137406,7 +137666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 170,
+          "line": 173,
           "sink": "python-return:unknown_saved_selected_families_status_text"
         }
       ]
@@ -137416,7 +137676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 158,
+          "line": 161,
           "sink": "python-return:unknown_saved_family_status_text"
         }
       ]
@@ -137426,7 +137686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 147,
+          "line": 150,
           "sink": "python-return:unknown_saved_current_role_status_text"
         }
       ]
@@ -137587,6 +137847,16 @@
       ]
     },
     {
+      "key": "Saved labels stay on this PC. Later scans and the texture policies used when you build reuse them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Saved on",
       "origins": [
         {
@@ -137646,7 +137916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 265,
+          "line": 280,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -138326,7 +138596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 479,
+          "line": 473,
           "sink": "QPushButton"
         }
       ]
@@ -138396,7 +138666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 80,
+          "line": 89,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -138766,7 +139036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 597,
+          "line": 610,
           "sink": "_add_titled_help_header"
         }
       ]
@@ -139936,7 +140206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140116,7 +140386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 174,
+          "line": 203,
           "sink": "QPushButton"
         }
       ]
@@ -140901,7 +141171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 108,
+          "line": 110,
           "sink": "python-return:compare_path_missing_status_text"
         }
       ]
@@ -140911,7 +141181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 123,
+          "line": 126,
           "sink": "python-return:unknown_select_dds_status_text"
         }
       ]
@@ -140921,12 +141191,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 323,
+          "line": 322,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 343,
+          "line": 342,
           "sink": "setPlaceholderText"
         }
       ]
@@ -140936,7 +141206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 356,
+          "line": 355,
           "sink": "setPlaceholderText"
         }
       ]
@@ -141146,7 +141416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 278,
+          "line": 224,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -141176,7 +141446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 120,
+          "line": 130,
           "sink": "QLabel"
         }
       ]
@@ -141269,11 +141539,6 @@
     {
       "key": "Select a grouped texture set to extract its related files and sidecars.",
       "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 86,
-          "sink": "_make_help_button"
-        },
         {
           "path": "cdmw/ui/research/texture_group_state.py",
           "line": 44,
@@ -141736,7 +142001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 303,
+          "line": 305,
           "sink": "QLabel"
         }
       ]
@@ -141761,7 +142026,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 193,
+          "line": 203,
           "sink": "QLabel"
         }
       ]
@@ -141771,7 +142036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 466,
+          "line": 476,
           "sink": "setText"
         }
       ]
@@ -141803,6 +142068,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 622,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Select a set and click Extract Selected Set to extract its textures and sidecar files together.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -142026,7 +142301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 131,
+          "line": 134,
           "sink": "python-return:unknown_select_family_status_text"
         }
       ]
@@ -142331,7 +142606,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 104,
+          "line": 113,
           "sink": "QLabel"
         }
       ]
@@ -142391,7 +142666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 404,
+          "line": 398,
           "sink": "QLabel"
         }
       ]
@@ -143596,7 +143871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 135,
+          "line": 138,
           "sink": "python-return:unknown_select_families_status_text"
         }
       ]
@@ -144087,6 +144362,16 @@
       ]
     },
     {
+      "key": "Selected Families",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 279,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Selected HKX",
       "origins": [
         {
@@ -144166,12 +144451,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 297,
+          "line": 299,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 98,
+          "line": 107,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -144201,7 +144486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 189,
+          "line": 199,
           "sink": "QGroupBox"
         }
       ]
@@ -146351,7 +146636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -146451,7 +146736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146461,7 +146746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146471,7 +146756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146481,7 +146766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146491,7 +146776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146596,7 +146881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146616,12 +146901,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -146646,7 +146931,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -147346,7 +147631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -147381,7 +147666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -148671,7 +148956,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 310,
+          "line": 537,
           "sink": "setToolTip"
         }
       ]
@@ -149031,7 +149316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 272,
+          "line": 218,
           "sink": "QLabel"
         }
       ]
@@ -149103,16 +149388,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2725,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Shows textures that are explicitly referenced by archive UI/XML text with a GetRect-style size box. This is informational evidence only: it warns that DDS-only upscaling may not change the rendered size if the UI still uses the same rect.",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 471,
-          "sink": "_add_titled_help_header"
         }
       ]
     },
@@ -149506,7 +149781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 445,
+          "line": 443,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -149626,7 +149901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -149646,12 +149921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -149866,12 +150141,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 609,
+          "line": 622,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         },
         {
@@ -151986,17 +152261,17 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 431,
+          "line": 429,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 244,
+          "line": 259,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 271,
+          "line": 286,
           "sink": "setHeaderLabels"
         },
         {
@@ -152216,7 +152491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         }
       ]
@@ -156601,12 +156876,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -156712,16 +156987,6 @@
       ]
     },
     {
-      "key": "Tagging And Notes",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 222,
-          "sink": "_add_titled_help_header"
-        }
-      ]
-    },
-    {
       "key": "Tags",
       "origins": [
         {
@@ -156741,12 +157006,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 245,
+          "line": 260,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 271,
+          "line": 286,
           "sink": "setHeaderLabels"
         }
       ]
@@ -156956,12 +157221,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 243,
+          "line": 258,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 271,
+          "line": 286,
           "sink": "setHeaderLabels"
         },
         {
@@ -157086,7 +157351,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -157756,7 +158021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158146,7 +158411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 651,
+          "line": 664,
           "sink": "addTab"
         }
       ]
@@ -158156,7 +158421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -158216,7 +158481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -158386,7 +158651,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 500,
+          "line": 494,
           "sink": "setHeaderLabels"
         },
         {
@@ -158461,8 +158726,13 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab.py",
-          "line": 569,
+          "line": 586,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -158471,7 +158741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 315,
+          "line": 317,
           "sink": "python-return:texture_analysis_context_text"
         }
       ]
@@ -158736,7 +159006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -158766,7 +159036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -158816,8 +159086,23 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 102,
+          "line": 91,
           "sink": "_add_titled_help_header"
+        }
+      ]
+    },
+    {
+      "key": "Texture Sets",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab.py",
+          "line": 579,
+          "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -158836,18 +159121,8 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 641,
+          "line": 654,
           "sink": "setHeaderLabels"
-        }
-      ]
-    },
-    {
-      "key": "Texture Usage Heatmap",
-      "origins": [
-        {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 517,
-          "sink": "QGroupBox"
         }
       ]
     },
@@ -159276,8 +159551,18 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 107,
+          "line": 96,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Texture sets, texture types, classification review, references, UI size limits, rebuilt-texture checks and notes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -159496,13 +159781,23 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
+        }
+      ]
+    },
+    {
+      "key": "Texture types and references come from file names, paths and sidecar files. Treat them as evidence to review, not as proof of how the game uses a texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -159511,7 +159806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 521,
+          "line": 516,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -159521,18 +159816,8 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 124,
+          "line": 113,
           "sink": "_add_titled_help_header"
-        }
-      ]
-    },
-    {
-      "key": "Texture-family inspection, unknown-resolution, DDS QA, reports, and notes.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -159566,12 +159851,12 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 648,
+          "line": 661,
           "sink": "setHeaderLabels"
         },
         {
@@ -159677,6 +159962,16 @@
       ]
     },
     {
+      "key": "Textures Research could not classify with confidence. Select one, check the preview, choose the right label and save it. Saved labels stay on this PC and are reused by later scans and texture policies.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 140,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
       "key": "Textures are available but none are included.",
       "origins": [
         {
@@ -159738,6 +160033,16 @@
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
           "line": 410,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Textures that could not be classified with confidence, with a preview and the reasons for each suggestion.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -159821,7 +160126,7 @@
         },
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 228,
+          "line": 230,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -160171,7 +160476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -160281,7 +160586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -160291,7 +160596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -160301,7 +160606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -161321,7 +161626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -162722,6 +163027,16 @@
       ]
     },
     {
+      "key": "The label to save. Research preselects its best suggestion for the selected file.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 253,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "The legacy renderer is not used as a fallback.",
       "origins": [
         {
@@ -163403,6 +163718,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 656,
           "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
+      "key": "The note was empty, so the saved note for this target was removed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/notes_controller.py",
+          "line": 63,
+          "sink": "emit"
         }
       ]
     },
@@ -164661,7 +164986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 127,
+          "line": 130,
           "sink": "python-return:unknown_no_current_role_status_text"
         }
       ]
@@ -166182,6 +166507,16 @@
       ]
     },
     {
+      "key": "There is no saved note for this target.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/notes_controller.py",
+          "line": 70,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "There is no store named {value_0}",
       "origins": [
         {
@@ -166836,7 +167171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -166868,6 +167203,31 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
           "line": 265,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "This Family",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 275,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "This File",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 263,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 273,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -169826,7 +170186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 656,
+          "line": 669,
           "sink": "setHeaderLabels"
         }
       ]
@@ -169836,7 +170196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 656,
+          "line": 669,
           "sink": "setHeaderLabels"
         }
       ]
@@ -169846,7 +170206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -169886,7 +170246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -170666,7 +171026,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -170776,7 +171136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171206,17 +171566,17 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 136,
+          "line": 125,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 633,
+          "line": 646,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 84,
+          "line": 93,
           "sink": "setHeaderLabels"
         },
         {
@@ -171371,7 +171731,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 526,
+          "line": 521,
           "sink": "setHeaderLabels"
         }
       ]
@@ -171400,19 +171760,14 @@
       "key": "UI Constraints",
       "origins": [
         {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 511,
+          "path": "cdmw/ui/research/tab.py",
+          "line": 582,
           "sink": "addTab"
-        }
-      ]
-    },
-    {
-      "key": "UI Rect References",
-      "origins": [
+        },
         {
-          "path": "cdmw/ui/research/tab_builders.py",
-          "line": 471,
-          "sink": "_add_titled_help_header"
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -171431,7 +171786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 211,
+          "line": 213,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -171453,6 +171808,26 @@
           "path": "cdmw/ui/research/workers.py",
           "line": 272,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "UI textures whose on-screen size is fixed by a GetRect box in the game's UI XML. Upscaling such a texture alone does not make it bigger in game while the XML keeps the same box. The scan reads archive XML, so it runs only when you click Scan.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 465,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
+      "key": "UI textures whose size on screen is fixed by a GetRect box in the game's UI XML.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -171926,7 +172301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 195,
+          "line": 183,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -172446,7 +172821,7 @@
         },
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 232,
+          "line": 235,
           "sink": "python-return:unknown_group_classification_text"
         },
         {
@@ -172463,6 +172838,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 312,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Unknown Files In Selected Families",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 269,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Unknown Files In This Family",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 265,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -172493,16 +172888,6 @@
           "path": "cdmw/ui/mesh_editor/controller.py",
           "line": 856,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Unknown Resolver",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -173766,7 +174151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 271,
+          "line": 286,
           "sink": "setHeaderLabels"
         }
       ]
@@ -174486,7 +174871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -174531,7 +174916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 656,
+          "line": 669,
           "sink": "setHeaderLabels"
         },
         {
@@ -174546,7 +174931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/analysis_state.py",
-          "line": 251,
+          "line": 253,
           "sink": "python-return:budget_detail_payload"
         }
       ]
@@ -174676,12 +175061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -175001,7 +175381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 230,
+          "line": 242,
           "sink": "QPushButton"
         }
       ]
@@ -175016,12 +175396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 390,
+          "line": 382,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 228,
+          "line": 238,
           "sink": "QPushButton"
         }
       ]
@@ -175031,7 +175411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 229,
+          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -175591,7 +175971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175932,6 +176312,26 @@
       "manual": true
     },
     {
+      "key": "Use the file selected in Archive Files on the right.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 239,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Use the file selected in the Textures tool's Compare view.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 243,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Use the indexed side menu, press",
       "origins": [
         {
@@ -175976,8 +176376,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Use the result selected in the Text Search tool.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_side_panel_builders.py",
+          "line": 241,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -177766,7 +178176,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 62,
+          "line": 71,
           "sink": "QLabel"
         },
         {
@@ -179166,7 +179576,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 587,
+          "line": 600,
           "sink": "setHeaderLabels"
         },
         {
@@ -180011,7 +180421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -180061,7 +180471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180128,6 +180538,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "What it shows",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -180228,6 +180648,16 @@
           "path": "tools/placement_studio/what_is_this.py",
           "line": 124,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "What to do",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -180451,7 +180881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180461,7 +180891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180503,6 +180933,26 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 426,
           "sink": "_manual_combo"
+        }
+      ]
+    },
+    {
+      "key": "Where textures concentrate in the current archive view, ranked by system area, folder and package. Heat adds up textures, texture sets, normal maps, UI textures, sidecars and impostors. Hover a row to see sample paths.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/tab_builders.py",
+          "line": 510,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
+      "key": "Where textures concentrate, ranked by system area, folder and package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -180786,7 +181236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180796,7 +181246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180941,7 +181391,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -181421,12 +181871,12 @@
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 116,
+          "line": 119,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 151,
+          "line": 154,
           "sink": "setFormat"
         },
         {
@@ -182536,7 +182986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -183341,7 +183791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 245,
+          "line": 248,
           "sink": "python-return:unknown_member_local_text"
         }
       ]
@@ -183351,7 +183801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 245,
+          "line": 248,
           "sink": "python-return:unknown_member_local_text"
         }
       ]
@@ -183503,6 +183953,16 @@
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 291,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Your own notes and tags on archive files, Text Search results or compared files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -183691,7 +184151,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 312,
+          "line": 539,
           "sink": "setToolTip"
         }
       ]
@@ -183706,7 +184166,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
-          "line": 306,
+          "line": 533,
           "sink": "setToolTip"
         }
       ]
@@ -184541,12 +185001,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184556,7 +185016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184621,7 +185081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184631,7 +185091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -184641,7 +185101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184946,7 +185406,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -185001,7 +185461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -185021,7 +185481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185043,6 +185503,16 @@
           "path": "cdmw/ui/archive_browser/filters.py",
           "line": 89,
           "sink": "python-return:_neutral_archive_filter_state"
+        }
+      ]
+    },
+    {
+      "key": "asset research texture sets classification review label unknown references sidecar ui constraints getrect heatmap texture analysis mip normal budget notes",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 720,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -185926,7 +186396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186411,17 +186881,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186941,12 +187411,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -186996,7 +187466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187071,7 +187541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187536,7 +188006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -187566,7 +188036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 242,
+          "line": 257,
           "sink": "setPlaceholderText"
         }
       ]
@@ -187971,7 +188441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -187981,7 +188451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188101,7 +188571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -188111,7 +188581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -190641,7 +191111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190651,7 +191121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190886,7 +191356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190946,7 +191416,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 51,
+          "line": 60,
           "sink": "addItem"
         },
         {
@@ -191001,7 +191471,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 52,
+          "line": 61,
           "sink": "addItem"
         }
       ]
@@ -192081,7 +192551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192091,7 +192561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192406,7 +192876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192641,7 +193111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192663,16 +193133,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 226,
           "sink": "python-return:_build_workflow_planning_sections"
-        }
-      ]
-    },
-    {
-      "key": "is the analysis surface for grouped texture families and metadata-heavy review.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -192701,7 +193161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192721,7 +193181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192751,7 +193211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193491,7 +193951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193506,7 +193966,7 @@
         },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
-          "line": 240,
+          "line": 255,
           "sink": "QLabel"
         }
       ]
@@ -195081,7 +195541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -195091,7 +195551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195346,7 +195806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195531,7 +195991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196546,7 +197006,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -197271,7 +197731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197341,7 +197801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197736,7 +198196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198156,7 +198616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198866,7 +199326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198876,7 +199336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199846,7 +200306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 65,
+          "line": 68,
           "sink": "_prepare_catalogue_research_refresh_if_needed"
         }
       ]
@@ -200093,16 +200553,6 @@
           "path": "cdmw/ui/shell/tool_tabs.py",
           "line": 822,
           "sink": "_register_detachable_tool"
-        }
-      ]
-    },
-    {
-      "key": "research unknown resolver grouped families dds qa reports heatmaps notes references",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -200561,7 +201011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201016,7 +201466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201026,7 +201476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201691,7 +202141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204017,16 +204467,6 @@
       ]
     },
     {
-      "key": "to review and assign uncertain classifications.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 720,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "to review supported equipment placement, sockets, and animation replacements.",
       "origins": [
         {
@@ -204336,7 +204776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204346,7 +204786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -205591,7 +206031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 933,
+          "line": 944,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -205726,7 +206166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205811,7 +206251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205821,7 +206261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 835,
+          "line": 846,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206821,7 +207261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 227,
+          "line": 230,
           "sink": "python-return:unknown_group_display_name"
         }
       ]
@@ -207546,7 +207986,7 @@
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 430,
+          "line": 440,
           "sink": "setFormat"
         },
         {
@@ -207856,7 +208296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 115,
+          "line": 118,
           "sink": "python-return:unknown_group_ready_status_text"
         }
       ]
@@ -210361,7 +210801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 114,
+          "line": 117,
           "sink": "python-return:unknown_group_ready_status_text"
         }
       ]
@@ -210871,7 +211311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_state.py",
-          "line": 114,
+          "line": 117,
           "sink": "python-return:unknown_group_ready_status_text"
         }
       ]
