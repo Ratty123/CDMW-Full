@@ -15836,7 +15836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 265,
+          "line": 267,
           "sink": "tr"
         },
         {
@@ -22326,7 +22326,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 238,
+          "line": 242,
           "sink": "progress"
         }
       ]
@@ -22486,7 +22486,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 158,
+          "line": 157,
           "sink": "on_log"
         }
       ]
@@ -24416,7 +24416,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 169,
+          "line": 198,
           "sink": "QPushButton"
         },
         {
@@ -27766,7 +27766,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 705,
+          "line": 711,
           "sink": "progress"
         }
       ]
@@ -27926,12 +27926,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 472,
+          "line": 473,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 162,
+          "line": 166,
           "sink": "progress"
         }
       ]
@@ -28126,7 +28126,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 218,
+          "line": 222,
           "sink": "progress"
         }
       ]
@@ -28211,13 +28211,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 129,
+          "line": 156,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 143,
-          "sink": "_run_utility_task"
+          "line": 170,
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -28431,7 +28431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 152,
+          "line": 181,
           "sink": "setWindowTitle"
         }
       ]
@@ -33506,7 +33506,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 920,
+          "line": 926,
           "sink": "RuntimeError"
         }
       ]
@@ -34118,6 +34118,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 229,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Collision file search cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 78,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -35096,7 +35106,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 559,
+          "line": 560,
           "sink": "progress"
         }
       ]
@@ -36276,7 +36286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 265,
+          "line": 267,
           "sink": "tr"
         },
         {
@@ -41401,7 +41411,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 90,
+          "line": 91,
           "sink": "ValueError"
         }
       ]
@@ -41471,7 +41481,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 59,
+          "line": 60,
           "sink": "ValueError"
         }
       ]
@@ -42881,7 +42891,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 949,
+          "line": 955,
           "sink": "on_log"
         }
       ]
@@ -57066,7 +57076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 159,
+          "line": 188,
           "sink": "setPlaceholderText"
         }
       ]
@@ -58007,6 +58017,16 @@
         {
           "path": "cdmw/ui/archive_browser/appearance_composite.py",
           "line": 382,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
+      "key": "Finding collision files like {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 146,
           "sink": "_run_utility_task"
         }
       ]
@@ -60706,7 +60726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 264,
+          "line": 266,
           "sink": "tr"
         },
         {
@@ -64376,7 +64396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 232,
+          "line": 261,
           "sink": "information"
         }
       ]
@@ -64461,7 +64481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 203,
+          "line": 232,
           "sink": "warning"
         },
         {
@@ -64491,7 +64511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 83,
+          "line": 104,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64511,7 +64531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 200,
+          "line": 229,
           "sink": "set_status_message"
         }
       ]
@@ -64521,7 +64541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 242,
+          "line": 271,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -64531,7 +64551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 279,
+          "line": 308,
           "sink": "information"
         }
       ]
@@ -64741,7 +64761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 210,
+          "line": 239,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -64751,7 +64771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 210,
+          "line": 239,
           "sink": "getSaveFileName"
         }
       ]
@@ -64771,7 +64791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 260,
+          "line": 289,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64791,7 +64811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 221,
+          "line": 250,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -68496,7 +68516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 946,
+          "line": 952,
           "sink": "RuntimeError"
         }
       ]
@@ -68506,7 +68526,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 910,
+          "line": 916,
           "sink": "TypeError"
         }
       ]
@@ -68516,7 +68536,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 912,
+          "line": 918,
           "sink": "PermissionError"
         }
       ]
@@ -71766,52 +71786,52 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 304,
+          "line": 305,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 312,
+          "line": 313,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 323,
+          "line": 324,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 329,
+          "line": 330,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 378,
+          "line": 379,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 390,
+          "line": 391,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 394,
+          "line": 395,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 405,
+          "line": 406,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 469,
+          "line": 470,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 601,
+          "line": 602,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -75066,7 +75086,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 289,
+          "line": 291,
           "sink": "tr"
         },
         {
@@ -75776,7 +75796,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 739,
+          "line": 745,
           "sink": "progress"
         }
       ]
@@ -89306,7 +89326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 266,
+          "line": 268,
           "sink": "tr"
         },
         {
@@ -97376,7 +97396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 122,
+          "line": 140,
           "sink": "information"
         }
       ]
@@ -100376,7 +100396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 206,
+          "line": 235,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -103881,7 +103901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 96,
+          "line": 117,
           "sink": "set_status_message"
         }
       ]
@@ -104081,7 +104101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 98,
+          "line": 119,
           "sink": "_run_utility_task"
         }
       ]
@@ -107556,7 +107576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 263,
+          "line": 265,
           "sink": "tr"
         },
         {
@@ -113621,7 +113641,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 232,
+          "line": 236,
           "sink": "progress"
         }
       ]
@@ -114876,7 +114896,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 599,
+          "line": 600,
           "sink": "progress"
         }
       ]
@@ -121721,7 +121741,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 518,
+          "line": 519,
           "sink": "progress"
         }
       ]
@@ -122256,7 +122276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 81,
+          "line": 102,
           "sink": "log"
         }
       ]
@@ -123546,7 +123566,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 282,
+          "line": 286,
           "sink": "progress"
         }
       ]
@@ -133271,7 +133291,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 235,
+          "line": 239,
           "sink": "progress"
         }
       ]
@@ -136261,7 +136281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 210,
+          "line": 239,
           "sink": "getSaveFileName"
         }
       ]
@@ -137176,7 +137196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 230,
+          "line": 259,
           "sink": "set_status_message"
         }
       ]
@@ -137411,7 +137431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 234,
+          "line": 263,
           "sink": "_run_utility_task"
         }
       ]
@@ -139816,7 +139836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 242,
+          "line": 271,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -140271,7 +140291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 71,
+          "line": 92,
           "sink": "set_status_message"
         }
       ]
@@ -142356,7 +142376,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 148,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -145061,7 +145081,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 290,
+          "line": 292,
           "sink": "tr"
         },
         {
@@ -145081,12 +145101,12 @@
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 153,
+          "line": 152,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 190,
+          "line": 189,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -145166,7 +145186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 281,
+          "line": 283,
           "sink": "tr"
         }
       ]
@@ -145211,7 +145231,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 287,
+          "line": 289,
           "sink": "emit"
         },
         {
@@ -145226,7 +145246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_packages_page.py",
-          "line": 285,
+          "line": 287,
           "sink": "tr"
         },
         {
@@ -148431,7 +148451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 183,
+          "line": 212,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -151276,7 +151296,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 538,
+          "line": 539,
           "sink": "on_log"
         }
       ]
@@ -166716,7 +166736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 139,
+          "line": 166,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -170651,7 +170671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 155,
+          "line": 184,
           "sink": "QLabel"
         }
       ]
@@ -171941,7 +171961,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 467,
+          "line": 468,
           "sink": "ValueError"
         }
       ]
@@ -174036,12 +174056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 122,
+          "line": 140,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 139,
+          "line": 166,
           "sink": "warning"
         }
       ]
@@ -174326,7 +174346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 168,
+          "line": 197,
           "sink": "QPushButton"
         },
         {
@@ -176686,7 +176706,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 191,
+          "line": 195,
           "sink": "progress"
         }
       ]
@@ -177336,7 +177356,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 294,
+          "line": 298,
           "sink": "progress"
         }
       ]
@@ -181556,7 +181576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 281,
+          "line": 310,
           "sink": "_run_utility_task"
         }
       ]
@@ -181716,7 +181736,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 170,
+          "line": 169,
           "sink": "progress"
         }
       ]
@@ -181921,7 +181941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 277,
+          "line": 306,
           "sink": "set_status_message"
         }
       ]
@@ -181971,7 +181991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
-          "line": 223,
+          "line": 252,
           "sink": "log"
         }
       ]
@@ -208566,7 +208586,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
-          "line": 50,
+          "line": 51,
           "sink": "ValueError"
         }
       ]

@@ -22514,7 +22514,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_item_table",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 236
+      "cdmw/core/archive_hkx_tagfile_model.py": 265
     }
   },
   {
@@ -22522,7 +22522,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_layout",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 249
+      "cdmw/core/archive_hkx_tagfile_model.py": 278
     }
   },
   {
@@ -22530,7 +22530,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_model",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 441
+      "cdmw/core/archive_hkx_tagfile_model.py": 470
     }
   },
   {
@@ -22538,7 +22538,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_patch_table",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 199
+      "cdmw/core/archive_hkx_tagfile_model.py": 215
     }
   },
   {
@@ -22546,7 +22546,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_reference",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 315
+      "cdmw/core/archive_hkx_tagfile_model.py": 344
     }
   },
   {
@@ -22554,7 +22554,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_section",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 206
+      "cdmw/core/archive_hkx_tagfile_model.py": 222
     }
   },
   {
@@ -22562,7 +22562,7 @@ MESSAGE_REFERENCE = [
     "message": "bad_type_table",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 146
+      "cdmw/core/archive_hkx_tagfile_model.py": 137
     }
   },
   {
@@ -23191,6 +23191,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "malformed",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 252
+    }
+  },
+  {
+    "area": "formats",
     "message": "mask 0x{mask} exceeds every candidate component",
     "recovery": "limits",
     "sources": {
@@ -23394,7 +23402,7 @@ MESSAGE_REFERENCE = [
     "message": "nonzero_padding",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 283
+      "cdmw/core/archive_hkx_tagfile_model.py": 312
     }
   },
   {
@@ -24247,7 +24255,7 @@ MESSAGE_REFERENCE = [
     "message": "unproven_layout",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 286
+      "cdmw/core/archive_hkx_tagfile_model.py": 315
     }
   },
   {
@@ -24263,7 +24271,7 @@ MESSAGE_REFERENCE = [
     "message": "unreached_items",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 368
+      "cdmw/core/archive_hkx_tagfile_model.py": 397
     }
   },
   {
@@ -24343,7 +24351,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported_sdk",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_hkx_tagfile_model.py": 230
+      "cdmw/core/archive_hkx_tagfile_model.py": 259
     }
   },
   {
@@ -102292,6 +102300,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/archive_hkx_editing.py",
     "cdmw/core/archive_hkx_native_summary.py",
     "cdmw/core/archive_hkx_parser.py",
+    "cdmw/core/archive_hkx_tagfile_model.py",
     "cdmw/core/archive_hkx_types.py",
     "cdmw/core/archive_hkx_xml_export_physics.py",
     "cdmw/core/prefab_binary.py",
@@ -103198,7 +103207,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_hkx_summary.py": {},
   "cdmw/core/archive_hkx_tagfile_layout.py": {},
   "cdmw/core/archive_hkx_tagfile_model.py": {
-    "raise": 35
+    "raise": 40
   },
   "cdmw/core/archive_hkx_types.py": {
     "diagnostic_field": 2
