@@ -134,7 +134,7 @@ internal static class ArchiveNameIndexBuilder
                 DecodeSource(native, layer.ItemInfoHeader, cancellationToken),
                 stringHashes,
                 cancellationToken);
-            if (dlcRecords is not null) records.AddRange(dlcRecords);
+            if (dlcRecords is not null) MergeLayerRecords(records, dlcRecords);
         }
         if (records.Count == 0)
         {
@@ -651,9 +651,17 @@ internal static class ArchiveNameIndexBuilder
                     }
                 }
             }
-            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels));
+            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels, itemId));
         }
         return records;
+    }
+
+    /// <summary>A layer's row replaces the base row with the same item id; its other rows are new items.</summary>
+    internal static void MergeLayerRecords(List<ItemRecord> records, IReadOnlyCollection<ItemRecord> layer)
+    {
+        var replaced = layer.Where(static record => record.ItemId != 0).Select(static record => record.ItemId).ToHashSet();
+        records.RemoveAll(record => record.ItemId != 0 && replaced.Contains(record.ItemId));
+        records.AddRange(layer);
     }
 
     private static List<ItemRecord> ParseItemInfo(
@@ -1261,12 +1269,15 @@ internal static class ArchiveNameIndexBuilder
         public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
-    private sealed class ItemRecord(
+    internal sealed class ItemRecord(
         List<string> localizationIds,
         string internalName,
         List<uint> prefabHashes,
-        List<string> relatedModelStems)
+        List<string> relatedModelStems,
+        uint itemId = 0)
     {
+        /// <summary>The row's key; 0 when the row came from the marker scan without a directory.</summary>
+        public uint ItemId { get; } = itemId;
         public List<string> LocalizationIds { get; } = localizationIds;
         public string InternalName { get; } = internalName;
         public List<uint> PrefabHashes { get; } = prefabHashes;

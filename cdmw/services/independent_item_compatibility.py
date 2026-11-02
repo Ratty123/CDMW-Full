@@ -11,7 +11,7 @@ import re
 from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table, merge_overlay_files, owned_item_references
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
-from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, digest, dlc_content, pinned_digests, unpack_recipe
+from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, dependency_refusal, digest, dlc_content, pinned_digests, unpack_recipe
 from cdmw.services.mod_merge_service import _group, _inventory
 from cdmw.services.new_item_provenance import SourceTracker
 
@@ -474,7 +474,7 @@ def check_package_dependencies(package, snapshot, external, changes, *, stop_eve
             names = ', '.join(dlc_content(pin for pin in package.dependencies if not snapshot.has_entry(pin)))
             if names:
                 raise OverlayConflict(f'{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.')
-            raise OverlayConflict(f'{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.')
+            raise OverlayConflict(dependency_refusal(package.title, path, snapshot))
         if path in done or path not in external.paths:
             continue
         paths = _group(path)

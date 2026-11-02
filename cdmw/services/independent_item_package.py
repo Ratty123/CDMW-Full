@@ -174,6 +174,24 @@ def virtual_path(value):
 _DLC_RESOURCE = re.compile(r"[._](dlc_[0-9]+)\.[^/]*\Z")
 
 
+def dependency_refusal(title, path, snapshot):
+    """Why a pinned game file does not match, for a package that names no DLC table layer.
+
+    A DLC also ships its own copies of base files under base names (13,500 in the first
+    DLC). A package made on a game with the DLC pins those copies, so on a game without
+    any DLC the mismatch may be the missing DLC rather than another game version.
+    """
+    entry = getattr(getattr(snapshot, "iteminfo", None), "payload_entry", None)
+    if entry is not None:
+        from cdmw.domain.archives.filters import archive_entry_game_root
+        dlc = archive_entry_game_root(entry) / "dlc"
+        if not (dlc.is_dir() and any(_is_dlc_folder(path) for path in dlc.iterdir() if path.is_dir())):
+            return (f"{title}: incompatible game dependency {path}. This game has no DLC installed: if the "
+                    "package was made on a game with the DLC, install the DLC; otherwise use the matching game "
+                    "version or an updated package.")
+    return f"{title}: incompatible game dependency {path}. Use the matching game version or an updated package."
+
+
 def dlc_content(paths):
     """The DLC that shipped game files belong to, read from their names (`iteminfo.dlc_01...`).
 

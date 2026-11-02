@@ -1,4 +1,5 @@
 """Hair transactions restore guides, geometry and output intent together."""
+import struct
 import copy
 from dataclasses import replace
 import hashlib
@@ -628,20 +629,24 @@ def test_export_resolves_registered_icon_outside_the_customizeimage_folder(edito
     files["character/descriptors/pbd/hair.xml"] = b"owned physics profile"
     game = tmp_path / "game"
     (game / "meta").mkdir(parents=True)
-    for name in ("0.papgt", "0.pathc", "0.paver"):
+    for name in ("0.pathc", "0.paver"):
         (game / "meta" / name).write_bytes(b"owned metadata")
+    # The compact, signed mount list games ship since the DLC update; the legacy
+    # checksum reader refuses it, so the export must read it as metadata only.
+    names = b"0001\0"
+    (game / "meta/0.papgt").write_bytes(bytes((0, 0, 1, 2)) + struct.pack("<III", 0x7FFF00, 0, 0)
+                                        + struct.pack("<I", len(names)) + names + b"\x07" * 64)
     pamt = game / "0001/0.pamt"
     pamt.parent.mkdir()
     pamt.write_bytes(b"owned index")
     paz = pamt.with_suffix(".paz"); paz.write_bytes(b"owned archive")
     entries = {path: ArchiveEntry(path, pamt, paz, index, len(data), len(data), 0, 0)
                for index, (path, data) in enumerate(files.items())}
-    monkeypatch.setattr(output, "parse_papgt", lambda _: [SimpleNamespace(name="0001")])
     monkeypatch.setattr(output, "parse_archive_pamt", lambda _: tuple(entries.values()))
     monkeypatch.setattr(output, "read_archive_entry_data", lambda entry, *_: (files[entry.path], ""))
     monkeypatch.setattr(output, "parse_pbd_config_materials", lambda _: {"hair": SimpleNamespace(filename="hair.xml")})
     class ReadComplete(Exception): pass
-    def prepared(_snapshot, _rebuilt, sources, *_args):
+    def prepared(_snapshot, _rebuilt, sources, *_args, **_kwargs):
         assert sources[icon_path] == files[icon_path]
         raise ReadComplete
     monkeypatch.setattr(output, "prepare_authored_hair", prepared)

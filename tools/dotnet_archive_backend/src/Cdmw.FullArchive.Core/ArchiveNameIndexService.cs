@@ -10,7 +10,8 @@ public sealed class ArchiveNameIndexService(
     ArchiveCacheStore cache,
     NativeArchiveCore native)
 {
-    private const int FileVersion = 5;
+    // 6: DLC ItemInfo, StringInfo and item names are merged in.
+    private const int FileVersion = 6;
     private static readonly byte[] Magic = "CDMWNAM5"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);

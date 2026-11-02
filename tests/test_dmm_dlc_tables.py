@@ -61,3 +61,43 @@ def test_a_planned_item_reaches_dmm_as_operations_not_table_copies(tmp_path):
     # Everything else the plan writes still goes to DMM as files.
     assert set(dmm_plan.loose_files) == {path for path in plan.loose_files
                                          if "storeinfo" not in path and "itemgroupinfo" not in path}
+
+
+def test_adding_an_item_to_a_dmm_mod_keeps_the_earlier_items_operations(tmp_path):
+    import json
+
+    from cdmw.services.dmm_send import OPERATIONS_FILE, write_operations
+
+    def group(key, item):
+        return dict(file="itemgroupinfo.pabgb", intents=[dict(op="array_append", key=key, field="item_info_list", new=item)])
+
+    def stock(item):
+        return dict(file="storeinfo.pabgb", intents=[dict(op="array_append", key=2003, field="stock_data_list",
+                                                          new={"lookup_a": 2003, "value": {"raw_q": item}})])
+
+    folder = tmp_path / "mod"
+    folder.mkdir()
+    write_operations(folder, "Mod", [stock(1990000), group(17011, 1990000)], owned_items={1990000})
+    write_operations(folder, "Mod", [stock(1990001), group(17011, 1990001)], owned_items={1990001})
+    # Re-adding the first item to another group replaces only its own operations.
+    write_operations(folder, "Mod", [stock(1990000), group(17010, 1990000)], owned_items={1990000})
+    targets = json.loads((folder / OPERATIONS_FILE).read_text(encoding="utf-8"))["targets"]
+    added = {(target["file"], intent["key"], intent["new"] if isinstance(intent["new"], int) else intent["new"]["value"]["raw_q"])
+             for target in targets for intent in target["intents"]}
+    assert added == {("storeinfo.pabgb", 2003, 1990000), ("storeinfo.pabgb", 2003, 1990001),
+                     ("itemgroupinfo.pabgb", 17011, 1990001), ("itemgroupinfo.pabgb", 17010, 1990000)}
+    assert sum(len(target["intents"]) for target in targets) == 4
+
+
+def test_a_swap_placement_is_refused_for_dmm_with_its_reason(tmp_path):
+    from cdmw.domain.new_item.rules import validate_spec
+    from cdmw.services.dmm_dlc_tables import plan_for_dmm
+    from tests.test_new_item_compact_dlc import TEMPLATE
+
+    service, snapshot = setup(tmp_path, dlc=True)
+    swap = replace(spec("DmmSwap"), placement=Placement(kind=PlacementKind.SWAP, store_name="Store_Pai_BlackMarket",
+                                                         old_item_name=snapshot.rows[TEMPLATE].string_key))
+    assert "placement.swap_not_for_dmm" in {issue.code for issue in validate_spec(swap)}
+    plan = service.plan(swap, snapshot)  # A .cdmw package already refuses a swap.
+    with pytest.raises(DmmTableError, match="Swap placement"):
+        plan_for_dmm(plan, _read(snapshot))

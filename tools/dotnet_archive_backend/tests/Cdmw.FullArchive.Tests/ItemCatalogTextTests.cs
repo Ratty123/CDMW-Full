@@ -8,6 +8,19 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class ItemCatalogTextTests
 {
+    public static Task DlcRowsReplaceBaseRowsAsync()
+    {
+        static ArchiveNameIndexBuilder.ItemRecord Row(uint id, string name) => new([name], name, [], [], id);
+        var records = new List<ArchiveNameIndexBuilder.ItemRecord> { Row(10, "base_ten"), Row(11, "base_eleven") };
+        ArchiveNameIndexBuilder.MergeLayerRecords(records, [Row(11, "dlc_eleven"), Row(20, "dlc_twenty")]);
+        var names = records.Select(static record => record.InternalName).Order(StringComparer.Ordinal).ToArray();
+        if (!names.SequenceEqual(["base_ten", "dlc_eleven", "dlc_twenty"]))
+        {
+            throw new InvalidOperationException("a DLC ItemInfo row did not replace the base row with its id: " + string.Join(", ", names));
+        }
+        return Task.CompletedTask;
+    }
+
     public static async Task EncodingAsync()
     {
         // Reproduce the reporter's stray 9F at byte 11, then cover invalid UTF-8

@@ -48,7 +48,14 @@ def _store_additions(name, original, changed):
     added = [entry for entry in changed.entries if not original.entries_for(entry.item_key)]
     kept = [entry.item_key for entry in changed.entries if original.entries_for(entry.item_key)]
     if kept != [entry.item_key for entry in original.entries] or len(added) + len(kept) != len(changed.entries):
-        raise DmmTableError(f"Shop {changed.name!r} changes more than added stock lines in the DLC's copy; DMM cannot take that.")
+        removed = [entry for entry in original.entries if not changed.entries_for(entry.item_key)]
+        if removed and added:
+            raise DmmTableError(
+                f"Shop {changed.name!r} replaces an existing stock line (a Swap placement). DMM can only add stock "
+                "lines to a shop, so choose Add to shop for an item that goes to DMM.")
+        raise DmmTableError(
+            f"Shop {changed.name!r} differs from the game's copy in more than added stock lines, for example by "
+            "another mounted mod's edits. DMM can only add stock lines; build the item without the other mod's tables.")
     return added
 
 
@@ -57,7 +64,9 @@ def _group_additions(original, changed):
         raise DmmTableError(f"Item group {changed.name!r} exists only in the DLC's table, which DMM does not take from mods.")
     added = [key for key in changed.members if key not in original.members]
     if [key for key in changed.members if key in original.members] != list(original.members):
-        raise DmmTableError(f"Item group {changed.name!r} changes more than added members in the DLC's copy; DMM cannot take that.")
+        raise DmmTableError(
+            f"Item group {changed.name!r} differs from the game's copy in more than added members, for example by "
+            "another mounted mod's edits. DMM can only add members; build the item without the other mod's tables.")
     return added
 
 
@@ -161,7 +170,7 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
     return result
 
 
-def _plan_item_keys(manifest) -> set[int]:
+def plan_item_keys(manifest) -> set[int]:
     """Every item a new-item plan adds: the item, its price perks and the items it carries forward."""
     keys = set()
 
@@ -200,7 +209,7 @@ def plan_for_dmm(plan, read_game: Callable[[str], Optional[bytes]], *,
     if not tables:
         return plan, []
     folded = fold_dlc_additions(tables, read_game, on_log=on_log)
-    kept, targets = field_operations(folded, read_game, _plan_item_keys(plan.manifest))
+    kept, targets = field_operations(folded, read_game, plan_item_keys(plan.manifest))
     if kept:
         raise DmmTableError("The shop and item group tables could not all become DMM operations: "
                             + ", ".join(sorted(kept)) + ".")
