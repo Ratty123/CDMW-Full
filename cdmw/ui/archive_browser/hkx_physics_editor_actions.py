@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -62,6 +62,27 @@ def _entry_family_prefix(path: str) -> str:
     return "/".join(parts[:3])
 
 
+def hkx_replacement_candidates(
+    entries: Sequence[ArchiveEntry], entry: ArchiveEntry, stop_event: Optional[threading.Event] = None
+) -> List[Tuple[str, ArchiveEntry]]:
+    """Other .hkx entries in the same top three folders, as (casefolded path, entry), sorted.
+
+    Runs in the utility worker: a full archive scan holds over a million entries.
+    """
+
+    prefix = _entry_family_prefix(str(entry.path))
+    own = str(entry.path).replace("\\", "/").casefold()
+    candidates = []
+    for index, candidate in enumerate(entries):
+        if stop_event is not None and index % 50_000 == 0:
+            raise_if_cancelled(stop_event, "Collision file search cancelled.")
+        path = str(candidate.path).replace("\\", "/").casefold()
+        if path.endswith(".hkx") and path != own and _entry_family_prefix(path) == prefix:
+            candidates.append((path, candidate))
+    candidates.sort(key=lambda pair: pair[0])
+    return candidates
+
+
 class ArchiveHkxPhysicsEditorMixin:
     """Opens the HKX Physics Editor and runs its reads and saves off the UI thread."""
 
@@ -105,25 +126,31 @@ class ArchiveHkxPhysicsEditorMixin:
 
     # Collision replacement --------------------------------------------------------------
 
-    def _hkx_replacement_candidates(self, entry: ArchiveEntry) -> List[ArchiveEntry]:
-        prefix = _entry_family_prefix(str(entry.path))
-        own = str(entry.path).replace("\\", "/").casefold()
-        candidates = []
-        for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
-            path = str(candidate.path).replace("\\", "/").casefold()
-            if path.endswith(".hkx") and path != own and _entry_family_prefix(path) == prefix:
-                candidates.append(candidate)
-        candidates.sort(key=lambda candidate: str(candidate.path).casefold())
-        return candidates
-
     def _pick_hkx_collision_replacement(self, dialog: HkxPhysicsEditorDialog, entry: ArchiveEntry) -> None:
-        candidates = self._hkx_replacement_candidates(entry)
-        if not candidates:
-            QMessageBox.information(dialog, "Use Another File's Collision", "No other collision files of this kind are in the scanned archives.")
-            return
-        chosen = self._choose_hkx_replacement_entry(dialog, candidates)
-        if chosen is None:
-            return
+        # Only the list reference is taken here; filtering the full scan runs in the worker.
+        entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+        def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
+            return hkx_replacement_candidates(entries, entry, stop_event)
+
+        def _handle_complete(candidates: object) -> None:
+            if dialog.closed:
+                return
+            if not candidates:
+                QMessageBox.information(dialog, "Use Another File's Collision", "No other collision files of this kind are in the scanned archives.")
+                return
+            chosen = self._choose_hkx_replacement_entry(dialog, candidates)
+            if chosen is not None and not dialog.closed:
+                self._check_hkx_collision_replacement(dialog, chosen)
+
+        self.shell._run_utility_task(
+            status_message=f"Finding collision files like {entry.basename}...",
+            task=_task,
+            on_complete=_handle_complete,
+            task_accepts_cancel=True,
+        )
+
+    def _check_hkx_collision_replacement(self, dialog: HkxPhysicsEditorDialog, chosen: ArchiveEntry) -> None:
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
             log(f"Checking {chosen.path} as replacement collision...")
@@ -140,14 +167,16 @@ class ArchiveHkxPhysicsEditorMixin:
                 return
             dialog.set_replacement(str(chosen.path).replace("\\", "/"), data)
 
-        self.shell._run_utility_task(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Checking {chosen.basename} as replacement collision...",
             task=_task,
             on_complete=_handle_complete,
             task_accepts_cancel=True,
         )
 
-    def _choose_hkx_replacement_entry(self, parent: QDialog, candidates: List[ArchiveEntry]) -> Optional[ArchiveEntry]:
+    def _choose_hkx_replacement_entry(
+        self, parent: QDialog, candidates: Sequence[Tuple[str, ArchiveEntry]]
+    ) -> Optional[ArchiveEntry]:
         picker = QDialog(parent)
         picker.setWindowTitle("Choose Collision File")
         picker.resize(760, 520)
@@ -173,7 +202,7 @@ class ArchiveHkxPhysicsEditorMixin:
 
         def refill(text: str) -> None:
             needle = text.strip().casefold()
-            matches = [candidate for candidate in candidates if needle in str(candidate.path).casefold()]
+            matches = [candidate for key, candidate in candidates if needle in key]
             listing.clear()
             for candidate in matches[:_REPLACEMENT_LIST_LIMIT]:
                 item = QListWidgetItem(str(candidate.path).replace("\\", "/"))

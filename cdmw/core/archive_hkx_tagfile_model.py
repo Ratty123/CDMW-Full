@@ -133,17 +133,27 @@ def _read_sections(data: bytes, start: int, end: int) -> List[Tuple[str, int, in
 
 
 def _varint(payload: bytes, offset: int) -> Tuple[int, int]:
+    if offset >= len(payload):
+        raise HkxTagfileRefused("bad_type_table", "TNA1 ends inside a packed integer.")
     first = payload[offset]
     if first & 0x80 == 0:
         return first, offset + 1
     marker = first >> 3
     if 0x10 <= marker < 0x18:
+        width = 2
+    elif 0x18 <= marker < 0x1C:
+        width = 3
+    elif marker == 0x1C:
+        width = 4
+    else:
+        raise HkxTagfileRefused("bad_type_table", f"Unsupported packed integer marker 0x{first:02X}.")
+    if offset + width > len(payload):
+        raise HkxTagfileRefused("bad_type_table", "TNA1 ends inside a packed integer.")
+    if width == 2:
         return ((first << 8) | payload[offset + 1]) & 0x3FFF, offset + 2
-    if 0x18 <= marker < 0x1C:
+    if width == 3:
         return ((first << 16) | (payload[offset + 1] << 8) | payload[offset + 2]) & 0x1FFFFF, offset + 3
-    if marker == 0x1C:
-        return int.from_bytes(payload[offset : offset + 4], "little") & 0x07FFFFFF, offset + 4
-    raise HkxTagfileRefused("bad_type_table", f"Unsupported packed integer marker 0x{first:02X}.")
+    return int.from_bytes(payload[offset : offset + 4], "little") & 0x07FFFFFF, offset + 4
 
 
 def _type_names(data: bytes, children: Dict[str, Tuple[int, int, int, int]]) -> Tuple[str, ...]:
@@ -154,6 +164,12 @@ def _type_names(data: bytes, children: Dict[str, Tuple[int, int, int, int]]) -> 
     _, _, start, end = children["TNA1"]
     table = data[start + 8 : end]
     count, offset = _varint(table, 0)
+
+    def string_at(index: int) -> str:
+        if not 0 <= index < len(strings):
+            raise HkxTagfileRefused("bad_type_table", f"TNA1 names string {index}; TST1 holds {len(strings)}.")
+        return strings[index]
+
     raw_types: List[Tuple[str, List[Tuple[str, int]]]] = []
     for _ in range(max(0, count - 1)):
         name_index, offset = _varint(table, offset)
@@ -162,8 +178,8 @@ def _type_names(data: bytes, children: Dict[str, Tuple[int, int, int, int]]) -> 
         for _ in range(template_count):
             template_name, offset = _varint(table, offset)
             template_value, offset = _varint(table, offset)
-            templates.append((strings[template_name], template_value))
-        raw_types.append((strings[name_index], templates))
+            templates.append((string_at(template_name), template_value))
+        raw_types.append((string_at(name_index), templates))
 
     def full_name(index: int, depth: int = 0) -> str:
         name, templates = raw_types[index - 1]
@@ -222,8 +238,21 @@ def _section_tree(data: bytes) -> Tuple[Dict[str, Tuple[int, int, int, int]], Di
 
 
 def parse_hkx_tagfile_model(data: bytes, *, canonical_layout: bool = True) -> HkxTagfileModel:
-    """Decode ``data``; ``canonical_layout=False`` accepts any non-overlapping item placement."""
+    """Decode ``data``; ``canonical_layout=False`` accepts any non-overlapping item placement.
 
+    Every malformed input ends in ``HkxTagfileRefused``; a truncated or inconsistent
+    table never escapes as a low-level ``IndexError`` or ``struct.error``.
+    """
+
+    try:
+        return _parse_hkx_tagfile_model(data, canonical_layout)
+    except HkxTagfileRefused:
+        raise
+    except (IndexError, KeyError, struct.error, RecursionError, UnicodeDecodeError) as exc:
+        raise HkxTagfileRefused("malformed", f"The file's tables are inconsistent ({type(exc).__name__}: {exc}).") from exc
+
+
+def _parse_hkx_tagfile_model(data: bytes, canonical_layout: bool) -> HkxTagfileModel:
     sections, type_children = _section_tree(data)
     sdk = data[sections["SDKV"][2] + 8 : sections["SDKV"][3]]
     if sdk != HKX_TAGFILE_SDK_VERSION:
