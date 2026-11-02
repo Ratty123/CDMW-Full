@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "keine Skelettliste dazu blockieren",
     "no-texture download": "Download ohne Textur",
     "node": "Knoten",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "Felder von Knoten, Verzweigungen und den meisten Frame-Event-Nutzdaten bleiben Rohbytes; commonactioninfo_serialized.paac behält einen 7.034 Byte langen Reflexions-Schluss; Neu-Zielzuweisungen von Clips funktionieren im Spiel, Zeit-, Geschwindigkeits- und Event-Änderungen sind im Spiel noch nicht geprüft",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "Felder von Knoten, Verzweigungen und den meisten Frame-Event-Nutzdaten bleiben Rohbytes; commonactioninfo_serialized.paac behält einen 7.034 Byte langen Reflexions-Schluss; Neu-Zielzuweisungen von Clips sowie Änderungen der Diagramm- und Fenstergeschwindigkeit funktionieren im Spiel, Event-Änderungen sind im Spiel noch nicht geprüft",
     "none": "keine",
     "none of this operation's sockets are shared": "keiner der Sockel dieser Operation wird gemeinsam genutzt",
     "none — an existing one is reused": "keine — ein vorhandener wird wiederverwendet",

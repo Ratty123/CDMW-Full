@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "이 블록에 스켈레톤 목록 없음",
     "no-texture download": "텍스처 없음 다운로드",
     "node": "노드",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "노드, 분기 및 대부분의 프레임 이벤트 페이로드 필드는 원시 바이트로 남습니다. commonactioninfo_serialized.paac에는 7,034바이트 리플렉션 꼬리가 남아 있습니다. 클립 리타겟은 게임에서 작동하며, 시간, 속도 및 이벤트 편집은 아직 게임에서 확인되지 않았습니다",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "노드, 분기 및 대부분의 프레임 이벤트 페이로드 필드는 원시 바이트로 남습니다. commonactioninfo_serialized.paac에는 7,034바이트 리플렉션 꼬리가 남아 있습니다. 클립 리타겟과 차트 속도 및 속도 구간 편집은 게임에서 작동하며, 이벤트 편집은 아직 게임에서 확인되지 않았습니다",
     "none": "없음",
     "none of this operation's sockets are shared": "이 작업의 소켓 중 공유된 것은 없습니다",
     "none — an existing one is reused": "없음 — 기존 소켓을 재사용합니다",

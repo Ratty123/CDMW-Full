@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "brak listy szkieletów w tym bloku",
     "no-texture download": "brak pobierania tekstur",
     "node": "węzeł",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "pola węzłów, gałęzi i większości danych zdarzeń klatek pozostają surowymi bajtami; commonactioninfo_serialized.paac zachowuje 7034-bajtowy ogon strumienia refleksji; retargeti klipów działają w grze, zmiany czasu, prędkości i zdarzeń nie zostały jeszcze sprawdzone w grze",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "pola węzłów, gałęzi i większości danych zdarzeń klatek pozostają surowymi bajtami; commonactioninfo_serialized.paac zachowuje 7034-bajtowy ogon strumienia refleksji; retargeti klipów oraz zmiany prędkości wykresu i okien prędkości działają w grze, zmiany zdarzeń nie zostały jeszcze sprawdzone w grze",
     "none": "żaden",
     "none of this operation's sockets are shared": "żadne z gniazd tej operacji nie jest wspólne",
     "none — an existing one is reused": "brak — istniejące jest użyte ponownie",

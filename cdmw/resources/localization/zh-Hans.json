@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "此武器上没有骨架列表 block",
     "no-texture download": "无纹理下载",
     "node": "节点",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "节点、分支和大多数帧事件负载的字段仍为原始字节；commonactioninfo_serialized.paac 保留一段 7,034 字节的反射尾部；片段重定向在游戏中有效，时间、速度和事件的修改尚未在游戏中检查",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "节点、分支和大多数帧事件负载的字段仍为原始字节；commonactioninfo_serialized.paac 保留一段 7,034 字节的反射尾部；片段重定向以及图表速度和速度窗口的修改在游戏中有效，事件的修改尚未在游戏中检查",
     "none": "无",
     "none of this operation's sockets are shared": "此操作的挂点没有任何一个是共享的",
     "none — an existing one is reused": "无 — 复用了一个现有插槽",

@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "bu blokta iskelet listesi yok",
     "no-texture download": "doku indirme yok",
     "node": "düğüm",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "düğüm, dal ve çoğu kare olayı yükü alanı ham bayt olarak kalır; commonactioninfo_serialized.paac 7.034 baytlık bir yansıma kuyruğu tutar; klip yeniden hedeflemeleri oyunda çalışır, zaman, hız ve olay düzenlemeleri henüz oyunda denetlenmedi",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "düğüm, dal ve çoğu kare olayı yükü alanı ham bayt olarak kalır; commonactioninfo_serialized.paac 7.034 baytlık bir yansıma kuyruğu tutar; klip yeniden hedeflemeleri ile tablo hızı ve hız penceresi düzenlemeleri oyunda çalışır, olay düzenlemeleri henüz oyunda denetlenmedi",
     "none": "hiçbiri",
     "none of this operation's sockets are shared": "bu işlemin soketlerinden hiçbiri paylaşımlı değil",
     "none — an existing one is reused": "yok — mevcut bir soket yeniden kullanılıyor",

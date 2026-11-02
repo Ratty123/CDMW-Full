@@ -190132,7 +190132,7 @@
       ]
     },
     {
-      "key": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet",
+      "key": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",

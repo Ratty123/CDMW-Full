@@ -1455,7 +1455,12 @@ runtime dump, archives read-only):
   `dualweapon_upper` through its included-chart names. `basic_upper_maskset`
   alone changed nothing. Which chart a player sees therefore depends on the
   loadout, and a chart can be reached only through another chart's includes.
-  Timing, speed and event edits are not checked in game yet.
+  Timing works too: halving `dualweapon_upper`'s `ActionSpeedRate` slowed
+  every dual-wield action, and halving its 2,491 speed-window rates did the
+  same. The Alt dodge kept its speed in both tests although the chart's 197
+  dodge animations all carry speed windows; Kliff's lower-body chart
+  `basic_lower` has its own dodge and roll animations and is the likely source,
+  which is not tested. Event edits are not checked in game yet.
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts

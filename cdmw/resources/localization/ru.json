@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "нет списка скелетов в этом блоке",
     "no-texture download": "загрузка без текстур",
     "node": "узел",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "поля узлов, ветвей и большинства полезных данных событий кадров остаются необработанными байтами; в commonactioninfo_serialized.paac остаётся хвост потока рефлексии длиной 7 034 байта; ретаргеты клипов работают в игре, изменения времени, скорости и событий в игре ещё не проверены",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "поля узлов, ветвей и большинства полезных данных событий кадров остаются необработанными байтами; в commonactioninfo_serialized.paac остаётся хвост потока рефлексии длиной 7 034 байта; ретаргеты клипов и изменения скорости диаграммы и окон скорости работают в игре, изменения событий в игре ещё не проверены",
     "none": "нет",
     "none of this operation's sockets are shared": "ни один из сокетов этой операции не является общим",
     "none — an existing one is reused": "нет — используется существующий",

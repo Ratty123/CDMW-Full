@@ -16155,7 +16155,7 @@
     "no skeleton list on this block": "aucune liste de squelettes sur ce bloc",
     "no-texture download": "téléchargement sans texture",
     "node": "nœud",
-    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets work in game, timing, speed and event edits are not checked in game yet": "les champs des nœuds, des branches et de la plupart des charges utiles d'événements d'image restent des octets bruts ; commonactioninfo_serialized.paac conserve une fin de flux de réflexion de 7 034 octets ; les retargets de clips fonctionnent en jeu, les modifications de temps, de vitesse et d'événements ne sont pas encore vérifiées en jeu",
+    "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet": "les champs des nœuds, des branches et de la plupart des charges utiles d'événements d'image restent des octets bruts ; commonactioninfo_serialized.paac conserve une fin de flux de réflexion de 7 034 octets ; les retargets de clips et les modifications de vitesse du graphique et des fenêtres de vitesse fonctionnent en jeu, les modifications d'événements ne sont pas encore vérifiées en jeu",
     "none": "aucun",
     "none of this operation's sockets are shared": "aucun des sockets de cette opération n'est partagé",
     "none — an existing one is reused": "aucun — un socket existant est réutilisé",
