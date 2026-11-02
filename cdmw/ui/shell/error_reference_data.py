@@ -9411,6 +9411,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Bone {clash} already exists; choose another prefix.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 529
+    }
+  },
+  {
+    "area": "archive",
     "message": "Both table files are required to compose {body}.",
     "recovery": "input",
     "sources": {
@@ -9592,6 +9600,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_mesh_export.py": 250
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Cannot edit {prepared.path}: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 186
     }
   },
   {
@@ -10247,6 +10263,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not open {chart_path}: {result}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 154
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not parse socket XML: {exc}",
     "recovery": "format",
     "sources": {
@@ -10287,6 +10311,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not read the character action packages: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 316
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read the clip: {outcome.message}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 999
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read {folder}: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 357
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not refresh appearance swap plan: {message}",
     "recovery": "internal",
     "sources": {
@@ -10307,6 +10355,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/core/archive_loose_export.py": 951
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not save the draft: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 605
     }
   },
   {
@@ -10410,7 +10466,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 334
+      "cdmw/core/archive_preview_result_builder.py": 336
     }
   },
   {
@@ -10482,7 +10538,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded preview failed: {exc}",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1634
+      "cdmw/core/archive_preview_result_builder.py": 1680
     }
   },
   {
@@ -10787,6 +10843,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_archive_results.py": 115
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Fix the error above to see it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 415
     }
   },
   {
@@ -11843,7 +11907,7 @@ MESSAGE_REFERENCE = [
     "message": "Model preview fallback",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1603
+      "cdmw/core/archive_preview_result_builder.py": 1649
     }
   },
   {
@@ -13637,7 +13701,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw bytes",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1648
+      "cdmw/core/archive_preview_result_builder.py": 1694
     }
   },
   {
@@ -14117,7 +14181,7 @@ MESSAGE_REFERENCE = [
     "message": "Showing raw stored bytes because the decoded preview path failed.",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1648
+      "cdmw/core/archive_preview_result_builder.py": 1694
     }
   },
   {
@@ -14834,6 +14898,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The action chart could not be decoded: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_preview_result_builder.py": 1200
+    }
+  },
+  {
+    "area": "archive",
     "message": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
     "recovery": "internal",
     "sources": {
@@ -15085,7 +15157,7 @@ MESSAGE_REFERENCE = [
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 603
+      "cdmw/core/archive_preview_result_builder.py": 649
     }
   },
   {
@@ -15162,6 +15234,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The edit was refused: {outcome.message}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1221
+    }
+  },
+  {
+    "area": "archive",
     "message": "The edited mesh's materials belong to a different source.",
     "recovery": "internal",
     "sources": {
@@ -15229,7 +15309,7 @@ MESSAGE_REFERENCE = [
     "message": "The file could not be read as a font or cursor: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15301,7 +15381,7 @@ MESSAGE_REFERENCE = [
     "message": "The impostor descriptor could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15605,7 +15685,7 @@ MESSAGE_REFERENCE = [
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15709,7 +15789,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader container could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1154
+      "cdmw/core/archive_preview_result_builder.py": 1200
     }
   },
   {
@@ -15804,10 +15884,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "These names are not in the game's archives or in this chart: {detail} A clip or file that does not exist cannot play, and a socket or part the character does not have does nothing. Apply anyway?",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1180
+    }
+  },
+  {
+    "area": "archive",
     "message": "This archive DDS is stored as truncated type 1 data. The image shown here is a padded best-effort preview and may be corrupted, noisy, or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 358
+      "cdmw/core/archive_preview_result_builder.py": 360
     }
   },
   {
@@ -15920,7 +16008,7 @@ MESSAGE_REFERENCE = [
     "message": "Type 1 DDS: Unsupported Preview",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 358
+      "cdmw/core/archive_preview_result_builder.py": 360
     }
   },
   {
@@ -16365,7 +16453,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual PAT preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1367
+      "cdmw/core/archive_preview_result_builder.py": 1413
     }
   },
   {
@@ -16373,7 +16461,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual model preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1237
+      "cdmw/core/archive_preview_result_builder.py": 1283
     }
   },
   {
@@ -16381,7 +16469,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual preview is not available for this model format yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1370
+      "cdmw/core/archive_preview_result_builder.py": 1416
     }
   },
   {
@@ -16550,6 +16638,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerServer.cs": 256
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Wrote Skeleton Edit JSON: {exported} Add new child bones under add_bones, then use Import Skeleton Edit JSON. Existing bones cannot be renamed, removed or reordered.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/pab_json_actions.py": 115
     }
   },
   {
@@ -18090,7 +18186,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_media_preview.py": 697,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1150,
-      "cdmw/core/archive_preview_result_builder.py": 1061,
+      "cdmw/core/archive_preview_result_builder.py": 1107,
       "cdmw/core/archive_preview_support.py": 377,
       "cdmw/core/archive_reverse_references.py": 216,
       "cdmw/core/archive_scan_cache.py": 608,
@@ -18568,6 +18664,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_scan_cache.py": 2275
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{chart_path} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 127
     }
   },
   {
@@ -20361,7 +20465,7 @@ MESSAGE_REFERENCE = [
     "message": "Havok 2024.2 mass-property field names are not fully recovered yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_editable_geometry.py": 45
+      "cdmw/core/archive_hkx_editable_geometry.py": 46
     }
   },
   {
@@ -21346,7 +21450,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview truncated to the first 128 bones.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_hkx.py": 634
+      "cdmw/core/archive_hkx.py": 638
     }
   },
   {
@@ -21741,7 +21845,7 @@ MESSAGE_REFERENCE = [
     "message": "Structural blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_hkx.py": 2979
+      "cdmw/core/archive_hkx.py": 2983
     }
   },
   {
@@ -21766,6 +21870,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py": 495
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The chosen file cannot be read safely: {candidate.codec_message}",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/hkx_physics_editor_service.py": 197
     }
   },
   {
@@ -22349,6 +22461,72 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "bad_edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_joint_limits.py": 258,
+      "cdmw/core/archive_hkx_structural_edits.py": 134,
+      "cdmw/services/hkx_physics_editor_service.py": 240
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_item_table",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 236
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_layout",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 249
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_model",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 441
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_patch_table",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 199
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_reference",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 315
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_section",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 206
+    }
+  },
+  {
+    "area": "formats",
+    "message": "bad_type_table",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 146
+    }
+  },
+  {
+    "area": "formats",
     "message": "blob read of {count} past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
@@ -22729,7 +22907,7 @@ MESSAGE_REFERENCE = [
     "message": "hknp capsule shape object field names are not fully recovered yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_editable_geometry.py": 169
+      "cdmw/core/archive_hkx_editable_geometry.py": 170
     }
   },
   {
@@ -22737,7 +22915,7 @@ MESSAGE_REFERENCE = [
     "message": "hknp shape object field names are not fully recovered yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_editable_geometry.py": 94
+      "cdmw/core/archive_hkx_editable_geometry.py": 95
     }
   },
   {
@@ -22753,7 +22931,7 @@ MESSAGE_REFERENCE = [
     "message": "hknpCapsuleShape radius/endpoints are fixed-size edits only; do not add endpoint rows.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_editable_geometry.py": 144
+      "cdmw/core/archive_hkx_editable_geometry.py": 145
     }
   },
   {
@@ -23173,6 +23351,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "nonzero_padding",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 283
+    }
+  },
+  {
+    "area": "formats",
     "message": "not a PAR container{where}",
     "recovery": "input",
     "sources": {
@@ -23488,7 +23674,7 @@ MESSAGE_REFERENCE = [
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx.py": 1932,
+      "cdmw/core/archive_hkx.py": 1936,
       "cdmw/core/archive_hkx_record_layout_fields_0.py": 274,
       "cdmw/core/hkx_native.py": 171,
       "cdmw/ui/archive_browser/hkx_document_actions.py": 119
@@ -24008,6 +24194,40 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "unproven_edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_joint_limits.py": 263,
+      "cdmw/core/archive_hkx_structural_edits.py": 106,
+      "cdmw/services/hkx_physics_editor_service.py": 250
+    }
+  },
+  {
+    "area": "formats",
+    "message": "unproven_layout",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 286
+    }
+  },
+  {
+    "area": "formats",
+    "message": "unproven_type",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 112
+    }
+  },
+  {
+    "area": "formats",
+    "message": "unreached_items",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 368
+    }
+  },
+  {
+    "area": "formats",
     "message": "unselected {member.name}{where} is not empty at 0x{cursor.pos}",
     "recovery": "empty",
     "sources": {
@@ -24080,6 +24300,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "unsupported_sdk",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/archive_hkx_tagfile_model.py": 230
+    }
+  },
+  {
+    "area": "formats",
     "message": "value must be a finite float: {error}",
     "recovery": "input",
     "sources": {
@@ -24100,6 +24328,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/papr_block.py": 274
+    }
+  },
+  {
+    "area": "formats",
+    "message": "verification_failed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/hkx_physics_editor_service.py": 228
     }
   },
   {
@@ -24587,7 +24823,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} contains invalid hex.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_hkx.py": 1952
+      "cdmw/core/archive_hkx.py": 1956
     }
   },
   {
@@ -24603,7 +24839,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} must be a hex string.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_hkx.py": 1945
+      "cdmw/core/archive_hkx.py": 1949
     }
   },
   {
@@ -24643,7 +24879,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} must contain an even number of hex digits.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_hkx.py": 1948
+      "cdmw/core/archive_hkx.py": 1952
     }
   },
   {
@@ -25075,7 +25311,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 590
+      "cdmw/services/independent_item_package.py": 600
     }
   },
   {
@@ -25099,7 +25335,7 @@ MESSAGE_REFERENCE = [
     "message": "A semantic export contributor changed during compilation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 710
+      "cdmw/services/independent_item_compatibility.py": 720
     }
   },
   {
@@ -25147,7 +25383,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 830
+      "cdmw/services/independent_item_package.py": 851
     }
   },
   {
@@ -25259,7 +25495,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 644
+      "cdmw/services/independent_item_package.py": 665
     }
   },
   {
@@ -25267,7 +25503,7 @@ MESSAGE_REFERENCE = [
     "message": "An untyped installed overlay cannot be included in a semantic export.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 852
+      "cdmw/services/independent_item_compatibility.py": 862
     }
   },
   {
@@ -25288,10 +25524,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Another mod changes shipped bones of this skeleton ({exc}); disable the other mod to load this item.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_compatibility.py": 540
+    }
+  },
+  {
+    "area": "independent",
     "message": "Another mod changes this file, and the item was built against the game's own copy. CDMW cannot combine changes to this kind of file; disable the other mod to load this item.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 536
+      "cdmw/services/independent_item_compatibility.py": 546
     }
   },
   {
@@ -25371,7 +25615,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW packages use the .cdmw extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 823
+      "cdmw/services/independent_item_package.py": 844
     }
   },
   {
@@ -25820,7 +26064,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose Item package · .cdmw and rebuild the plan first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 390
+      "cdmw/services/independent_item_package.py": 397
     }
   },
   {
@@ -25956,7 +26200,7 @@ MESSAGE_REFERENCE = [
     "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 845
+      "cdmw/services/independent_item_compatibility.py": 855
     }
   },
   {
@@ -26076,7 +26320,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 780
+      "cdmw/services/independent_item_package.py": 801
     }
   },
   {
@@ -26084,7 +26328,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 795
+      "cdmw/services/independent_item_package.py": 816
     }
   },
   {
@@ -26092,7 +26336,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 611
+      "cdmw/services/independent_item_package.py": 632
     }
   },
   {
@@ -26212,7 +26456,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible owned mesh {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 325
+      "cdmw/services/independent_item_references.py": 328
     }
   },
   {
@@ -26221,6 +26465,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_package.py": 361
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Independent item changes shipped bones of {path}: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 371
     }
   },
   {
@@ -26244,7 +26496,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot carry the shared change: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 366
+      "cdmw/services/independent_item_package.py": 373
     }
   },
   {
@@ -26260,7 +26512,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 417
+      "cdmw/services/independent_item_package.py": 427
     }
   },
   {
@@ -26268,7 +26520,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages require verified source dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 392
+      "cdmw/services/independent_item_package.py": 399
     }
   },
   {
@@ -26397,7 +26649,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 550
+      "cdmw/services/independent_item_package.py": 560
     }
   },
   {
@@ -26445,7 +26697,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 817
+      "cdmw/services/independent_item_package.py": 838
     }
   },
   {
@@ -26453,7 +26705,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 566
+      "cdmw/services/independent_item_package.py": 576
     }
   },
   {
@@ -26477,7 +26729,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 542
+      "cdmw/services/independent_item_package.py": 552
     }
   },
   {
@@ -26573,7 +26825,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned texture {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_references.py": 346
+      "cdmw/services/independent_item_references.py": 349
     }
   },
   {
@@ -26597,7 +26849,23 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 597
+      "cdmw/services/independent_item_package.py": 608
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Invalid prepared skeleton edit path.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 617
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Invalid prepared skeleton edit: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 621
     }
   },
   {
@@ -26605,7 +26873,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 608
+      "cdmw/services/independent_item_package.py": 629
     }
   },
   {
@@ -26613,7 +26881,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 605
+      "cdmw/services/independent_item_package.py": 626
     }
   },
   {
@@ -26877,7 +27145,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 554
+      "cdmw/services/independent_item_package.py": 564
     }
   },
   {
@@ -26885,7 +27153,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 642
+      "cdmw/services/independent_item_package.py": 663
     }
   },
   {
@@ -26909,7 +27177,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 704
+      "cdmw/services/independent_item_package.py": 725
     }
   },
   {
@@ -26941,7 +27209,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 586
+      "cdmw/services/independent_item_package.py": 596
     }
   },
   {
@@ -27053,7 +27321,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 569
+      "cdmw/services/independent_item_package.py": 579
     }
   },
   {
@@ -27173,7 +27441,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild the installed package with the current compiler before semantic export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 749
+      "cdmw/services/independent_item_compatibility.py": 759
     }
   },
   {
@@ -27213,7 +27481,7 @@ MESSAGE_REFERENCE = [
     "message": "Required record {key} was changed or removed.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 540
+      "cdmw/services/independent_item_compatibility.py": 550
     }
   },
   {
@@ -27229,7 +27497,7 @@ MESSAGE_REFERENCE = [
     "message": "Retained semantic export package disagrees with its ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 762
+      "cdmw/services/independent_item_compatibility.py": 772
     }
   },
   {
@@ -27245,7 +27513,7 @@ MESSAGE_REFERENCE = [
     "message": "Review the conflicts or unsupported data before merging.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 668
+      "cdmw/services/independent_item_compatibility.py": 678
     }
   },
   {
@@ -27478,7 +27746,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 828
+      "cdmw/services/independent_item_package.py": 849
     }
   },
   {
@@ -27502,7 +27770,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payloads, flags or original baselines disagree with retained package recompilation.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 724
+      "cdmw/services/independent_item_compatibility.py": 734
     }
   },
   {
@@ -27510,7 +27778,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires recompilation against the current witnessed baseline.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 778
+      "cdmw/services/independent_item_compatibility.py": 788
     }
   },
   {
@@ -27518,7 +27786,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires retained .cdmw contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 741
+      "cdmw/services/independent_item_compatibility.py": 751
     }
   },
   {
@@ -27671,7 +27939,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture conflict at {path}: {owner}; {consumer} requires the complete resource unchanged.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 628
+      "cdmw/services/independent_item_compatibility.py": 638
     }
   },
   {
@@ -27855,7 +28123,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 854
+      "cdmw/services/independent_item_package.py": 875
     }
   },
   {
@@ -28031,7 +28299,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned texture format is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 339
+      "cdmw/services/independent_item_references.py": 342
     }
   },
   {
@@ -28039,7 +28307,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 806
+      "cdmw/services/independent_item_package.py": 827
     }
   },
   {
@@ -28047,7 +28315,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 625
+      "cdmw/services/independent_item_package.py": 646
     }
   },
   {
@@ -28071,7 +28339,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 544
+      "cdmw/services/independent_item_package.py": 554
     }
   },
   {
@@ -28087,7 +28355,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 552
+      "cdmw/services/independent_item_package.py": 562
     }
   },
   {
@@ -28095,7 +28363,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 834
+      "cdmw/services/independent_item_package.py": 855
     }
   },
   {
@@ -28375,7 +28643,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained independent package does not match its ownership history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 585
+      "cdmw/services/independent_item_compatibility.py": 595
     }
   },
   {
@@ -28391,7 +28659,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package field operations disagree with its ownership layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 599
+      "cdmw/services/independent_item_compatibility.py": 609
     }
   },
   {
@@ -28399,7 +28667,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained package texture requirements disagree with its ownership layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 591
+      "cdmw/services/independent_item_compatibility.py": 601
     }
   },
   {
@@ -28455,7 +28723,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained virtual package does not match the saved profile and item identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 919
+      "cdmw/services/independent_item_compatibility.py": 929
     }
   },
   {
@@ -28679,7 +28947,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 420
+      "cdmw/services/independent_item_package.py": 430
     }
   },
   {
@@ -28687,7 +28955,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 845
+      "cdmw/services/independent_item_package.py": 866
     }
   },
   {
@@ -28895,7 +29163,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 723
+      "cdmw/services/independent_item_package.py": 744
     }
   },
   {
@@ -29015,7 +29283,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 787
+      "cdmw/services/independent_item_package.py": 808
     }
   },
   {
@@ -29072,7 +29340,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 532
+      "cdmw/services/independent_item_package.py": 542
     }
   },
   {
@@ -29080,7 +29348,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent resource format: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 349
+      "cdmw/services/independent_item_references.py": 352
     }
   },
   {
@@ -29120,7 +29388,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported metadata in merged output: {path}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 1009
+      "cdmw/services/independent_item_compatibility.py": 1019
     }
   },
   {
@@ -29137,7 +29405,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported owned resource: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 370
+      "cdmw/services/independent_item_package.py": 377
     }
   },
   {
@@ -29169,7 +29437,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 600
+      "cdmw/services/independent_item_package.py": 611
     }
   },
   {
@@ -29193,7 +29461,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 372
+      "cdmw/services/independent_item_package.py": 379
     }
   },
   {
@@ -29241,7 +29509,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 881
+      "cdmw/services/independent_item_compatibility.py": 891
     }
   },
   {
@@ -29537,7 +29805,7 @@ MESSAGE_REFERENCE = [
     "message": "{', '.join(external.labels((path,)))}: an owned asset is already supplied by another mod: {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 555
+      "cdmw/services/independent_item_compatibility.py": 565
     }
   },
   {
@@ -29609,7 +29877,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.identity}: semantic export relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 714
+      "cdmw/services/independent_item_compatibility.py": 724
     }
   },
   {
@@ -29659,7 +29927,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 502
+      "cdmw/services/independent_item_package.py": 512
     }
   },
   {
@@ -29691,7 +29959,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: the texture journal differs from its witnessed original and replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 596
+      "cdmw/services/independent_item_compatibility.py": 606
     }
   },
   {
@@ -29723,7 +29991,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export contributors require different source baselines.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 769
+      "cdmw/services/independent_item_compatibility.py": 779
     }
   },
   {
@@ -29731,7 +29999,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export has no matching original source witness.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 786
+      "cdmw/services/independent_item_compatibility.py": 796
     }
   },
   {
@@ -29739,7 +30007,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export recipes disagree on their original baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 718
+      "cdmw/services/independent_item_compatibility.py": 728
     }
   },
   {
@@ -30028,7 +30296,7 @@ MESSAGE_REFERENCE = [
     "message": "A socket unlock material is not an item in the active tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 475
+      "cdmw/services/new_item_planning.py": 477
     }
   },
   {
@@ -30060,7 +30328,7 @@ MESSAGE_REFERENCE = [
     "message": "A variant binding can be selected only once.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 247
+      "cdmw/services/new_item_variants.py": 265
     }
   },
   {
@@ -30270,7 +30538,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 583
+      "cdmw/ui/new_item/controller.py": 592
     }
   },
   {
@@ -30404,10 +30672,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Cannot add the model's bones to {path}: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 739
+    }
+  },
+  {
+    "area": "items",
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 700
+      "cdmw/services/new_item_planning.py": 702
     }
   },
   {
@@ -30415,7 +30691,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 775
+      "cdmw/services/new_item_planning.py": 813
     }
   },
   {
@@ -30423,7 +30699,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 368
+      "cdmw/services/new_item_variants.py": 386
     }
   },
   {
@@ -30447,7 +30723,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 980
+      "cdmw/services/new_item_planning.py": 1018
     }
   },
   {
@@ -30919,7 +31195,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 347
+      "cdmw/services/new_item_variants.py": 365
     }
   },
   {
@@ -31071,7 +31347,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export animated or RGB glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1013
+      "cdmw/services/new_item_materials.py": 1014
     }
   },
   {
@@ -31079,7 +31355,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export translucency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1011,
+      "cdmw/services/new_item_materials.py": 1012,
       "cdmw/services/new_item_translucency.py": 131,
       "cdmw/services/new_item_transparency_paint.py": 63
     }
@@ -31193,7 +31469,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. Viewport transmission is approximate; game refraction and lighting may differ.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 939,
+      "cdmw/services/new_item_materials.py": 940,
       "cdmw/services/new_item_translucency.py": 158
     }
   },
@@ -31274,7 +31550,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported weights belong to another template variant; import against this variant again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1360
+      "cdmw/ui/new_item/model_import.py": 1362
     }
   },
   {
@@ -32178,7 +32454,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 736
+      "cdmw/ui/new_item/controller_model_mixin.py": 866
     }
   },
   {
@@ -32540,7 +32816,7 @@ MESSAGE_REFERENCE = [
     "message": "No applied model for {old}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 303
+      "cdmw/services/new_item_variants.py": 321
     }
   },
   {
@@ -32548,7 +32824,7 @@ MESSAGE_REFERENCE = [
     "message": "No collision-free identity is available for the selected variant.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 238
+      "cdmw/services/new_item_variants.py": 256
     }
   },
   {
@@ -32564,7 +32840,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 866
+      "cdmw/services/new_item_planning.py": 904
     }
   },
   {
@@ -32636,7 +32912,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 896
+      "cdmw/services/new_item_planning.py": 934
     }
   },
   {
@@ -32701,7 +32977,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/new_item/item_preview.py": 123,
-      "cdmw/ui/new_item/model_import.py": 886
+      "cdmw/ui/new_item/model_import.py": 888
     }
   },
   {
@@ -32829,7 +33105,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted transparency needs separate material textures. Import these atlas parts separately before painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 755,
+      "cdmw/services/new_item_materials.py": 756,
       "cdmw/services/new_item_shader_controls.py": 45,
       "cdmw/services/new_item_transparency_paint.py": 55
     }
@@ -33055,7 +33331,7 @@ MESSAGE_REFERENCE = [
     "message": "Run imported skin preflight against the selected template before Apply placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1358
+      "cdmw/ui/new_item/model_import.py": 1360
     }
   },
   {
@@ -33119,7 +33395,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 489
+      "cdmw/ui/new_item/controller_model_mixin.py": 619
     }
   },
   {
@@ -33480,8 +33756,8 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 666,
-      "cdmw/ui/new_item/model_import.py": 976
+      "cdmw/ui/new_item/controller_model_mixin.py": 796,
+      "cdmw/ui/new_item/model_import.py": 978
     }
   },
   {
@@ -33856,10 +34132,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The import's skin palette differs from the selected variant's target rig and the bones the item adds to it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_variants.py": 191
+    }
+  },
+  {
+    "area": "items",
     "message": "The import's skin palette differs from the selected variant's target rig.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 176
+      "cdmw/services/new_item_variants.py": 194
     }
   },
   {
@@ -33867,7 +34151,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported skin weights reference bones outside the target palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 182
+      "cdmw/services/new_item_variants.py": 200
     }
   },
   {
@@ -33907,7 +34191,7 @@ MESSAGE_REFERENCE = [
     "message": "The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 367
+      "cdmw/services/new_item_planning.py": 369
     }
   },
   {
@@ -33939,7 +34223,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 425
+      "cdmw/ui/new_item/controller_model_mixin.py": 431
     }
   },
   {
@@ -33995,7 +34279,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 613
+      "cdmw/ui/new_item/controller_model_mixin.py": 743
     }
   },
   {
@@ -34019,7 +34303,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 798
+      "cdmw/services/new_item_service.py": 800
     }
   },
   {
@@ -34083,7 +34367,7 @@ MESSAGE_REFERENCE = [
     "message": "The rigid target requires its single attachment slot; this import changes the skin binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 151
+      "cdmw/services/new_item_variants.py": 161
     }
   },
   {
@@ -34091,7 +34375,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block as a list, so it should take them, but a rebuilt list is unproven in game until the first check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 452
+      "cdmw/services/new_item_planning.py": 454
     }
   },
   {
@@ -34099,7 +34383,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; a rebuilt ladder is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 494
+      "cdmw/services/new_item_planning.py": 496
     }
   },
   {
@@ -34107,7 +34391,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, so a list that long is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 489
+      "cdmw/services/new_item_planning.py": 491
     }
   },
   {
@@ -34115,7 +34399,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 503
+      "cdmw/services/new_item_planning.py": 505
     }
   },
   {
@@ -34157,7 +34441,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 34,
       "cdmw/domain/new_item/rules.py": 505,
-      "cdmw/services/new_item_planning.py": 473
+      "cdmw/services/new_item_planning.py": 475
     }
   },
   {
@@ -34189,7 +34473,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 370
+      "cdmw/services/new_item_variants.py": 388
     }
   },
   {
@@ -34197,7 +34481,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant's skeleton is missing or ambiguous.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_variants.py": 166
+      "cdmw/services/new_item_variants.py": 176
     }
   },
   {
@@ -34245,7 +34529,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1031
+      "cdmw/services/new_item_planning.py": 1070
     }
   },
   {
@@ -34325,7 +34609,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 750
+      "cdmw/services/new_item_planning.py": 788
     }
   },
   {
@@ -34373,7 +34657,7 @@ MESSAGE_REFERENCE = [
     "message": "The variant import contains no supported mesh geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_variants.py": 137
+      "cdmw/services/new_item_variants.py": 147
     }
   },
   {
@@ -34413,7 +34697,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 661
+      "cdmw/services/new_item_planning.py": 663
     }
   },
   {
@@ -34725,7 +35009,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency materials were not found in the exported model: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_materials.py": 938
+      "cdmw/services/new_item_materials.py": 939
     }
   },
   {
@@ -34806,7 +35090,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn off Template cloth / physics to transfer this armour's weights from the character body.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 116
+      "cdmw/services/new_item_variants.py": 121
     }
   },
   {
@@ -35567,7 +35851,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 920
+      "cdmw/services/new_item_planning.py": 958
     }
   },
   {
@@ -35807,7 +36091,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 927
+      "cdmw/services/new_item_planning.py": 965
     }
   },
   {
@@ -35815,7 +36099,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 929
+      "cdmw/services/new_item_planning.py": 967
     }
   },
   {
@@ -35887,7 +36171,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 872
+      "cdmw/services/new_item_planning.py": 910
     }
   },
   {
@@ -36047,7 +36331,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 357
+      "cdmw/ui/new_item/controller.py": 366
     }
   },
   {
@@ -36199,8 +36483,8 @@ MESSAGE_REFERENCE = [
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 667,
-      "cdmw/ui/new_item/model_import.py": 1218,
+      "cdmw/services/new_item_materials.py": 668,
+      "cdmw/ui/new_item/model_import.py": 1220,
       "cdmw/ui/new_item/rust_ui_tab.py": 235
     }
   },
@@ -36273,7 +36557,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 909
+      "cdmw/services/new_item_planning.py": 947
     }
   },
   {
@@ -36281,7 +36565,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 895
+      "cdmw/services/new_item_planning.py": 933
     }
   },
   {
@@ -36337,7 +36621,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 355
+      "cdmw/services/new_item_planning.py": 357
     }
   },
   {
@@ -36361,7 +36645,7 @@ MESSAGE_REFERENCE = [
     "message": "the built icon is named {self.icon.icon_string}, the plan needs {self.icon_string}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 307
+      "cdmw/services/new_item_planning.py": 309
     }
   },
   {
@@ -36441,7 +36725,7 @@ MESSAGE_REFERENCE = [
     "message": "the import carries {len(xml_keys)} .pac_xml sidecar(s), not one",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 665,
+      "cdmw/services/new_item_materials.py": 666,
       "cdmw/services/new_item_translucency.py": 135
     }
   },
@@ -36458,7 +36742,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1074
+      "cdmw/services/new_item_planning.py": 1113
     }
   },
   {
@@ -36498,7 +36782,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 482
+      "cdmw/services/new_item_planning.py": 484
     }
   },
   {
@@ -36514,7 +36798,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 857
+      "cdmw/services/new_item_planning.py": 895
     }
   },
   {
@@ -36530,7 +36814,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 729
+      "cdmw/services/new_item_planning.py": 767
     }
   },
   {
@@ -36538,7 +36822,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 958
+      "cdmw/services/new_item_planning.py": 996
     }
   },
   {
@@ -36546,7 +36830,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 955
+      "cdmw/services/new_item_planning.py": 993
     }
   },
   {
@@ -36554,7 +36838,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 932
+      "cdmw/services/new_item_planning.py": 970
     }
   },
   {
@@ -36570,7 +36854,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.desc_key} for the template's description",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 644
+      "cdmw/services/new_item_planning.py": 646
     }
   },
   {
@@ -36578,7 +36862,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.name_key} for the template's name",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 638
+      "cdmw/services/new_item_planning.py": 640
     }
   },
   {
@@ -36747,7 +37031,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 777
+      "cdmw/services/new_item_planning.py": 815
     }
   },
   {
@@ -36771,7 +37055,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 508
+      "cdmw/services/new_item_planning.py": 510
     }
   },
   {
@@ -36820,7 +37104,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is written as {value}; shipped equipment carries it between {low} and {high}. A value that far outside the game's own range has crashed the game on purchase (an item carrying AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables read fine either way, so nothing shows until the item is bought.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_planning.py": 569
+      "cdmw/services/new_item_planning.py": 571
     }
   },
   {
@@ -36940,7 +37224,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 819
+      "cdmw/services/new_item_planning.py": 857
     }
   },
   {
@@ -37012,7 +37296,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists in the archives; a new item must not overwrite it",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_planning.py": 226
+      "cdmw/services/new_item_planning.py": 228
     }
   },
   {
@@ -37028,7 +37312,15 @@ MESSAGE_REFERENCE = [
     "message": "{path} is added twice",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 228
+      "cdmw/services/new_item_planning.py": 230
+    }
+  },
+  {
+    "area": "items",
+    "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 742
     }
   },
   {
@@ -37108,7 +37400,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 576
+      "cdmw/ui/new_item/controller.py": 585
     }
   },
   {
@@ -37116,7 +37408,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 438
+      "cdmw/services/new_item_planning.py": 440
     }
   },
   {
@@ -37124,7 +37416,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 359
+      "cdmw/services/new_item_planning.py": 361
     }
   },
   {
@@ -37132,7 +37424,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 861
+      "cdmw/services/new_item_planning.py": 899
     }
   },
   {
@@ -37140,7 +37432,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} owns no part-prefab records to clone",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 327
+      "cdmw/services/new_item_planning.py": 329
     }
   },
   {
@@ -37148,7 +37440,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 723
+      "cdmw/services/new_item_planning.py": 761
     }
   },
   {
@@ -37164,7 +37456,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: animated/RGB glow requires a separate material part; split this atlas before applying it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_materials.py": 762
+      "cdmw/services/new_item_materials.py": 763
     }
   },
   {
@@ -37180,7 +37472,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, but the plain-PBR game shader has no verified mapping for this alpha mode; the exported material does not support the source transparency behavior.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 782
+      "cdmw/services/new_item_materials.py": 783
     }
   },
   {
@@ -37188,7 +37480,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 788
+      "cdmw/services/new_item_materials.py": 789
     }
   },
   {
@@ -37204,7 +37496,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: RGB glow needs a source glow texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 834
+      "cdmw/services/new_item_materials.py": 835
     }
   },
   {
@@ -37212,7 +37504,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: translucent emission keeps the emissive map, colour and strength, but the game's translucent shader does not draw glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 922
+      "cdmw/services/new_item_materials.py": 923
     }
   },
   {
@@ -37284,7 +37576,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 629
+      "cdmw/services/new_item_planning.py": 631
     }
   },
   {
@@ -37300,7 +37592,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: no source metallic/roughness map is known, so the Builder's mask stands in as _sp; its roughness was clamped towards matte.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 817
+      "cdmw/services/new_item_materials.py": 818
     }
   },
   {
@@ -37324,7 +37616,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the import gave it no base colour texture, so its material is left as the Builder wrote it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 739
+      "cdmw/services/new_item_materials.py": 740
     }
   },
   {
@@ -37332,7 +37624,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the template's material glows and your model brought no emissive map, so the glow is off. Choose the parts that glow on the Model step if you want it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 884
+      "cdmw/services/new_item_materials.py": 885
     }
   },
   {
@@ -41027,6 +41319,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A PAB serializes one to three volume sets.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 409
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A chain has 1 to 64 bones.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 311
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A color DDS also supplies another material role; edit that texture explicitly.",
     "recovery": "internal",
     "sources": {
@@ -41039,6 +41347,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/rendering/native_preview_core.py": 824
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A core bone needs a core parent; no shipped skeleton has otherwise.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 282
     }
   },
   {
@@ -41187,6 +41503,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A skeleton cannot exceed {PAB_MAX_BONES} bones.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 257
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A skeleton edit recipe must add at least one bone.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 194
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A skinning choice requires a valid imported part index.",
     "recovery": "input",
     "sources": {
@@ -41231,6 +41563,46 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_skinning.rs": 165
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Added bone {number} ({edit.name or 'unnamed'}): {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 295
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Added bone {number} has unknown fields: {', '.join(sorted(unknown))}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 244
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Added bone {number} needs a parent and a name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 241
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Added bone {number}: core must be 0 or 1.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 247
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Added bone {number}: {key} must be {len(default)} numbers.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 335
     }
   },
   {
@@ -42337,6 +42709,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Bone index {bone} is out of range (0-{len(self.bones) - 1}).",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 102
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Bone index/weight rows must match vertex count.",
     "recovery": "input",
     "sources": {
@@ -42441,10 +42821,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Bone names must be 1-255 printable ASCII characters.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 437
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Bone weights are not normalized, but they match the original asset and will be preserved.",
     "recovery": "internal",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 678
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {bone} is {'ambiguous' if matches else 'not in this skeleton'}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 106
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {index} ({raw.name}) has a non-finite transform value.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 136
     }
   },
   {
@@ -42457,10 +42861,82 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Bone {index} name is not printable ASCII.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 132
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Bone {index} name is truncated at 0x{off}.",
     "recovery": "format",
     "sources": {
       "cdmw/modding/skeleton_parser.py": 97
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {index} name must be 1-255 printable ASCII characters.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 414
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {index} parent {bone.parent_index} is out of range.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 412
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {name} already exists.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 443
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {name} has the same name hash as {bone.name}.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 445
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {name} hashes below {PAB_MAX_BONES}; volume keys would read it as an index.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 447
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {old.name} is bound by name hash outside this skeleton; renaming it would unbind it.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 221
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {old.name} stores a hash that is not the PA checksum of its name.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 219
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Bone {taken[0]} already exists; choose another prefix.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 321
     }
   },
   {
@@ -43827,6 +44303,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Core-bone flag array is truncated.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 149
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Core-bone flags must be present exactly when header bit 0x02 is set.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 404
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Correct the selected sections before changing their width",
     "recovery": "input",
     "sources": {
@@ -44423,6 +44915,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_preview_package.py": 1276
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Document header flags or bone count are out of range.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 400
     }
   },
   {
@@ -47259,6 +47759,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Header flags 0x{flags} include bits no shipped skeleton uses.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 122
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Helper localization keys are absent from the host catalog: {detail}",
     "recovery": "internal",
     "sources": {
@@ -47959,6 +48467,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Invalid skeleton edit recipe.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 191
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Invalid skin row fingerprint input.",
     "recovery": "input",
     "sources": {
@@ -48477,22 +48993,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_skinning.rs": 123
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Keep imported weights needs a complete fixed-layout target skeleton.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 167
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Keep imported weights needs the selected template's unique matching skeleton.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 163
     }
   },
   {
@@ -52733,6 +53233,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Not a PAR 1.5 skeleton (expected the 'PAR ' 1.5 header with bytes 0-9).",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 119
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Not a valid PAB file: {data[:4]}",
     "recovery": "input",
     "sources": {
@@ -54835,6 +55343,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/mesh_pac_paste_fold.py": 122
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Per-bone tail arrays must have one entry per bone.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 407
     }
   },
   {
@@ -57760,6 +58276,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Rotation must be a unit quaternion (length {norm}).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 271
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Run rebuild report",
     "recovery": "internal",
     "sources": {
@@ -57912,6 +58436,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Scale components must be non-zero.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 267
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Sculpt requires mesh vertices under the brush",
     "recovery": "input",
     "sources": {
@@ -57924,6 +58456,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service_morph.py": 1032
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Secondary parent array is truncated.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 143
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Secondary parent {secondary_parent} must name an existing bone or -1.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 276
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Secondary parents must be present exactly when header bit 0x10 is set.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 402
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Segment length must be greater than zero.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 313
     }
   },
   {
@@ -58268,6 +58832,22 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3764
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Skeleton Edit JSON is not valid JSON: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 203
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Skeleton Edit JSON version {payload.get('version')} is not supported.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 207
     }
   },
   {
@@ -59461,6 +60041,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The bind transform is singular.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 499
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The body PAC bone palette did not resolve against this skeleton. Influence slots cannot be guessed.",
     "recovery": "input",
     "sources": {
@@ -59557,6 +60145,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The bones list was changed. Existing bones are read-only; add new bones under add_bones.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 219
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The bound body has no usable triangles.",
     "recovery": "empty",
     "sources": {
@@ -59589,6 +60185,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The chain needs a direction.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 316
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The chosen bone has no resolved PAC palette mapping.",
     "recovery": "internal",
     "sources": {
@@ -59601,6 +60205,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_morph_authoring.py": 612
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The core-bone flag is 0 or 1.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 278
     }
   },
   {
@@ -59681,6 +60293,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/cloth_collision_flow.py": 36
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The edited skeleton changes the source skeleton; only appended bones can be combined.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 324
     }
   },
   {
@@ -60077,6 +60697,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The selected template has no unique matching skeleton.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 205
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The selected template's skeleton is not a complete fixed-layout PAB.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 209
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The setup file and its stored identity disagree.",
     "recovery": "internal",
     "sources": {
@@ -60097,6 +60733,22 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_shader_controls_preview.py": 96
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The skeleton edit cannot be applied to {resolved}: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 161
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The skeleton edit is for {skeleton_edit.path}, but this template binds to {resolved}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 157
     }
   },
   {
@@ -60205,6 +60857,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The {label} must be {size} finite numbers.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 466
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The {label} must be {size} numbers.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 464
+    }
+  },
+  {
+    "area": "mesh",
     "message": "These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.",
     "recovery": "input",
     "sources": {
@@ -60257,6 +60925,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/modding/mesh_pamlod_builder.py": 466
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This Skeleton Edit JSON was exported from a different version of the skeleton. Export it again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 210
     }
   },
   {
@@ -60390,6 +61066,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "This is not a Skeleton Edit JSON document.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 205
+    }
+  },
+  {
+    "area": "mesh",
     "message": "This mesh has no draft yet.",
     "recovery": "internal",
     "sources": {
@@ -60474,6 +61158,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service_morph_recipes.py": 448
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This skeleton has no core-bone flag array.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 280
     }
   },
   {
@@ -60707,6 +61399,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_rebuild.py": 350
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Two edits add bone {added.bone.name} with different definitions.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 361
     }
   },
   {
@@ -61355,6 +62055,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Unsupported skeleton edit {type(edit).__name__}.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 93
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Unsupported skin-weight operation.",
     "recovery": "unsupported",
     "sources": {
@@ -61551,6 +62259,46 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5562
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Volume flags need header bit 0x04.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 431
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Volume key {count} would turn from a name hash into a bone index.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 369
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Volume key {volume.bone_key} would turn from a name hash into a bone index.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 262
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Volume parameters do not match its shape.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 426
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Volume set {len(sets)}: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 158
     }
   },
   {
@@ -61759,6 +62507,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/mesh_editor/controller.py": 681
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "add_bones must be a list.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 223
     }
   },
   {
@@ -71586,6 +72342,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "{edit.bone} is part of the source skeleton. Meshes, clips, appearance variations, sockets and Havok files name it, so renaming it would unbind them. Rename only bones added in this edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/pab_skeleton_edit_service.py": 87
+    }
+  },
+  {
+    "area": "mesh",
     "message": "{emitter.name}: particle geometry unavailable ({exc})",
     "recovery": "missing",
     "sources": {
@@ -71598,6 +72362,22 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/mesh_rust_authoring.py": 4856
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to this variant's skeleton with Add bones… in the Rig row.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 250
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Add bones… in the Rig row, then import again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 253
     }
   },
   {
@@ -71838,6 +72618,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/external_model_audit.py": 213
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{len(data) - cursor} undecoded bytes remain at 0x{cursor}.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/skeleton_writer.py": 161
     }
   },
   {
@@ -72387,6 +73175,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1014
+    }
+  },
+  {
+    "area": "other",
     "message": "A frame review requires both --review and --review-sha256.",
     "recovery": "integrity",
     "sources": {
@@ -72510,7 +73306,7 @@ MESSAGE_REFERENCE = [
     "message": "A semantic export requires its single opaque .cdmw wrapper; extra or linked files refuse.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 324
+      "cdmw/core/mod_compatibility.py": 341
     }
   },
   {
@@ -72694,7 +73490,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous or oversized compatibility metadata in ZIP package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 216
+      "cdmw/core/mod_compatibility.py": 233
     }
   },
   {
@@ -73576,7 +74372,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_export_history.py": 69
+      "cdmw/core/mod_export_history.py": 171
     }
   },
   {
@@ -74705,7 +75501,7 @@ MESSAGE_REFERENCE = [
     "message": "Contradictory or duplicate semantic export contributor identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 519
+      "cdmw/core/mod_compatibility.py": 536
     }
   },
   {
@@ -75417,7 +76213,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or invalid mod baseline record.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 264
+      "cdmw/core/mod_compatibility.py": 281
     }
   },
   {
@@ -75425,7 +76221,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or oversized semantic export entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 474
+      "cdmw/core/mod_compatibility.py": 491
     }
   },
   {
@@ -75449,7 +76245,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 353
+      "cdmw/core/mod_compatibility.py": 370
     }
   },
   {
@@ -75457,7 +76253,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export payload path or invalid flags.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 578
+      "cdmw/core/mod_compatibility.py": 595
     }
   },
   {
@@ -75465,7 +76261,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export source path.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 551
+      "cdmw/core/mod_compatibility.py": 568
     }
   },
   {
@@ -77296,7 +78092,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline archive members.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 256
+      "cdmw/core/mod_compatibility.py": 273
     }
   },
   {
@@ -77304,7 +78100,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline archive path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 243
+      "cdmw/core/mod_compatibility.py": 260
     }
   },
   {
@@ -77312,7 +78108,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline availability.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 267
+      "cdmw/core/mod_compatibility.py": 284
     }
   },
   {
@@ -77320,7 +78116,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 274
+      "cdmw/core/mod_compatibility.py": 291
     }
   },
   {
@@ -77328,7 +78124,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 261
+      "cdmw/core/mod_compatibility.py": 278
     }
   },
   {
@@ -77336,7 +78132,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod compatibility fields.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 241
+      "cdmw/core/mod_compatibility.py": 258
     }
   },
   {
@@ -77344,7 +78140,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 288
+      "cdmw/core/mod_compatibility.py": 305
     }
   },
   {
@@ -77352,7 +78148,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod dependency records.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 284
+      "cdmw/core/mod_compatibility.py": 301
     }
   },
   {
@@ -77416,7 +78212,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or non-normalized semantic export path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 339
+      "cdmw/core/mod_compatibility.py": 356
     }
   },
   {
@@ -77424,7 +78220,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod compatibility metadata.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 236
+      "cdmw/core/mod_compatibility.py": 253
     }
   },
   {
@@ -77432,7 +78228,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod history file: {source}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 79
+      "cdmw/core/mod_export_history.py": 153
     }
   },
   {
@@ -77552,7 +78348,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export archive-index path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 342
+      "cdmw/core/mod_compatibility.py": 359
     }
   },
   {
@@ -77560,7 +78356,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 503
+      "cdmw/core/mod_compatibility.py": 520
     }
   },
   {
@@ -77568,7 +78364,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 511
+      "cdmw/core/mod_compatibility.py": 528
     }
   },
   {
@@ -77576,7 +78372,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game digest.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 500
+      "cdmw/core/mod_compatibility.py": 517
     }
   },
   {
@@ -77584,7 +78380,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 497
+      "cdmw/core/mod_compatibility.py": 514
     }
   },
   {
@@ -77592,7 +78388,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 559
+      "cdmw/core/mod_compatibility.py": 576
     }
   },
   {
@@ -77600,7 +78396,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 575
+      "cdmw/core/mod_compatibility.py": 592
     }
   },
   {
@@ -77608,7 +78404,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export payload size or digest.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 363
+      "cdmw/core/mod_compatibility.py": 380
     }
   },
   {
@@ -77616,7 +78412,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 543
+      "cdmw/core/mod_compatibility.py": 560
     }
   },
   {
@@ -77624,7 +78420,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 547
+      "cdmw/core/mod_compatibility.py": 564
     }
   },
   {
@@ -77632,7 +78428,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 595
+      "cdmw/core/mod_compatibility.py": 612
     }
   },
   {
@@ -78161,7 +78957,7 @@ MESSAGE_REFERENCE = [
     "message": "Linked semantic export files are unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 607
+      "cdmw/core/mod_compatibility.py": 624
     }
   },
   {
@@ -78449,7 +79245,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing or oversized mod baseline archive.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 246
+      "cdmw/core/mod_compatibility.py": 263
     }
   },
   {
@@ -78473,7 +79269,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required semantic export metadata.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 470
+      "cdmw/core/mod_compatibility.py": 487
     }
   },
   {
@@ -78481,7 +79277,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing semantic export source witnesses.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 539
+      "cdmw/core/mod_compatibility.py": 556
     }
   },
   {
@@ -78505,7 +79301,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline archive changed since export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 248
+      "cdmw/core/mod_compatibility.py": 265
     }
   },
   {
@@ -78513,7 +79309,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline archive exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 253
+      "cdmw/core/mod_compatibility.py": 270
     }
   },
   {
@@ -78521,7 +79317,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline checksum mismatch: {path}",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 278
+      "cdmw/core/mod_compatibility.py": 295
     }
   },
   {
@@ -78545,7 +79341,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot follow a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 41
+      "cdmw/core/mod_export_history.py": 49
     }
   },
   {
@@ -78553,7 +79349,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot remove a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 95
+      "cdmw/core/mod_export_history.py": 178
     }
   },
   {
@@ -78650,6 +79446,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/replace_assistant.py": 627
+    }
+  },
+  {
+    "area": "other",
+    "message": "Name the mod before exporting it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1064
     }
   },
   {
@@ -78978,7 +79782,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a CDMW history file: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 54
+      "cdmw/core/mod_export_history.py": 104
     }
   },
   {
@@ -79210,7 +80014,15 @@ MESSAGE_REFERENCE = [
     "message": "Oversized mod baseline in ZIP package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 220
+      "cdmw/core/mod_compatibility.py": 237
+    }
+  },
+  {
+    "area": "other",
+    "message": "Oversized mod history record: {name}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/mod_export_history.py": 148
     }
   },
   {
@@ -80395,7 +81207,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export baseline disagrees with its original source witness.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 587
+      "cdmw/core/mod_compatibility.py": 604
     }
   },
   {
@@ -80403,7 +81215,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export bindings do not match its contributors.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 532
+      "cdmw/core/mod_compatibility.py": 549
     }
   },
   {
@@ -80411,7 +81223,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contains undeclared or unreferenced entries.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 591
+      "cdmw/core/mod_compatibility.py": 608
     }
   },
   {
@@ -80419,7 +81231,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor bindings disagree with retained intent.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 536
+      "cdmw/core/mod_compatibility.py": 553
     }
   },
   {
@@ -80427,7 +81239,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 515
+      "cdmw/core/mod_compatibility.py": 532
     }
   },
   {
@@ -80435,7 +81247,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributors exceed the selected-package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 522
+      "cdmw/core/mod_compatibility.py": 539
     }
   },
   {
@@ -80443,7 +81255,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export dependencies disagree with original source witnesses.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 556
+      "cdmw/core/mod_compatibility.py": 573
     }
   },
   {
@@ -80451,7 +81263,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export failed final on-disk readback.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 694
+      "cdmw/core/mod_compatibility.py": 711
     }
   },
   {
@@ -80459,7 +81271,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game build changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 421
+      "cdmw/core/mod_compatibility.py": 438
     }
   },
   {
@@ -80467,7 +81279,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity changed: {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 403
+      "cdmw/core/mod_compatibility.py": 420
     }
   },
   {
@@ -80475,7 +81287,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity is missing: {key}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 409
+      "cdmw/core/mod_compatibility.py": 426
     }
   },
   {
@@ -80483,7 +81295,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export logical output or baseline size limit exceeded.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 644
+      "cdmw/core/mod_compatibility.py": 661
     }
   },
   {
@@ -80491,7 +81303,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original source changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 444
+      "cdmw/core/mod_compatibility.py": 461
     }
   },
   {
@@ -80499,7 +81311,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original texture registry changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 450
+      "cdmw/core/mod_compatibility.py": 467
     }
   },
   {
@@ -80507,7 +81319,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export originals do not match every emitted payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 659
+      "cdmw/core/mod_compatibility.py": 676
     }
   },
   {
@@ -80515,7 +81327,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 569
+      "cdmw/core/mod_compatibility.py": 586
     }
   },
   {
@@ -80523,7 +81335,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 648
+      "cdmw/core/mod_compatibility.py": 665
     }
   },
   {
@@ -80539,7 +81351,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export source index changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 434
+      "cdmw/core/mod_compatibility.py": 451
     }
   },
   {
@@ -80547,7 +81359,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export staging must be empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 685
+      "cdmw/core/mod_compatibility.py": 702
     }
   },
   {
@@ -80556,6 +81368,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/effect_writer.py": 170
+    }
+  },
+  {
+    "area": "other",
+    "message": "Set the game folder in Archive Browser before editing action charts.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 719
     }
   },
   {
@@ -80572,6 +81392,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_installation.py": 48
+    }
+  },
+  {
+    "area": "other",
+    "message": "ShareValue sections {share_counts} are not decoded (every shipped chart has none)",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 431
     }
   },
   {
@@ -81277,6 +82105,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 256
+    }
+  },
+  {
+    "area": "other",
+    "message": "The character action package description (.paacdesc) is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 750
     }
   },
   {
@@ -82044,7 +82880,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod export must be outside CDMW's local history folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 72
+      "cdmw/core/mod_export_history.py": 137
     }
   },
   {
@@ -82628,7 +83464,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export archive indexes differ from the witnessed game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 428
+      "cdmw/core/mod_compatibility.py": 445
     }
   },
   {
@@ -82636,7 +83472,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 386
+      "cdmw/core/mod_compatibility.py": 403
     }
   },
   {
@@ -82644,7 +83480,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed while reading.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 625
+      "cdmw/core/mod_compatibility.py": 642
     }
   },
   {
@@ -82652,7 +83488,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export compiler is unsupported. Export again with the current compiler.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 393
+      "cdmw/core/mod_compatibility.py": 410
     }
   },
   {
@@ -82660,7 +83496,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 463
+      "cdmw/core/mod_compatibility.py": 480
     }
   },
   {
@@ -82668,7 +83504,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export folder changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 384
+      "cdmw/core/mod_compatibility.py": 401
     }
   },
   {
@@ -83469,7 +84305,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported semantic export entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 482
+      "cdmw/core/mod_compatibility.py": 499
     }
   },
   {
@@ -83823,7 +84659,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mod compatibility metadata.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 239
+      "cdmw/core/mod_compatibility.py": 256
     }
   },
   {
@@ -83920,7 +84756,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported required semantic export format or capability version.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 492
+      "cdmw/core/mod_compatibility.py": 509
     }
   },
   {
@@ -84389,6 +85225,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "a string table holds at most 65,535 strings",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 656
+    }
+  },
+  {
+    "area": "other",
     "message": "a tag without a name",
     "recovery": "internal",
     "sources": {
@@ -84417,6 +85261,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/replace_assistant/remote_catalogue.py": 266
+    }
+  },
+  {
+    "area": "other",
+    "message": "an animation needs a clip",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 774
     }
   },
   {
@@ -84505,6 +85357,94 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/bone_offset_table.py": 96
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation count {animation_count} cannot fit in {len(data)} bytes",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 400
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {animation.index}: frame event offset {ref.dword_offset * 4} is outside the buffer",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 468
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {animation} does not exist",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 770
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} does not exist",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 940
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} has no frame event {edit.event}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 853
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} has no frame event {edit.item}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 946
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {edit.animation} has no {record} entry {edit.item}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 950
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {index}: frame event {sequence} carries sequence {ref.sequence}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 411
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {old_anim.index} changed its number of frame events",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 537
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {resource.animation} does not read back blend space {resource.blend}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 604
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {resource.animation} does not read back clip {resource.clip}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 602
     }
   },
   {
@@ -84605,6 +85545,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "byte {index} changed outside the edited fields",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 751
+    }
+  },
+  {
+    "area": "other",
+    "message": "bytes outside the string table changed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 689
+    }
+  },
+  {
+    "area": "other",
     "message": "cdmw_mesh_core auto-uv-json is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -84645,6 +85601,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "chart strings hold at most {MAX_STRING_BYTES} characters: {value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 670
+    }
+  },
+  {
+    "area": "other",
+    "message": "chart strings must be printable ASCII and not empty: {value}",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 667
+    }
+  },
+  {
+    "area": "other",
     "message": "checksum {checksum} of {path} is already registered (a collision would need the collision table)",
     "recovery": "integrity",
     "sources": {
@@ -84669,10 +85641,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "copying the event changed other bytes",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 830
+    }
+  },
+  {
+    "area": "other",
     "message": "declarations and processing instructions",
     "recovery": "internal",
     "sources": {
       "cdmw/core/bone_offset_table.py": 100
+    }
+  },
+  {
+    "area": "other",
+    "message": "descriptor string index {index} is out of range",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 635
     }
   },
   {
@@ -84721,6 +85709,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/iteminfo_row.py": 764
+    }
+  },
+  {
+    "area": "other",
+    "message": "event at {event.offset} is {event.kind_name}, not ModelAttachmentSocket",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 554
     }
   },
   {
@@ -84777,6 +85773,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/scene_import_result_ops.py": 287
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame event at {base} would end before it begins",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 989
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame event kind {kind} at buffer offset {at} has no known size",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 567
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame event {edit.event + 1} of animation {edit.animation} reads back {edit.field} {stored}, not {edit.value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 608
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame events run {at - buffer.size} bytes past their buffer",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 571
     }
   },
   {
@@ -86135,6 +87163,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "node {index} names animations {first}..{first + count} of {animation_count}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 449
+    }
+  },
+  {
+    "area": "other",
     "message": "not UTF-8",
     "recovery": "format",
     "sources": {
@@ -86187,6 +87223,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/core/pathc_format.py": 102
+    }
+  },
+  {
+    "area": "other",
+    "message": "only standard action charts can be edited, not the commonactioninfo tables",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 676
     }
   },
   {
@@ -86251,6 +87295,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/projectile_package.py": 122
+    }
+  },
+  {
+    "area": "other",
+    "message": "package {item} names sub-packages {first}..{first + count} of {sub_count}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 643
     }
   },
   {
@@ -86495,10 +87547,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "socket blend time must be between 0 and 60 seconds",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 869
+    }
+  },
+  {
+    "area": "other",
     "message": "socket items are positive u32 item keys",
     "recovery": "internal",
     "sources": {
       "cdmw/core/iteminfo_row.py": 770
+    }
+  },
+  {
+    "area": "other",
+    "message": "socket mode must be 0 (In), 1 (Out) or 2 (explicit sockets)",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 866
     }
   },
   {
@@ -86810,6 +87878,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "string table {old_table.index} lost entries",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 524
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} ({chart.tables[table].role}) has no entry {old}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 890
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} does not exist",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 711
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} has no entry {index}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 715
+    }
+  },
+  {
+    "area": "other",
+    "message": "string table {table} is full",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 734
+    }
+  },
+  {
+    "area": "other",
     "message": "string {text} is not 1..{_MAX_STRING - 1} bytes",
     "recovery": "internal",
     "sources": {
@@ -86874,6 +87982,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "the chart does not read back {retarget.new}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 598
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart has no changes to export",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1068
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart's sections changed after a field edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 754
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart's sections changed after a value edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 1003
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart's sections changed shape after the edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 695
+    }
+  },
+  {
+    "area": "other",
     "message": "the clone needs a key different from its template",
     "recovery": "internal",
     "sources": {
@@ -86886,6 +88034,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_icon_registry.py": 110
+    }
+  },
+  {
+    "area": "other",
+    "message": "the edited chart no longer has the shipped chart's animations",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 519
     }
   },
   {
@@ -86966,6 +88122,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/iteminfo_row.py": 600
+    }
+  },
+  {
+    "area": "other",
+    "message": "the rebuilt string table does not read back",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 691
     }
   },
   {
@@ -87070,6 +88234,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/pappt_format.py": 183
+    }
+  },
+  {
+    "area": "other",
+    "message": "the written mod archive does not read back as the edited charts",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1123
+    }
+  },
+  {
+    "area": "other",
+    "message": "this chart has no frame event buffer",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 531
     }
   },
   {
@@ -87194,6 +88374,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{clip} could not be read as an animation clip: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 797
+    }
+  },
+  {
+    "area": "other",
+    "message": "{clip} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 792
+    }
+  },
+  {
+    "area": "other",
     "message": "{count} {label} detected.",
     "recovery": "internal",
     "sources": {
@@ -87210,10 +88406,82 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{edit.field} is not an editable chart field",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 935
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be -1 (instant) or between 0 and 3600 seconds",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 979
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be above 0 and at most 100",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 975
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be between 0 and 3600 seconds",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 977
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} must be finite",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 973
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} reads back as {stored}, not {edit.value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 614
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} takes a name",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 858
+    }
+  },
+  {
+    "area": "other",
+    "message": "{entry.path} is not an editable action chart",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1061
+    }
+  },
+  {
+    "area": "other",
     "message": "{entry.path} was not prepared by the archive worker.",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/character_finder/creator_look.py": 211
+    }
+  },
+  {
+    "area": "other",
+    "message": "{event.kind_name} events have no editable field {edit.field}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 871
     }
   },
   {
@@ -87334,6 +88602,30 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/pac_xml_editor.py": 476
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} has no {group}/0.pamt.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 968
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} holds no action charts.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 977
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} is not an action chart mod CDMW wrote.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 963
     }
   },
   {
@@ -87514,6 +88806,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{len(data) - stream.pos} bytes follow the last chart section",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 464
+    }
+  },
+  {
+    "area": "other",
+    "message": "{len(data) - stream.pos} bytes follow the last commonactioninfo section",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 508
+    }
+  },
+  {
+    "area": "other",
     "message": "{len(donor_texture_missing_paths)} donor sidecar DDS reference(s) were not found in the archive index.",
     "recovery": "missing",
     "sources": {
@@ -87526,6 +88834,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/asset_authoring_service.py": 1073
+    }
+  },
+  {
+    "area": "other",
+    "message": "{len(stream.data) - stream.pos} bytes follow the descriptor",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 631
     }
   },
   {
@@ -87618,6 +88934,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{name} is a shared action table, not an action chart, and cannot be edited.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 251
+    }
+  },
+  {
+    "area": "other",
     "message": "{name} is not an editable numeric or string field.",
     "recovery": "input",
     "sources": {
@@ -87674,6 +88998,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{name}: string at offset {self.pos - length} is not NUL-terminated",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 351
+    }
+  },
+  {
+    "area": "other",
     "message": "{name}: tar extract failed",
     "recovery": "internal",
     "sources": {
@@ -87726,6 +89058,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/eye_cover_overlap.py": 60
+    }
+  },
+  {
+    "area": "other",
+    "message": "{name}: {size} bytes at offset {self.pos} run past the end ({len(self.data)} bytes)",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 320
     }
   },
   {
@@ -87810,6 +89150,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{path} cannot be read to change its clips.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1099
+    }
+  },
+  {
+    "area": "other",
     "message": "{path} could not be read: {error}",
     "recovery": "internal",
     "sources": {
@@ -87822,6 +89170,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/character_finder/creator_look.py": 40
+    }
+  },
+  {
+    "area": "other",
+    "message": "{path} is not in the game archives. Export to a new mod name instead.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1081
     }
   },
   {
@@ -87882,6 +89238,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{record} at {base} would end before it starts",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 993
+    }
+  },
+  {
+    "area": "other",
     "message": "{row.name} gains items that are not this mod's own; DMM cannot take that.",
     "recovery": "input",
     "sources": {
@@ -87918,6 +89282,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/working_mod_recipe.py": 125
+    }
+  },
+  {
+    "area": "other",
+    "message": "{source.kind_name} events have no known size, so one cannot be copied",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/action_chart_binary.py": 821
     }
   },
   {
@@ -89653,14 +91025,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Action tail records are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 105
-    }
-  },
-  {
-    "area": "placement",
     "message": "Active Mesh Editor copied-original append requires native geometry execution; Python mesh mutation fallback is disabled.",
     "recovery": "input",
     "sources": {
@@ -89808,7 +91172,7 @@ MESSAGE_REFERENCE = [
     "message": "All-parts mode is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 90
+      "tools/placement_studio/paac_events.py": 96
     }
   },
   {
@@ -89993,8 +91357,8 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/placement_studio/event_timeline.py": 85,
-      "tools/placement_studio/paac_events.py": 105,
-      "tools/placement_studio/paac_layout.py": 87
+      "tools/placement_studio/paac_events.py": 111,
+      "tools/placement_studio/paac_layout.py": 49
     }
   },
   {
@@ -90010,7 +91374,7 @@ MESSAGE_REFERENCE = [
     "message": "Chart table {table} index {index} is out of range",
     "recovery": "limits",
     "sources": {
-      "tools/placement_studio/paac_events.py": 59
+      "tools/placement_studio/paac_events.py": 63
     }
   },
   {
@@ -90444,7 +91808,7 @@ MESSAGE_REFERENCE = [
     "message": "Event execution flags are unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 80
+      "tools/placement_studio/paac_events.py": 86
     }
   },
   {
@@ -90452,7 +91816,7 @@ MESSAGE_REFERENCE = [
     "message": "Event interval is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 82
+      "tools/placement_studio/paac_events.py": 88
     }
   },
   {
@@ -90460,7 +91824,7 @@ MESSAGE_REFERENCE = [
     "message": "Event payload offset is out of range",
     "recovery": "limits",
     "sources": {
-      "tools/placement_studio/paac_events.py": 67
+      "tools/placement_studio/paac_events.py": 71
     }
   },
   {
@@ -90468,7 +91832,7 @@ MESSAGE_REFERENCE = [
     "message": "Event uses an unsupported execution branch",
     "recovery": "unsupported",
     "sources": {
-      "tools/placement_studio/paac_events.py": 86
+      "tools/placement_studio/paac_events.py": 92
     }
   },
   {
@@ -91222,7 +92586,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid attachment event value",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_events.py": 75
+      "tools/placement_studio/paac_events.py": 80
     }
   },
   {
@@ -91275,50 +92639,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Invalid chart action array length",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 99
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart action array offset",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 96
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart action count",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 83
-    }
-  },
-  {
-    "area": "placement",
     "message": "Invalid chart action duration",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_layout.py": 91
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart string boundary",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 60
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid chart string encoding",
-    "recovery": "format",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 64
+      "tools/placement_studio/paac_layout.py": 55
     }
   },
   {
@@ -91367,14 +92691,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/placement_studio/event_timeline.py": 27
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Invalid event sequence index",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 74
     }
   },
   {
@@ -91574,7 +92890,7 @@ MESSAGE_REFERENCE = [
     "message": "Length changed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 125
+      "tools/placement_studio/paac.py": 129
     }
   },
   {
@@ -92182,7 +93498,7 @@ MESSAGE_REFERENCE = [
     "message": "No length-prefixed occurrence of {old} found",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 96
+      "tools/placement_studio/paac.py": 100
     }
   },
   {
@@ -92326,7 +93642,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-finite event time",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac_layout.py": 72
+      "tools/placement_studio/paac_layout.py": 42
     }
   },
   {
@@ -92463,7 +93779,7 @@ MESSAGE_REFERENCE = [
     "message": "Offset {offset} does not hold {old}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 107
+      "tools/placement_studio/paac.py": 111
     }
   },
   {
@@ -92471,7 +93787,7 @@ MESSAGE_REFERENCE = [
     "message": "Offset {offset} is not a length-prefixed string boundary; refusing to patch",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 103
+      "tools/placement_studio/paac.py": 107
     }
   },
   {
@@ -92679,7 +93995,7 @@ MESSAGE_REFERENCE = [
     "message": "Patch changed file length",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/paac.py": 112
+      "tools/placement_studio/paac.py": 116
     }
   },
   {
@@ -93241,7 +94557,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement must be ASCII: {new}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 90
+      "tools/placement_studio/paac.py": 94
     }
   },
   {
@@ -93659,14 +94975,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Structured chart condition tables are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 114
-    }
-  },
-  {
-    "area": "placement",
     "message": "Submesh mapping could not be prepared automatically. Mesh replacement can still continue with built-in suggestions. {error}",
     "recovery": "internal",
     "sources": {
@@ -94070,7 +95378,7 @@ MESSAGE_REFERENCE = [
     "message": "Tier C requires equal length: {old} ({len(old)}) != {new} ({len(new)})",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 86
+      "tools/placement_studio/paac.py": 90
     }
   },
   {
@@ -94166,15 +95474,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated attachment event",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/paac_events.py": 72
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Truncated chart section at {self.pos}: {size} bytes",
-    "recovery": "format",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 44
+      "tools/placement_studio/paac_events.py": 76
     }
   },
   {
@@ -94203,18 +95503,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Unconsumed chart bytes",
-    "recovery": "internal",
-    "sources": {
-      "tools/placement_studio/paac_layout.py": 131
-    }
-  },
-  {
-    "area": "placement",
     "message": "Unexpected byte change at offset {index} outside patched spans",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/paac.py": 131
+      "tools/placement_studio/paac.py": 135
     }
   },
   {
@@ -100816,6 +102108,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_archive_refit.py",
     "cdmw/services/mesh_rust_archive_refit.py",
     "cdmw/services/replace_from_archive_service.py",
+    "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
     "cdmw/ui/archive_browser/actions.py",
     "cdmw/ui/archive_browser/appearance_composite.py",
     "cdmw/ui/archive_browser/appearance_swap.py",
@@ -100832,6 +102125,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/mesh_import_export.py",
     "cdmw/ui/archive_browser/mesh_launch_flow.py",
     "cdmw/ui/archive_browser/mesh_patch_flow.py",
+    "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
     "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
     "cdmw/ui/archive_browser/preview_core_prewarm.py",
     "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
@@ -100950,6 +102244,8 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/prefab_json_validation.py",
     "cdmw/services/hkx_edit_service.py",
     "cdmw/ui/archive_browser/hkx_document_actions.py",
+    "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+    "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
     "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
     "cdmw/ui/archive_browser/prefab_inspector_editing.py",
     "cdmw/ui/archive_browser/prefab_inspector_structure.py",
@@ -101114,6 +102410,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/modding/mesh_parser.py",
     "cdmw/modding/mesh_region_decompose.py",
     "cdmw/modding/mesh_roundtrip.py",
+    "cdmw/modding/skeleton_writer.py",
     "cdmw/modding/static_mesh_analysis.py",
     "cdmw/modding/static_mesh_build.py",
     "cdmw/modding/static_mesh_output_plan.py",
@@ -101153,10 +102450,12 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_service_native_session.py",
     "cdmw/services/mesh_service_rebuild.py",
     "cdmw/services/mesh_shader_controls.py",
+    "cdmw/services/mesh_skinning_preflight.py",
     "cdmw/services/mesh_translucency.py",
     "cdmw/services/mesh_vertex_parameters.py",
     "cdmw/services/mesh_workflow_service.py",
     "cdmw/services/model_library_preview.py",
+    "cdmw/services/pab_skeleton_edit_service.py",
     "cdmw/services/preview_rendering_service.py",
     "cdmw/services/preview_workflow_service.py",
     "cdmw/ui/character_finder/preview_controller.py",
@@ -101317,6 +102616,7 @@ DYNAMIC_REFERENCE = {
     "tools/rust_mesh_lab/crates/cdmw_win32_embed/src/lib.rs"
   ],
   "other": [
+    "cdmw/core/action_chart_binary.py",
     "cdmw/core/appearance_composite.py",
     "cdmw/core/atomic_file.py",
     "cdmw/core/common.py",
@@ -101612,6 +102912,9 @@ SOURCE_COVERAGE = {
   "cdmw/core/acquisition_compact.py": {
     "raise": 10
   },
+  "cdmw/core/action_chart_binary.py": {
+    "raise": 53
+  },
   "cdmw/core/appearance_composite.py": {
     "diagnostic_field": 12,
     "finding": 16,
@@ -101627,6 +102930,7 @@ SOURCE_COVERAGE = {
     "validation": 5
   },
   "cdmw/core/archive_action_chart.py": {},
+  "cdmw/core/archive_action_chart_preview.py": {},
   "cdmw/core/archive_asset_family.py": {
     "diagnostic_field": 9,
     "validation": 2
@@ -101774,6 +103078,9 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_hkx_havok_xml.py": {
     "raise": 1
   },
+  "cdmw/core/archive_hkx_joint_limits.py": {
+    "raise": 5
+  },
   "cdmw/core/archive_hkx_mesh_export_helpers_0.py": {
     "report": 2
   },
@@ -101818,7 +103125,14 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_hkx_schema_helpers_1.py": {
     "diagnostic_field": 1
   },
+  "cdmw/core/archive_hkx_structural_edits.py": {
+    "raise": 5
+  },
   "cdmw/core/archive_hkx_summary.py": {},
+  "cdmw/core/archive_hkx_tagfile_layout.py": {},
+  "cdmw/core/archive_hkx_tagfile_model.py": {
+    "raise": 35
+  },
   "cdmw/core/archive_hkx_types.py": {
     "diagnostic_field": 2
   },
@@ -101952,7 +103266,7 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 9,
     "diagnostic_text": 2,
     "raise": 11,
-    "report": 13
+    "report": 14
   },
   "cdmw/core/archive_preview_support.py": {
     "diagnostic_field": 1,
@@ -102226,7 +103540,7 @@ SOURCE_COVERAGE = {
     "raise": 72
   },
   "cdmw/core/mod_export_history.py": {
-    "raise": 6
+    "raise": 8
   },
   "cdmw/core/mod_package.py": {
     "diagnostic_field": 2,
@@ -102595,7 +103909,7 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/domain/archives/overlay_merge.py": {
-    "raise": 16
+    "raise": 17
   },
   "cdmw/domain/archives/prefab.py": {},
   "cdmw/domain/archives/prefab_companions.py": {},
@@ -103286,6 +104600,9 @@ SOURCE_COVERAGE = {
   "cdmw/modding/skeleton_variation_parser.py": {
     "raise": 29
   },
+  "cdmw/modding/skeleton_writer.py": {
+    "raise": 41
+  },
   "cdmw/modding/static_mesh_analysis.py": {
     "finding": 23,
     "report": 1
@@ -103386,6 +104703,9 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/services/__init__.py": {},
+  "cdmw/services/action_chart_edit_service.py": {
+    "raise": 24
+  },
   "cdmw/services/active_ui_translation.py": {},
   "cdmw/services/application_shutdown_service.py": {
     "assertion": 1,
@@ -103571,12 +104891,16 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/services/hkx_embedded_preview_service.py": {},
+  "cdmw/services/hkx_physics_editor_service.py": {
+    "raise": 9,
+    "validation": 1
+  },
   "cdmw/services/hkx_xml_export_service.py": {},
   "cdmw/services/independent_item_codec.py": {
     "raise": 19
   },
   "cdmw/services/independent_item_compatibility.py": {
-    "raise": 62,
+    "raise": 63,
     "report": 1
   },
   "cdmw/services/independent_item_compilation.py": {},
@@ -103600,7 +104924,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/independent_item_package.py": {
     "diagnostic_field": 1,
-    "raise": 60
+    "raise": 63
   },
   "cdmw/services/independent_item_physics.py": {
     "raise": 13
@@ -103894,7 +105218,9 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/services/mesh_skinning_preflight.py": {
-    "raise": 11
+    "diagnostic_field": 2,
+    "failure": 3,
+    "raise": 16
   },
   "cdmw/services/mesh_texture_sources.py": {
     "report": 1
@@ -103990,8 +105316,8 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
-    "finding": 14,
-    "raise": 33
+    "finding": 15,
+    "raise": 34
   },
   "cdmw/services/new_item_prices.py": {
     "raise": 1
@@ -104064,7 +105390,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/new_item_variants.py": {
     "finding": 1,
-    "raise": 16
+    "raise": 17
   },
   "cdmw/services/orphan_helper_reaper.py": {},
   "cdmw/services/overlay_inventory_details.py": {
@@ -104073,6 +105399,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/overlay_target_recovery.py": {
     "raise": 17
+  },
+  "cdmw/services/pab_skeleton_edit_service.py": {
+    "raise": 20
   },
   "cdmw/services/pac_material_graph.py": {
     "validation": 1
@@ -104205,6 +105534,18 @@ SOURCE_COVERAGE = {
   "cdmw/ui/__init__.py": {},
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
+  "cdmw/ui/archive_browser/action_chart_actions.py": {
+    "display": 4,
+    "raise": 1
+  },
+  "cdmw/ui/archive_browser/action_chart_editor_dialog.py": {
+    "diagnostic_field": 1,
+    "dialog": 1,
+    "display": 2
+  },
+  "cdmw/ui/archive_browser/action_chart_export_dialog.py": {},
+  "cdmw/ui/archive_browser/action_chart_finder_dialog.py": {},
+  "cdmw/ui/archive_browser/action_chart_link_dialog.py": {},
   "cdmw/ui/archive_browser/action_controls.py": {},
   "cdmw/ui/archive_browser/actions.py": {
     "assertion": 1
@@ -104375,6 +105716,13 @@ SOURCE_COVERAGE = {
   "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_02.py": {
     "display": 1
   },
+  "cdmw/ui/archive_browser/hkx_physics_editor_actions.py": {
+    "dialog": 2
+  },
+  "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py": {
+    "diagnostic_field": 1,
+    "dialog": 1
+  },
   "cdmw/ui/archive_browser/hkx_related_models.py": {},
   "cdmw/ui/archive_browser/hkx_xml_export_controller.py": {
     "dialog": 1,
@@ -104466,6 +105814,14 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/archive_browser/model.py": {
     "raise": 2
+  },
+  "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": {
+    "dialog": 3,
+    "display": 1,
+    "raise": 1
+  },
+  "cdmw/ui/archive_browser/pab_json_actions.py": {
+    "dialog": 1
   },
   "cdmw/ui/archive_browser/pac_xml_editor_composition.py": {
     "diagnostic_field": 1,
@@ -107263,7 +108619,7 @@ SOURCE_COVERAGE = {
     "report": 4
   },
   "tools/placement_studio/paac_layout.py": {
-    "raise": 13
+    "raise": 4
   },
   "tools/placement_studio/packaging.py": {
     "raise": 13
