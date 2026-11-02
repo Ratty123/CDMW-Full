@@ -178412,7 +178412,7 @@
       ]
     },
     {
-      "key": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate",
+      "key": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate; the tagfile codec rebuilds 69,299 of 69,301 shipped files byte for byte from their item graph and relocates every reference, so strings can change length",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -187757,6 +187757,16 @@
       ]
     },
     {
+      "key": "new or resized hulls, compound children, ragdoll bodies and mesh shapes stay blocked: face angles, mass properties and AABB trees are not reproduced yet; no HKX file holds cloth; 2 files with unlisted reference fields are refused",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "next deltas {value_0}",
       "origins": [
         {
@@ -194430,16 +194440,6 @@
       "key": "structural",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "structural edits (topology, counts, references, strings, arrays) blocked pending semantic rebuild proof - no new collision shapes or ragdoll bodies",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
     },
     {
       "key": "structured metadata scrape: names and references",

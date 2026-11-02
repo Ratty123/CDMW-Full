@@ -1284,10 +1284,54 @@ layouts. Recognised skeleton poses and collision shapes have bounded previews.
 Arbitrary object graphs are not converted into invented proxy geometry.
 
 The native helper provides raw-preserving no-edit rebuilds and whitelisted
-fixed-size float patches. Structural edits that change counts, topology,
-references, arrays or strings require a semantic writer and remain blocked.
-Havok XML export is an inspection/interchange representation, not proof that an
-arbitrary edited XML document can be compiled into a compatible game asset.
+fixed-size float patches. The Python tagfile codec rebuilds files from their
+decoded item graph and is the route for structural edits; today it allows only
+string replacement (see below). Havok XML export is an inspection/interchange
+representation, not proof that an arbitrary edited XML document can be compiled
+into a compatible game asset.
+
+Structural rebuild review, 2026-11-02, read-only against every installed HKX
+(69,301 unique paths, executable `1.0.0.3479`):
+
+- **Format.** Every file is a Havok 2024.2 `TAG0` tagfile with `SDKV`, `DATA`,
+  `TYPE` (`MTTP`, `TST1`, `TNA1`, `TPAD`) and `INDX` (`ITEM`, plus `PTCH` in all
+  but the 13,306 mesh-physics files). There are no type bodies, so sizes and field
+  layouts are not described by the files. 114 classes occur; none is a Havok Cloth
+  (`hcl`) class, so garment cloth is not HKX data. Ragdolls (`hknpRagdollData`,
+  212 files) and skeleton mappers live only in the 359 files under
+  `character/bin__/havokphysics/` (characters, mounts and a few objects).
+- **References.** `PTCH` lists DATA words that hold an ITEM index (`hkArray`,
+  `hkRefPtr`, `hkStringPtr`, `hkRefVariant`); an `hkArray` keeps its size in the
+  target ITEM's count. `hknp` shapes, shape properties and constraint motors
+  instead use self-relative offsets, 64-bit pointers or 32-bit offset/count pairs,
+  that `PTCH` never lists. Sixteen owner layouts were identified; each listed slot
+  is zero or lands on an ITEM start in every file, and a relative array's count
+  always equals its target's ITEM count.
+- **Layout.** Each class has one stride and one alignment that reproduce every
+  item offset (arrays 16 bytes, strings 2, most `hknp` objects 8). Padding is zero
+  and DATA ends on a 16-byte boundary.
+- **Rebuild.** The [tagfile codec](../cdmw/core/archive_hkx_tagfile_model.py)
+  lays DATA out again from the model, re-encodes every reference and regenerates
+  `ITEM`, `PTCH` and section sizes. The
+  [corpus harness](../tools/hkx_tagfile_corpus_harness.py) reproduced 69,299 files
+  byte for byte, also after moving every item by 16 bytes and back, and after
+  lengthening and restoring all 24,618 replaceable strings (358 files). It refuses two files: a wagon with a legacy
+  compressed mesh and a quiver with an `hknpShapeSignals` record, both reached
+  through fields the table does not list.
+- **Allowed edit.** Strings reached only through `hkStringPtr` (bone, body, variant
+  and source names) may change length; shared strings change for every owner.
+- **Blocked edits.** A generated convex hull needs each face's `minHalfAngle`.
+  Taking it from the smallest angle between adjacent face normals reproduces the
+  shipped byte for about half of 80,000 sampled faces, so hull generation is
+  refused. Hulls also carry two header tolerances and packed mass properties; in
+  the sampled hulls the stored volume exceeds the polyhedron's own volume. Compound children need the
+  instance SIMD tree and compound mass properties rebuilt. Ragdoll bodies,
+  constraints and mesh shapes have the same kind of unreproduced derived data.
+
+The review is archive inspection and corpus round-trip evidence. A renamed string
+has not been loaded in game, and game code may look bones or bodies up by name.
+[Codec tests](../tests/test_hkx_tagfile_rebuild.py) cover the rebuild, relocation,
+string edits and every refusal on owned fixtures.
 
 Independent item packages can copy witnessed convex/compound collision templates.
 Beside the template's own mesh the whole cloth graph must be unchanged; beside a
@@ -1333,7 +1377,9 @@ the guide's reported GPU hang was not reproduced, and game physics activation an
 movement remain unverified by this review.
 
 Sources: [native HKX scope][hkx], [HKX edit gate][hkx-gate],
-[template physics restrictions][independent-items].
+[template physics restrictions][independent-items],
+[tagfile layout table](../cdmw/core/archive_hkx_tagfile_layout.py),
+[structural edits](../cdmw/core/archive_hkx_structural_edits.py).
 
 ## 7. Animation, placement and rig behaviour
 

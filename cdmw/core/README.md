@@ -50,6 +50,27 @@ staged DDS validation, cancellation checks and atomic publication; failures and
 sources changed during conversion are not retained. Encoding and file I/O run
 outside the cache lock so independent workers do not wait behind another encode.
 
+## HKX tagfile rebuild
+
+`archive_hkx_tagfile_model.py` is the strict codec for the game's Havok 2024.2
+tagfiles: it decodes items, payloads and every reference (PTCH item indices and
+the self-relative `hknp` fields), and serializes DATA, ITEM, PTCH and section
+sizes again from that model. The TYPE section is carried verbatim. Strides,
+alignments and relative reference fields are corpus measurements kept in
+`archive_hkx_tagfile_layout.py`; a file with an unknown type, a layout or padding
+the rules do not reproduce, or an item no known reference reaches is refused with
+an `HkxTagfileRefused` code rather than rebuilt. Use
+`tools/hkx_tagfile_corpus_harness.py` to recheck the installed corpus after a game
+update before trusting the tables.
+
+`archive_hkx_structural_edits.py` holds the structural edits built on it. Only
+string replacement is allowed: a `char` item reached solely through
+`hkStringPtr` may change length, and every owner of a shared string sees the
+change. Hull, compound, ragdoll, constraint and mesh-shape edits stay refused with
+the reasons in `HKX_BLOCKED_STRUCTURAL_EDITS`; in-place value edits keep using the
+fixed-size patch gate. The HKX decode document reports both gates. Output is
+loose bytes for packaging; nothing here writes to archives.
+
 ## Archive content creation
 
 Brand-new archive content is split by format owner. `archive_entry_addition.py`
