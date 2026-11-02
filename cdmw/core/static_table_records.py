@@ -13,6 +13,7 @@ shipped row, not because its effect in game is known.
 from __future__ import annotations
 
 import math
+import re
 import struct
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -129,10 +130,18 @@ class StaticTableEdit:
     changes: tuple[StaticFieldChange, ...]
 
 
+# A table file stem: the table name, optionally a DLC layer suffix. Nothing else, so a
+# stem can never carry a path component into an output file name.
+_STEM = re.compile(r"[a-z0-9_]+(\.dlc_[0-9]+)?")
+
+
 def table_kind_for_stem(stem: str) -> str | None:
     """The schema table for a file stem such as `skill` or `skill.dlc_01`."""
 
-    base = str(stem or "").casefold().split(".", 1)[0]
+    text = str(stem or "").casefold()
+    if not _STEM.fullmatch(text):
+        return None
+    base = text.split(".", 1)[0]
     base = LEGACY_TABLE_STEMS.get(base, base)
     return base if base in DECODED_TABLES else None
 
@@ -166,10 +175,11 @@ def root_ops(kind):
 
 
 def _top_level_shapes(kind):
+    """Each top-level member's consecutive reads; some members are two or more reads."""
     shapes = {}
     for op in root_ops(kind):
         if op[0] == "field":
-            shapes.setdefault(op[2], _resolved_shape(op[3]))
+            shapes.setdefault(op[2], []).append(_resolved_shape(op[3]))
     return shapes
 
 
@@ -179,7 +189,17 @@ def _text(data):
     return cursor.take(cursor.count(limit=len(data))).decode("utf-8")
 
 
-def _field_value(shape, data):
+def _field_value(parts, data):
+    if len(parts) > 1:
+        widths = [part[1] if part[0] == "raw" else None for part in parts]
+        if None in widths or sum(widths) != len(data) or any(w not in (1, 2, 4, 8) for w in widths):
+            return "nested", len(data)
+        values, at = [], 0
+        for width in widths:
+            values.append(int.from_bytes(data[at:at + width], "little"))
+            at += width
+        return "+".join(f"u{w * 8}" for w in widths), tuple(values)
+    shape = parts[0]
     if shape[0] == "raw" and len(data) in (1, 2, 4, 8):
         return f"u{len(data) * 8}", int.from_bytes(data, "little")
     if shape[0] == "raw":
@@ -196,7 +216,7 @@ def decode_record(kind: str, raw: bytes, *, start: int = 0, key_width: int = 4) 
     shapes = _top_level_shapes(kind)
     fields = []
     for name, span in layout.fields.items():
-        shape_name, value = _field_value(shapes.get(name, ("nested",)), raw[span.start:span.end])
+        shape_name, value = _field_value(shapes.get(name, [("nested",)]), raw[span.start:span.end])
         fields.append(StaticField(name, shape_name, start + span.start, start + span.end, value))
     fields.sort(key=lambda field: field.start)
     name = _text(layout.data("_stringKey")) if "_stringKey" in layout.fields else ""
@@ -259,7 +279,12 @@ def apply_field_edits(
     if not edits:
         raise StaticTableError("No edits were requested.")
     table = parse_pabgh_table(bytes(header), payload=bytes(body))
-    spans = {directory.row_id: (start, end) for directory, start, end in table.row_spans(len(body))}
+    spans, keys, ambiguous = {}, {}, set()
+    for directory, start, end in table.row_spans(len(body)):
+        if directory.row_id in spans:
+            ambiguous.add(directory.row_id)
+        spans[directory.row_id] = (start, end)
+        keys[directory.row_id] = directory.key or directory.row_id.to_bytes(table.key_width, "little")
     edited = bytearray(body)
     changes, rows = [], {}
     for (key, field), value in sorted(edits.items(), key=lambda item: (item[0][0], item[0][1])):
@@ -268,8 +293,12 @@ def apply_field_edits(
             raise StaticTableError(f"{kind}.{field} is not an editable field.")
         if key not in spans:
             raise StaticTableError(f"{kind} has no row with key {key}.")
+        if key in ambiguous:
+            raise StaticTableError(f"{kind} lists key {key} more than once.")
         start, end = spans[key]
         layout = read_compact_layout(bytes(body[start:end]), kind)
+        if layout.data("_key") != keys[key]:
+            raise StaticTableError(f"{kind} row {key} carries a different inline key; the header does not match the body.")
         span = layout.fields.get(field)
         if span is None or span.size != rule.width:
             raise StaticTableError(f"{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.")

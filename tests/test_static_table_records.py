@@ -210,8 +210,9 @@ def test_every_installed_row_decodes_or_is_refused_by_a_closed_variant():
             stem, _, ext = path[len(root):].rpartition(".")
             if table_kind_for_stem(stem):
                 pairs.setdefault(stem, {})[ext] = read_archive_entry_data(entry)[0]
+    # Only variant refusals are acceptable; a size-bound refusal would mean a limit is too low.
     closed = ("This compact static variant has not been qualified.",
-              "Unsupported compact static discriminant.", "Unsupported compact static record.")
+              "Unsupported compact static discriminant.")
     decoded = refused = 0
     for stem, pair in sorted(pairs.items()):
         if not pair.get("staticinfobody"):
@@ -237,3 +238,33 @@ def test_service_writes_the_edited_pair_as_loose_files(tmp_path):
     assert result.proof_lines[-1] == "Row 2 _maxSlotCount: 240 -> 500"
     with pytest.raises(ValueError, match="no closed record schema"):
         write_static_table_edits(StaticTableEditRequest("bitmapposition", header, body, {(2, "_key"): 1}, tmp_path))
+
+
+def test_an_edit_refuses_a_row_whose_inline_key_differs_from_the_header():
+    body, header = table([(2, inventory_row(3, "Character", 50, 240))], width=2)
+    with pytest.raises(StaticTableError, match="different inline key"):
+        apply_field_edits("inventory", header, body, {(2, "_maxSlotCount"): 300})
+
+
+def test_stems_with_path_components_are_refused(tmp_path):
+    from cdmw.services.structured_sidecar_edit_service import StaticTableEditRequest, write_static_table_edits
+
+    body, header = table([(2, inventory_row(2, "Character", 50, 240))], width=2)
+    for stem in ("inventory.dlc_01/../../x", "inventory/../x", "..", "inventory.x"):
+        assert table_kind_for_stem(stem) is None
+        with pytest.raises(ValueError, match="no closed record schema"):
+            write_static_table_edits(StaticTableEditRequest(stem, header, body, {(2, "_maxSlotCount"): 9}, tmp_path / "out"))
+    assert not (tmp_path / "out").exists() and not list(tmp_path.parent.glob("x.static*"))
+
+
+def test_a_member_read_in_two_parts_shows_both_parts():
+    width = _key_width("fieldinfo")
+    out = bytearray()
+    # Both reads of the member get the same override: each part must come back as its own u32.
+    _minimal(READERS[TABLE_READERS["fieldinfo"]], out, {
+        "_stringKey": text("Field"), "_key": (4).to_bytes(width, "little"), "_startSectorIndex": struct.pack("<I", 7)})
+    body, header = table([(4, bytes(out))], width=width)
+
+    field = decode_static_table("fieldinfo", header, body).records[0].field("_startSectorIndex")
+
+    assert field.shape == "u32+u32" and field.value == (7, 7) and field.end - field.start == 8

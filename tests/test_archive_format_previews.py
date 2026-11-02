@@ -122,11 +122,31 @@ def test_static_table_preview_shows_fields_of_a_decoded_table(stored):
         body_entry, texture_entries_by_normalized_path={header_entry.path.casefold(): (header_entry,)})
 
     text = result.preview_text
-    assert "Decoded fields (2 of 2 listed rows):" in text
+    assert "Decoded fields of the first 2 rows (2 decoded):" in text
     assert "  key 2  Character" in text
     assert "    _defaultSlotCount (u16) = 50" in text
     assert "    _maxSlotCount (u16) = 240" in text
-    assert "The closed inventory record schema decoded 2 of the 2 listed rows." in result.detail_text
+    assert "The closed inventory record schema decoded 2 of the first 2 rows." in result.detail_text
+
+
+def test_static_table_preview_decodes_only_the_rows_it_prints(stored, monkeypatch):
+    from cdmw.core import static_table_records
+    from tests.compact_item_fixtures import table
+    from tests.test_static_table_records import inventory_row
+
+    calls = []
+    original = static_table_records.decode_record
+    monkeypatch.setattr(static_table_records, "decode_record", lambda *a, **k: calls.append(1) or original(*a, **k))
+    body, header = table([(key, inventory_row(key, f"Bag{key}", 1, 10)) for key in range(1, 30)], width=2)
+    stem = "gamedata/binarystaticinfo__/bin/inventory"
+    header_entry = stored(f"{stem}.staticinfoheader", header, package="0008")
+    body_entry = stored(f"{stem}.staticinfobody", body, package="0008")
+
+    result = build_archive_preview_result(
+        body_entry, texture_entries_by_normalized_path={header_entry.path.casefold(): (header_entry,)})
+
+    assert len(calls) == 5
+    assert "  [28] key 29  Bag29" in result.preview_text
 
 
 def test_static_table_halves_are_never_mixed_across_archive_layers(stored):
