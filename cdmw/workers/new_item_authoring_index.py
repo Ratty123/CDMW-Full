@@ -23,6 +23,9 @@ def authoring_index_task(kind, snapshot):
         elif kind == "item-behavior":
             from cdmw.services.new_item_behavior import load_behavior_index
             result = load_behavior_index(snapshot, stop_event=stop_event)
+        elif kind.startswith("game-table:"):
+            from cdmw.services.new_item_table_edits import load_snapshot_table_index
+            result = load_snapshot_table_index(snapshot, kind.split(":", 1)[1], stop_event=stop_event)
         else:
             raise ValueError(f"Unsupported authoring index: {kind}")
         raise_if_cancelled(stop_event, "Authoring index cancelled.")

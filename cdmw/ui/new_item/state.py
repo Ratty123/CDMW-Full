@@ -219,6 +219,8 @@ class NewItemDraft:
     inventory_settings: Optional[ItemInventorySettings] = None
     definition_settings: Optional[ItemDefinitionSettings] = None
     behavior_settings: Optional[ItemBehaviorSettings] = None
+    #: Edits to existing rows of other game tables; kept across template changes.
+    table_edits: tuple = ()
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
     old_item_name: str = ""
@@ -484,6 +486,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         inventory_settings=draft.inventory_settings,
         definition_settings=draft.definition_settings,
         behavior_settings=draft.behavior_settings,
+        table_edits=tuple(draft.table_edits),
         placement=placement,
         shop_placements=draft.shop_placements,
         item_groups=draft.item_groups,

@@ -218,6 +218,10 @@ class _Planner(EffectPlanningMixin):
         self.patches.append(ArchivePatchRequest(entry=entry, payload_data=bytes(payload)))
         self.summary.append(what)
 
+    def plan_table_edits(self) -> None:
+        from cdmw.services.new_item_table_edits import plan_table_edits
+        plan_table_edits(self)
+
     def table_data(self, pair: TablePair) -> Tuple[bytes, bytes]:
         changed = {request.entry.path.lower(): request.payload_data for request in self.patches}
         return (bytes(changed.get(pair.payload_entry.path.lower(), pair.payload)),
@@ -1035,6 +1039,7 @@ def build_plan(
             (planner.plan_model_files, "model files"), (planner.plan_bone_offsets, "bone offsets"),
             (planner.plan_skeleton_edits, "skeleton edits"),
             (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
+            (planner.plan_table_edits, "game table edits"),
         ):
             planner.check()
             planner.log(f"Planning {label}...")
