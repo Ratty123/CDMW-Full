@@ -655,7 +655,7 @@ class ModPackageRetrofitTests(unittest.TestCase):
         self.assertIn("right_panel.setMinimumWidth(420)", source)
         self.assertIn("QTimer.singleShot(120, self._apply_content_splitter_sizes)", source)
         self.assertIn("diff_preview.setMinimumWidth(360)", source)
-        self.assertIn("RETROFIT_MANAGER_PROFILES", source)
+        self.assertIn("RETROFIT_OFFERED_PROFILES", source)
         self.assertIn("MOD_PACKAGE_MANAGER_PROFILE_LABELS", source)
         self.assertIn("manager.addItem", source)
         self.assertIn("compare_payload_bytes=False", source)

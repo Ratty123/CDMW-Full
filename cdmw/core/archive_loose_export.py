@@ -814,7 +814,7 @@ def audit_loose_package_active_file_authority(
         if not expects_files_wrapper and relative_parts_for_layout and relative_parts_for_layout[0].casefold() == "files":
             result_warning = (
                 "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. "
-                "Pick the CDUMM/files-wrapper profile if the manager expects files/."
+                "DMM reads payloads from the game-relative folders, not from files/."
             )
             if result_warning not in result.warnings:
                 result.warnings.append(result_warning)

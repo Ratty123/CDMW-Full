@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
-from cdmw.domain.packages.export_policy import MOD_PACKAGE_MANAGER_PROFILES
+from cdmw.domain.packages.export_policy import MOD_PACKAGE_EXPORT_PROFILES, MOD_PACKAGE_MANAGER_PROFILES
 from cdmw.models import ModPackageInfo
 
 
@@ -14,6 +14,8 @@ KNOWN_RETROFIT_CONTENT_ROOTS = frozenset(
     {"character", "effect", "gamedata", "leveldata", "meta", "object", "tree", "ui", "vehicle", "world"}
 )
 RETROFIT_MANAGER_PROFILES = MOD_PACKAGE_MANAGER_PROFILES
+# Retrofit reads packages for every profile but writes only the ones CDMW exports.
+RETROFIT_OFFERED_PROFILES = MOD_PACKAGE_EXPORT_PROFILES
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +79,7 @@ class RetrofitPathRepairSummary:
 __all__ = [
     "KNOWN_RETROFIT_CONTENT_ROOTS",
     "RETROFIT_MANAGER_PROFILES",
+    "RETROFIT_OFFERED_PROFILES",
     "ModPackageRetrofitResult",
     "RetrofitPathRepairSummary",
     "RetrofitPayloadMapping",

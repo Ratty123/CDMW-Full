@@ -38,7 +38,7 @@ from cdmw.domain.packages.export_policy import (
     mod_package_profile_uses_manager_metadata,
 )
 from cdmw.domain.packages.retrofit import (
-    RETROFIT_MANAGER_PROFILES,
+    RETROFIT_OFFERED_PROFILES,
     RetrofitPathRepairSummary,
     RetrofittableModPackage,
 )
@@ -80,7 +80,7 @@ class ModPackageRetrofitUi:
         self.profile_labels["dmm"] = "Mod Manager"
         config = owner.textures.collect_config()  # type: ignore[attr-defined]
         self.default_profile = str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm").strip().lower()
-        if self.default_profile not in RETROFIT_MANAGER_PROFILES:
+        if self.default_profile not in RETROFIT_OFFERED_PROFILES:
             self.default_profile = "dmm"
 
     def build(self, *, run_initial_scan: bool) -> None:
@@ -463,7 +463,7 @@ class ModPackageRetrofitUi:
 
     def _add_row_controls(self, row: int) -> None:
         manager = QComboBox()
-        for profile in RETROFIT_MANAGER_PROFILES:
+        for profile in RETROFIT_OFFERED_PROFILES:
             manager.addItem(self.profile_labels.get(profile, profile), profile)
         default_index = manager.findData(self.default_profile)
         if default_index >= 0:

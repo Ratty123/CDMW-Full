@@ -836,7 +836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 717,
+          "line": 718,
           "sink": "setText"
         }
       ]
@@ -4701,7 +4701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 754,
+          "line": 755,
           "sink": "setToolTip"
         }
       ]
@@ -4711,7 +4711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 187,
+          "line": 188,
           "sink": "QLabel"
         }
       ]
@@ -6881,7 +6881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 69,
+          "line": 70,
           "sink": "setToolTip"
         }
       ]
@@ -7531,7 +7531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 95,
+          "line": 96,
           "sink": "information"
         }
       ]
@@ -11346,7 +11346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 940,
+          "line": 941,
           "sink": "_log"
         }
       ]
@@ -21941,7 +21941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 218,
+          "line": 219,
           "sink": "setToolTip"
         }
       ]
@@ -23483,16 +23483,6 @@
           "path": "cdmw/services/asset_authoring_service.py",
           "line": 66,
           "sink": "AssetAuthoringHelperSpec"
-        }
-      ]
-    },
-    {
-      "key": "CDUMM",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_catalog.py",
-          "line": 11,
-          "sink": "python-data:MOD_MANAGERS"
         }
       ]
     },
@@ -26281,7 +26271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 500,
+          "line": 501,
           "sink": "QAction"
         }
       ]
@@ -26391,7 +26381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 557,
+          "line": 558,
           "sink": "setToolTip"
         }
       ]
@@ -28266,7 +28256,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_prefab_authoring.py",
-          "line": 89,
+          "line": 94,
           "sink": "on_log"
         }
       ]
@@ -37196,7 +37186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 479,
+          "line": 480,
           "sink": "_log"
         }
       ]
@@ -37691,7 +37681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 487,
+          "line": 488,
           "sink": "QAction"
         }
       ]
@@ -37921,7 +37911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 673,
+          "line": 674,
           "sink": "_log"
         }
       ]
@@ -41671,7 +41661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 769,
+          "line": 770,
           "sink": "setHeaderLabels"
         }
       ]
@@ -46661,7 +46651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 68,
+          "line": 69,
           "sink": "QAction"
         }
       ]
@@ -47031,7 +47021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 429,
+          "line": 430,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -47041,7 +47031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 451,
+          "line": 452,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -51001,7 +50991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 746,
+          "line": 747,
           "sink": "QLabel"
         }
       ]
@@ -56351,7 +56341,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 769,
+          "line": 770,
           "sink": "setHeaderLabels"
         },
         {
@@ -56426,7 +56416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 203,
+          "line": 204,
           "sink": "addTab"
         }
       ]
@@ -57076,7 +57066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 372,
+          "line": 373,
           "sink": "setPlaceholderText"
         }
       ]
@@ -61641,7 +61631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 293,
+          "line": 294,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -66826,7 +66816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 377,
+          "line": 378,
           "sink": "setToolTip"
         }
       ]
@@ -67701,7 +67691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 769,
+          "line": 770,
           "sink": "setHeaderLabels"
         }
       ]
@@ -77547,7 +77537,7 @@
       ]
     },
     {
-      "key": "Known working CDUMM placement XML alias.",
+      "key": "Known working placement XML alias.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
@@ -91966,7 +91956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 496,
+          "line": 497,
           "sink": "QAction"
         }
       ]
@@ -92036,7 +92026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 95,
+          "line": 113,
           "sink": "_log"
         }
       ]
@@ -96651,7 +96641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 621,
+          "line": 622,
           "sink": "setToolTip"
         }
       ]
@@ -97446,7 +97436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 678,
+          "line": 679,
           "sink": "_log"
         }
       ]
@@ -100231,7 +100221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 427,
+          "line": 428,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -100251,7 +100241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 944,
+          "line": 945,
           "sink": "_log"
         }
       ]
@@ -100311,7 +100301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 304,
+          "line": 321,
           "sink": "setText"
         }
       ]
@@ -100321,7 +100311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 123,
+          "line": 124,
           "sink": "_log"
         }
       ]
@@ -100346,7 +100336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 875,
+          "line": 876,
           "sink": "_log"
         }
       ]
@@ -100436,7 +100426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 878,
+          "line": 879,
           "sink": "_log"
         }
       ]
@@ -100621,7 +100611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 385,
+          "line": 386,
           "sink": "setHeaderLabels"
         }
       ]
@@ -101296,7 +101286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 752,
+          "line": 753,
           "sink": "QCheckBox"
         }
       ]
@@ -101356,7 +101346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 376,
+          "line": 377,
           "sink": "QCheckBox"
         }
       ]
@@ -108866,7 +108856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 302,
+          "line": 303,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -110976,7 +110966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 621,
+          "line": 622,
           "sink": "setToolTip"
         }
       ]
@@ -120341,7 +120331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 226,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -120421,7 +120411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 205,
+          "line": 209,
           "sink": "_log"
         }
       ]
@@ -120446,7 +120436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 511,
+          "line": 512,
           "sink": "setToolTip"
         }
       ]
@@ -120456,7 +120446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 240,
+          "line": 257,
           "sink": "_log"
         }
       ]
@@ -125771,7 +125761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 102,
+          "line": 103,
           "sink": "_log"
         }
       ]
@@ -125781,7 +125771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 118,
+          "line": 119,
           "sink": "_log"
         }
       ]
@@ -125791,12 +125781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 915,
+          "line": 916,
           "sink": "_log"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 129,
+          "line": 130,
           "sink": "_log"
         }
       ]
@@ -127131,7 +127121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 76,
+          "line": 77,
           "sink": "QAction"
         }
       ]
@@ -127141,7 +127131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 106,
+          "line": 107,
           "sink": "question"
         }
       ]
@@ -127181,7 +127171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 106,
+          "line": 107,
           "sink": "question"
         }
       ]
@@ -133601,7 +133591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 735,
+          "line": 736,
           "sink": "_log"
         }
       ]
@@ -136556,7 +136546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 215,
+          "line": 216,
           "sink": "QPushButton"
         }
       ]
@@ -136721,7 +136711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 95,
+          "line": 96,
           "sink": "information"
         }
       ]
@@ -138921,7 +138911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 763,
+          "line": 764,
           "sink": "setPlaceholderText"
         }
       ]
@@ -141301,7 +141291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 621,
+          "line": 622,
           "sink": "setToolTip"
         }
       ]
@@ -148491,7 +148481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 304,
+          "line": 321,
           "sink": "setText"
         }
       ]
@@ -155826,12 +155816,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 228,
+          "line": 229,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 491,
+          "line": 492,
           "sink": "QAction"
         }
       ]
@@ -156306,7 +156296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 85,
+          "line": 86,
           "sink": "setToolTip"
         }
       ]
@@ -159321,7 +159311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 130,
+          "line": 131,
           "sink": "warning"
         }
       ]
@@ -166776,7 +166766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 251,
+          "line": 252,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -166806,7 +166796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 621,
+          "line": 622,
           "sink": "setToolTip"
         }
       ]
@@ -166996,7 +166986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
-          "line": 79,
+          "line": 80,
           "sink": "setToolTip"
         }
       ]
@@ -167331,7 +167321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 644,
+          "line": 645,
           "sink": "AssetPickerDialog"
         }
       ]
@@ -167556,7 +167546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 621,
+          "line": 622,
           "sink": "setToolTip"
         }
       ]
@@ -171536,7 +171526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 223,
+          "line": 224,
           "sink": "QPushButton"
         }
       ]
@@ -171631,7 +171621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 510,
+          "line": 511,
           "sink": "QAction"
         }
       ]
@@ -176301,7 +176291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 385,
+          "line": 386,
           "sink": "setHeaderLabels"
         },
         {
@@ -179491,7 +179481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 769,
+          "line": 770,
           "sink": "setHeaderLabels"
         },
         {
@@ -179506,7 +179496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 385,
+          "line": 386,
           "sink": "setHeaderLabels"
         },
         {
@@ -179596,7 +179586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 202,
+          "line": 203,
           "sink": "addTab"
         }
       ]
@@ -179871,7 +179861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 505,
+          "line": 506,
           "sink": "QAction"
         }
       ]
@@ -179996,7 +179986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 506,
+          "line": 507,
           "sink": "setToolTip"
         }
       ]
@@ -181806,7 +181796,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_prefab_authoring.py",
-          "line": 125,
+          "line": 135,
           "sink": "on_log"
         }
       ]
@@ -205901,7 +205891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 797,
+          "line": 798,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205941,7 +205931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 801,
+          "line": 802,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -206651,7 +206641,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 937,
+          "line": 938,
           "sink": "_log"
         },
         {
@@ -207246,7 +207236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 680,
+          "line": 681,
           "sink": "_log"
         }
       ]
@@ -208121,7 +208111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 797,
+          "line": 798,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -209456,7 +209446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 717,
+          "line": 718,
           "sink": "setText"
         }
       ]
@@ -211216,7 +211206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 267,
+          "line": 268,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -212206,7 +212196,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 165,
+          "line": 183,
           "sink": "python-return:_pending_changes"
         },
         {
