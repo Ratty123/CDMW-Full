@@ -14,7 +14,7 @@ from scripts.export_github_wiki import (
     BUILTIN_LANGUAGES, PAGE_TOPICS, WIKI, DocumentParser, _blocks,
     _translate_html, build_pages, page_slug,
     build_manuals, build_reference_assets, manual_path, manual_slug,
-    _emphasize_controls, _is_instruction, _readable_guide, _sentences,
+    _emphasize_controls, _emphasize_paired, _is_instruction, _readable_guide, _sentences,
 )
 
 
@@ -260,6 +260,27 @@ def test_adjacent_cjk_controls_share_one_emphasis(wiki_manuals):
     assert _emphasize_controls("请确认**输出**设置。", "zh-Hans").count("****") == 0
     for name in ("ja/日本語.md", "zh-Hans/简体中文.md", "zh-Hant/繁體中文.md", "ko/한국어.md"):
         assert "****" not in wiki_manuals[name], name
+
+
+def test_cjk_prose_bolds_only_the_controls_the_english_source_marks(wiki_manuals):
+    # 位置 ("Position") and 输出 ("Output") are also ordinary words in running Chinese.
+    source = "Inspect Position, enter changes, then choose Apply. Open the output folder to view the result."
+    translated = "检查位置，输入更改，然后选择应用。打开输出文件夹查看结果位置。"
+    assert _emphasize_paired(_sentences(translated), _sentences(source), "zh-Hans") == [
+        "检查**位置**，输入更改，然后选择**应用**。", "打开输出文件夹查看结果位置。",
+    ]
+    # One English Settings: the quoted 設定 is the control, not the one in アプリ設定.
+    assert _emphasize_paired(
+        ["保存されたアプリ設定を現在の「設定」に再読み込みします。"],
+        ["Saved app settings reload into the live Settings."], "ja",
+    ) == ["保存されたアプリ設定を現在の「**設定**」に再読み込みします。"]
+    # Equal sentence counts can still be regrouped; the control moves one sentence earlier.
+    source = "An item package will not load after a game update. Prefabs saved with Duplicate this object in 0.11.0-alpha.31 are damaged; redo those edits."
+    translated = "게임 업데이트 후에는 아이템 패키지가 로드되지 않습니다. 0.11.0-alpha.31에서 이 객체 복제로 저장한 프리팹은 손상되었습니다. 해당 편집을 다시 하세요."
+    assert "**이 객체 복제**로" in _emphasize_paired(_sentences(translated), _sentences(source), "ko")[0]
+    english = wiki_manuals["Home.md"].count("**Position**")
+    for name, label in (("ja/日本語.md", "位置"), ("ko/한국어.md", "위치"), ("zh-Hans/简体中文.md", "位置"), ("zh-Hant/繁體中文.md", "位置")):
+        assert wiki_manuals[name].count("**" + label + "**") <= english, name
 
 
 def test_manual_migration_requires_every_source_guide(wiki_pages):

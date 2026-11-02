@@ -154,11 +154,20 @@ def _sentences(text: str) -> list[str]:
 
 
 @lru_cache(maxsize=14)
-def _control_pattern(locale: str):
+def _control_labels(locale: str) -> dict[str, frozenset[str]]:
+    """Map each control label a locale can show to the English names it stands for."""
     catalogue = load_builtin_catalog(locale)["translations"]
-    names = set(_CONTROLS) | {str(catalogue.get(name, name)) for name in _CONTROLS}
+    labels = {}
+    for name in _CONTROLS:
+        for label in (name, str(catalogue.get(name, name))):
+            labels.setdefault(label, set()).add(name)
+    return {label: frozenset(names) for label, names in labels.items()}
+
+
+@lru_cache(maxsize=14)
+def _control_pattern(locale: str):
     patterns = []
-    for name in sorted(names, key=len, reverse=True):
+    for name in sorted(_control_labels(locale), key=len, reverse=True):
         cjk = any("\u3040" <= char <= "\u9fff" for char in name)
         korean = any("\uac00" <= char <= "\ud7af" for char in name)
         if korean:
@@ -166,23 +175,70 @@ def _control_pattern(locale: str):
             suffix = r"(?=\W|$|(?:에서는|으로|에서|은|는|이|가|을|를|와|과|로|에|도|만)(?=\W|$))"
             patterns.append(r"(?<!\w)" + re.escape(name) + suffix)
         else:
-            # "Move away" is the pointer, not the Move tool; "Mod Management",
-            # "Definitive Mod Manager" and hyphenated compounds such as
-            # "Mod-Verwaltung" are names, not the Mod toggle.
-            exception = {"Move": r"(?! away\b)", "Mod": r"(?! Manage(?:ment|r)\b)(?!-)"}.get(name, "")
+            # "Move away" is the pointer, not the Move tool; "Create New Item",
+            # "Mod Management", "Definitive Mod Manager" and hyphenated compounds
+            # such as "Mod-Verwaltung" are names, not the Create button or Mod toggle.
+            exception = {
+                "Move": r"(?! away\b)", "Create": r"(?! New Item\b)", "Mod": r"(?! Manage(?:ment|r)\b)(?!-)",
+            }.get(name, "")
             before = r"(?<![\w-])" if name == "Mod" else r"(?<!\w)"
             patterns.append(re.escape(name) if cjk else before + re.escape(name) + r"(?!\w)" + exception)
     return re.compile("|".join(patterns))
 
 
-def _emphasize_controls(text: str, locale: str) -> str:
+def _control_matches(text: str, locale: str) -> tuple[list[str], list]:
+    """Split text around inline markup and find the control labels outside it."""
+    parts = _INLINE_MARKUP.split(text)
+    return parts, [(index, match) for index, part in enumerate(parts) if not index % 2 for match in _control_pattern(locale).finditer(part)]
+
+
+def _render_controls(parts: list[str], chosen: set[tuple[int, int]], locale: str) -> str:
     emphasized = "".join(
-        part if index % 2 else _control_pattern(locale).sub(lambda match: "**" + match[0] + "**", part)
-        for index, part in enumerate(_INLINE_MARKUP.split(text))
+        part if index % 2 else _control_pattern(locale).sub(
+            lambda match: "**" + match[0] + "**" if (index, match.start()) in chosen else match[0], part)
+        for index, part in enumerate(parts)
     )
     # Without spaces between words (Chinese, Japanese), names can match back to back.
     # GitHub cannot pair "**A****B**" and shows the asterisks, so join them as "**AB**".
     return re.sub(r"(?<=[^\s*])\*\*\*\*(?=[^\s*])", "", emphasized)
+
+
+def _emphasize_controls(text: str, locale: str) -> str:
+    parts, found = _control_matches(text, locale)
+    return _render_controls(parts, {(index, match.start()) for index, match in found}, locale)
+
+
+def _boundaries(part: str, match) -> int:
+    """Count the sides where a label meets punctuation, a quote or an edge; spaces separate every word."""
+    return sum(not re.match(r"[\w\s]", side) for side in (part[match.start() - 1:match.start()], part[match.end():match.end() + 1]))
+
+
+def _emphasize_paired(units: list[str], source_units: list[str], locale: str) -> list[str]:
+    """For each control the English units mark, bold the nearest translated label that names it."""
+    # Translated labels are often ordinary words: 位置, 出力 and 編集 run through
+    # Chinese and Japanese prose, and German capitalizes every noun. Only a label
+    # the English source marks is bold, as often as the source marks it. Translations
+    # merge and split sentences, so a control may land one unit away from its source.
+    english, labels = _control_labels("en"), _control_labels(locale)
+    found = [_control_matches(unit, locale) for unit in units]
+    candidates = {(position, index, match.start()): match for position, (_, matches) in enumerate(found) for index, match in matches}
+    chosen = set()
+    for source_position, source_unit in enumerate(source_units):
+        target = source_position * len(units) / len(source_units)
+        for _, control in _control_matches(source_unit, "en")[1]:
+            options = [
+                key for key, match in candidates.items()
+                if key not in chosen and abs(key[0] - target) <= 1.5 and english[control[0]] & labels[match[0]]
+            ]
+            if options:
+                # Where a label repeats, the copy set apart by quotes or punctuation is the control.
+                chosen.add(min(options, key=lambda key: (
+                    abs(key[0] - target), -_boundaries(found[key[0]][0][key[1]], candidates[key]), key,
+                )))
+    return [
+        _render_controls(parts, {key[1:] for key in chosen if key[0] == position}, locale)
+        for position, (parts, _) in enumerate(found)
+    ]
 
 
 def _sentence_kind(source: str) -> str:
@@ -211,12 +267,12 @@ def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "
         kinds = [common] * len(sentences)
         instructions = [bool(instructions) and all(instructions)] * len(sentences)
     groups = []
-    for sentence, kind, instruction in zip(sentences, kinds, instructions):
+    for sentence, kind, instruction in zip(_emphasize_paired(sentences, originals, locale), kinds, instructions):
         kind = alert or kind
         instruction = instruction and not kind
         if not groups or groups[-1][:2] != (kind, instruction):
             groups.append((kind, instruction, []))
-        groups[-1][2].append(_emphasize_controls(sentence, locale))
+        groups[-1][2].append(sentence)
     rendered = []
     has_steps = any(instruction for _, instruction, _ in groups)
     for kind, instruction, items in groups:
@@ -286,7 +342,10 @@ def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = F
             if label:
                 block = "**" + str(catalogue.get(label, label)) + "**\n\n" + block
         elif not original.startswith(("#", "<")):
-            block = _emphasize_controls(block, locale)
+            # List items and table cells pair one by one with the English block;
+            # the separators between them keep a control in its own item or cell.
+            units, source_units = (re.split(r"(\n|(?<!\\)\|)", text) for text in (block, original))
+            block = "".join(_emphasize_paired(units, source_units, locale))
         rendered.append(block)
         details_depth += original.count("<details>") - original.count("</details>")
     if folded:
