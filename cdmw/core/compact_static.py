@@ -6,8 +6,8 @@ from cdmw.core.new_item_record import Cursor, RecordError
 
 
 # (record bytes, walk steps). Faction and quest rows carry whole relation and
-# stage graphs; the largest shipped rows are about 204 KiB.
-_RECORD_LIMITS = {"faction": (1 << 20, 4_000_000), "questinfo": (1 << 20, 4_000_000)}
+# stage graphs; the largest shipped rows are about 204 KiB and 1.5 MiB.
+_RECORD_LIMITS = {"faction": (1 << 20, 4_000_000), "questinfo": (4 << 20, 16_000_000)}
 _DEFAULT_LIMITS = (65536, 200000)
 
 
