@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
 from cdmw.domain.research.contracts import (
@@ -61,7 +61,10 @@ from cdmw.ui.research.workers import ResearchRefreshWorker, UIConstraintRefreshW
 
 def refresh_research(self) -> None:
     if self.refresh_thread is not None:
+        # A label saved during a running refresh must not be lost: run once more afterwards.
+        self._research_refresh_queued = True
         return
+    self._research_refresh_queued = False
     if self._prepare_catalogue_research_refresh_if_needed("refresh"):
         return
     self._pending_refresh_catalogue_context = self._research_catalogue_context_key()
@@ -229,6 +232,13 @@ def _cleanup_refresh_refs(self) -> None:
     self.pending_archive_snapshot_cache_key = ""
     self._pending_refresh_full_archive_key = ""
     self.refresh_button.setEnabled(True)
+    if getattr(self, "_research_refresh_queued", False):
+        self._research_refresh_queued = False
+        QTimer.singleShot(0, self.refresh_research)
+
+def refresh_research_from_button(self) -> None:
+    self._clear_pending_classification_review_focus()
+    self.refresh_research()
 
 def _handle_ui_constraint_progress(self, current: int, total: int, detail: str) -> None:
     if self._pending_ui_constraint_catalogue_context != self._research_catalogue_context_key():
@@ -478,7 +488,13 @@ def _finalize_budget_population(self) -> None:
     if self.budget_file_tree.topLevelItemCount() > 0:
         first = self.budget_file_tree.topLevelItem(0)
         if first is not None:
-            self.budget_file_tree.setCurrentItem(first)
+            # A Mip or Normal row selected earlier already owns the detail panel.
+            detail_owned = self.mip_tree.topLevelItemCount() > 0 or self.normal_tree.topLevelItemCount() > 0
+            self.budget_file_tree.blockSignals(detail_owned)
+            try:
+                self.budget_file_tree.setCurrentItem(first)
+            finally:
+                self.budget_file_tree.blockSignals(False)
 
 def _finish_refresh_population(self) -> None:
     self._stop_refresh_population()

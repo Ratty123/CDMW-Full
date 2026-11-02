@@ -68,6 +68,8 @@ class MipFocusRefreshPendingState:
 
 
 def research_analysis_report_rows(research_payload: Mapping[str, object]) -> Optional[ResearchAnalysisReportRows]:
+    if "mip_rows" not in research_payload or "normal_rows" not in research_payload:
+        return None
     mip_rows = research_payload.get("mip_rows", [])
     normal_rows = research_payload.get("normal_rows", [])
     if not isinstance(mip_rows, list) or not isinstance(normal_rows, list):

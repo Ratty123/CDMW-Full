@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHeaderView,
     QHBoxLayout,
@@ -29,8 +29,8 @@ from cdmw.domain.research.classification import (
 from cdmw.ui.research.analysis_state import ANALYSIS_CONTEXT_HELP_TEXT
 from cdmw.ui.research.help_widgets import (
     add_flat_section_help as _add_flat_section_help,
-    add_help_row as _add_help_row,
     add_titled_help_header as _add_titled_help_header,
+    intro_label,
     make_research_help_button as _make_help_button,
 )
 from cdmw.ui.research.layout_state import (
@@ -52,43 +52,32 @@ from cdmw.ui.widgets import (
     PreviewScrollArea,
 )
 
-def build_archive_tab(self) -> QWidget:
-    tab = QWidget()
-    layout = QVBoxLayout(tab)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(10)
+def _page(margins: tuple[int, int, int, int] = (0, 8, 10, 0)) -> tuple[QWidget, QVBoxLayout]:
+    page = QWidget()
+    layout = QVBoxLayout(page)
+    layout.setContentsMargins(*margins)
+    layout.setSpacing(8)
+    return page, layout
 
-    sub_tabs = QTabWidget()
-    self.archive_insights_tabs = sub_tabs
-    sub_tabs.setCornerWidget(
-        _make_help_button(
-            "Research rows in this tab are built from the current Archive Browser view/filter. When available, DDS classification can still consult loaded archive sidecars such as .pac.xml and .pami so color/albedo and other roles do not depend only on filename guessing."
-        ),
-        Qt.TopRightCorner,
+
+def build_texture_sets_page(self) -> QWidget:
+    tab, groups_layout = _page()
+    intro_label(
+        "Related textures grouped into sets, and the type Research gave each texture. "
+        "Select a set to extract its textures and sidecar files together.",
+        groups_layout,
     )
-    layout.addWidget(sub_tabs, stretch=1)
 
-    groups_tab = QWidget()
-    groups_layout = QVBoxLayout(groups_tab)
-    groups_layout.setContentsMargins(0, 0, 0, 0)
-    groups_layout.setSpacing(10)
-
-    group_actions = QVBoxLayout()
-    group_actions.setSpacing(6)
     group_buttons_row = QHBoxLayout()
     group_buttons_row.setSpacing(8)
     self.texture_group_extract_button = QPushButton("Extract Selected Set")
+    self.texture_group_extract_button.setEnabled(False)
     self.texture_group_status_label = QLabel("No grouped texture set selected.")
     self.texture_group_status_label.setWordWrap(True)
     self.texture_group_status_label.setObjectName("HintLabel")
     group_buttons_row.addWidget(self.texture_group_extract_button)
-    group_buttons_row.addWidget(
-        _make_help_button("Select a grouped texture set to extract its related files and sidecars.")
-    )
-    group_buttons_row.addStretch(1)
-    group_actions.addLayout(group_buttons_row)
-    group_actions.addWidget(self.texture_group_status_label)
-    groups_layout.addLayout(group_actions)
+    group_buttons_row.addWidget(self.texture_group_status_label, stretch=1)
+    groups_layout.addLayout(group_buttons_row)
 
     self.groups_splitter = QSplitter(Qt.Horizontal)
     groups_splitter = self.groups_splitter
@@ -142,16 +131,17 @@ def build_archive_tab(self) -> QWidget:
     classifier_layout.addWidget(self.classifier_tree, stretch=1)
     groups_splitter.addWidget(classifier_group)
     groups_splitter.setSizes(research_groups_splitter_default_sizes())
-    sub_tabs.addTab(groups_tab, "Groups")
+    self.groups_tab = tab
+    return tab
 
-    unknown_tab = QWidget()
-    unknown_layout = QVBoxLayout(unknown_tab)
-    unknown_layout.setContentsMargins(0, 0, 0, 0)
-    unknown_layout.setSpacing(6)
 
-    _add_help_row(
+def build_classification_review_page(self) -> QWidget:
+    unknown_tab, unknown_layout = _page()
+    intro_label(
+        "Textures Research could not classify with confidence. Select one, check the preview, "
+        "choose the right label and save it. Saved labels stay on this PC and are reused by later "
+        "scans and texture policies.",
         unknown_layout,
-        "Review DDS files here, preview them directly, and approve a label once so the app remembers it for future scans and policy planning. The list follows the current Research snapshot from Archive Browser, while inferred roles may still use loaded sidecar bindings."
     )
 
     self.unknown_resolver_status_label = QLabel(
@@ -169,17 +159,15 @@ def build_archive_tab(self) -> QWidget:
     )
     self.unknown_name_filter_edit = QLineEdit()
     self.unknown_name_filter_edit.setPlaceholderText("Name filter, supports * and ?")
+    self.unknown_name_filter_edit.setClearButtonEnabled(True)
     self.unknown_package_filter_edit = QLineEdit()
     self.unknown_package_filter_edit.setPlaceholderText("Package filter, for example 0000 or 0015*")
-    self.unknown_select_all_button = QPushButton("Select All Shown")
-    self.unknown_clear_family_selection_button = QPushButton("Clear Selection")
-    unknown_filter_row.addWidget(self.unknown_show_classified_checkbox)
+    self.unknown_package_filter_edit.setClearButtonEnabled(True)
     unknown_filter_row.addWidget(QLabel("Name"))
-    unknown_filter_row.addWidget(self.unknown_name_filter_edit, stretch=1)
+    unknown_filter_row.addWidget(self.unknown_name_filter_edit, stretch=2)
     unknown_filter_row.addWidget(QLabel("Package"))
-    unknown_filter_row.addWidget(self.unknown_package_filter_edit)
-    unknown_filter_row.addWidget(self.unknown_select_all_button)
-    unknown_filter_row.addWidget(self.unknown_clear_family_selection_button)
+    unknown_filter_row.addWidget(self.unknown_package_filter_edit, stretch=1)
+    unknown_filter_row.addWidget(self.unknown_show_classified_checkbox)
     unknown_layout.addLayout(unknown_filter_row)
 
     self.unknown_splitter = QSplitter(Qt.Horizontal)
@@ -210,59 +198,17 @@ def build_archive_tab(self) -> QWidget:
     make_research_tree_columns_persistent(self.unknown_group_tree, self.settings, "unknown_group")
     unknown_left_layout.addWidget(self.unknown_group_tree, stretch=1)
 
-    unknown_actions_widget = QWidget()
-    unknown_actions_layout = QVBoxLayout(unknown_actions_widget)
-    unknown_actions_layout.setContentsMargins(0, 0, 0, 0)
-    unknown_actions_layout.setSpacing(8)
-
-    approval_row = QHBoxLayout()
-    approval_row.setSpacing(8)
-    self.unknown_label_combo = QComboBox()
-    for choice_key, texture_type, semantic_subtype in unknown_resolver_label_choices():
-        self.unknown_label_combo.addItem(
-            unknown_resolver_choice_label(choice_key),
-            (choice_key, texture_type, semantic_subtype),
-        )
-    self.unknown_preview_button = QPushButton("Preview Current")
-    self.unknown_apply_selected_button = QPushButton("Apply To Current Family")
-    self.unknown_apply_group_button = QPushButton("Apply To Selected Families")
-    self.unknown_clear_selected_button = QPushButton("Clear Current Family")
-    self.unknown_clear_group_button = QPushButton("Clear Selected Families")
-    approval_row.addWidget(QLabel("Label"))
-    approval_row.addWidget(self.unknown_label_combo, stretch=1)
-    approval_row.addWidget(self.unknown_preview_button)
-    unknown_actions_layout.addLayout(approval_row)
-
-    self.unknown_accept_current_role_button = QPushButton("Save Current Role Locally")
-    self.unknown_apply_current_file_button = QPushButton("Apply To Current File")
-    self.unknown_clear_current_file_button = QPushButton("Clear Current File")
-    self.unknown_apply_selected_button.setText("Apply To Unknown Files In Current Family")
-    self.unknown_apply_group_button.setText("Apply To Unknown Files In Selected Families")
-    self.unknown_clear_selected_button.setText("Clear Current Family")
-    self.unknown_clear_group_button.setText("Clear Selected Families")
-
-    file_actions_row = QHBoxLayout()
-    file_actions_row.setSpacing(8)
-    file_actions_row.addWidget(self.unknown_accept_current_role_button)
-    file_actions_row.addWidget(self.unknown_apply_current_file_button)
-    file_actions_row.addWidget(self.unknown_clear_current_file_button)
-    file_actions_row.addStretch(1)
-    unknown_actions_layout.addLayout(file_actions_row)
-
-    current_family_actions_row = QHBoxLayout()
-    current_family_actions_row.setSpacing(8)
-    current_family_actions_row.addWidget(self.unknown_apply_selected_button)
-    current_family_actions_row.addWidget(self.unknown_clear_selected_button)
-    current_family_actions_row.addStretch(1)
-    unknown_actions_layout.addLayout(current_family_actions_row)
-
-    selected_family_actions_row = QHBoxLayout()
-    selected_family_actions_row.setSpacing(8)
-    selected_family_actions_row.addWidget(self.unknown_apply_group_button)
-    selected_family_actions_row.addWidget(self.unknown_clear_group_button)
-    selected_family_actions_row.addStretch(1)
-    unknown_actions_layout.addLayout(selected_family_actions_row)
-    unknown_left_layout.addWidget(unknown_actions_widget)
+    selection_row = QHBoxLayout()
+    selection_row.setSpacing(8)
+    self.unknown_select_all_button = QPushButton("Select All Shown")
+    self.unknown_clear_family_selection_button = QPushButton("Clear Selection")
+    selection_hint = QLabel("Ctrl+click or Shift+click to select several families.")
+    selection_hint.setObjectName("HintLabel")
+    selection_hint.setWordWrap(True)
+    selection_row.addWidget(self.unknown_select_all_button)
+    selection_row.addWidget(self.unknown_clear_family_selection_button)
+    selection_row.addWidget(selection_hint, stretch=1)
+    unknown_left_layout.addLayout(selection_row)
 
     unknown_members_group = QGroupBox("Family Members")
     self.unknown_members_group = unknown_members_group
@@ -292,6 +238,62 @@ def build_archive_tab(self) -> QWidget:
     make_research_tree_columns_persistent(self.unknown_member_tree, self.settings, "unknown_member")
     unknown_members_layout.addWidget(self.unknown_member_tree, stretch=1)
     unknown_left_layout.addWidget(unknown_members_group)
+
+    label_group = QGroupBox("Save A Label")
+    label_grid = QGridLayout(label_group)
+    label_grid.setContentsMargins(10, 12, 10, 10)
+    label_grid.setHorizontalSpacing(8)
+    label_grid.setVerticalSpacing(8)
+    self.unknown_label_combo = QComboBox()
+    for choice_key, texture_type, semantic_subtype in unknown_resolver_label_choices():
+        self.unknown_label_combo.addItem(
+            unknown_resolver_choice_label(choice_key),
+            (choice_key, texture_type, semantic_subtype),
+        )
+    self.unknown_label_combo.setToolTip(
+        "The label to save. Research preselects its best suggestion for the selected file."
+    )
+    self.unknown_accept_current_role_button = QPushButton("Keep Current Role")
+    self.unknown_accept_current_role_button.setToolTip(
+        "Save the role Research already inferred for the selected file, without changing it."
+    )
+    # Selecting a file already previews it; the button stays for callers that still drive it.
+    self.unknown_preview_button = QPushButton("Preview Current", label_group)
+    self.unknown_preview_button.setVisible(False)
+    self.unknown_apply_current_file_button = QPushButton("This File")
+    self.unknown_apply_current_file_button.setToolTip("Save the label for the selected DDS file only.")
+    self.unknown_apply_selected_button = QPushButton("Unknown Files In This Family")
+    self.unknown_apply_selected_button.setToolTip(
+        "Save the label for every still-unknown DDS file in the selected family."
+    )
+    self.unknown_apply_group_button = QPushButton("Unknown Files In Selected Families")
+    self.unknown_apply_group_button.setToolTip(
+        "Save the label for every still-unknown DDS file in all selected families."
+    )
+    self.unknown_clear_current_file_button = QPushButton("This File")
+    self.unknown_clear_current_file_button.setToolTip("Remove the saved label from the selected DDS file.")
+    self.unknown_clear_selected_button = QPushButton("This Family")
+    self.unknown_clear_selected_button.setToolTip(
+        "Remove saved labels from every DDS file in the selected family."
+    )
+    self.unknown_clear_group_button = QPushButton("Selected Families")
+    self.unknown_clear_group_button.setToolTip(
+        "Remove saved labels from every DDS file in all selected families."
+    )
+    label_grid.addWidget(QLabel("Label"), 0, 0)
+    label_grid.addWidget(self.unknown_label_combo, 0, 1, 1, 2)
+    label_grid.addWidget(self.unknown_accept_current_role_button, 0, 3)
+    label_grid.addWidget(QLabel("Save to"), 1, 0)
+    label_grid.addWidget(self.unknown_apply_current_file_button, 1, 1)
+    label_grid.addWidget(self.unknown_apply_selected_button, 1, 2)
+    label_grid.addWidget(self.unknown_apply_group_button, 1, 3)
+    label_grid.addWidget(QLabel("Remove from"), 2, 0)
+    label_grid.addWidget(self.unknown_clear_current_file_button, 2, 1)
+    label_grid.addWidget(self.unknown_clear_selected_button, 2, 2)
+    label_grid.addWidget(self.unknown_clear_group_button, 2, 3)
+    for column in (1, 2, 3):
+        label_grid.setColumnStretch(column, 1)
+    unknown_left_layout.addWidget(label_group)
     unknown_splitter.addWidget(unknown_left_panel)
 
     unknown_preview_group = QGroupBox("Selected Preview")
@@ -302,16 +304,13 @@ def build_archive_tab(self) -> QWidget:
     unknown_preview_title_row.setSpacing(8)
     self.unknown_preview_title_label = QLabel("Select a review item")
     self.unknown_preview_title_label.setWordWrap(True)
-    self.unknown_preview_zoom_out_button = QPushButton("-")
-    self.unknown_preview_zoom_out_button.setToolTip("Zoom out.")
-    self.unknown_preview_zoom_fit_button = QPushButton("Fit")
-    self.unknown_preview_zoom_fit_button.setToolTip("Fit the preview to the available space.")
-    self.unknown_preview_zoom_100_button = QPushButton("100%")
-    self.unknown_preview_zoom_100_button.setToolTip("Show the preview at 100% zoom.")
-    self.unknown_preview_zoom_in_button = QPushButton("+")
-    self.unknown_preview_zoom_in_button.setToolTip("Zoom in.")
-    self.unknown_preview_zoom_value = QLabel("-")
-    self.unknown_preview_zoom_value.setObjectName("HintLabel")
+    (
+        self.unknown_preview_zoom_out_button,
+        self.unknown_preview_zoom_fit_button,
+        self.unknown_preview_zoom_100_button,
+        self.unknown_preview_zoom_in_button,
+        self.unknown_preview_zoom_value,
+    ) = build_preview_zoom_controls()
     unknown_preview_title_row.addWidget(self.unknown_preview_title_label, stretch=1)
     unknown_preview_title_row.addWidget(self.unknown_preview_zoom_out_button)
     unknown_preview_title_row.addWidget(self.unknown_preview_zoom_fit_button)
@@ -361,56 +360,55 @@ def build_archive_tab(self) -> QWidget:
     unknown_splitter.addWidget(unknown_details_group)
     unknown_splitter.setSizes(research_unknown_splitter_default_sizes())
     self.classification_review_tab = unknown_tab
-    sub_tabs.addTab(unknown_tab, "Classification Review")
+    return unknown_tab
 
-    reference_tab = QWidget()
-    reference_layout = QVBoxLayout(reference_tab)
-    reference_layout.setContentsMargins(0, 0, 0, 0)
-    reference_layout.setSpacing(10)
 
-    reference_controls = QGroupBox("")
-    controls_layout = QVBoxLayout(reference_controls)
-    controls_layout.setContentsMargins(10, 8, 10, 10)
-    controls_layout.setSpacing(6)
-    _add_titled_help_header(
-        controls_layout,
-        "Material-To-Texture Reference Resolver",
-        "Resolve material/shader/XML references for a selected texture, or inspect outbound texture references from a selected material sidecar."
+def build_references_page(self) -> QWidget:
+    reference_tab, reference_layout = _page()
+    intro_label(
+        "Find the materials, sidecars and XML files that point at a texture, or the textures a "
+        "material uses. Pick a file in Archive Files on the right (double-click works too) or type "
+        "its archive path, then click Resolve.",
+        reference_layout,
     )
-    target_row = QVBoxLayout()
-    target_row.setSpacing(6)
+
     target_input_row = QHBoxLayout()
     target_input_row.setSpacing(8)
-    target_actions_row = QHBoxLayout()
-    target_actions_row.setSpacing(8)
     self.reference_target_edit = QLineEdit()
     self.reference_target_edit.setPlaceholderText(
         "Archive path to resolve, e.g. object/texture/example_diffuse.dds"
     )
+    self.reference_target_edit.setClearButtonEnabled(True)
     self.reference_use_archive_button = QPushButton("Use Selected File")
     self.reference_resolve_button = QPushButton("Resolve")
+    self.reference_resolve_button.setDefault(True)
+    target_input_row.addWidget(self.reference_target_edit, stretch=1)
+    target_input_row.addWidget(self.reference_use_archive_button)
+    target_input_row.addWidget(self.reference_resolve_button)
+    reference_layout.addLayout(target_input_row)
+
+    target_actions_row = QHBoxLayout()
+    target_actions_row.setSpacing(8)
     self.reference_extract_button = QPushButton("Extract Related Set")
     self.reference_review_text_button = QPushButton("Review In Text Search")
     self.reference_review_text_button.setEnabled(False)
-    target_input_row.addWidget(self.reference_target_edit, stretch=1)
-    target_actions_row.addWidget(self.reference_use_archive_button)
-    target_actions_row.addWidget(self.reference_resolve_button)
-    target_actions_row.addWidget(self.reference_extract_button)
-    target_actions_row.addWidget(self.reference_review_text_button)
-    target_actions_row.addStretch(1)
-    target_row.addLayout(target_input_row)
-    target_row.addLayout(target_actions_row)
-    controls_layout.addLayout(target_row)
+    self.reference_review_text_button.setToolTip(
+        "Open the selected reference row in Text Search to read the XML around it."
+    )
     self.reference_status_label = QLabel("Select an archive file or enter a path to resolve relationships.")
     self.reference_status_label.setWordWrap(True)
     self.reference_status_label.setObjectName("HintLabel")
-    controls_layout.addWidget(self.reference_status_label)
     self.reference_progress = QProgressBar()
     self.reference_progress.setRange(0, 1)
     self.reference_progress.setValue(0)
     self.reference_progress.setFormat("Idle")
-    controls_layout.addWidget(self.reference_progress)
-    reference_layout.addWidget(reference_controls)
+    self.reference_progress.setMaximumWidth(180)
+    self.reference_progress.setMaximumHeight(18)
+    target_actions_row.addWidget(self.reference_extract_button)
+    target_actions_row.addWidget(self.reference_review_text_button)
+    target_actions_row.addWidget(self.reference_status_label, stretch=1)
+    target_actions_row.addWidget(self.reference_progress)
+    reference_layout.addLayout(target_actions_row)
 
     self.reference_splitter = QSplitter(Qt.Horizontal)
     reference_splitter = self.reference_splitter
@@ -458,21 +456,17 @@ def build_archive_tab(self) -> QWidget:
     sidecar_layout.addWidget(self.sidecar_tree)
     reference_splitter.addWidget(sidecar_group)
     reference_splitter.setSizes(research_reference_splitter_default_sizes())
-    sub_tabs.addTab(reference_tab, "References")
+    self.reference_tab = reference_tab
+    return reference_tab
 
-    ui_constraints_tab = QWidget()
-    ui_constraints_layout = QVBoxLayout(ui_constraints_tab)
-    ui_constraints_layout.setContentsMargins(0, 0, 0, 0)
-    ui_constraints_layout.setSpacing(10)
-    ui_constraints_group = QGroupBox("")
-    ui_constraints_group_layout = QVBoxLayout(ui_constraints_group)
-    ui_constraints_group_layout.setContentsMargins(10, 8, 10, 10)
-    ui_constraints_group_layout.setSpacing(6)
-    _add_titled_help_header(
-        ui_constraints_group_layout,
-        "UI Rect References",
-        "Shows textures that are explicitly referenced by archive UI/XML text with a GetRect-style size box. "
-        "This is informational evidence only: it warns that DDS-only upscaling may not change the rendered size if the UI still uses the same rect."
+
+def build_ui_constraints_page(self) -> QWidget:
+    ui_constraints_tab, ui_constraints_layout = _page()
+    intro_label(
+        "UI textures whose on-screen size is fixed by a GetRect box in the game's UI XML. "
+        "Upscaling such a texture alone does not make it bigger in game while the XML keeps the same box. "
+        "The scan reads archive XML, so it runs only when you click Scan.",
+        ui_constraints_layout,
     )
     ui_constraints_actions = QHBoxLayout()
     ui_constraints_actions.setSpacing(8)
@@ -489,10 +483,10 @@ def build_archive_tab(self) -> QWidget:
     ui_constraints_actions.addWidget(self.ui_constraint_refresh_button)
     ui_constraints_actions.addWidget(self.ui_constraint_status_label, stretch=1)
     ui_constraints_actions.addWidget(self.ui_constraint_progress)
-    ui_constraints_group_layout.addLayout(ui_constraints_actions)
+    ui_constraints_layout.addLayout(ui_constraints_actions)
     self.ui_constraint_tree = EmptyStateTreeWidget(
         "No UI constraints",
-        "Refresh UI constraints to identify referenced files that must preserve dimensions or format.",
+        "Click Scan UI Rect References to find UI textures whose displayed size is fixed by XML.",
     )
     self.ui_constraint_tree.setRootIsDecorated(False)
     self.ui_constraint_tree.setAlternatingRowColors(True)
@@ -506,18 +500,19 @@ def build_archive_tab(self) -> QWidget:
     self.ui_constraint_tree.header().resizeSection(3, 90)
     self.ui_constraint_tree.header().resizeSection(4, 220)
     make_research_tree_columns_persistent(self.ui_constraint_tree, self.settings, "ui_constraint")
-    ui_constraints_group_layout.addWidget(self.ui_constraint_tree)
-    ui_constraints_layout.addWidget(ui_constraints_group, stretch=1)
-    sub_tabs.addTab(ui_constraints_tab, "UI Constraints")
+    ui_constraints_layout.addWidget(self.ui_constraint_tree, stretch=1)
+    self.ui_constraints_tab = ui_constraints_tab
+    return ui_constraints_tab
 
-    heatmap_tab = QWidget()
-    heatmap_layout = QVBoxLayout(heatmap_tab)
-    heatmap_layout.setContentsMargins(0, 0, 0, 0)
-    heatmap_layout.setSpacing(10)
-    heatmap_group = QGroupBox("Texture Usage Heatmap")
-    heatmap_group_layout = QVBoxLayout(heatmap_group)
-    heatmap_group_layout.setContentsMargins(10, 12, 10, 10)
-    heatmap_group_layout.setSpacing(8)
+
+def build_heatmap_page(self) -> QWidget:
+    heatmap_tab, heatmap_layout = _page()
+    intro_label(
+        "Where textures concentrate in the current archive view, ranked by system area, folder and package. "
+        "Heat adds up textures, texture sets, normal maps, UI textures, sidecars and impostors. "
+        "Hover a row to see sample paths.",
+        heatmap_layout,
+    )
     self.heatmap_tree = EmptyStateTreeWidget(
         "No usage heatmap",
         "Texture usage hotspots will appear here after Research refresh.",
@@ -528,18 +523,37 @@ def build_archive_tab(self) -> QWidget:
     )
     self.heatmap_tree.header().resizeSection(0, 360)
     make_research_tree_columns_persistent(self.heatmap_tree, self.settings, "heatmap")
-    heatmap_group_layout.addWidget(self.heatmap_tree)
-    heatmap_layout.addWidget(heatmap_group, stretch=1)
-    sub_tabs.addTab(heatmap_tab, "Heatmap")
+    heatmap_layout.addWidget(self.heatmap_tree, stretch=1)
+    self.heatmap_tab = heatmap_tab
+    return heatmap_tab
 
-    return tab
+
+def build_preview_zoom_controls() -> tuple[QPushButton, QPushButton, QPushButton, QPushButton, QLabel]:
+    zoom_out_button = QPushButton("-")
+    zoom_out_button.setToolTip("Zoom out.")
+    zoom_fit_button = QPushButton("Fit")
+    zoom_fit_button.setToolTip("Fit the preview to the available space.")
+    zoom_100_button = QPushButton("100%")
+    zoom_100_button.setToolTip("Show the preview at 100% zoom.")
+    zoom_in_button = QPushButton("+")
+    zoom_in_button.setToolTip("Zoom in.")
+    zoom_value = QLabel("")
+    zoom_value.setObjectName("HintLabel")
+    zoom_value.setMinimumWidth(44)
+    return zoom_out_button, zoom_fit_button, zoom_100_button, zoom_in_button, zoom_value
 
 
 def build_texture_tab(self) -> QWidget:
-    tab = QWidget()
-    layout = QVBoxLayout(tab)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(10)
+    tab, layout = _page()
+    intro_label(
+        "Checks your rebuilt textures in the Output root against the originals in the Original DDS root: "
+        "mip chains, normal maps and memory budget. Set both folders in the Textures tool, then click Refresh Research.",
+        layout,
+    )
+    self.analysis_roots_label = QLabel("")
+    self.analysis_roots_label.setWordWrap(True)
+    self.analysis_roots_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    layout.addWidget(self.analysis_roots_label)
 
     export_row = QVBoxLayout()
     export_row.setSpacing(6)
@@ -553,9 +567,8 @@ def build_texture_tab(self) -> QWidget:
     self.analysis_context_help_button = _make_help_button(ANALYSIS_CONTEXT_HELP_TEXT)
     export_buttons_row.addWidget(self.export_report_csv_button)
     export_buttons_row.addWidget(self.export_report_json_button)
-    export_buttons_row.addWidget(self.analysis_status_label)
+    export_buttons_row.addWidget(self.analysis_status_label, stretch=1)
     export_buttons_row.addWidget(self.analysis_context_help_button)
-    export_buttons_row.addStretch(1)
     export_row.addLayout(export_buttons_row)
     layout.addLayout(export_row)
 

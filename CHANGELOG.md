@@ -50,6 +50,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - The Prefab Inspector reads about 99% of the game's prefabs all the way through, up from about 76%, including spline, Houdini, audio and mesh-group gimmicks and prefabs with nested prefab instances. On those, paths can be retargeted at any length, placements moved and objects duplicated or removed, and they can be saved as item packages, where before only same-length path swaps were allowed. Prefabs that already read completely show the same objects, apart from some nested prefabs that now also list empty child entries that were skipped before, and a few large scene prefabs that now list hundreds of asset paths the earlier reading stepped over. Fewer path changes are refused as undecidable, and prefabs whose layout could be read two ways no longer refuse object edits. Loading edited prefabs in game is still untested.
 
+- Asset Research is easier to find your way around. Its pages sit in one row (Texture Sets, Classification Review, References, UI Constraints, Heatmap, Texture Analysis, Notes) instead of tabs inside tabs, and each page opens with a short note on what it shows and what to do. Classification Review groups its label buttons into **Save to** and **Remove from** rows for this file, this family or the selected families. Texture Analysis shows which Original DDS root and Output root it compares and says when either is missing. The Archive Files panel's buttons now read **Reload List**, **Find References** and **Add Note**.
+
 - Mesh Editor and Create New Item preview existing glass visors and net veils, such as the bridal veil helmet `cd_phw_00_hel_00_0219`, as see-through instead of solid.
 
 - Mods are exported for DMM (Definitive Mod Manager) only, because other mod managers are not being updated for the DLC. Create New Item offers a DMM mod folder or a .cdmw item package. Mesh Editor Build Mod, Placement & Animations, Texture Replacer, Texture Recolor, texture upscaling, Edit Translations and the other mod-ready exports no longer offer CDUMM, Field-JSON v3.1 or the retired mod-manager option; saved choices of those fall back to DMM. Create New Item's DMM mod folders are written as before; mounting them in the updated DMM is untested.
@@ -79,6 +81,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Placement & Animations works on games updated for the DLC again. It now checks its copies of the game files each time it opens and refreshes them after an update; before, it kept working from pre-DLC copies of the weapon prefabs, character descriptors, attach points, skeletons and action charts, so a saved mod would have put those old files back into the game. The Armour list, the animation search and moving a weapon no longer fail or come up empty on the updated game, and the DLC's own weapons, armour and animations are listed. Driven bones' **Softer** and **Stiffer** buttons work, a chain switched **Off** can be turned back up, and the strength slider responds to the keyboard. Driven bones and Rig behaviour no longer write a CDUMM copy alongside the DMM mod.
 
 - Loose mods keep files from the game's sound, sequencer, material, texture and other top-level folders in their folders. They were written as bare file names at the top of the mod, so a mod manager could not place them, and two banks with the same name in `sound` and `soundcommon` overwrote each other.
+
+- Asset Research's Classification Review keeps the rest of the review list after you save or remove a label, instead of narrowing it to the edited files until a filter was typed. A label saved while Research was still refreshing is now reflected once that refresh ends.
+
+- Asset Research Notes no longer carry the previous note's text over to a newly picked target, where saving wrote it under the wrong file. Save and Delete now say when there was nothing to save or delete, and Export Report says to refresh first instead of writing an empty report.
+
+- Asset Research keeps the Texture Analysis details panel in place during a refresh, keeps a Mip Analysis row's details instead of switching to the first budget row, no longer shows a stale preview after the review list empties, and no longer enables Review In Text Search from a UI Constraints row.
 
 - Create New Item's DMM mod folders export again on games updated for the DLC, where they stopped with a PAPGT checksum error. Mod Management no longer reports the same error when it opens, and its buttons no longer stay greyed out for about 20 seconds while Create New Item reads the archives after startup.
 
@@ -134,6 +142,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Help > Documentation explains Search File Text's path filter wildcards and how regular expressions match each line, in all 14 languages. Wiki pages no longer turn a `*` in the text, such as a `*.xml` wildcard, into italics.
 - Help and the Wiki have a Prefab Inspector guide in all 14 languages: opening a prefab, what can be changed, the three ways to save, Prefab Edit JSON, and the current limits, including which prefabs saved with older versions need redoing.
+
+
+### Docs
+
+- Help and the Wiki describe Asset Research page by page: what each page shows, what to click, and that its texture types and references are evidence to review rather than proof of how the game uses a texture.
 
 
 ## [0.11.0-alpha.31] - 2026-10-30

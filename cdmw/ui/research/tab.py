@@ -200,7 +200,14 @@ from cdmw.ui.research.progress_helpers import (
     set_research_progress,
 )
 from cdmw.ui.research.remote_catalogue import ResearchArchiveCatalogueMixin
-from cdmw.ui.research.tab_builders import build_archive_tab, build_texture_tab
+from cdmw.ui.research.tab_builders import (
+    build_classification_review_page,
+    build_heatmap_page,
+    build_references_page,
+    build_texture_sets_page,
+    build_texture_tab,
+    build_ui_constraints_page,
+)
 from cdmw.ui.research.tab_side_panel_builders import (
     build_analysis_detail_group,
     build_archive_picker_group,
@@ -315,6 +322,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     _populate_ui_constraint_rows = _research_reference_controller._populate_ui_constraint_rows
     _populate_sidecar_rows = _research_reference_controller._populate_sidecar_rows
     _handle_reference_selection_changed = _research_reference_controller._handle_reference_selection_changed
+    _handle_ui_constraint_selection_changed = _research_reference_controller._handle_ui_constraint_selection_changed
     review_selected_reference_in_text_search = _research_reference_controller.review_selected_reference_in_text_search
     _handle_sidecar_selection_changed = _research_reference_controller._handle_sidecar_selection_changed
     _populate_reference_target = _research_reference_controller._populate_reference_target
@@ -324,6 +332,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     _populate_normal_rows = _research_analysis_controller._populate_normal_rows
     _focus_pending_mip_row = _research_analysis_controller._focus_pending_mip_row
     _refresh_texture_analysis_summary = _research_analysis_controller._refresh_texture_analysis_summary
+    _refresh_texture_analysis_roots = _research_analysis_controller._refresh_texture_analysis_roots
     _handle_mip_selection_changed = _research_analysis_controller._handle_mip_selection_changed
     _handle_normal_selection_changed = _research_analysis_controller._handle_normal_selection_changed
     _show_mip_row_details = _research_analysis_controller._show_mip_row_details
@@ -337,6 +346,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     _handle_analysis_export_error = _research_analysis_controller._handle_analysis_export_error
     _handle_analysis_export_idle = _research_analysis_controller._handle_analysis_export_idle
     refresh_research = _research_refresh_controller.refresh_research
+    refresh_research_from_button = _research_refresh_controller.refresh_research_from_button
     refresh_ui_constraints = _research_refresh_controller.refresh_ui_constraints
     focus_texture_analysis_for_compare_path = _research_refresh_controller.focus_texture_analysis_for_compare_path
     _handle_refresh_progress = _research_refresh_controller._handle_refresh_progress
@@ -382,6 +392,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     _clear_unknown_group_label = _research_classification_review_controller._clear_unknown_group_label
     _update_unknown_resolver_controls = _research_classification_review_controller._update_unknown_resolver_controls
     focus_classification_review_for_paths = _research_classification_review_controller.focus_classification_review_for_paths
+    _refresh_classification_review_after_edit = _research_classification_review_controller._refresh_classification_review_after_edit
     _handle_unknown_show_classified_toggled = _research_classification_review_controller._handle_unknown_show_classified_toggled
     _handle_unknown_name_filter_changed = _research_classification_review_controller._handle_unknown_name_filter_changed
     _handle_unknown_package_filter_changed = _research_classification_review_controller._handle_unknown_package_filter_changed
@@ -506,6 +517,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self._pending_ui_constraint_archive_key = ""
         self._pending_refresh_full_archive_key = ""
         self._populating_unknown_resolver_controls = False
+        self._research_refresh_queued = False
         self._refresh_population_timer = QTimer(self)
         self._refresh_population_timer.setSingleShot(True)
         self._refresh_population_timer.setInterval(self.POPULATION_TIMER_INTERVAL_MS)
@@ -562,10 +574,15 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.tab_widget = QTabWidget()
         self.main_splitter.addWidget(self.tab_widget)
 
-        self.archive_tab = build_archive_tab(self)
+        self.tab_widget.setDocumentMode(True)
+        self.tab_widget.setUsesScrollButtons(True)
+        self.tab_widget.addTab(build_texture_sets_page(self), "Texture Sets")
+        self.tab_widget.addTab(build_classification_review_page(self), "Classification Review")
+        self.tab_widget.addTab(build_references_page(self), "References")
+        self.tab_widget.addTab(build_ui_constraints_page(self), "UI Constraints")
+        self.tab_widget.addTab(build_heatmap_page(self), "Heatmap")
         self.texture_tab = build_texture_tab(self)
         self.notes_tab = build_notes_tab(self)
-        self.tab_widget.addTab(self.archive_tab, "Archive Insights")
         self.tab_widget.addTab(self.texture_tab, "Texture Analysis")
         self.tab_widget.addTab(self.notes_tab, "Notes")
         self.right_panel_stack = QStackedWidget()
@@ -582,7 +599,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.main_splitter.setStretchFactor(1, 1)
         self.main_splitter.setSizes(research_main_splitter_default_sizes(details_min))
 
-        self.refresh_button.clicked.connect(self.refresh_research)
+        self.refresh_button.clicked.connect(self.refresh_research_from_button)
         self.ui_constraint_refresh_button.clicked.connect(self.refresh_ui_constraints)
         self.reference_use_archive_button.clicked.connect(
             self.use_selected_archive_picker_for_reference
@@ -591,7 +608,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.reference_extract_button.clicked.connect(self.extract_resolved_related_set)
         self.reference_review_text_button.clicked.connect(self.review_selected_reference_in_text_search)
         self.reference_tree.currentItemChanged.connect(self._handle_reference_selection_changed)
-        self.ui_constraint_tree.currentItemChanged.connect(self._handle_reference_selection_changed)
+        self.ui_constraint_tree.currentItemChanged.connect(self._handle_ui_constraint_selection_changed)
         self.sidecar_tree.currentItemChanged.connect(self._handle_sidecar_selection_changed)
         self.texture_group_extract_button.clicked.connect(self.extract_selected_group)
         self.texture_group_tree.currentItemChanged.connect(self._handle_texture_group_selection_changed)
@@ -618,7 +635,6 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.export_report_csv_button.clicked.connect(lambda: self._export_analysis_report(".csv"))
         self.export_report_json_button.clicked.connect(lambda: self._export_analysis_report(".json"))
         self.tab_widget.currentChanged.connect(self._handle_research_subtab_changed)
-        self.archive_insights_tabs.currentChanged.connect(self._handle_archive_insights_subtab_changed)
         self.notes_use_archive_button.clicked.connect(
             self.use_selected_archive_picker_for_note
         )
@@ -674,6 +690,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         ) + self.analysis_task_controller.iter_shutdown_workers()
 
     def request_shutdown(self) -> None:
+        self._research_refresh_queued = False
         self._refresh_population_timer.stop()
         self._unknown_population_timer.stop()
         self._cancel_research_catalogue_requests(clear=True)
@@ -792,17 +809,15 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         del index
         self._update_research_side_panel()
 
-    def _handle_archive_insights_subtab_changed(self, _index: int) -> None:
-        self._update_research_side_panel()
-
     def _update_research_side_panel(self) -> None:
         widget = self.tab_widget.currentWidget()
         if widget is self.texture_tab:
+            self._refresh_texture_analysis_roots()
             self.right_panel_stack.setVisible(True)
             self.right_panel_stack.setCurrentWidget(self.analysis_detail_group)
             return
-        current_archive_tab = self.archive_insights_tabs.currentWidget()
-        if current_archive_tab is getattr(self, "classification_review_tab", None):
+        if widget is self.classification_review_tab:
+            # The review page has its own preview and details columns.
             self.right_panel_stack.setVisible(False)
             return
         if not self.defer_archive_picker_refresh:

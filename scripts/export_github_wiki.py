@@ -117,6 +117,7 @@ _CONTROLS = (
     "Set Event Fields", "Replace Everywhere", "Apply and Re-read", "Export DMM Mod...", "Send to DMM",
     "Save Mod Folder...", "Action Charts", "Open Action Chart Mod...", "Use Clip Length", "Show in Archive Browser",
     "Other Charts Playing This Clip...", "Change in Ticked Charts",
+    "Refresh Research", "Extract Selected Set", "Find References", "Scan UI Rect References", "Save Note",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(

@@ -819,7 +819,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")
         self._register_detachable_tool("saved_work", self.saved_work_tab, "Drafts & Mods")
         self._register_detachable_tool("model_library", self.model_library_tab, "Model Library")
-        self._register_detachable_tool("research", self.research_tab, "Texture Research")
+        self._register_detachable_tool("research", self.research_tab, "Asset Research")
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
