@@ -716,11 +716,15 @@ class _Planner(EffectPlanningMixin):
             append_bone_definitions, appended_bones, read_pab_document, write_pab_document)
         from cdmw.services.pab_skeleton_edit_service import PAB_APPEND_NOTES
 
-        models = [self.model, *self.variant_models.values()]
-        recipes = [model.skeleton_edit for model in models if model is not None and model.skeleton_edit is not None]
+        models = [("the imported model", self.model),
+                  *((f"the variant {binding[1]}", model) for binding, model in sorted(self.variant_models.items()))]
         by_path: Dict[str, list] = {}
-        for recipe in recipes:
-            by_path.setdefault(recipe.path, []).append(recipe)
+        sources: Dict[str, Dict[object, list]] = {}
+        for label, model in models:
+            if model is not None and model.skeleton_edit is not None:
+                recipe = model.skeleton_edit
+                by_path.setdefault(recipe.path, []).append(recipe)
+                sources.setdefault(recipe.path, {}).setdefault(recipe, []).append(label)
         if not by_path:
             return
         self.manifest["skeleton_edits"] = [{"path": path, "bones": list(dict.fromkeys(
@@ -736,6 +740,14 @@ class _Planner(EffectPlanningMixin):
                         document, appended_bones(shipped, read_pab_document(recipe.apply(source).data, path)))
                 changed = write_pab_document(document)
             except ValueError as exc:
+                versions = sources[path]
+                if len(versions) > 1:
+                    # Variants imported before the bones last changed keep the older bones.
+                    labels = ", ".join(label for group in versions.values() for label in group)
+                    raise NewItemPlanError(
+                        f"Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions "
+                        "of these bones. Select each variant so its model is weighted to the current bones, "
+                        "then build the plan again.") from exc
                 raise NewItemPlanError(f"Cannot add the model's bones to {path}: {exc}") from exc
             added = len(document.bones) - len(shipped.bones)
             self.patch(entry, changed, f"Skeleton: {added} bone(s) appended to {path}")

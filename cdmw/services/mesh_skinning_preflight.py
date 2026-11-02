@@ -166,7 +166,9 @@ def used_added_bones(mesh, skeleton_edit, choices=()):
     """Added bones the kept imported weights use, in the edit's order.
 
     A zero weight, or a part whose weights are replaced by a transfer, does not
-    put a bone into the palette, and so does not ship it in the shared rig.
+    put a bone into the palette. When no added bone is used the model binds to
+    the shipped rig and the edit is not shipped; otherwise the item ships every
+    bone of the edit, used or not.
     """
     transferred = {choice.part_index for choice in choices if choice.policy in {"transfer", "body_transfer"}}
     used = set()
@@ -272,9 +274,12 @@ def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event
     original = snapshot.payload(target_path)
     skeleton, skeleton_data, pab_path, skeleton_edit = template_skeleton(
         snapshot, target_path, skeleton_edit, skeleton_edits=skeleton_edits)
-    if skeleton_edit is not None:
-        palette_extension_bones = tuple(dict.fromkeys((*palette_extension_bones,
-                                                       *used_added_bones(mesh, skeleton_edit, choices))))
+    used = used_added_bones(mesh, skeleton_edit, choices) if skeleton_edit is not None else ()
+    if skeleton_edit is not None and not used:
+        # Nothing ships the edit then (Build plan keeps it only for used bones), so
+        # any palette contract must name the shipped rig the plan checks against.
+        skeleton, skeleton_data, pab_path, skeleton_edit = template_skeleton(snapshot, target_path)
+    palette_extension_bones = tuple(dict.fromkeys((*palette_extension_bones, *used)))
     body = {}
     if any(choice.policy == "body_transfer" for choice in choices):
         from cdmw.services.new_item_skinning import verified_body_surface

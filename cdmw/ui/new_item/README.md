@@ -2497,7 +2497,11 @@ The **Rig** row lets an import weight to bones appended to the template's skelet
 the **Rig** label's tooltip lists the three steps. **Add bones…** reads the current
 variant's resolved PAB on a worker (`start_add_bones`, then `rig_source_ready`) and
 opens Archive Browser's `PabBoneEditorDialog` on it once that task has finished,
-starting from that rig's current edit and accepting with **Use These Bones**. The
+starting from that rig's current edit and accepting with **Use These Bones**. Default bone
+names start with the item's internal name (`name_stem`), so two items' chains do not
+share names in one rig; reopened bones keep their exact values (and core flag) unless
+edited. Selecting a variant whose model was weighted to an older version of its rig's
+bones weights it again, and Build plan names the variants when two still disagree. The
 dialog's **Open Draft…** loads a Skeleton Edit JSON (with or without a byte-order
 mark) and checks it against the PAB's SHA-256 and bone list. `set_skeleton_edit`
 keeps one edit per rig (`skeleton_edits`), so a male and a female variant can each

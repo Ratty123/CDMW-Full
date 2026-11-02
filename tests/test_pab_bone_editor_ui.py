@@ -130,9 +130,12 @@ def test_dialog_adds_offsets_chains_renames_and_removes_bones(tmp_path):
         assert "game bones + 4 added" in dialog.status_label.text()
 
         dialog._select_bone("Hair_00")
+        before = dialog.edits()
         dialog.name_edit.setText("Bip01 Spine")  # a name the game already uses
         dialog._rename_selected()
-        assert dialog._error and not dialog.save_mod_button.isEnabled()
+        # Refused before anything moves: the bone keeps its name and its children.
+        assert dialog.edits() == before and dialog.name_edit.text() == "Hair_00"
+        assert "already exists" in dialog.status_label.text() and dialog.save_mod_button.isEnabled()
         dialog.name_edit.setText("Hair_A")
         dialog._rename_selected()
         assert not dialog._error and dialog._rows[2].parent == "Hair_A"

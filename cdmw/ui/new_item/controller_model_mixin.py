@@ -498,11 +498,11 @@ class NewItemModelControllerMixin:
                 self._warn_stale_skeleton_edit()
 
     def _warn_stale_skeleton_edit(self) -> None:
-        """Say so when the imported model still uses bones of an edit no longer loaded."""
+        """Say so when the imported model still uses added bones that were changed or removed since."""
         source = self.model_import
         if source is not None and source.skeleton_edit is not None and source.skeleton_edit not in self.skeleton_edits:
-            self.status_message.emit("The imported model is still weighted to the removed added bones; "
-                                     "import it again to weight it to the template's own skeleton.", True)
+            self.status_message.emit("The imported model is weighted to added bones that were changed or removed; "
+                                     "import it again to weight it to the current skeleton.", True)
 
     def _set_skeleton_edits(self, edits) -> None:
         self.skeleton_edits = tuple(sorted(edits, key=lambda edit: edit.path))

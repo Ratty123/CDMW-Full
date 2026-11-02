@@ -358,7 +358,8 @@ def append_bone_definitions(document: PabDocument, bones: Iterable[AppendedBone]
                     if document.secondary_parents[existing] >= 0 else None),
                 None if document.core_flags is None else document.core_flags[existing])
             if not mine.same_definition(added):
-                raise PabEditRefused(f"Two edits add bone {added.bone.name!r} with different definitions.")
+                raise PabEditRefused(f"Two edits add bone {added.bone.name!r} with different definitions; "
+                                     "give the bones different names in one of them.")
             continue
         count = len(document.bones)
         if count + 1 > PAB_MAX_BONES:
