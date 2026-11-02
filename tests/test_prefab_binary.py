@@ -743,6 +743,34 @@ def test_a_path_in_a_two_member_reference_stays_a_resource() -> None:
     assert [item.text for item in document.resource_strings()] == ["character/model/a/b.pac"]
 
 
+@pytest.mark.parametrize("tags", [("GamePlayTriggerInfo", "SafeZone"), ()])
+def test_a_string_list_opens_with_a_kind_byte(tags: tuple[str, ...]) -> None:
+    """Like a numeric array: 00 and a u32 count, or 01 alone when empty.
+
+    Read as a bare u32, ``00 02 00 00 00`` is 512 strings, which stopped 165
+    shipped trigger prefabs at their tag lists.
+    """
+    root = _typedef(
+        "SceneObject",
+        ("_triggerTags", "staticstringA", 0x000A, 1, 0x1000),
+        ("_label", "IndexedStringA", 0x0001, 1, 0x0000),
+    )
+
+    def blob_for(_base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b11).to_bytes(6, "little"))
+        if tags:
+            blob += b"\x00" + struct.pack("<I", len(tags)) + b"".join(_text(tag) for tag in tags)
+        else:
+            blob += b"\x01"
+        blob += _text("after")
+        return blob
+
+    document = decode_prefab_binary(_assemble((root,), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.root_texts] == [*tags, "after"]
+
+
 def test_a_numeric_array_opens_with_a_kind_byte() -> None:
     root = _typedef(
         "SceneObject",

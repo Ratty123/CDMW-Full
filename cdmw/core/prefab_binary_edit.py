@@ -202,11 +202,13 @@ def plan_prefab_path_edits(
 
     * a **sequence of** :class:`PrefabPathEdit` names one occurrence each, by
       byte offset, and every offset is checked against the decoded string that
-      sits there. Use this when the caller is acting on specific rows;
+      sits there. Use this when the caller is acting on specific rows. An
+      empty ``new_text`` clears that string;
     * a **mapping** of old path to new path replaces *every* occurrence of that
       path in the file. That is the right default for retargeting a mesh, but
       it cannot express two different replacements for the same path, and it
-      will change occurrences the caller never looked at.
+      will change occurrences the caller never looked at. An empty value there
+      means "leave it", never "clear it".
     """
     if not isinstance(replacements, Mapping):
         return _plan_from_occurrences(document, replacements)
@@ -241,7 +243,10 @@ def _plan_from_occurrences(
                 f"String at 0x{edit.offset:x} is {found!r}, not {edit.old_text!r}; "
                 "refusing to write over something the caller has not seen"
             )
-        if edit.new_text and edit.new_text != found:
+        # An empty replacement clears the string: this form names each row the
+        # caller acted on, so an empty one is a choice. The mapping form keeps
+        # treating an empty value as "leave it".
+        if edit.new_text != found:
             edits.append(edit)
     edits.sort(key=lambda item: item.offset)
     return tuple(edits)
@@ -611,23 +616,30 @@ def rewrite_prefab_placements(
     edits: list[PrefabPlacementEdit] = []
     for offset, request in dict(replacements or {}).items():
         expected_old, new_raw = _split_placement_request(request)
-        number = known.get(int(offset))
-        if number is None:
-            raise PrefabEditError(f"No decoded value sits at 0x{int(offset):x}")
-        if len(new_raw) != len(number.raw):
+        at = int(offset)
+        number = known.get(at)
+        if number is not None and len(new_raw) == len(number.raw):
+            current = number.raw
+        else:
+            # One element of a fixed-size array, such as a Transform[]: the
+            # array is a decoded value, and the element sits whole inside it.
+            # Its first element shares the array's offset, so width decides.
+            current = _array_element_at(known.values(), at, len(new_raw))
+            if current is None and number is not None:
+                current = number.raw  # reported below as a width mismatch
+            if current is None:
+                raise PrefabEditError(f"No decoded value sits at 0x{at:x}")
+        if len(new_raw) != len(current):
             raise PrefabEditError(
-                f"Value at 0x{number.offset:x} is {len(number.raw)} byte(s); "
-                f"replacement is {len(new_raw)}"
+                f"Value at 0x{at:x} is {len(current)} byte(s); replacement is {len(new_raw)}"
             )
-        if expected_old is not None and bytes(expected_old) != number.raw:
+        if expected_old is not None and bytes(expected_old) != current:
             raise PrefabEditError(
-                f"Value at 0x{number.offset:x} is not what was read there; refusing to write"
+                f"Value at 0x{at:x} is not what was read there; refusing to write"
             )
-        if bytes(new_raw) == number.raw:
+        if bytes(new_raw) == current:
             continue
-        edits.append(
-            PrefabPlacementEdit(offset=number.offset, old_raw=number.raw, new_raw=bytes(new_raw))
-        )
+        edits.append(PrefabPlacementEdit(offset=at, old_raw=current, new_raw=bytes(new_raw)))
     for edit in edits:
         payload[edit.offset : edit.offset + len(edit.new_raw)] = edit.new_raw
     proof = [
@@ -641,6 +653,24 @@ def rewrite_prefab_placements(
         relocated_pointers=0,
         proof_lines=tuple(proof),
     )
+
+
+def _array_element_at(numbers, offset: int, size: int) -> bytes | None:
+    """The ``size`` bytes at ``offset`` when they are one whole element of an array value.
+
+    Only a member declared as an array (``X[]``) qualifies, and only at a
+    multiple of ``size`` from its start, so a write can never straddle two
+    elements or land in a scalar.
+    """
+    if size <= 0:
+        return None
+    for number in numbers:
+        if not str(number.type_name).endswith("[]") or len(number.raw) % size:
+            continue
+        start = offset - number.offset
+        if 0 <= start and start + size <= len(number.raw) and start % size == 0:
+            return bytes(number.raw[start : start + size])
+    return None
 
 
 def _patch_data_header(rebuilt: bytearray, document: PrefabDocument, delta: int) -> None:

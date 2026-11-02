@@ -19,7 +19,12 @@ from cdmw.domain.archives.prefab_glossary import (
     is_asset_path,
     value_kind_hint,
 )
-from cdmw.domain.archives.prefab_values import describe_value, editable_kind, read_placement
+from cdmw.domain.archives.prefab_values import (
+    array_elements,
+    describe_value,
+    editable_kind,
+    read_placement,
+)
 from cdmw.services.prefab_structure_service import recover_pointee_strings
 from cdmw.ui.archive_browser.prefab_inspector_editing import (
     EDIT_ROLE,
@@ -46,7 +51,8 @@ class PrefabRowsMixin:
             return
         editable = self._can_edit()
         self._add_recovered_rows(document)
-        if document.root_texts or document.root_resources:
+        # A root with only numbers (a gimmick's point list, say) still has rows.
+        if document.root_texts or document.root_resources or document.root_numbers:
             root_item = QTreeWidgetItem(["This prefab", "Placement and sockets", ""])
             self.tree.addTopLevelItem(root_item)
             for name, item in document.root_values:
@@ -188,9 +194,16 @@ class PrefabRowsMixin:
         row.setData(2, OFFSET_ROLE, int(offset))
         row.setToolTip(0, field_name)
         row.setToolTip(2, value)
-        if editable and path_like:
+        if editable:
+            # Any decoded string can be rewritten at any length, a socket name or
+            # tag as safely as a file path; only the advice differs.
             row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)
-            row.setToolTip(2, "Double-click to swap this for a different file. Any name length is fine.")
+            row.setToolTip(
+                2,
+                "Double-click to swap this for a different file. Any name length is fine."
+                if path_like
+                else "Double-click to change this text. Any length is fine; leave it empty to clear it.",
+            )
         parent.addChild(row)
 
     def _collection_members(self, type_name: str) -> frozenset[str]:
@@ -223,6 +236,10 @@ class PrefabRowsMixin:
         """
         seen_placements: dict[str, str] = {}
         for number in numbers:
+            elements = array_elements(number.type_name, number.raw)
+            if elements:
+                self._add_array_rows(parent, number, elements, stated_type=stated_type)
+                continue
             rendered = describe_value(number.type_name, number.raw)
             if not rendered:
                 continue
@@ -255,6 +272,34 @@ class PrefabRowsMixin:
                     VALUE_ROLE,
                     (number.offset, number.type_name, number.raw, number.name),
                 )
+                row.setToolTip(2, "Double-click to change this value.")
+            parent.addChild(row)
+
+    def _add_array_rows(
+        self,
+        parent: QTreeWidgetItem,
+        number: object,
+        elements: tuple[tuple[str, int, bytes], ...],
+        *,
+        stated_type: bool,
+    ) -> None:
+        """One row per element of a fixed-size array, each editable on its own.
+
+        A ``Transform[]`` is whole transforms end to end, so each one gets the
+        placement editor and is written back in place at its own offset.
+        """
+        meaning = describe_field(number.name)
+        editable = stated_type and self._can_edit()
+        for index, (element_type, start, raw) in enumerate(elements):
+            label = f"{meaning.label} {index + 1}"
+            row = QTreeWidgetItem([label, meaning.detail, describe_value(element_type, raw)])
+            row.setToolTip(0, f"{number.name}[{index}]  ({element_type})")
+            stored = (number.offset + start, element_type, raw, number.name)
+            if editable and read_placement(raw) is not None:
+                row.setData(0, PLACEMENT_ROLE, stored)
+                row.setToolTip(2, "Double-click to move, rotate or rescale this.")
+            elif editable and editable_kind(element_type, raw):
+                row.setData(0, VALUE_ROLE, stored)
                 row.setToolTip(2, "Double-click to change this value.")
             parent.addChild(row)
 
