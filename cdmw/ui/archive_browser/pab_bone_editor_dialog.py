@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
@@ -62,22 +62,45 @@ _DIRECTION_LABELS = (
 
 @dataclass
 class AddedBoneRow:
-    """One bone the user is adding, with its rotation kept as editable angles."""
+    """One bone the user is adding, with its rotation kept as editable angles.
+
+    A row reopened from an edit keeps that edit's exact quaternion until its angles
+    change, so accepting unchanged bones returns the same definitions: two items
+    that share a bone must define it bit for bit alike.
+    """
 
     parent: str
     name: str
     position: tuple[float, float, float] = (0.0, 0.0, 0.0)
     angles: tuple[float, float, float] = (0.0, 0.0, 0.0)
     scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    core_flag: int = 0
+    #: the reopened edit's quaternion and the angles shown for it
+    exact_rotation: tuple[float, float, float, float] | None = None
+    exact_angles: tuple[float, float, float] | None = None
 
     def edit(self) -> PabAppendEdit:
-        return PabAppendEdit(self.parent, self.name, position=self.position,
-                             rotation=euler_degrees_to_quaternion(*self.angles), scale=self.scale)
+        rotation = (self.exact_rotation if self.exact_rotation is not None and self.angles == self.exact_angles
+                    else euler_degrees_to_quaternion(*self.angles))
+        return PabAppendEdit(self.parent, self.name, position=self.position, rotation=rotation,
+                             scale=self.scale, core_flag=self.core_flag)
 
     @classmethod
     def from_edit(cls, edit: PabAppendEdit) -> AddedBoneRow:
-        return cls(edit.parent, edit.name, tuple(edit.position),
-                   quaternion_to_euler_degrees(edit.rotation), tuple(edit.scale))
+        angles = quaternion_to_euler_degrees(edit.rotation)
+        return cls(edit.parent, edit.name, tuple(edit.position), angles, tuple(edit.scale), edit.core_flag,
+                   tuple(edit.rotation), angles)
+
+
+def _bone_name_stem(text: str) -> str:
+    """An item name reduced to a short bone-name prefix (ASCII letters, digits, underscores)."""
+    stem = "".join(character if character.isascii() and (character.isalnum() or character == "_") else "_"
+                   for character in str(text or "").strip()).strip("_")
+    return stem[:24]
+
+
+def _valid_bone_name(name: str) -> bool:
+    return name.isascii() and 1 <= len(name) <= 255 and all(0x20 <= ord(character) <= 0x7E for character in name)
 
 
 def _to_character(position, parent_matrix) -> tuple[float, float, float]:
@@ -187,10 +210,12 @@ class PabBoneEditorDialog(QDialog):
 
     def __init__(self, data: bytes, virtual_path: str, parent: QWidget | None = None,
                  *, draft_directory: Path | None = None, initial_edits: Sequence[PabAppendEdit] = (),
-                 accept_text: str = "", accept_tooltip: str = "") -> None:
+                 accept_text: str = "", accept_tooltip: str = "", name_stem: str = "") -> None:
         """``initial_edits`` reopens bones added earlier. A caller other than the
         Archive Browser passes its own (already translated) accept label and tooltip;
-        ``edits()`` then returns the rows to apply to ``data``."""
+        ``edits()`` then returns the rows to apply to ``data``. ``name_stem`` (an item
+        name, say) starts default bone names, so two items that each add a default
+        chain to one shared skeleton do not pick the same names."""
         super().__init__(parent)
         self.setObjectName("PabBoneEditorDialog")
         self._data = bytes(data)
@@ -199,6 +224,7 @@ class PabBoneEditorDialog(QDialog):
         self._source = read_pab_document(self._data, virtual_path)
         self._rows: list[AddedBoneRow] = [AddedBoneRow.from_edit(edit) for edit in initial_edits]
         self._accept_text, self._accept_tooltip = accept_text, accept_tooltip
+        self._name_stem = _bone_name_stem(name_stem)
         self._preview = self._source
         self._error = ""
         self._selected = (self._rows[-1].name if self._rows
@@ -340,6 +366,13 @@ class PabBoneEditorDialog(QDialog):
             grid.addWidget(box, 0, column * 2 + 1)
         return row
 
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
+        # Enter in a name or number field must not press Save as Mod / Use These Bones.
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     # State ------------------------------------------------------------------
     def edits(self) -> tuple[PabAppendEdit, ...]:
         return tuple(row.edit() for row in self._rows)
@@ -350,6 +383,9 @@ class PabBoneEditorDialog(QDialog):
 
     def _row(self, name: str) -> AddedBoneRow | None:
         return next((row for row in self._rows if row.name == name), None)
+
+    def _default_name(self, stem: str) -> str:
+        return "_".join((self._name_stem, stem)) if self._name_stem else stem
 
     def _unique_name(self, stem: str) -> str:
         taken = {bone.name for bone in self._source.bones} | {row.name for row in self._rows}
@@ -476,7 +512,7 @@ class PabBoneEditorDialog(QDialog):
 
     # Edits ------------------------------------------------------------------
     def _add_child(self) -> None:
-        row = AddedBoneRow(self._selected, self._unique_name("NewBone"))
+        row = AddedBoneRow(self._selected, self._unique_name(self._default_name("NewBone")))
         self._rows.append(row)
         self._selected = row.name
         self._refresh()
@@ -493,7 +529,7 @@ class PabBoneEditorDialog(QDialog):
         hint.setObjectName("HintLabel")
         hint.setWordWrap(True)
         form.addRow(hint)
-        prefix = QLineEdit("Cape", dialog)
+        prefix = QLineEdit(self._default_name("Cape"), dialog)
         form.addRow("Name prefix:", prefix)
         count = QSpinBox(dialog)
         count.setRange(1, 64)
@@ -558,7 +594,19 @@ class PabBoneEditorDialog(QDialog):
             return
         row = self._row(self._selected)
         new_name = self.name_edit.text().strip()
-        if row is None or not new_name or new_name == row.name:
+        if row is None or new_name == row.name:
+            return
+        taken = {bone.name for bone in self._source.bones} | {item.name for item in self._rows if item is not row}
+        problem = ("A bone needs a name." if not new_name
+                   else f"Bone {new_name!r} already exists." if new_name in taken
+                   else "Bone names are 1 to 255 printable ASCII characters." if not _valid_bone_name(new_name)
+                   else "")
+        if problem:
+            # Renaming first and checking later moved this bone's children to the
+            # other bone's name, and renaming back then took that bone's children too.
+            self.status_label.setText(problem)
+            with QSignalBlocker(self.name_edit):
+                self.name_edit.setText(row.name)
             return
         old_name = row.name
         for item in self._rows:
@@ -577,12 +625,22 @@ class PabBoneEditorDialog(QDialog):
             return
         index = self._rows.index(row)
         parent_matrix = self._bind_matrix(row.parent)
-        offset = tuple(box.value() for box in self.position_boxes)
+
+        def edited(boxes, shown):
+            """The boxes' values, or None while they still show ``shown`` (rounded)."""
+            values = tuple(box.value() for box in boxes)
+            return None if values == tuple(round(value, box.decimals()) for value, box in zip(shown, boxes)) else values
+
+        # Only the vector the user changed takes the boxes' rounded values; the
+        # others keep their exact values, so an untouched bone stays bit for bit.
+        offset = edited(self.position_boxes, _to_character(row.position, parent_matrix) if parent_matrix else row.position)
+        angles = edited(self.rotation_boxes, row.angles)
+        scale = edited(self.scale_boxes, row.scale)
         self._rows[index] = replace(
             row,
-            position=_to_parent(offset, parent_matrix) if parent_matrix else row.position,
-            angles=tuple(box.value() for box in self.rotation_boxes),
-            scale=tuple(box.value() for box in self.scale_boxes),
+            position=_to_parent(offset, parent_matrix) if parent_matrix and offset is not None else row.position,
+            angles=row.angles if angles is None else angles,
+            scale=row.scale if scale is None else scale,
         )
         self._refresh()
 

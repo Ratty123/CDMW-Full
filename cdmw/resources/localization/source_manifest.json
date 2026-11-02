@@ -1211,12 +1211,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 272,
+          "line": 298,
           "sink": "_vector_boxes"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 507,
+          "line": 543,
           "sink": "setSuffix"
         },
         {
@@ -3972,6 +3972,16 @@
       ]
     },
     {
+      "key": "A bone needs a name.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 607,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "A bonus may occur only once per enhancement level.",
       "origins": [
         {
@@ -6041,7 +6051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 208,
+          "line": 234,
           "sink": "setWindowTitle"
         }
       ]
@@ -6066,12 +6076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 490,
+          "line": 526,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 531,
+          "line": 567,
           "sink": "warning"
         }
       ]
@@ -6081,7 +6091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 248,
+          "line": 274,
           "sink": "QPushButton"
         }
       ]
@@ -6091,7 +6101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 245,
+          "line": 271,
           "sink": "QPushButton"
         }
       ]
@@ -6381,7 +6391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 249,
+          "line": 275,
           "sink": "setToolTip"
         }
       ]
@@ -6481,7 +6491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 221,
+          "line": 247,
           "sink": "QLabel"
         }
       ]
@@ -6661,7 +6671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 246,
+          "line": 272,
           "sink": "setToolTip"
         }
       ]
@@ -6906,7 +6916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 435,
+          "line": 471,
           "sink": "setText"
         }
       ]
@@ -6926,7 +6936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 390,
+          "line": 426,
           "sink": "setTitle"
         }
       ]
@@ -6936,7 +6946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 102,
+          "line": 125,
           "sink": "python-return:build_added_bones"
         }
       ]
@@ -10656,7 +10666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1406,
+          "line": 1408,
           "sink": "set_note"
         },
         {
@@ -18896,7 +18906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 240,
+          "line": 266,
           "sink": "setHeaderLabels"
         },
         {
@@ -18962,6 +18972,16 @@
       "manual": true
     },
     {
+      "key": "Bone names are 1 to 255 printable ASCII characters.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 607,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Bone solver settings",
       "origins": [
         {
@@ -18978,6 +18998,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 803,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bone {value_0} already exists.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 607,
+          "sink": "setText"
         }
       ]
     },
@@ -19051,7 +19081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 501,
+          "line": 537,
           "sink": "addRow"
         }
       ]
@@ -25636,7 +25666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 283,
+          "line": 309,
           "sink": "addRow"
         }
       ]
@@ -34916,7 +34946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 300,
+          "line": 326,
           "sink": "setToolTip"
         }
       ]
@@ -36881,7 +36911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 605,
+          "line": 663,
           "sink": "warning"
         }
       ]
@@ -42366,7 +42396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 512,
+          "line": 548,
           "sink": "addRow"
         }
       ]
@@ -51796,7 +51826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1329,
+          "line": 1331,
           "sink": "getExistingDirectory"
         }
       ]
@@ -55416,7 +55446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 235,
+          "line": 261,
           "sink": "setPlaceholderText"
         }
       ]
@@ -56541,7 +56571,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1367,
+          "line": 1369,
           "sink": "setText"
         }
       ]
@@ -56666,7 +56696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 415,
+          "line": 451,
           "sink": "setText"
         }
       ]
@@ -58871,7 +58901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 168,
+          "line": 191,
           "sink": "drawText"
         }
       ]
@@ -59426,7 +59456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 401,
+          "line": 437,
           "sink": "setTitle"
         }
       ]
@@ -73266,7 +73296,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 610,
+          "line": 668,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -89336,7 +89366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 497,
+          "line": 533,
           "sink": "addRow"
         }
       ]
@@ -89626,7 +89656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 269,
+          "line": 295,
           "sink": "addRow"
         },
         {
@@ -90706,7 +90736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 291,
+          "line": 317,
           "sink": "QLabel"
         }
       ]
@@ -92951,12 +92981,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1377,
+          "line": 1379,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1378,
+          "line": 1380,
           "sink": "setText"
         }
       ]
@@ -96081,7 +96111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1408,
+          "line": 1410,
           "sink": "set_note"
         },
         {
@@ -97256,7 +97286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 275,
+          "line": 301,
           "sink": "addRow"
         }
       ]
@@ -97971,12 +98001,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 610,
+          "line": 668,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 620,
+          "line": 678,
           "sink": "warning"
         }
       ]
@@ -97986,7 +98016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 299,
+          "line": 325,
           "sink": "QPushButton"
         }
       ]
@@ -104661,7 +104691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 271,
+          "line": 297,
           "sink": "addRow"
         }
       ]
@@ -107471,7 +107501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1403,
+          "line": 1405,
           "sink": "setToolTip"
         }
       ]
@@ -107481,7 +107511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1403,
+          "line": 1405,
           "sink": "setToolTip"
         }
       ]
@@ -108446,7 +108476,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1013,
+          "line": 1025,
           "sink": "log"
         }
       ]
@@ -111061,7 +111091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1032,
+          "line": 1044,
           "sink": "add"
         }
       ]
@@ -122381,7 +122411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 251,
+          "line": 277,
           "sink": "QPushButton"
         },
         {
@@ -122846,7 +122876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 252,
+          "line": 278,
           "sink": "setToolTip"
         }
       ]
@@ -125841,7 +125871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1367,
+          "line": 1369,
           "sink": "setText"
         }
       ]
@@ -130611,7 +130641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 279,
+          "line": 305,
           "sink": "addRow"
         }
       ]
@@ -131841,12 +131871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 596,
+          "line": 654,
           "sink": "getSaveFileName"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 605,
+          "line": 663,
           "sink": "warning"
         }
       ]
@@ -131856,7 +131886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 302,
+          "line": 328,
           "sink": "QPushButton"
         }
       ]
@@ -131996,7 +132026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 309,
+          "line": 335,
           "sink": "addButton"
         }
       ]
@@ -132241,7 +132271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 303,
+          "line": 329,
           "sink": "setToolTip"
         }
       ]
@@ -132381,7 +132411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 607,
+          "line": 665,
           "sink": "setText"
         }
       ]
@@ -133061,7 +133091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 280,
+          "line": 306,
           "sink": "addRow"
         }
       ]
@@ -134806,7 +134836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 508,
+          "line": 544,
           "sink": "addRow"
         }
       ]
@@ -135756,7 +135786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 373,
+          "line": 409,
           "sink": "setText"
         }
       ]
@@ -138981,7 +139011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 265,
+          "line": 291,
           "sink": "QGroupBox"
         },
         {
@@ -143761,7 +143791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 168,
+          "line": 191,
           "sink": "drawText"
         }
       ]
@@ -144571,12 +144601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 596,
+          "line": 654,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 610,
+          "line": 668,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -144596,7 +144626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 596,
+          "line": 654,
           "sink": "getSaveFileName"
         }
       ]
@@ -149146,7 +149176,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 240,
+          "line": 266,
           "sink": "setHeaderLabels"
         },
         {
@@ -152151,7 +152181,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1337,
+          "line": 1339,
           "sink": "setText"
         }
       ]
@@ -156206,7 +156236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 492,
+          "line": 528,
           "sink": "QLabel"
         }
       ]
@@ -156617,7 +156647,7 @@
       ]
     },
     {
-      "key": "The imported model is still weighted to the removed added bones; import it again to weight it to the template's own skeleton.",
+      "key": "The imported model is weighted to added bones that were changed or removed; import it again to weight it to the current skeleton.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
@@ -158886,7 +158916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 205,
+          "line": 207,
           "sink": "ValueError"
         }
       ]
@@ -158896,7 +158926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 209,
+          "line": 211,
           "sink": "ValueError"
         }
       ]
@@ -162131,7 +162161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 126,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -175261,7 +175291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 311,
+          "line": 337,
           "sink": "setToolTip"
         }
       ]
@@ -176086,7 +176116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 276,
+          "line": 302,
           "sink": "QLabel"
         }
       ]
@@ -184871,7 +184901,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 887,
+          "line": 899,
           "sink": "add"
         }
       ]
@@ -189036,7 +189066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 403,
+          "line": 439,
           "sink": "setText"
         },
         {
@@ -194466,7 +194496,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 848,
+          "line": 860,
           "sink": "add"
         }
       ]
@@ -196101,7 +196131,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 836,
+          "line": 848,
           "sink": "add"
         }
       ]
@@ -199046,7 +199076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1402,
+          "line": 1404,
           "sink": "setText"
         }
       ]
@@ -199056,7 +199086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1393,
+          "line": 1395,
           "sink": "setText"
         }
       ]
@@ -199721,7 +199751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1340,
+          "line": 1342,
           "sink": "setText"
         }
       ]
@@ -201311,7 +201341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 370,
+          "line": 406,
           "sink": "setText"
         }
       ]
@@ -203291,7 +203321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 250,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -203301,7 +203331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 253,
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -204141,7 +204171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 413,
+          "line": 449,
           "sink": "setText"
         }
       ]
@@ -205001,7 +205031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1404,
+          "line": 1406,
           "sink": "note"
         }
       ]
@@ -205106,7 +205136,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 820,
+          "line": 832,
           "sink": "add"
         },
         {
@@ -205211,7 +205241,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1342,
+          "line": 1344,
           "sink": "setToolTip"
         },
         {
@@ -205566,7 +205596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1392,
+          "line": 1394,
           "sink": "note"
         }
       ]

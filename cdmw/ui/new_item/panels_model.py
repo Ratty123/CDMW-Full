@@ -1316,6 +1316,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             data, pab_path, self, initial_edits=current.add_bones if current is not None else (),
             accept_text=self.tr("Use These Bones"),
             accept_tooltip=self.tr("Weight imported models to these bones. The item ships them in this skeleton."),
+            # Default names start with the item's name, so two items' chains do not share names.
+            name_stem=self._controller.draft.internal_name,
             draft_directory=Path(self._rig_folder()))
         self._bone_editor = dialog
         try:

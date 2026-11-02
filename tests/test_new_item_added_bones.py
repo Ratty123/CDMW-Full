@@ -461,3 +461,157 @@ def test_packages_refuse_a_non_canonical_skeleton_edit_path(path):
     assert _recipe_values(package(PAB_PATH))[1].skeleton_edit == SkeletonEditRecipe(PAB_PATH, CAPE)
     with pytest.raises(IndependentItemError, match="resource path|skeleton edit"):
         _recipe_values(package(path))
+
+
+# ---------------------------------------------------------------- release review findings
+
+def dialog_on(rig=None, **options):
+    from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+    return PabBoneEditorDialog(pab() if rig is None else rig, PAB_PATH, **options)
+
+
+def test_default_bone_names_start_with_the_item_name(studio):
+    named, plain = dialog_on(name_stem="Ice Cape!"), dialog_on()
+    try:
+        for dialog in (named, plain):
+            dialog._selected = "Bip01 Spine"
+            dialog._add_child()
+        assert named.edits()[-1].name == "Ice_Cape_NewBone_00"
+        assert named._default_name("Cape") == "Ice_Cape_Cape"
+        assert plain.edits()[-1].name == "NewBone_00" and plain._default_name("Cape") == "Cape"
+    finally:
+        named.deleteLater()
+        plain.deleteLater()
+
+
+def test_a_refused_rename_moves_no_children(studio):
+    dialog = dialog_on(initial_edits=(PabAppendEdit("Bip01", "NewBone_00"), PabAppendEdit("Bip01 Head", "Hat_00"),
+                                      PabAppendEdit("NewBone_00", "Tip_00")))
+    try:
+        before = dialog.edits()
+        dialog._selected = "NewBone_00"
+        dialog._load_form()
+        for taken in ("Bip01 Head", "Hat_00", "", "Café"):
+            dialog.name_edit.setText(taken)
+            dialog._rename_selected()
+            assert dialog.edits() == before and dialog.name_edit.text() == "NewBone_00"
+        assert dialog.status_label.text()
+        dialog.name_edit.setText("Collar_00")
+        dialog._rename_selected()
+        assert [(edit.parent, edit.name) for edit in dialog.edits()] == [
+            ("Bip01", "Collar_00"), ("Bip01 Head", "Hat_00"), ("Collar_00", "Tip_00")]
+    finally:
+        dialog.deleteLater()
+
+
+def test_reopened_bones_come_back_bit_for_bit(studio):
+    from cdmw.services.pab_skeleton_edit_service import euler_degrees_to_quaternion
+    turned = PabAppendEdit("Bip01 Spine", "Cape_00", position=(0.012345678, -0.2, 0.0301),
+                           rotation=euler_degrees_to_quaternion(30.123456, -45.0, 120.0), scale=(1.0, 0.98765, 1.0),
+                           core_flag=1)
+    plain = PabAppendEdit("Cape_00", "Cape_01", position=(0.0, -0.3, 0.0))
+    dialog = dialog_on(initial_edits=(turned, plain))
+    try:
+        assert dialog.edits() == (turned, plain)
+        # Changing one vector of one bone leaves its other vectors and the other bone exact.
+        dialog._selected = "Cape_01"
+        dialog._load_form()
+        dialog.scale_boxes[0].setValue(1.5)
+        assert dialog.edits()[0] == turned
+        assert dialog.edits()[1] == replace(plain, scale=(1.5, 1.0, 1.0))
+    finally:
+        dialog.deleteLater()
+
+
+def test_enter_in_a_field_does_not_accept_the_dialog(studio):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    app, _tab = studio
+    dialog = dialog_on(initial_edits=CAPE, accept_text="Use These Bones")
+    accepted = []
+    dialog.accepted.connect(lambda: accepted.append(True))
+    try:
+        dialog.show()
+        app.processEvents()
+        for field in (dialog.name_edit, dialog.position_boxes[0]):
+            QTest.keyClick(field, Qt.Key_Return)
+            app.processEvents()
+        assert not accepted and dialog.isVisible()
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+
+
+def test_an_unused_skeleton_edit_leaves_the_palette_contract_on_the_shipped_rig(monkeypatch, tmp_path):
+    from cdmw.modding.pac_palette_extension import validate_palette_extension
+    from cdmw.modding.skeleton_parser import parse_pab
+    from cdmw.services.mesh_skinning_preflight import prepare_new_item_skin
+    from cdmw.ui.new_item.model_import import load_model_import_source
+    from tests.test_mesh_replacement_imported_skinning import source_glb
+    from tests.test_pac_cloth_guide_builder import PALETTE, guide_free_pac
+
+    # A shipped bone8 that the template's palette does not list.
+    bones = tuple((f"bone{i}", -1, translated(IDENTITY, float(i), 0.), translated(IDENTITY, -float(i), 0.),
+                   translated(IDENTITY, float(i), 0.), translated(IDENTITY, -float(i), 0.),
+                   (0., 0., 0., 1.), (float(i), 0., 0.)) for i in range(9))
+    shipped = pab(0x17, bones=bones, hashes=PALETTE + (0xaabbcd08,), secondary=(-1,) * 9, core=(1,) * 9,
+                  sets=((), (), ()))
+    pac = guide_free_pac(parts=2)
+    snapshot = fake_snapshot(monkeypatch, pac)
+    snapshot.payload = {PAC_PATH: pac, PAB_PATH: shipped}.__getitem__
+    source = load_model_import_source(source_glb(tmp_path, names=("bone2", "bone8")))
+    try:
+        mapped, _reports = prepare_new_item_skin(source.scene.mesh, snapshot, PAC_PATH,
+                                                 skeleton_edits=(CAPE_RIG,), palette_extension_bones=("bone8",))
+    finally:
+        source.cleanup()
+    assert mapped.interchange_skeleton_edit is None
+    contract = mapped.interchange_palette_extension
+    output, _ = extend_pac_palette(pac, parse_pab(shipped, PAB_PATH), ("bone8",))
+    # Before, the contract named the edited rig and this check refused at Build plan.
+    validate_palette_extension(pac, output, parse_pab(shipped, PAB_PATH), contract)
+
+
+def test_build_plan_names_variants_weighted_to_different_bone_versions():
+    from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError, _Planner
+
+    older = SkeletonEditRecipe(PAB_PATH, (PabAppendEdit("Bip01 Spine", "Cape_00", position=(0., -.2, 0.)),))
+    newer = SkeletonEditRecipe(PAB_PATH, (PabAppendEdit("Bip01 Spine", "Cape_00", position=(0., -.4, 0.)),))
+    planner = SimpleNamespace(
+        model=None, manifest={}, warnings=[],
+        variant_models={("a.prefab", "male.pac"): ModelFiles(b"", skeleton_edit=older),
+                        ("b.prefab", "female.pac"): ModelFiles(b"", skeleton_edit=newer)},
+        snapshot=SimpleNamespace(entry=lambda path: path, payload=lambda path: pab()))
+    with pytest.raises(NewItemPlanError) as caught:
+        _Planner.plan_skeleton_edits(planner)
+    message = str(caught.value)
+    assert "the variant male.pac" in message and "the variant female.pac" in message
+    assert "different versions" in message and "give the bones different names" in message
+
+
+def test_selecting_a_variant_weighted_to_older_bones_weights_it_again(studio, monkeypatch):
+    from pathlib import Path as _Path
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.modding.scene_import_result_ops import SceneImportResult
+    from cdmw.ui.new_item.model_import import ModelImportSource
+
+    _app, tab = studio
+    controller = tab.controller
+    choices = [identity for identity, _label in controller.variant_choices()]
+    assert len(choices) >= 2
+    first, second = choices[:2]
+    older = SkeletonEditRecipe(PAB_PATH, (PabAppendEdit("Bip01 Spine", "Cape_00", position=(0., -.2, 0.)),))
+    controller.select_variant(second)
+    mesh = ParsedMesh(path="cape.glb", format="glb", submeshes=[SubMesh(
+        name="cape", vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)], faces=[(0, 1, 2)])],
+        total_vertices=3, total_faces=1)
+    controller.model_import = ModelImportSource(_Path("cape.glb"), _Path("cape.glb"), SceneImportResult(mesh=mesh),
+                                                None, None, skeleton_edit=older)
+    controller.draft.model_source = ModelSource.IMPORTED
+    controller.select_variant(first)
+    controller.skeleton_edits = (replace(older, add_bones=(replace(older.add_bones[0], position=(0., -.4, 0.)),)),)
+    calls = []
+    monkeypatch.setattr(controller, "_reweight_for_skeleton_edits", lambda: calls.append(True) or True)
+    controller.select_variant(second)
+    assert calls == [True] and controller.model_import.skeleton_edit is older

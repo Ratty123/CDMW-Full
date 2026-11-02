@@ -118,6 +118,11 @@ class NewItemVariantControllerMixin:
         self.model_import_changed.emit(self.model_import)
         self.model_changed.emit(self.model_result)
         self.model_placement_changed.emit(self.model_placement)
+        source = self.model_import
+        if source is not None and source.skeleton_edit is not None and source.skeleton_edit not in self.skeleton_edits:
+            # This variant was weighted while its skeleton had other added bones.
+            if not self._reweight_for_skeleton_edits():
+                self._warn_stale_skeleton_edit()
 
     def set_variant_dyes(self, assignments):
         if self._active_variant is None:
