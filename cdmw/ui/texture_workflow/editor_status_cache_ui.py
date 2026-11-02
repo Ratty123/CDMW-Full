@@ -28,7 +28,8 @@ class TextureEditorStatusCacheUiMixin:
         )
 
     def _schedule_left_sidebar_scroll_restore(self, scroll_x: int, scroll_y: int) -> None:
-        QTimer.singleShot(0, lambda sx=scroll_x, sy=scroll_y: self._restore_left_sidebar_scroll(sx, sy))
+        # With the editor as context, Qt drops the restore if the editor is deleted first.
+        QTimer.singleShot(0, self, lambda sx=scroll_x, sy=scroll_y: self._restore_left_sidebar_scroll(sx, sy))
 
     def _set_status(self, message: str, error: bool) -> None:
         sidebar_scroll = self._capture_left_sidebar_scroll()

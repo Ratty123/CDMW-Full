@@ -228,3 +228,23 @@ def test_worker_catalogue_stop_and_shutdown_cancel_owned_requests(tmp_path: Path
         assert tab.remote_search_request_id is None
     finally:
         tab.request_shutdown()
+
+
+def test_worker_catalogue_regex_matches_line_anchors_per_line(tmp_path: Path) -> None:
+    _app()
+    service = _CatalogueService()
+    tab = _tab(tmp_path, service)
+    tab.set_archive_catalogue_session(_session(tmp_path))
+    tab.query_edit.setText("^<Material")
+    try:
+        tab.regex_checkbox.setChecked(True)
+        tab.start_search()
+        assert service.search_requests[-1][0].query == "(?m)^<Material"
+        assert service.search_requests[-1][0].use_regular_expression
+        service.request_cancelled.emit("search-1")
+
+        tab.regex_checkbox.setChecked(False)
+        tab.start_search()
+        assert service.search_requests[-1][0].query == "^<Material"
+    finally:
+        tab.request_shutdown()

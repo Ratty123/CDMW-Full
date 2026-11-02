@@ -164,10 +164,11 @@ class TextSearchPreviewMixin:
             display_text = preview_text[: self.PREVIEW_DISPLAY_CHAR_LIMIT] + "\n\n[Preview truncated for UI responsiveness.]"
         self.preview_text_edit.setPlainText(display_text)
         self.preview_text_cache = display_text
-        if truncated or len(display_text) > self.MATCH_HIGHLIGHT_CHAR_LIMIT:
-            self.preview_search_spans = []
-        else:
-            self.preview_search_spans = list(preview.match_spans)
+        # The editor draws a bounded window of highlights, so large previews keep
+        # every span that lies inside the displayed text for centering and counts.
+        self.preview_search_spans = [
+            (start, end) for start, end in preview.match_spans if end <= self.PREVIEW_DISPLAY_CHAR_LIMIT
+        ]
         self.preview_find_active_index = -1
         self._handle_preview_find_changed(reset_focus=True)
         if not self.preview_find_spans and self.preview_search_spans:

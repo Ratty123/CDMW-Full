@@ -106,7 +106,9 @@ class TextSearchArchiveCatalogueMixin:
             request_id = service.text_search(
                 ArchiveTextSearchRequest(
                     session_id=session.session_id,
-                    query=query,
+                    # Current workers compile with Multiline; the inline flag keeps ^ per line
+                    # on workers built before that, as the loose search and the preview read it.
+                    query=f"(?m){query}" if regex_enabled else query,
                     use_regular_expression=regex_enabled,
                     case_sensitive=case_sensitive,
                     path_filter=path_filter or None,

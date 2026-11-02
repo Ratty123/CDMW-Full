@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Cdmw.FullArchive.Contracts;
 
@@ -28,11 +29,7 @@ public sealed class ArchiveTextSearchService(
         var batchSize = Math.Clamp(request.BatchSize, 1, 256);
         var regexTimeout = TimeSpan.FromMilliseconds(Math.Clamp(request.RegexTimeoutMilliseconds, 50, 30_000));
         var regex = request.UseRegularExpression
-            ? new Regex(
-                request.Query,
-                (request.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase) |
-                RegexOptions.CultureInvariant,
-                regexTimeout)
+            ? CreateQueryRegex(request.Query, request.CaseSensitive, regexTimeout)
             : null;
         var comparison = request.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
         if (request.MatchBytes && regex is not null)
@@ -102,7 +99,7 @@ public sealed class ArchiveTextSearchService(
             {
                 continue;
             }
-            var text = TextDecoding.Decode(decoded.Bytes);
+            var text = NormalizeLineEndings(TextDecoding.Decode(decoded.Bytes));
             var entryMatched = false;
             try
             {
@@ -376,8 +373,7 @@ public sealed class ArchiveTextSearchService(
         string? pathFilter,
         HashSet<string>? extensions)
     {
-        if (!string.IsNullOrWhiteSpace(pathFilter) &&
-            !entry.Path.Contains(pathFilter.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (!PathMatchesFilter(entry.Path, pathFilter))
         {
             return false;
         }
@@ -387,6 +383,77 @@ public sealed class ArchiveTextSearchService(
         }
         return entry.Role == ArchiveEntryRole.Text;
     }
+
+    /// <summary>
+    /// Plain filters match anywhere in the path, ignoring case. A filter with
+    /// <c>*</c> or <c>?</c> matches the file name, or with a slash the path from
+    /// any folder; a leading slash anchors it at the archive root. Text Search's
+    /// Python search applies the same rules.
+    /// </summary>
+    internal static bool PathMatchesFilter(string path, string? pathFilter)
+    {
+        if (string.IsNullOrWhiteSpace(pathFilter))
+        {
+            return true;
+        }
+        var wildcard = PathWildcard(pathFilter);
+        return wildcard is null
+            ? path.Contains(pathFilter.Trim(), StringComparison.OrdinalIgnoreCase)
+            : wildcard.IsMatch(path.Replace('\\', '/'));
+    }
+
+    private static readonly ConcurrentDictionary<string, Regex?> PathWildcards = new(StringComparer.Ordinal);
+
+    private static Regex? PathWildcard(string pathFilter)
+    {
+        if (PathWildcards.TryGetValue(pathFilter, out var cached))
+        {
+            return cached;
+        }
+        var pattern = pathFilter.Trim().Replace('\\', '/');
+        Regex? compiled = null;
+        if (pattern.Contains('*') || pattern.Contains('?'))
+        {
+            var nameOnly = !pattern.Contains('/');
+            var body = Regex.Escape(pattern.TrimStart('/'))
+                .Replace(@"\*", nameOnly ? "[^/]*" : ".*", StringComparison.Ordinal)
+                .Replace(@"\?", nameOnly ? "[^/]" : ".", StringComparison.Ordinal);
+            var prefix = pattern.StartsWith('/') ? "" : "(?:.*/)?";
+            compiled = new Regex(
+                $"^{prefix}{body}$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        }
+        if (PathWildcards.Count >= 64)
+        {
+            PathWildcards.Clear();
+        }
+        PathWildcards[pathFilter] = compiled;
+        return compiled;
+    }
+
+    /// <summary>Matches Python's preview text, so ^ and $ see every line end.</summary>
+    internal static string NormalizeLineEndings(string text) =>
+        text.Contains('\r') ? text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n') : text;
+
+    // Multiline matches Python's re.MULTILINE, so ^ and $ work per line in both searches.
+    private static Regex CreateQueryRegex(string query, bool caseSensitive, TimeSpan timeout) =>
+        new(
+            query,
+            (caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase) |
+            RegexOptions.CultureInvariant | RegexOptions.Multiline,
+            timeout);
+
+    /// <summary>The per-file matching SearchAsync applies after decoding.</summary>
+    internal static IEnumerable<(int Index, int Length)> FindTextMatches(
+        string text,
+        string query,
+        bool useRegularExpression,
+        bool caseSensitive) =>
+        FindMatches(
+            NormalizeLineEndings(text),
+            query,
+            useRegularExpression ? CreateQueryRegex(query, caseSensitive, TimeSpan.FromSeconds(1)) : null,
+            caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
 
     private static HashSet<string>? NormalizeExtensions(IReadOnlyList<string>? values)
     {
@@ -412,7 +479,8 @@ public sealed class ArchiveTextSearchService(
         {
             foreach (Match match in regex.Matches(text))
             {
-                if (match.Success)
+                // Empty matches (a bare ^ or lookahead) are skipped, as the Python search does.
+                if (match.Success && match.Length > 0)
                 {
                     yield return (match.Index, match.Length);
                 }

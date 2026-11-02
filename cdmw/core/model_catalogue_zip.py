@@ -195,7 +195,8 @@ def safe_zip_member_name(value: str) -> str:
     if not member_name or member_name.startswith(("/", "//")) or "\x00" in member_name:
         return ""
     parts = PurePosixPath(member_name).parts
-    if not parts or any(part in {"", ".", ".."} for part in parts) or ":" in parts[0]:
+    # A drive or stream colon in any part lets a Windows join escape the extraction root.
+    if not parts or any(part in {"", ".", ".."} or ":" in part for part in parts):
         return ""
     return PurePosixPath(*parts).as_posix()
 

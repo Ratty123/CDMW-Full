@@ -6,6 +6,7 @@ import shutil
 import threading
 import uuid
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -127,9 +128,30 @@ def _find_match_spans(text: str, pattern: re.Pattern[str], *, limit: Optional[in
     return spans
 
 
+@lru_cache(maxsize=32)
+def _compile_path_wildcard(path_filter: str) -> re.Pattern[str] | None:
+    """Compile a `*`/`?` path filter; plain filters stay substring matches.
+
+    Without a slash the wildcard matches the file name. With one it matches the
+    path from any folder, and a leading slash anchors it at the archive root.
+    The standalone archive worker applies the same rules.
+    """
+    pattern = path_filter.strip().replace("\\", "/")
+    if "*" not in pattern and "?" not in pattern:
+        return None
+    name_only = "/" not in pattern
+    any_run, one_char = ("[^/]*", "[^/]") if name_only else (".*", ".")
+    body = re.escape(pattern.lstrip("/")).replace(r"\*", any_run).replace(r"\?", one_char)
+    prefix = "" if pattern.startswith("/") else "(?:.*/)?"
+    return re.compile(prefix + body, re.IGNORECASE | re.DOTALL)
+
+
 def _path_matches_filter(path_value: str, path_filter: str) -> bool:
     if not path_filter:
         return True
+    wildcard = _compile_path_wildcard(path_filter)
+    if wildcard is not None:
+        return wildcard.fullmatch(path_value.replace("\\", "/")) is not None
     return path_filter.lower() in path_value.lower()
 
 

@@ -684,6 +684,8 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Search with preview and syntax-colored match context.</li>
                   <li>Work against archive data or loose folders.</li>
+                  <li>In Path filter, plain text matches anywhere in the path. With * or ? as wildcards, *.xml matches file names and object/* matches that folder at any depth.</li>
+                  <li>With Regex turned on, ^ and $ mark the start and end of each line.</li>
                   <li>Export matched results while preserving folder structure.</li>
                 </ul>
                 """,
