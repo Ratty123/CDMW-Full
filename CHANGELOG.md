@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.12.0-alpha.1] - 2026-11-02
+
 ### Added
 
 - **Experimental:** Placement & Animations has an **Edit animation** tab for changing animations and making new ones. Key a bone's turn and move at any moment on top of the animation, on a timeline where keys can be dragged to retime them, and pick bones by clicking their joints in the view. **Reach** moves a hand or foot and bends the arm or leg to get it there, and **Plant here** keeps a foot on the ground or a hand on a hilt while the body moves. Change the animation's speed, trim it, play it backwards or hold its end, scale or remove how far it travels, mirror it left to right, borrow a body part such as the arms from another animation, or join another animation after it with a fade, and watch the character as you work. **Start a new one from this pose** builds a new animation from a still pose, and **Export for Blender** / **Import from Blender** let you animate in Blender and bring the motion back. **Add to Your mod** replaces one game animation with the result and saves it with the rest of the mod. Distance (LOD) copies are not edited, and edited animations have not been tested in game yet.
