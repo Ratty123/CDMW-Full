@@ -395,6 +395,12 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
                 issues.append(_issue("placement.store_missing", "placement", "Choose a store."))
             if placement.kind is PlacementKind.SWAP and not str(placement.old_item_name or "").strip():
                 issues.append(_issue("placement.old_item_missing", "placement", "Choose which stock entry the new item replaces."))
+            if placement.kind is PlacementKind.SWAP:
+                # Every output now reaches the game through DMM, whose operations only add stock lines.
+                issues.append(_issue("placement.swap_not_for_dmm", "placement",
+                                     "DMM can only add stock lines, so a Swap placement cannot be sent to DMM or "
+                                     "written as a DMM mod folder. Choose Add to shop for an item that goes to DMM.",
+                                     "warning"))
             if placement.price is not None and not 0 <= int(placement.price) <= _U32_MAX:
                 issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
             if placement.kind is PlacementKind.INSERT and placement.price is not None:

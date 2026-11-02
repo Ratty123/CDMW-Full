@@ -37,3 +37,51 @@ def test_package_group_names_the_dlc_copy_of_a_numbered_folder():
 
     assert archive_entry_package_group(entry("0015")) == "0015"
     assert archive_entry_package_group(entry("dlc/dlc_01/0015")) == "dlc_01/0015"
+
+
+def test_game_root_of_a_dlc_entry_is_the_install_not_the_dlc_folder(tmp_path):
+    from pathlib import Path
+
+    from cdmw.domain.archives.filters import archive_entry_game_root
+    from cdmw.models import ArchiveEntry
+
+    def entry(folder):
+        return ArchiveEntry(path="a.pam", pamt_path=tmp_path / folder / "0.pamt", paz_file=tmp_path / folder / "0.paz",
+                            offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+
+    assert archive_entry_game_root(entry("0015")) == tmp_path.resolve()
+    assert archive_entry_game_root(entry("dlc/dlc_01/0040")) == tmp_path.resolve()
+
+
+def test_mesh_editor_outputs_use_the_shared_dlc_aware_root_and_group():
+    from pathlib import Path
+
+    source = Path("cdmw/workers/mesh_editor_workers.py").read_text(encoding="utf-8")
+    assert ".parent.parent" not in source
+    assert "pamt_path).parent.name" not in source
+
+
+def test_a_truncated_shop_drop_is_a_record_error_not_an_index_error():
+    from cdmw.core.new_item_record import RecordError
+    from cdmw.core.storeinfo_compact import drop_item
+
+    assert drop_item(b"") == 0
+    assert drop_item(bytes(8) + b"\x03" + bytes(54)) == 0  # a sell-only result names no item
+    with pytest.raises(RecordError, match="truncated"):
+        drop_item(b"\x01\x02\x03")
+
+
+def test_a_dependency_refusal_names_the_missing_dlc_on_a_game_without_it(tmp_path):
+    from types import SimpleNamespace
+
+    from cdmw.services.independent_item_package import dependency_refusal
+
+    def snapshot(root):
+        entry = SimpleNamespace(pamt_path=root / "0008" / "0.pamt")
+        return SimpleNamespace(iteminfo=SimpleNamespace(payload_entry=entry))
+
+    without = dependency_refusal("Sword", "character/texture/a_d.dds", snapshot(tmp_path))
+    assert "incompatible game dependency character/texture/a_d.dds" in without and "no DLC installed" in without
+    (tmp_path / "dlc" / "dlc_01").mkdir(parents=True)
+    with_dlc = dependency_refusal("Sword", "character/texture/a_d.dds", snapshot(tmp_path))
+    assert "DLC" not in with_dlc

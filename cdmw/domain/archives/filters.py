@@ -206,6 +206,12 @@ def archive_entry_package_group(entry: ArchiveEntry) -> str:
     return str(folder.name or "")
 
 
+def archive_entry_game_root(entry: ArchiveEntry) -> Path:
+    """The install that holds the entry: two levels above a base group, four above a DLC's."""
+    root = Path(str(getattr(entry, "pamt_path", ""))).resolve().parent.parent
+    return root.parent.parent if str(root.parent.name or "").casefold() == "dlc" else root
+
+
 def archive_entry_load_priority(entry: ArchiveEntry) -> tuple[int, int, int, int, int, str]:
     # A DLC ships its own copy of a base group folder (dlc/dlc_01/0015 beside 0015)
     # whose files replace the base files at the same path, as its table layers
@@ -280,6 +286,7 @@ __all__ = [
     "archive_entry_identity_key",
     "archive_entry_is_mod_package",
     "archive_entry_dlc_layer",
+    "archive_entry_game_root",
     "archive_entry_load_priority",
     "archive_filter_text_explicitly_requests_item_name",
     "archive_filter_text_needs_item_name_search",

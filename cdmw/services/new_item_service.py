@@ -530,7 +530,7 @@ class NewItemService:
         source_root = Path(existing_root) if existing_root is not None else root
         group = _existing_archive_group(source_root)
         carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
-        targets = []
+        targets = None
         if str(manager or "").upper() == "DMM" and game_root is not None:
             # DMM replaces whole shop and group rows from a mod's table copy, which
             # drops what the DLC adds there, and ignores a DLC table copy entirely, so
@@ -557,9 +557,12 @@ class NewItemService:
             compatibility=compatibility,
             stop_event=stop_event,
         )
-        if targets:
+        if targets is not None:
+            # Adding to an existing mod keeps the earlier items' operations in its folder.
+            from cdmw.services.dmm_dlc_tables import plan_item_keys
             from cdmw.services.dmm_send import write_operations
-            write_operations(root, str(getattr(info, "title", "") or plan.spec.internal_name), targets)
+            write_operations(root, str(getattr(info, "title", "") or plan.spec.internal_name), targets,
+                             owned_items=plan_item_keys(plan.manifest))
         if group and group != written.group:
             # Older exports used the next free game slot. Their contents have
             # been carried into the standalone group; retire only the copied

@@ -68,16 +68,48 @@ def _written_by_cdmw(folder: Path) -> bool:
     return isinstance(manifest, dict) and str(manifest.get("generator", "")).startswith(_CDMW_GENERATOR)
 
 
-def write_operations(folder: Path, title: str, targets) -> None:
+def _operation_item(intent) -> Optional[int]:
+    """The item an append operation adds: a group member key, or a stock line's item."""
+    new = intent.get("new") if isinstance(intent, dict) else None
+    if isinstance(new, int) and not isinstance(new, bool):
+        return new
+    value = new.get("value") if isinstance(new, dict) else None
+    item = value.get("raw_q") if isinstance(value, dict) else None
+    return item if isinstance(item, int) and not isinstance(item, bool) else None
+
+
+def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> None:
     """Write shop and item group additions as DMM V3 operations beside a mod's archive.
 
     DMM applies them to the base and the DLC's rows alike; a table copy would replace
-    those rows instead and drop what the DLC adds there.
+    those rows instead and drop what the DLC adds there. Operations already in the
+    folder (earlier items of the same mod) are kept, except those for `owned_items`,
+    which `targets` restates; an identical operation is written once.
     """
+    path = Path(folder) / OPERATIONS_FILE
+    owned = {int(key) for key in owned_items}
+    existing = []
+    if path.is_file():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8")).get("targets") or []
+        except (OSError, ValueError, AttributeError) as exc:
+            raise ValueError(f"The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}") from exc
+    merged: dict[str, list] = {}
+    for target in existing:
+        for intent in target.get("intents") or ():
+            if _operation_item(intent) not in owned:
+                merged.setdefault(target["file"], []).append(intent)
+    for target in targets:
+        intents = merged.setdefault(target["file"], [])
+        intents.extend(intent for intent in target["intents"] if intent not in intents)
+    merged = {name: intents for name, intents in merged.items() if intents}
+    if not merged:
+        path.unlink(missing_ok=True)
+        return
     operations = dict(format=3, modinfo=dict(title=f"{title} (shops and groups)", version="1.0.0", author="CDMW",
                                              description="Adds CDMW's items to their shops and item groups."),
-                      targets=list(targets))
-    (Path(folder) / OPERATIONS_FILE).write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
+                      targets=[dict(file=name, intents=intents) for name, intents in merged.items()])
+    path.write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
 
 
 def destination(mods: Path, title: str) -> tuple[Path, bool]:

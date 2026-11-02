@@ -7,12 +7,26 @@ namespace Cdmw.FullArchive.Core;
 
 public static class ArchiveFingerprint
 {
-    public static async Task<ArchiveFingerprintResult> ComputeAsync(
+    // Part of every generation's identity: raise it when the index CDMW derives from
+    // unchanged game files changes, so a CDMW update cannot reuse a stale generation.
+    // 2: a DLC's copy of a base file outranks the base copy (override flags).
+    internal const int IndexDerivation = 2;
+
+    public static Task<ArchiveFingerprintResult> ComputeAsync(
         string packageRoot,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null,
         IReadOnlyList<string>? ignoredFolders = null,
-        bool useDefaultIgnoredFolders = true)
+        bool useDefaultIgnoredFolders = true) =>
+        ComputeAsync(packageRoot, cancellationToken, progress, ignoredFolders, useDefaultIgnoredFolders, IndexDerivation);
+
+    internal static async Task<ArchiveFingerprintResult> ComputeAsync(
+        string packageRoot,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress,
+        IReadOnlyList<string>? ignoredFolders,
+        bool useDefaultIgnoredFolders,
+        int indexDerivation)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         var root = Path.GetFullPath(packageRoot);
@@ -37,6 +51,7 @@ public static class ArchiveFingerprint
             new ProgressUpdate(0, contentBytes, "fingerprint", RelativeIdentity(root, files[0]))).ConfigureAwait(false);
 
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendText(hash, $"cdmw-index-derivation:{indexDerivation}\0");
         var buffer = new byte[128 * 1024];
         var metadata = new byte[16];
         long completedBytes = 0;

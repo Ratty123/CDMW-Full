@@ -6,6 +6,18 @@ from cdmw.core.item_layout import replace_layout_fields
 from cdmw.core.new_item_record import Cursor, RecordError
 
 
+def drop_item(drop):
+    """The item a stock entry's drop data sells (byte 8 is the result type, 0 an item), else 0."""
+    if not drop:
+        return 0
+    if len(drop) < 9:
+        raise RecordError('Compact shop drop data is truncated.')
+    item = int.from_bytes(drop[:8], 'little') if drop[8] == 0 else 0
+    if item and (len(drop) != 63 or int.from_bytes(drop[-4:], 'little') != item):
+        raise RecordError('Compact shop item identity is inconsistent.')
+    return item
+
+
 def parse_compact_store(raw, key=None):
     from cdmw.core.storeinfo_table import StoreRow, StockEntry
     layout = read_compact_layout(raw, 'storeinfo')
@@ -25,9 +37,7 @@ def parse_compact_store(raw, key=None):
         def number(field, width=4, signed=False):
             return int.from_bytes(entry.data(field), 'little', signed=signed)
         drop = field_payload(entry, '_dropInfoData')
-        item = int.from_bytes(drop[:8], 'little') if drop and drop[8] == 0 else 0
-        if item and (len(drop) != 63 or int.from_bytes(drop[-4:], 'little') != item):
-            raise RecordError('Compact shop item identity is inconsistent.')
+        item = drop_item(drop)
         if number('_storeInfo', 2) != own:
             raise RecordError('Compact stock entry names another store.')
         flags = b''.join(entry.data(f) for f in ('_refillByResetStore','_isStockSellable','_isStockBuyable','_isRestoreItem')) + b'\0'
