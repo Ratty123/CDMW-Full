@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Docs
+
+- The README download link now opens the releases page instead of a fixed alpha release, and no longer describes the published version as unpublished.
+
 ## [0.12.0-alpha.1] - 2026-11-02
 
 ### Added

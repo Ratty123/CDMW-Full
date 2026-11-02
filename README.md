@@ -9,11 +9,11 @@ A Windows app for creating **Crimson Desert** mods. Browse game assets, create
 new equipment, edit meshes and textures, adjust equipment placement, and build
 mod packages.
 
-**[Download the Windows portable pre-release](https://github.com/Ratty123/CDMW-Full/releases/tag/v0.11.0-alpha.31)**
+**[Download for Windows (portable)](https://github.com/Ratty123/CDMW-Full/releases)**
 · [Release history](CHANGELOG.md) · [Research reference](docs/crimson-desert-research.md)
 · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
-`0.12.0-alpha.1` is the current source version (not yet published). For browsing and extraction only,
+`0.12.0-alpha.1` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
 ## Install
