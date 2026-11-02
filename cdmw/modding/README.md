@@ -179,7 +179,10 @@ refusing any other difference (flags, shipped records, tail arrays, volumes), an
 the same definition is kept once, a different definition is refused, and bind
 matrices are copied rather than recomputed. `merge_appended_bones` is the
 three-way form the overlay composer uses for `.pab` files. Indices of added bones
-may differ between compositions; everything that binds them uses the hash.
+may differ between compositions; everything that binds them uses the hash. The
+shipped `phm_01.pab` and `phw_01.pab` (448 and 449 bones, three volume sets) merge
+two such edits in either order and keep every shipped byte; neither rig has a
+dlc_01 copy (the three DLC skeletons are a boss, a monster and a mount).
 
 `dumps_pab_edit_json` and `apply_pab_edit_json` in the same service are the
 Skeleton Edit JSON format behind the Archive Browser actions: `bones` is a

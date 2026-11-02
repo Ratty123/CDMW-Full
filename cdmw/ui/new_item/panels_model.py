@@ -46,6 +46,8 @@ from cdmw.ui.wrapping_layout import WrappingLayout
 
 #: what a Blender looks like on each platform, for the dialog that points the studio at one
 BLENDER_FILE_FILTER = "Blender (blender.exe blender);;All files (*)"
+#: the folder Skeleton Edit JSON picks and rig GLB exports last used
+RIG_DIR_SETTING = "ui/new_item_rig_dir"
 
 
 def _spin(minimum: float, maximum: float, step: float, decimals: int, suffix: str = "") -> QDoubleSpinBox:
@@ -810,7 +812,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         skin_row.addWidget(self.import_skin_policy, 1)
         model_layout.addLayout(skin_row)
         rig_row = QHBoxLayout()
-        rig_row.addWidget(QLabel("Rig"))
+        rig_label = QLabel("Rig")
+        rig_label.setToolTip(
+            "Weight a model to new bones, for capes, tails or long hair:\n"
+            "1. In Archive Browser, export this template's .pab as Skeleton Edit JSON and list the new bones under add_bones.\n"
+            "2. Choose Skeleton edit… here, then Export rig GLB… for the template on that skeleton.\n"
+            "3. In Blender, weight your model to the new bones and import it here.")
+        rig_row.addWidget(rig_label)
         self.rig_summary = QLabel("Template skeleton")
         self.rig_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.rig_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -819,11 +827,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.skeleton_edit_button.setToolTip(
             "Pick a Skeleton Edit JSON exported from this template's .pab in Archive Browser, with bones under add_bones. "
             "Imported weights can then use those bones; the item ships the edited skeleton, and Send to DMM combines "
-            "bones that other items add. Added bones follow their parent rigidly and are not proven in game.")
+            "bones that other items add. Added bones follow their parent rigidly and are not proven in game. "
+            "Male and female variants use different skeletons; pick one edit for each.")
         self.skeleton_edit_button.clicked.connect(self._pick_skeleton_edit)
         rig_row.addWidget(self.skeleton_edit_button)
         self.clear_skeleton_edit_button = QPushButton("Clear")
-        self.clear_skeleton_edit_button.setToolTip("Weight the next import against the template's own skeleton.")
+        self.clear_skeleton_edit_button.setToolTip("Forget the skeleton edits and weight the model against the template's own skeleton.")
         self.clear_skeleton_edit_button.clicked.connect(self._controller.clear_skeleton_edit)
         self.clear_skeleton_edit_button.setVisible(False)
         rig_row.addWidget(self.clear_skeleton_edit_button)
@@ -1287,24 +1296,38 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.invalidate_plan()
 
+    def _rig_folder(self) -> str:
+        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        folder = str(settings.value(RIG_DIR_SETTING, "") or "")
+        return folder if folder and Path(folder).is_dir() else str(Path.home())
+
+    def _remember_rig_folder(self, folder: Path) -> None:
+        QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench").setValue(RIG_DIR_SETTING, str(folder))
+
     def _pick_skeleton_edit(self) -> None:
         path, _selected = QFileDialog.getOpenFileName(
-            self, "Choose a Skeleton Edit JSON", "", "Skeleton Edit JSON (*.skeleton-edit.json *.json)")
+            self, "Choose a Skeleton Edit JSON", self._rig_folder(), "Skeleton Edit JSON (*.skeleton-edit.json *.json)")
         if path:
+            self._remember_rig_folder(Path(path).parent)
             self._controller.start_skeleton_edit(Path(path))
 
     def _pick_rig_export_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Export the template rig as GLB")
+        folder = QFileDialog.getExistingDirectory(self, "Export the template rig as GLB", self._rig_folder())
         if folder:
+            self._remember_rig_folder(Path(folder))
             self._controller.start_rig_export(Path(folder))
 
-    def _show_skeleton_edit(self, recipe) -> None:
-        if recipe is None:
+    def _show_skeleton_edit(self, edits) -> None:
+        edits = tuple(edits or ())
+        if not edits:
             self.rig_summary.setText("Template skeleton")
+            self.rig_summary.setToolTip("")
         else:
-            self.rig_summary.setText(f"{recipe.path.rsplit('/', 1)[-1]} + {len(recipe.bone_names)} added bone(s): "
-                                     + ", ".join(recipe.bone_names))
-        self.clear_skeleton_edit_button.setVisible(recipe is not None)
+            self.rig_summary.setText("; ".join(
+                f"{edit.path.rsplit('/', 1)[-1]} + {len(edit.bone_names)} added bone(s)" for edit in edits))
+            self.rig_summary.setToolTip("\n".join(
+                f"{edit.path}: {', '.join(edit.bone_names)}" for edit in edits))
+        self.clear_skeleton_edit_button.setVisible(bool(edits))
 
     def _edit_skinning(self):
         from cdmw.ui.new_item.skinning_dialog import SkinningDialog

@@ -1067,7 +1067,9 @@ PAB, the plan appends them to the installed file, and composition (including Sen
 to DMM) merges several items' `.pab` changes by bone name, refusing the same name
 with a different definition or any change to a shipped bone. The owned-fixture
 chain covers the edited rig, the PAC palette, a rig GLB with the added joint, the
-package recipe and a two-item composition. Still open beyond the questions above:
+package recipe and a two-item composition; an extracted `phm_01.pab` and `phw_01.pab`
+also merged two edits in either order. Neither player rig has a dlc_01 copy: the three
+DLC skeletons belong to a boss, a monster and a mount. Still open beyond the questions above:
 whether a DMM mod that replaces the same PAB is common enough to need a warning
 outside CDMW, and how added bones behave under animation once loaded.
 

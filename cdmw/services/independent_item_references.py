@@ -317,10 +317,13 @@ def audit_references(plan, snapshot, *, stop_event=None):
                     raise IndependentItemError(f'The owned mesh has no verified target binding: {path}')
                 # Validate the actual output, including prepared imports and
                 # companion meshes, without baking authoring settings again.
+                # A model weighted to added bones binds to the skeleton the item ships.
+                rigs = {request.entry.path.replace('\\', '/').lower(): bytes(request.payload_data)
+                        for request in plan.patches if request.entry.path.lower().endswith('.pab')}
                 for target, prefab in bindings:
                     source_paths.setdefault(path, set()).add(target)
                     try:
-                        validate_variant_rig(snapshot, target, data, prefab_path=prefab)
+                        validate_variant_rig(snapshot, target, data, prefab_path=prefab, rigs=rigs)
                     except ValueError as exc:
                         raise IndependentItemError(f'Incompatible owned mesh {path}: {exc}') from exc
             metadata[path][2] = 'verified-owned-mesh-rig' if owned else 'borrowed-mesh-with-sidecar'

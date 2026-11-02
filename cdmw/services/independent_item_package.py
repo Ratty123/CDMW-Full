@@ -589,11 +589,13 @@ def _recipe_values(package):
         skeleton_edit = None
         if "skeleton_edit" in raw:
             from cdmw.services.pab_skeleton_edit_service import SkeletonEditRecipe
+            # Package paths are already canonical; refuse rather than normalize one.
+            if not isinstance(raw["skeleton_edit"], dict) or not str(virtual_path(raw["skeleton_edit"].get("path"))).endswith(".pab"):
+                raise IndependentItemError("Invalid prepared skeleton edit path.")
             try:
                 skeleton_edit = SkeletonEditRecipe.from_dict(raw["skeleton_edit"])
             except ValueError as exc:
                 raise IndependentItemError(f"Invalid prepared skeleton edit: {exc}") from exc
-            virtual_path(skeleton_edit.path)
         return ModelFiles(blob(raw["pac"]), side, raw["material_route"], skeleton_edit=skeleton_edit)
     primary = model(value["model"])
     variants = {}

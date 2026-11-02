@@ -227,10 +227,9 @@ class NewItemModelControllerMixin:
         had_import = previous_import is not None
         self.model_import = None
         self.model_placement = ModelPlacement()
-        if self.skeleton_edit is not None:
-            # A skeleton edit is checked against one template's rig.
-            self.skeleton_edit = None
-            self.skeleton_edit_changed.emit(None)
+        if self.skeleton_edits:
+            # Skeleton edits are checked against one template's rigs.
+            self._set_skeleton_edits(())
         self.template_changed.emit(template_key)
         if had_import:
             self.model_import_changed.emit(None)
@@ -324,7 +323,7 @@ class NewItemModelControllerMixin:
         import_template_key = int(self.draft.template_key)
         import_variant = self._active_variant
         import_entry = self.template_primary_entry()
-        skeleton_edit = self.skeleton_edit
+        skeleton_edits = self.skeleton_edits
         wearable = self._template_is_wearable()
         template_geometry = self._template_geometry_build()
         template_build = template_geometry[1] if template_geometry is not None else None
@@ -355,8 +354,8 @@ class NewItemModelControllerMixin:
                     mesh, reports = prepare_new_item_skin(
                         result.scene.mesh, import_snapshot, import_entry.path, choices=choices, stop_event=stop_event,
                         **({"palette_extension_bones":tuple(palette_extension_bones)} if palette_extension_bones else {}),
-                        **({"skeleton_edit": skeleton_edit} if skeleton_edit is not None else {}))
-                    result.skeleton_edit = skeleton_edit
+                        **({"skeleton_edits": skeleton_edits} if skeleton_edits else {}))
+                    result.skeleton_edit = getattr(mesh, "interchange_skeleton_edit", None)
                     result.scene, result.preview_model, analysis, result.texture_count = prepare_model_import_mesh_edit(
                         mesh, scene=result.scene, model_path=result.model_path, stop_event=stop_event)
                     result.preview_mesh = mesh
@@ -434,8 +433,10 @@ class NewItemModelControllerMixin:
         return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
     def start_skeleton_edit(self, path: Path) -> bool:
-        """Read a Skeleton Edit JSON against the template's rig, off the UI thread. On
-        success the next import weights against that rig with the added bones."""
+        """Read a Skeleton Edit JSON against the template's rig, off the UI thread.
+
+        One edit is kept per rig, so a male and a female variant can each have one.
+        A model already imported with its own weights is weighted again at once."""
 
         chosen = Path(path)
         snapshot, entry = self.snapshot, self.template_primary_entry()
@@ -448,8 +449,9 @@ class NewItemModelControllerMixin:
             from cdmw.services.mesh_skinning_preflight import edited_rig, template_skeleton
             from cdmw.services.pab_skeleton_edit_service import read_pab_edit_json
             progress(0, 0, f"Reading {chosen.name}")
-            text = chosen.read_text(encoding="utf-8")
-            _skeleton, data, pab_path = template_skeleton(snapshot, entry.path)
+            # Editors such as Notepad may save a byte-order mark.
+            text = chosen.read_text(encoding="utf-8-sig")
+            _skeleton, data, pab_path, _edit = template_skeleton(snapshot, entry.path)
             raise_if_cancelled(stop_event)
             recipe = read_pab_edit_json(data, text, virtual_path=pab_path)
             if not recipe.add_bones:
@@ -461,10 +463,15 @@ class NewItemModelControllerMixin:
         def done(recipe):
             if self.snapshot is not snapshot or self.draft.template_key != template_key:
                 return
-            self.skeleton_edit = recipe
-            self.skeleton_edit_changed.emit(recipe)
-            self.status_message.emit(f"Skeleton edit ready: {', '.join(recipe.bone_names)}. "
-                                     "Import the model again to weight it against this rig.", False)
+            self._set_skeleton_edits((*(edit for edit in self.skeleton_edits if edit.path != recipe.path), recipe))
+            names = ", ".join(recipe.bone_names)
+            if self._reweight_for_skeleton_edits():
+                self.status_message.emit(f"Skeleton edit ready: {names}. Weighting the imported model again.", False)
+            else:
+                self.status_message.emit(
+                    f"Skeleton edit ready: {names}. Import a rigged model to weight it against this rig.", False)
+                # Shown last, so the status line keeps it.
+                self._warn_stale_skeleton_edit()
 
         def failed(message):
             self.status_message.emit(f"The skeleton edit could not be used: {message}", True)
@@ -472,14 +479,44 @@ class NewItemModelControllerMixin:
         return self._run("skeleton_edit", task, done, failed, task_accepts_progress=True)
 
     def clear_skeleton_edit(self) -> None:
-        if self.skeleton_edit is not None:
-            self.skeleton_edit = None
-            self.skeleton_edit_changed.emit(None)
+        if self.skeleton_edits:
+            self._set_skeleton_edits(())
+            if not self._reweight_for_skeleton_edits():
+                self._warn_stale_skeleton_edit()
+
+    def _warn_stale_skeleton_edit(self) -> None:
+        """Say so when the imported model still uses bones of an edit no longer loaded."""
+        source = self.model_import
+        if source is not None and source.skeleton_edit is not None and source.skeleton_edit not in self.skeleton_edits:
+            self.status_message.emit("The imported model is still weighted to the removed added bones; "
+                                     "import it again to weight it to the template's own skeleton.", True)
+
+    def _set_skeleton_edits(self, edits) -> None:
+        self.skeleton_edits = tuple(sorted(edits, key=lambda edit: edit.path))
+        self.skeleton_edit_changed.emit(self.skeleton_edits)
+
+    def _reweight_for_skeleton_edits(self) -> bool:
+        """Re-prepare a model imported with its own weights against the current rigs.
+
+        Called from a finishing task, it waits until the controller is idle."""
+        source = self.model_import
+        if (source is None or source.raw_import_mesh is None or not source.skinning_target
+                or not source.skinning_choices or source.mesh_generation != source.skinning_generation):
+            return False
+        if self.busy:
+            self._reweight_pending = True
+            return True
+        return self.start_model_skinning(source.skinning_choices)
+
+    def _run_pending_reweight(self, busy: bool) -> None:
+        if not busy and self._reweight_pending:
+            self._reweight_pending = False
+            self._reweight_for_skeleton_edits()
 
     def start_rig_export(self, output_dir: Path) -> bool:
-        """Write the template skinned to its rig (with the skeleton edit's bones) as GLB."""
+        """Write the template skinned to its rig (with the matching skeleton edit's bones) as GLB."""
 
-        snapshot, entry, recipe = self.snapshot, self.template_primary_entry(), self.skeleton_edit
+        snapshot, entry, edits = self.snapshot, self.template_primary_entry(), self.skeleton_edits
         if snapshot is None or entry is None:
             self.status_message.emit("Choose a template first; its mesh and rig are exported.", True)
             return False
@@ -488,7 +525,7 @@ class NewItemModelControllerMixin:
         def task(log, progress, stop_event):
             from cdmw.services.mesh_skinning_preflight import export_template_rig_glb
             progress(0, 0, "Exporting the template rig")
-            return export_template_rig_glb(snapshot, entry.path, folder, skeleton_edit=recipe, stop_event=stop_event)
+            return export_template_rig_glb(snapshot, entry.path, folder, skeleton_edits=edits, stop_event=stop_event)
 
         def done(paths):
             self.status_message.emit(f"Rig exported: {paths[0]}", False)
@@ -518,7 +555,11 @@ class NewItemModelControllerMixin:
         target = source.skinning_target
         captured_scene = source.scene
         extension = getattr(captured_scene.mesh, "interchange_palette_extension", None)
-        extension_bones = extension.appended_names if extension is not None else ()
+        # Added bones come back from whichever skeleton edit matches the rig now.
+        previous_added = set(source.skeleton_edit.bone_names) if source.skeleton_edit is not None else set()
+        extension_bones = tuple(name for name in (extension.appended_names if extension is not None else ())
+                                if name not in previous_added)
+        skeleton_edits = self.skeleton_edits
 
         def task(log, progress, stop_event):
             from cdmw.services.mesh_skinning_preflight import prepare_new_item_skin
@@ -527,13 +568,14 @@ class NewItemModelControllerMixin:
                 mesh, reports = prepare_new_item_skin(source.raw_import_mesh, snapshot, target,
                     choices=choices, stop_event=stop_event, transfer_transform=transfer_transform,
                     palette_extension_bones=extension_bones,
-                    **({"skeleton_edit": source.skeleton_edit} if source.skeleton_edit is not None else {}))
+                    **({"skeleton_edits": skeleton_edits} if skeleton_edits else {}))
+                skeleton_edit = getattr(mesh, "interchange_skeleton_edit", None)
                 prepared = prepare_model_import_mesh_edit(mesh, scene=captured_scene,
                     model_path=source.model_path, stop_event=stop_event)
                 baked = bake_mesh(mesh, source_bake)
                 for report in reports:
                     log(report.summary())
-                return prepared, reports, baked
+                return prepared, reports, baked, skeleton_edit
 
         def done(result):
             if (self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant
@@ -541,7 +583,8 @@ class NewItemModelControllerMixin:
                     or source.mesh_generation != generation or source.bake != source_bake
                     or self.model_placement != placement or source.flip_texture_v != flip):
                 return
-            prepared, reports, baked = result
+            prepared, reports, baked, skeleton_edit = result
+            source.skeleton_edit = skeleton_edit
             scene, preview, analysis, textures = prepared
             source.scene, source.preview_model, source.preview_mesh = scene, preview, scene.mesh
             source.bounds, source.centroid, source.principal_frame = analysis.bounds, analysis.centroid, analysis.principal_frame

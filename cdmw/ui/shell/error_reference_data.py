@@ -25137,7 +25137,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 826
+      "cdmw/services/independent_item_package.py": 828
     }
   },
   {
@@ -25249,7 +25249,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 640
+      "cdmw/services/independent_item_package.py": 642
     }
   },
   {
@@ -26066,7 +26066,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 776
+      "cdmw/services/independent_item_package.py": 778
     }
   },
   {
@@ -26074,7 +26074,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 791
+      "cdmw/services/independent_item_package.py": 793
     }
   },
   {
@@ -26082,7 +26082,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 607
+      "cdmw/services/independent_item_package.py": 609
     }
   },
   {
@@ -26202,7 +26202,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible owned mesh {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 325
+      "cdmw/services/independent_item_references.py": 328
     }
   },
   {
@@ -26234,7 +26234,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item packages use the .cditem extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 819
+      "cdmw/services/independent_item_package.py": 821
     }
   },
   {
@@ -26451,7 +26451,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 813
+      "cdmw/services/independent_item_package.py": 815
     }
   },
   {
@@ -26579,7 +26579,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned texture {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_references.py": 346
+      "cdmw/services/independent_item_references.py": 349
     }
   },
   {
@@ -26608,10 +26608,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
+    "message": "Invalid prepared skeleton edit path.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_item_package.py": 594
+    }
+  },
+  {
+    "area": "independent",
     "message": "Invalid prepared skeleton edit: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 595
+      "cdmw/services/independent_item_package.py": 598
     }
   },
   {
@@ -26619,7 +26627,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 604
+      "cdmw/services/independent_item_package.py": 606
     }
   },
   {
@@ -26627,7 +26635,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 601
+      "cdmw/services/independent_item_package.py": 603
     }
   },
   {
@@ -26899,7 +26907,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 638
+      "cdmw/services/independent_item_package.py": 640
     }
   },
   {
@@ -26923,7 +26931,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 700
+      "cdmw/services/independent_item_package.py": 702
     }
   },
   {
@@ -27492,7 +27500,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 824
+      "cdmw/services/independent_item_package.py": 826
     }
   },
   {
@@ -27869,7 +27877,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 850
+      "cdmw/services/independent_item_package.py": 852
     }
   },
   {
@@ -28045,7 +28053,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned texture format is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 339
+      "cdmw/services/independent_item_references.py": 342
     }
   },
   {
@@ -28053,7 +28061,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 802
+      "cdmw/services/independent_item_package.py": 804
     }
   },
   {
@@ -28061,7 +28069,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 621
+      "cdmw/services/independent_item_package.py": 623
     }
   },
   {
@@ -28109,7 +28117,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 830
+      "cdmw/services/independent_item_package.py": 832
     }
   },
   {
@@ -28701,7 +28709,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 841
+      "cdmw/services/independent_item_package.py": 843
     }
   },
   {
@@ -28909,7 +28917,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 719
+      "cdmw/services/independent_item_package.py": 721
     }
   },
   {
@@ -29029,7 +29037,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 783
+      "cdmw/services/independent_item_package.py": 785
     }
   },
   {
@@ -29094,7 +29102,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent resource format: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 349
+      "cdmw/services/independent_item_references.py": 352
     }
   },
   {
@@ -30074,7 +30082,7 @@ MESSAGE_REFERENCE = [
     "message": "A variant binding can be selected only once.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 247
+      "cdmw/services/new_item_variants.py": 265
     }
   },
   {
@@ -30284,7 +30292,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 587
+      "cdmw/ui/new_item/controller.py": 590
     }
   },
   {
@@ -30445,7 +30453,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 368
+      "cdmw/services/new_item_variants.py": 386
     }
   },
   {
@@ -30941,7 +30949,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 347
+      "cdmw/services/new_item_variants.py": 365
     }
   },
   {
@@ -32200,7 +32208,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 809
+      "cdmw/ui/new_item/controller_model_mixin.py": 852
     }
   },
   {
@@ -32562,7 +32570,7 @@ MESSAGE_REFERENCE = [
     "message": "No applied model for {old}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 303
+      "cdmw/services/new_item_variants.py": 321
     }
   },
   {
@@ -32570,7 +32578,7 @@ MESSAGE_REFERENCE = [
     "message": "No collision-free identity is available for the selected variant.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 238
+      "cdmw/services/new_item_variants.py": 256
     }
   },
   {
@@ -33141,7 +33149,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 562
+      "cdmw/ui/new_item/controller_model_mixin.py": 605
     }
   },
   {
@@ -33502,7 +33510,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 739,
+      "cdmw/ui/new_item/controller_model_mixin.py": 782,
       "cdmw/ui/new_item/model_import.py": 978
     }
   },
@@ -33878,10 +33886,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The import's skin palette differs from the selected variant's target rig and the bones the item adds to it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_variants.py": 191
+    }
+  },
+  {
+    "area": "items",
     "message": "The import's skin palette differs from the selected variant's target rig.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 176
+      "cdmw/services/new_item_variants.py": 194
     }
   },
   {
@@ -33889,7 +33905,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported skin weights reference bones outside the target palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 182
+      "cdmw/services/new_item_variants.py": 200
     }
   },
   {
@@ -33961,7 +33977,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 432
+      "cdmw/ui/new_item/controller_model_mixin.py": 431
     }
   },
   {
@@ -34017,7 +34033,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 686
+      "cdmw/ui/new_item/controller_model_mixin.py": 729
     }
   },
   {
@@ -34105,7 +34121,7 @@ MESSAGE_REFERENCE = [
     "message": "The rigid target requires its single attachment slot; this import changes the skin binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 151
+      "cdmw/services/new_item_variants.py": 161
     }
   },
   {
@@ -34211,7 +34227,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 370
+      "cdmw/services/new_item_variants.py": 388
     }
   },
   {
@@ -34219,7 +34235,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant's skeleton is missing or ambiguous.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_variants.py": 166
+      "cdmw/services/new_item_variants.py": 176
     }
   },
   {
@@ -34251,7 +34267,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton edit adds no bones; fill add_bones first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 456
+      "cdmw/ui/new_item/controller_model_mixin.py": 458
     }
   },
   {
@@ -34403,7 +34419,7 @@ MESSAGE_REFERENCE = [
     "message": "The variant import contains no supported mesh geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_variants.py": 137
+      "cdmw/services/new_item_variants.py": 147
     }
   },
   {
@@ -34836,7 +34852,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn off Template cloth / physics to transfer this armour's weights from the character body.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 116
+      "cdmw/services/new_item_variants.py": 121
     }
   },
   {
@@ -36077,7 +36093,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 361
+      "cdmw/ui/new_item/controller.py": 364
     }
   },
   {
@@ -37146,7 +37162,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 580
+      "cdmw/ui/new_item/controller.py": 583
     }
   },
   {
@@ -48707,22 +48723,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_skinning.rs": 123
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Keep imported weights needs a complete fixed-layout target skeleton.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 192
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Keep imported weights needs the selected template's unique matching skeleton.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 188
     }
   },
   {
@@ -60347,6 +60347,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The selected template has no unique matching skeleton.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 205
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The selected template's skeleton is not a complete fixed-layout PAB.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 209
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The setup file and its stored identity disagree.",
     "recovery": "internal",
     "sources": {
@@ -60374,7 +60390,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton edit cannot be applied to {resolved}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 158
+      "cdmw/services/mesh_skinning_preflight.py": 161
     }
   },
   {
@@ -60382,7 +60398,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton edit is for {skeleton_edit.path}, but this template binds to {resolved}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 154
+      "cdmw/services/mesh_skinning_preflight.py": 157
     }
   },
   {
@@ -71964,6 +71980,22 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/effect_preview_geometry.py": 158
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to that skeleton with Skeleton edit… in the Rig row.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 250
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Skeleton edit… in the Rig row, then import again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 253
     }
   },
   {
@@ -101192,6 +101224,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_service_native_session.py",
     "cdmw/services/mesh_service_rebuild.py",
     "cdmw/services/mesh_shader_controls.py",
+    "cdmw/services/mesh_skinning_preflight.py",
     "cdmw/services/mesh_translucency.py",
     "cdmw/services/mesh_vertex_parameters.py",
     "cdmw/services/mesh_workflow_service.py",
@@ -103630,7 +103663,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/independent_item_package.py": {
     "diagnostic_field": 1,
-    "raise": 62
+    "raise": 63
   },
   "cdmw/services/independent_item_physics.py": {
     "raise": 13
@@ -103922,7 +103955,9 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/services/mesh_skinning_preflight.py": {
-    "raise": 13
+    "diagnostic_field": 2,
+    "failure": 3,
+    "raise": 16
   },
   "cdmw/services/mesh_texture_sources.py": {
     "report": 1
@@ -104092,7 +104127,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/new_item_variants.py": {
     "finding": 1,
-    "raise": 16
+    "raise": 17
   },
   "cdmw/services/orphan_helper_reaper.py": {},
   "cdmw/services/overlay_inventory_details.py": {

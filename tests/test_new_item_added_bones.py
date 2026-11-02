@@ -148,6 +148,44 @@ def test_skeleton_edit_for_another_rig_is_refused(monkeypatch):
         template_skeleton(snapshot, PAC_PATH, replace(CAPE_RIG, add_bones=(PabAppendEdit("missing", "Cape_00"),)))
 
 
+PHW_RIG = SkeletonEditRecipe("character/model/1_pc/2_phw/phw_01.pab", CAPE_RIG.add_bones)
+
+
+def test_each_rig_takes_its_own_skeleton_edit(monkeypatch):
+    from cdmw.services.mesh_skinning_preflight import template_skeleton
+    from tests.test_pac_cloth_guide_builder import guide_free_pac
+
+    snapshot = fake_snapshot(monkeypatch, guide_free_pac())
+    skeleton, _data, path, edit = template_skeleton(snapshot, PAC_PATH, skeleton_edits=(PHW_RIG, CAPE_RIG))
+    assert (path, edit) == (PAB_PATH, CAPE_RIG) and skeleton.bones[-1].name == "Cape_00"
+    # An edit for another rig (the other variant's) is left for that variant.
+    skeleton, data, _path, edit = template_skeleton(snapshot, PAC_PATH, skeleton_edits=(PHW_RIG,))
+    assert edit is None and data == palette_rig() and skeleton.bones[-1].name == "bone7"
+
+
+@pytest.mark.parametrize("edits, advice", [
+    ((), "Cape_00: not in character/model/1_pc/1_phm/phm_01.pab. To weight to new bones, add them with Skeleton edit"),
+    ((PHW_RIG,), "Cape_00: added to character/model/1_pc/2_phw/phw_01.pab, but this model binds to "
+                 "character/model/1_pc/1_phm/phm_01.pab"),
+])
+def test_missing_bones_say_how_to_add_them(monkeypatch, tmp_path, edits, advice):
+    from cdmw.services.mesh_skinning_preflight import prepare_new_item_skin
+    from cdmw.ui.new_item.model_import import load_model_import_source
+    from tests.test_mesh_replacement_imported_skinning import source_glb
+    from tests.test_pac_cloth_guide_builder import guide_free_pac
+
+    snapshot = fake_snapshot(monkeypatch, guide_free_pac(parts=2))
+    source = load_model_import_source(source_glb(tmp_path, names=("bone2", "Cape_00")))
+    try:
+        with pytest.raises(ValueError) as caught:
+            prepare_new_item_skin(source.scene.mesh, snapshot, PAC_PATH, skeleton_edits=edits)
+    finally:
+        source.cleanup()
+    assert caught.value.missing_bones == ("Cape_00",)
+    assert str(caught.value).startswith("Missing equipment palette bones: Cape_00.")
+    assert advice in str(caught.value)
+
+
 def test_rig_glb_carries_the_added_joint_at_its_bind(monkeypatch, tmp_path):
     import json
     import struct
@@ -232,26 +270,131 @@ def test_rig_row_reads_a_skeleton_edit_and_the_next_import_binds_to_it(studio, t
     app, tab = studio
     controller, panel = tab.controller, tab.model_panel
     monkeypatch.setattr("cdmw.services.mesh_skinning_preflight.template_skeleton",
-                        lambda _snapshot, _path, edit=None: (parse_pab(pab()), pab(), PAB_PATH))
+                        lambda _snapshot, _path, edit=None, **_kwargs: (parse_pab(pab()), pab(), PAB_PATH, None))
     document = dumps_pab_edit_json(pab(), PAB_PATH).replace(
         '"add_bones": []', '"add_bones": [{"parent": "Bip01 Spine", "name": "Cape_00"}]')
     chosen = tmp_path / "phm_01.skeleton-edit.json"
-    chosen.write_text(document, encoding="utf-8")
+    # Notepad saves UTF-8 with a byte-order mark.
+    chosen.write_text(document, encoding="utf-8-sig")
     assert controller.start_skeleton_edit(chosen)
     _finish(app, controller)
-    assert controller.skeleton_edit.bone_names == ("Cape_00",)
-    assert "Cape_00" in panel.rig_summary.text() and not panel.clear_skeleton_edit_button.isHidden()
+    first, = controller.skeleton_edits
+    assert first.bone_names == ("Cape_00",)
+    assert "phm_01.pab + 1 added bone(s)" in panel.rig_summary.text()
+    assert "Cape_00" in panel.rig_summary.toolTip() and not panel.clear_skeleton_edit_button.isHidden()
 
-    seen = {}
-    def prepare(mesh, _snapshot, _path, *, choices=(), stop_event=None, skeleton_edit=None, **_kwargs):
-        seen["edit"] = skeleton_edit
+    calls = []
+    def prepare(mesh, _snapshot, _path, *, choices=(), stop_event=None, skeleton_edits=(), **_kwargs):
+        calls.append(skeleton_edits)
+        mesh.interchange_skeleton_edit = skeleton_edits[0] if skeleton_edits else None
         return mesh, ()
     monkeypatch.setattr("cdmw.services.mesh_skinning_preflight.prepare_new_item_skin", prepare)
     assert controller.start_model_import(source_glb(tmp_path))
     _finish(app, controller)
-    assert seen["edit"] is controller.skeleton_edit
-    assert controller.model_import.skeleton_edit is controller.skeleton_edit
+    assert calls == [(first,)] and controller.model_import.skeleton_edit is first
+
+    # A new edit for the same rig replaces the old one and weights the rigged import again.
+    chosen.write_text(document.replace('"Cape_00"', '"Cape_99"'), encoding="utf-8")
+    assert controller.start_skeleton_edit(chosen)
+    _finish(app, controller)
+    _finish(app, controller)
+    second, = controller.skeleton_edits
+    assert second.bone_names == ("Cape_99",)
+    assert calls[-1] == (second,) and controller.model_import.skeleton_edit is second
 
     panel.clear_skeleton_edit_button.click()
-    assert controller.skeleton_edit is None and panel.rig_summary.text() == "Template skeleton"
+    _finish(app, controller)
+    assert controller.skeleton_edits == () and panel.rig_summary.text() == "Template skeleton"
     assert panel.clear_skeleton_edit_button.isHidden()
+    assert calls[-1] == () and controller.model_import.skeleton_edit is None
+
+
+# ---------------------------------------------------------------- plan and package rig checks
+
+PHW_MODEL = "character/model/1_pc/2_phw/armor/9_upperbody/test.pac"
+PHW_PAB = "character/model/1_pc/2_phw/phw_01.pab"
+
+
+def extended_on_edited_rig():
+    """A skinned template, the shipped rig, and the template's palette extended with Cape_00."""
+    from cdmw.modding.skeleton_parser import parse_pab
+    from tests.test_new_item_variant_rig import _snapshot_files
+    from tests.test_pac_cloth_guide_builder import guide_free_pac
+
+    recipe = SkeletonEditRecipe(PHW_PAB, CAPE_RIG.add_bones)
+    original = guide_free_pac(parts=2)
+    edited = recipe.apply(palette_rig()).data
+    output, contract = extend_pac_palette(original, parse_pab(edited, PHW_PAB), ("Cape_00",))
+    return recipe, edited, output, contract, _snapshot_files({PHW_MODEL: original, PHW_PAB: palette_rig()})
+
+
+def test_plan_and_package_checks_bind_the_model_to_the_rig_the_item_ships():
+    from cdmw.modding.skeleton_writer import merge_appended_bones
+    from cdmw.services.new_item_variants import validate_variant_rig
+
+    _recipe, edited, output, contract, snapshot = extended_on_edited_rig()
+    # The shipped rig cannot resolve Cape_00, with or without the import's contract.
+    with pytest.raises(ValueError):
+        validate_variant_rig(snapshot, PHW_MODEL, output, palette_extension=contract)
+    with pytest.raises(ValueError, match="palette differs"):
+        validate_variant_rig(snapshot, PHW_MODEL, output)
+    # Plan time: the contract is checked against the rig the import was weighted to.
+    assert validate_variant_rig(snapshot, PHW_MODEL, output, palette_extension=contract,
+                                rigs={PHW_PAB: edited}) == PHW_PAB
+    # Package time: the planned rig may also carry other models' bones.
+    other = apply_pab_edits(palette_rig(), (PabAppendEdit("bone1", "Tail_00"),)).data
+    planned = merge_appended_bones(palette_rig(), other, edited)
+    assert validate_variant_rig(snapshot, PHW_MODEL, output, rigs={PHW_PAB: planned}) == PHW_PAB
+    # A rig without the bone the palette adds still refuses.
+    with pytest.raises(ValueError):
+        validate_variant_rig(snapshot, PHW_MODEL, output, rigs={PHW_PAB: other})
+
+
+def test_variant_preparation_checks_against_the_models_edited_rig(monkeypatch):
+    from cdmw.services import new_item_variants
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_new_item_armour_import import _body_transfer_request
+
+    snapshot, appearance, result, _scene, _body = _body_transfer_request()
+    seen = {}
+    monkeypatch.setattr(new_item_variants, "validate_variant_rig",
+                        lambda *_args, rigs=None, **_kwargs: seen.setdefault("rigs", rigs))
+    recipe = SimpleNamespace(path="character/model/1_pc/1_phm/phm_01.pab",
+                             apply=lambda data: SimpleNamespace(data=b"edited " + data[:4]))
+    model = ModelFiles(result.rebuilt_data, material_route="builder", skeleton_edit=recipe)
+    spec = SimpleNamespace(template_key=1, variants=(appearance,))
+    new_item_variants.prepare_variant_models(spec, snapshot, {appearance.identity: model}, {})
+    rig = snapshot.payload(recipe.path)
+    assert seen["rigs"] == {recipe.path: b"edited " + rig[:4]}
+
+
+def test_only_kept_nonzero_weights_bring_an_added_bone_into_the_palette():
+    from cdmw.domain.mesh.skin_policy import SkinningChoice
+    from cdmw.services.mesh_skinning_preflight import used_added_bones
+
+    skin = {"nodes": [{"name": "bone0"}, {"name": "Cape_00"}, {"name": "Cape_01"}], "joints": [0, 1, 2]}
+    part = SimpleNamespace(interchange_skin=skin, bone_indices=[(0, 1, 2)], bone_weights=[(.5, .5, 0.)])
+    mesh = SimpleNamespace(submeshes=[part])
+    recipe = SkeletonEditRecipe(PAB_PATH, CAPE)
+    # Cape_01 is a zero-weight padding influence.
+    assert used_added_bones(mesh, recipe) == ("Cape_00",)
+    assert used_added_bones(mesh, recipe, (SkinningChoice(0, "transfer"),)) == ()
+
+
+@pytest.mark.parametrize("path", ["Character/Model/1_pc/1_phm/phm_01.pab", r"character\model\1_pc\1_phm\phm_01.pab",
+                                  "character/model/1_pc/1_phm/phm_01.pac"])
+def test_packages_refuse_a_non_canonical_skeleton_edit_path(path):
+    from cdmw.domain.new_item.independent import IndependentItemError
+    from cdmw.services.independent_item_codec import encode
+    from cdmw.services.independent_item_package import _prepared_spec, _recipe_values
+    from tests.test_new_item_provenance import spec
+
+    def package(skeleton_path):
+        raw = {"pac": "a", "side_files": {}, "material_route": "", "skeleton_edit": {
+            "path": skeleton_path, "add_bones": SkeletonEditRecipe(PAB_PATH, CAPE).to_dict()["add_bones"]}}
+        return SimpleNamespace(recipe={"spec": encode(_prepared_spec(spec("Rig"))), "model": raw, "variants": [],
+                                       "icon": None}, blobs={"a": b""})
+
+    assert _recipe_values(package(PAB_PATH))[1].skeleton_edit == SkeletonEditRecipe(PAB_PATH, CAPE)
+    with pytest.raises(IndependentItemError, match="resource path|skeleton edit"):
+        _recipe_values(package(path))
