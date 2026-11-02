@@ -656,7 +656,7 @@ closed compact schema (`cdmw/core/_compact_static_schema.py`, listed by
 `static_table_records.decode_record` and prints the top-level fields of the first five:
 integers by storage width, text, and nested lists or structures as byte counts.
 A row the schema refuses keeps its listing line and is counted in Details; nothing is
-guessed; on the installed game that is 14 rows whose readers sit in virtualized game code.
+guessed; on the installed game that is 13 rows whose readers sit in virtualized game code.
 Tables named `skillinfo` or `reserveslotinfo` in older archives use the `skill` and
 `reserveslot` readers. StringInfo keeps its own reader; BitmapPosition lists rows only.
 

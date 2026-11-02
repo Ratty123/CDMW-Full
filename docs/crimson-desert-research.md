@@ -85,7 +85,7 @@ can be writable without a semantic validator for its contents.
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
 | Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states, save presets and convex collision geometry walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; the effect-grammar formats other than presets have no writer. |
-| Game data | Known table directories, typed item, string, shop, group, recipe and reward subsets for new-item composition, and a closed serializer-derived schema that decodes 140 of 142 table families. | 14 rows behind virtualized readers and one 10-row table stay undecoded; field units and gameplay effects are unverified. |
+| Game data | Known table directories, typed item, string, shop, group, recipe and reward subsets for new-item composition, and a closed serializer-derived schema that decodes 140 of 142 table families. | 13 rows behind virtualized readers and one 10-row table stay undecoded; field units and gameplay effects are unverified. |
 | Effects | PAE/PAEM reflection, keyed inheritance and constrained authoring are implemented; selected particle shader behaviour is reproduced. | Exact runtime target binding, animated surfaces and complete game appearance remain open. |
 | Packages | Independent packages retain identities, owned resources, explicit requirements and recoverable lifecycle changes. | Typed adapters cover selected domains, not every mod category. |
 | Virtual loading | A guarded launch route has narrow recorded game evidence; native registration has also been investigated. | General redirection, additive native registration and save compatibility cannot be inferred from those results. |
@@ -1587,7 +1587,7 @@ read/write limits.
 | MultiChangeInfo | Supported enhancement transitions and known item-reference locations | Other payload fields retain their opaque/source-preserving treatment. |
 | Recipe and reward families | Current bounded recipe, item-reward and ItemUse reward codecs and their verified connections | Unknown connections, missing ingredients/tools/rewards and unmodelled consumers block a complete item plan. |
 | PAPPT and icon registries | Supported part/prefab bindings and icon registrations | Registry structure, stem/hash identity, referenced assets and source conflicts must all agree. |
-| 130 further game tables | Closed field layouts for skills, characters, NPCs, inventories, knowledge, missions, quests, stages, gimmicks, conditions, interactions, effects, regions, factions, mercenaries, vehicles, bounties, AI and UI tables; constrained in-place edits of whitelisted fixed-width fields | 14 rows use virtualized readers and are refused; BitmapPosition is boundaries only; no edited table has been loaded by the game. |
+| 130 further game tables | Closed field layouts for skills, characters, NPCs, inventories, knowledge, missions, quests, stages, gimmicks, conditions, interactions, effects, regions, factions, mercenaries, vehicles, bounties, AI and UI tables; constrained in-place edits of whitelisted fixed-width fields | 13 rows use virtualized condition readers and are refused; BitmapPosition is boundaries only; no edited table has been loaded by the game. |
 
 Targeted decoder correction, 2026-10-23, against `9d542c85` plus the scoped
 ItemInfo patch: stack counts use the full eight-byte field; the earlier u8 item
@@ -1711,8 +1711,8 @@ plus `dlc/dlc_01`, data of 1 November). The 30 October serializer extraction fro
 table, found through each class's read-failure member names. The closed schema now
 covers 140 of the 142 table families (208 of 212 non-empty pairs, 310,039 rows); StringInfo
 keeps its own reader and BitmapPosition (10 rows) is left out. On the installed data,
-310,025 rows decode to the exact row end with the inline key equal to the directory key
-(composite-key tables compare all 8 or 12 key bytes); the other 14 stop on a closed
+310,026 rows decode to the exact row end with the inline key equal to the directory key
+(composite-key tables compare all 8 or 12 key bytes); the other 13 stop on a closed
 refusal and none on a misread. The CharacterInfo reader tree of 3446 matches the 3479
 executable event for event, apart from one helper call.
 
@@ -1738,10 +1738,18 @@ its payload. Shapes for StageInfo, ConditionInfo, GimmickInfo, FactionNode and t
 73 tables came from four Codex research runs; each was checked against the disassembly
 and the full corpus walk before adoption.
 
-The 14 refusals use readers in VM-style mutated code (register shuffles through
-`pushfq`/`xchg`/`xor` chains) that static folding does not resolve: 11 InteractionInfo and
-2 ConditionInfo rows (condition readers at `0x12ddd0d0` and `0xd4998a0`) and 1 SkillInfo row
-(BuffData variant 74). `static_table_records.py` exposes each record's top-level fields,
+Three readers sit in VM-style mutated code (register shuffles through `pushfq`/`xchg`/`xor`
+chains) that static folding does not resolve, in every executable build examined (3424,
+3446, 3460, 3462, 3479). One of them, BuffData variant 74 (`AddSubLevelBuffData`), was
+recovered by emulation: unicorn runs the 1.0.0.3479 BuffData reader inside the runtime
+memory dump (start-up state included; heap reads served as zero pages, allocators and
+system-DLL calls stubbed, a real `pa::DeserializerMemory` as the stream). On the only shipped
+row (Skill 65145) it reads two u32 and the row then ends exactly; 23 randomised payloads give
+the same two reads, so the shape is fixed. The two condition readers (`ConditionData_DayOfWeek`
+and the reader shared by `CheckVoxelType` and `NavigationMoveType`) still refuse 13 rows
+(11 InteractionInfo, 2 ConditionInfo): under emulation, with constructed objects and a real
+deserializer, they return without reading or spin past 200 million instructions, which looks
+like anti-emulation rather than an empty payload. `static_table_records.py` exposes each record's top-level fields,
 which the Archive Browser preview shows, and rewrites only whitelisted fixed-width fields
 in place (inventory slot counts, skill max level, cooldown and low-resource flag, bounty
 increase, mercenary hire and summon limits, character scale and companion call cooldown,
@@ -3308,7 +3316,7 @@ This is a research register, not a promised delivery schedule.
 | Can native resource loading be generalized safely? | Recorded asynchronous manager/provider route | Exact receiver/build provenance, texture binding, retirement, failure recovery and required socket consumers |
 | Can arbitrary package domains compose? | Typed item, field, link and texture subsets | A complete adapter and real consumer for each new domain; explicit conflict semantics |
 | Can save migration/removal be admitted generally? | Identity profiles, backups, receipts and experiment tools | Trusted origin, complete requirements, successful save commitment, controlled absent-provider/load evidence |
-| What do the virtualized readers read, and do edited tables load in game? | 140 families decoded with zero misreads; 14 rows depend on VM-style mutated readers | Emulation or devirtualization of those readers, then corpus walks with zero misreads; in-game checks of edited fields |
+| What do the virtualized condition readers read, and do edited tables load in game? | 140 families decoded with zero misreads; one VM reader recovered by emulating the runtime dump; 13 rows depend on two condition readers that resist emulation | Defeating their anti-emulation checks or devirtualizing them, then corpus walks with zero misreads; in-game checks of edited fields |
 | Which remaining binary resources are encrypted or merely unmodelled? | Capability inventory and inspected container signatures | Algorithm/key evidence or a complete record grammar; readable metadata alone is insufficient |
 
 ### 15.3 Approaches not to repeat without new evidence
