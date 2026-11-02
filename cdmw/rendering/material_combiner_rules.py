@@ -26,6 +26,9 @@ class MaterialPreviewCombinerSettings:
     base_output_available: bool = False
     # Export baking must flatten layers even when an authored base map exists.
     bake_layered_base: bool = False
+    # Preview Core resolved no base for this material and takes its visible color from the
+    # layers. A PAC overlay bound as a layer must then not stand in for the base.
+    layered_base_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Optional
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMenu, QMessageBox, QToolButton
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMenu, QMessageBox, QPushButton
 
 from cdmw.core.action_chart_binary import ActionChartError
 from cdmw.models import ArchiveEntry
@@ -81,13 +81,12 @@ class ArchiveActionChartActionsMixin:
 
     # --- entry points -------------------------------------------------------------------
 
-    def _build_action_chart_button(self) -> QToolButton:
+    def _build_action_chart_button(self) -> QPushButton:
         """The Archive Browser's Action Charts button: works with nothing selected."""
 
-        button = QToolButton()
-        button.setText("Action Charts")
+        # A push button with a menu, so it wears the same theme as Scan and Refresh beside it.
+        button = QPushButton("Action Charts")
         button.setToolTip("Find a character's action chart to edit, or continue an action chart mod CDMW wrote.")
-        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(button)
         find_action = menu.addAction("Find Action Chart by Character...")
         find_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())

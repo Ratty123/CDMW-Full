@@ -738,6 +738,18 @@ def _refine_synthesized_material_contract(
     return refined
 
 
+def _source_base_comes_from_layers(source: object | None) -> bool:
+    """Whether Preview Core found no base and builds the visible color from layers."""
+
+    overrides = getattr(source, "preview_native_material_overrides", None)
+    quality = overrides.get("native_base_quality") if isinstance(overrides, Mapping) else None
+    return bool(
+        isinstance(quality, Mapping)
+        and quality.get("missing") is True
+        and quality.get("visible_layer_albedo_used") is True
+    )
+
+
 def _source_has_usable_tangents(source: object | None) -> bool:
     if source is None:
         return False
@@ -937,6 +949,7 @@ def _material_synthesis_cache_key(
         "texture_flip_vertical": bool(getattr(source, "preview_texture_flip_vertical", False)),
         "alpha_mode": str(getattr(source, "preview_alpha_mode", "") or ""),
         "tangents_usable": _source_has_usable_tangents(source),
+        "layered_base_only": _source_base_comes_from_layers(source),
         "normal_texture_strength": max(
             0.0,
             float(getattr(source, "preview_normal_texture_strength", 0.0) or 0.0),
@@ -1182,6 +1195,7 @@ def _synthesize_dotnet_material_channels(
                 preserve_texture_orientation=True,
                 requested_output_channels=normalized_requested_outputs,
                 base_output_available=not base_output_requested,
+                layered_base_only=_source_base_comes_from_layers(source),
             ),
             cancelled=cancelled,
         )
