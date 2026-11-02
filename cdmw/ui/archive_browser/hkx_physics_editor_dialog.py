@@ -134,10 +134,12 @@ def overview_text(session: HkxPhysicsSession) -> str:
         )
     elif session.kind == KIND_COLLISION:
         lead = translate_active_ui_text(
-            "Collision shapes for an item or world object. Use Collision to give it the collision of another file. Changing the shapes themselves is not supported yet."
+            "Collision shapes for an item or world object. The one change available for this kind of file is to give it the whole collision of another file, on the Collision tab; the shapes themselves cannot be moved, resized or edited yet. Joint limits and stiffness are edited in ragdoll files under character/bin__/havokphysics."
         )
     else:
-        lead = translate_active_ui_text("This HKX file has no physics that CDMW can edit.")
+        lead = translate_active_ui_text(
+            "This HKX file has nothing CDMW can edit yet. Joint limits and stiffness are edited in ragdoll files under character/bin__/havokphysics."
+        )
     tail = translate_active_ui_text(
         "Saving writes a separate HKX file or a DMM mod folder; the game archives are never changed. Edited physics has not been tested in game, so keep a copy of the original mod and test one change at a time."
     )
@@ -215,7 +217,16 @@ class HkxPhysicsEditorDialog(QDialog):
         self.overview_label.setWordWrap(True)
         self.overview_label.setTextFormat(Qt.TextFormat.PlainText)
         page_layout.addWidget(self.overview_label)
-        if self.session.editable:
+        steps = None
+        if self.session.editable and self.session.kind == KIND_COLLISION:
+            steps = QLabel(
+                "How to make a mod:\n"
+                "1. On the Collision tab, click Use Another File's Collision and pick the file whose collision you want.\n"
+                "2. Click Save as DMM Mod and choose a folder and a mod name.\n"
+                "3. In DMM, enable the mod and click Mount, then test it in game.\n"
+                "4. To undo it, disable the mod in DMM."
+            )
+        elif self.session.editable and (self.session.editable_joint_count or self.session.names):
             steps = QLabel(
                 "How to make a mod:\n"
                 "1. Change values on the other tabs. The shipped value is shown next to each one.\n"
@@ -223,12 +234,15 @@ class HkxPhysicsEditorDialog(QDialog):
                 "3. In DMM, enable the mod and click Mount, then test it in game.\n"
                 "4. To undo it, disable the mod in DMM."
             )
+        if steps is not None:
             steps.setWordWrap(True)
             steps.setTextFormat(Qt.TextFormat.PlainText)
             page_layout.addWidget(steps)
         facts = QFormLayout()
-        facts.addRow(QLabel("Joints:"), QLabel(str(len(self.session.joints))))
-        facts.addRow(QLabel("Renameable names:"), QLabel(str(len(self.session.names))))
+        if self.session.joints:
+            facts.addRow(QLabel("Joints:"), QLabel(str(len(self.session.joints))))
+        if self.session.names:
+            facts.addRow(QLabel("Renameable names:"), QLabel(str(len(self.session.names))))
         if self.session.collision is not None:
             pieces = ", ".join(f"{shape_class_text(name)}: {count}" for name, count in self.session.collision.pieces)
             facts.addRow(QLabel("Collision pieces:"), QLabel(pieces or "-"))

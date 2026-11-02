@@ -32407,6 +32407,16 @@
       ]
     },
     {
+      "key": "Collision file search cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 78,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "Collision input selection cancelled; preview inputs are unchanged.",
       "origins": [
         {
@@ -32467,7 +32477,7 @@
       ]
     },
     {
-      "key": "Collision shapes for an item or world object. Use Collision to give it the collision of another file. Changing the shapes themselves is not supported yet.",
+      "key": "Collision shapes for an item or world object. The one change available for this kind of file is to give it the whole collision of another file, on the Collision tab; the shapes themselves cannot be moved, resized or edited yet. Joint limits and stiffness are edited in ragdoll files under character/bin__/havokphysics.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
@@ -55577,6 +55587,16 @@
       ]
     },
     {
+      "key": "Finding collision files like {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 146,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
       "key": "Finding exact authored appearances...",
       "origins": [
         {
@@ -65327,6 +65347,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
           "line": 219,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "How to make a mod:\n1. On the Collision tab, click Use Another File's Collision and pick the file whose collision you want.\n2. Click Save as DMM Mod and choose a folder and a mod name.\n3. In DMM, enable the mod and click Mount, then test it in game.\n4. To undo it, disable the mod in DMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 222,
           "sink": "QLabel"
         }
       ]
@@ -160822,7 +160852,7 @@
       ]
     },
     {
-      "key": "This HKX file has no physics that CDMW can edit.",
+      "key": "This HKX file has nothing CDMW can edit yet. Joint limits and stiffness are edited in ragdoll files under character/bin__/havokphysics.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
