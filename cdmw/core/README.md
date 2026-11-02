@@ -63,6 +63,12 @@ an `HkxTagfileRefused` code rather than rebuilt. Use
 `tools/hkx_tagfile_corpus_harness.py` to recheck the installed corpus after a game
 update before trusting the tables.
 
+`archive_hkx_joint_limits.py` reads and writes ragdoll and physics-system joint
+limits. Limits are found by Havok constraint atom type at the offsets every
+shipped constraint uses; cone and plane limits also recompute their cached
+`1/cos` and `tan` values, and edits stay inside the angle ranges where that
+rule matches the game's values. These are in-place edits.
+
 `archive_hkx_structural_edits.py` holds the structural edits built on it. Only
 string replacement is allowed: a `char` item reached solely through
 `hkStringPtr` may change length, and every owner of a shared string sees the

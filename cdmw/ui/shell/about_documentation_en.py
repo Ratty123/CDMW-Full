@@ -381,7 +381,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                   <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
                   <tr><td>Mesh Actions</td><td>Inspection, export, and direct mesh authoring.</td><td>Open in Mesh Editor, export OBJ/FBX and dependencies, inspect references, and keep unrelated HKX/placement workflows separate.</td></tr>
-                  <tr><td>Placement &amp; Animations</td><td>Equipment placement and animation review.</td><td>Open the dedicated workspace from Authoring. HKX actions are temporarily absent from the Tools and file context menus; read-only inspection remains available.</td></tr>
+                  <tr><td>Placement &amp; Animations</td><td>Equipment placement and animation review.</td><td>Open the dedicated workspace from Authoring. HKX physics files open in the HKX Physics Editor from the Tools menu or the file's context menu.</td></tr>
                 </table>
                 <ul>
                   <li>Scan package roots and cache the discovered archive index locally.</li>
@@ -639,6 +639,30 @@ class AboutDocumentationEnglishMixin:
                   <li>Open DDS analysis, reports, references, and local notes.</li>
                   <li>Review planner/path/profile summaries and family-level context before committing to risky workflow overrides.</li>
                 </ul>
+                """,
+            },
+            {
+                "id": "hkx_physics_editor",
+                "title": "HKX Physics Editor",
+                "summary": "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.",
+                "keywords": "hkx havok physics ragdoll joint limit bend twist swing stiffness friction collision rename dmm mod",
+                "html": """
+                <p>HKX Physics Editor shows a Havok physics file in plain terms and saves your changes as a DMM mod. Select an HKX file in Archive Browser, then choose Tools &gt; Physics / HKX &gt; Edit HKX Physics, or use the file's context menu.</p>
+                <table>
+                  <tr><th>Tab</th><th>What you can change</th></tr>
+                  <tr><td>Overview</td><td>What the file is, how many joints and names it has, and the steps to make a mod.</td></tr>
+                  <tr><td>Joints</td><td>How far each ragdoll or physics-system joint bends, twists and swings, in degrees, and how stiff it is. The stiffness of every joint can be scaled at once.</td></tr>
+                  <tr><td>Names</td><td>Body, bone and joint names, at any length.</td></tr>
+                  <tr><td>Collision</td><td>An item or object can take the whole collision file of another one of the same kind.</td></tr>
+                </table>
+                <h4>Make a ragdoll mod</h4>
+                <ol>
+                  <li>Select a file in the character/bin__/havokphysics folder and open the editor.</li>
+                  <li>Pick a joint on the Joints tab and change its values. The shipped value is shown next to each one.</li>
+                  <li>Click Save as DMM Mod, choose a folder and a name, then enable the mod in DMM and click Mount.</li>
+                  <li>Test it in game and change one thing at a time.</li>
+                </ol>
+                <div class="doc-callout doc-warning"><b>Limits:</b> edited physics has not been tested in game. Collision shapes cannot be resized or edited one by one, and bodies, joints or cloth cannot be added; no HKX file contains cloth. Renaming a file section, skeleton or bone can stop a file from working. Saving never changes the game archives.</div>
                 """,
             },
             {

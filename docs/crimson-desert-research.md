@@ -1318,18 +1318,36 @@ Structural rebuild review, 2026-11-02, read-only against every installed HKX
   lengthening and restoring all 24,618 replaceable strings (358 files). It refuses two files: a wagon with a legacy
   compressed mesh and a quiver with an `hknpShapeSignals` record, both reached
   through fields the table does not list.
-- **Allowed edit.** Strings reached only through `hkStringPtr` (bone, body, variant
+- **Allowed edits.** Strings reached only through `hkStringPtr` (bone, body, variant
   and source names) may change length; shared strings change for every owner.
+  Joint limits are edited in place. In all 945 hinges and 2,135 of 2,137 ragdoll
+  constraints, each Havok constraint atom (friction 17, angle limit 14, twist 15,
+  cone/plane 16) sits at the same offset, so limits are located by atom type, not
+  by value. Cone and plane limits also cache `1/cos` and `tan` of their angles;
+  that rule matches all 11,058 regular cached values within 10 float32 ulps (most
+  within 0), while 0, 90 and 180 degrees use clamped or sentinel values, so edits
+  stay within 1 to 85 and 95 to 179 degrees. A sweep over the 359 physics files
+  changed each of 14,599 editable values once: each read back and changed no byte
+  outside its constraint record. Constraint infos name both bodies (+8 child, +16
+  parent) and the joint itself (+32), so every joint is shown by body names.
+- **Collision swap.** A collision file can be replaced as a whole by another
+  shipped file with the same root class and patch layout; no derived data changes.
 - **Blocked edits.** A generated convex hull needs each face's `minHalfAngle`.
   Taking it from the smallest angle between adjacent face normals reproduces the
   shipped byte for about half of 80,000 sampled faces, so hull generation is
   refused. Hulls also carry two header tolerances and packed mass properties; in
   the sampled hulls the stored volume exceeds the polyhedron's own volume. Compound children need the
-  instance SIMD tree and compound mass properties rebuilt. Ragdoll bodies,
-  constraints and mesh shapes have the same kind of unreproduced derived data.
+  instance SIMD tree and compound mass properties rebuilt. Uniform scaling of a
+  hull was checked for a precedent: no hull in a third of the corpus (648,233
+  distinct topologies) is a scaled copy of another, so how the header tolerances
+  and mass properties scale stays unproven and scaling stays blocked. Ragdoll
+  bodies, constraint frames, motors and mesh shapes have the same kind of
+  unreproduced derived data.
 
-The review is archive inspection and corpus round-trip evidence. A renamed string
-has not been loaded in game, and game code may look bones or bodies up by name.
+The review is archive inspection and corpus round-trip evidence. No edited joint,
+renamed string or swapped collision file has been loaded in game, and game code
+may look bones or bodies up by name. The HKX Physics Editor in Archive Browser
+offers exactly these edits.
 [Codec tests](../tests/test_hkx_tagfile_rebuild.py) cover the rebuild, relocation,
 string edits and every refusal on owned fixtures.
 
@@ -1379,6 +1397,7 @@ movement remain unverified by this review.
 Sources: [native HKX scope][hkx], [HKX edit gate][hkx-gate],
 [template physics restrictions][independent-items],
 [tagfile layout table](../cdmw/core/archive_hkx_tagfile_layout.py),
+[joint limits](../cdmw/core/archive_hkx_joint_limits.py),
 [structural edits](../cdmw/core/archive_hkx_structural_edits.py).
 
 ## 7. Animation, placement and rig behaviour

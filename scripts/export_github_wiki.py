@@ -38,7 +38,7 @@ PAGE_TOPICS = {
     "Home": ("overview", "safety"),
     "Getting-Started": ("first_run_checklist",),
     "Tools-and-Navigation": ("documentation_index",),
-    "Archive-Browser": ("archive_browser", "archive_guides"),
+    "Archive-Browser": ("archive_browser", "archive_guides", "hkx_physics_editor"),
     "Create-New-Item": ("new_item_studio",),
     "Mesh-Editor": ("mesh_editor",),
     "Textures": (
@@ -109,6 +109,7 @@ _CONTROLS = (
     "Drafts & Mods", "Continue Editing", "Delete...", "Remove from List...",
     "Add Mod Folder...", "Choose a Draft...", "Name Draft...", "New Project...", "Move to Project...",
     "Duplicate...", "Save Changes", "Include the body", "Add item packages", "Launch game", "Item identities",
+    "Save as DMM Mod", "Edit HKX Physics",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(

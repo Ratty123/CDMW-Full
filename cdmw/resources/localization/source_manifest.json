@@ -1547,6 +1547,16 @@
       ]
     },
     {
+      "key": "'{value_0}' -> '{value_1}'",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 583,
+          "sink": "python-return:show_saved"
+        }
+      ]
+    },
+    {
       "key": "(identity — at the parent bone)",
       "origins": [
         {
@@ -1693,6 +1703,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 431,
           "sink": "_muted_label"
+        }
+      ]
+    },
+    {
+      "key": "* {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 464,
+          "sink": "setText"
         }
       ]
     },
@@ -4182,6 +4202,16 @@
       ]
     },
     {
+      "key": "A minimum is above its maximum. Fix it before saving: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 527,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "A mod archive payload is outside its package.",
       "origins": [
         {
@@ -4318,6 +4348,16 @@
           "path": "cdmw/ui/shell/error_reference.py",
           "line": 61,
           "sink": "python-data:CODE_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "A physics system such as a rope, chain or moving part, with {value_0} joints ({value_1} adjustable). Use Joints to change their limits and stiffness.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 132,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -9157,6 +9197,16 @@
       ]
     },
     {
+      "key": "An item or object can take the whole collision file of another one of the same kind.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy of this prefab and refuses to load after a game update changes that copy. Adding the edit to an existing item package lets the prefab use a mesh that package's item adds.\n\nA loose folder holds game-relative files for another mod manager.\n\nPrefab editing is new and has not yet been confirmed to load in game. Your game files are untouched either way, so if anything misbehaves, disable the mod in your manager and delete that package - that is the whole of the fix.",
       "origins": [
         {
@@ -11253,6 +11303,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 4254,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Apply to All Joints",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 257,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -17262,6 +17322,16 @@
       ]
     },
     {
+      "key": "Ball joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 62,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Band",
       "origins": [
         {
@@ -17763,6 +17833,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 6348,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bend maximum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 73,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Bend minimum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 72,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -18667,6 +18757,16 @@
       ]
     },
     {
+      "key": "Body, bone and joint names, at any length.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Body-shape following %",
       "origins": [
         {
@@ -19048,6 +19148,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 329,
           "sink": "MeshEditorAction"
+        }
+      ]
+    },
+    {
+      "key": "Boxes",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 111,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -21777,6 +21887,16 @@
       ]
     },
     {
+      "key": "CDMW cannot rebuild this file safely, so it opens read-only. Reason: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 122,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "CDMW capture requires --capture-output <bmp>",
       "origins": [
         {
@@ -23862,6 +23982,16 @@
       ]
     },
     {
+      "key": "Capsules",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 112,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Capture and comparison diagnostics",
       "origins": [
         {
@@ -24713,6 +24843,31 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 4719,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_controls.py",
+          "line": 210,
+          "sink": "_set_action_button_state"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 498,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_layout.py",
+          "line": 270,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -26572,6 +26727,21 @@
       ]
     },
     {
+      "key": "Checking {value_0} as replacement collision...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 129,
+          "sink": "log"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 143,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
       "key": "Checking {value_0} with the prefab edit against the installed game...",
       "origins": [
         {
@@ -26768,6 +26938,16 @@
           "path": "cdmw/ui/model_library/actions.py",
           "line": 153,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Choose Collision File",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 152,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -31092,6 +31272,16 @@
       ]
     },
     {
+      "key": "Click Save as DMM Mod, choose a folder and a name, then enable the mod in DMM and click Mount.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Click a column heading to sort. Hover over a package to see its full path.",
       "origins": [
         {
@@ -32087,6 +32277,21 @@
       ]
     },
     {
+      "key": "Collision",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 363,
+          "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Collision Editor",
       "origins": [
         {
@@ -32182,6 +32387,16 @@
       ]
     },
     {
+      "key": "Collision copied from {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 580,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Collision editor row limit reached; use XML / Raw for remaining values.",
       "origins": [
         {
@@ -32222,6 +32437,16 @@
       ]
     },
     {
+      "key": "Collision pieces:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 234,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Collision plane component.",
       "origins": [
         {
@@ -32238,6 +32463,16 @@
           "path": "cdmw/services/mesh_rust_jiggle.py",
           "line": 375,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Collision shapes for an item or world object. Use Collision to give it the collision of another file. Changing the shapes themselves is not supported yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 136,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -35048,6 +35283,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 167,
           "sink": "_add_collision_value_item"
+        }
+      ]
+    },
+    {
+      "key": "Convex hulls",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 110,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -38818,6 +39063,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 330,
           "sink": "MeshEditorAction"
+        }
+      ]
+    },
+    {
+      "key": "Cylinders",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 114,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -45283,6 +45538,21 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 677,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Edit HKX Physics...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 497,
+          "sink": "addAction"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_layout.py",
+          "line": 269,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -53922,6 +54192,16 @@
       ]
     },
     {
+      "key": "File section",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 101,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "File set",
       "origins": [],
       "manual": true
@@ -54402,6 +54682,16 @@
       ]
     },
     {
+      "key": "Filter by path, for example sword_0109",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 159,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Filter by path, package, folder, likely role, size, and previewability, then switch between flat and tree browsing as needed.",
       "origins": [
         {
@@ -54497,6 +54787,16 @@
         {
           "path": "cdmw/ui/item_icons/tab.py",
           "line": 419,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Filter joints",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 267,
           "sink": "setPlaceholderText"
         }
       ]
@@ -56308,6 +56608,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 555,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Fixed joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 63,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -58353,6 +58663,16 @@
           "path": "cdmw/services/mesh_service.py",
           "line": 1450,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Free hinge",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 61,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -61417,6 +61737,16 @@
       ]
     },
     {
+      "key": "HKX File Saved",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 232,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "HKX Files",
       "origins": [
         {
@@ -61488,6 +61818,86 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 473,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Editor",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 203,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 524,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Editor - {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 171,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Editor cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 83,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Editor shows a Havok physics file in plain terms and saves your changes as a DMM mod. Select an HKX file in Archive Browser, then choose Tools > Physics / HKX > Edit HKX Physics, or use the file's context menu.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Editor: nothing was saved ({value_0})",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 200,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 242,
+          "sink": "_collect_archive_mod_ready_export_target"
+        }
+      ]
+    },
+    {
+      "key": "HKX Physics Mod Saved",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 279,
+          "sink": "information"
         }
       ]
     },
@@ -61692,6 +62102,26 @@
       ]
     },
     {
+      "key": "HKX files",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 210,
+          "sink": "getSaveFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "HKX files (*.hkx)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 210,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "HKX import",
       "origins": [
         {
@@ -61702,12 +62132,32 @@
       ]
     },
     {
+      "key": "HKX mod export cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 260,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "HKX readiness: fixed-size CDMW patch rows only; Havok-style XML is read-only.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 414,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "HKX save cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 221,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -64092,6 +64542,16 @@
       ]
     },
     {
+      "key": "Hinge",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 60,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Hint",
       "origins": [],
       "manual": true
@@ -64587,6 +65047,16 @@
       ]
     },
     {
+      "key": "How far each ragdoll or physics-system joint bends, twists and swings, in degrees, and how stiff it is. The stiffness of every joint can be scaled at once.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "How far each turn moves it. Only used by Rotate and Tilt.",
       "origins": [
         {
@@ -64607,12 +65077,42 @@
       ]
     },
     {
+      "key": "How far the limb can swing away from its rest direction, in degrees.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 89,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "How far the limb can twist around its own length, in degrees.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 87,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "How far the weapon sinks into the body at the current frame.",
       "origins": [
         {
           "path": "tools/placement_studio/glossary.py",
           "line": 133,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "How far this hinge bends, in degrees. A knee or elbow moves between the minimum and the maximum.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 85,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -64782,6 +65282,16 @@
       ]
     },
     {
+      "key": "How strongly the joint resists moving. Higher values make the limb stiffer; 0 lets it swing freely.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 92,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "How strongly the selected parts glow. Shipped emissive equipment commonly uses 1 to 10; the format limit is 20.",
       "origins": [
         {
@@ -64808,6 +65318,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 131,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "How to make a mod:\n1. Change values on the other tabs. The shipped value is shown next to each one.\n2. Click Save as DMM Mod and choose a folder and a mod name.\n3. In DMM, enable the mod and click Mount, then test it in game.\n4. To undo it, disable the mod in DMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 219,
+          "sink": "QLabel"
         }
       ]
     },
@@ -73002,6 +73522,21 @@
       ]
     },
     {
+      "key": "Joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 99,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 271,
+          "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Joint Strength",
       "origins": [
         {
@@ -73018,6 +73553,31 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 619,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Joints",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 303,
+          "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Joints:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 230,
+          "sink": "QLabel"
         }
       ]
     },
@@ -73077,6 +73637,16 @@
         {
           "path": "cdmw/ui/archive_browser/static_replacement_texture_dialogs.py",
           "line": 71,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Keep Original Collision",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 353,
           "sink": "QPushButton"
         }
       ]
@@ -75433,6 +76003,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 25,
           "sink": "python-data:WRITE_LABELS"
+        }
+      ]
+    },
+    {
+      "key": "Limits:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -78620,6 +79200,16 @@
       "key": "Maintenance",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Make a ragdoll mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
     },
     {
       "key": "Malformed replacement draft state.",
@@ -88337,6 +88927,16 @@
       ]
     },
     {
+      "key": "Multiplies each joint's shipped friction. Below 1 makes the ragdoll looser, above 1 stiffer.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 255,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Multiplies the colour texture. Its alpha, kept from the source, scales coverage. Unchecked: retain the authored colour, or white.",
       "origins": [
         {
@@ -88867,6 +89467,16 @@
       ]
     },
     {
+      "key": "Name in file: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 397,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Name in list",
       "origins": [
         {
@@ -89243,6 +89853,21 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 358,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Names",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 332,
+          "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -90457,6 +91082,16 @@
       ]
     },
     {
+      "key": "New name",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 317,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "New point…",
       "origins": [
         {
@@ -91463,6 +92098,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 616,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No changes yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 543,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -93268,6 +93913,16 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 265,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "No other collision files of this kind are in the scanned archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 122,
+          "sink": "information"
         }
       ]
     },
@@ -96217,6 +96872,16 @@
       ]
     },
     {
+      "key": "Nothing was saved. CDMW refused the change: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 206,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Nothing was written. These changes fall outside what the selected operation(s) declared:",
       "origins": [
         {
@@ -98967,7 +99632,7 @@
       ]
     },
     {
-      "key": "Open the dedicated workspace from Authoring. HKX actions are temporarily absent from the Tools and file context menus; read-only inspection remains available.",
+      "key": "Open the dedicated workspace from Authoring. HKX physics files open in the HKX Physics Editor from the Tools menu or the file's context menu.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -99597,6 +100262,16 @@
       ]
     },
     {
+      "key": "Opened the HKX Physics Editor for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 96,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Opened {value_0} URL in your browser. Save it locally, then scan its folder from Local Folders.",
       "origins": [
         {
@@ -99783,6 +100458,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 131,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Opening the HKX Physics Editor for {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 98,
+          "sink": "_run_utility_task"
         }
       ]
     },
@@ -106668,6 +107353,26 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 777,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Pick a joint on the Joints tab and change its values. The shipped value is shown next to each one.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Pick a joint to see its limits. Angles are in degrees. Changed joints are marked with an asterisk.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 242,
+          "sink": "QLabel"
         }
       ]
     },
@@ -116427,12 +117132,42 @@
       ]
     },
     {
+      "key": "Ragdoll",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 103,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Ragdoll body inspection",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 621,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Ragdoll joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 59,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Ragdoll physics for a character, with {value_0} joints ({value_1} adjustable). Use Joints to change how far each joint bends, twists and swings, and how stiff it is.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 128,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -117633,6 +118368,16 @@
           "path": "cdmw/services/new_item_snapshot.py",
           "line": 779,
           "sink": "_log_progress"
+        }
+      ]
+    },
+    {
+      "key": "Reading {value_0} for the HKX Physics Editor...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 81,
+          "sink": "log"
         }
       ]
     },
@@ -122607,6 +123352,16 @@
       ]
     },
     {
+      "key": "Renameable names:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 231,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Render Diagnostics",
       "origins": [
         {
@@ -125022,6 +125777,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 199,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Reset This Joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 295,
           "sink": "QPushButton"
         }
       ]
@@ -131277,12 +132042,32 @@
       ]
     },
     {
+      "key": "Save Edited HKX File",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 210,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "Save Edited Structured Sidecar Copy",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 366,
           "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
+      "key": "Save HKX File...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 195,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -131403,6 +132188,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 100,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Save as DMM Mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 198,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -132032,6 +132827,26 @@
       ]
     },
     {
+      "key": "Saved the edited HKX file for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 230,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Saved to {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 571,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Saved with Build PAC and drafts. In-game collision activation remains unverified.",
       "origins": [
         {
@@ -132202,12 +133017,42 @@
       ]
     },
     {
+      "key": "Saving the edited HKX file for {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 234,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
       "key": "Saving theme setting",
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
           "line": 551,
           "sink": "_queue_appearance_apply_step"
+        }
+      ]
+    },
+    {
+      "key": "Saving uses the collision of {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 505,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Saving writes a separate HKX file or a DMM mod folder; the game archives are never changed. Edited physics has not been tested in game, so keep a copy of the original mod and test one change at a time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 141,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -134537,6 +135382,16 @@
       ]
     },
     {
+      "key": "Select HKX Mod Export Folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 242,
+          "sink": "_collect_archive_mod_ready_export_target"
+        }
+      ]
+    },
+    {
       "key": "Select HKX Mod-Ready Export Parent Root",
       "origins": [
         {
@@ -134937,6 +135792,16 @@
       ]
     },
     {
+      "key": "Select a Crimson Desert .hkx archive entry to edit its physics.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 71,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Select a Crimson Desert .hkx/.hkt archive entry before importing HKX JSON.",
       "origins": [
         {
@@ -135283,6 +136148,16 @@
           "path": "cdmw/ui/research/archive_picker_controller.py",
           "line": 332,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Select a file in the character/bin__/havokphysics folder and open the editor.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -141092,6 +141967,16 @@
       ]
     },
     {
+      "key": "Shipped: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 410,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Ships",
       "origins": [],
       "manual": true
@@ -142767,6 +143652,16 @@
       ]
     },
     {
+      "key": "Showing {value_0} of {value_1} matching files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 183,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Showing {value_0} row(s).",
       "origins": [
         {
@@ -143053,6 +143948,26 @@
           "path": "cdmw/services/mesh_service_morph_layers.py",
           "line": 191,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Side swing maximum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 78,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Side swing minimum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 77,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -146757,6 +147672,16 @@
       ]
     },
     {
+      "key": "Spheres",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 113,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Spine2_B_Back_ChildSocket",
       "origins": [
         {
@@ -148557,6 +149482,26 @@
       ]
     },
     {
+      "key": "Stiffness (friction)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 79,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Stiffness of every joint:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 248,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Still",
       "origins": [
         {
@@ -149832,6 +150777,16 @@
       ]
     },
     {
+      "key": "Swing",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 76,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Switch",
       "origins": [
         {
@@ -150063,6 +151018,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 125,
           "sink": "Guide"
+        }
+      ]
+    },
+    {
+      "key": "Tab",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -151518,6 +152483,16 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 120,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Test it in game and change one thing at a time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -155372,6 +156347,16 @@
       ]
     },
     {
+      "key": "The game archives were not changed. Test the result in game before sharing it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 582,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "The game build changed. Check compatibility again.",
       "origins": [
         {
@@ -156623,6 +157608,16 @@
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 192,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The original collision is kept.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 503,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -158647,6 +159642,16 @@
       ]
     },
     {
+      "key": "The swing range across the joint, in degrees; 90 degrees is straight.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 91,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "The template archive source changed. Refresh the archives.",
       "origins": [
         {
@@ -159817,6 +160822,16 @@
       ]
     },
     {
+      "key": "This HKX file has no physics that CDMW can edit.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 140,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "This PAC has no existing cloth bindings.",
       "origins": [
         {
@@ -160217,12 +161232,32 @@
       ]
     },
     {
+      "key": "This file cannot be used: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 139,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "This file could not be read as a prefab: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 251,
           "sink": "python-return:_banner_text"
+        }
+      ]
+    },
+    {
+      "key": "This file holds: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 346,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -160453,6 +161488,16 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 669,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This joint type has no adjustable limits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 395,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -161848,6 +162893,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 585,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "To give this item or object the collision of another one, choose a collision file of the same kind. The whole file is copied as shipped, so its shapes stay valid; the copy keeps the other file's outline.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 337,
+          "sink": "QLabel"
         }
       ]
     },
@@ -163287,6 +164342,26 @@
       "manual": true
     },
     {
+      "key": "Triangle meshes",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 116,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Triangles",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 115,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Tribe",
       "origins": [
         {
@@ -163722,6 +164797,26 @@
       ]
     },
     {
+      "key": "Twist maximum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 75,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Twist minimum",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 74,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Two hypotheses are dead: width from the element type in the type table (circular, kind 7 declares the generic ReflectObjectPtr) and width from member metadata (refuted by the telemetry). The discriminator is upstream in component selection, and it is not the mask arithmetic. At every one of 247 sampled component-selection failures the file states no type index (type_index out of range, 100%), so the walk is guessing by declaration order. The masks themselves look explicable: strip the top set bit and all of them fit the members available -- 0x0110 needs 5 against 5, 0x091a needs 9 against 11, 0x0100 needs 0 against 8. ",
       "origins": [
         {
@@ -163837,6 +164932,16 @@
       ]
     },
     {
+      "key": "Type a new name in the right-hand column. The game looks some of these names up, so a renamed file section, skeleton or bone can stop the file from working. Rename only to match a bone you renamed elsewhere.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 310,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Type at least 2 characters, or add a loose donor folder. Indexed search starts from cached names and Item Finder rows.",
       "origins": [
         {
@@ -163883,6 +164988,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_widgets.py",
           "line": 63,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Type part of an item or folder name, then pick the file whose collision you want.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 155,
+          "sink": "QLabel"
         }
       ]
     },
@@ -165108,6 +166223,16 @@
           "path": "cdmw/services/independent_item_install.py",
           "line": 467,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unknown joint",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 66,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -167157,6 +168282,31 @@
       ]
     },
     {
+      "key": "Use Another File's Collision",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 122,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 139,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Use Another File's Collision...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 350,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Use Another Original Mesh...",
       "origins": [],
       "manual": true
@@ -168613,6 +169763,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 527,
           "sink": "_render_index_search_results"
+        }
+      ]
+    },
+    {
+      "key": "Used for",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 317,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -172452,6 +173612,16 @@
       ]
     },
     {
+      "key": "What the file is, how many joints and names it has, and the steps to make a mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "What the viewport clears to. An effect adds its light to whatever is behind it, so it reads best on a dark backdrop; the grey is the one the Mesh Editor judges materials on, where a dark clear lets dark textures melt into it.",
       "origins": [
         {
@@ -172578,6 +173748,16 @@
           "path": "cdmw/ui/archive_browser/appearance_composite.py",
           "line": 239,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Wheel",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 64,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -174022,6 +175202,16 @@
       ]
     },
     {
+      "key": "Write a DMM mod folder that replaces this file in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 199,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Write a mod folder for DMM (Definitive Mod Manager).",
       "origins": [
         {
@@ -174257,6 +175447,16 @@
       ]
     },
     {
+      "key": "Write the edited file to a folder you choose.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 196,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Write the mod straight into DMM's mods folder. Then enable it in DMM and click Mount.",
       "origins": [
         {
@@ -174343,6 +175543,16 @@
           "path": "cdmw/workers/d3d11_package_workers.py",
           "line": 453,
           "sink": "_emit_progress"
+        }
+      ]
+    },
+    {
+      "key": "Writing an HKX physics mod for {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 281,
+          "sink": "_run_utility_task"
         }
       ]
     },
@@ -174637,6 +175847,16 @@
       ]
     },
     {
+      "key": "Wrote an HKX physics mod for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 277,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Wrote appearance armor swap loose package into:\n{value_0}",
       "origins": [
         {
@@ -174673,6 +175893,16 @@
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
           "line": 56,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Wrote edited HKX file {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
+          "line": 223,
+          "sink": "log"
         }
       ]
     },
@@ -178412,7 +179642,7 @@
       ]
     },
     {
-      "key": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate; the tagfile codec rebuilds 69,299 of 69,301 shipped files byte for byte from their item graph and relocates every reference, so strings can change length",
+      "key": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate; the tagfile codec rebuilds 69,299 of 69,301 shipped files byte for byte from their item graph and relocates every reference, so strings can change length; ragdoll joint limits and friction are located by constraint atom type and edited in the HKX Physics Editor",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -181062,6 +182292,16 @@
       ]
     },
     {
+      "key": "edited physics has not been tested in game. Collision shapes cannot be resized or edited one by one, and bodies, joints or cloth cannot be added; no HKX file contains cloth. Renaming a file section, skeleton or bone can stop a file from working. Saving never changes the game archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "editor={value_0}; record={value_1}; item={value_2}; offset={value_3}; effect={value_4}",
       "origins": [
         {
@@ -183703,6 +184943,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 35,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "hkx havok physics ragdoll joint limit bend twist swing stiffness friction collision rename dmm mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 628,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -198232,6 +199482,16 @@
       ]
     },
     {
+      "key": "{value_0} (breakable)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 67,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0} (current)",
       "origins": [
         {
@@ -199578,6 +200838,16 @@
           "path": "cdmw/services/mesh_service.py",
           "line": 1474,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} change(s) ready to save.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 543,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -204362,6 +205632,16 @@
       ]
     },
     {
+      "key": "{value_0}: {value_1} > {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 518,
+          "sink": "python-return:range_problem"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: {value_1} bones, {value_2} body sockets, {value_3} child sockets, {value_4} weapon file(s)",
       "origins": [
         {
@@ -204438,6 +205718,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 1311,
           "sink": "note"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: {value_1} {value_2} -> {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
+          "line": 583,
+          "sink": "python-return:show_saved"
         }
       ]
     },

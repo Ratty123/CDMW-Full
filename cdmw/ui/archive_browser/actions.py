@@ -492,6 +492,14 @@ class ArchiveBrowserActionMixin:
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
             continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 
+        if str(entry.extension or "").lower() == ".hkx":
+            _add_menu_section("physics", "Physics / HKX")
+            physics_editor_action = menu.addAction(menu_icons["physics"], "Edit HKX Physics...")
+            physics_editor_action.setToolTip("Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.")
+            physics_editor_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._open_hkx_physics_editor_for_entry(current_entry)
+            )
+
         if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")
             inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")
