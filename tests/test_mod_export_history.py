@@ -27,15 +27,16 @@ def _package(root):
     (root / "new-item.json").write_text('{"item_key": 1990001}')
     evidence = compatibility_from_payloads({"character/model.pac": b"new"}, {"character/model.pac": b"old"})
     write_compatibility(root, evidence)
+    assert not (root / "cdmw-compatibility.json").exists() and not (root / "cdmw-baseline.zip").exists()
     return evidence
 
 
 def test_history_survives_folder_rename_and_copy_but_never_payload_edits(tmp_path):
     package = tmp_path / "mod"
     evidence = _package(package)
-    before = {name: (package / name).read_bytes() for name in HISTORY_FILES}
+    before = {name: mod_metadata_path(package, name).read_bytes() for name in HISTORY_FILES}
     removed = retain_dmm_history(package)
-    assert set(removed) == {*HISTORY_FILES, "meta/0.papgt"}
+    assert set(removed) == {"new-item.json", "meta/0.papgt"}
     assert {p.relative_to(package).as_posix() for p in package.rglob("*") if p.is_file()} == {
         "0045/0.pamt", "0045/0.paz", "meta/0.pathc", "manifest.json", "modinfo.json", "README.txt"}
     assert (package / "meta/0.pathc").read_bytes() == b"texture registrations"
@@ -160,3 +161,27 @@ def test_changed_local_history_invalidates_prepared_work(tmp_path, operation):
     metadata.write_bytes(metadata.read_bytes() + b"changed history")
     with pytest.raises((ValueError, StaleNewItemSource), match="changed|changed history"):
         pending.validate()
+
+
+def test_no_export_route_ships_authoring_records(tmp_path):
+    """DMM reads every file a mod ships; CDMW's records must never be among them."""
+    from cdmw.core.archive_loose_export import export_archive_payloads_to_mod_ready_loose
+    from cdmw.domain.archives.mutation import ArchivePatchRequest
+    from cdmw.models import ArchiveEntry, ModPackageInfo
+    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+
+    group = tmp_path / "game" / "0008"
+    group.mkdir(parents=True)
+    paz = group / "0.paz"
+    paz.write_bytes(b"original chart")
+    entry = ArchiveEntry("actionchart/bin__/upperaction/test.paac", group / "0.pamt", paz, 0, 14, 14, 0, 0)
+    request = ArchivePatchRequest(entry, b"edited chart bytes")
+    loose = export_archive_payloads_to_mod_ready_loose(
+        [request], parent_root=tmp_path / "loose", package_info=ModPackageInfo(title="Loose"))
+    overlay = tmp_path / "overlay"
+    export_archive_overlay_package([request], package_root=overlay, group="0040")
+    for root in (loose.package_root, overlay):
+        shipped = {path.name for path in root.rglob("*") if path.is_file()}
+        assert not shipped & {*HISTORY_FILES, "mesh-editor-session.json"}, shipped
+        evidence = read_compatibility(root)
+        assert evidence is not None and evidence.originals == {"actionchart/bin__/upperaction/test.paac": b"original chart"}

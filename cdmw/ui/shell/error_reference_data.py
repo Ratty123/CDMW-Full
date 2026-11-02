@@ -34073,7 +34073,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 797
+      "cdmw/services/new_item_service.py": 799
     }
   },
   {
@@ -72468,7 +72468,7 @@ MESSAGE_REFERENCE = [
     "message": "A semantic export requires its single opaque .cditem wrapper; extra or linked files refuse.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 321
+      "cdmw/core/mod_compatibility.py": 338
     }
   },
   {
@@ -72644,7 +72644,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous or oversized compatibility metadata in ZIP package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 216
+      "cdmw/core/mod_compatibility.py": 233
     }
   },
   {
@@ -73526,7 +73526,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_export_history.py": 69
+      "cdmw/core/mod_export_history.py": 171
     }
   },
   {
@@ -74655,7 +74655,7 @@ MESSAGE_REFERENCE = [
     "message": "Contradictory or duplicate semantic export contributor identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 508
+      "cdmw/core/mod_compatibility.py": 525
     }
   },
   {
@@ -75367,7 +75367,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or invalid mod baseline record.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 264
+      "cdmw/core/mod_compatibility.py": 281
     }
   },
   {
@@ -75375,7 +75375,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or oversized semantic export entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 463
+      "cdmw/core/mod_compatibility.py": 480
     }
   },
   {
@@ -75399,7 +75399,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 342
+      "cdmw/core/mod_compatibility.py": 359
     }
   },
   {
@@ -75407,7 +75407,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export payload path or invalid flags.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 567
+      "cdmw/core/mod_compatibility.py": 584
     }
   },
   {
@@ -75415,7 +75415,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate semantic export source path.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 540
+      "cdmw/core/mod_compatibility.py": 557
     }
   },
   {
@@ -77238,7 +77238,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline archive members.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 256
+      "cdmw/core/mod_compatibility.py": 273
     }
   },
   {
@@ -77246,7 +77246,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline archive path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 243
+      "cdmw/core/mod_compatibility.py": 260
     }
   },
   {
@@ -77254,7 +77254,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline availability.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 267
+      "cdmw/core/mod_compatibility.py": 284
     }
   },
   {
@@ -77262,7 +77262,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 274
+      "cdmw/core/mod_compatibility.py": 291
     }
   },
   {
@@ -77270,7 +77270,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod baseline record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 261
+      "cdmw/core/mod_compatibility.py": 278
     }
   },
   {
@@ -77278,7 +77278,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod compatibility fields.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 241
+      "cdmw/core/mod_compatibility.py": 258
     }
   },
   {
@@ -77286,7 +77286,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 288
+      "cdmw/core/mod_compatibility.py": 305
     }
   },
   {
@@ -77294,7 +77294,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mod dependency records.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 284
+      "cdmw/core/mod_compatibility.py": 301
     }
   },
   {
@@ -77358,7 +77358,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or non-normalized semantic export path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 328
+      "cdmw/core/mod_compatibility.py": 345
     }
   },
   {
@@ -77366,7 +77366,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod compatibility metadata.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 236
+      "cdmw/core/mod_compatibility.py": 253
     }
   },
   {
@@ -77374,7 +77374,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod history file: {source}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 79
+      "cdmw/core/mod_export_history.py": 153
     }
   },
   {
@@ -77494,7 +77494,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export archive-index path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 331
+      "cdmw/core/mod_compatibility.py": 348
     }
   },
   {
@@ -77502,7 +77502,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 492
+      "cdmw/core/mod_compatibility.py": 509
     }
   },
   {
@@ -77510,7 +77510,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export contributor record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 500
+      "cdmw/core/mod_compatibility.py": 517
     }
   },
   {
@@ -77518,7 +77518,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game digest.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 489
+      "cdmw/core/mod_compatibility.py": 506
     }
   },
   {
@@ -77526,7 +77526,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export game identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 486
+      "cdmw/core/mod_compatibility.py": 503
     }
   },
   {
@@ -77534,7 +77534,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 548
+      "cdmw/core/mod_compatibility.py": 565
     }
   },
   {
@@ -77542,7 +77542,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export output record.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 564
+      "cdmw/core/mod_compatibility.py": 581
     }
   },
   {
@@ -77550,7 +77550,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export payload size or digest.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 352
+      "cdmw/core/mod_compatibility.py": 369
     }
   },
   {
@@ -77558,7 +77558,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 532
+      "cdmw/core/mod_compatibility.py": 549
     }
   },
   {
@@ -77566,7 +77566,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export source witness.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 536
+      "cdmw/core/mod_compatibility.py": 553
     }
   },
   {
@@ -77574,7 +77574,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid semantic export: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 584
+      "cdmw/core/mod_compatibility.py": 601
     }
   },
   {
@@ -78079,7 +78079,7 @@ MESSAGE_REFERENCE = [
     "message": "Linked semantic export files are unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 596
+      "cdmw/core/mod_compatibility.py": 613
     }
   },
   {
@@ -78367,7 +78367,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing or oversized mod baseline archive.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 246
+      "cdmw/core/mod_compatibility.py": 263
     }
   },
   {
@@ -78391,7 +78391,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required semantic export metadata.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 459
+      "cdmw/core/mod_compatibility.py": 476
     }
   },
   {
@@ -78399,7 +78399,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing semantic export source witnesses.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 528
+      "cdmw/core/mod_compatibility.py": 545
     }
   },
   {
@@ -78423,7 +78423,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline archive changed since export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 248
+      "cdmw/core/mod_compatibility.py": 265
     }
   },
   {
@@ -78431,7 +78431,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline archive exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 253
+      "cdmw/core/mod_compatibility.py": 270
     }
   },
   {
@@ -78439,7 +78439,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod baseline checksum mismatch: {path}",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 278
+      "cdmw/core/mod_compatibility.py": 295
     }
   },
   {
@@ -78463,7 +78463,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot follow a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 41
+      "cdmw/core/mod_export_history.py": 49
     }
   },
   {
@@ -78471,7 +78471,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot remove a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 95
+      "cdmw/core/mod_export_history.py": 178
     }
   },
   {
@@ -78896,7 +78896,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a CDMW history file: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 54
+      "cdmw/core/mod_export_history.py": 104
     }
   },
   {
@@ -79128,7 +79128,15 @@ MESSAGE_REFERENCE = [
     "message": "Oversized mod baseline in ZIP package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 220
+      "cdmw/core/mod_compatibility.py": 237
+    }
+  },
+  {
+    "area": "other",
+    "message": "Oversized mod history record: {name}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/mod_export_history.py": 148
     }
   },
   {
@@ -80313,7 +80321,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export baseline disagrees with its original source witness.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 576
+      "cdmw/core/mod_compatibility.py": 593
     }
   },
   {
@@ -80321,7 +80329,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export bindings do not match its contributors.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 521
+      "cdmw/core/mod_compatibility.py": 538
     }
   },
   {
@@ -80329,7 +80337,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contains undeclared or unreferenced entries.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 580
+      "cdmw/core/mod_compatibility.py": 597
     }
   },
   {
@@ -80337,7 +80345,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor bindings disagree with retained intent.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 525
+      "cdmw/core/mod_compatibility.py": 542
     }
   },
   {
@@ -80345,7 +80353,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributor checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 504
+      "cdmw/core/mod_compatibility.py": 521
     }
   },
   {
@@ -80353,7 +80361,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export contributors exceed the selected-package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 511
+      "cdmw/core/mod_compatibility.py": 528
     }
   },
   {
@@ -80361,7 +80369,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export dependencies disagree with original source witnesses.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 545
+      "cdmw/core/mod_compatibility.py": 562
     }
   },
   {
@@ -80369,7 +80377,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export failed final on-disk readback.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 683
+      "cdmw/core/mod_compatibility.py": 700
     }
   },
   {
@@ -80377,7 +80385,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game build changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 410
+      "cdmw/core/mod_compatibility.py": 427
     }
   },
   {
@@ -80385,7 +80393,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity changed: {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 392
+      "cdmw/core/mod_compatibility.py": 409
     }
   },
   {
@@ -80393,7 +80401,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export game identity is missing: {key}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 398
+      "cdmw/core/mod_compatibility.py": 415
     }
   },
   {
@@ -80401,7 +80409,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export logical output or baseline size limit exceeded.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 633
+      "cdmw/core/mod_compatibility.py": 650
     }
   },
   {
@@ -80409,7 +80417,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original source changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 433
+      "cdmw/core/mod_compatibility.py": 450
     }
   },
   {
@@ -80417,7 +80425,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export original texture registry changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 439
+      "cdmw/core/mod_compatibility.py": 456
     }
   },
   {
@@ -80425,7 +80433,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export originals do not match every emitted payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 648
+      "cdmw/core/mod_compatibility.py": 665
     }
   },
   {
@@ -80433,7 +80441,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload checksum or size mismatch.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 558
+      "cdmw/core/mod_compatibility.py": 575
     }
   },
   {
@@ -80441,7 +80449,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export payload exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 637
+      "cdmw/core/mod_compatibility.py": 654
     }
   },
   {
@@ -80457,7 +80465,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export source index changed: {row['path']}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 423
+      "cdmw/core/mod_compatibility.py": 440
     }
   },
   {
@@ -80465,7 +80473,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export staging must be empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 674
+      "cdmw/core/mod_compatibility.py": 691
     }
   },
   {
@@ -81954,7 +81962,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod export must be outside CDMW's local history folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 72
+      "cdmw/core/mod_export_history.py": 137
     }
   },
   {
@@ -82530,7 +82538,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export archive indexes differ from the witnessed game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 417
+      "cdmw/core/mod_compatibility.py": 434
     }
   },
   {
@@ -82538,7 +82546,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 375
+      "cdmw/core/mod_compatibility.py": 392
     }
   },
   {
@@ -82546,7 +82554,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export changed while reading.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 614
+      "cdmw/core/mod_compatibility.py": 631
     }
   },
   {
@@ -82554,7 +82562,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export compiler is unsupported. Export again with the current compiler.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 382
+      "cdmw/core/mod_compatibility.py": 399
     }
   },
   {
@@ -82562,7 +82570,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 452
+      "cdmw/core/mod_compatibility.py": 469
     }
   },
   {
@@ -82570,7 +82578,7 @@ MESSAGE_REFERENCE = [
     "message": "The semantic export folder changed after review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 373
+      "cdmw/core/mod_compatibility.py": 390
     }
   },
   {
@@ -83371,7 +83379,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported semantic export entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 471
+      "cdmw/core/mod_compatibility.py": 488
     }
   },
   {
@@ -83725,7 +83733,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mod compatibility metadata.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 239
+      "cdmw/core/mod_compatibility.py": 256
     }
   },
   {
@@ -83822,7 +83830,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported required semantic export format or capability version.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/mod_compatibility.py": 481
+      "cdmw/core/mod_compatibility.py": 498
     }
   },
   {
@@ -102329,7 +102337,7 @@ SOURCE_COVERAGE = {
     "raise": 72
   },
   "cdmw/core/mod_export_history.py": {
-    "raise": 6
+    "raise": 8
   },
   "cdmw/core/mod_package.py": {
     "diagnostic_field": 2,

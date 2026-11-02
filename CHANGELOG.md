@@ -52,6 +52,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Opening the Prefab Inspector shows its progress in the Archive Browser's progress bar and log while the prefab is read and the archives are indexed, instead of appearing to do nothing for several seconds.
 - The Prefab Inspector's **Duplicate this object** and **Remove this object** no longer write a damaged prefab. Each object ends with a field that records the size of its data, and the edit cut that field off the object or left it with the neighbouring object, so most results stored a wrong size. The Inspector read those files back without complaint. Objects are now copied and removed whole, and when an object sits inside another one, the outer object's recorded size is updated too. Redo prefabs saved with either action in an earlier version from the game's copy. Loading edited prefabs in game is still untested.
 
+- Mods that CDMW exports no longer contain its own records (`cdmw-compatibility.json`, `cdmw-baseline.zip` and similar). DMM read them as mod files, reported them as invalid and left the mod out of its list. CDMW keeps those records on this computer, so update checks and re-editing work as before.
+
 - Placement & Animations reads socket changes from action charts again. Since the game update it could not read any chart, so the times at which an action moves a weapon between hand and holster were missing.
 
 - Archive Browser skips CrimsonMods cache archives by default. Archive parse errors identify the failing file and offer to exclude recognised mod or backup folders and refresh.

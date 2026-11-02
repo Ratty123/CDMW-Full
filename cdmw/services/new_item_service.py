@@ -690,7 +690,9 @@ def _publish_package_atomically(
         raise_if_cancelled(stop_event, "New item export cancelled.")
         result = writer(staging)
         raise_if_cancelled(stop_event, "New item export cancelled.")
-        if result.manager.upper() == "DMM":
+        # Every mod a manager reads leaves CDMW's authoring records in local history;
+        # only CDMW's own semantic packages, imported back through CDMW, keep them.
+        if result.manager.upper() != "CDMW":
             from cdmw.core.mod_export_history import retain_dmm_history
 
             removed = retain_dmm_history(staging, stop_event=stop_event)
