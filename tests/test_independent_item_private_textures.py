@@ -308,3 +308,15 @@ def test_private_copy_cost_keeps_portable_inputs_and_source_pins_unchanged(tmp_p
     print(json.dumps({"scope": "synthetic imported mesh with retained template material", "delta": delta,
                       "compiler_seconds": {str(key): value["compiler_seconds"] for key, value in measurements.items()},
                       "native_runtime_cost": "unmeasured"}, sort_keys=True))
+
+
+def test_a_private_copy_keeps_the_texture_kind_suffix():
+    from cdmw.core.pathc_format import header_tag_for
+    from cdmw.services.new_item_resource_copies import private_texture_path
+    dds = b"DDS " + bytes(124)
+    for source, kind in (("character/texture/cd_x_0001_n.dds", "_n"), ("character/texture/cd_x_0001_ma.dds", "_ma"),
+                         ("character/texture/cd_x_0001.dds", "")):
+        copy = private_texture_path("cd_x_9001", source)
+        assert copy.endswith(kind + ".dds") and "_r" in copy
+        # Registries that read the kind from the name, CDMW's and DMM's, tag it like the source.
+        assert header_tag_for(copy, dds) == header_tag_for(source, dds)
