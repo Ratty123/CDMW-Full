@@ -5,9 +5,12 @@ Every table listed in the compact schema decodes through
 pair into keyed records with their top-level fields, and edits only the
 fixed-width fields named in `EDITABLE_FIELDS`. An edit keeps every byte length,
 so the row directory is unchanged, and each edited row is decoded again with the
-closed schema before the result is returned. Units and gameplay meaning are not
-inferred: a field is editable because its storage width is proven on every
-shipped row, not because its effect in game is known.
+closed schema before the result is returned. Nested members (a value inside a
+list element, such as one drop entry's chance) are addressed by their path,
+for example `("_list", 3, "_percent")`, and editable when `EDITABLE_MEMBERS`
+names their owner and member. Units and gameplay meaning are not inferred: a
+field is editable because its storage width is proven on every shipped row,
+not because its effect in game is known.
 """
 
 from __future__ import annotations
@@ -82,6 +85,39 @@ EDITABLE_FIELDS: Mapping[str, Mapping[str, FieldRule]] = MappingProxyType({
 })
 
 
+# Nested members by (owning class, member). Each width holds at every occurrence in
+# every decoded shipped row; ranges stay inside the shipped values' scale.
+_PERCENT = "Chance in millionths: 1,000,000 is every time (shipped {})."
+EDITABLE_MEMBERS: Mapping[str, Mapping[tuple[str, str], FieldRule]] = MappingProxyType({
+    "dropsetinfo": MappingProxyType({
+        ("DropInfoData", "_percent"): _uint(8, 0, 1_000_000, _PERCENT.format("100-1,000,000; 17,065 of 21,709 at 1,000,000")),
+        ("DropInfoData", "_minValue"): _uint(8, 0, 1_000_000, "Smallest quantity dropped (shipped mostly 1-5)."),
+        ("DropInfoData", "_maxValue"): _uint(8, 0, 1_000_000, "Largest quantity dropped (shipped mostly 1-5)."),
+    }),
+    "characterinfo": MappingProxyType({
+        ("CharacterEquipmentData", "_deadDropPercent"): _uint(8, 0, 1_000_000, _PERCENT.format("0-1,000,000, mostly 30,000")),
+        ("CharacterEquipmentData", "_throwDropPercent"): _uint(8, 0, 1_000_000, _PERCENT.format("0-1,000,000, mostly 30,000")),
+        ("CharacterLevelData", "_experience"): _uint(8, 0, 1_000_000_000, "Raw experience value of this level (shipped 0-500)."),
+    }),
+})
+
+
+def editable_kinds() -> frozenset[str]:
+    return frozenset(EDITABLE_FIELDS) | frozenset(EDITABLE_MEMBERS)
+
+
+@dataclass(frozen=True, slots=True)
+class StaticMember:
+    """One editable nested value: `target` is its path ending in the member name."""
+
+    owner: str
+    target: tuple
+    start: int
+    end: int
+    value: int
+    rule: FieldRule
+
+
 @dataclass(frozen=True, slots=True)
 class StaticField:
     name: str
@@ -98,6 +134,7 @@ class StaticRecord:
     start: int
     end: int
     fields: tuple[StaticField, ...]
+    members: tuple[StaticMember, ...] = ()
 
     def field(self, name: str) -> StaticField:
         for field in self.fields:
@@ -117,9 +154,19 @@ class StaticTable:
 @dataclass(frozen=True, slots=True)
 class StaticFieldChange:
     key: int
-    field: str
+    field: str | tuple
     before: object
     after: object
+
+
+@dataclass(frozen=True, slots=True)
+class TableFieldEdit:
+    """One requested value: a whitelisted field or nested member of one row of one table."""
+
+    table: str
+    key: int
+    target: str | tuple
+    value: int | float
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,7 +267,12 @@ def decode_record(kind: str, raw: bytes, *, start: int = 0, key_width: int = 4) 
         fields.append(StaticField(name, shape_name, start + span.start, start + span.end, value))
     fields.sort(key=lambda field: field.start)
     name = _text(layout.data("_stringKey")) if "_stringKey" in layout.fields else ""
-    return StaticRecord(layout.integer("_key", width=key_width), name, start, start + len(raw), tuple(fields))
+    rules = EDITABLE_MEMBERS.get(kind, {})
+    members = tuple(
+        StaticMember(m.owner, tuple(m.path) + (m.name,), start + m.span.start, start + m.span.end,
+                     int.from_bytes(raw[m.span.start:m.span.end], "little"), rules[(m.owner, m.name)])
+        for m in layout.members if (m.owner, m.name) in rules and m.span.size == rules[(m.owner, m.name)].width)
+    return StaticRecord(layout.integer("_key", width=key_width), name, start, start + len(raw), tuple(fields), members)
 
 
 def decode_static_table(kind: str, header: bytes, body: bytes) -> StaticTable:
@@ -265,6 +317,19 @@ def _current(rule: FieldRule, data: bytes):
     return int.from_bytes(data, "little")
 
 
+def _member_target(kind, layout, target, member_rules, key):
+    found = [m for m in layout.members if tuple(m.path) + (m.name,) == tuple(target)]
+    if len(found) != 1:
+        raise StaticTableError(f"{kind} row {key} has {len(found)} values at {target}; exactly one is required.")
+    member = found[0]
+    rule = member_rules.get((member.owner, member.name))
+    if rule is None:
+        raise StaticTableError(f"{kind} {member.owner}.{member.name} is not an editable field.")
+    if member.span.size != rule.width:
+        raise StaticTableError(f"{kind} {member.owner}.{member.name} does not have the proven {rule.width}-byte width.")
+    return rule, member.span
+
+
 def apply_field_edits(
     kind: str,
     header: bytes,
@@ -273,8 +338,9 @@ def apply_field_edits(
 ) -> StaticTableEdit:
     """Rewrite whitelisted fixed-width fields in place and prove nothing else moved."""
 
-    rules = EDITABLE_FIELDS.get(kind)
-    if not rules:
+    rules = EDITABLE_FIELDS.get(kind, {})
+    member_rules = EDITABLE_MEMBERS.get(kind, {})
+    if not rules and not member_rules:
         raise StaticTableError(f"{kind} has no editable fields.")
     if not edits:
         raise StaticTableError("No edits were requested.")
@@ -287,9 +353,9 @@ def apply_field_edits(
         keys[directory.row_id] = directory.key or directory.row_id.to_bytes(table.key_width, "little")
     edited = bytearray(body)
     changes, rows = [], {}
-    for (key, field), value in sorted(edits.items(), key=lambda item: (item[0][0], item[0][1])):
-        rule = rules.get(field)
-        if rule is None:
+    for (key, field), value in sorted(edits.items(), key=lambda item: (item[0][0], str(item[0][1]))):
+        rule = rules.get(field) if isinstance(field, str) else None
+        if rule is None and not isinstance(field, tuple):
             raise StaticTableError(f"{kind}.{field} is not an editable field.")
         if key not in spans:
             raise StaticTableError(f"{kind} has no row with key {key}.")
@@ -299,11 +365,14 @@ def apply_field_edits(
         layout = read_compact_layout(bytes(body[start:end]), kind)
         if layout.data("_key") != keys[key]:
             raise StaticTableError(f"{kind} row {key} carries a different inline key; the header does not match the body.")
-        span = layout.fields.get(field)
-        if span is None or span.size != rule.width:
-            raise StaticTableError(f"{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.")
+        if isinstance(field, tuple):
+            rule, span = _member_target(kind, layout, field, member_rules, key)
+        else:
+            span = layout.fields.get(field)
+            if span is None or span.size != rule.width:
+                raise StaticTableError(f"{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.")
         payload, stored = _encode(rule, value)
-        before = _current(rule, layout.data(field))
+        before = _current(rule, layout.raw[span.start:span.end])
         edited[start + span.start:start + span.end] = payload
         rows.setdefault(key, []).append((start + span.start, start + span.end))
         changes.append(StaticFieldChange(key, field, before, stored))
@@ -325,6 +394,9 @@ def apply_field_edits(
 __all__ = [
     "DECODED_TABLES",
     "EDITABLE_FIELDS",
+    "EDITABLE_MEMBERS",
+    "StaticMember",
+    "editable_kinds",
     "FieldRule",
     "LEGACY_TABLE_STEMS",
     "StaticField",
@@ -333,6 +405,7 @@ __all__ = [
     "StaticTable",
     "StaticTableEdit",
     "StaticTableError",
+    "TableFieldEdit",
     "apply_field_edits",
     "decode_record",
     "decode_static_table",

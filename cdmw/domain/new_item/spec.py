@@ -267,6 +267,9 @@ class NewItemSpec:
     inventory_settings: Optional[ItemInventorySettings] = None
     definition_settings: Optional[ItemDefinitionSettings] = None
     behavior_settings: Optional[ItemBehaviorSettings] = None
+    #: Values changed in existing rows of other game tables (static_table_records.TableFieldEdit).
+    #: They travel with DMM mod folders only.
+    table_edits: tuple = ()
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

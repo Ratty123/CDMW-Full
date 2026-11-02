@@ -465,6 +465,14 @@ class AboutDocumentationEnglishMixin:
                 <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Clip changes (once every chart that plays the clip was changed), the chart speed rate and speed windows worked in game; other timing values and event edits have not been tested in game yet.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
+                <h4>Edit game table values</h4>
+                <ol>
+                  <li>In Archive Browser, right-click a game data table (<code>.staticinfoheader</code> or <code>.staticinfobody</code>), such as inventory or dropsetinfo, and choose Edit Game Table Values....</li>
+                  <li>Pick a table and click Load table, then select a row. Type part of a name or a key to filter the rows.</li>
+                  <li>Select a value, type the new value and click Set value. The changes list collects every change for this mod, across tables.</li>
+                  <li>Name the mod and click Write DMM Mod…, then enable it in DMM and click Mount.</li>
+                </ol>
+                <p>Offered values are bag sizes, drop chances and quantities in drop sets, the chance an NPC drops its equipment, the experience for each level, skill levels and cooldowns, bounty increases, mercenary limits and gameplay switches. Drop chances are in millionths: 1,000,000 is every time. Rows the DLC changes keep the DLC's other values, and rows that exist only in the DLC cannot be changed, because DMM does not take a mod's copy of a DLC table. To ship table changes with a new item, use Game table changes… on Create New Item's Stats step; item packages (.cdmw) do not carry them. None of these changes have been tested in game.</p>
                 <h4>Replace sounds and edit sound banks</h4>
                 <ol>
                   <li>To replace a sound, right-click a <code>.wem</code> and choose <b>Import WAV as Loose Mod</b>, or right-click a <code>.bnk</code> and choose <b>Replace Embedded Sound as Loose Mod</b> to pick one of the sounds it carries.</li>

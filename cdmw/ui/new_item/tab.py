@@ -102,6 +102,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         "inventory_settings",
         "definition_settings",
         "behavior_settings",
+        "table_edits",
         "enhancement",
     }:
         return 3

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHeaderView,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
@@ -88,6 +89,16 @@ class StatsPanel(QGroupBox):
         stats_layout = QVBoxLayout(stats_page)
         stats_layout.setContentsMargins(0,0,0,0)
         stats_layout.addWidget(tables, 1)
+        table_row = QHBoxLayout()
+        self.game_tables_summary = QLabel("No other game table values are changed.")
+        self.game_tables_summary.setWordWrap(True)
+        table_row.addWidget(self.game_tables_summary, 1)
+        self.open_game_tables = QPushButton("Game table changes…")
+        self.open_game_tables.setToolTip("Also change values in other game tables, such as bag sizes, drop chances "
+                                         "or skill levels. They travel with DMM mod folders.")
+        table_row.addWidget(self.open_game_tables)
+        stats_layout.addLayout(table_row)
+        self._stats_page = stats_page
         self.views = QTabWidget()
         self.views.addTab(stats_page, "Stats and prices")
         from cdmw.ui.new_item.recipe_editor import RecipeEditor
@@ -96,8 +107,51 @@ class StatsPanel(QGroupBox):
         from cdmw.ui.new_item.item_settings_editor import ItemSettingsEditor
         self.item_settings = ItemSettingsEditor(controller)
         self.views.addTab(self.item_settings, "Item settings")
+        from cdmw.ui.new_item.game_tables_editor import GameTablesEditor
+        self.game_tables = GameTablesEditor()
+        self.game_tables.setToolTip("Values changed in other game tables travel with DMM mod folders; "
+                                    "item packages do not carry them.")
+        tables_page = QWidget()
+        tables_layout = QVBoxLayout(tables_page)
+        tables_layout.setContentsMargins(0, 0, 0, 0)
+        back = QHBoxLayout()
+        self.back_to_stats = QPushButton("Back to stats and prices")
+        back.addWidget(self.back_to_stats)
+        back.addStretch(1)
+        tables_layout.addLayout(back)
+        tables_layout.addWidget(self.game_tables, 1)
+        self._game_tables_page = tables_page
+        self.views.addTab(tables_page, "Game tables")
+        # The step hides this tab bar, so the pages switch with these buttons.
+        self.open_game_tables.clicked.connect(lambda: self.views.setCurrentWidget(self._game_tables_page))
+        self.back_to_stats.clicked.connect(lambda: self.views.setCurrentWidget(self._stats_page))
+        self.game_tables.load_requested.connect(self._load_game_table)
+        self.game_tables.edits_changed.connect(self._game_table_edits_changed)
+        controller.authoring_index_ready.connect(self._game_table_ready)
+        controller.authoring_index_failed.connect(self._game_table_failed)
+        controller.snapshot_ready.connect(self.game_tables.clear_index)
         layout.addWidget(self.views, 1)
         controller.template_changed.connect(self.rebuild)
+
+    def _load_game_table(self, table: str) -> None:
+        if not self._controller.start_authoring_index("game-table:" + table):
+            self.game_tables.show_error("Read the game archives first, or wait for the current step to finish.")
+
+    def _game_table_ready(self, kind: str, result) -> None:
+        if kind.startswith("game-table:"):
+            self.game_tables.set_index(result)
+
+    def _game_table_failed(self, kind: str, message: str) -> None:
+        if kind.startswith("game-table:"):
+            self.game_tables.show_error(message)
+
+    def _game_table_edits_changed(self, edits) -> None:
+        self._controller.draft.table_edits = tuple(edits)
+        count = len(edits)
+        self.game_tables_summary.setText(
+            f"{count:,} other game table value(s) are changed in this mod." if count
+            else "No other game table values are changed.")
+        self._controller.invalidate_plan()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -329,6 +383,9 @@ class StatsPanel(QGroupBox):
     def rebuild(self, *_args) -> None:
         """Refill both tables from the draft, as one event rather than one per cell."""
 
+        editor = getattr(self, "game_tables", None)
+        if editor is not None and editor.edits() != tuple(self._controller.draft.table_edits or ()):
+            editor.set_edits(self._controller.draft.table_edits)
         self._grid = self._controller.stat_grid()
         self._syncing = True
         self.table.blockSignals(True)

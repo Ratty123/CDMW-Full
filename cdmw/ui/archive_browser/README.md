@@ -755,14 +755,25 @@ guessed; on the installed game that is 13 rows whose readers sit in virtualized 
 Tables named `skillinfo` or `reserveslotinfo` in older archives use the `skill` and
 `reserveslot` readers. StringInfo keeps its own reader; BitmapPosition lists rows only.
 
-Edits do not start here. `structured_sidecar_edit_service.write_static_table_edits`
-rewrites only the fixed-width fields in `static_table_records.EDITABLE_FIELDS`
-(inventory slot counts, skill max level, cooldown and low-resource flag, bounty increase,
-mercenary hire and summon limits, character scale and companion call cooldown, and
-gameplay variable defaults), keeps every row length and the row directory unchanged,
-decodes each edited row again, and writes the pair as loose files for a mod manager.
-It never touches PAMT/PAZ. No window calls it yet, and the units and in-game effect of
-those fields are unverified.
+Right-click a table of an editable family and choose **Edit Game Table Values...**
+(`game_table_actions.py`). The dialog hosts Create New Item's `GameTablesEditor`: pick a
+table and row, select a value, type the new value and **Set value**, then **Write DMM
+Mod…**. Loading and writing run on the shell's utility worker. Only the values in
+`static_table_records.EDITABLE_FIELDS` (inventory slot counts, skill max level, cooldown
+and low-resource flag, bounty increase, mercenary hire and summon limits, character scale
+and companion call cooldown, gameplay variable defaults) and `EDITABLE_MEMBERS` (drop set
+chances and quantities, NPC equipment drop chances, level experience) are offered; each
+keeps every row length and the row directory unchanged and is decoded again after the
+write.
+
+`services/game_table_edits.py` reads the base and DLC copies the item-data rules choose
+and composes the base copy DMM needs: rows the base supplies are edited in place, rows
+the DLC replaces carry their DLC version with the edit, and rows only the DLC has are
+listed but locked. The edited pairs go into a DMM mod folder (archive group `0036`, read
+back before it is published) in DMM's mods folder; a folder this editor did not write is
+never replaced. PAMT/PAZ in the game folder are never touched. Units and in-game effect
+of these values are unverified.
+`structured_sidecar_edit_service.write_static_table_edits` remains for loose-file output.
 
 ## Read-only boundary and exports
 

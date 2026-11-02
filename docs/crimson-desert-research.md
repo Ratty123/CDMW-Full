@@ -2032,9 +2032,26 @@ which the Archive Browser preview shows, and rewrites only whitelisted fixed-wid
 in place (inventory slot counts, skill max level, cooldown and low-resource flag, bounty
 increase, mercenary hire and summon limits, character scale and companion call cooldown,
 gameplay variable defaults), proving that no other byte changed. Owned constructed rows
-for every table and an opt-in installed-corpus test cover this. It is byte-level evidence
-only: field units, gameplay effects and game acceptance of an edited table are untested,
-and no window writes these tables.
+for every table and an opt-in installed-corpus test cover this.
+
+Nested members are offered the same way once their width is the same on every shipped
+occurrence: DropSetInfo's per-drop chance and minimum and maximum quantity, CharacterInfo's
+equipment drop chances on death and when thrown, and each CharacterLevelData's experience.
+An edit names the row key and the member path (for example `_list`, 2, `_percent`), and the
+member must exist exactly once at that path. Character stat lists stay closed: their entries
+are positional and nothing proves which index is which stat. Buff values sit in unlabelled
+variant payloads and quest rewards are not named members, so neither is offered.
+
+DMM merges table mods record by record, ignores a mod's copy of a DLC table, and turns a
+changed base row into a whole-row replacement of the DLC's row with the same key. An edit
+therefore lands in the copy the game reads: a row the base table supplies is changed in
+place, a row the DLC replaces is changed in its DLC version and that whole row is placed in
+the base copy (so the DLC's own values survive), and a row only the DLC has is refused. On
+the installed data the inventory table's Character bag is DLC-supplied; its composed base row
+carries the DLC's 31,229 bytes with only the edited two bytes changed. Archive Browser's
+**Edit Game Table Values...** and Create New Item's **Game table changes…** write these edits
+into DMM mod folders. It is byte-level evidence only: field units, gameplay effects and game
+acceptance of an edited table are untested.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.

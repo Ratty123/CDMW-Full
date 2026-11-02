@@ -1208,6 +1208,18 @@ cycle/budget/cancellation checks; opaque auxiliary payloads remain pinned source
 dependencies. These are source/owned-fixture and headless UI contracts, without
 native registration, game/save, packaging or publication proof.
 
+**Game table changes…** under the Stats table opens the Game tables page
+(`game_tables_editor.py`), which changes values in existing rows of other game tables:
+bag sizes, drop set chances and quantities, NPC equipment drop chances, level experience,
+skill levels and cooldowns, bounty increases, mercenary limits and gameplay switches. The
+table loads through the `game-table:<table>` authoring index on the read snapshot, edits
+are stored on the draft as `table_edits`, and planning applies them after the item steps
+(`services/new_item_table_edits.py`), so a drop set the item also joins keeps both changes.
+Rows a DLC replaces carry their DLC version; rows only the DLC has are locked, because DMM
+does not take a mod's copy of a DLC table. Table edits reach DMM mod folders only: an item
+package (`.cdmw`) records its own item, so planning one refuses while any are set. Their
+effect in game is unverified.
+
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
 compact, alternating rows with columns that fill the enhancement card, alongside a
 separate shop-price and stack card. The default view labels ItemInfo values as raw game

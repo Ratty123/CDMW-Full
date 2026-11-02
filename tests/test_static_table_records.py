@@ -268,3 +268,57 @@ def test_a_member_read_in_two_parts_shows_both_parts():
     field = decode_static_table("fieldinfo", header, body).records[0].field("_startSectorIndex")
 
     assert field.shape == "u32+u32" and field.value == (7, 7) and field.end - field.start == 8
+
+
+def test_a_drop_chance_inside_a_drop_list_is_an_editable_member():
+    from tests.compact_item_fixtures import reward
+
+    body, header = table([(880001, reward(880001, 1001295)), (880002, reward(880002, 1001296))], width=4)
+    row = decode_static_table("dropsetinfo", header, body).records[1]
+    chance = next(m for m in row.members if m.target == ("_list", 0, "_percent"))
+    assert (chance.owner, chance.value) == ("DropInfoData", 1_000_000)
+
+    edit = apply_field_edits("dropsetinfo", header, body, {(880002, ("_list", 0, "_percent")): 250_000})
+
+    edited = decode_static_table("dropsetinfo", header, edit.body).records
+    assert next(m.value for m in edited[1].members if m.target == ("_list", 0, "_percent")) == 250_000
+    assert edited[0].members == decode_static_table("dropsetinfo", header, body).records[0].members
+    assert len(edit.body) == len(body) and edit.header == header
+
+
+@pytest.mark.parametrize("target, value, message", [
+    (("_list", 0, "_percent"), 1_000_001, "outside"),
+    (("_list", 1, "_percent"), 5, "0 values"),
+    (("_list", 0, "_enchantLevel"), 1, "not an editable field"),
+])
+def test_unsafe_member_edits_are_refused(target, value, message):
+    from tests.compact_item_fixtures import reward
+
+    body, header = table([(880001, reward(880001, 1001295))], width=4)
+    with pytest.raises(StaticTableError, match=message):
+        apply_field_edits("dropsetinfo", header, body, {(880001, target): value})
+
+
+def test_every_editable_member_has_its_rule_width_somewhere_in_the_schema():
+    from cdmw.core.static_table_records import EDITABLE_MEMBERS
+
+    def widths(owner, name):
+        found = set()
+        for op in READERS:
+            stack = [op]
+            while stack:
+                node = stack.pop()
+                if isinstance(node, tuple):
+                    if node[:3] == ("field", owner, name):
+                        shape = node[3]
+                        while shape[0] == "call" or (shape[0] == "seq" and len(shape) == 2):
+                            shape = READERS[shape[1]] if shape[0] == "call" else shape[1]
+                        found.add(shape)
+                    stack.extend(x for x in node[1:] if isinstance(x, (tuple, dict)))
+                elif isinstance(node, dict):
+                    stack.extend(node.values())
+        return found
+
+    for kind, rules in EDITABLE_MEMBERS.items():
+        for (owner, name), rule in rules.items():
+            assert widths(owner, name) == {("raw", rule.width)}, (kind, owner, name)

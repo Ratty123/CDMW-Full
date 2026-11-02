@@ -12144,6 +12144,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Name the mod before writing it.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/ui/archive_browser/game_table_actions.py": 135
+    }
+  },
+  {
+    "area": "archive",
     "message": "Native Rejected Texture Candidates: {detail}",
     "recovery": "input",
     "sources": {
@@ -27658,7 +27666,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item recipe text.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 104
+      "cdmw/services/independent_item_codec.py": 106
     }
   },
   {
@@ -27906,7 +27914,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid v1 {name} setting: {exc}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 180
+      "cdmw/services/independent_item_codec.py": 182
     }
   },
   {
@@ -27914,7 +27922,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid value type in {name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 126
+      "cdmw/services/independent_item_codec.py": 128
     }
   },
   {
@@ -28082,7 +28090,7 @@ MESSAGE_REFERENCE = [
     "message": "Item recipe contains too many values.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 131
+      "cdmw/services/independent_item_codec.py": 133
     }
   },
   {
@@ -28090,7 +28098,7 @@ MESSAGE_REFERENCE = [
     "message": "Item recipe is nested too deeply.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 110
+      "cdmw/services/independent_item_codec.py": 112
     }
   },
   {
@@ -29156,7 +29164,7 @@ MESSAGE_REFERENCE = [
     "message": "The item contains a setting that cannot be shared safely.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 143
+      "cdmw/services/independent_item_codec.py": 145
     }
   },
   {
@@ -29932,7 +29940,7 @@ MESSAGE_REFERENCE = [
     "message": "The v1 runtime adapter for {name} needs an explicit compatibility translation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 71
+      "cdmw/services/independent_item_codec.py": 73
     }
   },
   {
@@ -30012,7 +30020,7 @@ MESSAGE_REFERENCE = [
     "message": "The {name} setting cannot be represented by v1.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 123
+      "cdmw/services/independent_item_codec.py": 125
     }
   },
   {
@@ -30140,7 +30148,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown item recipe type.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 181
+      "cdmw/services/independent_item_codec.py": 183
     }
   },
   {
@@ -30164,7 +30172,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown or missing item recipe fields.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 169
+      "cdmw/services/independent_item_codec.py": 171
     }
   },
   {
@@ -30172,7 +30180,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown v1 enum value for {name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 164
+      "cdmw/services/independent_item_codec.py": 166
     }
   },
   {
@@ -30342,7 +30350,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported portable enum setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 116
+      "cdmw/services/independent_item_codec.py": 118
     }
   },
   {
@@ -30350,7 +30358,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported portable setting: {type(value).__name__}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 128
+      "cdmw/services/independent_item_codec.py": 130
     }
   },
   {
@@ -30997,6 +31005,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "0 or 1",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/game_tables_editor.py": 91
+    }
+  },
+  {
+    "area": "items",
     "message": ": expected the NUL and 08 80 tag after the name",
     "recovery": "input",
     "sources": {
@@ -31208,7 +31224,7 @@ MESSAGE_REFERENCE = [
     "message": "A socket unlock material is not an item in the active tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 477
+      "cdmw/services/new_item_planning.py": 481
     }
   },
   {
@@ -31434,7 +31450,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1064
+      "cdmw/ui/new_item/tab.py": 1065
     }
   },
   {
@@ -31490,7 +31506,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 423
+      "cdmw/ui/new_item/tab.py": 424
     }
   },
   {
@@ -31595,7 +31611,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 751
+      "cdmw/services/new_item_planning.py": 755
     }
   },
   {
@@ -31603,7 +31619,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 747
+      "cdmw/services/new_item_planning.py": 751
     }
   },
   {
@@ -31611,7 +31627,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 702
+      "cdmw/services/new_item_planning.py": 706
     }
   },
   {
@@ -31619,7 +31635,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 825
+      "cdmw/services/new_item_planning.py": 829
     }
   },
   {
@@ -31651,7 +31667,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1030
+      "cdmw/services/new_item_planning.py": 1034
     }
   },
   {
@@ -31779,7 +31795,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/state.py": 440
+      "cdmw/ui/new_item/state.py": 442
     }
   },
   {
@@ -32203,7 +32219,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 283
+      "cdmw/ui/new_item/tab.py": 284
     }
   },
   {
@@ -32317,7 +32333,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1157
+      "cdmw/ui/new_item/tab.py": 1158
     }
   },
   {
@@ -32431,6 +32447,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/package_links.py": 129
+    }
+  },
+  {
+    "area": "items",
+    "message": "Game table edits are written to DMM mod folders only. Clear them on the Game tables tab to write an item package.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/new_item_table_edits.py": 58
     }
   },
   {
@@ -33768,7 +33792,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 685
+      "cdmw/ui/new_item/tab.py": 686
     }
   },
   {
@@ -33776,7 +33800,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 916
+      "cdmw/services/new_item_planning.py": 920
     }
   },
   {
@@ -33848,7 +33872,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 946
+      "cdmw/services/new_item_planning.py": 950
     }
   },
   {
@@ -34829,7 +34853,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 386
+      "cdmw/ui/new_item/tab.py": 387
     }
   },
   {
@@ -34854,7 +34878,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_service.py": 639,
-      "cdmw/ui/new_item/tab.py": 1163,
+      "cdmw/ui/new_item/tab.py": 1164,
       "cdmw/workers/new_item_workers.py": 340
     }
   },
@@ -34871,7 +34895,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 435
+      "cdmw/ui/new_item/tab.py": 436
     }
   },
   {
@@ -35028,6 +35052,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The game archives have no {table} table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_table_edits.py": 47
+    }
+  },
+  {
+    "area": "items",
     "message": "The game derives this key from the item key; a different key is carried in the row but the name stays blank in game. Leave it unset to allocate the derived one.",
     "recovery": "internal",
     "sources": {
@@ -35127,7 +35159,7 @@ MESSAGE_REFERENCE = [
     "message": "The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 369
+      "cdmw/services/new_item_planning.py": 373
     }
   },
   {
@@ -35311,7 +35343,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block as a list, so it should take them, but a rebuilt list is unproven in game until the first check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 454
+      "cdmw/services/new_item_planning.py": 458
     }
   },
   {
@@ -35319,7 +35351,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; a rebuilt ladder is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 496
+      "cdmw/services/new_item_planning.py": 500
     }
   },
   {
@@ -35327,7 +35359,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, so a list that long is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 491
+      "cdmw/services/new_item_planning.py": 495
     }
   },
   {
@@ -35335,7 +35367,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 505
+      "cdmw/services/new_item_planning.py": 509
     }
   },
   {
@@ -35377,7 +35409,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 34,
       "cdmw/domain/new_item/rules.py": 511,
-      "cdmw/services/new_item_planning.py": 475
+      "cdmw/services/new_item_planning.py": 479
     }
   },
   {
@@ -35465,7 +35497,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1082
+      "cdmw/services/new_item_planning.py": 1087
     }
   },
   {
@@ -35545,7 +35577,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 800
+      "cdmw/services/new_item_planning.py": 804
     }
   },
   {
@@ -35633,7 +35665,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 663
+      "cdmw/services/new_item_planning.py": 667
     }
   },
   {
@@ -35834,6 +35866,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/new_item/rust_ui_actions.py": 244
+    }
+  },
+  {
+    "area": "items",
+    "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/new_item/game_tables_editor.py": 325
     }
   },
   {
@@ -36274,7 +36314,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported authoring index: {kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/new_item_authoring_index.py": 27
+      "cdmw/workers/new_item_authoring_index.py": 30
     }
   },
   {
@@ -36787,7 +36827,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 970
+      "cdmw/services/new_item_planning.py": 974
     }
   },
   {
@@ -37027,7 +37067,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 977
+      "cdmw/services/new_item_planning.py": 981
     }
   },
   {
@@ -37035,7 +37075,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 979
+      "cdmw/services/new_item_planning.py": 983
     }
   },
   {
@@ -37107,7 +37147,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 922
+      "cdmw/services/new_item_planning.py": 926
     }
   },
   {
@@ -37493,7 +37533,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 959
+      "cdmw/services/new_item_planning.py": 963
     }
   },
   {
@@ -37501,7 +37541,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 945
+      "cdmw/services/new_item_planning.py": 949
     }
   },
   {
@@ -37557,7 +37597,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 357
+      "cdmw/services/new_item_planning.py": 361
     }
   },
   {
@@ -37581,7 +37621,7 @@ MESSAGE_REFERENCE = [
     "message": "the built icon is named {self.icon.icon_string}, the plan needs {self.icon_string}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 309
+      "cdmw/services/new_item_planning.py": 313
     }
   },
   {
@@ -37678,7 +37718,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1125
+      "cdmw/services/new_item_planning.py": 1130
     }
   },
   {
@@ -37718,7 +37758,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 484
+      "cdmw/services/new_item_planning.py": 488
     }
   },
   {
@@ -37734,7 +37774,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 907
+      "cdmw/services/new_item_planning.py": 911
     }
   },
   {
@@ -37750,7 +37790,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 779
+      "cdmw/services/new_item_planning.py": 783
     }
   },
   {
@@ -37758,7 +37798,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1008
+      "cdmw/services/new_item_planning.py": 1012
     }
   },
   {
@@ -37766,7 +37806,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1005
+      "cdmw/services/new_item_planning.py": 1009
     }
   },
   {
@@ -37774,7 +37814,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 982
+      "cdmw/services/new_item_planning.py": 986
     }
   },
   {
@@ -37790,7 +37830,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.desc_key} for the template's description",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 646
+      "cdmw/services/new_item_planning.py": 650
     }
   },
   {
@@ -37798,7 +37838,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.name_key} for the template's name",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 640
+      "cdmw/services/new_item_planning.py": 644
     }
   },
   {
@@ -37964,10 +38004,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{int(rule.minimum)} to {int(rule.maximum)}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/game_tables_editor.py": 93
+    }
+  },
+  {
+    "area": "items",
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 827
+      "cdmw/services/new_item_planning.py": 831
     }
   },
   {
@@ -37991,7 +38039,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 510
+      "cdmw/services/new_item_planning.py": 514
     }
   },
   {
@@ -38040,7 +38088,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is written as {value}; shipped equipment carries it between {low} and {high}. A value that far outside the game's own range has crashed the game on purchase (an item carrying AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables read fine either way, so nothing shows until the item is bought.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_planning.py": 571
+      "cdmw/services/new_item_planning.py": 575
     }
   },
   {
@@ -38160,7 +38208,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 869
+      "cdmw/services/new_item_planning.py": 873
     }
   },
   {
@@ -38232,7 +38280,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists in the archives; a new item must not overwrite it",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_planning.py": 228
+      "cdmw/services/new_item_planning.py": 232
     }
   },
   {
@@ -38248,7 +38296,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is added twice",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 230
+      "cdmw/services/new_item_planning.py": 234
     }
   },
   {
@@ -38256,7 +38304,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 754
+      "cdmw/services/new_item_planning.py": 758
     }
   },
   {
@@ -38325,6 +38373,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{rule.minimum} to {rule.maximum}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/game_tables_editor.py": 83
+    }
+  },
+  {
+    "area": "items",
     "message": "{selector}: expected {value_type} values in {minimum}..{maximum}.",
     "recovery": "input",
     "sources": {
@@ -38344,7 +38400,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 440
+      "cdmw/services/new_item_planning.py": 444
     }
   },
   {
@@ -38352,7 +38408,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 361
+      "cdmw/services/new_item_planning.py": 365
     }
   },
   {
@@ -38360,7 +38416,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 911
+      "cdmw/services/new_item_planning.py": 915
     }
   },
   {
@@ -38368,7 +38424,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} owns no part-prefab records to clone",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 329
+      "cdmw/services/new_item_planning.py": 333
     }
   },
   {
@@ -38376,7 +38432,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 773
+      "cdmw/services/new_item_planning.py": 777
     }
   },
   {
@@ -38512,7 +38568,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 631
+      "cdmw/services/new_item_planning.py": 635
     }
   },
   {
@@ -74119,6 +74175,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A folder named {folder.name} already exists and the game table editor did not write it. Choose another mod name.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 308
+    }
+  },
+  {
+    "area": "other",
     "message": "A frame review requires both --review and --review-sha256.",
     "recovery": "integrity",
     "sources": {
@@ -74258,7 +74322,7 @@ MESSAGE_REFERENCE = [
     "message": "A static table's header and body must come from the same archive.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/static_table_records.py": 160
+      "cdmw/core/static_table_records.py": 207
     }
   },
   {
@@ -77257,7 +77321,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit of row {key} changed bytes outside its fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 321
+      "cdmw/core/static_table_records.py": 390
     }
   },
   {
@@ -79428,7 +79492,7 @@ MESSAGE_REFERENCE = [
     "message": "Inventory {key}: default slots exceed the maximum.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/static_table_records.py": 315
+      "cdmw/core/static_table_records.py": 384
     }
   },
   {
@@ -80402,6 +80466,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Name the mod before writing it.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 348
+    }
+  },
+  {
+    "area": "other",
     "message": "Named table row does not repeat its directory key.",
     "recovery": "internal",
     "sources": {
@@ -80534,7 +80606,7 @@ MESSAGE_REFERENCE = [
     "message": "No edits were requested.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 280
+      "cdmw/core/static_table_records.py": 346
     }
   },
   {
@@ -82365,6 +82437,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Set the game folder in Archive Browser before editing game tables.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 256
+    }
+  },
+  {
+    "area": "other",
     "message": "SetInformationJobObject: {ctypes.WinError(ctypes.get_last_error())}",
     "recovery": "internal",
     "sources": {
@@ -83470,6 +83550,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The game archives have no {table} table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 274
+    }
+  },
+  {
+    "area": "other",
     "message": "The game build changed. Check compatibility again.",
     "recovery": "internal",
     "sources": {
@@ -84305,7 +84393,7 @@ MESSAGE_REFERENCE = [
     "message": "The row's inline key differs from its directory key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 239
+      "cdmw/core/static_table_records.py": 291
     }
   },
   {
@@ -84703,10 +84791,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The written mod archive does not read back as the edited tables.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 364
+    }
+  },
+  {
+    "area": "other",
     "message": "The {self.state} state exceeded its deadline.",
     "recovery": "timeout",
     "sources": {
       "cdmw/services/cditem_device_runner.py": 160
+    }
+  },
+  {
+    "area": "other",
+    "message": "There are no edits for {table_label(table)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 186
+    }
+  },
+  {
+    "area": "other",
+    "message": "There are no table edits to write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 350
     }
   },
   {
@@ -89487,6 +89599,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{edit.table} is not an editable table name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 230
+    }
+  },
+  {
+    "area": "other",
     "message": "{entry.path} is not an editable action chart",
     "recovery": "input",
     "sources": {
@@ -89730,7 +89850,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 214
+      "cdmw/core/static_table_records.py": 261
     }
   },
   {
@@ -89738,7 +89858,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no editable fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 278
+      "cdmw/core/static_table_records.py": 344
     }
   },
   {
@@ -89746,7 +89866,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no row with key {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 295
+      "cdmw/core/static_table_records.py": 361
     }
   },
   {
@@ -89754,7 +89874,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} lists key {key} more than once.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 297
+      "cdmw/core/static_table_records.py": 363
     }
   },
   {
@@ -89762,7 +89882,31 @@ MESSAGE_REFERENCE = [
     "message": "{kind} row {key} carries a different inline key; the header does not match the body.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/static_table_records.py": 301
+      "cdmw/core/static_table_records.py": 367
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} row {key} has {len(found)} values at {target}; exactly one is required.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/static_table_records.py": 323
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} {member.owner}.{member.name} does not have the proven {rule.width}-byte width.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/static_table_records.py": 329
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} {member.owner}.{member.name} is not an editable field.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/static_table_records.py": 327
     }
   },
   {
@@ -89770,7 +89914,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 304
+      "cdmw/core/static_table_records.py": 373
     }
   },
   {
@@ -89778,7 +89922,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} is not an editable field.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 293
+      "cdmw/core/static_table_records.py": 359
     }
   },
   {
@@ -90130,7 +90274,7 @@ MESSAGE_REFERENCE = [
     "message": "{number} is outside {rule.minimum}-{rule.maximum}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 251
+      "cdmw/core/static_table_records.py": 303
     }
   },
   {
@@ -90458,7 +90602,7 @@ MESSAGE_REFERENCE = [
     "message": "{stem} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 152
+      "cdmw/core/static_table_records.py": 199
     }
   },
   {
@@ -90467,6 +90611,30 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/item_icon_addition.py": 62
+    }
+  },
+  {
+    "area": "other",
+    "message": "{table_label(table)} has no editable fields.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 150
+    }
+  },
+  {
+    "area": "other",
+    "message": "{table_label(table)} needs exactly one base table copy; found {len(base)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 189
+    }
+  },
+  {
+    "area": "other",
+    "message": "{table_label(table)} row {edit.key} exists only in the DLC copy of the table, and DMM does not take a mod's copy of a DLC table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/game_table_edits.py": 203
     }
   },
   {
@@ -90538,7 +90706,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is not an integer.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 256
+      "cdmw/core/static_table_records.py": 308
     }
   },
   {
@@ -90546,7 +90714,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is outside {int(rule.minimum)}-{int(rule.maximum)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 258
+      "cdmw/core/static_table_records.py": 310
     }
   },
   {
@@ -103169,6 +103337,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/directory_scan_controller.py",
     "cdmw/ui/archive_browser/failure_report.py",
     "cdmw/ui/archive_browser/filter_workers.py",
+    "cdmw/ui/archive_browser/game_table_actions.py",
     "cdmw/ui/archive_browser/loose_donor_scan.py",
     "cdmw/ui/archive_browser/mesh_batch_export_controller.py",
     "cdmw/ui/archive_browser/mesh_direct_patch.py",
@@ -103347,6 +103516,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/new_item_shader_controls.py",
     "cdmw/services/new_item_skinning.py",
     "cdmw/services/new_item_snapshot.py",
+    "cdmw/services/new_item_table_edits.py",
     "cdmw/services/new_item_template_model.py",
     "cdmw/services/new_item_translucency.py",
     "cdmw/services/new_item_variants.py",
@@ -103716,6 +103886,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/effect_character_reference.py",
     "cdmw/services/effect_library_store.py",
     "cdmw/services/effect_recipe.py",
+    "cdmw/services/game_table_edits.py",
     "cdmw/services/iteminfo_dependency_graph.py",
     "cdmw/services/mod_merge_service.py",
     "cdmw/services/problem_report_diagnostics.py",
@@ -104818,7 +104989,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/startup_splash_protocol.py": {},
   "cdmw/core/static_table_records.py": {
-    "raise": 18
+    "raise": 21
   },
   "cdmw/core/storeinfo_compact.py": {
     "raise": 6
@@ -105955,6 +106126,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/game_executable_fingerprints.py": {
     "raise": 1
   },
+  "cdmw/services/game_table_edits.py": {
+    "raise": 12
+  },
   "cdmw/services/hair_registration.py": {
     "raise": 15
   },
@@ -106442,6 +106616,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_surface.py": {
     "raise": 4
   },
+  "cdmw/services/new_item_table_edits.py": {
+    "raise": 3
+  },
   "cdmw/services/new_item_tables.py": {
     "raise": 3
   },
@@ -106748,6 +106925,9 @@ SOURCE_COVERAGE = {
     "report": 2
   },
   "cdmw/ui/archive_browser/filters.py": {},
+  "cdmw/ui/archive_browser/game_table_actions.py": {
+    "dialog": 2
+  },
   "cdmw/ui/archive_browser/header.py": {},
   "cdmw/ui/archive_browser/hkx_document_actions.py": {
     "assertion": 2,
@@ -107951,6 +108131,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/effect_workspace_controller.py": {
     "diagnostic_field": 1,
     "raise": 2
+  },
+  "cdmw/ui/new_item/game_tables_editor.py": {
+    "display": 1,
+    "raise": 4
   },
   "cdmw/ui/new_item/glow_animation_editor.py": {},
   "cdmw/ui/new_item/independent_items_page.py": {
