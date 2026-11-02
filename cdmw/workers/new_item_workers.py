@@ -160,6 +160,7 @@ def plan_task(
     variant_scenes: Optional[Mapping[tuple, object]] = None,
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
+    icon_data: Optional[bytes] = None,
     mod_base_folder: Optional[Path] = None,
     include_mounted_items: bool = False,
     independent: bool = False,
@@ -229,6 +230,7 @@ def plan_task(
             resolved_icon = _resolve_icon_source(spec, base, Path(icon_source_path), stop_event=stop_event)
         plan = service.plan(
             spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon, **variant_arguments,
+            **({"icon_data": icon_data} if icon_data is not None else {}),
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
             on_log=log, on_progress=on_progress, stop_event=stop_event,
             **({"capture_independent": True} if independent else {}),

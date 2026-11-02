@@ -478,6 +478,10 @@ class ShellToolTabsMixin:
             from cdmw.ui.shell.close_controller import register_transient_worker_controller
 
             controller = NewItemStudioController(service=self.app_context.services.new_items, parent=self)
+            # Drafts & Mods lists each item package written here, with its draft.
+            saved_work_root = getattr(self, "_mesh_saved_work_root", None)
+            if callable(saved_work_root) and getattr(self, "settings", None) is not None:
+                controller.saved_work_root = saved_work_root()
             self._new_item_controller = controller
             # Archive preloading can own a worker before either tool is opened.
             register_transient_worker_controller(self, controller)
@@ -682,8 +686,12 @@ class ShellToolTabsMixin:
         template_key: int | None = None,
         *,
         model_path: object | None = None,
+        item_package: object | None = None,
     ) -> None:
-        """Show Create New Item, pointed at `template_key` when one is given."""
+        """Show Create New Item, pointed at `template_key` when one is given.
+
+        `item_package` is a Drafts & Mods launch to continue (``ItemPackageLaunch``).
+        """
 
         container = getattr(self, "new_item_studio_tab", None)
         if container is None:
@@ -694,6 +702,8 @@ class ShellToolTabsMixin:
                 widget.prefill_template(int(template_key))
             if model_path is not None and hasattr(widget, "open_model_source"):
                 widget.open_model_source(model_path)
+            if item_package is not None and hasattr(widget, "continue_item_package"):
+                widget.continue_item_package(item_package)
 
         self._activate_tool_widget(container)
         if isinstance(container, LazyToolTab):

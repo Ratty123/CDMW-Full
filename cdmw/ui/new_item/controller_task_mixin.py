@@ -252,20 +252,26 @@ class NewItemTaskControllerMixin:
             self.plan_failed.emit("; ".join(issue.message for issue in issues if issue.is_error), issues)
             return False
         icon_source: Optional[Path] = None
+        icon_data = None
         if spec.icon is IconSource.GENERATED:
             text = str(self.draft.icon_source_path or "").strip()
-            if not text:
+            if self.continued_icon_data is not None and (not text or not Path(text).exists()):
+                # A continued package keeps its finished icon until another image is chosen.
+                icon_data = self.continued_icon_data
+            elif not text:
                 self.plan_failed.emit("Choose an image (or a folder of images) to generate the icon from, or keep the template's icon.", ())
                 return False
-            icon_source = Path(text)
-            if not icon_source.exists():
-                self.plan_failed.emit(f"The icon source {icon_source} does not exist.", ())
-                return False
+            else:
+                icon_source = Path(text)
+                if not icon_source.exists():
+                    self.plan_failed.emit(f"The icon source {icon_source} does not exist.", ())
+                    return False
         variant_models, variant_scenes, source_owners = self.variant_plan_inputs()
         variant_arguments = {} if self.draft.variants is None else {"variant_models":variant_models,"variant_scenes":variant_scenes}
         task = plan_task(
             spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
+            **({"icon_data": icon_data} if icon_data is not None else {}),
             mod_base_folder=self.mod_base_folder, include_mounted_items=self.include_mounted_items,
             read_entry=self._read_entry, **variant_arguments,
             **({"independent": True} if self.independent_mode else {}),
@@ -358,9 +364,14 @@ class NewItemTaskControllerMixin:
             identity = uuid4().hex
         revision = self._draft_revision
         service, read_entry = self.service, self._read_entry
+        # Drafts & Mods keeps the draft this plan was built from, to continue it later.
+        saved_root = self.saved_work_root
+        draft_bytes = self.saved_draft_bytes() if saved_root is not None else None
+        template_name = self.template_name() if saved_root is not None else ""
         def task(log, stop):
             from cdmw.services.independent_item_dlc import game_root, portable_package
             from cdmw.services.independent_item_package import dlc_content, from_plan, read_package, write_package
+            from cdmw.ui.new_item.controller_continue_mixin import register_written_package
             previous = read_package(path, stop_event=stop) if update else None
             export_identity, previous_digest = (previous.identity, previous.digest) if previous else (identity, None)
             del previous  # Old resources are not inputs to the newly authored plan.
@@ -369,7 +380,9 @@ class NewItemTaskControllerMixin:
                 # Pin the base game alone when the DLC changes nothing the item makes.
                 package, _differences = portable_package(package, game_root(plan), service=service,
                                                          read_entry=read_entry, stop_event=stop, on_log=log)
-            return write_package(package, path, expected_digest=previous_digest, stop_event=stop)
+            result = write_package(package, path, expected_digest=previous_digest, stop_event=stop)
+            register_written_package(saved_root, result, draft_bytes, template_name, log)
+            return result
         def done(result):
             if revision == self._draft_revision:
                 self.draft.independent_identity = result.identity

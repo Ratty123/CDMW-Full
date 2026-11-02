@@ -36,6 +36,9 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects.</p>
     <h4>Identity</h4>
     <p>Use the player-facing name and description for what the player sees. Automatic technical identifiers avoid known collisions; Manual is an advanced choice. Changing the mod folder name changes package metadata, not the item's identity. Updating an existing independent package must preserve its selected package identity explicitly.</p>
+    <h4>Continue a package</h4>
+    <p>Drafts &amp; Mods lists every .cdmw item package you write here. Choose Continue Editing there to reopen the item with the settings it was written from. Build the plan, then choose Update the continued package on the Output step to write it back with the same identity.</p>
+    <p>A continued item keeps the finished model from the package, with its placement and materials as written. To change its placement, transparency, surface or shader settings, import the source model again. A custom icon whose image has moved keeps the package's icon until you choose another image.</p>
     <h4>Model &amp; Placement</h4>
     <p>Import the model with its referenced textures. FBX uses the configured Blender executable. Inspect every part and variant; armour needs compatible skin weights and a supported template or body donor. A section cannot exceed 65,535 vertices. A working preview alone does not establish export compatibility.</p>
     <p>Move, Rotate and Scale select the preview handles. Placement numbers provide exact values; Uniform scale keeps proportions when changing an axis. Review the character reference, size and attachment from several angles. Choose Apply placement before Build plan, and apply again after changing the imported model or placement.</p>
@@ -636,6 +639,9 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Duplicate... to copy a draft and try a variation without changing the original.</li>
                   <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
                   <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
+                  <li>Create New Item lists each .cdmw item package it writes, with the settings it was written from. Select the package and choose Continue Editing to open it in Create New Item.</li>
+                  <li>Choose Add Item Package... for a .cdmw written by an earlier version or by someone else. Continue Editing then rebuilds its settings from the package. Packages made by other tools, such as prefab or texture packages, are listed but cannot be continued.</li>
+                  <li>For an item package, Remove from List... keeps the .cdmw file and removes only its saved settings.</li>
                 </ul>
                 <p>Opening a game file that already has drafts asks first, before anything loads. Choose Resume for the newest draft, Start Fresh to edit the game file, or Choose a Draft... to pick another. Your drafts are kept either way.</p>
                 <p>If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. Undo/Redo history is not saved. A recovered older save may not include the newest edit.</p>

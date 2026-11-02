@@ -153,7 +153,8 @@ The page has three parts:
   each with a count. **New Project...**, **Rename Project...** and **Delete Project...**
   manage them; deleting a project keeps its drafts and mods, which move to No project.
 - The work table: when each row was saved, its name, the game file it came from, its
-  kind (**Saved draft**, **Built mod** or **Built mod (no draft)**), its edit pass, its
+  kind (**Saved draft**, **Built mod**, **Built mod (no draft)**, **Item package** or
+  **Item package (no draft)**), its edit pass (for a package, how often it was written), its
   status and its project. Columns sort, and the filter matches names, game files and notes.
   Several rows can be selected for **Move to Project...**.
 - **Details** for the selected row: **Name in list**, **Project** and **Your notes** with
@@ -221,6 +222,16 @@ Storage and ownership:
 - Continuing first selects the game file in Archive Browser so its dependencies are
   prepared, then overlays the saved copies by archive identity. Archive reads stay
   read-only, and preparation runs off the UI thread. Hairstyle builds are not listed.
+- Create New Item's **Write item package** records each .cdmw in `item_packages.json`
+  beside the drafts ([service](../../services/item_package_saved_work.py)), with the
+  draft it was written from in an `item-*` folder ([format](../new_item/draft_file.py):
+  typed JSON that rebuilds only `cdmw.domain` and New Item state types). Writing the same
+  file again keeps the row and counts a revision. **Add Item Package...** lists a package
+  without a draft; continuing it rebuilds a draft from the package recipe. Continue reads
+  the package off the UI thread, commits the template in Create New Item, then restores the
+  draft with the package's finished models marked as baked, so planning never applies
+  their translucency, surface or shader settings again and refuses changed ones. Only
+  Create New Item packages continue; others are listed. Remove from List keeps the .cdmw.
 
 Choose the output appropriate to the session. Archive-bound sessions can **Build
 Mod** with all generated companions. **Export Mesh File** is a separate rebuilt

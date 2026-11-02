@@ -185,6 +185,47 @@ class PlacementPanel(QGroupBox):
             self.store.blockSignals(False)
         self._store_index_changed(self.store.currentIndex())
 
+    def show_draft(self) -> None:
+        """Show the draft's shop and group choices after it was replaced."""
+
+        draft = self._controller.draft
+        kind, store, stock_index = draft.placement_kind, draft.store_name, draft.stock_index
+        keep, unlimited, count = draft.keep_requirement, draft.unlimited_stock, draft.stock_count
+        groups, explicit_groups = draft.item_groups, tuple(draft.explicit_item_groups)
+        radio = self.swap if kind is PlacementKind.SWAP else self.insert if kind is PlacementKind.INSERT else self.no_store
+        radio.setChecked(True)
+        self._placement_changed(True)
+        if store:
+            index = self.store.findData(store)
+            if index >= 0:
+                self.store.blockSignals(True)
+                try:
+                    self.store.setCurrentIndex(index)
+                finally:
+                    self.store.blockSignals(False)
+                self._store_index_changed(index)
+        if kind is PlacementKind.SWAP and stock_index is not None:
+            for index in range(self.old_item.count()):
+                if self.old_item.itemData(index, Qt.UserRole + 1) == stock_index:
+                    self.old_item.setCurrentIndex(index)
+                    self._old_item_changed(index)
+                    break
+        self.keep_requirement.setChecked(bool(keep))
+        self.unlimited_stock.setChecked(bool(unlimited))
+        self.stock_count.setValue(int(count or 0))
+        draft.stock_count = count
+        for box, checked in ((self.inherit_all, groups is ItemGroupsChoice.TEMPLATE),
+                             (self.explicit, groups is ItemGroupsChoice.EXPLICIT)):
+            box.blockSignals(True)
+            try:
+                box.setChecked(checked)
+            finally:
+                box.blockSignals(False)
+        draft.explicit_item_groups = explicit_groups
+        self._explicit_changed(groups is ItemGroupsChoice.EXPLICIT)
+        draft.item_groups, draft.explicit_item_groups = groups, explicit_groups
+        self.shop_routes.refresh()
+
     def choose_store(self, name: str) -> bool:
         """Select a shop by its table name; False when the tables have no such shop."""
 

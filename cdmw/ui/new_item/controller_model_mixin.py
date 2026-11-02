@@ -214,6 +214,8 @@ class NewItemModelControllerMixin:
 
     def _commit_template(self, template_key) -> None:
         self.reset_variants()
+        # A continued package is written back only while its own item is open.
+        self.forget_continued_package()
         self.draft = with_template(self.draft, template_key)
         context = self.snapshot._contexts.get(template_key) if self.snapshot is not None else None
         if context is not None and not context.template.equip_type_name and context.template.use_actions:

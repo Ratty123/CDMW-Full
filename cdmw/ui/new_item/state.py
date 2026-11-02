@@ -522,6 +522,116 @@ def effect_reference(stem: str) -> Optional[str]:
     return f"{clean}.{EFFECT_KIND}.effect" if clean else None
 
 
+def effect_stem_from_reference(reference: Optional[str]) -> str:
+    suffix = f".{EFFECT_KIND}.effect"
+    text = str(reference or "").strip()
+    return text[: -len(suffix)] if text.endswith(suffix) else text
+
+
+def draft_from_spec(spec: NewItemSpec) -> NewItemDraft:
+    """A draft that plans `spec` again: the reverse of :func:`spec_from_draft`.
+
+    The stat grid needs the template's ladder, so the spec's stat and buy-price edits
+    are left for :func:`grid_values_from_edits` once the template is read.
+    """
+
+    placement = spec.placement
+    glow = spec.glow
+    look = spec.effect_look
+    return NewItemDraft(
+        template_key=int(spec.template_key),
+        internal_name="",
+        display_names=dict(spec.display_names),
+        descriptions=dict(spec.descriptions),
+        stem=str(spec.stem or ""),
+        item_key=spec.item_key,
+        model_source=spec.model_source,
+        material_route=spec.material_route,
+        sheathed_model=spec.sheathed_model,
+        keep_template_physics=bool(spec.keep_template_physics),
+        glow_parts=tuple(glow.parts) if glow else (),
+        glow_color=tuple(glow.color) if glow else (1.0, 1.0, 1.0),
+        glow_intensity=float(glow.intensity) if glow else 4.0,
+        glow_animation=glow.animation if glow else GlowAnimation(),
+        glow_rgb=glow.rgb if glow else None,
+        icon=spec.icon,
+        price_values={int(edit.item_key): int(edit.price) for edit in spec.price_edits},
+        include_perk_prices=bool(spec.include_perk_prices),
+        max_stack_count=spec.max_stack_count,
+        item_tier=spec.item_tier,
+        required_level=spec.required_level,
+        max_durability=spec.max_durability,
+        item_settings=spec.item_settings,
+        stat_settings=spec.stat_settings,
+        inventory_settings=spec.inventory_settings,
+        definition_settings=spec.definition_settings,
+        behavior_settings=spec.behavior_settings,
+        table_edits=tuple(spec.table_edits),
+        placement_kind=placement.kind,
+        store_name=placement.store_name,
+        old_item_name=placement.old_item_name,
+        keep_requirement=bool(placement.keep_requirement),
+        unlimited_stock=placement.stock_count == UNLIMITED_STOCK,
+        stock_count=None if placement.stock_count == UNLIMITED_STOCK else placement.stock_count,
+        stock_index=placement.stock_index,
+        shop_placements=spec.shop_placements,
+        item_groups=spec.item_groups,
+        explicit_item_groups=tuple(spec.explicit_item_groups),
+        own_enhancement_rows=spec.enhancement is EnhancementRows.OWN,
+        socket_items=None if spec.socket_items is None else [int(item) for item in spec.socket_items],
+        socket_slots=spec.socket_slots,
+        equipment_bonuses=spec.equipment_bonuses,
+        recipes=spec.recipes,
+        reward_acquisitions=spec.reward_acquisitions,
+        variants=spec.variants,
+        effect_stem=effect_stem_from_reference(spec.effect),
+        effect_scale=float(spec.effect_scale),
+        effect_offset=tuple(float(v) for v in spec.effect_offset),
+        effect_rotation=tuple(float(v) for v in spec.effect_rotation_degrees),
+        effect_color=tuple(look.color) if look.color is not None else None,
+        effect_intensity=float(look.intensity),
+        effect_size=float(look.size),
+        effect_rate=float(look.rate),
+        effect_lifetime=float(look.lifetime),
+        effect_emitter_edits=tuple(look.emitters),
+        effect_emitter_order=look.emitter_order,
+        effect_layers=spec.effect_layers,
+        translucency=spec.translucency,
+        template_transform=tuple(spec.template_transform),
+        shader_controls=tuple(spec.shader_controls),
+        body_visibility=spec.body_visibility,
+        surface_settings=tuple(spec.surface_settings),
+    )
+
+
+def grid_values_from_edits(
+    grid: StatGrid,
+    stat_edits: Sequence[StatEdit],
+    buy_price_edits: Sequence[BuyPriceEdit],
+) -> Tuple[Dict[Tuple[int, int], Optional[int]], int, List[int]]:
+    """Grid cells and extra levels that reproduce the edits on `grid`, and the stats it lacks.
+
+    Levels past the ladder become extra levels. When the third value is not empty, add
+    those keys as stat columns (``extra_stat_keys``) and map the edits onto that grid.
+    """
+
+    columns = {(column.kind, column.key): index for index, column in enumerate(grid.columns)}
+    missing: List[int] = []
+    values: Dict[Tuple[int, int], Optional[int]] = {}
+    highest = grid.level_count - 1
+    for kind, edits in ((STAT_KIND, stat_edits), (BUY_PRICE_KIND, buy_price_edits)):
+        for edit in edits:
+            key = int(edit.status_key if kind == STAT_KIND else edit.item_key)
+            index = columns.get((kind, key))
+            if index is None:
+                if kind == STAT_KIND and key not in missing:
+                    missing.append(key)
+                continue
+            values[(int(edit.level), index)] = int(edit.value if kind == STAT_KIND else edit.price)
+            highest = max(highest, int(edit.level))
+    return values, max(0, highest - (grid.level_count - 1)), missing
+
+
 def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDraft:
     """A copy of the draft re-pointed at a template, with the per-template fields cleared."""
 

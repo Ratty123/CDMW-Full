@@ -158,6 +158,8 @@ class NewItemStudioTab(QWidget):
             self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
+        #: an item package from Drafts & Mods, opened once its template is committed
+        self._pending_package = None
         self._panels_built = False
         self._panel_mount_steps = None
         self._panel_mount_timer = QTimer(self)
@@ -226,6 +228,7 @@ class NewItemStudioTab(QWidget):
         self.controller.log_message.connect(self._append_log)
         self.controller.template_changed.connect(self._log_template_selected)
         self.controller.template_changed.connect(self._resume_pending_model_import)
+        self.controller.template_changed.connect(self._resume_pending_package)
         self.controller.effect_catalogue_failed.connect(self._log_effect_failure)
         self._append_log("Create New Item opened. Read the archives to begin.")
 
@@ -472,6 +475,9 @@ class NewItemStudioTab(QWidget):
         if self._pending_model_import is not None:
             model_path, self._pending_model_import = self._pending_model_import, None
             self.open_model_source(model_path)
+        if self._pending_package is not None:
+            launch, self._pending_package = self._pending_package, None
+            self.continue_item_package(launch)
 
     def _native_preview_core_cache_root(self) -> Path | None:
         archive_root = getattr(getattr(self._window, "archive", None), "archive_cache_root", None)
@@ -970,6 +976,53 @@ class NewItemStudioTab(QWidget):
             self._pending_model_import = model_path
             return
         self.controller.start_model_import(model_path)
+
+    def continue_item_package(self, launch) -> None:
+        """Open an item package from Drafts & Mods with the settings it was written from.
+
+        The draft's template is committed first; its settings, the package's finished
+        models and the output that writes back to the package follow once it is.
+        """
+
+        if not self.controller.ready or not self._panels_built:
+            self._pending_package = launch
+            if not self.controller.ready:
+                self.start_snapshot()
+            return
+        if self.controller.busy:
+            self._append_log("Create New Item is busy. Choose Continue Editing again when it finishes.")
+            return
+        self._pending_package = launch
+        self.output_panel.show_continued_package()
+        self.template_panel.prefill(int(launch.draft.template_key))
+
+    def _resume_pending_package(self, key) -> None:
+        launch = self._pending_package
+        if launch is not None and key is not None and int(key) == int(launch.draft.template_key):
+            QTimer.singleShot(0, self, self._restore_pending_package)
+
+    def _restore_pending_package(self) -> None:
+        launch = self._pending_package
+        if launch is None or self.controller._shutdown_requested or self.controller._template_request is not None:
+            return
+        self._pending_package = None
+        try:
+            self.controller.restore_continued_item(launch)
+        except ValueError as exc:
+            self._append_log(f"{launch.title} could not be continued: {exc}")
+            return
+        for panel in (self.identity_panel, self.model_panel, self.perks_panel, self.placement_panel):
+            panel.show_draft()
+        self.stats_panel.rebuild()
+        self.output_panel.show_continued_package()
+        self._refresh_summary()
+        name = Path(launch.package_path).name
+        if launch.from_saved_draft:
+            self._append_log(f"Continuing {name} with the settings it was written from. Build the plan, then "
+                             "choose Update the continued package on the Output step.")
+        else:
+            self._append_log(f"Continuing {name} with settings rebuilt from the package. Build the plan, then "
+                             "choose Update the continued package on the Output step.")
 
     def _resume_pending_model_import(self, key) -> None:
         if key is not None and self._pending_model_import is not None:

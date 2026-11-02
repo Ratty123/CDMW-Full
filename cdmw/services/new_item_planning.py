@@ -133,6 +133,25 @@ class ModelFiles:
     palette_extension: object = None
     #: bones the mesh's palette uses that are appended to its rig (SkeletonEditRecipe); the plan patches that PAB
     skeleton_edit: object = None
+    #: A finished model from an item package: the (translucency, surface settings, shader
+    #: controls) already written into its files, which planning never applies again.
+    baked_appearance: object = None
+
+
+def baked_model_files(files: "ModelFiles", translucency, surface_settings, shader_controls) -> "ModelFiles":
+    """`files` marked as already carrying these appearance settings."""
+
+    return replace(files, baked_appearance=(translucency, tuple(surface_settings or ()), tuple(shader_controls or ())))
+
+
+def require_baked_appearance(files: "ModelFiles", translucency, surface_settings, shader_controls, label: str) -> None:
+    """Refuse appearance edits a finished package model cannot take without its source."""
+
+    if files.baked_appearance != (translucency, tuple(surface_settings or ()), tuple(shader_controls or ())):
+        raise NewItemPlanError(
+            f"{label} uses the finished model from the item package, which already has its translucency, "
+            "surface and shader settings written in. Import the source model again in step 3 to change them."
+        )
 
 
 @dataclass(slots=True)

@@ -1295,6 +1295,16 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
         self._refresh_apply_status()
 
+    def show_draft(self) -> None:
+        """Show the draft's sheath and icon choices; the rest follows the model signals."""
+
+        draft = self._controller.draft
+        sheath, icon, icon_path = draft.sheathed_model, draft.icon, draft.icon_source_path
+        self.own_sheath.setChecked(sheath is SheathedModel.OWN_MODEL)
+        (self.keep_icon if icon is IconSource.TEMPLATE else self.generate_icon).setChecked(True)
+        self._icon_source_changed(icon is IconSource.TEMPLATE)
+        self.icon_source.setText(icon_path)
+
     def _sheath_changed(self, own: bool) -> None:
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.invalidate_plan()

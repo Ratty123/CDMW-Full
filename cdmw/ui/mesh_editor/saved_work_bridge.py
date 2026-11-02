@@ -73,6 +73,9 @@ class MeshEditorSavedWorkBridgeMixin:
         if not isinstance(row, SavedWorkRow):
             return
         self._cancel_mesh_saved_work_source_wait()
+        if row.is_item_package:
+            self._continue_item_package_saved_work(row)
+            return
         if row.is_built_mod and row.manifest_path is None and (row.mod_root is None or not row.mod_root.is_dir()):
             self.set_status_message("This mod's folder no longer exists, so it cannot be reopened.", error=True)
             return
@@ -90,6 +93,27 @@ class MeshEditorSavedWorkBridgeMixin:
             [row.source_archive_path],
             lambda sources, target=row: self._reveal_mesh_saved_work_source(target, sources),
         )
+
+    def _continue_item_package_saved_work(self, row: SavedWorkRow) -> None:
+        """Read an item package and its draft off the UI thread, then open Create New Item."""
+
+        if row.package_path is None or not row.package_path.is_file():
+            self.set_status_message("This item package no longer exists, so it cannot be reopened.", error=True)
+            return
+        from cdmw.ui.new_item.continue_launch import prepare_item_package_launch
+
+        root, row_id = self._mesh_saved_work_root(), row.row_id
+        self._run_utility_task_when_idle(
+            status_message=f"Reading {row.display_name} for Create New Item...",
+            task=lambda _log: prepare_item_package_launch(root, row_id),
+            on_complete=self._open_item_package_launch,
+            on_error=lambda message: self.set_status_message(f"Continue Editing failed: {message}", error=True),
+        )
+
+    def _open_item_package_launch(self, launch: object) -> None:
+        if launch is None or bool(getattr(self, "_shutting_down", False)):
+            return
+        self.open_new_item_studio(item_package=launch)
 
     def _mesh_saved_work_dependencies(self, entry: ArchiveEntry) -> ArchiveWorkflowDependencyContext | None:
         try:

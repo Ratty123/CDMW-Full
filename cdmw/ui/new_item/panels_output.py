@@ -330,6 +330,11 @@ class OutputPanel(QGroupBox):
         self.independent_note = QLabel(self.tr("Writes a portable .cdmw package. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game."))
         self.independent_note.setWordWrap(True)
         independent_layout.addWidget(self.independent_note)
+        self.continued_package_button = QPushButton(self.tr("Update the continued package"))
+        self.continued_package_button.setToolTip(self.tr("Write this item back to the package opened from Drafts & Mods, keeping its identity."))
+        self.continued_package_button.clicked.connect(self._write_continued)
+        self.continued_package_button.setVisible(False)
+        independent_layout.addWidget(self.continued_package_button)
         self.update_package_button = QPushButton("Update an existing item package...")
         self.update_package_button.setToolTip(self.tr("Replace a selected .cdmw package while keeping its identity. Writing a new package creates a separate item."))
         self.update_package_button.clicked.connect(lambda: self._write_independent(update=True))
@@ -444,6 +449,8 @@ class OutputPanel(QGroupBox):
         controller.operation_progress.connect(self._operation_progress)
         controller.status_message.connect(self._operation_message)
         controller.template_changed.connect(lambda _key: self._show_plan(None))
+        controller.template_changed.connect(
+            lambda _key: self.continued_package_button.setVisible(controller.continued_package_path is not None))
         self._busy_changed(False)
 
     def eventFilter(self, watched, event) -> bool:
@@ -478,6 +485,24 @@ class OutputPanel(QGroupBox):
         self.export_button.setToolTip(self.tr("Write a portable .cdmw file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
         self.install_overlay_button.setVisible(overlay)
         self._mod_base_changed(reason)
+
+    def show_continued_package(self) -> None:
+        """Select item package output and offer to write back to the continued package."""
+
+        path = self._controller.continued_package_path
+        index = self.output_mode.findData("independent")
+        if index >= 0 and self.output_mode.currentIndex() != index:
+            self.output_mode.setCurrentIndex(index)
+        self.continued_package_button.setVisible(path is not None)
+        self.continued_package_button.setToolTip(
+            self.tr("Write this item back to the package opened from Drafts & Mods, keeping its identity.")
+            + (f"\n\n{path}" if path is not None else ""))
+        self._refresh_export_state()
+
+    def _write_continued(self) -> None:
+        path = self._controller.continued_package_path
+        if path is not None and self._controller.has_current_plan:
+            self._controller.start_independent_export(str(path), update=True)
 
     def _write_independent(self, *, update=False):
         if not self._controller.has_current_plan:
@@ -612,6 +637,7 @@ class OutputPanel(QGroupBox):
         self.export_button.setEnabled(self._controller.has_current_plan and not self._controller.busy and not source_problem)
         self.send_dmm_button.setEnabled(self.export_button.isEnabled())
         self.update_package_button.setEnabled(self._controller.has_current_plan and not self._controller.busy)
+        self.continued_package_button.setEnabled(self._controller.has_current_plan and not self._controller.busy)
         if problem:
             self.plan_state.set_note("Export blocked", BLOCK)
         elif not self._controller.has_current_plan:
@@ -839,6 +865,7 @@ class OutputPanel(QGroupBox):
             control.setEnabled(not busy)
         self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and not busy)
         self.update_package_button.setEnabled(has_plan and not busy)
+        self.continued_package_button.setEnabled(has_plan and not busy)
         self._refresh_export_state()
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:

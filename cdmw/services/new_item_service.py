@@ -285,6 +285,7 @@ class NewItemService:
         variant_scenes: Optional[Mapping[tuple, object]] = None,
         icon: Optional[NewItemIcon] = None,
         icon_source_path: Optional[Path] = None,
+        icon_data: Optional[bytes] = None,
         reserved_keys: Iterable[int] = (),
         reserved_stems: Iterable[str] = (),
         on_log: Optional[Callable[[str], None]] = None,
@@ -300,8 +301,9 @@ class NewItemService:
         to the Builder's textures when it is not. `ModelFiles` retain their authored
         materials; an explicit translucency choice edits only its selected wrappers.
 
-        A generated icon comes either pre-built (`icon`) or from `icon_source_path`,
-        which this builds through the icon generator first.
+        A generated icon comes either pre-built (`icon`), as the finished icon bytes of an
+        item package being continued (`icon_data`), or from `icon_source_path`, which this
+        builds through the icon generator first.
         """
 
         def report(message):
@@ -344,6 +346,11 @@ class NewItemService:
             # Each builder result must be interpreted against its own target.
             # Running the legacy conversion here would apply the primary rig twice.
             pass
+        elif isinstance(model, ModelFiles) and model.baked_appearance is not None:
+            from cdmw.services.new_item_planning import require_baked_appearance
+            require_baked_appearance(model, allocated.translucency, allocated.surface_settings,
+                                     allocated.shader_controls, "The item")
+            files = model
         elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
             files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency,
@@ -362,7 +369,7 @@ class NewItemService:
             files = prepare_template_model(snapshot, paths, glow=allocated.glow, translucency=allocated.translucency, shader_controls=allocated.shader_controls,
                                            transform=allocated.template_transform, on_log=report,
                                            on_progress=on_progress, stop_event=stop_event)
-        if files is not None and model is not None:
+        if files is not None and model is not None and getattr(model, "baked_appearance", None) is None:
             from cdmw.services.new_item_surface import apply_surface_settings
             files = apply_surface_settings(files, allocated.surface_settings, result=model, scene=scene, stop_event=stop_event)
             from cdmw.services.new_item_shader_controls import apply_shader_controls
@@ -382,6 +389,11 @@ class NewItemService:
                         scenes[primary.identity] = scene
             prepared_variants = prepare_variant_models(allocated,snapshot,supplied,scenes,
                 on_log=report,on_progress=on_progress,stop_event=stop_event)
+        if allocated.icon is IconSource.GENERATED and built is None and icon_data is not None and icon_source_path is None:
+            from cdmw.core.item_icon_addition import icon_target_path
+            from cdmw.core.stringinfo_table import stringinfo_key
+            name = planned_icon_string(allocated, snapshot)
+            built = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), bytes(icon_data), None, None)
         if allocated.icon is IconSource.GENERATED and built is None:
             if icon_source_path is None:
                 raise NewItemPlanError("the spec asks for a generated icon; give an icon or an image to build one from")

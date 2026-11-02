@@ -357,6 +357,27 @@ class IdentityPanel(QGroupBox):
         self.reseed_suggested_name()
         self.refresh_issues()
 
+    def show_draft(self) -> None:
+        """Show the draft's names after it was replaced, as Drafts & Mods' Continue does."""
+
+        draft = self._controller.draft
+        name, item_key, stem = draft.internal_name, draft.item_key, draft.stem
+        self.internal_name.blockSignals(True)
+        try:
+            self.internal_name.setText(name)
+        finally:
+            self.internal_name.blockSignals(False)
+        if not name.strip():
+            self.reseed_suggested_name()
+        if item_key:
+            self._manual_item_key = int(item_key)
+            self.item_key_manual.setChecked(True)
+        if stem:
+            self._manual_stem = str(stem)
+            self.stem_manual.setChecked(True)
+        self._switch_language(self.language.currentIndex())
+        self.refresh_issues()
+
     def reseed_suggested_name(self) -> None:
         """Replace an untouched suggested name with one no item has yet.
 

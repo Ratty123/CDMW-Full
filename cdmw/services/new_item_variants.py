@@ -89,7 +89,13 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             continue
         if model is None:
             raise ValueError(f"Apply the imported model for {appearance.model_path} before planning.")
-        if isinstance(model, ModelFiles):
+        baked = isinstance(model, ModelFiles) and model.baked_appearance is not None
+        if baked:
+            from cdmw.services.new_item_planning import require_baked_appearance
+            require_baked_appearance(model, appearance.translucency, appearance.surface_settings,
+                                     appearance.shader_controls, appearance.model_path)
+            files = model
+        elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
             files = apply_prebuilt_translucency(model, MaterialRoute(appearance.material_route),
                                                appearance.translucency, on_log=on_log, stop_event=stop_event)
@@ -122,6 +128,9 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             from cdmw.services.new_item_skinning import rebind_armour_from_body
             files = rebind_armour_from_body(snapshot, appearance.model_path, files, stop_event=stop_event)
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
+        if baked:
+            result[appearance.identity] = files
+            continue
         from cdmw.services.new_item_surface import apply_surface_settings
         files = apply_surface_settings(files, appearance.surface_settings, result=model,
                                        scene=scenes.get(appearance.identity), stop_event=stop_event)

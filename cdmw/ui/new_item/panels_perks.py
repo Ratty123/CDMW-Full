@@ -401,6 +401,18 @@ class PerksPanel(QGroupBox):
         self._refresh_chosen()
         self._refresh_effect_support()
 
+    def show_draft(self) -> None:
+        """Tick Own perks when the draft carries its own list."""
+
+        own = self._controller.draft.socket_items is not None
+        self.own_perks.blockSignals(True)
+        try:
+            self.own_perks.setChecked(own)
+        finally:
+            self.own_perks.blockSignals(False)
+        self.custom_perks.setVisible(own)
+        self._refresh_chosen()
+
     def _own_perks_changed(self, checked: bool) -> None:
         draft = self._controller.draft
         if checked and draft.socket_items is None:

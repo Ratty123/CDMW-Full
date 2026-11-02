@@ -1,4 +1,4 @@
-"""Drafts & Mods: a tool page for saved Mesh Editor drafts, built mods and projects."""
+"""Drafts & Mods: a tool page for saved Mesh Editor drafts, built mods, item packages and projects."""
 
 from __future__ import annotations
 
@@ -43,7 +43,10 @@ from cdmw.services.mesh_saved_work_service import (
     STATUS_MATCHES,
     STATUS_MOD_MISSING,
     STATUS_ORIGINAL_UNKNOWN,
+    STATUS_PACKAGE_FOUND,
+    STATUS_PACKAGE_MISSING,
     STATUS_SOURCE_MISSING,
+    KIND_DRAFT,
     SavedWorkProject,
     SavedWorkRow,
     add_built_mod_folder,
@@ -59,6 +62,7 @@ from cdmw.services.mesh_saved_work_service import (
     saved_work_status,
     update_saved_work_details,
 )
+from cdmw.services.item_package_saved_work import add_item_package_file
 from cdmw.ui.mesh_editor.elided_label import ElidedLabel
 from cdmw.ui.mesh_editor.saved_work_sources import normalized_archive_path
 
@@ -84,15 +88,27 @@ def saved_work_status_text(code: str) -> str:
         return "Original game version unknown"
     if code == STATUS_GAME_NOT_LOADED:
         return "Load the game in Archive Browser to check"
+    if code == STATUS_PACKAGE_FOUND:
+        return "Package file found"
+    if code == STATUS_PACKAGE_MISSING:
+        return "Package file not found"
     return "Checking the game files..."
 
 
 def saved_work_kind_text(row: SavedWorkRow) -> str:
+    if row.is_item_package:
+        return "Item package" if row.has_draft else "Item package (no draft)"
     if not row.is_built_mod:
         return "Saved draft"
     if row.has_draft:
         return "Built mod"
     return "Built mod (no draft)"
+
+
+def saved_work_game_file_text(row: SavedWorkRow) -> str:
+    if row.is_item_package:
+        return f"New item based on {row.source_package}" if row.source_package else "New item"
+    return row.source_archive_path
 
 
 def _row_key(row: SavedWorkRow) -> str:
@@ -160,8 +176,9 @@ class SavedWorkPage(QWidget):
         layout.addWidget(title)
         intro = QLabel(
             "Mesh Editor saves a draft each time you choose Finish Edit Mesh, and Build Mod keeps "
-            "the editing state with the mod. Name your work, group it into projects, and choose "
-            "Continue Editing to pick up where you left off.",
+            "the editing state with the mod. Create New Item keeps the settings of each .cdmw item "
+            "package it writes. Name your work, group it into projects, and choose Continue Editing "
+            "to pick up where you left off.",
             self,
         )
         intro.setObjectName("HintLabel")
@@ -182,7 +199,14 @@ class SavedWorkPage(QWidget):
         )
         self.refresh_button = QPushButton("Refresh", self)
         self.refresh_button.setObjectName("SavedWorkRefresh")
+        self.add_package_button = QPushButton("Add Item Package...", self)
+        self.add_package_button.setObjectName("SavedWorkAddPackage")
+        self.add_package_button.setToolTip(
+            "List a .cdmw item package written before Drafts & Mods kept them, or by someone else. "
+            "Continue Editing then rebuilds its settings from the package."
+        )
         toolbar.addWidget(self.add_folder_button)
+        toolbar.addWidget(self.add_package_button)
         toolbar.addWidget(self.refresh_button)
         layout.addLayout(toolbar)
 
@@ -198,6 +222,7 @@ class SavedWorkPage(QWidget):
         self._sync_font_metrics()
 
         self.add_folder_button.clicked.connect(self._add_mod_folder)
+        self.add_package_button.clicked.connect(self._add_item_package)
         self.refresh_button.clicked.connect(self.refresh)
         self._sync_buttons()
 
@@ -475,8 +500,10 @@ class SavedWorkPage(QWidget):
         rows = self._rows
         if sources is None:
             for row in rows:
-                missing_mod = saved_work_status(row, found=True) == STATUS_MOD_MISSING
-                self._statuses[_row_key(row)] = STATUS_MOD_MISSING if missing_mod else STATUS_GAME_NOT_LOADED
+                # Missing folders and every package status need no game files.
+                code = saved_work_status(row, found=True)
+                kept = code in (STATUS_MOD_MISSING, STATUS_PACKAGE_FOUND, STATUS_PACKAGE_MISSING)
+                self._statuses[_row_key(row)] = code if kept else STATUS_GAME_NOT_LOADED
             self._populate()
             return
         live = dict(sources)
@@ -607,6 +634,7 @@ class SavedWorkPage(QWidget):
             not wanted
             or wanted in row.display_name.casefold()
             or wanted in row.source_archive_path.replace("\\", "/").casefold()
+            or wanted in saved_work_game_file_text(row).casefold()
             or wanted in row.notes.casefold()))
         self._visible_rows = rows
         self.table.blockSignals(True)
@@ -618,7 +646,7 @@ class SavedWorkPage(QWidget):
             cells = (
                 (_SortItem(saved), float(row.saved_at)),
                 (_SortItem(row.display_name), row.display_name.casefold()),
-                (_SortItem(row.source_archive_path), row.source_archive_path.casefold()),
+                (_SortItem(saved_work_game_file_text(row)), saved_work_game_file_text(row).casefold()),
                 (_SortItem(saved_work_kind_text(row)), row.kind),
                 (_SortItem(edit_pass), int(row.edit_pass)),
                 (_SortItem(saved_work_status_text(self.status_code(row))), self.status_code(row)),
@@ -629,9 +657,12 @@ class SavedWorkPage(QWidget):
                 item.setData(_ROW_KEY_ROLE, _row_key(row))
                 self.table.setItem(index, column, item)
             cells[1][0].setToolTip(f"{row.display_name}\n\n{row.notes}" if row.notes else row.display_name)
-            cells[2][0].setToolTip(
-                f"{row.source_archive_path}\n{row.source_package}" if row.source_package else row.source_archive_path
-            )
+            if row.is_item_package:
+                cells[2][0].setToolTip(str(row.package_path or ""))
+            else:
+                cells[2][0].setToolTip(
+                    f"{row.source_archive_path}\n{row.source_package}" if row.source_package else row.source_archive_path
+                )
             cells[5][0].setToolTip(cells[5][0].text())
         self.table.setSortingEnabled(True)
         self.table.clearSelection()
@@ -698,11 +729,11 @@ class SavedWorkPage(QWidget):
                                                 self._project_name(row.project_id) else NO_PROJECT)
             self.project_combo.setCurrentIndex(max(0, index))
         if row is not None:
-            self.game_file_value.setText(row.source_archive_path)
+            self.game_file_value.setText(saved_work_game_file_text(row))
             self.kind_value.setText(saved_work_kind_text(row))
             self.edit_pass_value.setText(str(row.edit_pass) if row.edit_pass > 0 else "Unknown")
             self.status_value.setText(saved_work_status_text(self.status_code(row)))
-            self.folder_value.setText(str(row.folder))
+            self.folder_value.setText(str(row.package_path if row.is_item_package else row.folder))
         else:
             for label in (self.game_file_value, self.kind_value, self.edit_pass_value,
                           self.status_value, self.folder_value):
@@ -717,15 +748,19 @@ class SavedWorkPage(QWidget):
                        self.continue_button, self.open_folder_button):
             widget.setEnabled(single)
         self.move_button.setEnabled(bool(rows))
-        self.duplicate_button.setEnabled(single and row is not None and not row.is_built_mod)
+        self.duplicate_button.setEnabled(single and row is not None and not row.is_built_mod
+                                         and not row.is_item_package)
         self.delete_button.setEnabled(single)
-        if row is not None and row.is_built_mod:
+        if row is not None and row.is_item_package:
+            self.delete_button.setText("Remove from List...")
+            self.delete_button.setToolTip("Remove this item package from the list. The .cdmw file is kept.")
+        elif row is not None and row.is_built_mod:
             self.delete_button.setText("Remove from List...")
             self.delete_button.setToolTip("Remove this mod from the list. The mod folder and its files are kept.")
         else:
             self.delete_button.setText("Delete...")
             self.delete_button.setToolTip("Delete this draft from your computer.")
-        if single and row is not None and not row.is_built_mod and self._row_is_open(row):
+        if single and row is not None and row.kind == KIND_DRAFT and self._row_is_open(row):
             self.delete_button.setEnabled(False)
             self.delete_button.setToolTip("This draft is open in Mesh Editor. Close it first.")
         if single and row is not None:
@@ -788,6 +823,19 @@ class SavedWorkPage(QWidget):
         if row is None:
             return
         root = self.draft_root
+        if row.is_item_package:
+            answer = QMessageBox.question(
+                self,
+                "Remove from List",
+                f"Remove {row.display_name} from this list?\n\n"
+                f"The item package is kept:\n{row.package_path}\n\n"
+                "Its saved Create New Item settings are removed from CDMW.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self._run(lambda: remove_built_mod_from_list(root, row), self._action_done)
+            return
         if row.is_built_mod:
             answer = QMessageBox.question(
                 self,
@@ -822,5 +870,13 @@ class SavedWorkPage(QWidget):
         project_id = self._selected_project if self._selected_project != ALL_WORK else NO_PROJECT
         self._run(lambda: add_built_mod_folder(root, folder, project_id=project_id), self._action_done)
 
+    def _add_item_package(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Add an Item Package", "", "Item package (*.cdmw *.cditem)")
+        if not path:
+            return
+        root = self.draft_root
+        project_id = self._selected_project if self._selected_project != ALL_WORK else NO_PROJECT
+        self._run(lambda: add_item_package_file(root, path, project_id=project_id), self._action_done)
 
-__all__ = ["SavedWorkPage", "saved_work_kind_text", "saved_work_status_text"]
+
+__all__ = ["SavedWorkPage", "saved_work_game_file_text", "saved_work_kind_text", "saved_work_status_text"]

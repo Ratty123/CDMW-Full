@@ -47,6 +47,7 @@ from cdmw.ui.new_item.controller_model_mixin import NewItemModelControllerMixin
 from cdmw.ui.new_item.controller_preview_mixin import NewItemPreviewControllerMixin
 from cdmw.ui.new_item.controller_task_mixin import NewItemTaskControllerMixin
 from cdmw.ui.new_item.controller_variant_mixin import NewItemVariantControllerMixin
+from cdmw.ui.new_item.controller_continue_mixin import NewItemContinueControllerMixin
 from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
@@ -58,6 +59,7 @@ from cdmw.workers.new_item_workers import export_task, install_overlay_task, ins
 from cdmw.workers.utility_workers import UtilityWorker
 
 class NewItemStudioController(
+    NewItemContinueControllerMixin,
     NewItemVariantControllerMixin,
     NewItemPreviewControllerMixin,
     NewItemModelControllerMixin,

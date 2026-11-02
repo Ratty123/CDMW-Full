@@ -5,7 +5,8 @@ draft root, described by a ``modify_original_workspace.json`` manifest. Drafts
 made by an archive session carry a copy of the mesh they started from, so a
 later edit pass can be resumed after the in-session result has gone.
 
-Built mods are listed in one index beside the drafts. A mod built from a
+Built mods are listed in one index beside the drafts, and the item packages
+Create New Item writes in another (``item_package_saved_work``). A mod built from a
 session with a draft keeps a frozen copy of that draft, so continuing it
 restores the state it was built from. Drafts and built mods can carry a
 name, notes and a user project from ``projects.json``. This module never
@@ -45,6 +46,7 @@ MAX_NAME_LENGTH = 120
 MAX_NOTES_LENGTH = 4000
 KIND_DRAFT = "draft"
 KIND_BUILT_MOD = "built_mod"
+KIND_ITEM_PACKAGE = "item_package"
 MAX_LISTED_ROWS = 2000
 MAX_BASELINE_BYTES = 1024 * 1024 * 1024
 _MESH_SUFFIXES = (".pac", ".pam", ".pamlod")
@@ -60,6 +62,8 @@ STATUS_SOURCE_MISSING = "source_missing"
 STATUS_MOD_MISSING = "mod_missing"
 STATUS_ORIGINAL_UNKNOWN = "original_unknown"
 STATUS_GAME_NOT_LOADED = "game_not_loaded"
+STATUS_PACKAGE_FOUND = "package_found"
+STATUS_PACKAGE_MISSING = "package_missing"
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,10 +107,16 @@ class SavedWorkRow:
     mod_root: Path | None = None
     project_id: str = ""
     notes: str = ""
+    #: The .cdmw file of an item package row; its draft, when kept, is ``manifest_path``.
+    package_path: Path | None = None
 
     @property
     def is_built_mod(self) -> bool:
         return self.kind == KIND_BUILT_MOD
+
+    @property
+    def is_item_package(self) -> bool:
+        return self.kind == KIND_ITEM_PACKAGE
 
 
 @dataclass(frozen=True, slots=True)
@@ -490,8 +500,34 @@ def _built_mod_row(draft_root: Path, record: Mapping[str, object]) -> SavedWorkR
     )
 
 
+def _item_package_row(draft_root: Path, record: Mapping[str, object]) -> SavedWorkRow:
+    from cdmw.services.item_package_saved_work import item_package_draft_path
+
+    package = Path(str(record.get("package_path") or ""))
+    draft = item_package_draft_path(draft_root, record)
+    return SavedWorkRow(
+        kind=KIND_ITEM_PACKAGE,
+        row_id=str(record.get("id") or ""),
+        display_name=str(record.get("display_name") or package.stem),
+        saved_at=_float(record.get("built_at"), 0.0),
+        source_archive_path="",
+        source_package=str(record.get("template_name") or ""),
+        edit_pass=_positive_int(record.get("revision"), 0),
+        folder=package.parent,
+        manifest_path=draft,
+        source_sha256="",
+        game_source_sha256="",
+        has_draft=draft is not None,
+        project_id=str(record.get("project_id") or ""),
+        notes=str(record.get("notes") or ""),
+        package_path=package,
+    )
+
+
 def list_saved_work(draft_root: Path | str, *, path_filter: str = "") -> tuple[SavedWorkRow, ...]:
-    """Every draft and indexed built mod, newest first. Reads small JSON only."""
+    """Every draft, indexed built mod and item package, newest first. Reads small JSON only."""
+
+    from cdmw.services.item_package_saved_work import MAX_LISTED_PACKAGES, read_item_package_index
 
     root = Path(draft_root).expanduser().resolve()
     rows: list[SavedWorkRow] = []
@@ -507,6 +543,7 @@ def list_saved_work(draft_root: Path | str, *, path_filter: str = "") -> tuple[S
         row = _built_mod_row(root, record)
         if row is not None:
             rows.append(row)
+    rows.extend(_item_package_row(root, record) for record in read_item_package_index(root)[:MAX_LISTED_PACKAGES])
     wanted = str(path_filter or "").replace("\\", "/").strip().strip("/").casefold()
     if wanted:
         rows = [row for row in rows
@@ -517,6 +554,10 @@ def list_saved_work(draft_root: Path | str, *, path_filter: str = "") -> tuple[S
 def saved_work_status(row: SavedWorkRow, *, found: bool, current_sha256: str = "") -> str:
     """Compare a row's original game file with the current game file."""
 
+    if row.is_item_package:
+        # A package pins its game files itself; Apply and Send to DMM check them.
+        found_package = row.package_path is not None and row.package_path.is_file()
+        return STATUS_PACKAGE_FOUND if found_package else STATUS_PACKAGE_MISSING
     if row.is_built_mod and (row.mod_root is None or not row.mod_root.is_dir()):
         return STATUS_MOD_MISSING
     if not found:
@@ -552,6 +593,11 @@ def update_saved_work_details(
     if not updates:
         return
     root = Path(draft_root).expanduser().resolve()
+    if row.is_item_package:
+        from cdmw.services.item_package_saved_work import update_item_package_details
+
+        update_item_package_details(root, row.row_id, updates)
+        return
     with SAVED_WORK_LOCK:
         if row.is_built_mod:
             records = _read_index(root)
@@ -668,7 +714,7 @@ def delete_project(draft_root: Path | str, project_id: str) -> None:
 def duplicate_saved_draft(draft_root: Path | str, row: SavedWorkRow, name: str) -> Path:
     """Copy a draft into a new one with its own name, to try a variation."""
 
-    if row.is_built_mod or row.manifest_path is None:
+    if row.is_built_mod or row.is_item_package or row.manifest_path is None:
         raise ValueError("Only drafts can be duplicated.")
     cleaned = clean_name(name)
     if not cleaned:
@@ -704,14 +750,19 @@ def _remove_owned_draft(root: Path, workspace: Path) -> None:
 
 
 def delete_saved_draft(draft_root: Path | str, row: SavedWorkRow) -> None:
-    if row.is_built_mod:
+    if row.is_built_mod or row.is_item_package:
         raise ValueError("Built mods are removed from the list, never deleted here.")
     _remove_owned_draft(Path(draft_root).expanduser().resolve(), row.folder)
 
 
 def remove_built_mod_from_list(draft_root: Path | str, row: SavedWorkRow) -> None:
-    """Forget a built mod and its saved editing state. The mod folder is kept."""
+    """Forget a built mod or item package and its saved editing state. Its files are kept."""
 
+    if row.is_item_package:
+        from cdmw.services.item_package_saved_work import remove_item_package_from_list
+
+        remove_item_package_from_list(draft_root, row.row_id)
+        return
     if not row.is_built_mod:
         raise ValueError("Only built mods can be removed from the list.")
     root = Path(draft_root).expanduser().resolve()
@@ -1018,6 +1069,7 @@ __all__ = [
     "DRAFT_ORIGIN",
     "KIND_BUILT_MOD",
     "KIND_DRAFT",
+    "KIND_ITEM_PACKAGE",
     "MeshDraftPlan",
     "MeshDraftRequest",
     "SAVED_WORK_LOCK",
@@ -1027,6 +1079,8 @@ __all__ = [
     "STATUS_MATCHES",
     "STATUS_MOD_MISSING",
     "STATUS_ORIGINAL_UNKNOWN",
+    "STATUS_PACKAGE_FOUND",
+    "STATUS_PACKAGE_MISSING",
     "STATUS_SOURCE_MISSING",
     "SavedWorkLaunch",
     "SavedWorkProject",

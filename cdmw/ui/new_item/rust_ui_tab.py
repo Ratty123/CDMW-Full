@@ -99,6 +99,9 @@ class RustNewItemStudioTab(QWidget):
     def open_model_source(self, path):
         self.workflow.open_model_source(path)
 
+    def continue_item_package(self, launch):
+        self.workflow.continue_item_package(launch)
+
     def prewarm(self):
         """Prepare the template workspace and renderer after shell startup."""
         if self._closed:

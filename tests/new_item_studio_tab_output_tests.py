@@ -86,6 +86,60 @@ class _TabOutputMixin:
         return placement
 
 
+    def test_continuing_an_item_package_shows_its_draft_in_every_step(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.domain.new_item.spec import IconSource
+        from cdmw.ui.new_item.continue_launch import ItemPackageLaunch
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        placement = tab.placement_panel
+        # Item packages add a shop line; they never replace one.
+        placement.insert.setChecked(True)
+        self.assertTrue(placement.choose_store("Store_Camp_Equipment"))
+        # The image the icon was made from is gone; the package's finished icon stands in.
+        icon = self.root / "moved-away.png"
+        saved = replace(
+            tab.controller.draft, internal_name="Continued_OneHandSword", display_names={"eng": "Continued", "ger": "Fortgesetzt"},
+            descriptions={"eng": "Kept"}, unlimited_stock=False, stock_count=4, max_stack_count=5,
+            icon=IconSource.GENERATED, icon_source_path=str(icon), sheathed_model=SheathedModel.TEMPLATE,
+        )
+        # The user moved on to other work in the studio.
+        placement.no_store.setChecked(True)
+        tab.identity_panel.internal_name.setText("Something_Else")
+        package = self.root / "Continued.cdmw"
+        from test_new_item_service import _fake_dds
+
+        tab.continue_item_package(ItemPackageLaunch(package, "c" * 32, "Continued", saved, icon_data=_fake_dds(),
+                                                    from_saved_draft=True))
+        deadline = time.monotonic() + 5
+        while tab.controller.continued_package_path is None and time.monotonic() < deadline:
+            QApplication.processEvents()
+        draft = tab.controller.draft
+        for name in ("internal_name", "display_names", "descriptions", "placement_kind", "store_name",
+                     "unlimited_stock", "stock_count", "max_stack_count", "icon",
+                     "icon_source_path", "sheathed_model"):
+            self.assertEqual(getattr(draft, name), getattr(saved, name), name)
+        self.assertEqual(draft.independent_identity, "c" * 32)
+        self.assertEqual(tab.identity_panel.internal_name.text(), "Continued_OneHandSword")
+        self.assertEqual(tab.identity_panel.display_name.text(), "Continued")
+        self.assertTrue(placement.insert.isChecked())
+        self.assertEqual(placement.store.currentData(), "Store_Camp_Equipment")
+        self.assertFalse(placement.unlimited_stock.isChecked())
+        self.assertEqual(placement.stock_count.value(), 4)
+        self.assertTrue(tab.model_panel.generate_icon.isChecked())
+        self.assertEqual(tab.model_panel.icon_source.text(), str(icon))
+        output = tab.output_panel
+        self.assertEqual(output.output_mode.currentData(), "independent")
+        self.assertTrue(tab.controller.independent_mode)
+        self.assertFalse(output.continued_package_button.isHidden())
+        self.assertIn(str(package), output.continued_package_button.toolTip())
+        self.assertEqual(tab.controller.continued_icon_data, _fake_dds())
+        tab.prefill_template(OTHER)
+        self.assertIsNone(tab.controller.continued_package_path)
+        self.assertTrue(output.continued_package_button.isHidden())
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 
