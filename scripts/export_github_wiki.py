@@ -113,6 +113,10 @@ _CONTROLS = (
     "Remove this object", "Undo this row", "Undo all changes", "Save changes...", "Item Package (.cdmw)...",
     "Add to Item Package...", "Loose Folder...", "Export Prefab Edit JSON...", "Import Prefab Edit JSON...",
     "Save as DMM Mod", "Edit HKX Physics",
+    "Edit Action Chart...", "Find Action Chart by Character...", "Edit Chart", "Set for This Animation",
+    "Set Event Fields", "Replace Everywhere", "Apply and Re-read", "Export DMM Mod...", "Send to DMM",
+    "Save Mod Folder...", "Action Charts", "Open Action Chart Mod...", "Use Clip Length", "Show in Archive Browser",
+    "Other Charts Playing This Clip...", "Change in Ticked Charts",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(

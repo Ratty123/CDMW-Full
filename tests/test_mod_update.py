@@ -159,12 +159,17 @@ def test_corrected_build_label_does_not_override_hash_evidence():
 
 
 def test_tampered_baseline_is_rejected(tmp_path):
+    from cdmw.core.mod_export_history import mod_metadata_path
+    package = tmp_path / "mod"
+    (package / "a").mkdir(parents=True)
+    (package / "a/b.pac").write_bytes(b"new")
     evidence = compatibility_from_payloads({"a/b.pac": b"new"}, {"a/b.pac": b"old"})
-    write_compatibility(tmp_path, evidence)
-    assert read_compatibility(tmp_path).originals == evidence.originals
-    (tmp_path / BASELINE_FILE).write_bytes(b"replaced")
+    write_compatibility(package, evidence)
+    assert not (package / BASELINE_FILE).exists()
+    assert read_compatibility(package).originals == evidence.originals
+    mod_metadata_path(package, BASELINE_FILE).write_bytes(b"replaced")
     with pytest.raises(ValueError, match="changed"):
-        read_compatibility(tmp_path)
+        read_compatibility(package)
 
 
 @pytest.mark.parametrize("overlay_count", (1, 4))
@@ -286,7 +291,8 @@ def test_changed_reference_and_modified_mod_payload_are_blocked(tmp_path):
     assert not checked.can_update and (reference, "dependency_changed") in checked.comparisons
     payload.write_bytes(b"manually changed mesh")
     checked = prepare_mod_update(folder, tmp_path / "game", entries=parse_archive_pamt(pamt))
-    assert any("mod payload changed" in message for message in checked.conflicts)
+    # The record is bound to the exported bytes, so an edited payload has none and is refused.
+    assert not checked.can_update and any("character/new.pac" in message for message in checked.conflicts)
 
 
 def test_input_change_during_export_prevents_publication(tmp_path, monkeypatch):

@@ -405,8 +405,9 @@ class PackageIsolationTests(unittest.TestCase):
                         {"CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"},
                     )
                     self.assertEqual(set(result.contents.animation_targets), {"longsword", "lswd"})
-                    self.assertIn("cdmw-baseline.zip", result.contents.metadata_files)
-                    self.assertIn("cdmw-compatibility.json", result.contents.metadata_files)
+                    # CDMW's records stay in its local history; mod managers never see them.
+                    self.assertNotIn("cdmw-baseline.zip", result.contents.metadata_files)
+                    self.assertNotIn("cdmw-compatibility.json", result.contents.metadata_files)
                     # The new child sockets are additions, and the shared back socket is untouched.
                     self.assertEqual(len(result.contents.all_socket_additions()), 2)
                     self.assertEqual(result.contents.all_socket_changes(), ())

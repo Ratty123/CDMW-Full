@@ -76,6 +76,9 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     extension_picker.setObjectName("CompactArchiveSelectButton")
     character_finder = getattr(archive, "archive_character_finder_button", None)
     buttons = (scan, refresh, finder, character_finder) if isinstance(character_finder, QWidget) else (scan, refresh, finder)
+    action_charts = getattr(archive, "archive_action_chart_button", None)
+    if isinstance(action_charts, QWidget):
+        buttons = (*buttons, action_charts)
     for button in buttons:
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(button)

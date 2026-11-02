@@ -3,8 +3,9 @@
 Chart strings are framed as `<strlen + 1><ASCII><NUL>` (see
 `tools/placement_studio/paac.py`). Requiring that frame, rather than scanning for
 anything path-like, keeps the length byte out of the name and rejects matches
-inside compressed or numeric runs. Node and event structure around the strings
-is not decoded here; a named path is a reference, not proof of when it plays.
+inside compressed or numeric runs. The chart structure itself is decoded by
+`cdmw.core.action_chart_binary`; a named path is a reference, not proof of when
+it plays.
 """
 
 from __future__ import annotations

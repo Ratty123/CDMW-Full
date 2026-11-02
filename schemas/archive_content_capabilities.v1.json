@@ -45,11 +45,11 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 86,
-        "decode_percent": 50.1,
+        "decode_percent": 51.3,
         "write_percent": 32.6,
         "decode": {
-          "full": 32,
-          "none": 25,
+          "full": 33,
+          "none": 24,
           "partial": 8,
           "surface": 21
         },
@@ -61,11 +61,11 @@
       },
       "engine_formats": {
         "extensions": 100,
-        "decode_percent": 49.6,
+        "decode_percent": 50.6,
         "write_percent": 33.5,
         "decode": {
-          "full": 37,
-          "none": 31,
+          "full": 38,
+          "none": 30,
           "partial": 10,
           "surface": 22
         },
@@ -77,11 +77,11 @@
       },
       "proprietary_formats": {
         "extensions": 92,
-        "decode_percent": 49.9,
+        "decode_percent": 51.0,
         "write_percent": 34.8,
         "decode": {
-          "full": 36,
-          "none": 29,
+          "full": 37,
+          "none": 28,
           "partial": 6,
           "surface": 21
         },
@@ -93,11 +93,11 @@
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 58.3,
+        "decode_percent": 59.0,
         "write_percent": 36.0,
         "decode": {
-          "full": 73,
-          "none": 35,
+          "full": 74,
+          "none": 34,
           "partial": 10,
           "surface": 36
         },
@@ -117,11 +117,11 @@
     "by_origin": {
       "proprietary": {
         "extensions": 92,
-        "decode_percent": 49.9,
+        "decode_percent": 51.0,
         "write_percent": 34.8,
         "decode": {
-          "full": 36,
-          "none": 29,
+          "full": 37,
+          "none": 28,
           "partial": 6,
           "surface": 21
         },
@@ -205,11 +205,11 @@
       },
       "material_metadata": {
         "extensions": 73,
-        "decode_percent": 50.5,
+        "decode_percent": 51.9,
         "write_percent": 34.9,
         "decode": {
-          "full": 30,
-          "none": 25,
+          "full": 31,
+          "none": 24,
           "partial": 5,
           "surface": 13
         },
@@ -286,7 +286,7 @@
         "extension": ".paac",
         "decode": "partial",
         "write": "constrained",
-        "remaining": "chart node structure around the strings is not parsed, so only same-length retargets are allowed"
+        "remaining": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet"
       },
       {
         "extension": ".palevel",
@@ -406,7 +406,7 @@
     { "extension": ".paschedule", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 4407, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
     { "extension": ".paschedulepath", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3808, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
     { "extension": ".pastage", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "constrained", "priority": "medium", "archive_files": 3891, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph. cdmw/ui/archive_browser/actions.py exposes Edit Structured Data Safely...; cdmw/services/structured_sidecar_edit_service.py writes validated fixed-size string replacements to an edited copy.", "remaining": "Track and event layout is not fully parsed, so full cutscene authoring remains unavailable. Only validated length-prefixed string fields can be replaced without changing their encoded size; arbitrary fields and variable-size edits are refused." },
-    { "extension": ".paac", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 560, "evidence": "tools/placement_studio/paac.py: length-prefixed string table indexed and retargeted", "remaining": "chart node structure around the strings is not parsed, so only same-length retargets are allowed" },
+    { "extension": ".paac", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 560, "evidence": "cdmw/core/action_chart_binary.py follows the game's chart loader: all 560 charts read to the last byte into named sections (animations with time ranges, nodes, branches, ten string tables, frame-event buffers), and the 185 frame-event kinds are named from the executable", "remaining": "node, branch and most frame-event payload fields stay raw bytes; commonactioninfo_serialized.paac keeps a 7,034-byte reflection tail; clip retargets, chart speed and speed-window edits work in game, event edits are not checked in game yet" },
     { "extension": ".ani", "role": "image", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "low", "archive_files": 3, "evidence": "Windows animated cursor (RIFF ACON) whose frames are .cur images; Archive Browser lists the timing and frames and draws them for all 3 shipped files.", "remaining": "not an authoring target in CDMW" },
     { "extension": ".pai", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
 
@@ -461,7 +461,7 @@
     { "extension": ".questgaugecount", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".paasmt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".paseqh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
-    { "extension": ".paacdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 9c010d50; action chart descriptor naming upper-action packages", "remaining": "container identified, record layout unknown" },
+    { "extension": ".paacdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 1, "evidence": "cdmw/core/action_chart_binary.py decodes the package table: each character package's main chart and its weapon-slot charts", "remaining": "There is no writer." },
     { "extension": ".paprojdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 1, "evidence": "magic 05001650; projectile info package descriptor", "remaining": "nothing: the single shipped file is fully accounted for and cross-checked against its XML" },
     { "extension": ".paschedulectx", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 2f100000; schedule context naming sequencer spawn files", "remaining": "container identified, record layout unknown" },
     { "extension": ".binarygimmickcacheddata", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "magic 19000000; 4 MB of cached gimmick data", "remaining": "container identified, record layout unknown" },

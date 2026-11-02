@@ -213,7 +213,9 @@ def test_selected_parent_mod_supplies_a_recorded_baseline_in_either_order(tmp_pa
 
 def test_missing_or_wrong_recorded_baseline_is_reported(tmp_path):
     _service, _snapshot, entries, _plans, folders = make_mods(tmp_path)
-    manifest_path = folders[0] / "new-item.json"
+    from cdmw.core.mod_export_history import mod_metadata_path
+    manifest_path = mod_metadata_path(folders[0], "new-item.json")
+    assert not manifest_path.is_relative_to(folders[0])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for digest in (None, "a" * 64):
         edited = dict(manifest, sources=[] if digest is None else [dict(row, sha256=digest) for row in manifest["sources"]])

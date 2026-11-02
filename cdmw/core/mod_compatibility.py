@@ -175,6 +175,11 @@ def capture_patch_compatibility(requests, additions=(), *, game_root=None, metad
 
 
 def write_compatibility(root: Path, compatibility: ModCompatibility, *, stop_event=None) -> tuple[Path, ...]:
+    """Record what the package at `root` replaces, in CDMW's history (never in the package).
+
+    Call after the payload files are written: the record is bound to their bytes.
+    Returns no package files; the tuple is kept for callers that list metadata.
+    """
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     stream = io.BytesIO()
@@ -191,16 +196,23 @@ def write_compatibility(root: Path, compatibility: ModCompatibility, *, stop_eve
                 seen.add(key)
     baseline = stream.getvalue()
     raise_if_cancelled(stop_event, "Mod baseline export cancelled.")
-    from cdmw.core.atomic_file import atomic_write_bytes
-    baseline_path = root / BASELINE_FILE
-    atomic_write_bytes(baseline_path, baseline)
     payload = {"format": COMPATIBILITY_FORMAT, "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "cdmw_version": APP_VERSION, "target_game": compatibility.target_game,
                "files": list(compatibility.files), "dependencies": list(compatibility.dependencies),
                "baseline_archive": BASELINE_FILE, "baseline_archive_sha256": digest(baseline)}
-    manifest = root / COMPATIBILITY_FILE
-    atomic_write_bytes(manifest, (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-    return manifest, baseline_path
+    # Mod managers read every file a package ships, so these records live in CDMW's
+    # history store, bound to the payload bytes already written under `root`.
+    from cdmw.core.mod_export_history import file_mod_history
+
+    file_mod_history(root, {
+        BASELINE_FILE: baseline,
+        COMPATIBILITY_FILE: (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+    }, stop_event=stop_event)
+    for stale in (COMPATIBILITY_FILE, BASELINE_FILE):
+        inline = root / stale
+        if inline.is_file() and not inline.is_symlink():
+            inline.unlink()
+    return ()
 
 
 def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | None:
@@ -211,7 +223,12 @@ def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | Non
             candidates = [item for item in package.infolist() if item.filename == COMPATIBILITY_FILE
                           or item.filename.endswith("/" + COMPATIBILITY_FILE)]
             if not candidates:
-                return None
+                from cdmw.core.mod_export_history import archive_history_directory
+
+                directory = archive_history_directory(root, stop_event=stop_event)
+                if directory is None or not (directory / COMPATIBILITY_FILE).is_file():
+                    return None
+                return read_compatibility(directory, stop_event=stop_event)
             if len(candidates) != 1 or candidates[0].file_size > MAX_METADATA_BYTES:
                 raise ValueError("Ambiguous or oversized compatibility metadata in ZIP package.")
             prefix = candidates[0].filename[:-len(COMPATIBILITY_FILE)]

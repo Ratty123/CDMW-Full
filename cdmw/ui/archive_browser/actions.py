@@ -17,6 +17,7 @@ from cdmw.domain.archives.constants import (
     ARCHIVE_AUDIO_PATCH_EXTENSIONS,
     ARCHIVE_MESH_EXTENSIONS,
 )
+from cdmw.services.action_chart_edit_service import is_editable_action_chart_path
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.workflow_dependencies import (
@@ -534,6 +535,18 @@ class ArchiveBrowserActionMixin:
                 "Add the child bones listed in Skeleton Edit JSON and write the skeleton as a mod-ready loose package."
             )
             import_pab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_pab_edit_json())
+
+        if entry.extension in {".paac", ".paacdesc"}:
+            _add_menu_section("data", "Action Chart")
+            if is_editable_action_chart_path(entry.path):
+                edit_chart_action = menu.addAction(menu_icons["data"], "Edit Action Chart...")
+                edit_chart_action.setToolTip(
+                    "Change the chart's clips, blend spaces, sockets, effects and timing, then export a DMM mod."
+                )
+                edit_chart_action.triggered.connect(lambda _checked=False: self._open_current_archive_action_chart_editor())
+            find_chart_action = menu.addAction(menu_icons["data"], "Find Action Chart by Character...")
+            find_chart_action.setToolTip("Pick a character and weapon slot to open the chart it uses.")
+            find_chart_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())
 
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")

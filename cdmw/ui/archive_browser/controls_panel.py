@@ -74,6 +74,9 @@ class ArchiveControlsPanelMixin:
         self.archive_character_finder_button.setToolTip("Find character bodies, faces and appearance variants in the installed archives.")
         self.archive_character_finder_button.setEnabled(False)
         self.archive_character_finder_button.clicked.connect(self._show_archive_character_finder_dialog)
+        # Only the full Archive Browser carries the action chart actions.
+        build_action_chart_button = getattr(self, "_build_action_chart_button", None)
+        self.archive_action_chart_button = build_action_chart_button() if callable(build_action_chart_button) else None
         self.archive_clear_asset_scope_button = QPushButton("Clear Scope")
         self.archive_clear_asset_scope_button.setToolTip("Clear the active Item Finder scope and return to normal archive filters.")
         self.archive_clear_asset_scope_button.setVisible(False)
@@ -126,6 +129,8 @@ class ArchiveControlsPanelMixin:
         archive_scan_actions_row.addWidget(self.archive_refresh_scan_button)
         archive_scan_actions_row.addWidget(self.archive_asset_catalog_button)
         archive_scan_actions_row.addWidget(self.archive_character_finder_button)
+        if self.archive_action_chart_button is not None:
+            archive_scan_actions_row.addWidget(self.archive_action_chart_button)
         archive_scan_actions_row.addWidget(self.archive_clear_asset_scope_button)
         archive_scan_actions_row.addStretch(1)
         archive_search_layout.addLayout(archive_scan_actions_row)

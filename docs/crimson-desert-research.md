@@ -1570,10 +1570,84 @@ The replacement workspace retains exact installed paths, Full/LOD companions
 and source identity. Packed timing analysis uses matched clip families rather
 than assuming a distance variant is a different rig.
 
-Action charts (`.paac`) expose references and allow admitted same-length
-retargets, but their full node/event semantics are not decoded. Sequence and
-stage formats likewise do not yet provide unrestricted cutscene authoring.
-A previewed clip does not establish a live animation-control or possession API.
+Action charts (`.paac`) are now read to the last byte. Reviewed 2026-11-02
+against the installed 2.04.03 build (executable 1.0.0.3479; loader read from a
+runtime dump, archives read-only):
+
+- **Container.** `ActionChartPackage` reads a chart as one sequential stream and
+  keeps pointers into the buffer, so every record is a flat struct and nothing
+  stores a file offset. Each read has a failure message naming the member it
+  fills, which names the sections: per-animation `AnimationInfo` (a 0xA8-byte
+  header plus eleven arrays and frame-event instances), ten string tables,
+  `ActionSpeedRate`, an always-empty `ShareValue` block, `CountInfo`,
+  `DefaultSocket`, included sub-chart names, 0x120-byte `actionChart` nodes,
+  condition, branch and key-guide arrays, and the frame-event buffers.
+  `cdmw/core/action_chart_binary.py` owns the exact grammar.
+- **Coverage.** All 558 standard charts and `commonactioninfo.paac` parse
+  exactly. `commonactioninfo_serialized.paac` parses except a 7,034-byte tail
+  that a separate reflection-stream reader consumes; that span is recorded, not
+  decoded.
+- **Semantics established.** An animation's header holds its clip (table 1) and
+  blend space (table 5) indices and a start/end time in seconds; the end time
+  equals the clip's `.paa` duration on every sampled clip unless the chart trims
+  it. A node's animations are `[first, first + count)`, and nodes partition the
+  animation list exactly in every chart. The ten string tables are typed (names,
+  clips, camera clips, effects, effect switches, blend spaces, bones and
+  sockets, equipment types, sequencers, prefabs). Frame-event instances are
+  `(begin, end, dword offset, sequence, condition)`; the 185 event kinds are
+  named from the client factory switch, and they moved with the update
+  (ModelAttachmentSocket went from 60 to 62, and its event gained a 12-byte
+  header). All 171,884 socket events validate against tables 6 and 7.
+- **Event buffers.** Every event kind has one fixed size, and those sizes walk all
+  1,116 frame-event and key-guide buffers to their last byte. Events are shared:
+  816,918 frame-event instances point at 71,553 events. Effect events name their
+  effect (table 3) and bone (table 6); Prefab events their prefab (table 9) and
+  sockets; ShowPart/HidePart a part (table 7); PlaySequencerConnectActor a
+  sequencer (table 8). Sound events carry no string reference.
+- **Not yet named.** Most node, branch, key-guide and frame-event payload fields
+  stay raw bytes, as do two u32 hashes and a second rate after
+  `ActionSpeedRate`.
+- **Writes (constrained).** Any string table entry can be retargeted at any
+  length up to 254 ASCII characters: the table is rebuilt and every other byte
+  moves as one block, which round-trips on every table of all 558 charts. One
+  animation can get its own clip or blend space: a new path is appended, so no
+  existing index moves. The named event references above, and a socket event's
+  mode and blend time, can be edited; a shared event is first copied to the end
+  of the buffer for the edited animation, and on all 558 charts the other
+  animations kept the old value. In-place f32 edits cover `ActionSpeedRate`,
+  animation start/end, speed windows and their rate, frame-tag and just-time
+  windows, and frame-event begin/end. Everything else is refused.
+  Archive Browser's **Edit Action Chart...** exposes these writes, names the
+  other charts that play a clip, and exports the edited charts as one DMM
+  archive-group mod.
+- **In game (2026-11-02, game 2.04.03, exe 1.0.0.3479, mounted with DMM 1.0).**
+  Clip retargets work: with the two sword-drawn idle clips retargeted to a
+  clapping loop in the six Kliff charts that play them (each table grew by 10
+  bytes per entry), Kliff clapped with the sword drawn and the game loaded
+  normally. The same edit in `sword_upper.paac` alone changed nothing visible,
+  although DmmRuntime served exactly the edited chart, so the sword-drawn idle on
+  screen comes from another chart that plays the same clip. Single-chart tests
+  settled it: with two one-handed swords drawn, the idle comes from
+  `dualweapon_upper.paac`, which no package names directly. Player_Kliff's
+  SubWeapon slot uses `subweapon_upper`, and that chart includes
+  `dualweapon_upper` through its included-chart names. `basic_upper_maskset`
+  alone changed nothing. Which chart a player sees therefore depends on the
+  loadout, and a chart can be reached only through another chart's includes.
+  Timing works too: halving `dualweapon_upper`'s `ActionSpeedRate` slowed
+  every dual-wield action, and halving its 2,491 speed-window rates did the
+  same. The Alt dodge kept its speed in both tests although the chart's 197
+  dodge animations all carry speed windows; Kliff's lower-body chart
+  `basic_lower` has its own dodge and roll animations and is the likely source,
+  which is not tested. Event edits are not checked in game yet.
+- **Descriptor.** `.paacdesc` is fully decoded: each character package names its
+  main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
+  `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts
+  and stays undecoded.
+
+The placement studio's own chart reader still assumed the pre-update layout and
+read no shipped chart; it now uses the shared decoder. Sequence and stage formats
+do not yet provide unrestricted cutscene authoring. A previewed clip does not
+establish a live animation-control or possession API.
 
 A read-only inventory of the installed archives (game 1.0.0.3446, executable
 SHA-256 prefix `fec07be1b725a466`, 2,081,896 paths, 2026-10-31) fixed the path
@@ -3511,7 +3585,7 @@ This is a research register, not a promised delivery schedule.
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |
 | Can effect previews reproduce runtime surfaces and final appearance? | Keyed reflection, selected lightning kernels and static-surface spawning | Animated stream-out surfaces, actual seed/birth state, shader variants and attachment/lifetime evidence |
-| Can full action charts, scenes and projectile tables be authored? | Metadata/references and selected consumer leads | Complete record/event semantics and source-faithful writers |
+| Can full action charts, scenes and projectile tables be authored? | Charts read to the last byte from the loader's own member order, with constrained string and timing writes; scenes and projectile tables have metadata/references and selected consumer leads | Node, branch and frame-event payload semantics, a game check of a retargeted and a retimed chart, and source-faithful writers for scenes and projectile tables |
 | Can items be registered additively through a native API? | Rejected ordinary static-info shortcut and identified owners | Independent definition sets, real lookup/auxiliary registration, lifecycle and persistence |
 | Can native resource loading be generalized safely? | Recorded asynchronous manager/provider route | Exact receiver/build provenance, texture binding, retirement, failure recovery and required socket consumers |
 | Can arbitrary package domains compose? | Typed item, field, link and texture subsets | A complete adapter and real consumer for each new domain; explicit conflict semantics |
@@ -3748,7 +3822,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.mtl` | Open | Full | Full |
 | `.nav` | PA | Surface | None |
 | `.overridedlevellistbinary` | PA | None | None |
-| `.paacdesc` | PA | None | None |
+| `.paacdesc` | PA | Full | None |
 | `.paasmt` | PA | None | None |
 | `.paatt` | PA | None | None |
 | `.pabc` | PA | Surface | None |
