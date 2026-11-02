@@ -196,14 +196,62 @@ def test_the_file_row_is_selected_first_so_choose_file_is_live(qt_app: QApplicat
     assert dialog.tree.currentItem() is _path_row(dialog)
 
 
-def test_emptying_a_path_row_clears_it_with_a_warning(qt_app: QApplication) -> None:
+def test_emptying_a_path_row_is_refused_with_its_reason(qt_app: QApplication) -> None:
+    """A resource path opens its pointee. Emptied, the prefix reads back as "no
+    string" and then as the pointee's length, so the write failed its own
+    read-back with "no longer reads all the way through". It is refused up
+    front instead, and the row's warning says why."""
     dialog = PrefabInspectorDialog(_build())
+    logs: list[str] = []
+    dialog._log = logs.append
     _path_row(dialog).setText(2, "")
 
-    assert dialog.collect_path_edits()[0].new_text == ""
     lines, warnings = dialog._pending_changes()
     assert [line.after for line in lines] == ["(empty)"]
-    assert warnings and "empty" in warnings[0]
+    assert warnings and "cannot be cleared" in warnings[0]
+    dialog._confirm_changes = lambda: True
+    dialog._apply_changes()
+
+    assert dialog.result_payload is None
+    assert "cannot be left without one" in logs[-1]
+
+
+def test_the_rewriter_refuses_to_empty_a_path_before_writing() -> None:
+    data = _build()
+    (path,) = [item for item in decode_prefab_binary(data).all_strings() if item.text == PATH]
+    with pytest.raises(PrefabEditError, match="cannot be left without one"):
+        rewrite_prefab_paths(data, [PrefabPathEdit(path.offset, PATH, "")])
+
+
+def test_text_with_outer_spaces_is_not_a_phantom_edit(qt_app: QApplication) -> None:
+    """The row compared its stripped text with the unstripped original, so a
+    socket name with a leading or trailing space was "changed" untouched."""
+    from tests.test_prefab_rewriter_fuzz import build_many
+
+    dialog = PrefabInspectorDialog(build_many(["a/sword.pac"], socket=" Hand_R_Socket "))
+    row = _row(dialog, " Hand_R_Socket ")
+
+    assert dialog.collect_path_edits() == ()
+    assert dialog._pending_changes() == ([], [])
+    assert not dialog.row_has_pending_change(row)
+    row.setText(2, "Hand_R_Socket")
+    assert dialog.collect_path_edits()[0].new_text == "Hand_R_Socket", "a real change still counts"
+
+
+def test_a_structural_edit_rechecks_whether_the_walk_is_determined(qt_app: QApplication, monkeypatch) -> None:
+    """Path and placement writes need a determined walk. That belongs to the
+    bytes being edited, so adopting a resized payload has to recompute it rather
+    than keep the answer for the file as opened."""
+    from cdmw.ui.archive_browser import prefab_inspector_structure as structure
+
+    data = _build()
+    dialog = PrefabInspectorDialog(data)
+    assert dialog._can_edit()
+
+    monkeypatch.setattr(structure, "walk_is_determined", lambda _data: False)
+    dialog._adopt_payload(data)
+
+    assert not dialog._can_edit()
 
 
 def test_each_transform_in_an_array_gets_its_own_placement_row(qt_app: QApplication) -> None:

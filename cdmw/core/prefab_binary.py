@@ -880,6 +880,18 @@ def _describe_cursor(cursor: _BlobCursor) -> str:
     return "bytes " + blob[cursor.pos : cursor.pos + 6].hex(" ")
 
 
+#: The collection-count reader ``walk_is_determined`` substitutes while it probes a
+#: file, visible only to the probing thread. It used to replace the module
+#: function itself, which any other thread decoding a prefab at the same time
+#: (New Item planning runs on a worker) would have picked up.
+_COUNT_READER = threading.local()
+
+
+def _count_for(cursor: _BlobCursor) -> int:
+    reader = getattr(_COUNT_READER, "reader", None)
+    return reader(cursor) if reader is not None else _read_collection_count(cursor)
+
+
 def _read_collection_count(cursor: _BlobCursor) -> int:
     """Read a collection's element count.
 
@@ -1055,7 +1067,7 @@ def _read_member(
         while not cursor.plain_counts and cursor.blob[cursor.pos:cursor.pos + 1] != b"\x00" and cursor.at_length_field():
             cursor.take(4)
         header_at = cursor.pos
-        count = _read_collection_count(cursor)
+        count = _count_for(cursor)
         header_width = cursor.pos - header_at
         if cursor.plain_counts and (count or cursor.revision < 15):
             # Object-list serialization retains its reference header even when empty.
@@ -1546,7 +1558,6 @@ def walk_is_determined(data: bytes) -> bool:
         def reread() -> PrefabDocument:
             return _decode_previous(data)
 
-    global _read_collection_count
     shipped = _read_collection_count
 
     flipped = False
@@ -1563,13 +1574,13 @@ def walk_is_determined(data: bytes) -> bool:
             return wide
         return shipped(cursor)
 
-    _read_collection_count = prefer_wide
+    _COUNT_READER.reader = prefer_wide
     try:
         alternate = reread().walk_complete
     except PrefabBinaryError:
         alternate = False
     finally:
-        _read_collection_count = shipped
+        _COUNT_READER.reader = None
     # A file with no ambiguous site decodes identically both ways. That is not
     # two valid readings, it is one reading run twice, and calling it
     # undetermined would refuse editing on almost every prefab.

@@ -468,13 +468,41 @@ def test_a_file_that_does_not_decode_is_not_called_undetermined() -> None:
 
 
 def test_the_shipped_collection_reader_is_restored_afterwards() -> None:
-    """It swaps a module-level function out; leaking that would corrupt later walks."""
+    """It overrides the count reader while probing; leaking that would corrupt later walks."""
 
     from cdmw.core import prefab_binary as module
 
     before = module._read_collection_count
     module.walk_is_determined(_build())
     assert module._read_collection_count is before
+    assert getattr(module._COUNT_READER, "reader", None) is None
+
+
+def test_another_thread_never_sees_the_probe_s_count_reader(monkeypatch) -> None:
+    """The probe used to replace the module function, so a prefab decoded on a
+    worker (New Item planning) while the Inspector probed read wide headers."""
+    import threading
+
+    from cdmw.core import prefab_binary as module
+
+    seen: dict[str, object] = {}
+    shipped = module._read_prefab
+
+    def probing_read(*args, **kwargs):
+        seen["probe"] = getattr(module._COUNT_READER, "reader", None)
+        worker = threading.Thread(
+            target=lambda: seen.__setitem__("worker", getattr(module._COUNT_READER, "reader", None))
+        )
+        worker.start()
+        worker.join()
+        return shipped(*args, **kwargs)
+
+    data = _build()
+    monkeypatch.setattr(module, "_read_prefab", probing_read)
+    module.walk_is_determined(data)
+
+    assert seen["probe"] is not None, "the probing thread reads with the override"
+    assert seen["worker"] is None, "no other thread does"
 
 
 # ── Collection header width ──────────────────────────────────────────────

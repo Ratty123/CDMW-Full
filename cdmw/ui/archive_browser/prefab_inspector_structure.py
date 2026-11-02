@@ -29,6 +29,7 @@ from cdmw.services.prefab_structure_service import (
     duplicate_prefab_element,
     locate_element,
     remove_prefab_element,
+    walk_is_determined,
 )
 from cdmw.ui.archive_browser.prefab_inspector_editing import OBJECT_ROLE
 
@@ -171,6 +172,9 @@ class PrefabStructureMixin:
         """
         self._original = bytes(data)
         self._document = decode_prefab_binary(self._original)
+        # Path and placement writes are allowed only on a determined walk, and
+        # that is a property of these bytes, not of the file as it was opened.
+        self._determined = walk_is_determined(self._original)
         self.tree.clear()
         self._populate_objects()
         self._apply_object_filter()
