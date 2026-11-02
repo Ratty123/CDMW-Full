@@ -77,6 +77,13 @@ class NewItemPlanError(ValueError):
         self.issues = tuple(issues)
 
 
+def needs_own_parts(spec: NewItemSpec, snapshot: NewItemSnapshot) -> bool:
+    """The item gets a model family of its own: the spec asks for one, or the template
+    owns parts only a DLC part-prefab table holds, which a new item's row cannot reach."""
+
+    return spec.needs_own_family or bool(snapshot.dlc_only_owned_parts(spec.template_key))
+
+
 @dataclass(frozen=True, slots=True)
 class NewItemPlan:
     """Everything a new item changes, as data."""
@@ -159,6 +166,9 @@ class _Planner(EffectPlanningMixin):
     private_texture_copies: Dict[str, str] = field(default_factory=dict)
     #: new prefab path -> the template prefab it was copied from
     prefab_copies: Dict[str, str] = field(default_factory=dict)
+    #: The template's own parts that only a DLC part-prefab table holds; the item copies
+    #: its model family even when the spec keeps the template's look.
+    dlc_parts: Tuple[str, ...] = ()
     definition_text: object = None
 
     def allocate_owned_keys(self, namespace, symbols, used):
@@ -196,9 +206,9 @@ class _Planner(EffectPlanningMixin):
     @property
     def clones_model(self) -> bool:
         """The item gets a model family of its own: an imported build, or the template's
-        mesh copied so its prefabs can carry an effect."""
+        mesh copied so its prefabs can carry an effect or sit in the base part table."""
 
-        return self.spec.needs_own_family
+        return self.spec.needs_own_family or bool(self.dlc_parts)
 
     def patch(self, entry: ArchiveEntry, payload: bytes, what: str) -> None:
         # A table has one final payload even when multiple authoring operations edit it.
@@ -325,6 +335,9 @@ class _Planner(EffectPlanningMixin):
         self.manifest["pappt_records"] = dict(mapping)
         self.manifest["sheathed_records"] = dict(sheathed)
         self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
+        if self.dlc_parts and not self.spec.needs_own_family:
+            self.manifest["dlc_part_copies"] = list(self.dlc_parts)
+            self.summary.append(f"Model: the template's parts are DLC-only ({', '.join(self.dlc_parts)}), so the item gets its own copies")
 
     def plan_enhancements(self) -> None:
         """Preserve inherited progression with owned references on current tables."""
@@ -940,9 +953,11 @@ def build_plan(
     for name in ("item_key", "name_key"):
         if getattr(spec, name) is None:
             raise NewItemPlanError(f"the spec's {name} is not allocated")
-    if spec.needs_new_stem and not spec.stem:
+    dlc_parts = snapshot.dlc_only_owned_parts(spec.template_key)
+    if (spec.needs_new_stem or dlc_parts) and not spec.stem:
         raise NewItemPlanError("the spec needs a stem and none is allocated")
     planner = _Planner(spec=spec, snapshot=snapshot, model=model, icon=icon, on_log=on_log, stop_event=stop_event)
+    planner.dlc_parts = dlc_parts
     planner.reserved_item_keys = tuple(reserved_item_keys)
     planner.identity_bindings = identity_bindings
     planner.independent = capture_independent
