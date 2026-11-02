@@ -428,6 +428,14 @@ def socket_label(socket: str) -> str:
     known = SOCKET_PLACES.get(socket)
     if known:
         return known
+    # The item's own half of a pair: `Pelvis_L_ChildSocket` aims an item hung at the left hip,
+    # and `Basic_ChildSocket` is the grip every held weapon uses.
+    if socket == "Basic_ChildSocket":
+        return "Grip (in hand)"
+    if socket.endswith("_ChildSocket"):
+        place = SOCKET_PLACES.get(socket[: -len("_ChildSocket")] + "_Socket")
+        if place:
+            return f"{place} (the item's own point)"
     trimmed_name = socket.replace("_Socket", "").replace("_", " ").strip()
     return trimmed_name or socket
 

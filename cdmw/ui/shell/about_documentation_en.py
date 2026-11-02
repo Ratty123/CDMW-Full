@@ -395,6 +395,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Use <b>Body &amp; Face Finder</b> to browse character models and appearance variants, including creatures and mounts, with thumbnails and an independent interactive preview.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
+                  <li>Use <a href="topic:prefab_inspector">Prefab Inspector</a> to change what a prefab is built from and save it as a mod.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
@@ -480,6 +481,38 @@ class AboutDocumentationEnglishMixin:
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
                 <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>
+                """,
+            },
+            {
+                "id": "prefab_inspector",
+                "title": "Prefab Inspector",
+                "summary": "Change a prefab's files, text, placements, values and objects, then save it as an item package or a DMM mod folder.",
+                "keywords": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cdmw cditem loose folder dmm prefab edit json",
+                "html": """
+                <p>A prefab lists the parts an item or object is built from: its mesh and other files, sockets, effects, and where each part sits. Prefab Inspector shows that list and lets you change it. The game's archives are never changed; you save the result as a mod.</p>
+                <h4>Open a prefab</h4>
+                <ol>
+                  <li>In Archive Browser, right-click a .prefab file and choose Open Prefab Inspector... The progress bar shows the file being read and the archives being indexed.</li>
+                  <li>Tick Only rows I can change to hide everything you cannot edit.</li>
+                </ol>
+                <p>Each object is a heading with its files, text and values below it.</p>
+                <h4>Change it</h4>
+                <ul>
+                  <li>Double-click a file path to type a new one, or choose Swap for another file... to pick from the files of that kind in the game. Any length is fine.</li>
+                  <li>Double-click text such as a socket name, tag or alias to change it. Leave a row empty to clear it.</li>
+                  <li>Double-click a placement to move, rotate or rescale it. Each entry of a placement list has its own row.</li>
+                  <li>Double-click a number, switch or vector to change it. Values whose layout is not confirmed, such as colours, are shown but cannot be changed.</li>
+                  <li>Right-click an object and choose Duplicate this object or Remove this object. These apply at once, so save or undo row changes first.</li>
+                  <li>Right-click a row and choose Undo this row, or click Undo all changes to start again.</li>
+                </ul>
+                <h4>Save it</h4>
+                <ol>
+                  <li>Click Save changes..., read the list of changes and any warnings, and confirm.</li>
+                  <li>Close the window and choose how to save: Item Package (.cdmw)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.</li>
+                </ol>
+                <p>With Add to Item Package..., the prefab can use a mesh that the package's own item adds.</p>
+                <p>To reuse edits, Export Prefab Edit JSON... saves them as a text file, and Import Prefab Edit JSON... applies one to the selected prefab and offers the same three ways to save.</p>
+                <div class="doc-callout doc-warning"><b>Limitations:</b> Loading edited prefabs in game is untested. About 0.5% of prefabs are read only in part; on those, a file path can only be replaced by one of exactly the same length, and nothing else can be changed. An item package will not load after a game update changes the original prefab, when the edit was made on another mod's version of it, or when a path points at a file that neither the game nor the package provides. Prefabs saved with Duplicate this object or Remove this object in 0.11.0-alpha.31 or earlier are damaged; redo those edits from the game's copy.</div>
                 """,
             },
             {
@@ -591,16 +624,40 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "placement_studio",
                 "title": "Placement & Animations",
-                "summary": "Move equipment, change sockets, retarget draw/stow clips, and package the result.",
-                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package dmm",
+                "summary": "Move where a weapon is carried, fine-tune it, give it other animations, and save a DMM mod.",
+                "keywords": "placement animations weapon carried position fine-tune attach point socket draw put away armour clipping your mod save dmm edit animation keys timeline reach ik plant foot join blend mirror blender",
                 "html": """
-                <p><b>Placement &amp; Animations</b> is the focused workspace for changing where a weapon or piece of armour sits and how its draw/stow animation route behaves.</p>
+                <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. The 3D view is on the left; the tabs on the right are <b>Position</b>, <b>Animations</b>, <b>Edit animation</b>, <b>Armour</b>, <b>Your mod</b>, <b>Advanced</b> and <b>Help</b>.</p>
+                <p><b>Move a weapon somewhere else on the body</b></p>
+                <ol>
+                  <li>Choose the <b>Character</b> and <b>Weapon</b> at the top. The matching slot is picked for you.</li>
+                  <li>On <b>Position</b>, pick a spot in <b>Carried at</b>. The weapon moves there when put away, and gets an attach point of its own so nothing else moves with it.</li>
+                  <li>Set <b>Show it</b> to <b>Put away</b>, try armour on the <b>Armour</b> tab, and press <b>Check for clipping</b>.</li>
+                  <li>Optional: on <b>Animations</b>, choose <b>Use another weapon's animations…</b> to give it a draw that reaches the new spot. You see every file it would change, and can watch the result, before anything changes.</li>
+                </ol>
+                <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
-                  <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
-                  <li>Choose Prepare preview, compare Before and After, and inspect Details and exact files. Checks distinguish Passed, Warning, Unverified, and Blocked; unsupported runtime behavior remains unverified.</li>
-                  <li>Package reviewed changes for DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
+                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b>, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
+                  <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
                 </ul>
+                <p><b>Change an animation, or make a new one</b></p>
+                <ol>
+                  <li>Play the animation on <b>Animations</b>, open <b>Edit animation</b> and choose <b>Edit the animation that is playing</b>. <b>Start a new one from this pose</b> builds a new animation from the pose on screen instead.</li>
+                  <li>Pick a <b>Bone</b>, or click its joint in the view, move the playhead on the timeline at the top of the tab, and <b>Turn</b> or <b>Move</b> it. Each change keys that bone at that moment, on top of the animation; between keys the bone eases from one to the next. Drag a key on the timeline to move it to another moment, or right-click it to remove it.</li>
+                  <li>To place a hand or foot, use <b>Reach with a hand or foot</b>: <b>Move</b> it and the arm or leg bends to get it there. <b>Plant here</b> holds it where it is, such as a foot on the ground or a hand on a hilt, until <b>Let go here</b>. If the body moves further away than the arm or leg can reach, the limb straightens toward the spot.</li>
+                  <li>Change <b>Speed</b> or the part of the animation used, play it backwards, hold the end, change the <b>Distance travelled</b>, <b>Mirror left and right</b>, or borrow a body part such as the arms from the animation selected on <b>Animations</b>. The character shows each change as you make it.</li>
+                  <li><b>Join another animation after this one</b> plays the animation selected on <b>Animations</b> straight afterwards. The two blend over the <b>Fade</b>, and the character carries on from where the first one stops, facing the way it faces.</li>
+                  <li>To animate in Blender, choose <b>Export for Blender…</b>, import the .glb in Blender, animate the joints, export glTF 2.0 with the animation, and choose <b>Import from Blender…</b>. Bones are matched by name.</li>
+                  <li>Check <b>Replaces</b>, which names the game animation it will replace, then choose <b>Add to Your mod</b>. The game keeps asking for that file and gets the new motion; distance (LOD) copies are not edited.</li>
+                </ol>
+                <p><b>Save the mod</b></p>
+                <ol>
+                  <li>Open <b>Your mod</b>. Every change is listed in plain words; untick anything to leave out, or remove it.</li>
+                  <li>Give the mod a name and choose <b>Straight into DMM's mods folder</b> or <b>A folder I choose</b>, then press <b>Save as mod</b>.</li>
+                  <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
+                </ol>
+                <p><b>Advanced</b> holds the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <p>Each time the tab opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
             },
             {
@@ -653,6 +710,8 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Search with preview and syntax-colored match context.</li>
                   <li>Work against archive data or loose folders.</li>
+                  <li>In Path filter, plain text matches anywhere in the path. With * or ? as wildcards, *.xml matches file names and object/* matches that folder at any depth.</li>
+                  <li>With Regex turned on, ^ and $ mark the start and end of each line.</li>
                   <li>Export matched results while preserving folder structure.</li>
                 </ul>
                 """,

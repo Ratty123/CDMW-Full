@@ -134,8 +134,16 @@ def _element_end(data: bytes, walk_end: int, pointee_start: int) -> int:
     raise PrefabEditError(f"no name-length field after 0x{walk_end:x}")
 
 
-def _element_bounds(data: bytes, document: PrefabDocument, collection_index: int, element_index: int) -> Tuple[int, int, int]:
-    """(header start, end, name pointer site) of one collection element."""
+def element_bounds(data: bytes, document: PrefabDocument, collection_index: int, element_index: int) -> Tuple[int, int, int]:
+    """(header start, end, name pointer site) of one collection element.
+
+    Under the fallback readings the walk's span starts with the previous
+    element's trailing name-length field and stops short of this element's own,
+    so these are the bytes that make the element a whole object: from its header
+    to the end of its own field. The group-list reading consumes and records that
+    field, so its span already ends there, and a scan from there would find the
+    next one.
+    """
 
     collection = document.collections[collection_index]
     span_start, walk_end = collection.elements[element_index]
@@ -143,6 +151,9 @@ def _element_bounds(data: bytes, document: PrefabDocument, collection_index: int
     site = next((p.site for p in document.pointers if p.site >= header), None)
     if site is None or site >= walk_end:
         raise PrefabEditError(f"element at 0x{header:x} has no name record")
+    recorded = dict(document.pointee_length_fields).get(site)
+    if recorded is not None and recorded + 4 == walk_end:
+        return header, walk_end, site
     return header, _element_end(data, walk_end, site + 4), site
 
 
@@ -239,7 +250,7 @@ def graft_prefab_component(
     if donor_index >= len(candidates):
         raise PrefabEditError(f"the donor has {len(candidates)} {component_type} element(s) in {collection_member}, none at index {donor_index}")
     d_collection, d_element = candidates[donor_index]
-    d_start, d_end, _d_name_site = _element_bounds(donor_data, ddoc, d_collection, d_element)
+    d_start, d_end, _d_name_site = element_bounds(donor_data, ddoc, d_collection, d_element)
     donor_object = next(o for o in ddoc.objects if o.offset == ddoc.collections[d_collection].elements[d_element][0])
 
     targets = [index for index, c in enumerate(tdoc.collections) if c.member_name == collection_member]
@@ -249,7 +260,7 @@ def graft_prefab_component(
     t_coll = tdoc.collections[t_index]
     if t_coll.count != len(t_coll.elements) or not t_coll.elements:
         raise PrefabEditError(f"the target's {collection_member} collection declares {t_coll.count} element(s) and walked {len(t_coll.elements)}; refusing")
-    _last_start, insert_at, _site = _element_bounds(target_data, tdoc, t_index, len(t_coll.elements) - 1)
+    _last_start, insert_at, _site = element_bounds(target_data, tdoc, t_index, len(t_coll.elements) - 1)
     for site, field_at in tdoc.pointee_length_fields:
         if site + 4 <= insert_at <= field_at:
             raise PrefabEditError(f"a pointee spans the splice point 0x{insert_at:x}; refusing")
@@ -384,6 +395,7 @@ def _verify_graft(result: bytes, before: PrefabDocument, donor_object, resources
 
 __all__ = [
     "PrefabGraftResult",
+    "element_bounds",
     "encode_prefab_type",
     "encode_transform",
     "find_component_elements",

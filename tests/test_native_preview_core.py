@@ -207,7 +207,27 @@ class NativePreviewCoreTests(unittest.TestCase):
         with patch("cdmw.core.archive_preview_support.get_archive_partial_dds_header", return_value=pathc_header):
             rebuilt = archive_core.reconstruct_partial_dds(entry, payload_header + b"ABCD")
 
-        self.assertEqual(pathc_header + b"ABCD", rebuilt)
+        # the packed and unpacked size words are cleared: the block is written unpacked
+        self.assertEqual(pathc_header[:32] + bytes(8) + pathc_header[40:] + b"ABCD", rebuilt)
+
+    def test_partial_dds_reconstruction_clears_the_four_packed_mip_sizes(self) -> None:
+        # 32x32 DXT1 with six mips takes the multi-chunk route: dwReserved1 holds the stored
+        # sizes of mips 0-3, which must not survive once those mips are written unpacked
+        mip_sizes = (512, 128, 32, 8)
+        header = bytearray(_minimal_dds_header(compressed_size=0, decompressed_size=0, width=32, height=32))
+        header[28:32] = (6).to_bytes(4, "little")
+        header[32:48] = b"".join(size.to_bytes(4, "little") for size in mip_sizes)
+        header[52:56] = (0x1234).to_bytes(4, "little")
+        pathc_header = bytes(header)
+        mips = b"".join(bytes([index + 1]) * size for index, size in enumerate(mip_sizes))
+        tail = b"\x09" * 16
+        with patch("cdmw.core.archive_preview_support.get_archive_partial_dds_header", return_value=pathc_header):
+            rebuilt = archive_core.reconstruct_partial_dds(_entry(), pathc_header + mips + tail)
+
+        self.assertEqual(bytes(16), rebuilt[32:48])
+        self.assertEqual(pathc_header[:32], rebuilt[:32])
+        self.assertEqual(pathc_header[48:], rebuilt[48:128])
+        self.assertEqual(mips + tail, rebuilt[128:])
 
     def test_report_success_returns_package_path(self) -> None:
         def fake_run_process(cmd, **_kwargs):

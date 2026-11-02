@@ -4,6 +4,7 @@ import os
 import tempfile
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -161,6 +162,40 @@ def test_index_worker_cleanup_is_ordered_on_ui_thread() -> None:
     assert len(cleanup_on_ui_thread) >= 40
     assert all(cleanup_on_ui_thread)
     assert worker_owned_by_ui_thread == cleanup_on_ui_thread
+
+
+def test_panels_place_each_widget_in_a_layout_once(tmp_path: Path, monkeypatch) -> None:
+    # Re-adding a laid-out widget makes Qt delete its old QWidgetItem while PySide keeps
+    # that item's wrapper registered at the freed address. A later QThread allocated
+    # there resolved to the stale QWidgetItem wrapper and crashed in QThread(self).
+    from cdmw.ui.item_icons import panels
+
+    placed: dict[int, str] = {}
+
+    def recording(layout_type):
+        class RecordingLayout(layout_type):
+            def addWidget(self, widget, *args, **kwargs):
+                key = id(widget)
+                assert key not in placed, f"{type(widget).__name__} {placed[key]!r} added to a layout twice"
+                placed[key] = widget.text() if hasattr(widget, "text") else widget.objectName()
+                return super().addWidget(widget, *args, **kwargs)
+
+        return RecordingLayout
+
+    for name in ("QGridLayout", "QHBoxLayout", "QVBoxLayout"):
+        monkeypatch.setattr(panels, name, recording(getattr(panels, name)))
+    _app()
+    tab = _make_tab(tmp_path)
+    try:
+        grid = tab._item_icons_metadata_grid
+        for column, button in enumerate(
+            (tab.save_metadata_button, tab.open_editor_button, tab.delete_source_button)
+        ):
+            assert grid.getItemPosition(grid.indexOf(button)) == (3, column, 1, 1)
+    finally:
+        _finish_tab(tab)
+        tab.deleteLater()
+        _app().processEvents()
 
 
 def test_metadata_save_is_nonblocking_and_updates_one_loaded_record() -> None:
@@ -589,3 +624,74 @@ def test_shutdown_cancels_active_scan_without_waiting_on_ui_thread() -> None:
             _wait_until(lambda: tab._index_thread is None)
             assert not tab.iter_shutdown_workers()
             assert not preview_temp.exists()
+
+
+def test_mutation_during_scan_reruns_the_interrupted_scan() -> None:
+    _app()
+    first_started = threading.Event()
+    calls: list[int] = []
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        library_icon = root / "library.png"
+        Image.new("RGBA", (16, 16), (10, 20, 30, 255)).save(library_icon)
+        library_record = _record(library_icon)
+
+        def scan(*_args, stop_event=None, **_kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                first_started.set()
+                while stop_event is not None and not stop_event.is_set():
+                    time.sleep(0.005)
+                raise RunCancelled("cancelled")
+            return (library_record,)
+
+        from cdmw.workers import item_icon_workers as worker_module
+
+        with patch.object(worker_module, "scan_item_icon_library", side_effect=scan):
+            tab = _make_tab(root)
+            try:
+                _wait_until(first_started.is_set)
+                generated = tab.mesh_editor_generated_icon_path(
+                    target_model_path="character/model/target.pac",
+                    source_model_path="source.obj",
+                )
+                Image.new("RGBA", (8, 8), (40, 50, 60, 255)).save(generated)
+                tab.register_mesh_editor_generated_icon(
+                    generated,
+                    target_model_path="character/model/target.pac",
+                    source_model_path="source.obj",
+                )
+                _wait_until(lambda: len(calls) == 2 and tab._index_thread is None)
+                assert tab._record_for_path(library_icon) == library_record
+            finally:
+                _finish_tab(tab)
+
+
+def test_metadata_save_updates_unselected_row_and_respects_favorite_filter() -> None:
+    _app()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        first = root / "first.png"
+        second = root / "second.png"
+        Image.new("RGBA", (8, 8), (1, 2, 3, 255)).save(first)
+        Image.new("RGBA", (8, 8), (4, 5, 6, 255)).save(second)
+        records = [replace(_record(first), favorite=True), replace(_record(second), favorite=True)]
+        tab = _make_tab(root)
+        try:
+            _wait_until(lambda: tab._index_thread is None)
+            save_item_icon_library_index(tab.index_path, roots=(root,), records=tuple(records))
+            _install_records(tab, records)
+            tab.favorite_only_checkbox.setChecked(True)
+            tab._populate_records_tree(select_path=first)
+            tab.tags_edit.setText("renamed")
+            tab.favorite_checkbox.setChecked(False)
+            tab.save_selected_metadata()
+            tab.select_source_path(second)  # Move on before the save lands.
+            _wait_until(lambda: tab._index_thread is None)
+
+            assert tab._record_for_path(first).tags == ("renamed",)
+            assert tab._record_tree_item(str(first).casefold()) is None
+            assert tab.records_tree.topLevelItemCount() == 1
+        finally:
+            _finish_tab(tab)

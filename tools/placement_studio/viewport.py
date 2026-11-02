@@ -140,6 +140,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
     # A point picked off the body surface: world x, y, z. Emitted in "pick" edit mode.
     surface_picked = Signal(float, float, float)
     frame_painted = Signal(float)
+    #: A bone was clicked while the animation editor picks bones.
+    bone_clicked = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -152,6 +154,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._sockets: List[PlacedSocket] = []
         self._usage: Dict[str, int] = {}
         self._selected = ""
+        self._bone_picking = False
+        self._picked_bone = ""
+        self._pending_bone = None
         self._hovered = ""
         self._attachments: Dict[str, Vec3] = {}
         self._carrying_bones: set[str] = set()
@@ -390,6 +395,66 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         self._blade_axis = axis
 
+    def set_bone_picking(self, enabled: bool) -> None:
+        """While on, a click near a joint picks that bone instead of a socket."""
+
+        self._bone_picking = bool(enabled)
+        if not enabled:
+            self._picked_bone = ""
+        self.update()
+
+    def set_picked_bone(self, name: str) -> None:
+        self._picked_bone = name or ""
+        self.update()
+
+    def _bone_points(self):
+        """Every bone's screen position and its depth in front of the camera."""
+
+        bones = self._hierarchy.bones if self._hierarchy is not None else ()
+        if not bones:
+            return bones, None, None, None
+        right, up, forward, eye, scale, cx, cy = self._view_frame()
+        points = _np.asarray([bone.bind_matrix[12:15] for bone in bones])
+        rel = points - (eye.x, eye.y, eye.z)
+        depth = rel @ _np.asarray((forward.x, forward.y, forward.z))
+        inv = scale / _np.where(depth > 0.02, depth, 1.0)
+        sx = cx + (rel @ _np.asarray((right.x, right.y, right.z))) * inv
+        sy = cy - (rel @ _np.asarray((up.x, up.y, up.z))) * inv
+        return bones, sx, sy, depth
+
+    def _bone_at(self, point) -> str:
+        """The joint under `point`, within ten pixels.
+
+        Joints crowd: a hand has its fingers within a few pixels, and a far shoulder can sit
+        right behind a near one. Of the joints within three pixels of the closest, the one
+        nearest the camera wins.
+        """
+
+        bones, sx, sy, depth = self._bone_points()
+        if sx is None:
+            return ""
+        distance = _np.hypot(sx - point.x(), sy - point.y())
+        distance = _np.where(depth > 0.02, distance, _np.inf)
+        best = float(distance.min())
+        if best > 10.0:
+            return ""
+        close = _np.flatnonzero(distance <= best + 3.0)
+        return bones[int(close[_np.argmin(depth[close])])].name
+
+    def _draw_picked_bone(self, painter: QPainter) -> None:
+        if not self._bone_picking or not self._picked_bone:
+            return
+        bones, sx, sy, depth = self._bone_points()
+        if sx is None:
+            return
+        for index, bone in enumerate(bones):
+            if bone.name == self._picked_bone and depth[index] > 0.02:
+                painter.setPen(QPen(_SOCKET_SELECTED, 2))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawEllipse(QPointF(float(sx[index]), float(sy[index])), 8.0, 8.0)
+                painter.drawText(QPointF(float(sx[index]) + 11, float(sy[index]) - 9), bone.name)
+                return
+
     def set_gizmo_anchor(self, point: Optional[Vec3]) -> None:
         """Where to draw the rotation rings.
 
@@ -468,6 +533,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._draw_scene_background(painter)
         if self._show_bones:
             self._draw_bones(painter)
+        self._draw_picked_bone(painter)
         self._draw_sockets(painter)
         if self._edit_mode == "rotate" and self._selected:
             self._draw_rotation_rings(painter)
@@ -1036,12 +1102,12 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
     def _draw_legend(self, painter: QPainter) -> None:
         rows = [
-            (_SOCKET_USED, translate_active_ui_text("socket in use")),
-            (_SOCKET_UNUSED, translate_active_ui_text("socket unused")),
+            (_SOCKET_USED, translate_active_ui_text("attach point in use")),
+            (_SOCKET_UNUSED, translate_active_ui_text("spare attach point")),
             (_SOCKET_SELECTED, translate_active_ui_text("selected")),
-            (_ATTACH_STOWED, translate_active_ui_text("stowed attach")),
-            (_ATTACH_HELD, translate_active_ui_text("held attach")),
-            (_WEAPON_FILL, translate_active_ui_text("weapon mesh")),
+            (_ATTACH_STOWED, translate_active_ui_text("where it hangs when put away")),
+            (_ATTACH_HELD, translate_active_ui_text("where it is held")),
+            (_WEAPON_FILL, translate_active_ui_text("weapon")),
             (_CLIP_FILL, translate_active_ui_text("inside the body")),
         ]
         painter.setPen(QPen(_TEXT))
@@ -1155,6 +1221,15 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # on `Gimmick_Sub_Socket_01` instead. It applied cleanly to a socket that positions
         # nothing, so the weapon did not move and the mode looked dead.
         picked = ""
+        self._pending_bone = None
+        if self._edit_mode == "off" and self._bone_picking:
+            # The animation editor poses bones, not sockets: a click near a joint picks it, on
+            # release and only if the pointer stayed put, so dragging from the body still just
+            # turns the view instead of re-picking whatever joint the drag started on.
+            bone = self._bone_at(self._last_mouse)
+            if bone:
+                self._pending_bone = (bone, QPoint(self._last_mouse))
+                return
         if self._edit_mode in ("off", "route"):
             picked = self._socket_at(self._last_mouse)
             if picked:
@@ -1266,6 +1341,10 @@ class SkeletonViewport(GizmoMixin, QWidget):
             self.socket_rotated.emit(self._dragging_socket, axis.x, axis.y, axis.z, degrees)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        pending, self._pending_bone = self._pending_bone, None
+        if pending is not None and (event.position().toPoint() - pending[1]).manhattanLength() <= 4:
+            self.set_picked_bone(pending[0])
+            self.bone_clicked.emit(pending[0])
         # Full detail comes back as soon as the drag ends.
         self._dragging_view = False
         self.update()

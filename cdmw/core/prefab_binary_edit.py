@@ -26,7 +26,7 @@ import hashlib
 import struct
 from bisect import bisect_right
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from cdmw.core.prefab_recovery import recover_pointee_strings
 from cdmw.core.prefab_binary import (
@@ -117,6 +117,70 @@ def _string_byte_mask(data: bytes, document: PrefabDocument) -> bytes:
     return bytes(mask)
 
 
+def affected_length_fields(
+    payload: bytes,
+    document: PrefabDocument,
+    sites: Sequence[int],
+    affects: Callable[[int, int], bool],
+) -> dict[int, int]:
+    """``{pointer site: length field offset}`` for every pointee an edit affects.
+
+    ``affects(target, field_at)`` says whether a pointee starting at ``target``
+    whose length field sits at ``field_at`` is touched by the edit. It must only
+    ever answer yes for a *larger* ``field_at``, never a smaller one, because a
+    pointee whose field is not known is judged by its widest possible extent.
+
+    A pointee's stored length is a distance, so it only needs rewriting when an
+    edit lands *inside* that pointee. Every other field keeps its value: both of
+    its endpoints shift by the same amount. Touching only what must change keeps
+    the ambiguous ones (6.5% of pointees have more than one position satisfying
+    the length test, and nothing in the file resolves which) out of the blast
+    radius entirely.
+    """
+    # The walk read and validated each pointee's trailing length field, so its
+    # position is known rather than searched for. Searching is what landed on a
+    # nested string's own length prefix and corrupted files.
+    known_fields = dict(document.pointee_length_fields)
+    in_string = _string_byte_mask(payload, document)
+    string_at = {item.offset: item for item in document.all_strings()}
+    length_fields: dict[int, int] = {}
+    for site in sites:
+        target = site + 4
+        derived_by_walk = known_fields.get(site)
+        if derived_by_walk is not None:
+            if affects(target, derived_by_walk):
+                length_fields[site] = derived_by_walk
+            continue
+        # A pointee that opens with a decoded string has a *computable* field:
+        # 4 bytes of head, then the string, then the length. No scan, so no
+        # ambiguity -- and this is the shape every resource-path pointee takes,
+        # which is exactly where edits land.
+        held = string_at.get(target + 4)
+        if held is not None:
+            derived = target + 8 + len(held.text.encode("utf-8"))
+            if (
+                derived + 4 <= len(payload)
+                and struct.unpack_from("<I", payload, derived)[0] == derived - target
+            ):
+                if affects(target, derived):
+                    length_fields[site] = derived
+                continue
+        candidates = _length_field_candidates(payload, target, _POINTEE_SCAN, in_string)
+        if not candidates:
+            raise PrefabEditError(f"no pointee length field after 0x{target:x}")
+        # Widest possible extent, so "unaffected" is never claimed too eagerly.
+        if not affects(target, candidates[-1]):
+            continue
+        if len(candidates) > 1:
+            raise PrefabEditError(
+                f"The pointee at 0x{target:x} has {len(candidates)} possible length "
+                "fields and the file does not say which; refusing to guess on an "
+                "edit inside it."
+            )
+        length_fields[site] = candidates[0]
+    return length_fields
+
+
 def _shift_for(boundaries: Sequence[int], deltas: Sequence[int], offset: int) -> int:
     """Cumulative byte shift applied to everything at or before ``offset``."""
     index = bisect_right(boundaries, offset)
@@ -138,11 +202,13 @@ def plan_prefab_path_edits(
 
     * a **sequence of** :class:`PrefabPathEdit` names one occurrence each, by
       byte offset, and every offset is checked against the decoded string that
-      sits there. Use this when the caller is acting on specific rows;
+      sits there. Use this when the caller is acting on specific rows. An
+      empty ``new_text`` clears that string;
     * a **mapping** of old path to new path replaces *every* occurrence of that
       path in the file. That is the right default for retargeting a mesh, but
       it cannot express two different replacements for the same path, and it
-      will change occurrences the caller never looked at.
+      will change occurrences the caller never looked at. An empty value there
+      means "leave it", never "clear it".
     """
     if not isinstance(replacements, Mapping):
         return _plan_from_occurrences(document, replacements)
@@ -177,7 +243,10 @@ def _plan_from_occurrences(
                 f"String at 0x{edit.offset:x} is {found!r}, not {edit.old_text!r}; "
                 "refusing to write over something the caller has not seen"
             )
-        if edit.new_text and edit.new_text != found:
+        # An empty replacement clears the string: this form names each row the
+        # caller acted on, so an empty one is a choice. The mapping form keeps
+        # treating an empty value as "leave it".
+        if edit.new_text != found:
             edits.append(edit)
     edits.sort(key=lambda item: item.offset)
     return tuple(edits)
@@ -276,55 +345,15 @@ def rewrite_prefab_paths(
         )
 
     sites = pointer_sites(payload, document.blob_offset, document.blob_length)
-    # A pointee's stored length is a distance, so it only needs rewriting when
-    # an edit lands *inside* that pointee. Every other field keeps its value:
-    # both of its endpoints shift by the same amount. Touching only what must
-    # change keeps the ambiguous ones (6.5% of pointees have more than one
-    # position satisfying the length test, and nothing in the file resolves
-    # which) out of the blast radius entirely.
-    # The walk read and validated each pointee's trailing length field, so its
-    # position is known rather than searched for. Searching is what landed on a
-    # nested string's own length prefix and corrupted files.
-    known_fields = dict(document.pointee_length_fields)
-    in_string = _string_byte_mask(payload, document)
-    string_at = {item.offset: item for item in document.all_strings()}
     edit_positions = [edit.offset for edit in edits]
-    length_fields: dict[int, int] = {}
-    for site in sites:
-        target = site + 4
-        derived_by_walk = known_fields.get(site)
-        if derived_by_walk is not None:
-            if any(target <= position < derived_by_walk + 4 for position in edit_positions):
-                length_fields[site] = derived_by_walk
-            continue
-        # A pointee that opens with a decoded string has a *computable* field:
-        # 4 bytes of head, then the string, then the length. No scan, so no
-        # ambiguity -- and this is the shape every resource-path pointee takes,
-        # which is exactly where edits land.
-        held = string_at.get(target + 4)
-        if held is not None:
-            derived = target + 8 + len(held.text.encode("utf-8"))
-            if (
-                derived + 4 <= len(payload)
-                and struct.unpack_from("<I", payload, derived)[0] == derived - target
-            ):
-                if any(target <= position < derived + 4 for position in edit_positions):
-                    length_fields[site] = derived
-                continue
-        candidates = _length_field_candidates(payload, target, _POINTEE_SCAN, in_string)
-        if not candidates:
-            raise PrefabEditError(f"no pointee length field after 0x{target:x}")
-        # Widest possible extent, so "unaffected" is never claimed too eagerly.
-        extent = candidates[-1] + 4
-        if not any(target <= position < extent for position in edit_positions):
-            continue
-        if len(candidates) > 1:
-            raise PrefabEditError(
-                f"The pointee at 0x{target:x} has {len(candidates)} possible length "
-                "fields and the file does not say which; refusing to guess on an "
-                "edit inside it."
-            )
-        length_fields[site] = candidates[0]
+    length_fields = affected_length_fields(
+        payload,
+        document,
+        sites,
+        lambda target, field_at: any(
+            target <= position < field_at + 4 for position in edit_positions
+        ),
+    )
 
     # Build the edited bytes and record where each edit shifts what follows.
     out = bytearray()
@@ -587,23 +616,30 @@ def rewrite_prefab_placements(
     edits: list[PrefabPlacementEdit] = []
     for offset, request in dict(replacements or {}).items():
         expected_old, new_raw = _split_placement_request(request)
-        number = known.get(int(offset))
-        if number is None:
-            raise PrefabEditError(f"No decoded value sits at 0x{int(offset):x}")
-        if len(new_raw) != len(number.raw):
+        at = int(offset)
+        number = known.get(at)
+        if number is not None and len(new_raw) == len(number.raw):
+            current = number.raw
+        else:
+            # One element of a fixed-size array, such as a Transform[]: the
+            # array is a decoded value, and the element sits whole inside it.
+            # Its first element shares the array's offset, so width decides.
+            current = _array_element_at(known.values(), at, len(new_raw))
+            if current is None and number is not None:
+                current = number.raw  # reported below as a width mismatch
+            if current is None:
+                raise PrefabEditError(f"No decoded value sits at 0x{at:x}")
+        if len(new_raw) != len(current):
             raise PrefabEditError(
-                f"Value at 0x{number.offset:x} is {len(number.raw)} byte(s); "
-                f"replacement is {len(new_raw)}"
+                f"Value at 0x{at:x} is {len(current)} byte(s); replacement is {len(new_raw)}"
             )
-        if expected_old is not None and bytes(expected_old) != number.raw:
+        if expected_old is not None and bytes(expected_old) != current:
             raise PrefabEditError(
-                f"Value at 0x{number.offset:x} is not what was read there; refusing to write"
+                f"Value at 0x{at:x} is not what was read there; refusing to write"
             )
-        if bytes(new_raw) == number.raw:
+        if bytes(new_raw) == current:
             continue
-        edits.append(
-            PrefabPlacementEdit(offset=number.offset, old_raw=number.raw, new_raw=bytes(new_raw))
-        )
+        edits.append(PrefabPlacementEdit(offset=at, old_raw=current, new_raw=bytes(new_raw)))
     for edit in edits:
         payload[edit.offset : edit.offset + len(edit.new_raw)] = edit.new_raw
     proof = [
@@ -617,6 +653,24 @@ def rewrite_prefab_placements(
         relocated_pointers=0,
         proof_lines=tuple(proof),
     )
+
+
+def _array_element_at(numbers, offset: int, size: int) -> bytes | None:
+    """The ``size`` bytes at ``offset`` when they are one whole element of an array value.
+
+    Only a member declared as an array (``X[]``) qualifies, and only at a
+    multiple of ``size`` from its start, so a write can never straddle two
+    elements or land in a scalar.
+    """
+    if size <= 0:
+        return None
+    for number in numbers:
+        if not str(number.type_name).endswith("[]") or len(number.raw) % size:
+            continue
+        start = offset - number.offset
+        if 0 <= start and start + size <= len(number.raw) and start % size == 0:
+            return bytes(number.raw[start : start + size])
+    return None
 
 
 def _patch_data_header(rebuilt: bytearray, document: PrefabDocument, delta: int) -> None:

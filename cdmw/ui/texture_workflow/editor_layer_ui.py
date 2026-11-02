@@ -219,27 +219,40 @@ class TextureEditorLayerUiMixin:
         )
         if not update_state.changed or update_state.document is None:
             return
-        before_document = dataclasses.replace(self.document)
-        before_layer_pixels: Dict[str, np.ndarray] = {}
+        # A slider drag previews many values; its history step starts before the first.
+        if not self._layer_property_dirty or getattr(self, "_pending_layer_property_before_document", None) is None:
+            self._pending_layer_property_before_document = dataclasses.replace(self.document)
+            self._pending_layer_property_before_pixels = {}
         self.document = update_state.document
         self._layer_property_dirty = True
         self._invalidate_layer_thumbnail(update_state.layer_id)
         self._invalidate_composite_cache()
-        self._pending_layer_property_before_document = before_document
-        self._pending_layer_property_before_pixels = before_layer_pixels
         if update_state.structural_refresh_needed:
             self._refresh_editor_views(canvas=True, layers=True, status=True, tool_visibility=False)
             return
         self._refresh_editor_views(canvas=True, status=True, tool_visibility=False)
 
+    def preview_selected_layer_opacity(self) -> None:
+        self.preview_selected_layer_properties()
+        # Keys, the wheel and groove clicks never emit sliderReleased.
+        if not self.layer_opacity_slider.isSliderDown():
+            self.commit_selected_layer_opacity()
+
+    def commit_selected_layer_blend_mode(self) -> None:
+        self.preview_selected_layer_properties()
+        self._commit_pending_layer_property("change_blend_mode")
+
     def commit_selected_layer_opacity(self) -> None:
+        self._commit_pending_layer_property("change_opacity")
+
+    def _commit_pending_layer_property(self, action: str) -> None:
         if not self._layer_property_dirty:
             return
         self._layer_property_dirty = False
-        before_document = getattr(self, "_pending_layer_property_before_document", dataclasses.replace(self.document))
+        before_document = getattr(self, "_pending_layer_property_before_document", None) or dataclasses.replace(self.document)
         before_layer_pixels = getattr(self, "_pending_layer_property_before_pixels", {})
         self._record_history_change(
-            texture_editor_layer_history_label("change_opacity"),
+            texture_editor_layer_history_label(action),
             before_document=before_document,
             before_layer_pixels=before_layer_pixels,
             kind="layer_update",

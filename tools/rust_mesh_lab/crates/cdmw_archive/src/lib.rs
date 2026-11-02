@@ -894,6 +894,10 @@ fn reconstruct_partial_dds(
             .get(..header_size)
             .ok_or(ArchiveError::Truncated("Partial DDS texture header"))?,
     );
+    // The blocks are written unpacked, so clear the packed sizes the PATHC header records
+    // at +32; a loose DDS that keeps them makes the game unpack plain mips again.
+    let packed_sizes_end = if single_chunk { 40 } else { 48 };
+    output[32..packed_sizes_end].fill(0);
     source_offset = header_size;
     for (&compressed_size, &decoded_size) in compressed_sizes.iter().zip(&decoded_sizes) {
         if compressed_size == 0 || decoded_size == 0 {
@@ -1703,13 +1707,15 @@ mod tests {
             read_entry(&payload_root, &entry, ArchiveLimits::default(), &token)?;
         assert_eq!(decoded.compression, CompressionOutcome::PartialDds);
         assert_eq!(decoded.bytes.get(..4), Some(DDS_MAGIC.as_slice()));
+        // the block is written unpacked, so the header no longer lists its packed size
+        assert_eq!(decoded.bytes.get(32..40), Some([0_u8; 8].as_slice()));
         assert_eq!(
             decoded.bytes.get(DDS_LEGACY_HEADER_BYTES..),
             Some(pixels.as_slice())
         );
         assert_eq!(
             cdmw_evidence::sha256_bytes(&decoded.bytes),
-            "c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5"
+            "ebae27b5fdd398f89ed774b01dbc9a1d594005371db842773aa02f8ca2986b76"
         );
         assert_eq!(before, after);
         assert_eq!(fs::read(payload_path)?, payload);

@@ -140,11 +140,10 @@ class TextureEditorFloatingUiMixin:
         transform_state = texture_editor_canvas_floating_transform_state(self.document, payload)
         if transform_state is None:
             return
-        if not transform_state.changed:
-            if transform_state.commit:
-                self._floating_transform_before_document = None
-                self._floating_transform_before_floating_pixels = None
-                self._floating_transform_label = ""
+        if not transform_state.changed and not (
+            transform_state.commit and self._floating_transform_before_document is not None
+        ):
+            # A release at the last move point still has to commit the gesture's moves.
             return
         if self._floating_transform_before_document is None:
             self._floating_transform_before_document = dataclasses.replace(self.document)
@@ -154,15 +153,21 @@ class TextureEditorFloatingUiMixin:
         self.document = transform_state.document
         after_bounds = current_texture_editor_floating_canvas_bounds(self.document, self._floating_pixels)
         dirty_bounds = texture_editor_floating_transform_dirty_bounds(before_bounds, after_bounds)
-        self._invalidate_composite_cache(dirty_bounds)
+        if transform_state.changed:
+            self._invalidate_composite_cache(dirty_bounds)
         if transform_state.commit and self._floating_transform_before_document is not None:
+            # Undo has to repaint where the gesture started, not just the last step.
+            gesture_start_bounds = current_texture_editor_floating_canvas_bounds(
+                self._floating_transform_before_document,
+                self._floating_transform_before_floating_pixels,
+            )
             self._record_history_change(
                 self._floating_transform_label or "Transform Floating Selection",
                 before_document=self._floating_transform_before_document,
                 before_layer_pixels={},
                 kind="floating_transform",
                 tracked_layer_ids=[],
-                dirty_bounds=dirty_bounds,
+                dirty_bounds=texture_editor_floating_transform_dirty_bounds(gesture_start_bounds, after_bounds),
                 before_floating_pixels=self._floating_transform_before_floating_pixels,
             )
             self._floating_transform_before_document = None
@@ -381,7 +386,7 @@ class TextureEditorFloatingUiMixin:
         if self.document.floating_selection is None or self._floating_pixels is None:
             return False
         before_floating_pixels = texture_editor_snapshot_floating_pixels(self._floating_pixels)
-        move_state = texture_editor_floating_move_state(self.document, dx=dx, dy=dy)
+        move_state = texture_editor_floating_move_state(self.document, dx=dx, dy=dy, floating_pixels=self._floating_pixels)
         if move_state is None:
             return None
         self.document = move_state.document

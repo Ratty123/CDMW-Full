@@ -26,21 +26,26 @@ from typing import Optional, Tuple
 
 from PySide6.QtCore import QTimer
 
-#: Tab index in the Studio's lower tab widget, by panel.
-RIG_TAB_INDEX = {"constraints": 3, "behaviour": 4}
 _READING = "Reading the archives once to find the rig files…"
 
 
 class RigTabsMixin:
     """Wiring for the two archive-backed rig panels. Mixed into `PlacementStudioWindow`."""
 
-    def _init_rig_tabs(self) -> None:
-        self._rig_tab_index = dict(RIG_TAB_INDEX)
+    def _init_rig_tabs(self, pages, tab_widgets) -> None:
+        """`pages` maps each panel to its page; `tab_widgets` are the tabs that can reveal one.
+
+        Matched by page, not by tab number: both panels sit inside Advanced now, and a number
+        had to be re-checked every time a tab was added ahead of them.
+        """
+
+        self._rig_tab_pages = dict(pages)
         self._rig_tab_shown: dict = {}
         self._rig_files_cache = None
         self._rig_scan = None
         self._rig_scan_timer = None
-        self._lower.currentChanged.connect(self._on_lower_tab_changed)
+        for tabs in tab_widgets:
+            tabs.currentChanged.connect(self._on_lower_tab_changed)
 
     def _rig_key(self) -> Tuple[str, str]:
         """The rig identity both panels resolve against, plus the name to show a user.
@@ -54,17 +59,20 @@ class RigTabsMixin:
             return ("", "")
         return (session.skeleton_path or session.model, session.label)
 
-    def _on_lower_tab_changed(self, index: int) -> None:
-        for name, tab_index in self._rig_tab_index.items():
-            if index == tab_index:
+    def _on_lower_tab_changed(self, _index: int) -> None:
+        from .layout_util import is_current_page
+
+        for name, page in self._rig_tab_pages.items():
+            if is_current_page(page):
                 self._sync_rig_tab(name)
 
     def _sync_rig_tabs(self) -> None:
         """Re-target whichever rig tab is open; the other catches up when opened."""
 
-        current = self._lower.currentIndex()
-        for name, index in self._rig_tab_index.items():
-            if index == current:
+        from .layout_util import is_current_page
+
+        for name, page in self._rig_tab_pages.items():
+            if is_current_page(page):
                 self._sync_rig_tab(name)
             else:
                 self._rig_tab_shown.pop(name, None)
@@ -177,7 +185,7 @@ class RigTabsMixin:
     def _on_rig_load_failed(self, message: str) -> None:
         self._finish_rig_load()
         self.statusBar().showMessage(f"Could not read the archives: {message}")
-        for name in self._rig_tab_index:
+        for name in self._rig_tab_pages:
             label = (
                 self._constraint_header if name == "constraints" else self._behaviour_header
             )

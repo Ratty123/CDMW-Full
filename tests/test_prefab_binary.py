@@ -743,6 +743,34 @@ def test_a_path_in_a_two_member_reference_stays_a_resource() -> None:
     assert [item.text for item in document.resource_strings()] == ["character/model/a/b.pac"]
 
 
+@pytest.mark.parametrize("tags", [("GamePlayTriggerInfo", "SafeZone"), ()])
+def test_a_string_list_opens_with_a_kind_byte(tags: tuple[str, ...]) -> None:
+    """Like a numeric array: 00 and a u32 count, or 01 alone when empty.
+
+    Read as a bare u32, ``00 02 00 00 00`` is 512 strings, which stopped 165
+    shipped trigger prefabs at their tag lists.
+    """
+    root = _typedef(
+        "SceneObject",
+        ("_triggerTags", "staticstringA", 0x000A, 1, 0x1000),
+        ("_label", "IndexedStringA", 0x0001, 1, 0x0000),
+    )
+
+    def blob_for(_base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b11).to_bytes(6, "little"))
+        if tags:
+            blob += b"\x00" + struct.pack("<I", len(tags)) + b"".join(_text(tag) for tag in tags)
+        else:
+            blob += b"\x01"
+        blob += _text("after")
+        return blob
+
+    document = decode_prefab_binary(_assemble((root,), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.root_texts] == [*tags, "after"]
+
+
 def test_a_numeric_array_opens_with_a_kind_byte() -> None:
     root = _typedef(
         "SceneObject",
@@ -829,11 +857,110 @@ def test_a_wide_header_read_inside_a_length_field_yields_to_the_one_that_fits() 
 
 
 def test_a_file_the_stated_layouts_do_not_touch_is_read_once() -> None:
-    from cdmw.core.prefab_binary import _decode_with_width_retry
+    import dataclasses
+
+    from cdmw.core.prefab_binary import READING_STATED_LAYOUTS, _decode_previous, _decode_with_width_retry
 
     data = _build_with_pointer()
     document, departed = _decode_with_width_retry(data, stated_layouts=True)
 
     assert not departed
-    assert document == _decode_with_width_retry(data, stated_layouts=False)[0]
-    assert decode_prefab_binary(data) == document
+    earlier = _decode_with_width_retry(data, stated_layouts=False)[0]
+    assert dataclasses.replace(earlier, reading=READING_STATED_LAYOUTS) == document
+    assert _decode_previous(data) == document
+
+
+def test_a_group_reads_its_unselected_lists_and_closes_on_its_own_length_field() -> None:
+    """An element span holds the whole object: its trailing 01 and closing field.
+
+    Read the earlier way, the holder's span stopped after its last selected
+    member, and its empty ``_tags`` byte and closing length went to whatever
+    read next. That is what put a duplicated element inside its source's
+    name pointee.
+    """
+    from cdmw.core.prefab_binary import READING_GROUP_LISTS, _decode_previous
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups()
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    assert document.reading == READING_GROUP_LISTS
+    root, nested = document.collections
+    assert (root.member_name, nested.member_name) == ("_childSceneObjects", "_components")
+    assert root.elements[-1][1] == document.blob_offset + document.blob_length
+    holder = next(item for item in document.objects if item.component_type == "Holder")
+    assert holder.offset == root.elements[0][0]
+    assert holder.member_names == ("_label", "_components")
+    # Every object's name pointee is closed by a field the walk recorded.
+    name_sites = {site for site, _field in document.pointee_length_fields}
+    assert len(name_sites) == 3
+    for site, field in document.pointee_length_fields:
+        assert struct.unpack_from("<I", data, field)[0] == field - (site + 4)
+
+    earlier = _decode_previous(data)
+    assert earlier.walk_complete
+    assert earlier.collections[0].elements[0][1] < root.elements[0][1]
+    assert earlier.pointee_length_fields == ()
+
+
+def test_an_unselected_list_written_in_full_is_read_as_a_collection() -> None:
+    """A nested prefab instance writes a populated ``_components`` whatever its mask.
+
+    Skipped, its elements were found by the next header search and read as
+    siblings of the object that holds them.
+    """
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups(nested_type="/object/test/child.prefab", holder_mask=0b001)
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    root, nested = document.collections
+    assert nested.member_name == "_components" and nested.count == 2
+    holder = next(item for item in document.objects if item.component_type.startswith("/"))
+    assert holder.member_names == ("_label", "_components")
+
+
+def test_an_unselected_list_that_is_neither_empty_nor_a_collection_stops_the_group_reading() -> None:
+    from cdmw.core.prefab_binary import READING_GROUP_LISTS, _read_prefab
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = bytearray(build_nested_groups())
+    # The holder's unselected _tags byte is the blob's last byte but four.
+    data[-5] = 0x07
+    document = _read_prefab(bytes(data), group_lists=True)[0]
+
+    assert not document.walk_complete
+    assert "unselected _tags of Holder is not empty" in document.walk_note
+    fallback = decode_prefab_binary(bytes(data))
+    assert not (fallback.walk_complete and fallback.reading == READING_GROUP_LISTS)
+
+
+def test_the_group_reading_ends_on_the_last_byte_or_not_at_all() -> None:
+    """All 52,947 walks it completes end exactly; a spare byte is not a tail."""
+    from cdmw.core.prefab_binary import _read_prefab
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = bytearray(build_nested_groups())
+    data += b"\x01"
+    # Data header: u32 count, u32 file size, u32, u64 ffff.., u32 offset, u32 length.
+    blob_length_at = data.index(struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)) + 12
+    length = struct.unpack_from("<I", data, blob_length_at)[0]
+    struct.pack_into("<I", data, blob_length_at, length + 1)
+    struct.pack_into("<I", data, blob_length_at - 20, len(data))
+
+    document = _read_prefab(bytes(data), group_lists=True)[0]
+
+    assert not document.walk_complete
+    assert document.walk_note == "walk ended 1 bytes short"
+
+
+def test_a_file_read_by_the_group_lists_has_no_header_width_to_choose() -> None:
+    from cdmw.core.prefab_binary import walk_is_determined
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups()
+
+    assert walk_is_determined(data)
+    assert {item.header_width for item in decode_prefab_binary(data).collections} == {5}

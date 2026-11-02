@@ -11,7 +11,9 @@ from PySide6.QtWidgets import QMessageBox
 from cdmw.services.preview_workflow_service import (
     attach_scene_preview_textures,
     parsed_mesh_to_preview_model,
+    scene_import_normalizes_texture_v,
 )
+from cdmw.services.mesh_dotnet_material_state import set_dotnet_preview_texture_flip_vertical
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
 from cdmw.domain.mesh.session import MeshImportSetupSelection
@@ -380,6 +382,14 @@ class ModelLibraryShellBridgeMixin:
                 scene_result,
                 scene_path,
             )
+            # Scene importers normalize V; stamp it as the inline preview and New Item do.
+            set_dotnet_preview_texture_flip_vertical(
+                preview_model,
+                scene_import_normalizes_texture_v(
+                    getattr(scene_result.mesh, "format", ""),
+                    getattr(scene_result.mesh, "path", "") or scene_path,
+                ),
+            )
             raise_if_cancelled(stop_event, "Model Library preview cancelled.")
             mesh_count = len(getattr(preview_model, "meshes", ()) or ())
             prepared_model, prepared_preview_model = prepare_model_preview(
@@ -445,10 +455,23 @@ class ModelLibraryShellBridgeMixin:
             )
             self.set_status_message(f"Previewing model library item: {model_name}.")
 
+        def on_error(message: str) -> None:
+            # Without this the pane keeps its "Preparing..." placeholder forever.
+            if request_id != self.archive.archive_preview_request_id or bool(getattr(self, "_shutting_down", False)):
+                return
+            failure = f"Archive preview failed: {message}"
+            self.archive.archive_preview_meta_label.setText(failure)
+            self.archive._set_archive_preview_health_message(failure, visible=True)
+            self.archive.archive_preview_info_edit.setPlainText(failure)
+            self.archive.archive_preview_stack.setCurrentWidget(self.archive.archive_preview_info_edit)
+            if not is_expected_cancellation_message(message):
+                self.set_status_message(failure, error=True)
+
         self._run_utility_task(
             status_message=f"Preparing model library preview for {model_name}...",
             task=task,
             on_complete=on_complete,
+            on_error=on_error,
             show_archive_progress=True,
             task_accepts_cancel=True,
         )

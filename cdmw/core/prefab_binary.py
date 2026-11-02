@@ -18,8 +18,11 @@ records.
     datahdr := u32 instanceCount, u32 fileSize, u32 ?, u64 ffff..,
                u32 blobOffset, u32 blobLength
 
-    blob    := u16 tag(=2), u48 rootPresenceMask, group*, trailer(5..6)
-    group   := elementHeader nameRecord componentMembers
+    blob    := u16 tag(=2), u48 rootPresenceMask, rootMembers   -- ends exactly
+    group   := elementHeader nameRecord componentMembers u32 closeLength
+               -- closeLength: bytes since the name pointer, the whole object;
+               -- an unselected list member is the byte 01 (or, in a nested
+               -- prefab instance, a full collection: u8 0, u32 count, ...)
     header  := u16 maskWidth, mask (maskWidth bytes, little-endian),
                u8 componentTypeIndex, u16 0      -- width 0: a memberless type
     pointer := [u8 1 for kind 5] header, u64 owner, u32 selfOffset,
@@ -135,6 +138,14 @@ _MAX_NAMES = 8
 _MAX_DEPTH = 32
 _MAX_GROUPS = 100_000
 _MARKER_SEARCH = 512
+
+#: The readings decode_prefab_binary can return, newest first. Element spans
+#: and object offsets differ between the first and the other two: a group's
+#: unselected lists and closing length field belong to its own element in the
+#: first, and open the next element in the others.
+READING_GROUP_LISTS = "group-lists"
+READING_STATED_LAYOUTS = "stated-layouts"
+READING_EARLIER = "earlier"
 
 
 class PrefabBinaryError(ValueError):
@@ -294,6 +305,9 @@ class PrefabDocument:
     #: Every collection the walk read, outermost first. Empty on a walk that
     #: failed before reaching one.
     collections: tuple[PrefabCollection, ...] = ()
+    #: Which reading produced this document (``READING_*``). Object offsets and
+    #: element spans depend on it; string and value offsets do not.
+    reading: str = ""
 
     @property
     def walk_progress(self) -> float:
@@ -553,6 +567,8 @@ class _BlobCursor:
         "revision",
         "indexed_element",
         "stated_layouts",
+        "group_lists",
+        "name_start",
         "departed",
     )
 
@@ -564,8 +580,17 @@ class _BlobCursor:
         wide_on_multiples: bool = False,
         revision: int = 14,
         stated_layouts: bool = True,
+        group_lists: bool = False,
     ) -> None:
         self.blob = blob
+        # Read a group's unselected lists by their kind byte and consume the
+        # length field that closes its name pointee, so an element ends where
+        # its own bytes do (see _walk_group). Only with stated_layouts; the
+        # fallback in decode_prefab_binary reads without it when it fails.
+        self.group_lists = group_lists
+        # Where the name pointee of the group being read starts; set by
+        # _read_name_record.
+        self.name_start = -1
         # Read pointees by their stated type, numeric arrays by their kind
         # byte, and memberless or narrower element headers. Cleared only by the
         # fallback in decode_prefab_binary, which keeps the reading this
@@ -884,6 +909,18 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     if cursor.pos + 4 > len(cursor.blob):
         raise PrefabBinaryError("truncated collection header")
     count = struct.unpack_from("<I", cursor.blob, cursor.pos)[0]
+    if cursor.group_lists:
+        # The wide header was the empty list before it: once a group reads its
+        # unselected lists, every one of the 503,518 headers in the completed
+        # walks is the kind byte 00 and a u32 count, so there is no width to
+        # choose and nothing for the retry below or walk_is_determined to flip.
+        if kind != 0 or count > _MAX_COUNT:
+            raise PrefabBinaryError(
+                f"expected a collection here but found {_describe_cursor(cursor)} "
+                f"(read count {count}, kind {kind})"
+            )
+        cursor.take(4)
+        return count
     if (
         cursor.wide_on_multiples
         and count
@@ -907,6 +944,22 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
         )
     cursor.take(4)
     return count
+
+
+def _string_list_count(cursor: _BlobCursor, member: PrefabMember) -> int:
+    """A selected string list's count, read like a numeric array's: kind byte, then u32.
+
+    ``00`` and a count, or ``01`` alone for an empty list. Read as a bare u32,
+    ``00 02 00 00 00`` came out as 512 strings, and the first "string length"
+    was the real count's second byte onward; that stopped 165 trigger prefabs
+    (``TriggerEventHandler_GamePlayTriggerInfo``, ``TriggerEventItem``).
+    """
+    kind = cursor.take(1)[0]
+    if kind == 1:
+        return 0
+    if kind != 0:
+        raise PrefabBinaryError(f"string array {member.name} opens with kind {kind}, not 0 or 1")
+    return cursor.u32()
 
 
 def _motion_array_count(cursor: _BlobCursor) -> int:
@@ -933,7 +986,12 @@ def _read_member(
         into.ordered.append((member.name, recovered))
         return
     if flags == KIND_STRING_COLLECTION:
-        count = _motion_array_count(cursor) if cursor.plain_counts else cursor.u32()
+        if cursor.plain_counts:
+            count = _motion_array_count(cursor)
+        elif cursor.group_lists:
+            count = _string_list_count(cursor, member)
+        else:
+            count = cursor.u32()
         if count > _MAX_COUNT:
             raise PrefabBinaryError(f"string array {member.name} has {count} elements")
         for _ in range(count):
@@ -1031,8 +1089,12 @@ def _read_member(
             except PrefabBinaryError:
                 # The declared count outruns the data on files that are
                 # otherwise complete. When what is left is only the trailer
-                # run, the collection has ended rather than broken.
-                if not cursor.plain_counts and cursor.closes_here(mark):
+                # run, the collection has ended rather than broken. Not under
+                # the group-list rules: 6,519 completed walks over-declared
+                # before them and none of the 52,947 they complete does, so a
+                # count they cannot fill is a misreading, and the file goes to
+                # the previous reading instead.
+                if not cursor.plain_counts and not cursor.group_lists and cursor.closes_here(mark):
                     cursor.pos = mark
                     break
                 raise
@@ -1055,28 +1117,38 @@ def _read_member(
 _LIST_KINDS = frozenset({KIND_COLLECTION, KIND_INLINE_12, KIND_STRING_COLLECTION, KIND_OBJECT_COLLECTION})
 
 
-def _skip_unselected(cursor: _BlobCursor, member: PrefabMember) -> None:
-    """Consume the empty marker an unselected list member leaves in a pointee.
+def _skip_unselected(cursor: _BlobCursor, member: PrefabMember, owner_type: str = "", *, in_group: bool = False) -> bool:
+    """Consume the empty marker an unselected list member leaves.
 
     A pointee's member loop has to account for every byte up to its closing
     length field, so an unselected ``_linkPosition`` or ``_audioSwitchList``
-    cannot be left for a header search to skip, as a group's are. Measured on
-    the shipped prefabs: every unselected member with attribute 0x1000, a list
-    kind and no attribute 0x2 is the byte 01 once the closing length fields of
-    the previous member's objects are consumed -- in groups as well as
-    pointees, wherever a walk completes reading it strictly. Groups are left
-    alone here because their element offsets are what existing edits key on,
-    and the header search already steps over the byte there.
+    cannot be left for a header search to skip. Measured on the shipped
+    prefabs: every unselected member with attribute 0x1000, a list kind and no
+    attribute 0x2 is the byte 01 once the closing length fields of the previous
+    member's objects are consumed.
+
+    In a group (``in_group``) the same holds, with one addition: a nested
+    prefab instance writes an unselected ``_components`` or
+    ``_childSceneObjects`` in full when it holds anything -- the kind byte 00
+    and a count -- whatever its mask says. Returns ``True`` when the member is
+    there to be read as a collection, ``False`` when it was the empty byte or
+    is not serialised when unselected at all.
     """
     if cursor.plain_counts or not member.attr_flags & 0x1000:
-        return
+        return False
     if member.flags not in _LIST_KINDS or member.attr_flags & 0x2:
-        return
-    while cursor.blob[cursor.pos:cursor.pos + 1] != b"\x01" and cursor.at_length_field():
+        return False
+    stops = (b"\x01", b"\x00") if in_group else (b"\x01",)
+    while cursor.blob[cursor.pos:cursor.pos + 1] not in stops and cursor.at_length_field():
         cursor.take(4)
-    if cursor.blob[cursor.pos:cursor.pos + 1] != b"\x01":
-        raise PrefabBinaryError(f"unselected {member.name} is not empty at 0x{cursor.pos:x}")
+    head = cursor.blob[cursor.pos:cursor.pos + 1]
+    if in_group and member.flags == KIND_COLLECTION and head == b"\x00":
+        return True
+    if head != b"\x01":
+        where = f" of {owner_type}" if owner_type else ""
+        raise PrefabBinaryError(f"unselected {member.name}{where} is not empty at 0x{cursor.pos:x}")
     cursor.take(1)
+    return False
 
 
 def _memberless(cursor: _BlobCursor, probe: int) -> bool:
@@ -1201,6 +1273,7 @@ def _read_name_record(cursor: _BlobCursor, *, indexed: bool = False) -> str:
     target = cursor.u32()
     if target != cursor.base + cursor.pos:
         raise PrefabBinaryError("name pointer is not self-relative")
+    cursor.name_start = cursor.pos
     if cursor.u16() != 0:
         raise PrefabBinaryError("unexpected name record header")
     count = cursor.u16()
@@ -1219,6 +1292,31 @@ def _read_name_record(cursor: _BlobCursor, *, indexed: bool = False) -> str:
             raise PrefabBinaryError("name record entries are out of order")
         names.append(cursor.text().text)
     return names[0]
+
+
+def _close_group(cursor: _BlobCursor, name_start: int) -> None:
+    """Consume the length field that closes a group's name pointee, if it is here.
+
+    The name record's pointee is not just the name: it encloses the whole
+    object, and once the group's unselected lists are read the field that
+    closes it follows the last member directly -- the same field a motion
+    file's objects carry and the walk checks there. Measured over the
+    completed walks of the 53,429 shipped prefabs: 1,424,871 exact, never
+    after a stray byte. The 137 misses are nested prefab instances that write
+    data past their last declared member; they are left for the next header
+    search to step over, as every group was before.
+
+    Recording the field matters beyond the walk: it is the one the rewriter
+    used to have to search for (``prefab_binary_edit``), and an element span
+    that ends after it holds the whole object.
+    """
+    blob = cursor.blob
+    if cursor.pos + 4 > len(blob):
+        return
+    if struct.unpack_from("<I", blob, cursor.pos)[0] != cursor.pos - name_start:
+        return
+    cursor.pointee_fields[cursor.base + name_start - 4] = cursor.base + cursor.pos
+    cursor.take(4)
 
 
 def _component_for(
@@ -1290,6 +1388,7 @@ def _walk_group(
     owner_before = cursor.pos
     parent = int.from_bytes(cursor.blob[max(0, owner_before) : owner_before + 8], "little")
     name = _read_name_record(cursor, indexed=indexed)
+    name_start = cursor.name_start
     if not components:
         raise PrefabBinaryError("no component type for group")
     highest = mask.bit_length()
@@ -1303,9 +1402,16 @@ def _walk_group(
 
     for index, member in enumerate(component.members):
         if not (mask >> index) & 1 and not (cursor.plain_counts and member.attr_flags & 0x1000):
-            continue
+            # An unselected list is still written, as the byte 01 (or in full,
+            # see _skip_unselected). Left unread, it went to the next element's
+            # header search, so this element's span stopped short of its own
+            # bytes and the next one started inside them.
+            if not (cursor.group_lists and _skip_unselected(cursor, member, component.type_name, in_group=True)):
+                continue
         selected.append(member.name)
         _read_member(cursor, member, collected, nested, component.type_name)
+    if cursor.group_lists and not cursor.plain_counts:
+        _close_group(cursor, name_start)
     if cursor.plain_counts:
         consumed = cursor.pos - owner_before - 12
         declared = cursor.u32()
@@ -1338,11 +1444,12 @@ def _walk_blob(
     wide_on_multiples: bool = False,
     revision: int = 14,
     stated_layouts: bool = True,
+    group_lists: bool = False,
 ) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, "_BlobCursor"]:
     """Walk the heap. The cursor comes back too: it carries the pointee length
     fields, the stop offset and the collection spans, and returning it beats
     growing the tuple a field at a time."""
-    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples, revision, stated_layouts)
+    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples, revision, stated_layouts, group_lists)
     objects: list[PrefabObject] = []
     if cursor.plain_counts:
         width = cursor.u16()
@@ -1365,7 +1472,8 @@ def _walk_blob(
     try:
         for index, member in enumerate(root.members):
             if not (mask >> index) & 1 and not (cursor.plain_counts and member.attr_flags & 0x1000):
-                continue
+                if not (cursor.group_lists and _skip_unselected(cursor, member, root.type_name, in_group=True)):
+                    continue
             # Collections at the root read exactly as they do anywhere else, so
             # let _read_member own that in one place.
             _read_member(cursor, member, collected, nested, root.type_name)
@@ -1387,7 +1495,11 @@ def _walk_blob(
     # without knowing why. Anything that shrinks it is an improvement.
     #
     # A walk that consumed the blob exactly needs no tail at all.
-    if remaining and not cursor.plain_counts and (cursor.closes_here(cursor.pos) or 5 <= remaining <= 6):
+    #
+    # Under the group-list rules none needs one: all 52,947 walks they
+    # complete end on the blob's last byte, because the "tail" was the last
+    # objects' empty lists and closing length fields. So they get neither rule.
+    if remaining and not cursor.plain_counts and not cursor.group_lists and (cursor.closes_here(cursor.pos) or 5 <= remaining <= 6):
         cursor.pos += remaining
         remaining = 0
     if remaining:
@@ -1411,13 +1523,28 @@ def walk_is_determined(data: bytes) -> bool:
     offsets a caller would edit at cannot be trusted even though the walk looks
     clean. Callers should refuse to edit such a file rather than warn about it:
     the failure would be a byte written to a plausible wrong place.
+
+    The wide form was the empty-list byte of the member before the collection.
+    Read by the group-list rules (``READING_GROUP_LISTS``), that byte belongs to
+    its member and every header is narrow; forcing the wide form there
+    completes none of the 52,947 files that reading completes, against 366
+    undetermined files under the previous reading. The probe still runs, on the
+    reading the document came from, so a file read by the fallback is tested
+    exactly as it was before.
     """
 
     try:
-        if not decode_prefab_binary(data).walk_complete:
-            return True          # partial walks are already refused elsewhere
+        document = decode_prefab_binary(data)
     except PrefabBinaryError:
         return True
+    if not document.walk_complete:
+        return True          # partial walks are already refused elsewhere
+    if document.reading == READING_GROUP_LISTS:
+        def reread() -> PrefabDocument:
+            return _read_prefab(data, group_lists=True)[0]
+    else:
+        def reread() -> PrefabDocument:
+            return _decode_previous(data)
 
     global _read_collection_count
     shipped = _read_collection_count
@@ -1438,7 +1565,7 @@ def walk_is_determined(data: bytes) -> bool:
 
     _read_collection_count = prefer_wide
     try:
-        alternate = decode_prefab_binary(data).walk_complete
+        alternate = reread().walk_complete
     except PrefabBinaryError:
         alternate = False
     finally:
@@ -1450,7 +1577,32 @@ def walk_is_determined(data: bytes) -> bool:
 
 
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
-    """Decode a ``.prefab`` payload, retrying the collection width if it helps.
+    """Decode a ``.prefab`` payload.
+
+    The file is read first with the group-list rules (see :func:`_walk_group`):
+    a group reads its unselected lists and closes on its own length field, so
+    each element span holds exactly its object's bytes. That completes 52,947
+    of the 53,429 shipped prefabs against 51,451 before. Where it does not
+    complete, the file is read as the decoder read it before those rules
+    (:func:`_decode_previous`), which keeps the 17 files only that reading
+    completes. Where both complete, the group-list reading is kept: measured
+    over the 51,434 such files it records every pointer site the previous
+    reading did (5 at a different field, where the previous one had taken a
+    string's length prefix for it), every string, never fewer objects and
+    never more collections over-declared. ``reading`` on the result says which
+    one was used.
+    """
+    document = _read_prefab(data, group_lists=True)[0]
+    if document.walk_complete:
+        return document
+    previous = _decode_previous(data)
+    if previous.walk_complete or previous.walk_progress > document.walk_progress:
+        return previous
+    return document
+
+
+def _decode_previous(data: bytes) -> PrefabDocument:
+    """The reading before the group-list rules, retrying the collection width if it helps.
 
     The first read takes every collection header as narrow unless the count is
     implausible. When that leaves a collection over-declaring its elements
@@ -1522,9 +1674,11 @@ def _decode_prefab(
 
 
 def _read_prefab(
-    data: bytes, *, wide_on_multiples: bool = False, stated_layouts: bool = True
+    data: bytes, *, wide_on_multiples: bool = False, stated_layouts: bool = True, group_lists: bool = False
 ) -> tuple[PrefabDocument, bool]:
     """One reading of a payload, at a fixed collection-header width policy.
+
+    ``group_lists`` adds the group-list rules to the stated layouts.
 
     The type table, string pool and data header are always parsed; a failure
     there raises :class:`PrefabBinaryError`. The heap walk is best-effort:
@@ -1555,7 +1709,8 @@ def _read_prefab(
         header.types,
         wide_on_multiples,
         header.revision,
-        stated_layouts,
+        stated_layouts or group_lists,
+        group_lists,
     )
     pointers = tuple(
         PrefabPointer(
@@ -1586,4 +1741,9 @@ def _read_prefab(
         pointee_length_fields=tuple(sorted(cursor.pointee_fields.items())),
         walk_stop_offset=cursor.stopped_at,
         collections=tuple(cursor.collections),
+        reading=(
+            READING_GROUP_LISTS if group_lists
+            else READING_STATED_LAYOUTS if stated_layouts
+            else READING_EARLIER
+        ),
     ), cursor.departed

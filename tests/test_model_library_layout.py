@@ -176,3 +176,173 @@ def test_disabled_primary_button_paints_as_disabled() -> None:
 
     assert disabled == QColor(theme["button_disabled"])
     assert enabled == QColor(theme["accent"])
+
+
+class _RunningThread:
+    def isRunning(self) -> bool:  # noqa: N802
+        return True
+
+
+def test_row_identity_survives_import_path_being_filled_in(tab) -> None:
+    mirror = {"kind": "mirror", "uid": "abc123", "name": "Axe"}
+    local = {"kind": "local", "path": "D:/models/axe.zip", "name": "axe"}
+    before = (tab._payload_population_key(mirror), tab._payload_population_key(local))
+
+    mirror["import_path"] = "D:/downloads/Axe-abc123/gltf/scene.gltf"
+    local["import_path"] = "D:/cache/axe/scene.gltf"
+
+    assert (tab._payload_population_key(mirror), tab._payload_population_key(local)) == before
+
+
+def test_new_selection_supersedes_a_running_inline_preview(tab, tmp_path: Path, monkeypatch) -> None:
+    import threading
+
+    model = tmp_path / "next.glb"
+    model.write_bytes(b"glTF")
+    payload = {"kind": "local", "path": str(model), "import_path": str(model), "name": "next"}
+    running_stop = threading.Event()
+    tab._task_thread = _RunningThread()
+    tab._inline_preview_task_running = True
+    tab._stop_event = running_stop
+    previous_preview_request = tab._inline_preview_request_id
+    resolved: list[Path] = []
+    monkeypatch.setattr(tab, "_selected_payload", lambda: payload)
+
+    tab._request_payload_import_path(
+        payload,
+        status="Resolving model for inline preview...",
+        on_resolved=resolved.append,
+        on_missing=lambda: resolved.append(Path("missing")),
+    )
+
+    assert running_stop.is_set()
+    assert tab._inline_preview_request_id > previous_preview_request
+    assert resolved == [] and tab._pending_model_action_after_task is not None
+    retry = tab._pending_model_action_after_task
+    tab._pending_model_action_after_task = None
+    tab._task_thread = None
+    tab._stop_event = None
+    tab._inline_preview_task_running = False
+    retry()
+    assert resolved == [model]
+
+
+def test_returning_to_local_restores_the_saved_sort(tab) -> None:
+    tab.settings.setValue("model_library/result_sort_column", 6)
+    tab.settings.setValue("model_library/result_sort_order", "desc")
+    tab._set_active_results_view("mirror", persist=False)
+    tab._use_result_source_order()
+    assert tab._result_sort_column == -1
+
+    tab._set_active_results_view("local", persist=False)
+
+    assert tab._result_sort_column == 6
+    assert tab.results_tree.header().isSortIndicatorShown()
+
+
+def test_icon_output_refuses_without_taking_over_a_running_task(tab, tmp_path: Path) -> None:
+    import threading
+
+    from PySide6.QtGui import QImage
+
+    running_stop = threading.Event()
+    tab._task_thread = _RunningThread()
+    tab._stop_event = running_stop
+    try:
+        tab._queue_inline_preview_icon_output(
+            QImage(4, 4, QImage.Format.Format_ARGB32),
+            payload={"kind": "local", "name": "axe"},
+            loaded_path=tmp_path / "axe.glb",
+            native_capture=True,
+        )
+        assert tab._stop_event is running_stop
+        assert not tab._icon_output_active
+    finally:
+        tab._task_thread = None
+        tab._stop_event = None
+
+
+def test_showing_the_tab_mid_search_does_not_finish_an_empty_population(tab) -> None:
+    tab._populating_results = True
+    tab._results_population_active = False
+    tab.hide()
+    tab.show()
+    assert not tab._results_population_timer.isActive()
+    tab._populating_results = False
+
+
+def test_search_during_a_results_task_is_queued_and_supersedes_it(tab) -> None:
+    import threading
+
+    results_stop = threading.Event()
+    tab._task_thread = _RunningThread()
+    tab._results_task_kind = "population"
+    tab._results_task_stop_event = results_stop
+    try:
+        tab.search_mirror(query_override="axe")
+        assert results_stop.is_set()
+        assert tab._queued_results_action is not None
+        tab._results_task_kind = "download"
+        tab._results_task_stop_event = None
+        tab.scan_local_roots()
+        assert tab._queued_results_action == tab.scan_local_roots
+    finally:
+        tab._task_thread = None
+        tab._results_task_kind = ""
+        tab._queued_results_action = None
+
+
+def test_reselecting_the_view_keeps_the_submitted_query(tab) -> None:
+    tab._set_active_results_view("local", persist=False)
+    tab.search_edit.setText("axe")
+    tab._apply_active_results_query()
+    tab.search_edit.setText("sword")
+
+    tab._set_active_results_view("local", persist=False)
+
+    assert tab.applied_results_query() == "axe"
+    assert tab.search_edit.text() == "sword"
+
+
+def test_row_clicks_do_not_reenable_actions_during_a_task(tab) -> None:
+    tab._task_thread = _RunningThread()
+    try:
+        tab._update_selection_state()
+        assert not tab.preview_button.isEnabled()
+        assert not tab.delete_local_button.isEnabled()
+        tab._inline_preview_task_running = True
+        payload = {"kind": "local", "path": "x.glb", "name": "x"}
+        tab._payload_can_preview_here = lambda _payload: True
+        tab._selected_payload = lambda: payload
+        tab._update_selection_state()
+        assert tab.preview_button.isEnabled()
+        assert not tab.generate_icon_button.isEnabled()
+    finally:
+        tab._task_thread = None
+        tab._inline_preview_task_running = False
+        del tab._payload_can_preview_here
+        del tab._selected_payload
+
+
+def test_stale_generated_icon_is_removed_instead_of_orphaned(tab, tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QImage
+
+    from cdmw.workers.model_library_workers import ModelLibraryIconOutputResult
+
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(tab, "catalogue_dir", lambda: tmp_path)
+    monkeypatch.setattr(tab, "_run_task", lambda _status, _task, complete, **_kwargs: captured.update(complete=complete))
+    monkeypatch.setattr(tab, "_selected_payload", lambda: {"kind": "local", "name": "other"})
+    tab._queue_inline_preview_icon_output(
+        QImage(4, 4, QImage.Format.Format_ARGB32),
+        payload={"kind": "local", "name": "axe"},
+        loaded_path=tmp_path / "axe.glb",
+        native_capture=True,
+    )
+    published = tmp_path / "generated_icons" / "axe-1.png"
+    published.parent.mkdir(parents=True)
+    published.write_bytes(b"png")
+
+    captured["complete"](ModelLibraryIconOutputResult(tab._icon_output_request_id, published, False))
+
+    assert not published.exists()

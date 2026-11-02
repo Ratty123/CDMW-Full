@@ -132,13 +132,18 @@ physics controls, draft recovery and output limits.
 
 ## Placement & Animations
 
-Adjust where equipment sits and review supported socket or animation replacements.
-Use **Prepare preview** to inspect synchronized Before/After playback and check the
-proposed file changes. **Build packages** exports the selected operations for
-DMM; it does not install them into the game.
+Change where a character carries a weapon and which animations go with it. On
+**Position**, pick a spot in **Carried at** and fine-tune the attach point; on
+**Animations**, give the weapon another weapon's animations and preview them before
+anything changes. **Edit animation** changes an animation or makes a new one: key bones
+on a timeline, reach and plant hands and feet, retime, mirror, borrow body parts, join
+animations, or animate in Blender and import the result. **Your mod** lists every
+change in plain words and saves them as one DMM mod, straight into DMM's mods folder
+or a folder you choose; enable it in DMM and click Mount.
 
-Preview checks do not certify in-game contact, physics or animation behavior.
-Unsupported operations and unresolved dependencies are identified before output.
+Preview checks do not certify in-game contact, physics or animation behavior. An
+attach point several slots share is refused at save time, because changing it would
+move all of them.
 
 ## Bulk texture replacement
 

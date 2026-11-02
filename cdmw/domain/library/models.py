@@ -26,6 +26,23 @@ BROWSABLE_MODEL_EXTENSIONS = IMPORTABLE_MODEL_EXTENSIONS | {
     ".3ds", ".abc", ".blend", ".fbx", ".lwo", ".ply", ".stl", ".usd", ".usda", ".usdc", ".usdz", ".x", ".zip"
 }
 LOCAL_MODEL_TEXTURE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
+# Mirror uids name download folders and files, so they must stay one plain path component.
+_SAFE_MIRROR_UID = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def is_safe_mirror_uid(uid: object) -> bool:
+    return bool(_SAFE_MIRROR_UID.fullmatch(str(uid or "")))
+
+
+def is_owned_download_folder(folder_name: str, metadata: Mapping[str, Any]) -> bool:
+    """Whether a folder's metadata marker is one Model Library wrote for it.
+
+    Downloads are named ``<name>-<uid>`` and record that uid. A stray
+    ``model_metadata.json`` in a user folder matches neither, so it can
+    neither group the folder's files into one row nor make it deletable.
+    """
+    uid = str(metadata.get("uid", "") or "").strip()
+    return is_safe_mirror_uid(uid) and str(folder_name).casefold().endswith(f"-{uid}".casefold())
 
 
 @dataclass(frozen=True)
@@ -182,7 +199,7 @@ def mirror_download_candidates(
     preferred_format: str = "gltf",
 ) -> tuple[MirrorDownloadCandidate, ...]:
     uid = str(record.get("uid", "") or "").strip()
-    if not uid:
+    if not is_safe_mirror_uid(uid):
         return ()
     base_url = normalize_mirror_base_url(str(record.get("mirror_url", "") or mirror_url))
     prefix = uid[:2] if len(uid) >= 2 else "__"
@@ -246,6 +263,8 @@ __all__ = [
     "ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS",
     "ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES",
     "is_importable_model_path",
+    "is_owned_download_folder",
+    "is_safe_mirror_uid",
     "mirror_download_candidates",
     "normalize_mirror_base_url",
     "normalize_mirror_model_record",

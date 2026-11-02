@@ -39,6 +39,7 @@ internal static class FullArchiveTestRunner
             ("preview_pbd_material_dependencies", PreviewPbdMaterialDependenciesAsync),
             ("preview_animation_references", PreviewAnimationReferencesAsync),
             ("query_sort_parity", QuerySortParityAsync),
+            ("text_search_matching_rules", TextSearchMatchingRulesAsync),
             ("extension_index_query", ArchiveQueryTests.ExtensionSearchAsync),
             ("extension_index_cancellation", ArchiveQueryTests.CancellationAsync),
             ("extension_index_item_names", ArchiveQueryTests.ItemNamesAsync),
@@ -83,7 +84,7 @@ internal static class FullArchiveTestRunner
         if (archiveQueryOnly)
         {
             tests = tests.Where(static test => test.Name is
-                "query_lookup_search_prepare_export" or "query_sort_parity" or
+                "query_lookup_search_prepare_export" or "query_sort_parity" or "text_search_matching_rules" or
                 "item_catalogue_paging_and_bounded_scope" or
                 "extension_index_query" or "extension_index_cancellation" or "extension_index_item_names").ToArray();
         }
@@ -1470,6 +1471,35 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
         }
+    }
+
+    // Text Search's Python search must agree with these rules; see cdmw/core/text_search.py.
+    private static Task TextSearchMatchingRulesAsync()
+    {
+        static bool Filter(string path, string filter) => ArchiveTextSearchService.PathMatchesFilter(path, filter);
+        Require(Filter("ui/Sub/Panel.XML", "sub/"), "plain path filter stopped matching case-insensitively");
+        Require(!Filter("ui/panel.xml", "*.json"), "file-name wildcard matched another extension");
+        Require(Filter("ui/sub/panel.xml", "*.xml"), "file-name wildcard missed a nested file");
+        Require(!Filter("ui/a.xml/panel.txt", "*.xml"), "file-name wildcard matched a folder name");
+        Require(!Filter("a/b/c.xml", "a*.xml"), "file-name wildcard crossed folders");
+        Require(Filter("character/object/x.xml", "object/*"), "folder wildcard missed a nested folder");
+        Require(Filter("ui/sub/panel.xml", "ui/*.xml"), "folder wildcard did not cross folders");
+        Require(!Filter("game/ui/panel.xml", "/ui/*"), "root-anchored wildcard matched a nested folder");
+        Require(Filter(@"ui\panel_01.xml", "panel_??.xml"), "single-character wildcard or backslash path changed");
+
+        // Line numbers count LF only, which is how the search reports them after normalising.
+        static int[] Lines(string text, string query)
+        {
+            var normalized = ArchiveTextSearchService.NormalizeLineEndings(text);
+            return ArchiveTextSearchService.FindTextMatches(text, query, useRegularExpression: true, caseSensitive: false)
+                .Select(match => normalized[..match.Index].Count(static c => c == '\n') + 1)
+                .ToArray();
+        }
+        var crlf = "<Material a/>\r\nfoo\r\n<material b/>\r\n";
+        Require(Lines(crlf, "^<material").SequenceEqual(new[] { 1, 3 }), "^ stopped matching at every line start");
+        Require(Lines(crlf, "/>$").SequenceEqual(new[] { 1, 3 }), "$ missed CRLF line ends");
+        Require(!ArchiveTextSearchService.FindTextMatches(crlf, "^", true, false).Any(), "empty regex matches were reported");
+        return Task.CompletedTask;
     }
 
     private static async Task QuerySortParityAsync()

@@ -15,33 +15,69 @@ from xml.etree import ElementTree as ET
 from .corpus import normalize_game_path as normal, package_signature
 
 
-def active_entries(root, *, cancelled=lambda: False):
-    """Mount order comes from PAPGT; the first mounted entry wins per path.
+def _mounted_names(package_root):
+    """The directory names a package root's mount list names, or None when it has no list.
 
-    Fixtures without PAPGT retain discovery order. Invalid installed PAPGT files
-    fail explicitly; guessing archive precedence could replace the wrong bytes.
+    Reads both layouts: the checksummed one the game shipped until the October 2026 DLC
+    update, and the compact one it has shipped since. A list that cannot be read at all
+    still raises; guessing archive precedence could replace the wrong bytes.
     """
-    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
-    from cdmw.core.papgt_format import parse_papgt
-    root = Path(root)
+    from cdmw.core.papgt_format import read_papgt_directories
+    papgt = Path(package_root) / 'meta/0.papgt'
+    if not papgt.exists():
+        return None
+    return {d.name.lower(): d for d in read_papgt_directories(papgt.read_bytes())}
+
+
+def active_tables(root):
+    """`(label, table)` for every mounted package table, in the order the game reads them.
+
+    The order is the shared archive scan's (`discover_pamt_files`): the base game's mount
+    list first, then each DLC root under `dlc/`. A DLC reuses the base folder names (its
+    `0009` is not the base `0009`), so tables are told apart by their path, and a DLC table
+    is labelled `dlc/<name>/<folder>`. Fixtures without a mount list keep discovery order.
+    """
+    from cdmw.core.archive_format import discover_pamt_files
+    # Resolved like discover_pamt_files resolves it, or a junction or short path would make
+    # every table look like it sits outside the root.
+    root = Path(root).resolve()
     tables = discover_pamt_files(root)
-    papgt = root / 'meta/0.papgt'
-    if papgt.exists():
-        by_directory = {p.parent.name.lower(): p for p in tables}
-        tables = []
-        for directory in parse_papgt(papgt.read_bytes()):
-            table = by_directory.get(directory.name.lower())
-            if table is None:
-                # Optional language directories may legitimately be absent.
-                if directory.flags & 0xff:
-                    continue
-                raise ValueError(f'Mounted archive is missing: {directory.name}')
-            tables.append(table)
+    mounted = {root: _mounted_names(root)}
+    present = set()
+    out = []
     for table in tables:
+        parts = table.parent.relative_to(root).parts
+        if len(parts) == 1:
+            package_root, label = root, parts[0]
+        elif len(parts) == 3 and parts[0].lower() == 'dlc':
+            package_root, label = root / parts[0] / parts[1], '/'.join(parts)
+        else:
+            continue
+        if package_root not in mounted:
+            mounted[package_root] = _mounted_names(package_root)
+        names = mounted[package_root]
+        if names is not None and parts[-1].lower() not in names:
+            continue  # on disk, but the game does not mount it
+        present.add((package_root, parts[-1].lower()))
+        out.append((label, table))
+    for package_root, names in mounted.items():
+        for name, directory in (names or {}).items():
+            # Optional directories may legitimately be absent: the language packs, and the
+            # DLC's own groups (0036 on), which the base list names with the optional bit set.
+            if (package_root, name) in present or directory.flags & 0xff:
+                continue
+            raise ValueError(f'Mounted archive is missing: {directory.name}')
+    return out
+
+
+def active_entries(root, *, cancelled=lambda: False):
+    """Every entry of every mounted table, in mount order; callers keep the first per path."""
+    from cdmw.core.archive_format import parse_archive_pamt
+    for label, table in active_tables(root):
         if cancelled():
             raise RuntimeError('Relationship inspection cancelled')
         for entry in parse_archive_pamt(table):
-            yield table.parent.name, entry
+            yield label, entry
 
 
 def resource_path(value):

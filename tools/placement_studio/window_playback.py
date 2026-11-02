@@ -235,3 +235,6 @@ class PlaybackMixin:
             self._playback_slider.blockSignals(False)
         self._playback_label.setText(self._playback.summary())
         self._refresh_scene()
+        follow = getattr(self, "_on_editor_frame", None)
+        if follow is not None:
+            follow()
