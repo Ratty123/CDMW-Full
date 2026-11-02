@@ -170,3 +170,12 @@ def test_editing_a_sound_bank_writes_the_edited_bank_as_a_loose_mod(archive, mon
     assert [path for path, _data in exported[0]] == ["sound/windows/one.bnk"]
     assert read_hirc_graph(exported[0][0][1]).by_id()[1].property(0x00).as_float == -6.0
     assert "1 change(s) written to one.bnk" in messages[-1]
+
+
+def test_audio_payload_paths_keep_their_folders():
+    from cdmw.domain.packages.layout import normalize_mod_package_payload_path
+
+    assert normalize_mod_package_payload_path("sound/windows/1355168291.bnk").as_posix() == "sound/windows/1355168291.bnk"
+    assert normalize_mod_package_payload_path("soundcommon/windows/1355168291.bnk").as_posix() == "soundcommon/windows/1355168291.bnk"
+    assert normalize_mod_package_payload_path("0012/sound/windows/media/1.wem").as_posix() == "sound/windows/media/1.wem"
+    assert normalize_mod_package_payload_path("MyMod/files/sequencer/a.paseq").as_posix() == "sequencer/a.paseq"

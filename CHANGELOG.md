@@ -37,6 +37,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Loose mods keep files from the game's sound, sequencer, material, texture and other top-level folders in their folders. They were written as bare file names at the top of the mod, so a mod manager could not place them, and two banks with the same name in `sound` and `soundcommon` overwrote each other.
+
 - Create New Item's DMM mod folders export again on games updated for the DLC, where they stopped with a PAPGT checksum error. Mod Management no longer reports the same error when it opens, and its buttons no longer stay greyed out for about 20 seconds while Create New Item reads the archives after startup.
 
 - Create New Item, Mod Management and the other Rust-based workspaces reopen by themselves after a graphics driver install or GPU reset, instead of stopping with an error and a Retry button.
