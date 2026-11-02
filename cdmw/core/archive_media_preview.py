@@ -46,6 +46,7 @@ from cdmw.core.archive_wwise_bank import (
     read_embedded_media,
     read_hirc_objects,
 )
+from cdmw.core.archive_wwise_hirc import hirc_graph_preview_lines
 from cdmw.core.archive_wwise_stream import read_wem_stream_info, wem_stream_detail_lines, wem_stream_summary
 from cdmw.core.temp_cache import (
     app_temp_cache_build,
@@ -899,6 +900,7 @@ def build_bnk_soundbank_preview(data: bytes) -> Tuple[str, str]:
                 stream = HIRC_STREAM_TYPES.get(item.stream_type, f"type {item.stream_type}")
                 where = "in this bank" if item.source_id in local_media else "not in this bank"
                 preview_lines.append(f"  object {item.object_id}: media {item.source_id}.wem ({where}), {stream}, {codec}")
+        preview_lines.extend(hirc_graph_preview_lines(data))
     else:
         readable_strings = extract_binary_strings(data, sample_limit=262144, max_strings=24)
         if readable_strings:

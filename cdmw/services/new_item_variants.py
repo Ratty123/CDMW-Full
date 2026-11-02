@@ -269,6 +269,14 @@ def prepare_variant_plan(planner):
         variant_family(planner.family,value)
         part = parts[value.prefab_path.casefold()]
         selected_parts[part.stem] = part
+    # A part only a DLC part table holds is out of reach of the new base ItemInfo row
+    # (in game the copy drew no model), so an unselected one gets an unchanged copy too.
+    snapshot = planner.snapshot
+    if snapshot.pappt_base is not None and snapshot.pappt_base is not snapshot.pappt:
+        held, combined = snapshot.pappt_base.index(), snapshot.pappt.index()
+        for part in parts.values():
+            if part.pac_paths and part.stem in combined and part.stem not in held:
+                selected_parts.setdefault(part.stem, part)
     mapping = _allocate_variant_stems(planner,selected_parts.values())
     # Effects on other bindings remain explicit: the selected variants receive the
     # item effect and every unselected binding retains its shipped appearance.
@@ -302,8 +310,8 @@ def plan_variant_files(planner):
     manifest, written = [], []
     donor = planner._effect_donor()
     for part in planner.family.parts:
-        selected = by_prefab.get(part.prefab_path.casefold())
-        if not selected:
+        selected = by_prefab.get(part.prefab_path.casefold(), {})
+        if part.stem not in variants.stem_map:
             for path in part.pac_paths:
                 manifest.append({"prefab_path":part.prefab_path,"model_path":path,"appearance":"template"})
             continue
@@ -386,7 +394,7 @@ def plan_variant_files(planner):
             raise ValueError(f"Cannot copy prefab {part.prefab_path}: {exc}") from exc
         if not result.edits:
             raise ValueError("The selected variant prefab has no exact model binding to repoint.")
-        payload = planner._graft_effect(result.data,donor,target) if donor is not None else result.data
+        payload = planner._graft_effect(result.data,donor,target) if donor is not None and selected else result.data
         planner.add(snapshot.entry(part.prefab_path),target,payload,f"Variant prefab: {target}")
         written.append(target)
     planner.manifest["variants"] = manifest

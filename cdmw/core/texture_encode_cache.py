@@ -26,7 +26,8 @@ def encode_key(request, backend_identity, stop_event):
     return (backend_identity, digest.digest(), request.dds_format,
             request.width, request.height, request.mip_count,
             request.source_color_policy, request.mip_alpha_policy,
-            request.alpha_coverage_reference, request.dds_alpha_mode)
+            request.alpha_coverage_reference, request.dds_alpha_mode,
+            bool(getattr(request, "bc7_quick", False)))
 
 
 def cached_encode(key):

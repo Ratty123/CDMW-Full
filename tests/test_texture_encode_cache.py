@@ -89,13 +89,26 @@ def test_cache_retains_owned_staging_bytes_when_the_destination_is_replaced(enco
 @pytest.mark.parametrize("changes", [
     {"dds_format": "BC7_UNORM_SRGB"}, {"width": 4}, {"height": 4}, {"mip_count": 2},
     {"source_color_policy": "assume_srgb"}, {"mip_alpha_policy": "separate"},
-    {"alpha_coverage_reference": 0.25}, {"dds_alpha_mode": "straight"},
+    {"alpha_coverage_reference": 0.25}, {"dds_alpha_mode": "straight"}, {"bc7_quick": True},
 ])
 def test_every_conversion_policy_invalidates_reuse(encoder, changes):
     request, calls, _, _ = encoder
     native.encode_dds_batch_with_directxtex((request,))
     native.encode_dds_batch_with_directxtex((replace(request, **changes),))
     assert len(calls) == 2
+
+
+def test_quick_bc7_is_sent_only_when_requested(tmp_path):
+    request = native.NativeTextureEncodeRequest(
+        input_path=tmp_path / "in.png", output_path=tmp_path / "out.dds", dds_format="BC7_UNORM",
+    )
+    # Older helpers ignore unknown fields; the default payload stays unchanged.
+    assert "bc7_quick" not in native._encode_request_payload(request, tmp_path / "staged.dds")
+    quick = native._encode_request_payload(replace(request, bc7_quick=True), tmp_path / "staged.dds")
+    assert quick["bc7_quick"] is True
+    assert native._normalized_encode_request(
+        {"input": str(request.input_path), "output": str(request.output_path), "bc7_quick": True}
+    ).bc7_quick is True
 
 
 def test_same_size_same_timestamp_source_edit_and_encoder_change_invalidate(encoder):

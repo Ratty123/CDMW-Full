@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import struct
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -18,6 +19,7 @@ from cdmw.core.archive import (
     order_archive_entries_by_active_overrides,
     try_decrypt_archive_entry_data,
 )
+from cdmw.domain.archives.filters import archive_entry_dlc_layer
 from cdmw.core.item_index import (
     ArchiveItemRecord,
     _ITEMINFO_MARKER,
@@ -113,6 +115,16 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertIn("parse_iteminfo_bin", native_source)
         self.assertIn("parse_localization_bin", native_source)
         self.assertIn("build_model_hash_table", native_source)
+
+    def test_dlc_copy_of_a_base_group_outranks_the_base_copy(self) -> None:
+        virtual_path = "leveldata/quest/quest_trolluniversity.pam"
+        base = replace(_package_entry(virtual_path, "0015"), paz_index=3)
+        dlc = _package_entry(virtual_path, "dlc/dlc_01/0015")
+
+        self.assertEqual(archive_entry_dlc_layer(base), 0)
+        self.assertEqual(archive_entry_dlc_layer(dlc), 1)
+        self.assertIs(active_archive_entry_for_virtual_path([base, dlc]), dlc)
+        self.assertIs(order_archive_entries_by_active_overrides([base, dlc])[0], dlc)
 
     def test_dmm_duplicate_archive_entry_is_grouped_and_marked_active(self) -> None:
         virtual_path = "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0278.pac"

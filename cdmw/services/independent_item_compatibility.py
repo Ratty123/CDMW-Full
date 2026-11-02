@@ -11,7 +11,7 @@ import re
 from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table, merge_overlay_files, owned_item_references
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
-from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, digest, dlc_content, unpack_recipe
+from cdmw.services.independent_item_package import MAX_BLOB, MAX_TOTAL, _resource_path, dependency_refusal, digest, dlc_content, pinned_digests, unpack_recipe
 from cdmw.services.mod_merge_service import _group, _inventory
 from cdmw.services.new_item_provenance import SourceTracker
 
@@ -247,7 +247,7 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
             result.providers.setdefault(_resource_path(path), []).append((label, source))
             admitted = True
         # Executable mods and patch instruction formats are not final file payloads.
-        unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cditem')
+        unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cdmw', '.cditem')
                    and Path(name).name.lower() not in ('manifest.json', 'modinfo.json', 'new-item.json', 'cdmw-compatibility.json', 'cdmw-baseline.zip')]
         if unknown or not admitted:
             result.findings.append(CompatibilityFinding('Unknown', (label,), '',
@@ -470,11 +470,11 @@ def check_package_dependencies(package, snapshot, external, changes, *, stop_eve
     findings = []
     for path, checksum in package.dependencies.items():
         raise_if_cancelled(stop_event)
-        if not snapshot.has_entry(path) or digest(snapshot.payload(path)) != checksum:
+        if not snapshot.has_entry(path) or checksum not in pinned_digests(snapshot, path):
             names = ', '.join(dlc_content(pin for pin in package.dependencies if not snapshot.has_entry(pin)))
             if names:
                 raise OverlayConflict(f'{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.')
-            raise OverlayConflict(f'{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.')
+            raise OverlayConflict(dependency_refusal(package.title, path, snapshot))
         if path in done or path not in external.paths:
             continue
         paths = _group(path)
@@ -748,7 +748,7 @@ def _semantic_export_plan(root, folders, layers, snapshot, registry, pending, ex
     active = [(layer, changes) for layer, changes in layers if layer['active']]
     if (not active or any(not layer.get('independent_identity') for layer, _ in active)
             or external.paths):
-        raise OverlayConflict('Semantic export requires retained .cditem contributors for every payload. '
+        raise OverlayConflict('Semantic export requires retained .cdmw contributors for every payload. '
                               'Mixed foreign or untyped overlay exports remain unsupported.')
     _validate_composition_packages(root, pending, active, snapshot, external,
                                    stop_event=stop_event, on_log=on_log)
@@ -852,7 +852,7 @@ def prepare_semantic_mod_merge(roots, game_root, entries=None, *, read_entry=Non
     roots = tuple(Path(path).resolve() for path in roots)
     expanded, _, semantic = _semantic_inputs(roots, stop_event=stop_event)
     if len(semantic) != len(roots):
-        raise OverlayConflict('Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.')
+        raise OverlayConflict('Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.')
     sources = list(roots)
     packages = {package.identity: package for package in
                 (read_package(raw, stop_event=stop_event) for raw in expanded)}

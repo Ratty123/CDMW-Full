@@ -52,11 +52,11 @@ def test_archive_inventory_is_preserved_and_package_count_does_not_apply(rows):
         assert (row.files, row.decode, row.write) == (
             entry["archive_files"], entry["decode"], entry["write"],
         )
-    package = displayed[".cditem"]
+    package = displayed[".cdmw"]
     assert package.files is None
     assert not package.shipped
     assert displayed[".glb"].files == 0
-    assert capability_for(".cditem") is None
+    assert capability_for(".cdmw") is None
     assert {cap.extension for cap in load_capabilities()} == archived.keys()
     from tools.report_format_decode_progress import summarize
     progress = summarize(manifest["extensions"])
@@ -64,14 +64,14 @@ def test_archive_inventory_is_preserved_and_package_count_does_not_apply(rows):
 
 
 @pytest.mark.parametrize("include_other,editable,expected", [
-    (False, False, 99), (False, True, 43), (True, False, 155), (True, True, 67),
+    (False, False, 99), (False, True, 44), (True, False, 155), (True, True, 68),
 ])
 def test_presence_and_editing_filters_are_independent(rows, include_other, editable, expected):
     found = catalogue.filter_rows(rows, shipped_only=not include_other, editable_only=editable)
     extensions = {row.extension for row in found}
     assert len(found) == expected
     assert (".glb" in extensions) is include_other
-    assert (".cditem" in extensions) is (include_other and not editable)
+    assert (".cdmw" in extensions) is (include_other and not editable)
     assert ".paseq" in extensions
     if editable:
         assert ".levelinfo" not in extensions
@@ -116,7 +116,7 @@ def test_mesh_limits_and_interchange_operations_match_current_policy(rows):
 
 
 def test_package_describes_admission_and_output_without_claiming_general_editing(rows):
-    row = next(row for row in rows if row.extension == ".cditem")
+    row = next(row for row in rows if row.extension == ".cdmw")
     assert not row.moddable
     assert {op.kind for op in row.workflow.operations} == {"inspect", "package", "import"}
     notes = " ".join(row.workflow.limits)
@@ -156,7 +156,7 @@ def test_search_covers_operation_prerequisites_and_area_filter(rows):
     found = catalogue.filter_rows(rows, "configure blender", shipped_only=False)
     assert {row.extension for row in found} == {".fbx"}
     packages = catalogue.filter_rows(rows, group="application_packages", shipped_only=False)
-    assert [row.extension for row in packages] == [".cditem"]
+    assert [row.extension for row in packages] == [".cdmw"]
 
 
 def test_panel_refreshes_details_keeps_selection_and_clears_empty_results(panel):
@@ -179,8 +179,8 @@ def test_panel_refreshes_details_keeps_selection_and_clears_empty_results(panel)
 def test_panel_shows_package_provenance_and_routes_table_and_detail_links(panel):
     widget, calls = panel
     widget.include_absent.setChecked(True)
-    widget.search_box.setText(".cditem")
-    index = _select(widget, ".cditem")
+    widget.search_box.setText(".cdmw")
+    index = _select(widget, ".cdmw")
     assert widget.table.item(index, 1).text() == "N/A"
     assert "archive count does not apply" in widget.detail.toPlainText()
     assert "stored archive inventory" in widget.headline_label.text()
@@ -189,7 +189,7 @@ def test_panel_shows_package_provenance_and_routes_table_and_detail_links(panel)
     label.linkActivated.emit("cdmw-tool:mod_management")
     widget.detail.anchorClicked.emit(QUrl("cdmw-tool:new_item_studio"))
     assert calls == ["mod_management", "new_item_studio"]
-    assert widget.selected_row().extension == ".cditem"
+    assert widget.selected_row().extension == ".cdmw"
     widget.detail.anchorClicked.emit(QUrl("https://invalid.example/"))
     assert calls == ["mod_management", "new_item_studio"]
 
@@ -253,7 +253,7 @@ def test_new_workflow_guidance_translates_at_runtime(rows, code, tmp_path):
     from cdmw.ui.localization import UiLocalizer
 
     localizer = UiLocalizer(language_dir=tmp_path, language_code=code)
-    package = next(row for row in rows if row.extension == ".cditem")
+    package = next(row for row in rows if row.extension == ".cdmw")
     try:
         for source in (
             "Include application and non-shipped formats", "Read / import",

@@ -120,6 +120,22 @@ internal static class ArchiveNameIndexBuilder
                 stringHashes,
                 cancellationToken);
         records ??= ParseItemInfo(itemInfoData, stringHashes, cancellationToken);
+        // Each DLC adds its own ItemInfo and StringInfo layers and names its new items
+        // only in its own `item.dlc_NN.paloc`; a row it shares with the base replaces it.
+        foreach (var layer in sources.DlcLayers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (layer.StringInfo is not null)
+                foreach (var (hash, value) in ParseStringInfo(DecodeSource(native, layer.StringInfo, cancellationToken), cancellationToken))
+                    stringHashes[hash] = value;
+            if (layer.ItemInfo is null || layer.ItemInfoHeader is null) continue;
+            var dlcRecords = ParseItemInfoRows(
+                DecodeSource(native, layer.ItemInfo, cancellationToken),
+                DecodeSource(native, layer.ItemInfoHeader, cancellationToken),
+                stringHashes,
+                cancellationToken);
+            if (dlcRecords is not null) MergeLayerRecords(records, dlcRecords);
+        }
         if (records.Count == 0)
         {
             Publish(progress, new ProgressUpdate(session.Index.EntryCount, session.Index.EntryCount, "names_unavailable"));
@@ -130,7 +146,7 @@ internal static class ArchiveNameIndexBuilder
             .SelectMany(static record => record.LocalizationIds)
             .Where(static value => value.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
-        if (wantedLocalizationIds.Count == 0 || sources.Localization.Count == 0)
+        if (wantedLocalizationIds.Count == 0 || (sources.Localization.Count == 0 && sources.DlcLayers.All(static layer => layer.Localization.Count == 0)))
         {
             Publish(progress, new ProgressUpdate(session.Index.EntryCount, session.Index.EntryCount, "names_unavailable"));
             return ArchiveNameIndex.Unavailable("Archive item records do not have a usable localization table.");
@@ -145,6 +161,14 @@ internal static class ArchiveNameIndexBuilder
                 wantedLocalizationIds,
                 cancellationToken);
         }
+        foreach (var layer in sources.DlcLayers)
+            foreach (var (language, entry) in layer.Localization)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!localized.TryGetValue(language, out var table)) localized[language] = table = new(StringComparer.Ordinal);
+                foreach (var (id, text) in ParseLocalization(DecodeSource(native, entry, cancellationToken), wantedLocalizationIds, cancellationToken))
+                    table[id] = text;
+            }
         if (localized.Values.All(static table => table.Count == 0))
         {
             Publish(progress, new ProgressUpdate(session.Index.EntryCount, session.Index.EntryCount, "names_unavailable"));
@@ -232,6 +256,14 @@ internal static class ArchiveNameIndexBuilder
         sources.Finish();
         var result = new NameSources { ItemInfo = sources.ItemInfo, ItemInfoHeader = sources.ItemInfoHeader, StringInfo = sources.StringInfo };
         foreach (var pair in sources.Localizations) result.Localization[pair.Key] = pair.Value;
+        foreach (var suffix in sources.DlcTableSuffixes("iteminfo"))
+        {
+            var (itemInfo, itemInfoHeader) = sources.TablePair("iteminfo." + suffix);
+            var (stringInfo, _) = sources.TablePair("stringinfo." + suffix);
+            var layer = new DlcNameSources(itemInfo, itemInfoHeader, stringInfo);
+            foreach (var pair in sources.DomainLocalizations("item." + suffix)) layer.Localization[pair.Key] = pair.Value;
+            result.DlcLayers.Add(layer);
+        }
         return result;
     }
 
@@ -619,9 +651,17 @@ internal static class ArchiveNameIndexBuilder
                     }
                 }
             }
-            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels));
+            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels, itemId));
         }
         return records;
+    }
+
+    /// <summary>A layer's row replaces the base row with the same item id; its other rows are new items.</summary>
+    internal static void MergeLayerRecords(List<ItemRecord> records, IReadOnlyCollection<ItemRecord> layer)
+    {
+        var replaced = layer.Where(static record => record.ItemId != 0).Select(static record => record.ItemId).ToHashSet();
+        records.RemoveAll(record => record.ItemId != 0 && replaced.Contains(record.ItemId));
+        records.AddRange(layer);
     }
 
     private static List<ItemRecord> ParseItemInfo(
@@ -1218,14 +1258,26 @@ internal static class ArchiveNameIndexBuilder
 
         public ArchiveEntryDto? StringInfo { get; set; }
         public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<DlcNameSources> DlcLayers { get; } = [];
     }
 
-    private sealed class ItemRecord(
+    private sealed class DlcNameSources(ArchiveEntryDto? itemInfo, ArchiveEntryDto? itemInfoHeader, ArchiveEntryDto? stringInfo)
+    {
+        public ArchiveEntryDto? ItemInfo { get; } = itemInfo;
+        public ArchiveEntryDto? ItemInfoHeader { get; } = itemInfoHeader;
+        public ArchiveEntryDto? StringInfo { get; } = stringInfo;
+        public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal sealed class ItemRecord(
         List<string> localizationIds,
         string internalName,
         List<uint> prefabHashes,
-        List<string> relatedModelStems)
+        List<string> relatedModelStems,
+        uint itemId = 0)
     {
+        /// <summary>The row's key; 0 when the row came from the marker scan without a directory.</summary>
+        public uint ItemId { get; } = itemId;
         public List<string> LocalizationIds { get; } = localizationIds;
         public string InternalName { get; } = internalName;
         public List<uint> PrefabHashes { get; } = prefabHashes;

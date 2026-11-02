@@ -330,6 +330,26 @@ def prepare_mod_merge(
     return result
 
 
+def _merge_dmm_operations(folders, staging: Path, title: str) -> tuple[str, ...]:
+    """Carry each contributor's shop and item group operations into the merged mod.
+
+    New Item's DMM exports add items to shops and groups as DMM operations beside the
+    archive rather than as table copies, so the archive merge alone would drop them.
+    """
+    from cdmw.services.dmm_send import OPERATIONS_FILE, write_operations
+
+    for folder in folders:
+        path = Path(folder) / OPERATIONS_FILE
+        if not path.is_file():
+            continue
+        try:
+            targets = json.loads(path.read_text(encoding="utf-8")).get("targets") or []
+        except (OSError, ValueError, AttributeError) as exc:
+            raise ValueError(f"The shop and group operations of {Path(folder).name} cannot be read: {exc}") from exc
+        write_operations(staging, title, targets)
+    return (OPERATIONS_FILE,) if (staging / OPERATIONS_FILE).is_file() else ()
+
+
 def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined mod", on_log=None, stop_event=None,
                       dmm_v3=False):
     from cdmw.domain.archives.mutation import ArchiveAddRequest
@@ -351,7 +371,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
     def write(staging):
         if dmm_v3:
             if plan.semantic_export is None:
-                raise ValueError('DMM V3 requires retained .cditem contributors. Use Export installed items or merge semantic exports.')
+                raise ValueError('DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.')
             from cdmw.services.dmm_item_export import build_field_json, SOURCE_FOLDER
             from cdmw.core.mod_compatibility import write_semantic_export
             document = build_field_json(plan.semantic_export, title, stop_event=stop_event)
@@ -367,7 +387,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
                 'Manager mounting, in-game appearance and save compatibility are not validated by this export.\n'
                 'Shop additions append stock and keep vanilla positions; shop replacements are unsupported.\n'
                 'Use this package instead of its original packages or installed CDMW contribution.\n'
-                'For CDMW import or re-export, select cdmw-source/cdmw-semantic.cditem. '
+                'For CDMW import or re-export, select cdmw-source/cdmw-semantic.cdmw. '
                 'It retains the original packages, UUIDs, bindings and dependency witnesses. '
                 'Keep the identity profile with your saves. Do not import this outer folder as a loose mod.\n',
                 encoding='utf-8')
@@ -405,6 +425,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
         (staging / "new-item.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (staging / "README.txt").write_text(title + "\n\n" + manifest["description"] +
             "\n\nEnable this combined package in DMM instead of the original selected packages.\n", encoding="utf-8")
+        operations = _merge_dmm_operations(plan.folders, staging, title)
         return NewItemExportResult(staging, "DMM", result.paths, (),
-            ("manifest.json", "modinfo.json", "new-item.json", "README.txt", *result.metadata_files))
+            ("manifest.json", "modinfo.json", "new-item.json", "README.txt", *operations, *result.metadata_files))
     return _publish_package_atomically(root, write, stop_event=stop_event, before_publish=validate)

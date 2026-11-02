@@ -91,7 +91,8 @@ class ValidateSpecTests(unittest.TestCase):
     def test_a_complete_spec_has_no_errors(self) -> None:
         issues = validate_spec(_spec())
         self.assertFalse(has_errors(issues), issues)
-        self.assertEqual(_codes(issues), [])
+        # The sample swaps a stock line, which DMM cannot express; that is only a warning.
+        self.assertEqual(_codes(issues), ["placement.swap_not_for_dmm"])
 
     def test_identity_shapes(self) -> None:
         self.assertIn("internal_name.empty", _codes(validate_spec(_spec(internal_name=""))))

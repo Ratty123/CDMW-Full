@@ -182,6 +182,19 @@ Explicit entry scopes retain their order; text/name matching, other filters,
 sorting and paging keep their existing behavior. No cache-file format changes
 or archive payload reads are required.
 
+### Text search
+
+`text_search` decodes each candidate, converts CRLF and lone CR to LF, and
+matches literal queries or regexes compiled with `Multiline`, so `^` and `$`
+apply per line; empty regex matches are not reported. Reported lines and
+columns use the converted text. `path_filter` without `*` or `?` is a
+case-insensitive substring; with a wildcard it matches the file name, or, when
+it contains a slash, the path from any folder, and a leading slash anchors it at
+the archive root. These rules mirror Text Search's Python search
+(`cdmw/core/text_search.py`); the `text_search_matching_rules` test in
+`--archive-query` covers them. Byte search (`match_bytes`) shares the path filter
+and is otherwise unchanged.
+
 ### Item Finder catalogue
 
 Item Finder uses the fingerprint-owned native item catalogue on first open.

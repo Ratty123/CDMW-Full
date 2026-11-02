@@ -1,4 +1,4 @@
-"""Bounded .cditem export/import. Rebuild records from typed intent, never byte patches."""
+"""Bounded .cdmw export/import (.cditem before the rename). Rebuild records from typed intent, never byte patches."""
 from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -13,6 +13,7 @@ import threading
 from types import MappingProxyType
 import zipfile
 
+from cdmw.constants import PACKAGE_EXTENSIONS
 from cdmw.core.bone_offset_table import BONE_OFFSET_PATH
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.independent import IndependentItemError, IndependentItemPackage, IndependentItemExport, package_id
@@ -126,6 +127,28 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def pinned_digests(snapshot, path):
+    """The digests a package may have pinned for one stock file.
+
+    Partially compressed textures used to read back with their header still listing
+    the packed mip sizes; they now read back with those words cleared. Packages made
+    before then pinned the old bytes, which are the stored header over the same data.
+    """
+    data = snapshot.payload(path)
+    digests = {digest(data)}
+    try:
+        entry = snapshot.entry(path)
+        if entry.compressed and entry.compression_type == 1 and entry.extension == ".dds" and data[:4] == b"DDS ":
+            from cdmw.core.archive_extraction import get_archive_partial_dds_header
+            header = get_archive_partial_dds_header(entry)
+            size = 0x94 if header[84:88] == b"DX10" else 0x80
+            if len(header) >= size and len(data) >= size:
+                digests.add(digest(header[:size] + data[size:]))
+    except (AttributeError, OSError, ValueError, KeyError):
+        pass
+    return digests
+
+
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
@@ -149,6 +172,24 @@ def virtual_path(value):
 
 
 _DLC_RESOURCE = re.compile(r"[._](dlc_[0-9]+)\.[^/]*\Z")
+
+
+def dependency_refusal(title, path, snapshot):
+    """Why a pinned game file does not match, for a package that names no DLC table layer.
+
+    A DLC also ships its own copies of base files under base names (13,500 in the first
+    DLC). A package made on a game with the DLC pins those copies, so on a game without
+    any DLC the mismatch may be the missing DLC rather than another game version.
+    """
+    entry = getattr(getattr(snapshot, "iteminfo", None), "payload_entry", None)
+    if entry is not None:
+        from cdmw.domain.archives.filters import archive_entry_game_root
+        dlc = archive_entry_game_root(entry) / "dlc"
+        if not (dlc.is_dir() and any(_is_dlc_folder(path) for path in dlc.iterdir() if path.is_dir())):
+            return (f"{title}: incompatible game dependency {path}. This game has no DLC installed: if the "
+                    "package was made on a game with the DLC, install the DLC; otherwise use the matching game "
+                    "version or an updated package.")
+    return f"{title}: incompatible game dependency {path}. Use the matching game version or an updated package."
 
 
 def dlc_content(paths):
@@ -264,6 +305,7 @@ def _clean_stock_snapshot(root, service, read_entry, stop_event, on_log, include
     result = service.build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
     if not include_dlc:
         result.dlc_pathcs = ()  # The snapshot reads them beside the archives, not from its entries.
+        result.dlc_pathc_names = ()
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
         raise IndependentItemError('The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.')
     result.provenance.capture().validate(stop_event)
@@ -371,7 +413,7 @@ def _prepared_spec(spec):
 def from_plan(plan, identity, *, title=None, stop_event=None):
     package_id(identity)
     if plan.independent_inputs is None:
-        raise IndependentItemError("Choose Item package · .cditem and rebuild the plan first.")
+        raise IndependentItemError("Choose Item package · .cdmw and rebuild the plan first.")
     if plan.source_revision is None:
         raise IndependentItemError("Independent packages require verified source dependencies.")
     plan.source_revision.validate(stop_event)
@@ -817,8 +859,8 @@ def read_package(source, *, stop_event=None, cache=None):
 
 def write_package(package, path, *, expected_digest=None, stop_event=None, validate_source=None):
     path = Path(path).resolve()
-    if path.suffix.lower() != ".cditem":
-        raise IndependentItemError("Independent item packages use the .cditem extension.")
+    if path.suffix.lower() not in PACKAGE_EXTENSIONS:
+        raise IndependentItemError("CDMW packages use the .cdmw extension.")
     previous = None
     if path.is_file():
         old = read_package(path, stop_event=stop_event)

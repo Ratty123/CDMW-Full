@@ -9,6 +9,7 @@ from typing import Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
+from cdmw.constants import PACKAGE_EXTENSION, PACKAGE_EXTENSIONS
 from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
 from cdmw.domain.archives.prefab_companions import companion_extensions
 from cdmw.models import ArchiveEntry
@@ -140,7 +141,7 @@ class ArchivePrefabInspectorActionsMixin:
         box.setWindowTitle("Export Edited Prefab")
         box.setText(f"{summary}\n\nHow do you want to save the edited prefab?")
         box.setInformativeText(
-            "An item package (.cditem) is added on the Mods page. It replaces only the game's own copy "
+            "An item package (.cdmw) is added on the Mods page. It replaces only the game's own copy "
             "of this prefab and refuses to load after a game update changes that copy. Adding the edit to "
             "an existing item package lets the prefab use a mesh that package's item adds.\n\n"
             "A loose folder holds game-relative files for another mod manager.\n\n"
@@ -148,7 +149,7 @@ class ArchivePrefabInspectorActionsMixin:
             "Your game files are untouched either way, so if anything misbehaves, "
             "disable the mod in your manager and delete that package - that is the whole of the fix."
         )
-        package_button = box.addButton("Item Package (.cditem)...", QMessageBox.ButtonRole.AcceptRole)
+        package_button = box.addButton("Item Package (.cdmw)...", QMessageBox.ButtonRole.AcceptRole)
         add_button = box.addButton("Add to Item Package...", QMessageBox.ButtonRole.ActionRole)
         loose_button = box.addButton("Loose Folder...", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
@@ -169,22 +170,22 @@ class ArchivePrefabInspectorActionsMixin:
             self.shell.set_status_message("Set the game package root before saving an item package.", error=True)
             return
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "prefab"
-        default = self.shell.settings_file_path.parent / "prefab_packages" / f"{stem}.cditem"
+        default = self.shell.settings_file_path.parent / "prefab_packages" / f"{stem}{PACKAGE_EXTENSION}"
         if add:
             # The package keeps its identity and gets a new release, so the
             # Mods page treats it as an update of the item already there.
             selected, _selected_filter = QFileDialog.getOpenFileName(
-                self, "Add to Item Package", str(default.parent), "Independent items (*.cditem)"
+                self, "Add to Item Package", str(default.parent), "Independent items (*.cdmw *.cditem)"
             )
         else:
             selected, _selected_filter = QFileDialog.getSaveFileName(
-                self, "Save Prefab Package", str(default), "Independent items (*.cditem)"
+                self, "Save Prefab Package", str(default), "Independent items (*.cdmw)"
             )
         if not selected:
             return
         destination = Path(selected)
-        if not add and destination.suffix.lower() != ".cditem":
-            destination = destination.with_name(f"{destination.name}.cditem")
+        if not add and destination.suffix.lower() not in PACKAGE_EXTENSIONS:
+            destination = destination.with_name(f"{destination.name}{PACKAGE_EXTENSION}")
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> tuple[Path, tuple[str, ...]]:
             # Reading the game catalogue takes seconds; the package pins the

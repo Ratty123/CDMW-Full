@@ -1495,7 +1495,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                         target_path=alias_path,
                         kind=kind,
                         payload_data=payload_data,
-                        note="Known working CDUMM placement XML alias.",
+                        note="Known working placement XML alias.",
                     )
                 )
             return tuple(specs)
@@ -2328,7 +2328,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 preview_lines.append(f"- ...and {len(alias_plan.pairs) - 10:,} more animation alias payload(s)")
             if isinstance(placement_entry, ArchiveEntry) and isinstance(placement_patch, AttachmentPartInOutPatchResult) and placement_patch.text:
                 preview_lines.append(f"- Include 2H sword hip placement XML -> {placement_entry.path}")
-                preview_lines.append("- Include known CDUMM alias -> character/phm_description_player_kliff.xml")
+                preview_lines.append("- Include known placement alias -> character/phm_description_player_kliff.xml")
             else:
                 preview_lines.append(f"- Placement XML skipped: {placement_note}")
             if include_true_onehand_iteminfo and isinstance(iteminfo_patch, AttachmentUniversalItemInfoBehaviorPatchResult):

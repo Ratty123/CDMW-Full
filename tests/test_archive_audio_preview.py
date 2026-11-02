@@ -85,7 +85,7 @@ def test_wwise_vorbis_header_reports_codec_length_layout_loop_and_markers():
     assert "Length: 2.000 s (96,000 samples)" in lines
     assert "Loop: 0.100 s to 2.000 s" in lines
     assert "Marker at 0.000 s: line_0001.wav" in lines
-    assert any("does not re-encode Wwise Vorbis" in line for line in lines)
+    assert any("does not encode Wwise Vorbis" in line and "switches the banks that play it to PCM" in line for line in lines)
     assert wem_stream_summary(info) == "2 ch | 48,000 Hz | Wwise Vorbis | 2.00 s"
 
 

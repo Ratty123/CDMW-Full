@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays", "retained_virtual_loading")
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 

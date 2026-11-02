@@ -50,20 +50,63 @@ def test_send_writes_the_dmm_mod_and_a_resend_replaces_only_cdmws_copy(tmp_path)
     assert not any(path.name.startswith(".cdmw-send-") for path in mods.parent.iterdir())
 
 
+def test_a_resend_never_leaves_the_previous_version_in_dmms_mods_folder(tmp_path, monkeypatch):
+    service, snapshot = setup(tmp_path)
+    plan = service.plan(spec("CompactOwned"), snapshot, capture_independent=True)
+    _install, mods = _dmm(tmp_path)
+    send_plan(plan, mods, "Frost blade", service=service)
+    # DMM can hold a file of the old mod open, so deleting the backup in place may fail.
+    import cdmw.core.atomic_file as atomic_file
+    monkeypatch.setattr(atomic_file.shutil, "rmtree", lambda *args, **kwargs: None)
+    send_plan(plan, mods, "Frost blade", service=service)
+    assert sorted(path.name for path in mods.iterdir()) == ["Frost blade"]
+
+
 def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     from cdmw.services.dmm_send import send_item_packages
     from tests.test_virtual_loader import game_bytes, packages
     root, files = packages(tmp_path)
     before = game_bytes(root)
     _install, mods = _dmm(tmp_path)
-    result = send_item_packages(files, root, mods, "Two items")
+    steps = []
+    result = send_item_packages(files, root, mods, "Two items", on_progress=lambda value, total, detail: steps.append(value))
     assert result.folder == mods / "Two items" and not result.replaced
     manifest = json.loads((result.folder / "manifest.json").read_text(encoding="utf-8"))
     overrides = manifest["overrides"]
     # One copy of each shared table, carrying both items, rather than two mods that hide each other.
     assert len(overrides) == len(set(overrides))
     assert "gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody" in overrides
-    assert (result.folder / "0036" / "0.pamt").is_file()
-    assert game_bytes(root) == before and not (root / ".cdmw").exists()
+    # DMM reads every .json in a mod folder as a mod; only what DMM needs is shipped.
+    shipped = {p.relative_to(result.folder).as_posix() for p in result.folder.rglob("*") if p.is_file()}
+    # No texture registry: DMM registers new textures itself and flags a shipped one.
+    assert shipped == {"0036/0.pamt", "0036/0.paz", "manifest.json", "modinfo.json",
+                                         "CDMW items - shops and groups.json"}
+    # Shops and groups go as additions DMM applies to base and DLC rows, not as table copies.
+    operations = json.loads((result.folder / "CDMW items - shops and groups.json").read_text(encoding="utf-8"))
+    ops = {target["file"]: target["intents"] for target in operations["targets"]}
+    assert operations["format"] == 3 and ops["storeinfo.pabgb"]
+    assert all(intent["op"] == "array_append" for intent in ops["storeinfo.pabgb"])
+    assert not any("storeinfo" in path or "itemgroupinfo" in path for path in overrides)
+    # Archives stay as shipped; only the item identities are kept beside them.
+    assert game_bytes(root) == before
+    assert [p.relative_to(root).as_posix() for p in (root / ".cdmw").rglob("*") if p.is_file()] == [".cdmw/independent-items.json"]
+    assert steps == sorted(steps) and steps[-1] == 100
     again = send_item_packages(files, root, mods, "Two items")
     assert again.replaced
+
+
+def test_a_later_send_keeps_every_item_key(tmp_path):
+    from cdmw.services.dmm_send import send_item_packages
+    from cdmw.services.independent_item_install import load_registry
+    from cdmw.services.independent_item_package import read_package
+    from tests.test_virtual_loader import packages
+    root, files = packages(tmp_path, count=3)
+    _install, mods = _dmm(tmp_path)
+    send_item_packages(files, root, mods, "CDMW items")
+    first = {identity: row["values"] for identity, row in load_registry(root)["items"].items()}
+    # Dropping the first item and reordering the rest must not renumber them.
+    send_item_packages(tuple(reversed(files[1:])), root, mods, "CDMW items")
+    second = {identity: row["values"] for identity, row in load_registry(root)["items"].items()}
+    for path in files[1:]:
+        identity = read_package(path).identity
+        assert second[identity] == first[identity]

@@ -624,6 +624,33 @@ class ShellToolTabsMixin:
         timer.timeout.connect(prepare_when_idle)
         timer.start()
 
+    def _schedule_mod_management_prewarm(self) -> None:
+        """Start Mod Management's window hidden once the shell is idle.
+
+        Its Rust presentation checks the helper and starts a process, a few seconds
+        that the first click otherwise spends on a loading screen.
+        """
+        timer = QTimer(self)
+        timer.setInterval(2000)
+
+        def prewarm_when_idle():
+            container = self.mod_management_tab
+            if getattr(self, "_shutting_down", False) or getattr(container, "_shutdown_requested", False):
+                timer.stop()
+                return
+            if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
+                    or QApplication.activeModalWidget() is not None
+                    or self.archive._archive_ui_interactive_active()
+                    or not getattr(self.archive, "archive_entries", None)):
+                return
+            timer.stop()
+            prewarm = getattr(container.ensure_widget(), "prewarm", None)
+            if callable(prewarm):
+                prewarm()
+
+        timer.timeout.connect(prewarm_when_idle)
+        timer.start()
+
     def _preload_new_item_archive_data(self, controller) -> bool:
         """Capture the catalogue on the UI thread; read data on the owned worker."""
         from pathlib import Path
@@ -753,7 +780,8 @@ class ShellToolTabsMixin:
         self.mod_management_tab = self._add_lazy_shell_tool(
             "Mod Management", "mod_management", self._create_mod_management_tab
         )
-        # Mod Management handles .cditem packages only; converting mods between
+        self._schedule_mod_management_prewarm()
+        # Mod Management handles CDMW packages only; converting mods between
         # managers is retired with the mod folder tools.
         self.mod_package_tool_action.setEnabled(False)
         self.mod_package_tool_action.setToolTip("Converting mods between mod managers is no longer offered.")
@@ -791,12 +819,12 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")
         self._register_detachable_tool("saved_work", self.saved_work_tab, "Drafts & Mods")
         self._register_detachable_tool("model_library", self.model_library_tab, "Model Library")
-        self._register_detachable_tool("research", self.research_tab, "Texture Research")
+        self._register_detachable_tool("research", self.research_tab, "Asset Research")
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
         self._register_detachable_tool("mod_management", self.mod_management_tab, "Mod Management")
-        self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
+        self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animations")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
         self._register_detachable_tool(
             "format_explorer",

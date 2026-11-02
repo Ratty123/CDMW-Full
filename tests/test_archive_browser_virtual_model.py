@@ -237,6 +237,11 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         self.assertEqual(settings.archive_fetch_batch_size, 5000)
         self.assertFalse(settings.native_archive_acceleration)
         self.assertEqual(settings.native_preview_cache_mode, "balanced")
+        # Exports flush every file to disk unless the user turns Export safety off.
+        self.assertTrue(clamp_archive_performance_settings(ArchivePerformanceSettings()).durable_exports)
+        self.assertFalse(
+            clamp_archive_performance_settings(ArchivePerformanceSettings(durable_exports=False)).durable_exports
+        )
 
     def test_virtual_tree_view_selection_compatibility_surface(self) -> None:
         entries = [_entry(f"ui/file_{index}.dds", index) for index in range(3)]
@@ -316,7 +321,7 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
         self.assertLess(cards["Preview Caches"].geometry().bottom(), grid_widget.height())
 
         rows = grid_widget.findChildren(QFrame, "SettingsPerformanceRow")
-        self.assertEqual(9, len(rows))
+        self.assertEqual(10, len(rows))
         self.assertEqual(4, sum(bool(row.property("firstRow")) for row in rows))
         for row in rows:
             row_layout = row.layout()
@@ -330,6 +335,16 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
             assert note is not None
             self.assertEqual((0, 0, 1, 1), row_layout.getItemPosition(row_layout.indexOf(field)))
             self.assertEqual((2, 0, 1, 1), row_layout.getItemPosition(row_layout.indexOf(note)))
+
+    def test_export_safety_checkbox_round_trips_and_defaults_on(self) -> None:
+        tab = self._settings_tab()
+        tab.sync_archive_performance_controls(ArchivePerformanceSettings())
+        self.assertTrue(tab.archive_durable_exports_checkbox.isChecked())
+        self.assertTrue(tab.current_archive_performance_settings().durable_exports)
+        tab.sync_archive_performance_controls(ArchivePerformanceSettings(durable_exports=False))
+        self.assertFalse(tab.archive_durable_exports_checkbox.isChecked())
+        tab.archive_durable_exports_checkbox.setChecked(True)
+        self.assertTrue(tab.current_archive_performance_settings().durable_exports)
 
     def test_numeric_performance_presets_keep_auto_and_custom_values_clear(self) -> None:
         tab = self._settings_tab()

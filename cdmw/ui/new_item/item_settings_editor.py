@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFormLay
     QFileDialog, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
     QVBoxLayout, QWidget)
 
+from cdmw.constants import PACKAGE_EXTENSION, PACKAGE_EXTENSIONS
 from cdmw.core.iteminfo_settings import read_item_settings
 from cdmw.domain.new_item.item_settings import (ItemSettings, RepairEntry, QuantityEdit,
     BOOLEAN_FIELDS, encode_settings)
@@ -155,9 +156,9 @@ class ItemSettingsEditor(QWidget):
         self.rebuild()
 
     def _write_stock(self):
-        path,_filter=QFileDialog.getSaveFileName(self,self.tr('Write stock item package…'),'',self.tr('Independent item (*.cditem)'))
+        path,_filter=QFileDialog.getSaveFileName(self,self.tr('Write stock item package…'),'',self.tr('Independent item (*.cdmw)'))
         if path:
-            if not path.lower().endswith('.cditem'): path+='.cditem'
+            if not path.lower().endswith(PACKAGE_EXTENSIONS): path+=PACKAGE_EXTENSION
             self.controller.start_stock_item_export(path)
 
     @staticmethod

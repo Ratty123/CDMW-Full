@@ -10,6 +10,8 @@ public sealed class ArchiveSession : IDisposable
     private readonly LinkedList<CompiledArchiveQuery> _queryLru = new();
     private readonly ArchiveGenerationLease _generation;
     private ArchiveNameIndex? _nameIndex;
+    private readonly object _nameColumnGate = new();
+    private NameColumn? _nameColumn;
     private ArchiveItemCatalog? _itemCatalog;
     private ArchiveCharacterCatalog? _characterCatalog;
     private int _disposed;
@@ -56,6 +58,55 @@ public sealed class ArchiveSession : IDisposable
     }
 
     internal void SetNameIndex(ArchiveNameIndex index) => Volatile.Write(ref _nameIndex, index);
+
+    /// <summary>
+    /// The name fields <see cref="ArchiveNameIndex.Enrich"/> gives each entry, resolved
+    /// once per name index. Enrich depends only on the file name, so a text query that
+    /// may match a name reads this column instead of enriching every candidate.
+    /// </summary>
+    internal ArchiveEntryNames?[] GetNameColumn(ArchiveNameIndex index, CancellationToken cancellationToken)
+    {
+        var current = Volatile.Read(ref _nameColumn);
+        if (current is not null && ReferenceEquals(current.Index, index))
+        {
+            return current.Names;
+        }
+        lock (_nameColumnGate)
+        {
+            current = _nameColumn;
+            if (current is not null && ReferenceEquals(current.Index, index))
+            {
+                return current.Names;
+            }
+            var names = BuildNameColumn(index, cancellationToken);
+            // Never publish a partial or cancelled column to another query.
+            Volatile.Write(ref _nameColumn, new NameColumn(index, names));
+            return names;
+        }
+    }
+
+    private ArchiveEntryNames?[] BuildNameColumn(ArchiveNameIndex index, CancellationToken cancellationToken)
+    {
+        var names = new ArchiveEntryNames?[checked((int)Index.EntryCount)];
+        var resolved = new System.Collections.Concurrent.ConcurrentDictionary<string, ArchiveEntryNames?>(StringComparer.Ordinal);
+        ArchiveParallel.ForEachChunk(Index.EntryCount, cancellationToken, (_, start, end) =>
+        {
+            for (var entryId = start; entryId < end; entryId++)
+            {
+                if ((entryId & 0xFFF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                // The same file name ArchiveEntryDto.Name derives from the entry path.
+                var path = Index.ReadEntryPath(entryId);
+                var fileName = System.IO.Path.GetFileName(path.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                names[entryId] = resolved.GetOrAdd(ArchiveNameIndex.Stem(fileName), index.ResolveStem);
+            }
+        });
+        return names;
+    }
+
+    private sealed record NameColumn(ArchiveNameIndex Index, ArchiveEntryNames?[] Names);
 
     internal bool TryGetNameIndex(out ArchiveNameIndex? index)
     {

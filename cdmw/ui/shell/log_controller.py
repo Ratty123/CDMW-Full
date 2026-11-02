@@ -172,6 +172,9 @@ class LogControllerMixin:
         character_finder = getattr(self.archive, "archive_character_finder_button", None)
         if character_finder is not None:
             character_finder.setEnabled(not busy and remote_session_ready)
+        action_charts = getattr(self.archive, "archive_action_chart_button", None)
+        if action_charts is not None:
+            action_charts.setEnabled(not busy)
         self.archive.archive_clear_asset_scope_button.setEnabled(not busy and bool(self.archive.archive_active_asset_catalog_scope))
         self.archive.archive_filter_edit.setEnabled(not busy)
         self.archive.archive_path_search_button.setEnabled(not busy)

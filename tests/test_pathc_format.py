@@ -159,6 +159,18 @@ class PathcTests(unittest.TestCase):
         with self.assertRaisesRegex(PathcError, "not registered"):
             register_texture(base, NEW_ICON, like=dlc_icon, dds_header=ICON_HEADER + bytes(65536))
 
+    def test_a_reference_the_dlc_replaces_uses_the_dlc_registration(self) -> None:
+        # The DLC ships its own copy of a base texture under another header; the game
+        # loads the DLC copy, so a texture shaped after it takes the DLC's registration.
+        shared = "character/texture/shared_d.dds"
+        icon_15 = dds_header(width=256, height=256, tag=15)
+        base = build_table(headers=[BIG_HEADER, icon_15], entries=[(shared, 0, BIG_BLOCKS)])
+        dlc = build_table(headers=[icon_15], entries=[(shared, 0, ICON_BLOCKS)])
+        new = register_texture(base, NEW_ICON, like=shared, dds_header=ICON_HEADER + bytes(65536), reference_tables=(dlc,))
+        self.assertEqual(new.find(NEW_ICON).header_index, 1)
+        with self.assertRaisesRegex(PathcError, "differs"):
+            register_texture(base, NEW_ICON, like=shared, dds_header=dds_payload(BIG_HEADER), reference_tables=(dlc,))
+
     def test_register_a_dds_by_its_own_header(self) -> None:
         odd = struct.pack("<4I", 1153, 65536, 16384, 4096)
         table = build_table(headers=[BIG_HEADER, ICON_HEADER], entries=[(ICON, 1, ICON_BLOCKS), ("a/b.dds", 0, BIG_BLOCKS), ("a/c.dds", 0, BIG_BLOCKS), ("a/d.dds", 0, odd)])

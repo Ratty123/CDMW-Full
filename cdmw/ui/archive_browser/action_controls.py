@@ -208,6 +208,12 @@ class ArchiveBrowserActionControlsMixin:
             hkx_reason,
         )
         self._set_action_button_state(
+            self.archive_hkx_physics_editor_button,
+            controls_enabled and can_hkx_actions,
+            "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.",
+            hkx_reason,
+        )
+        self._set_action_button_state(
             self.archive_hkx_placement_button,
             controls_enabled and can_hkx_placement,
             "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.",

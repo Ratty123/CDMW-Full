@@ -90,6 +90,41 @@ PAMLOD_BBOX_MIN = 0x10
 PAMLOD_BBOX_MAX = 0x1C
 PAMLOD_ENTRY_TABLE = 0x50
 
+# What a shipped PAMLOD states about its levels. Measured on every base and DLC PAMLOD of game
+# 1.0.0.3446 (35,603 files, 203,025 levels); docs/crimson-desert-research.md section 5.1 has the
+# evidence.
+#
+#   0x0C   u8 layout version: 4, except one file that uses 3
+#   0x50   u32 level count again, then for each level: u32 ordinal (1-based), u32 part count,
+#          that many 0x218-byte part records, and a variable-length trailer (cluster ranges and
+#          bounds, not decoded here)
+#   record u32 vertex count, u32 index count, u32 vertex element offset, u32 index element
+#          offset (both running totals within the level), char texture[256], char material[256],
+#          two f32
+#   table  one entry per level, ending at most 12 bytes before the geometry offset. Version 4
+#          stores u32 offset, u32 decoded size and u32 compressed size (0 once decoded), each
+#          block starting where the previous one ends rounded up to 16. Version 3 stores the
+#          offsets alone, and a block runs to the next one. The last block ends the file.
+#   block  the level's vertex records, then its u16 indices, each part's indices local to it
+#
+# The name fields keep uninitialised bytes after their terminator. A material such as
+# "boxleather\0fabric_09.dds\0" carries a stale texture suffix, so finding parts by scanning for
+# ".dds" invented parts, split levels in the wrong place and then fitted a wrong stride to them.
+#
+# Nothing in the file names the vertex stride or attribute offsets. The block size fixes the
+# stride exactly, and it is 20 bytes on every level of every file. Position (three u16 against
+# the header bounds) at 0 and half-float UV at 8 are the fields decoded. 456 levels store NaN
+# bit patterns (0x7FFF, 0xFFFF) in the UV field of their shipped records; those are authored.
+PAMLOD_VERSION = 0x0C
+PAMLOD_LEVEL_DESCRIPTORS = 0x54
+PAMLOD_LEVEL_HEADER_SIZE = 8
+PAMLOD_PART_RECORD_SIZE = 0x218
+PAMLOD_PART_TEXTURE = 0x10
+PAMLOD_PART_MATERIAL = 0x110
+PAMLOD_PART_NAME_SIZE = 0x100
+PAMLOD_BLOCK_TABLE_MAX_PADDING = 12
+PAMLOD_VERTEX_STRIDE = 20
+
 # PAC skeletal influences inside the 40-byte record: six in ordinary mode,
 # four in cloth-guide mode (byte 39's low six bits below 63).
 #
@@ -1064,7 +1099,13 @@ def _extract_global_mesh(data, geom_off, ni, ioff, bmin, bmax):
 # ── PAMLOD Parser ────────────────────────────────────────────────────
 
 def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedMesh:
-    """Parse a .pamlod LOD mesh file. lod_level=0 is highest quality."""
+    """Parse a .pamlod LOD mesh file. lod_level=0 is highest quality.
+
+    A shipped file states every level's block and parts (see the notes beside the PAMLOD_*
+    constants); those are decoded as stated, and a file whose statements do not add up raises
+    ValueError instead of yielding guessed geometry. A payload without a consistent block table,
+    such as an owned test fixture, keeps the older scanning reader.
+    """
     _reject_path_argument(data, "parse_pamlod")
     result = ParsedMesh(path=filename, format="pamlod")
 
@@ -1077,7 +1118,215 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
     result.bbox_max = struct.unpack_from("<fff", data, PAMLOD_BBOX_MAX)
     bmin, bmax = result.bbox_min, result.bbox_max
 
-    # Locate LOD entries by scanning for .dds texture strings
+    stated = _pamlod_level_blocks(data, lod_count, geom_off)
+    if stated is not None:
+        table_off, blocks = stated
+        result.lod_levels = _decode_stated_pamlod_levels(data, filename, table_off, blocks, geom_off, bmin, bmax)
+    else:
+        logger.warning("PAMLOD %s has no consistent level block table; scanning for its layout", filename)
+        result.lod_levels = _scan_pamlod_levels(data, lod_count, geom_off, bmin, bmax)
+
+    # Use requested LOD level as the main submeshes
+    if lod_level < len(result.lod_levels) and result.lod_levels[lod_level]:
+        result.submeshes = result.lod_levels[lod_level]
+    elif result.lod_levels:
+        # Fallback to first non-empty LOD
+        for lod in result.lod_levels:
+            if lod:
+                result.submeshes = lod
+                break
+
+    result.total_vertices = sum(len(sm.vertices) for sm in result.submeshes)
+    result.total_faces = sum(len(sm.faces) for sm in result.submeshes)
+    result.has_uvs = any(sm.uvs for sm in result.submeshes)
+
+    logger.info("Parsed PAMLOD %s: %d LODs, using LOD %d (%d verts, %d faces)",
+                filename, len(result.lod_levels), lod_level,
+                result.total_vertices, result.total_faces)
+    return result
+
+
+def _pamlod_level_blocks(data: bytes, lod_count: int, geom_off: int):
+    """The stated (table offset, [(block offset, block size), ...]), or None without a table.
+
+    A table counts only when its whole chain holds, from the geometry offset to the end of the
+    payload. Checking the first offset alone is ambiguous: a one-level file whose block size
+    equals the geometry offset matches at two paddings.
+    """
+    if not 1 <= lod_count <= 32 or len(data) <= PAMLOD_VERSION:
+        return None
+    if data[PAMLOD_VERSION] == 3:
+        table_off = geom_off - lod_count * 4
+        if table_off < PAMLOD_ENTRY_TABLE:
+            return None
+        offsets = list(struct.unpack_from(f"<{lod_count}I", data, table_off)) + [len(data)]
+        if offsets[0] != geom_off or any(end <= start for start, end in zip(offsets, offsets[1:])):
+            return None
+        return table_off, [(start, end - start) for start, end in zip(offsets, offsets[1:])]
+
+    found = []
+    for padding in range(0, PAMLOD_BLOCK_TABLE_MAX_PADDING + 1, 4):
+        table_off = geom_off - lod_count * 12 - padding
+        if table_off < PAMLOD_ENTRY_TABLE:
+            break
+        blocks = []
+        compressed = False
+        end = geom_off
+        for level in range(lod_count):
+            offset, size, stored = struct.unpack_from("<III", data, table_off + level * 12)
+            if offset != (end + 15) & ~15 or size == 0:
+                break
+            compressed |= stored != 0
+            blocks.append((offset, size))
+            end = offset + (stored or size)
+        else:
+            if end == len(data):
+                found.append((table_off, blocks, compressed))
+    if len(found) != 1:
+        return None
+    table_off, blocks, compressed = found[0]
+    if compressed:
+        raise ValueError("PAMLOD geometry blocks are still LZ4-compressed; read the archive entry decoded.")
+    return table_off, blocks
+
+
+def _decode_stated_pamlod_levels(data, filename, table_off, blocks, geom_off, bmin, bmax):
+    """Decode each level at its stated block with the parts its descriptors state."""
+    groups = _pamlod_descriptor_groups(data, table_off, blocks)
+    if groups is None:
+        # Owned fixtures write a block table beside flat descriptor records. Their scanned
+        # parts are used only when they account for every stated block exactly.
+        groups = _scan_pamlod_entry_groups(data, geom_off, len(blocks))
+        if len(groups) != len(blocks) or any(
+            _pamlod_group_block_size(group) != size for group, (_offset, size) in zip(groups, blocks)
+        ):
+            raise ValueError(
+                f"PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the "
+                f"stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices."
+            )
+    levels = []
+    for lod_i, ((offset, _size), group) in enumerate(zip(blocks, groups)):
+        index_base = offset + sum(e["nv"] for e in group) * PAMLOD_VERTEX_STRIDE
+        for entry_index, e in enumerate(group):
+            highest = _highest_u16_index(data, index_base + e["ioff"] * 2, e["ni"])
+            if highest >= e["nv"]:
+                raise ValueError(
+                    f"PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes "
+                    f"vertex {highest} of {e['nv']}."
+                )
+        levels.append(_pamlod_level_submeshes(
+            data, group, lod_i, offset, PAMLOD_VERTEX_STRIDE, index_base, bmin, bmax,
+        ))
+    return levels
+
+
+def _pamlod_descriptor_groups(data: bytes, table_off: int, blocks):
+    """Each level's part records, found by ordinal and confirmed by the level's block size.
+
+    The trailer after a level's records varies in length, so the next level is located by its
+    ordinal and accepted only when its records run cumulatively from zero and their counts fill
+    that level's stated block exactly.
+    """
+    groups = []
+    cursor = PAMLOD_LEVEL_DESCRIPTORS
+    for level, (_offset, size) in enumerate(blocks):
+        ordinal = struct.pack("<I", level + 1)
+        found = None
+        start = data.find(ordinal, cursor, table_off)
+        while start != -1:
+            found = _pamlod_descriptor_group(data, start, table_off, size)
+            if found is not None:
+                break
+            start = data.find(ordinal, start + 1, table_off)
+        if found is None:
+            return None
+        group, cursor = found
+        groups.append(group)
+    return groups
+
+
+def _pamlod_descriptor_group(data: bytes, start: int, limit: int, block_size: int):
+    if start + PAMLOD_LEVEL_HEADER_SIZE > limit:
+        return None
+    count = struct.unpack_from("<I", data, start + 4)[0]
+    records = start + PAMLOD_LEVEL_HEADER_SIZE
+    if not 1 <= count <= 4096 or records + count * PAMLOD_PART_RECORD_SIZE > limit:
+        return None
+    group = []
+    vertices = indices = 0
+    for index in range(count):
+        record = records + index * PAMLOD_PART_RECORD_SIZE
+        nv, ni, voff, ioff = struct.unpack_from("<IIII", data, record)
+        if voff != vertices or ioff != indices or ni % 3:
+            return None
+        group.append({
+            "nv": nv, "ni": ni, "voff": voff, "ioff": ioff,
+            "tex": _pamlod_name_field(data, record + PAMLOD_PART_TEXTURE, texture=True),
+            "mat": _pamlod_name_field(data, record + PAMLOD_PART_MATERIAL),
+        })
+        vertices += nv
+        indices += ni
+    if _pamlod_group_block_size(group) != block_size:
+        return None
+    return group, records + count * PAMLOD_PART_RECORD_SIZE
+
+
+def _pamlod_name_field(data: bytes, offset: int, *, texture: bool = False) -> str:
+    name = data[offset:offset + PAMLOD_PART_NAME_SIZE].split(b"\x00")[0].decode("ascii", "replace")
+    # "dds" is the shipped placeholder for a part without a texture; material sidecars own it.
+    return "" if texture and name == "dds" else name
+
+
+def _pamlod_group_block_size(group) -> int:
+    return sum(e["nv"] for e in group) * PAMLOD_VERTEX_STRIDE + sum(e["ni"] for e in group) * 2
+
+
+def _highest_u16_index(data: bytes, offset: int, count: int) -> int:
+    if count <= 0:
+        return -1
+    array = _read_pam_u16_index_array(data, offset, count)
+    if array is not None:
+        return int(array.max())
+    return max(struct.unpack_from(f"<{count}H", data, offset))
+
+
+def _pamlod_level_submeshes(data, group, lod_i, vertex_base, stride, index_base, bmin, bmax):
+    lod_submeshes = []
+    has_uv = stride >= 12
+    for entry_index, e in enumerate(group):
+        extracted = _extract_pam_indexed_mesh(
+            data,
+            index_base + e["ioff"] * 2,
+            e["ni"],
+            vertex_base + e["voff"] * stride,
+            stride,
+            bmin,
+            bmax,
+            has_uv,
+        )
+        if extracted is None:
+            continue
+        verts_e, uvs_e, faces_e, offsets_e, _unique_count = extracted
+        mat_name = e["mat"] or f"lod{lod_i}_part{entry_index}"
+        lod_submeshes.append(SubMesh(
+            name=(f"lod{lod_i:02d}_{mat_name}" if len(group) == 1
+                  else f"lod{lod_i:02d}_{entry_index:02d}_{mat_name}"),
+            material=mat_name,
+            texture=e["tex"],
+            vertices=verts_e, uvs=uvs_e, faces=faces_e,
+            normals=_compute_smooth_normals(verts_e, faces_e),
+            source_vertex_offsets=offsets_e,
+            vertex_count=len(verts_e), face_count=len(faces_e),
+        ))
+    return lod_submeshes
+
+
+def _scan_pamlod_entry_groups(data: bytes, geom_off: int, lod_count: int):
+    """Part descriptors found by their texture strings, grouped by running offsets.
+
+    Only for payloads that do not state their layout: shipped name fields carry stale bytes
+    that this scan can mistake for parts.
+    """
     entries = []
     search_region = data[PAMLOD_ENTRY_TABLE:geom_off]
     for m in re.finditer(rb"(?:[^\x00]{1,255}\.dds|dds)\x00", search_region):
@@ -1117,14 +1366,14 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
             ie_acc = e["ni"]
     if cur_group:
         lod_groups.append(cur_group)
-    lod_groups = lod_groups[:lod_count]
+    return lod_groups[:lod_count]
 
-    if not lod_groups:
-        return result
 
-    # Parse each LOD level
+def _scan_pamlod_levels(data: bytes, lod_count: int, geom_off: int, bmin, bmax):
+    """Find each level's vertex base and stride by trial, for payloads that do not state them."""
+    lod_levels = []
     cur = geom_off
-    for lod_i, group in enumerate(lod_groups):
+    for lod_i, group in enumerate(_scan_pamlod_entry_groups(data, geom_off, lod_count)):
         total_nv = sum(e["nv"] for e in group)
         total_ni = sum(e["ni"] for e in group)
 
@@ -1146,64 +1395,15 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
                 break
 
         if found_base is None:
-            result.lod_levels.append([])
+            lod_levels.append([])
             cur += 2
             continue
 
-        # Parse submeshes for this LOD
-        lod_submeshes = []
-        has_uv = found_stride >= 12
-
-        for entry_index, e in enumerate(group):
-            nv_e, ni_e = e["nv"], e["ni"]
-            vert_base_e = found_base + e["voff"] * found_stride
-            idx_off_e = found_idx_off + e["ioff"] * 2
-
-            extracted = _extract_pam_indexed_mesh(
-                data,
-                idx_off_e,
-                ni_e,
-                vert_base_e,
-                found_stride,
-                bmin,
-                bmax,
-                has_uv,
-            )
-            if extracted is None:
-                continue
-            verts_e, uvs_e, faces_e, offsets_e, _unique_count = extracted
-            mat_name = e["mat"] or f"lod{lod_i}_part{entry_index}"
-            lod_submeshes.append(SubMesh(
-                name=(f"lod{lod_i:02d}_{mat_name}" if len(group) == 1
-                      else f"lod{lod_i:02d}_{entry_index:02d}_{mat_name}"),
-                material=mat_name,
-                texture=e["tex"],
-                vertices=verts_e, uvs=uvs_e, faces=faces_e,
-                normals=_compute_smooth_normals(verts_e, faces_e),
-                source_vertex_offsets=offsets_e,
-                vertex_count=len(verts_e), face_count=len(faces_e),
-            ))
-        result.lod_levels.append(lod_submeshes)
+        lod_levels.append(_pamlod_level_submeshes(
+            data, group, lod_i, found_base, found_stride, found_idx_off, bmin, bmax,
+        ))
         cur = found_idx_off + total_ni * 2
-
-    # Use requested LOD level as the main submeshes
-    if lod_level < len(result.lod_levels) and result.lod_levels[lod_level]:
-        result.submeshes = result.lod_levels[lod_level]
-    elif result.lod_levels:
-        # Fallback to first non-empty LOD
-        for lod in result.lod_levels:
-            if lod:
-                result.submeshes = lod
-                break
-
-    result.total_vertices = sum(len(sm.vertices) for sm in result.submeshes)
-    result.total_faces = sum(len(sm.faces) for sm in result.submeshes)
-    result.has_uvs = any(sm.uvs for sm in result.submeshes)
-
-    logger.info("Parsed PAMLOD %s: %d LODs, using LOD %d (%d verts, %d faces)",
-                filename, len(result.lod_levels), lod_level,
-                result.total_vertices, result.total_faces)
-    return result
+    return lod_levels
 
 
 # ── PAC Parser (skinned mesh) ────────────────────────────────────────

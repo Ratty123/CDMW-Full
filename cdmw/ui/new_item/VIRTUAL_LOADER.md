@@ -1,6 +1,6 @@
 # Virtual loader (Experimental)
 
-Mod Management opens a combined **Mods** list. New `.cditem` packages and supported
+Mod Management opens a combined **Mods** list. New `.cdmw` packages and supported
 extracted or archive mod folders use **Apply changes**, then **Launch game**.
 The list identifies their experimental CDMW launch route alongside physical installs
 and external archive folders. Existing authoring and manager exports remain available;
@@ -416,12 +416,12 @@ and interrupted writes. Hash changes across a game session alone are insufficien
 
 | Input or operation | Current preparation support | Refusal boundary |
 | --- | --- | --- |
-| `.cditem` v1 or v2 `item.legacy` | Existing identity, dependency, relocation and record composition services | The [independent-item format matrix](INDEPENDENT_ITEMS.md#supported-format-matrix) applies without expansion |
-| `.cditem` v2 `item.fields` | Typed existing stack-count and stat-value assignments, composed in both deployment paths | Exact sources and recognized row layouts only; v1 requirements remain protected; gameplay/save effects are unverified |
-| `.cditem` v2 `texture.replace@1` | Existing directly registered 2D block-compressed DDS replacements, including standalone packages with no numeric item allocation; equal final bytes retain separate owners | Fully decoded supported mip layouts and exact source, descriptor and PATHC witnesses; new registry entries and arbitrary material edits remain unsupported; conflicting final-byte requirements, including protected legacy reads, refuse |
-| `.cditem` v2 `prefab.replace@1` | Existing shipped base-game and DLC `.prefab` replacements from the Prefab Inspector or Prefab Edit JSON import, standalone or added to an item package so the prefab can use that item's new mesh; equal final bytes retain separate owners | Exact source hash and size; the replacement must decode as completely as the source and reference only resources the game or the same package's item provides; edits made on another mod's copy and conflicting final bytes refuse; game loading is unverified |
-| `.cditem` v2 `package.links` | Exact package release/content pins and typed references to exported legacy item identities | Providers must belong to the same selected virtual profile; game-reference relocation and save/runtime lifetimes remain unsupported |
-| `export.semantic@1` wrapper | Opaque `cdmw-semantic.cditem` files or their containing folders retain exact original packages and bindings; readers validate source witnesses and recompile the retained originals before composition | Required metadata, package content and recomputed output/baseline bytes must agree; unavailable intent, source/compiler drift and donor binding conflicts refuse |
+| `.cdmw` v1 or v2 `item.legacy` | Existing identity, dependency, relocation and record composition services | The [independent-item format matrix](INDEPENDENT_ITEMS.md#supported-format-matrix) applies without expansion |
+| `.cdmw` v2 `item.fields` | Typed existing stack-count and stat-value assignments, composed in both deployment paths | Exact sources and recognized row layouts only; v1 requirements remain protected; gameplay/save effects are unverified |
+| `.cdmw` v2 `texture.replace@1` | Existing directly registered 2D block-compressed DDS replacements, including standalone packages with no numeric item allocation; equal final bytes retain separate owners | Fully decoded supported mip layouts and exact source, descriptor and PATHC witnesses; new registry entries and arbitrary material edits remain unsupported; conflicting final-byte requirements, including protected legacy reads, refuse |
+| `.cdmw` v2 `prefab.replace@1` | Existing shipped base-game and DLC `.prefab` replacements from the Prefab Inspector or Prefab Edit JSON import, standalone or added to an item package so the prefab can use that item's new mesh; equal final bytes retain separate owners | Exact source hash and size; the replacement must decode as completely as the source and reference only resources the game or the same package's item provides; edits made on another mod's copy and conflicting final bytes refuse; game loading is unverified |
+| `.cdmw` v2 `package.links` | Exact package release/content pins and typed references to exported legacy item identities | Providers must belong to the same selected virtual profile; game-reference relocation and save/runtime lifetimes remain unsupported |
+| `export.semantic@1` wrapper | Opaque `cdmw-semantic.cdmw` files or their containing folders retain exact original packages and bindings; readers validate source witnesses and recompile the retained originals before composition | Required metadata, package content and recomputed output/baseline bytes must agree; unavailable intent, source/compiler drift and donor binding conflicts refuse |
 | Mounted external mods | Current archive inspection and record conflict checks | Ambiguous providers, required-record edits or unsupported formats |
 | Selected extracted mod folders and PAMT/PAZ mods | Supported loose files and known table pairs, privately composed with installed contributions; recognized loose PAPGT is consumed for discovery | Executables, runtime plugins, malformed paths, invalid mount metadata or unknown content |
 | Selected folder PATHC | A validated registry identical to the current game's registry is accepted as unchanged metadata | A changed incoming registry requires recorded texture ownership through the existing Merge workflow; unknown metadata refuses |
@@ -440,7 +440,7 @@ Standalone character/body/hair/outfit and general material adapters remain
 unsupported. Texture composition and lifecycle tests establish implementation
 behavior; visible texture game evidence remains pending.
 
-**Export installed items…** writes the opaque `cdmw-semantic.cditem` wrapper when
+**Export installed items…** writes the opaque `cdmw-semantic.cdmw` wrapper when
 active packages declare fields, texture replacements or package links. CDMW's
 supporting readers retain source-equal requirements, exact provider pins and
 separate contributor ownership by recompiling the original packages. **Merge

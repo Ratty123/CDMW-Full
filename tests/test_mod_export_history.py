@@ -27,15 +27,16 @@ def _package(root):
     (root / "new-item.json").write_text('{"item_key": 1990001}')
     evidence = compatibility_from_payloads({"character/model.pac": b"new"}, {"character/model.pac": b"old"})
     write_compatibility(root, evidence)
+    assert not (root / "cdmw-compatibility.json").exists() and not (root / "cdmw-baseline.zip").exists()
     return evidence
 
 
 def test_history_survives_folder_rename_and_copy_but_never_payload_edits(tmp_path):
     package = tmp_path / "mod"
     evidence = _package(package)
-    before = {name: (package / name).read_bytes() for name in HISTORY_FILES}
+    before = {name: mod_metadata_path(package, name).read_bytes() for name in HISTORY_FILES}
     removed = retain_dmm_history(package)
-    assert set(removed) == {*HISTORY_FILES, "meta/0.papgt"}
+    assert set(removed) == {"new-item.json", "meta/0.papgt"}
     assert {p.relative_to(package).as_posix() for p in package.rglob("*") if p.is_file()} == {
         "0045/0.pamt", "0045/0.paz", "meta/0.pathc", "manifest.json", "modinfo.json", "README.txt"}
     assert (package / "meta/0.pathc").read_bytes() == b"texture registrations"
@@ -139,6 +140,10 @@ def test_dmm_extension_recovers_owned_item_history(tmp_path, monkeypatch, existi
     assert first.spec.item_key in {item["item_key"] for item in record["previous_items"]}
     assert record["item_key"] == second.spec.item_key
     assert not any((folder / name).exists() for name in HISTORY_FILES)
+    # The record must be filed for the published bytes, not for staging that still held
+    # the copied legacy group.
+    evidence = read_compatibility(folder)
+    assert evidence is not None and evidence.files
 
 
 @pytest.mark.parametrize("operation", ("extend", "merge", "update"))
@@ -160,3 +165,54 @@ def test_changed_local_history_invalidates_prepared_work(tmp_path, operation):
     metadata.write_bytes(metadata.read_bytes() + b"changed history")
     with pytest.raises((ValueError, StaleNewItemSource), match="changed|changed history"):
         pending.validate()
+
+
+def test_no_export_route_ships_authoring_records(tmp_path):
+    """DMM reads every file a mod ships; CDMW's records must never be among them."""
+    from cdmw.core.archive_loose_export import export_archive_payloads_to_mod_ready_loose
+    from cdmw.domain.archives.mutation import ArchivePatchRequest
+    from cdmw.models import ArchiveEntry, ModPackageInfo
+    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+
+    group = tmp_path / "game" / "0008"
+    group.mkdir(parents=True)
+    paz = group / "0.paz"
+    paz.write_bytes(b"original chart")
+    entry = ArchiveEntry("actionchart/bin__/upperaction/test.paac", group / "0.pamt", paz, 0, 14, 14, 0, 0)
+    request = ArchivePatchRequest(entry, b"edited chart bytes")
+    loose = export_archive_payloads_to_mod_ready_loose(
+        [request], parent_root=tmp_path / "loose", package_info=ModPackageInfo(title="Loose"))
+    overlay = tmp_path / "overlay"
+    export_archive_overlay_package([request], package_root=overlay, group="0040")
+    for root in (loose.package_root, overlay):
+        shipped = {path.name for path in root.rglob("*") if path.is_file()}
+        assert not shipped & {*HISTORY_FILES, "mesh-editor-session.json"}, shipped
+        evidence = read_compatibility(root)
+        assert evidence is not None and evidence.originals == {"actionchart/bin__/upperaction/test.paac": b"original chart"}
+
+
+def test_an_added_file_keeps_history_but_a_changed_payload_never_does(tmp_path):
+    package = tmp_path / "mod"
+    evidence = _package(package)
+    (package / "character/model").mkdir(parents=True)
+    (package / "character/model/owned.pac").write_bytes(b"asset the user added")
+    assert read_compatibility(package).originals == evidence.originals
+    assert mod_metadata_path(package, "cdmw-compatibility.json").is_file()
+    (package / "0045/0.paz").write_bytes(b"edited payload")
+    assert read_compatibility(package) is None, "an edited payload must not reuse the old baseline"
+
+
+def test_extending_a_new_item_mod_without_its_record_is_refused(tmp_path):
+    from cdmw.core import mod_export_history as history
+
+    service, snapshot, _entries = setup_game(tmp_path)
+    first = service.plan(replace(spec("First"), recipes=()), snapshot)
+    folder = tmp_path / "mod"
+    service.export_loose(first, folder, manager="DMM")
+    (folder / "character/model").mkdir(parents=True)
+    (folder / "character/model/owned.pac").write_bytes(b"asset the user added")
+    base = build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)
+    assert base.base_manifest["item_key"] == first.spec.item_key, "an added file must not hide the earlier items"
+    shutil.rmtree(history._history_root())
+    with pytest.raises(ValueError, match="cannot find its record of the items"):
+        build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)

@@ -85,7 +85,7 @@ can be writable without a semantic validator for its contents.
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
 | Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states, save presets and convex collision geometry walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; the effect-grammar formats other than presets have no writer. |
-| Game data | Known table directories and typed item, string, shop, group, recipe and reward subsets support new-item composition. | Unmodelled fields and unrelated table families remain opaque. |
+| Game data | Known table directories, typed item, string, shop, group, recipe and reward subsets for new-item composition, and a closed serializer-derived schema that decodes 140 of 142 table families. | 13 rows behind virtualized readers and one 10-row table stay undecoded; field units and gameplay effects are unverified. |
 | Effects | PAE/PAEM reflection, keyed inheritance and constrained authoring are implemented; selected particle shader behaviour is reproduced. | Exact runtime target binding, animated surfaces and complete game appearance remain open. |
 | Packages | Independent packages retain identities, owned resources, explicit requirements and recoverable lifecycle changes. | Typed adapters cover selected domains, not every mod category. |
 | Virtual loading | A guarded launch route has narrow recorded game evidence; native registration has also been investigated. | General redirection, additive native registration and save compatibility cannot be inferred from those results. |
@@ -158,6 +158,29 @@ no remaining failure beyond a 16-byte `XAR ` PAT stub and 31 DLC proxy-LOD PAMs 
 declare no submeshes. Small `leveldata/hda` PAMs fail only the Python fallback
 geometry check; the native preview renders them. This is read-only source and
 headless evidence; visible app and game behaviour were not checked.
+
+**1 November 2026 DLC layering audit** (game `1.0.0.3446` index, read-only): the DLC
+ships its own copy of **13,500 base paths** (6,192 DDS, 1,418 `.palevel`, 1,403 PAM,
+1,371 `.pami`, 1,191 `.levelinfo`, 578 `.pampg`, 395 XML, 327 PAA, 282 HKX, 163
+`.paa_metabin`, 148 `.binarygimmick`, 16 prefabs, 7 PAMLOD, 4 MP4, 3 `.meshinfo`, 2
+`.pac_xml`; no PAC). Every pair sits in the same numbered folder (`0015` and
+`dlc/dlc_01/0015`) and the copies differ (25 of 25 sampled PAMs, 19 of 25 DDS). Both
+PAPGT files list the same folder order, so their ranks tie; the base list also names
+0036-0040 with a low flag byte of 1, which exist only under `dlc/`. CDMW's lookups had
+used three disagreeing tie-breaks (PAPGT rank kept base for all 13,500, load priority
+picked DLC for 1,532 by PAZ index, first-candidate lookups always base). They now agree
+that the DLC copy wins, in Python, the native index and the .NET worker. That the game
+loads the DLC copy is inferred from the DLC's table layers replacing base rows; it is not
+observed in game. The DLC also added `dlc_01.admeta` (u32 length, `dlc_01`, u32 1),
+`base`/`dlc_01.contentgroupkeymap` (a u32 count and that many u32 keys: base 999000,
+998003, 0, 8, 10, 11; DLC 1001, 1002, 1003, 1005, 1006, 998002) and a DLC
+`gimmickchartcacheddata` whose first u32 is a record count (base 14,210, DLC 1,503), not
+a magic. `meta/0.paver` grew from 10 to 28 bytes: the u16 version (2.4.5), a u32-counted
+list of (u32 length, name, u32) records naming `dlc_01`, then the four build bytes. The
+DLC's `meta/0.paeid` holds u32 7, the DLC's Steam app id `5001840` and 64 opaque bytes,
+probably a signature. What the content group keys and the gimmick cache records mean is
+not established; `entitlementinfo` (base and DLC layer) maps reward packages to store
+SKUs; it had no field schema on main at the time of this audit.
 
 **31 October 2026 inspector pass** (same installation): formats that still fell
 back to a readable-strings dump were matched against documented or decoded
@@ -380,7 +403,10 @@ or replaces GPU textures.
 
 An installed DLC carries its own registry, `dlc/dlc_NN/meta/0.pathc`, which
 registers the DLC's textures (the DLC item icons, for example); they are absent
-from the base `meta/0.pathc`. Uncompressed RGB(A), luminance and alpha DDS files
+from the base `meta/0.pathc`. On game `1.0.0.3446` it has 76,792 rows; 70,594 DDS ship only in DLC
+archives and are registered only there, and 2,996 of the 6,192 DDS the DLC replaces
+are registered with a different header or block layout than in the base registry
+(2026-11-01). Texture packages check a DLC texture against this registry. Uncompressed RGB(A), luminance and alpha DDS files
 are registered too, including the engine's `texture/nonetexture*` placeholders:
 wherever a shipped row stores raw sizes for such a header, they equal width x
 bytes per pixel x height per mip (checked on game 1.0.0.3446, 2026-10-31).
@@ -547,6 +573,53 @@ passes through the real helper; all 12 sampled PAMLODs pass after the correction
 alongside the 20 PAC/PAM samples that passed initially. These are nonvisual mesh
 parse checks. PAMLOD rebuild support, visible appearance and game acceptance are
 not established by this audit.
+
+A PAMLOD states its level layout, and the Python mesh reader now decodes it
+instead of searching for it. Read-only inspection on 31 October 2026 covered every
+shipped PAMLOD in game `1.0.0.3446`: 34,168 base and 1,435 DLC files, 203,025
+levels. From `0x50` the descriptor table repeats the level count, then gives each
+level a 1-based ordinal, a part count and that many 0x218-byte part records:
+vertex and index counts, running vertex and index element offsets, a 256-byte
+texture name, a 256-byte material name and two floats. A variable-length trailer
+follows each level's records; it appears to hold per-part index ranges and bounds
+and is not decoded. A table of level blocks ends at most 12 bytes before the
+geometry offset. In layout version 4 (byte `0x0C`, every file but one) it stores
+offset, decoded size and compressed size, each block starting 16-byte aligned
+after the previous one and the last ending the file. The one version 3 file
+stores offsets only. Each block holds the level's vertex records followed by u16
+indices that are local to each part.
+
+No field names the vertex stride or attribute offsets. The block sizes fix the
+stride exactly, and it is 20 bytes on every level of every file. Position (three
+u16 values against the header bounds) at byte 0 and a half-float UV at byte 8 are
+decoded; bytes 6-7 and 12-19 remain unidentified. In 456 levels of 195 files the
+UV field holds NaN bit patterns (`0x7FFF`, `0xFFFF`) in the shipped records; these
+are authored, not misreads, and the preview draws them at UV 0.
+
+The previous reader found parts by searching for `.dds` strings and then guessed
+each level's base and stride. Name fields keep stale bytes after their terminator
+(a material reads `boxleather`, then `fabric_09.dds`), so the search invented
+parts, split levels in the wrong place and fitted wrong strides to them. Across
+the same files it decoded every level correctly in only 4,252 of 35,603 files,
+left an empty level in 18,919 and produced 59.5 million non-finite UV values in
+31,102. With the stated layout, all 35,603 files decode every level inside its
+stated block, no level is empty, no file fails to parse, and the only non-finite
+UVs left are the 14,344 authored ones. The Mesh Editor's no-op round trip, which
+gates exact export, is now byte-identical for all 1,435 DLC files and for a
+random sample of 1,000 base files, against 347 and 146 before; no file lost a
+passing round trip. A stated layout that does not add up
+(descriptors that do not fill their blocks, indices outside their part, blocks
+still compressed) is refused. A payload without a consistent block table, such as
+an owned fixture, keeps the searching reader. The Rust preview no longer writes
+NaN into its document: it draws non-finite UVs at 0 and refuses non-finite
+positions or normals with the part named.
+
+This is full-corpus asset inspection plus source and owned-fixture evidence. The
+executable's reader was not analysed, so that the game uses the block table is
+inferred from its consistency rather than observed, and nothing was checked
+visually or in game. The Python model preview, the native preview core and both
+LOD0 topology writers still locate levels by searching, and neither LOD0 topology
+writer rewrites the block table when LOD0 changes size.
 
 PAC uses a sectioned `PAR ` container with metadata, submeshes, LODs, vertex
 layouts, indices and accompanying material data. Supported PAM and PAMLOD
@@ -1350,10 +1423,72 @@ layouts. Recognised skeleton poses and collision shapes have bounded previews.
 Arbitrary object graphs are not converted into invented proxy geometry.
 
 The native helper provides raw-preserving no-edit rebuilds and whitelisted
-fixed-size float patches. Structural edits that change counts, topology,
-references, arrays or strings require a semantic writer and remain blocked.
-Havok XML export is an inspection/interchange representation, not proof that an
-arbitrary edited XML document can be compiled into a compatible game asset.
+fixed-size float patches. The Python tagfile codec rebuilds files from their
+decoded item graph and is the route for structural edits; today it allows only
+string replacement (see below). Havok XML export is an inspection/interchange
+representation, not proof that an arbitrary edited XML document can be compiled
+into a compatible game asset.
+
+Structural rebuild review, 2026-11-02, read-only against every installed HKX
+(69,301 unique paths, executable `1.0.0.3479`):
+
+- **Format.** Every file is a Havok 2024.2 `TAG0` tagfile with `SDKV`, `DATA`,
+  `TYPE` (`MTTP`, `TST1`, `TNA1`, `TPAD`) and `INDX` (`ITEM`, plus `PTCH` in all
+  but the 13,306 mesh-physics files). There are no type bodies, so sizes and field
+  layouts are not described by the files. 114 classes occur; none is a Havok Cloth
+  (`hcl`) class, so garment cloth is not HKX data. Ragdolls (`hknpRagdollData`,
+  212 files) and skeleton mappers live only in the 359 files under
+  `character/bin__/havokphysics/` (characters, mounts and a few objects).
+- **References.** `PTCH` lists DATA words that hold an ITEM index (`hkArray`,
+  `hkRefPtr`, `hkStringPtr`, `hkRefVariant`); an `hkArray` keeps its size in the
+  target ITEM's count. `hknp` shapes, shape properties and constraint motors
+  instead use self-relative offsets, 64-bit pointers or 32-bit offset/count pairs,
+  that `PTCH` never lists. Sixteen owner layouts were identified; each listed slot
+  is zero or lands on an ITEM start in every file, and a relative array's count
+  always equals its target's ITEM count.
+- **Layout.** Each class has one stride and one alignment that reproduce every
+  item offset (arrays 16 bytes, strings 2, most `hknp` objects 8). Padding is zero
+  and DATA ends on a 16-byte boundary.
+- **Rebuild.** The [tagfile codec](../cdmw/core/archive_hkx_tagfile_model.py)
+  lays DATA out again from the model, re-encodes every reference and regenerates
+  `ITEM`, `PTCH` and section sizes. The
+  [corpus harness](../tools/hkx_tagfile_corpus_harness.py) reproduced 69,299 files
+  byte for byte, also after moving every item by 16 bytes and back, and after
+  lengthening and restoring all 24,618 replaceable strings (358 files). It refuses two files: a wagon with a legacy
+  compressed mesh and a quiver with an `hknpShapeSignals` record, both reached
+  through fields the table does not list.
+- **Allowed edits.** Strings reached only through `hkStringPtr` (bone, body, variant
+  and source names) may change length; shared strings change for every owner.
+  Joint limits are edited in place. In all 945 hinges and 2,135 of 2,137 ragdoll
+  constraints, each Havok constraint atom (friction 17, angle limit 14, twist 15,
+  cone/plane 16) sits at the same offset, so limits are located by atom type, not
+  by value. Cone and plane limits also cache `1/cos` and `tan` of their angles;
+  that rule matches all 11,058 regular cached values within 10 float32 ulps (most
+  within 0), while 0, 90 and 180 degrees use clamped or sentinel values, so edits
+  stay within 1 to 85 and 95 to 179 degrees. A sweep over the 359 physics files
+  changed each of 14,599 editable values once: each read back and changed no byte
+  outside its constraint record. Constraint infos name both bodies (+8 child, +16
+  parent) and the joint itself (+32), so every joint is shown by body names.
+- **Collision swap.** A collision file can be replaced as a whole by another
+  shipped file with the same root class and patch layout; no derived data changes.
+- **Blocked edits.** A generated convex hull needs each face's `minHalfAngle`.
+  Taking it from the smallest angle between adjacent face normals reproduces the
+  shipped byte for about half of 80,000 sampled faces, so hull generation is
+  refused. Hulls also carry two header tolerances and packed mass properties; in
+  the sampled hulls the stored volume exceeds the polyhedron's own volume. Compound children need the
+  instance SIMD tree and compound mass properties rebuilt. Uniform scaling of a
+  hull was checked for a precedent: no hull in a third of the corpus (648,233
+  distinct topologies) is a scaled copy of another, so how the header tolerances
+  and mass properties scale stays unproven and scaling stays blocked. Ragdoll
+  bodies, constraint frames, motors and mesh shapes have the same kind of
+  unreproduced derived data.
+
+The review is archive inspection and corpus round-trip evidence. No edited joint,
+renamed string or swapped collision file has been loaded in game, and game code
+may look bones or bodies up by name. The HKX Physics Editor in Archive Browser
+offers exactly these edits.
+[Codec tests](../tests/test_hkx_tagfile_rebuild.py) cover the rebuild, relocation,
+string edits and every refusal on owned fixtures.
 
 Independent item packages can copy witnessed convex/compound collision templates.
 Beside the template's own mesh the whole cloth graph must be unchanged; beside a
@@ -1399,7 +1534,10 @@ the guide's reported GPU hang was not reproduced, and game physics activation an
 movement remain unverified by this review.
 
 Sources: [native HKX scope][hkx], [HKX edit gate][hkx-gate],
-[template physics restrictions][independent-items].
+[template physics restrictions][independent-items],
+[tagfile layout table](../cdmw/core/archive_hkx_tagfile_layout.py),
+[joint limits](../cdmw/core/archive_hkx_joint_limits.py),
+[structural edits](../cdmw/core/archive_hkx_structural_edits.py).
 
 ## 7. Animation, placement and rig behaviour
 
@@ -1458,10 +1596,84 @@ The replacement workspace retains exact installed paths, Full/LOD companions
 and source identity. Packed timing analysis uses matched clip families rather
 than assuming a distance variant is a different rig.
 
-Action charts (`.paac`) expose references and allow admitted same-length
-retargets, but their full node/event semantics are not decoded. Sequence and
-stage formats likewise do not yet provide unrestricted cutscene authoring.
-A previewed clip does not establish a live animation-control or possession API.
+Action charts (`.paac`) are now read to the last byte. Reviewed 2026-11-02
+against the installed 2.04.03 build (executable 1.0.0.3479; loader read from a
+runtime dump, archives read-only):
+
+- **Container.** `ActionChartPackage` reads a chart as one sequential stream and
+  keeps pointers into the buffer, so every record is a flat struct and nothing
+  stores a file offset. Each read has a failure message naming the member it
+  fills, which names the sections: per-animation `AnimationInfo` (a 0xA8-byte
+  header plus eleven arrays and frame-event instances), ten string tables,
+  `ActionSpeedRate`, an always-empty `ShareValue` block, `CountInfo`,
+  `DefaultSocket`, included sub-chart names, 0x120-byte `actionChart` nodes,
+  condition, branch and key-guide arrays, and the frame-event buffers.
+  `cdmw/core/action_chart_binary.py` owns the exact grammar.
+- **Coverage.** All 558 standard charts and `commonactioninfo.paac` parse
+  exactly. `commonactioninfo_serialized.paac` parses except a 7,034-byte tail
+  that a separate reflection-stream reader consumes; that span is recorded, not
+  decoded.
+- **Semantics established.** An animation's header holds its clip (table 1) and
+  blend space (table 5) indices and a start/end time in seconds; the end time
+  equals the clip's `.paa` duration on every sampled clip unless the chart trims
+  it. A node's animations are `[first, first + count)`, and nodes partition the
+  animation list exactly in every chart. The ten string tables are typed (names,
+  clips, camera clips, effects, effect switches, blend spaces, bones and
+  sockets, equipment types, sequencers, prefabs). Frame-event instances are
+  `(begin, end, dword offset, sequence, condition)`; the 185 event kinds are
+  named from the client factory switch, and they moved with the update
+  (ModelAttachmentSocket went from 60 to 62, and its event gained a 12-byte
+  header). All 171,884 socket events validate against tables 6 and 7.
+- **Event buffers.** Every event kind has one fixed size, and those sizes walk all
+  1,116 frame-event and key-guide buffers to their last byte. Events are shared:
+  816,918 frame-event instances point at 71,553 events. Effect events name their
+  effect (table 3) and bone (table 6); Prefab events their prefab (table 9) and
+  sockets; ShowPart/HidePart a part (table 7); PlaySequencerConnectActor a
+  sequencer (table 8). Sound events carry no string reference.
+- **Not yet named.** Most node, branch, key-guide and frame-event payload fields
+  stay raw bytes, as do two u32 hashes and a second rate after
+  `ActionSpeedRate`.
+- **Writes (constrained).** Any string table entry can be retargeted at any
+  length up to 254 ASCII characters: the table is rebuilt and every other byte
+  moves as one block, which round-trips on every table of all 558 charts. One
+  animation can get its own clip or blend space: a new path is appended, so no
+  existing index moves. The named event references above, and a socket event's
+  mode and blend time, can be edited; a shared event is first copied to the end
+  of the buffer for the edited animation, and on all 558 charts the other
+  animations kept the old value. In-place f32 edits cover `ActionSpeedRate`,
+  animation start/end, speed windows and their rate, frame-tag and just-time
+  windows, and frame-event begin/end. Everything else is refused.
+  Archive Browser's **Edit Action Chart...** exposes these writes, names the
+  other charts that play a clip, and exports the edited charts as one DMM
+  archive-group mod.
+- **In game (2026-11-02, game 2.04.03, exe 1.0.0.3479, mounted with DMM 1.0).**
+  Clip retargets work: with the two sword-drawn idle clips retargeted to a
+  clapping loop in the six Kliff charts that play them (each table grew by 10
+  bytes per entry), Kliff clapped with the sword drawn and the game loaded
+  normally. The same edit in `sword_upper.paac` alone changed nothing visible,
+  although DmmRuntime served exactly the edited chart, so the sword-drawn idle on
+  screen comes from another chart that plays the same clip. Single-chart tests
+  settled it: with two one-handed swords drawn, the idle comes from
+  `dualweapon_upper.paac`, which no package names directly. Player_Kliff's
+  SubWeapon slot uses `subweapon_upper`, and that chart includes
+  `dualweapon_upper` through its included-chart names. `basic_upper_maskset`
+  alone changed nothing. Which chart a player sees therefore depends on the
+  loadout, and a chart can be reached only through another chart's includes.
+  Timing works too: halving `dualweapon_upper`'s `ActionSpeedRate` slowed
+  every dual-wield action, and halving its 2,491 speed-window rates did the
+  same. The Alt dodge kept its speed in both tests although the chart's 197
+  dodge animations all carry speed windows; Kliff's lower-body chart
+  `basic_lower` has its own dodge and roll animations and is the likely source,
+  which is not tested. Event edits are not checked in game yet.
+- **Descriptor.** `.paacdesc` is fully decoded: each character package names its
+  main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
+  `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts
+  and stays undecoded.
+
+The placement studio's own chart reader still assumed the pre-update layout and
+read no shipped chart; it now uses the shared decoder. Sequence and stage formats
+do not yet provide unrestricted cutscene authoring. A previewed clip does not
+establish a live animation-control or possession API.
 
 A read-only inventory of the installed archives (game 1.0.0.3446, executable
 SHA-256 prefix `fec07be1b725a466`, 2,081,896 paths, 2026-10-31) fixed the path
@@ -1653,6 +1865,7 @@ read/write limits.
 | MultiChangeInfo | Supported enhancement transitions and known item-reference locations | Other payload fields retain their opaque/source-preserving treatment. |
 | Recipe and reward families | Current bounded recipe, item-reward and ItemUse reward codecs and their verified connections | Unknown connections, missing ingredients/tools/rewards and unmodelled consumers block a complete item plan. |
 | PAPPT and icon registries | Supported part/prefab bindings and icon registrations | Registry structure, stem/hash identity, referenced assets and source conflicts must all agree. |
+| 130 further game tables | Closed field layouts for skills, characters, NPCs, inventories, knowledge, missions, quests, stages, gimmicks, conditions, interactions, effects, regions, factions, mercenaries, vehicles, bounties, AI and UI tables; constrained in-place edits of whitelisted fixed-width fields | 13 rows use virtualized condition readers and are refused; BitmapPosition is boundaries only; no edited table has been loaded by the game. |
 
 Targeted decoder correction, 2026-10-23, against `9d542c85` plus the scoped
 ItemInfo patch: stack counts use the full eight-byte field; the earlier u8 item
@@ -1769,6 +1982,59 @@ support only. No executable/game/ASI execution, real archive writes, packaging
 or publication occurred for this extension. Native admission, game behavior and
 save compatibility remain open. The nearest feature contract owns selectors and
 the closed wire shape; no new schema dump or licensed input is committed.
+
+Gameplay-table extension, 2 November 2026, on the installed game 1.0.0.3479 (base
+plus `dlc/dlc_01`, data of 1 November). The 30 October serializer extraction from the
+1.0.0.3446 executable was rebuilt byte for byte, then given a reader root for every
+table, found through each class's read-failure member names. The closed schema now
+covers 140 of the 142 table families (208 of 212 non-empty pairs, 310,039 rows); StringInfo
+keeps its own reader and BitmapPosition (10 rows) is left out. On the installed data,
+310,026 rows decode to the exact row end with the inline key equal to the directory key
+(composite-key tables compare all 8 or 12 key bytes); the other 13 stop on a closed
+refusal and none on a misread. The CharacterInfo reader tree of 3446 matches the 3479
+executable event for event, apart from one helper call.
+
+What the generic extraction missed, each fixed from the disassembly: incremental-link
+`jmp` thunks and tail-called fixed-width reads; an outer fixed loop around a counted
+list (CharacterInfo's friendly-knowledge data is three lists); u8 jump-table switches,
+tagged records (common fields, then a per-tag payload) and two-level switch tables such
+as ConditionInfo's 129 primitive cases; per-element presence flags and early returns that
+make a member nullable; inline key lookups misflagged as branches; registers clobbered on
+error paths (SubLevelInfo's u8 reads); and text values longer than 4 KiB (gimmick state
+scripts reach 12 KiB). ConditionData's u16 type resolves through the game's enum name
+table (pointer array at RVA `0x5cf56a0`) and the RTTI vtable named `ConditionData_<name>`:
+this agrees with the constructor scan on 405 types, corrects 6 where that scan had taken a
+base or neighbouring vtable, and recovers the 91 whose constructors are obfuscated. The
+mutated-code section (RVA `0x7a35000` onward, byte-identical in the runtime dump) is mostly
+plain x86 that hides read widths as `add`, `sub`, `xor` or `and` with a stored dword; folding
+those recovers BuffData variant 92 and most mutated condition readers, and the trigger
+handlers `ForceField` and `DetectTriggerExpansion` were identified from the vtables their
+obfuscated constructors store. A first draft of this extension reported 223 refusals as
+obfuscated; 163 of them (QuestInfo and NpcInfo) were in fact an extractor crash and a
+misflagged lookup, and an expression-literal case had been modelled as one byte without
+its payload. Shapes for StageInfo, ConditionInfo, GimmickInfo, FactionNode and the last
+73 tables came from four Codex research runs; each was checked against the disassembly
+and the full corpus walk before adoption.
+
+Three readers sit in VM-style mutated code (register shuffles through `pushfq`/`xchg`/`xor`
+chains) that static folding does not resolve, in every executable build examined (3424,
+3446, 3460, 3462, 3479). One of them, BuffData variant 74 (`AddSubLevelBuffData`), was
+recovered by emulation: unicorn runs the 1.0.0.3479 BuffData reader inside the runtime
+memory dump (start-up state included; heap reads served as zero pages, allocators and
+system-DLL calls stubbed, a real `pa::DeserializerMemory` as the stream). On the only shipped
+row (Skill 65145) it reads two u32 and the row then ends exactly; 23 randomised payloads give
+the same two reads, so the shape is fixed. The two condition readers (`ConditionData_DayOfWeek`
+and the reader shared by `CheckVoxelType` and `NavigationMoveType`) still refuse 13 rows
+(11 InteractionInfo, 2 ConditionInfo): under emulation, with constructed objects and a real
+deserializer, they return without reading or spin past 200 million instructions, which looks
+like anti-emulation rather than an empty payload. `static_table_records.py` exposes each record's top-level fields,
+which the Archive Browser preview shows, and rewrites only whitelisted fixed-width fields
+in place (inventory slot counts, skill max level, cooldown and low-resource flag, bounty
+increase, mercenary hire and summon limits, character scale and companion call cooldown,
+gameplay variable defaults), proving that no other byte changed. Owned constructed rows
+for every table and an opt-in installed-corpus test cover this. It is byte-level evidence
+only: field units, gameplay effects and game acceptance of an edited table are untested,
+and no window writes these tables.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
@@ -2248,9 +2514,131 @@ Wwise BNK inspection recovers section tags and the DIDX media table; supported
 embedded sounds can be decoded through the bundled audio path. The 2026-10-30
 source expansion adds incoming texture/audio path searches and media-ID links in
 Asset Family / Used By. Standard little-endian HIRC Sound source headers in bank
-versions 113–154 expose embedded or streamed source IDs; generators, music graphs,
-event/action semantics and gameplay triggers remain outside the reader. Unknown
-versions report incomplete bank coverage while retaining valid DIDX IDs.
+versions 113–154 expose embedded or streamed source IDs for Find references.
+Unknown versions report incomplete bank coverage while retaining valid DIDX IDs.
+
+**HIRC decode (2026-11-02).** All 3,450 shipped banks are version 150 (Wwise
+2023.1 in wwiser's table). `cdmw/core/archive_wwise_hirc.py` decodes every
+object type they ship after wwiser's version-150 layouts (sounds, actions,
+events, random/sequence, switch and layer containers, actor-mixers, buses and aux
+buses, attenuations, effect share sets and custom effects, modulators, audio
+devices, music segments, tracks, switches and playlists), and counts an object
+only when its body ends exactly on its declared size. On the whole shipped
+corpus (the installed game on 2026-11-02, read-only extraction) all 260,852
+objects decode to the byte. The exact-end check caught the one wrong reading on
+the first pass: a music transition rule read as 24 bytes is 26. Plugin
+parameter blocks, music decision trees and curves are skipped as sized spans,
+not interpreted. Stored property types were measured on every occurrence:
+Volume, Pitch, LPF, HPF, MakeUpGain, Priority, bus and aux send volumes,
+InitialDelay and CenterPercent are floats; Loop is an unsigned count; DelayTime
+and TransitionTime are signed milliseconds (some ranges go negative);
+AttenuationID is an id. Properties and randomizer ranges are always stored
+sorted by id, container children are always sorted, and children always precede
+their parents in HIRC (203,208 of 203,208), as actions precede their events.
+Events are almost all Play actions (8,786 of 9,258 actions), with Seek, Stop,
+Pause, Resume, Trigger and SetState making up the rest. Event names are FNV
+hashes with no string table in the banks, and gameplay triggers are still
+outside the reader.
+
+**Media sizes in banks.** Every in-memory source stores its media's exact byte
+size: 29,912 Sounds whose media the bank embeds and 94,807 whose media is a loose
+`.wem` match to the byte. A prefetched or streamed source stores a prefix size:
+the stream's headers plus a few Vorbis packets (about 0.05 to 0.2 s), ending
+exactly on a packet boundary for 2,210 of 2,211 sources. Prefetched sources embed
+that prefix of the loose file, and a short file's prefetch can be the whole file.
+Walking u16-sized packets from data plus the audio offset ends exactly at the
+end of data on 3,000 of 3,000 sampled streams. Embedded media sit on 16-byte
+boundaries with zero padding, DIDX is sorted by id and precedes DATA, and DATA
+ends at the last sound. Embedded media are Wwise Vorbis (25,282) or PTADPCM
+(2,709, format 0x8311, plugin "ADPCM"); 3,152 embedded blobs are prefetch
+prefixes, not complete files. The 30 media ids played through the external
+source plugin exist as no file and no embedded copy: the game supplies those at
+run time.
+
+**Constrained bank writing (2026-11-02).** `archive_wwise_bank_edit.py`,
+`archive_wwise_bank_variations.py` and `archive_wwise_bank_plan.py` admit these
+edits, each re-decoded before it is returned, with the read-only corpus evidence
+for each:
+
+- in-place fixed-size values (properties of the measured types, randomizer
+  bounds, container loop and transition values, playlist weights, Set-property
+  action values): writing every shipped value back reproduced all 3,376 banks
+  with values byte for byte (637,629 edits);
+- replacing media, embedded or loose: replacing each of 24,839 complete embedded
+  sounds with itself reproduced its bank, and so did a 1,522-bank sample of loose
+  retargets. Prefetched and streamed sources get a prefix of the same playing
+  time cut at the replacement's next packet: replacing every one of the 2,204
+  such ids with its own file reproduced all 3,663 affected banks, and a copy cut
+  to half its packets gave valid prefixes in all of them. Of the 101,563 media ids
+  that decoded sources reference, 101,532 are replaceable; one streamed source's
+  prefix is not on a packet and the 30 external-source placeholders have no file;
+- adding or removing a stored property or range: allowed only for a property
+  some shipped object of the same type stores; removing every editable property
+  and range of every object and adding them back reproduced all 3,395 such banks
+  (95,911 changes; one bank with a duplicated object id is refused);
+- adding or removing a sound in a random/sequence container: an added sound is a
+  copy of a sibling with new ShortIDs and new media embedded in the bank.
+  Removing one sound from each of the 52,883 containers that have two or more and
+  inserting it back with its media reproduced every bank byte for byte; one-sound
+  containers are refused. A removed sound's embedded media stays in the bank,
+  since a Sound in another bank can play it (10 such cross-bank uses ship).
+
+`BKHD` is 40 bytes of header data followed by zero padding. In all 2,254 banks
+with media, DIDX and DATA follow BKHD directly, and the padding is the fewest
+zeros that put DATA's payload on a 16-byte boundary. A writer that changes
+DIDX's size recomputes that padding.
+
+Source-level runs on real game data rebuilt a bank, retargeted seven banks for
+one loose id, and added a PCM sound to a shipped container; vgmstream decoded the
+replaced, added and untouched subsongs and the PCM `.wem`. New events are not
+offered: nothing in the game posts an event id it does not already know.
+
+**In-game check (2026-11-02, game 1.0.0.3479, DmmRuntime 1.0.0, title screen and
+menus).** Each edit went in as a DMM loose mod, and DmmRuntime.log recorded the
+game reading the edited banks. The game loads the init bank only from `sound\`;
+it never asked for the `soundcommon\` copy.
+
+- A -96 dB `BusVolume` added to `Master Audio Bus` silenced everything; added to
+  bus 2093044213 it silenced music and menu sounds while the sea ambience
+  played. Added properties load and take effect, and the bus hierarchy read from
+  the bank matches what the game mixes.
+- Added to `BGM`, neither `Volume` nor `BusVolume` silenced the title music. The
+  title music reaches 2093044213 through a sibling of `BGM`, and `Volume` on a
+  bus is the voice volume of sounds routed straight to it, not the bus's own gain.
+- Raising the UI bus high-pass filter from 15 to 80 in place thinned the menu
+  sounds.
+- Replacing all 93 menu-sound media (embedded in 95 banks) with a shipped Vorbis
+  voice line played that line on every menu sound. DIDX and DATA were rebuilt and
+  every in-memory size updated.
+- The same replacement with a PCM beep, with the 108 sources switched from
+  Vorbis to Wwise's PCM codec, played the beep. The 2023.1 runtime plays PCM
+  under a bank that shipped as Vorbis.
+
+A second round the same day covered the rest:
+
+- the 78 music media on the title music's buses, replaced by the voice line
+  (74 loose `.wem` and 10 banks with recomputed prefetch prefixes), played it in
+  place of the title music; a PCM tone in their place played too, quietly, so
+  streamed PCM works;
+- 1,208 language-free sounds that load a loose `.wem` into memory, replaced by
+  the voice line: the one-handed light and heavy attacks and the two-handed
+  heavy attack spoke it, so loose in-memory replacement works (the other sounds
+  heard were not in that set);
+- a +1200 cent pitch added to the 112 menu Sound objects raised them an octave;
+- a beep added as an extra sound to 67 menu random containers played on some
+  clicks.
+
+DMM treats a mod's language folders (`sound\windows\english(us)\` and the
+like) as variants and serves only the selected language's files. A first
+ambience test shipped files in three language folders, and DMM served the
+Chinese set to an English game, so nothing changed. Audio mods that touch
+language folders have to be mounted with the game's language selected.
+
+Not yet checked in game: removed objects, and replacing a named voice line. A
+named line is handed to Wwise by the game, which also names its codec, so CDMW
+accepts only a `.wem` in the original's codec there. Music tracks keep their
+clip timing, so a replacement of a different length is cut off or followed by
+silence. CDMW warns about that and does not edit the timing.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).
@@ -2267,22 +2655,32 @@ named dialogue files need a path or filename reference. An isolated copy of the
 reported cached dialogue clip decodes to PCM and loads in Qt after removing the
 Windows I/O prefix from decoder arguments; this is cached-asset/headless evidence,
 not packaged-app or game acceptance.
-Swapping a known sound and adding a new event remain different capabilities.
 
 The same 2026-10-31 inventory found 488,038 `.wem` files. Numeric media IDs under
 `sound/windows/media/` are unique across languages (211,988 IDs, one file each),
 so an ID has no language copies to link. Named dialogue files repeat across
 `sound/windows/<language>/` in three or eight languages, and 330 banks repeat in
-three. All 3,000 sampled streams were Wwise Vorbis with a 0x42-byte `fmt `;
-a few carry `smpl` loops or a `cue` marker labelled with the source WAV name.
-The header reader's sample count, rate, channels, speaker mask and loop points
-matched `vgmstream-cli -m` on all 40 extracted samples. This is header evidence,
-not a decoder or encoder change.
+three. A 2026-11-02 header sweep of all 488,038 found every one Wwise Vorbis with
+a 0x42-byte `fmt ` (278,025 at 48 kHz, 210,013 at 44.1 kHz; 483,618 mono, 4,400
+stereo, 20 four-channel); a few carry `smpl` loops or a `cue` marker labelled with
+the source WAV name. The header reader's sample count, rate, channels, speaker
+mask and loop points matched `vgmstream-cli -m` on all 40 extracted samples.
 
-Supported WEM playback/export does not imply a general Wwise encoder. The
-implemented writer is limited to the admitted uncompressed PCM path; Vorbis
-and Opus authoring remain outside that contract. Other media/interchange
-formats retain their own decoder/tool availability limits.
+**Encoder finding (2026-11-02).** No redistributable route writes Wwise Vorbis.
+Open tools decode it (vgmstream, ww2ogg and its MIT successors) but none encodes
+it; the one open converter that writes `.wem` takes 16-bit WAV only and says other
+codecs need Wwise. A home-made encoder would need libvorbis plus a remap onto
+Wwise's packed codebook library and could not be checked except in game, so it was
+not attempted. The clean route is Audiokinetic's own authoring tool, installed and
+licensed by the user: `WwiseConsole convert-external-source` with a Vorbis
+conversion setting, ideally from Wwise 2023.1 to match the banks. CDMW must not
+bundle or download it; whether a free non-commercial licence covers a given mod is
+the user's call under Audiokinetic's terms. CDMW therefore accepts a `.wem` the
+user made that way as it is, and otherwise writes 16-bit PCM with the original's
+channels, rate and speaker layout and switches the banks that play it to Wwise's
+built-in PCM codec. PCM came to 4.3 and 5.3 times the Vorbis size in the two real
+cases tried. No shipped
+bank declares PCM, so PCM playback in game is unproven.
 
 ### 11.4 Text, UI and shader resources
 
@@ -3265,6 +3663,28 @@ rejection and source witnessing survive. Reusing a cache is useful only if the
 cache key includes the inputs that affect the result. A completed output must
 not be deleted by late cancellation after its owner accepted it.
 
+A 2026-10-31 pass on the installed game (2,095,396 archive entries, 8-core
+desktop, NVMe, OS cache warm, process warm) confirmed four more cost classes,
+each removed with output proven identical by hashes:
+
+- **Full-entry materialization in scans.** Archive Browser queries built a
+  complete, name-enriched entry for every row and re-parsed each pattern per
+  row. Filtering on the index's own fields, resolving item names once per
+  session and scanning in ordered parallel chunks took filters from about 2–10 s
+  to 0.1–0.5 s and full sorts from about 9 s to 2.5 s, with identical entry-id
+  order.
+- **Per-byte Python loops over whole files.** The no-edit roundtrip compared
+  original and rebuilt bytes one byte at a time, about 3 s on a 23 MiB PAC.
+- **Locale-aware number formatting and container relocation in the native mesh
+  core.** MSVC iostream doubles and `std::vector` regrowth that deep-copies
+  JSON values (their `std::map` member has no `noexcept` move) dominated large
+  OBJ/GLB exports; the remaining JSON-tree cost scales with payload size.
+- **Per-file durable flushes.** Bulk export flushes every staged file to disk,
+  about 2–4 ms each on NVMe even in parallel; this durability choice, not
+  decoding, bounds a many-file export (11,090 files: 47 s flushed, about 2 s
+  without). **Settings > Performance > Export safety** keeps it on by default and
+  lets users trade it for speed; the written bytes are the same either way.
+
 Performance claims need a defined endpoint: geometry-ready is not textured
 viewport-ready; a warm helper is not process-cold startup; fewer repeated
 hashes do not justify weaker source verification. Private-cache cold, process
@@ -3323,11 +3743,12 @@ This is a research register, not a promised delivery schedule.
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |
 | Can effect previews reproduce runtime surfaces and final appearance? | Keyed reflection, selected lightning kernels and static-surface spawning | Animated stream-out surfaces, actual seed/birth state, shader variants and attachment/lifetime evidence |
-| Can full action charts, scenes and projectile tables be authored? | Metadata/references and selected consumer leads | Complete record/event semantics and source-faithful writers |
+| Can full action charts, scenes and projectile tables be authored? | Charts read to the last byte from the loader's own member order, with constrained string and timing writes; scenes and projectile tables have metadata/references and selected consumer leads | Node, branch and frame-event payload semantics, a game check of a retargeted and a retimed chart, and source-faithful writers for scenes and projectile tables |
 | Can items be registered additively through a native API? | Rejected ordinary static-info shortcut and identified owners | Independent definition sets, real lookup/auxiliary registration, lifecycle and persistence |
 | Can native resource loading be generalized safely? | Recorded asynchronous manager/provider route | Exact receiver/build provenance, texture binding, retirement, failure recovery and required socket consumers |
 | Can arbitrary package domains compose? | Typed item, field, link and texture subsets | A complete adapter and real consumer for each new domain; explicit conflict semantics |
 | Can save migration/removal be admitted generally? | Identity profiles, backups, receipts and experiment tools | Trusted origin, complete requirements, successful save commitment, controlled absent-provider/load evidence |
+| What do the virtualized condition readers read, and do edited tables load in game? | 140 families decoded with zero misreads; one VM reader recovered by emulating the runtime dump; 13 rows depend on two condition readers that resist emulation | Defeating their anti-emulation checks or devirtualizing them, then corpus walks with zero misreads; in-game checks of edited fields |
 | Which remaining binary resources are encrypted or merely unmodelled? | Capability inventory and inspected container signatures | Algorithm/key evidence or a complete record grammar; readable metadata alone is insufficient |
 
 ### 15.3 Approaches not to repeat without new evidence
@@ -3540,13 +3961,13 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
-| `.admeta` | PA | None | None |
+| `.admeta` | PA | Full | None |
 | `.app_xml` | PA | Full | Full |
 | `.binarygimmick` | PA | Surface | None |
-| `.binarygimmickcacheddata` | PA | None | None |
+| `.binarygimmickcacheddata` | PA | Partial | None |
 | `.binarygimmickframeevent` | PA | None | None |
 | `.binarystring` | PA | None | None |
-| `.contentgroupkeymap` | PA | None | None |
+| `.contentgroupkeymap` | PA | Full | None |
 | `.dat` | PA | None | None |
 | `.ies` | Open | Full | None |
 | `.imp` | PA | Partial | None |
@@ -3559,7 +3980,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.mtl` | Open | Full | Full |
 | `.nav` | PA | Surface | None |
 | `.overridedlevellistbinary` | PA | None | None |
-| `.paacdesc` | PA | None | None |
+| `.paacdesc` | PA | Full | None |
 | `.paasmt` | PA | None | None |
 | `.paatt` | PA | None | None |
 | `.pabc` | PA | Surface | None |
@@ -3644,7 +4065,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.aac` | Open | Surface | None |
 | `.avi` | Open | Surface | None |
 | `.bk2` | Open | Surface | None |
-| `.bnk` | Middleware | Surface | None |
+| `.bnk` | Middleware | Partial | Constrained |
 | `.flac` | Open | Surface | None |
 | `.m4a` | Open | Surface | None |
 | `.m4v` | Open | Surface | None |

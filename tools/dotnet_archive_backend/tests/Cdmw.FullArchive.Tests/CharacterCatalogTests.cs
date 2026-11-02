@@ -149,6 +149,11 @@ internal static class CharacterCatalogTests
         var hairBodies = catalogue.Search(new("fixture", Tab: "all", SelectionPurpose: "hair_body"));
         Check(hairBodies.TotalMatches == 1 && hairBodies.Rows.Single().Path.EndsWith("cd_phw_00_nude_00_0001_damian.pac"),
             "body reference selector admitted armor, fuzz or another skeleton family");
+        Check(ArchiveCharacterCatalog.IsNudeBodyName("phw_00_nude_00_0001_damian.pac", "phw")
+              && ArchiveCharacterCatalog.IsNudeBodyName("cd_phw_00_nude_00_0001_damian.pac", "phw")
+              && !ArchiveCharacterCatalog.IsNudeBodyName("phw_00_ub_00_0001.pac", "phw")
+              && !ArchiveCharacterCatalog.IsNudeBodyName("phm_00_nude_00_0001.pac", "phw"),
+            "body reference selector missed the DLC update's unprefixed body names");
         var hero = catalogue.Search(new("fixture", Query: "البطل", View: "appearances", Tab: "all"));
         Check(hero.Rows.Count == 2 && hero.Rows.All(row => row.Label == "Test Hero"), "validated multilingual character name join failed");
         var details = catalogue.GetRequired(hero.Rows.Single(row => row.Role == "body").Key);

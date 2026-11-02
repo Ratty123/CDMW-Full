@@ -10,14 +10,27 @@ from cdmw.domain.packages.export_policy import normalize_mod_package_manager_pro
 from cdmw.models import ModPackageInfo
 
 
+# Every top-level folder the installed archives use (2026-11-02), plus older roots
+# kept for existing packages. A payload path is cut back to the first of these, so
+# a root missing here flattens its files to bare names.
 _KNOWN_MOD_CONTENT_ROOTS = {
     "actionchart",
+    "aiscript",
     "character",
     "effect",
     "gamedata",
     "leveldata",
+    "material",
     "meta",
+    "miscellaneous",
     "object",
+    "renderpass",
+    "sequencer",
+    "shadercache__",
+    "sound",
+    "soundcommon",
+    "technique",
+    "texture",
     "tree",
     "ui",
     "vehicle",

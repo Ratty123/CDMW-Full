@@ -1462,4 +1462,5 @@ class TextureEditorTab(
         self._rebuild_shortcuts()
         self._refresh_ui()
         self._apply_font_sensitive_metrics(self.font())
-        QTimer.singleShot(0, self._apply_responsive_splitter_defaults)
+        # The context object drops the call if the editor is deleted before it runs.
+        QTimer.singleShot(0, self, self._apply_responsive_splitter_defaults)

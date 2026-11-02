@@ -181,7 +181,41 @@ def archive_entry_is_mod_package(entry: ArchiveEntry) -> bool:
     return not bool(re.fullmatch(r"\d+", package_key))
 
 
-def archive_entry_load_priority(entry: ArchiveEntry) -> tuple[int, int, int, int, str]:
+def archive_entry_dlc_layer(entry: ArchiveEntry) -> int:
+    """Return N for an entry under ``dlc/dlc_N/<group>/``, 0 for the base game."""
+    package_parent = getattr(getattr(entry, "pamt_path", None), "parent", Path())
+    layer_dir = getattr(package_parent, "parent", Path())
+    if str(getattr(getattr(layer_dir, "parent", Path()), "name", "") or "").casefold() != "dlc":
+        return 0
+    layer_match = re.fullmatch(r"dlc_0*(\d+)", str(getattr(layer_dir, "name", "") or "").casefold())
+    return int(layer_match.group(1)) if layer_match else 0
+
+
+def archive_entry_package_group(entry: ArchiveEntry) -> str:
+    """The entry's group folder (`0015`), named with its DLC (`dlc_01/0015`) for a DLC copy.
+
+    A DLC ships folders with the same numbers as the base game's, so the bare
+    folder name alone cannot say which copy a manifest row or cache key means.
+    """
+    pamt_path = getattr(entry, "pamt_path", None)
+    if pamt_path is None:
+        return ""
+    folder = Path(str(pamt_path)).parent
+    if str(folder.parent.parent.name or "").casefold() == "dlc":
+        return f"{folder.parent.name}/{folder.name}"
+    return str(folder.name or "")
+
+
+def archive_entry_game_root(entry: ArchiveEntry) -> Path:
+    """The install that holds the entry: two levels above a base group, four above a DLC's."""
+    root = Path(str(getattr(entry, "pamt_path", ""))).resolve().parent.parent
+    return root.parent.parent if str(root.parent.name or "").casefold() == "dlc" else root
+
+
+def archive_entry_load_priority(entry: ArchiveEntry) -> tuple[int, int, int, int, int, str]:
+    # A DLC ships its own copy of a base group folder (dlc/dlc_01/0015 beside 0015)
+    # whose files replace the base files at the same path, as its table layers
+    # replace base rows; the DLC layer therefore ranks above the base copy.
     package_parent = getattr(getattr(entry, "pamt_path", None), "parent", Path())
     package_key = str(getattr(package_parent, "name", "") or "").strip().casefold()
     package_number_match = re.fullmatch(r"0*(\d+)", package_key)
@@ -198,6 +232,7 @@ def archive_entry_load_priority(entry: ArchiveEntry) -> tuple[int, int, int, int
     return (
         tier,
         package_number,
+        archive_entry_dlc_layer(entry),
         pamt_number,
         int(getattr(entry, "paz_index", 0) or 0),
         str(getattr(entry, "pamt_path", "") or "").casefold(),
@@ -250,6 +285,8 @@ __all__ = [
     "archive_browser_entry_category",
     "archive_entry_identity_key",
     "archive_entry_is_mod_package",
+    "archive_entry_dlc_layer",
+    "archive_entry_game_root",
     "archive_entry_load_priority",
     "archive_filter_text_explicitly_requests_item_name",
     "archive_filter_text_needs_item_name_search",

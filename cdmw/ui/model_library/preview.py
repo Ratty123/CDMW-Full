@@ -388,6 +388,10 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._pending_model_action_after_task = None
         if pending_action is not None:
             QTimer.singleShot(0, pending_action)
+        queued_results_action = getattr(self, "_queued_results_action", None)
+        self._queued_results_action = None
+        if queued_results_action is not None:
+            QTimer.singleShot(0, queued_results_action)
         if not bool(getattr(self, "_inline_preview_task_running", False)):
             return
         self._inline_preview_task_running = False

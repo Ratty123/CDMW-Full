@@ -41,6 +41,28 @@ VALUE_ROLE = Qt.ItemDataRole.UserRole + 5
 #: duplicate or remove one; rows without it are fields, not objects.
 OBJECT_ROLE = Qt.ItemDataRole.UserRole + 6
 
+#: The transform pair every placed object carries. Only these move together:
+#: the elements of a ``Transform[]`` are separate points even when equal.
+TWIN_PLACEMENTS = frozenset({"_worldTransform", "_tiledTransform"})
+
+def pending_text(item: QTreeWidgetItem) -> str | None:
+    """The text a row now asks for, or ``None`` when it asks for no change.
+
+    A row untouched since it was filled shows its original text exactly, which
+    may carry leading or trailing spaces; stripping only one side of the
+    comparison turned every such string into a phantom edit. Typed text is
+    trimmed, and a trimmed result equal to the original is no change either.
+    """
+    original = item.data(2, EDIT_ROLE)
+    if not isinstance(original, str):
+        return None
+    shown = item.text(2)
+    if shown == original:
+        return None
+    current = shown.strip()
+    return None if current == original else current
+
+
 CHANGED_COLOUR = QColor(126, 200, 255, 72)
 WARNING_COLOUR = QColor(255, 184, 107, 72)
 
@@ -65,12 +87,13 @@ class PrefabEditingMixin:
         correct by hand.
         """
         parent = edited.parent()
-        if parent is None:
+        edited_stored = edited.data(0, PLACEMENT_ROLE)
+        if parent is None or not edited_stored or edited_stored[3] not in TWIN_PLACEMENTS:
             return
         for index in range(parent.childCount()):
             sibling = parent.child(index)
             stored = sibling.data(0, PLACEMENT_ROLE)
-            if sibling is edited or not stored:
+            if sibling is edited or not stored or stored[3] not in TWIN_PLACEMENTS:
                 continue
             offset, type_name, original_raw, _name = stored
             pending = self._value_edits.get(offset)
@@ -119,8 +142,8 @@ class PrefabEditingMixin:
             for child_index in range(parent.childCount()):
                 child = parent.child(child_index)
                 original = child.data(2, EDIT_ROLE)
-                current = child.text(2).strip()
-                if isinstance(original, str) and current and current != original:
+                current = pending_text(child)
+                if current is not None:
                     note = ""
                     others = counts.get(original, 1) - 1
                     if others:
@@ -135,7 +158,12 @@ class PrefabEditingMixin:
                     if companions:
                         note = (note + "; " if note else "") + "; ".join(companions)
                     lines.append(
-                        ChangeLine(field=child.text(0), before=original, after=current, note=note)
+                        ChangeLine(
+                            field=child.text(0),
+                            before=original,
+                            after=current or "(empty)",
+                            note=note,
+                        )
                     )
                     problem = self._warning_for(original, current)
                     if problem:
@@ -195,8 +223,7 @@ class PrefabEditingMixin:
 
     def row_has_pending_change(self, item: QTreeWidgetItem) -> bool:
         """Is there something on this row to undo?"""
-        original = item.data(2, EDIT_ROLE)
-        if isinstance(original, str) and item.text(2).strip() != original:
+        if pending_text(item) is not None:
             return True
         stored = item.data(0, PLACEMENT_ROLE) or item.data(0, VALUE_ROLE)
         return bool(stored) and stored[0] in self._value_edits
@@ -210,7 +237,7 @@ class PrefabEditingMixin:
         """
         reverted = False
         original = item.data(2, EDIT_ROLE)
-        if isinstance(original, str) and item.text(2).strip() != original:
+        if isinstance(original, str) and item.text(2) != original:
             item.setText(2, original)
             reverted = True
 
@@ -232,12 +259,18 @@ class PrefabEditingMixin:
 
     def _revert_twin_of(self, edited: QTreeWidgetItem, was: Placement | None) -> None:
         parent = edited.parent()
-        if parent is None or was is None:
+        edited_stored = edited.data(0, PLACEMENT_ROLE)
+        if parent is None or was is None or not edited_stored or edited_stored[3] not in TWIN_PLACEMENTS:
             return
         for index in range(parent.childCount()):
             sibling = parent.child(index)
             stored = sibling.data(0, PLACEMENT_ROLE)
-            if sibling is edited or not stored or stored[0] not in self._value_edits:
+            if (
+                sibling is edited
+                or not stored
+                or stored[3] not in TWIN_PLACEMENTS
+                or stored[0] not in self._value_edits
+            ):
                 continue
             offset, type_name, original_raw, _name = stored
             if read_placement(original_raw) != was:

@@ -109,6 +109,46 @@ def test_static_table_preview_lists_rows_from_its_pair(stored, selected):
     assert "  [1] key 11  Ship_Sail  (20 bytes)" in text
 
 
+def test_static_table_preview_shows_fields_of_a_decoded_table(stored):
+    from tests.compact_item_fixtures import table
+    from tests.test_static_table_records import inventory_row
+
+    body, header = table([(1, inventory_row(1, "Money", 20, 240)), (2, inventory_row(2, "Character", 50, 240))], width=2)
+    stem = "gamedata/binarystaticinfo__/bin/inventory"
+    header_entry = stored(f"{stem}.staticinfoheader", header, package="0008")
+    body_entry = stored(f"{stem}.staticinfobody", body, package="0008")
+
+    result = build_archive_preview_result(
+        body_entry, texture_entries_by_normalized_path={header_entry.path.casefold(): (header_entry,)})
+
+    text = result.preview_text
+    assert "Decoded fields of the first 2 rows (2 decoded):" in text
+    assert "  key 2  Character" in text
+    assert "    _defaultSlotCount (u16) = 50" in text
+    assert "    _maxSlotCount (u16) = 240" in text
+    assert "The closed inventory record schema decoded 2 of the first 2 rows." in result.detail_text
+
+
+def test_static_table_preview_decodes_only_the_rows_it_prints(stored, monkeypatch):
+    from cdmw.core import static_table_records
+    from tests.compact_item_fixtures import table
+    from tests.test_static_table_records import inventory_row
+
+    calls = []
+    original = static_table_records.decode_record
+    monkeypatch.setattr(static_table_records, "decode_record", lambda *a, **k: calls.append(1) or original(*a, **k))
+    body, header = table([(key, inventory_row(key, f"Bag{key}", 1, 10)) for key in range(1, 30)], width=2)
+    stem = "gamedata/binarystaticinfo__/bin/inventory"
+    header_entry = stored(f"{stem}.staticinfoheader", header, package="0008")
+    body_entry = stored(f"{stem}.staticinfobody", body, package="0008")
+
+    result = build_archive_preview_result(
+        body_entry, texture_entries_by_normalized_path={header_entry.path.casefold(): (header_entry,)})
+
+    assert len(calls) == 5
+    assert "  [28] key 29  Bag29" in result.preview_text
+
+
 def test_static_table_halves_are_never_mixed_across_archive_layers(stored):
     header, body = _named_table([(7, "Sword_Cutlass", b"")])
     stem = "gamedata/binarystaticinfo__/bin/iteminfo"
@@ -146,6 +186,7 @@ def test_empty_placeholder_pam_says_it_has_no_geometry(stored):
 
     assert result.preview_model is None
     assert "This PAM declares no submeshes, so it has no geometry to preview." in result.detail_text
+    assert "failed to recover geometry" not in result.detail_text
 
 
 def _encrypted(path, plain, *, compress):
@@ -187,3 +228,27 @@ def test_plaintext_stored_under_an_encryption_flag_is_returned_unchanged(compres
     entry, stored_bytes = _encrypted("miscellaneous/readme.txt", plain, compress=compress)
 
     assert try_decrypt_archive_entry_data(entry, stored_bytes) == (stored_bytes, "ChaCha20FlagMismatch")
+
+
+# Exact bytes of the files the DLC update shipped (game 1.0.0.3446).
+DLC_ADMETA = bytes.fromhex("06000000") + b"dlc_01" + bytes.fromhex("01000000")
+DLC_CONTENT_GROUP_KEYS = bytes.fromhex("06000000" "e9030000" "ea030000" "eb030000" "ed030000" "ee030000" "723a0f00")
+GIMMICK_CACHE_HEAD = bytes.fromhex("df050000" "2e864c09" "16000000") + bytes(64)
+
+
+@pytest.mark.parametrize("path, payload, expected", [
+    ("gamedata/binarymisc__/bin/dlc_01.admeta", DLC_ADMETA, "DLC id: dlc_01"),
+    ("gamedata/binarymisc__/bin/dlc_01.contentgroupkeymap", DLC_CONTENT_GROUP_KEYS, "  5: 998002"),
+    ("gamedata/binarygimmickchart__/bin/gimmickchartcacheddata.dlc_01.binarygimmickcacheddata",
+     GIMMICK_CACHE_HEAD, "Record count: 1,503"),
+])
+def test_dlc_metadata_files_show_their_fields(stored, path, payload, expected):
+    result = build_archive_preview_result(stored(path, payload))
+    assert result.status == "ok"
+    assert expected in result.preview_text
+
+
+def test_dlc_metadata_with_another_layout_falls_back_and_says_why(stored):
+    result = build_archive_preview_result(stored("gamedata/binarymisc__/bin/dlc_01.contentgroupkeymap",
+                                                 DLC_CONTENT_GROUP_KEYS[:-1]))
+    assert "does not have the shipped DLC metadata layout" in result.detail_text

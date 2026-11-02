@@ -85,7 +85,10 @@ def unknown_group_empty_status_text(
     *,
     showing_classified: bool,
     has_focus_keys: bool,
+    has_filters: bool = False,
 ) -> str:
+    if has_filters:
+        return "No review items match the Name or Package filter. Clear the filters to see the whole list."
     if has_focus_keys:
         return (
             "No current-run unclassified DDS files matched the current Research snapshot. "

@@ -12,6 +12,7 @@ from typing import Callable, Optional
 from cdmw.constants import APP_NAME
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.models import ArchiveEntry
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 
 @dataclass(slots=True)
@@ -34,7 +35,7 @@ def _default_baseline_root() -> Path:
 
 
 def _entry_cache_key(entry: ArchiveEntry) -> str:
-    package_group = str(getattr(entry.pamt_path.parent, "name", "") or "").strip().lower()
+    package_group = archive_entry_package_group(entry).strip().lower()
     key_text = f"{package_group}|{_normalize_virtual_path(entry.path)}"
     return hashlib.sha1(key_text.encode("utf-8", errors="ignore")).hexdigest()
 
@@ -51,7 +52,7 @@ def _metadata_matches_entry(metadata: object, entry: ArchiveEntry) -> bool:
         return False
     expected_text = {
         "path": _normalize_virtual_path(entry.path),
-        "package_group": str(getattr(entry.pamt_path.parent, "name", "") or "").strip().lower(),
+        "package_group": archive_entry_package_group(entry).strip().lower(),
         "pamt_path": _normalized_archive_file_path(entry.pamt_path),
         "paz_file": _normalized_archive_file_path(entry.paz_file),
     }
@@ -138,7 +139,7 @@ class MeshBaselineCache:
             "format": "mesh_baseline_v1",
             "captured_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "path": str(entry.path or ""),
-            "package_group": str(getattr(entry.pamt_path.parent, "name", "") or ""),
+            "package_group": archive_entry_package_group(entry),
             "pamt_path": str(entry.pamt_path),
             "paz_file": str(entry.paz_file),
             "offset": int(entry.offset),

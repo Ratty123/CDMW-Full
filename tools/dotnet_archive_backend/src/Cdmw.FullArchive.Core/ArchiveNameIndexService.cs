@@ -10,7 +10,8 @@ public sealed class ArchiveNameIndexService(
     ArchiveCacheStore cache,
     NativeArchiveCore native)
 {
-    private const int FileVersion = 5;
+    // 6: DLC ItemInfo, StringInfo and item names are merged in.
+    private const int FileVersion = 6;
     private static readonly byte[] Magic = "CDMWNAM5"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -282,26 +283,58 @@ public sealed class ArchiveNameIndex
 
     public ArchiveEntryDto Enrich(ArchiveEntryDto entry)
     {
-        var stem = Path.GetFileNameWithoutExtension(entry.Name).Trim().ToLowerInvariant();
+        var names = ResolveStem(Stem(entry.Name));
+        if (names is null)
+        {
+            return entry;
+        }
+        return names.IsExact
+            ? entry with
+            {
+                KnownName = names.KnownName,
+                ExactName = names.ExactName,
+                NameEvidence = names.NameEvidence,
+            }
+            : entry with { NameEvidence = names.NameEvidence };
+    }
+
+    /// <summary>The lookup key <see cref="Enrich"/> derives from an entry's file name.</summary>
+    internal static string Stem(string fileName) =>
+        Path.GetFileNameWithoutExtension(fileName).Trim().ToLowerInvariant();
+
+    /// <summary>
+    /// The name fields <see cref="Enrich"/> sets for a stem, or null when it leaves the
+    /// entry unchanged. A related match sets only the evidence; the entry's other name
+    /// fields stay empty, as the index reader leaves them.
+    /// </summary>
+    internal ArchiveEntryNames? ResolveStem(string stem)
+    {
         if (_exactNames.TryGetValue(stem, out var exactName))
         {
-            return entry with
-            {
-                KnownName = exactName,
-                ExactName = exactName,
-                NameEvidence = "Exact localization",
-            };
+            return new ArchiveEntryNames(exactName, exactName, ExactEvidence, IsExact: true);
         }
         foreach (var candidate in RelatedCandidates(stem))
         {
             if (_relatedNames.TryGetValue(candidate, out var relatedName) ||
                 _exactNames.TryGetValue(candidate, out relatedName))
             {
-                return entry with { NameEvidence = relatedName };
+                return new ArchiveEntryNames(string.Empty, string.Empty, relatedName, IsExact: false);
             }
         }
-        return entry;
+        return null;
     }
+
+    internal const string ExactEvidence = "Exact localization";
+
+    /// <summary>
+    /// Every value <see cref="Enrich"/> can write into KnownName, ExactName or
+    /// NameEvidence, besides the empty string an unmatched entry keeps.
+    /// </summary>
+    internal IEnumerable<string> NameFieldValues() =>
+        _exactNames.Values.Concat(_relatedNames.Values).Append(ExactEvidence);
+
+    /// <summary>Every value <see cref="Enrich"/> can write into KnownName.</summary>
+    internal IEnumerable<string> KnownNameValues() => _exactNames.Values;
 
     private static IReadOnlyDictionary<string, string> Normalize(IReadOnlyDictionary<string, string> source)
     {
@@ -394,3 +427,6 @@ public sealed class ArchiveNameIndex
         return candidates;
     }
 }
+
+/// <summary>The name fields <see cref="ArchiveNameIndex.Enrich"/> writes for one file name.</summary>
+internal sealed record ArchiveEntryNames(string KnownName, string ExactName, string NameEvidence, bool IsExact);

@@ -37,6 +37,7 @@ from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextureSnapshot
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+from cdmw.domain.archives.filters import archive_entry_game_root, archive_entry_package_group
 from cdmw.services.archive_overlay_install import (
     OverlayInstallPreparation,
     apply_overlay_install,
@@ -925,7 +926,7 @@ class MeshDirectOutputWorker(QObject):
             elif self.kind == "overlay_package":
                 result = self._write_overlay_package(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_overlay_package(tuple(requests), metadata, report)
             elif self.kind == "overlay_prepare":
-                package_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
+                package_root = archive_entry_game_root(self.entry)
                 preparation = prepare_overlay_install(
                     tuple(requests),
                     additions=tuple(additions),
@@ -1090,7 +1091,7 @@ class MeshDirectOutputWorker(QObject):
             if relative in relative_paths:
                 raise ValueError("Archive Refit output has duplicate asset paths")
             relative_paths.append(relative)
-            package_group = Path(request.entry.pamt_path).parent.name
+            package_group = archive_entry_package_group(request.entry)
             mesh_format = relative.suffix.lstrip(".").lower()
             assets.append(MeshLooseModAsset(entry_path=relative.as_posix(), package_group=package_group,
                                            format=mesh_format, note="Validated Mesh Editor replacement"))
@@ -1109,7 +1110,7 @@ class MeshDirectOutputWorker(QObject):
                 if relative.is_absolute() or relative.drive or ".." in relative.parts or not relative.name or relative in relative_paths:
                     raise ValueError("Replacement companion has an invalid or duplicate package path")
                 relative_paths.append(relative)
-                package_group = Path(addition.pamt_path).parent.name
+                package_group = archive_entry_package_group(addition)
                 mesh_format = relative.suffix.lstrip(".").lower()
                 assets.append(MeshLooseModAsset(entry_path=relative.as_posix(), package_group=package_group,
                                                format=mesh_format, note="Replacement companion"))
@@ -1122,7 +1123,7 @@ class MeshDirectOutputWorker(QObject):
             options = mod_package_export_options_for_manager(self.manager_profile)
             from cdmw.core.mod_compatibility import capture_patch_compatibility
             compatibility = capture_patch_compatibility(requests, additions,
-                game_root=Path(self.entry.pamt_path).resolve().parent.parent, stop_event=self.stop_event)
+                game_root=archive_entry_game_root(self.entry), stop_event=self.stop_event)
             write_mesh_loose_mod_package_metadata(
                 staging,
                 self._package_info(root),
@@ -1159,7 +1160,7 @@ class MeshDirectOutputWorker(QObject):
         root = self.output_path.resolve()
         if root.exists():
             raise FileExistsError(f"Mesh mod output already exists: {root}")
-        game_root = Path(self.entry.pamt_path).resolve().parent.parent
+        game_root = archive_entry_game_root(self.entry)
         root.parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
         try:

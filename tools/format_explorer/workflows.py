@@ -222,15 +222,15 @@ def workflow_for(extension: str) -> FormatWorkflow:
             prerequisites="Extract a copy before editing and use the normal reviewed repack workflow for installation.",
             limits=(_MATERIAL_LIMIT,),
         )
-    if extension == ".cditem":
+    if extension == ".cdmw":
         return FormatWorkflow(
             operations=(
                 FormatOperation("inspect", "Read package identity, dependencies and supported typed modules."),
-                FormatOperation("package", "Create or update a .cditem item package from Create New Item's Output step."),
+                FormatOperation("package", "Create or update a .cdmw item package from Create New Item's Output step."),
                 FormatOperation("import", "Add item packages through Mod Management > Mods, then apply and launch."),
             ),
             prerequisites=(
-                "Choose Item package · .cditem in Create New Item, or open Mod Management "
+                "Choose Item package · .cdmw in Create New Item, or open Mod Management "
                 "and use Add item packages in Mods. Installation and launch require a configured game folder "
                 "and a successful compatibility review."
             ),

@@ -951,6 +951,7 @@ class ModelPreviewSettingsDialog(QDialog):
                 native_preview_cache_mode=str(self.native_preview_cache_mode_combo.currentData() or "balanced"),
                 quick_then_full_preview=self.quick_then_full_checkbox.isChecked(),
                 maximum_indexing_priority=self.maximum_indexing_priority_checkbox.isChecked(),
+                durable_exports=base.durable_exports,
             )
         )
 

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Mapping
 
-from cdmw.constants import APP_VERSION
+from cdmw.constants import APP_VERSION, PACKAGE_EXTENSIONS
 from cdmw.domain.cancellation import raise_if_cancelled
 
 COMPATIBILITY_FILE = "cdmw-compatibility.json"
@@ -66,6 +66,18 @@ def decode_paver_build(raw: bytes) -> str:
     if len(raw) == 10:
         major, minor, patch = struct.unpack_from("<3H", raw)
         return f"{major}.{minor:02}.{patch:02}"
+    # Since the DLC update a u32-counted list of (u32 length, name, u32) records,
+    # one per DLC (`dlc_01`), sits between the version and the four build bytes.
+    if len(raw) >= 14:
+        count = struct.unpack_from("<I", raw, 6)[0]
+        offset = 10
+        for _ in range(min(count, 64)):
+            if offset + 4 > len(raw):
+                return ""
+            offset += 4 + struct.unpack_from("<I", raw, offset)[0] + 4
+        if count <= 64 and offset + 4 == len(raw):
+            major, minor, patch = struct.unpack_from("<3H", raw)
+            return f"{major}.{minor:02}.{patch:02}"
     return ""
 
 
@@ -175,6 +187,11 @@ def capture_patch_compatibility(requests, additions=(), *, game_root=None, metad
 
 
 def write_compatibility(root: Path, compatibility: ModCompatibility, *, stop_event=None) -> tuple[Path, ...]:
+    """Record what the package at `root` replaces, in CDMW's history (never in the package).
+
+    Call after the payload files are written: the record is bound to their bytes.
+    Returns no package files; the tuple is kept for callers that list metadata.
+    """
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     stream = io.BytesIO()
@@ -191,16 +208,23 @@ def write_compatibility(root: Path, compatibility: ModCompatibility, *, stop_eve
                 seen.add(key)
     baseline = stream.getvalue()
     raise_if_cancelled(stop_event, "Mod baseline export cancelled.")
-    from cdmw.core.atomic_file import atomic_write_bytes
-    baseline_path = root / BASELINE_FILE
-    atomic_write_bytes(baseline_path, baseline)
     payload = {"format": COMPATIBILITY_FORMAT, "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "cdmw_version": APP_VERSION, "target_game": compatibility.target_game,
                "files": list(compatibility.files), "dependencies": list(compatibility.dependencies),
                "baseline_archive": BASELINE_FILE, "baseline_archive_sha256": digest(baseline)}
-    manifest = root / COMPATIBILITY_FILE
-    atomic_write_bytes(manifest, (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-    return manifest, baseline_path
+    # Mod managers read every file a package ships, so these records live in CDMW's
+    # history store, bound to the payload bytes already written under `root`.
+    from cdmw.core.mod_export_history import file_mod_history
+
+    file_mod_history(root, {
+        BASELINE_FILE: baseline,
+        COMPATIBILITY_FILE: (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+    }, stop_event=stop_event)
+    for stale in (COMPATIBILITY_FILE, BASELINE_FILE):
+        inline = root / stale
+        if inline.is_file() and not inline.is_symlink():
+            inline.unlink()
+    return ()
 
 
 def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | None:
@@ -211,7 +235,12 @@ def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | Non
             candidates = [item for item in package.infolist() if item.filename == COMPATIBILITY_FILE
                           or item.filename.endswith("/" + COMPATIBILITY_FILE)]
             if not candidates:
-                return None
+                from cdmw.core.mod_export_history import archive_history_directory
+
+                directory = archive_history_directory(root, stop_event=stop_event)
+                if directory is None or not (directory / COMPATIBILITY_FILE).is_file():
+                    return None
+                return read_compatibility(directory, stop_event=stop_event)
             if len(candidates) != 1 or candidates[0].file_size > MAX_METADATA_BYTES:
                 raise ValueError("Ambiguous or oversized compatibility metadata in ZIP package.")
             prefix = candidates[0].filename[:-len(COMPATIBILITY_FILE)]
@@ -296,7 +325,10 @@ __all__ = ["BASELINE_FILE", "COMPATIBILITY_FILE", "ModCompatibility", "build_lab
 
 # This is an opaque, negotiated export, not optional metadata on loose files.
 # The complete schema and examples live beside this owner in SEMANTIC_EXPORT.md.
-SEMANTIC_EXPORT_FILE = "cdmw-semantic.cditem"
+SEMANTIC_EXPORT_FILE = "cdmw-semantic.cdmw"
+# Exports written before the .cdmw rename carry this name and stay readable.
+LEGACY_SEMANTIC_EXPORT_FILE = "cdmw-semantic.cditem"
+SEMANTIC_EXPORT_FILES = (SEMANTIC_EXPORT_FILE, LEGACY_SEMANTIC_EXPORT_FILE)
 SEMANTIC_EXPORT_FORMAT = "cdmw_mod_semantic_export"
 SEMANTIC_EXPORT_VERSION = 1
 
@@ -307,19 +339,27 @@ def semantic_export_path(source) -> Path | None:
         return None
     path = Path(source)
     if path.is_file():
-        return path if path.suffix.lower() == ".cditem" else None
+        return path if path.suffix.lower() in PACKAGE_EXTENSIONS else None
     if not path.is_dir():
         return None
     entries = tuple(path.iterdir())
-    candidates = [entry for entry in entries if entry.name.casefold() == SEMANTIC_EXPORT_FILE]
+    candidates = [entry for entry in entries if entry.name.casefold() in SEMANTIC_EXPORT_FILES]
     if not candidates:
         return None
     if (len(candidates) != 1 or len(entries) != 1
-            or candidates[0].name != SEMANTIC_EXPORT_FILE
+            or candidates[0].name not in SEMANTIC_EXPORT_FILES
             or candidates[0].is_symlink() or not candidates[0].is_file()
             or path.is_symlink() or getattr(path, "is_junction", lambda: False)()):
-        raise ValueError("A semantic export requires its single opaque .cditem wrapper; extra or linked files refuse.")
+        raise ValueError("A semantic export requires its single opaque .cdmw wrapper; extra or linked files refuse.")
     return candidates[0]
+
+
+def semantic_export_wrapper(folder: Path) -> Path:
+    """The wrapper an export folder holds, or the current name when it holds none."""
+    for name in SEMANTIC_EXPORT_FILES:
+        if (folder / name).is_file():
+            return folder / name
+    return folder / SEMANTIC_EXPORT_FILE
 
 
 def _semantic_path(value, *, index=False):
@@ -596,7 +636,7 @@ def read_semantic_export(source, *, stop_event=None, package_cache=None) -> Sema
         raise ValueError("Linked semantic export files are unsupported.")
     if path.stat().st_size > MAX_TOTAL + MAX_METADATA_BYTES:
         raise ValueError("The semantic export exceeds the supported size.")
-    if path.name.casefold() != SEMANTIC_EXPORT_FILE:
+    if path.name.casefold() not in SEMANTIC_EXPORT_FILES:
         # This is only dispatch, not admission. Ordinary packages are fully
         # verified by their owner. Avoid reading their complete artifact merely
         # to discover that their central directory has no semantic envelope.
@@ -612,7 +652,7 @@ def read_semantic_export(source, *, stop_event=None, package_cache=None) -> Sema
     raw = path.read_bytes()
     if digest(raw) != before:
         raise ValueError("The semantic export changed while reading.")
-    value = _read_semantic_bytes(raw, required=path.name.casefold() == SEMANTIC_EXPORT_FILE,
+    value = _read_semantic_bytes(raw, required=path.name.casefold() in SEMANTIC_EXPORT_FILES,
                                stop_event=stop_event, package_cache=package_cache)
     if value is None:
         return None

@@ -75,8 +75,13 @@ class ModManagementTab(QWidget):
         self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
         self.independent_page.activity.connect(self._append_activity)
         self.independent_page.mods_requested.connect(lambda: self.open_page('mods'))
-        from cdmw.ui.tools.mod_management_list import ModManagementList
-        self.virtual_page = ModManagementList(self.controller, root, self.inventory, self.independent_page, self)
+        from cdmw import constants
+        if constants.VIRTUAL_LOADING_ENABLED:
+            from cdmw.ui.tools.mod_management_list import ModManagementList
+            self.virtual_page = ModManagementList(self.controller, root, self.inventory, self.independent_page, self)
+        else:
+            from cdmw.ui.tools.dmm_packages_page import DmmPackagesPage
+            self.virtual_page = DmmPackagesPage(self.controller, root, self)
         self.mods_pages = QStackedWidget()
         self.mods_pages.setObjectName('mod_management_mods')
         self.mods_pages.addWidget(self.virtual_page)

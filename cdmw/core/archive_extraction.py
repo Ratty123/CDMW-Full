@@ -233,6 +233,11 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
 
     current_data_offset = header_size
     output_data = bytearray(header[:header_size])
+    # The PATHC header records the packed block sizes in dwReserved1 (+32). The blocks are
+    # written unpacked below, so clear those words: a loose DDS that still lists them makes
+    # the game unpack plain mips again and draw noise.
+    packed_sizes_end = 40 if use_single_chunk else 48
+    output_data[32:packed_sizes_end] = bytes(packed_sizes_end - 32)
     for compressed_size, decompressed_size in zip(compressed_block_sizes, decompressed_block_sizes):
         if compressed_size <= 0 or decompressed_size <= 0:
             continue

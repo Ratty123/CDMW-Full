@@ -329,6 +329,71 @@ def test_identical_submesh_material_inputs_are_synthesized_once(
     assert calls == 1
 
 
+def test_resolved_outputs_only_keeps_just_the_resolved_maps(tmp_path: Path) -> None:
+    from tests.test_mesh_dotnet_material_compiler import _mesh_with_layer_graph
+
+    mesh = _mesh_with_layer_graph(tmp_path)
+    manifests = {}
+    for resolved_only in (False, True):
+        package_dir = tmp_path / f"package-{resolved_only}"
+        package_dir.mkdir()
+        manifests[resolved_only] = mesh_dotnet_material_package.compile_mesh_dotnet_material_manifest(
+            mesh, sidecar_payload={}, package_dir=package_dir, material_signature="outputs",
+            support_map_max_dimension=2048, resolved_outputs_only=resolved_only,
+        )
+    full_row = manifests[False]["submeshes"][0]
+    row = manifests[True]["submeshes"][0]
+    generated = row["material_synthesis"]["generated_channels"]
+    assert generated and generated == full_row["material_synthesis"]["generated_channels"]
+    for channel in generated:
+        assert Path(row["resolved_channels"][channel]).read_bytes() == (
+            Path(full_row["resolved_channels"][channel]).read_bytes()
+        )
+    # Per-layer combiner maps are freed and nothing is copied into textures/.
+    package_dir = tmp_path / "package-True"
+    resolved = {Path(value).resolve() for value in row["resolved_channels"].values()}
+    left = {path.resolve() for path in package_dir.rglob("*") if path.is_file()}
+    assert left and left <= resolved
+    assert len(list((tmp_path / "package-False").rglob("*.png"))) > len(left)
+    assert not (package_dir / "textures").exists()
+    assert row["packaged_channels"] == {} and manifests[True]["resources"] == []
+
+
+def test_refused_synthesis_admission_keeps_raw_bindings_without_synthesizing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import Mock
+
+    from tests.test_mesh_dotnet_material_compiler import _mesh_with_layer_graph
+
+    first = _mesh_with_layer_graph(tmp_path).submeshes[0]
+    repeated = copy.copy(first)
+    synthesize = Mock(side_effect=AssertionError("A refused material must not be synthesized"))
+    monkeypatch.setattr(mesh_dotnet_material_package, "_synthesize_dotnet_material_channels", synthesize)
+    asked: list[int] = []
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+
+    manifest = mesh_dotnet_material_package.compile_mesh_dotnet_material_manifest(
+        ParsedMesh(path="budget.pac", format="pac", submeshes=[first, repeated]),
+        sidecar_payload={}, package_dir=package_dir, material_signature="budget",
+        synthesis_admission=lambda index, _source: asked.append(index) or False,
+    )
+
+    # The refusal is cached, so a repeated material is neither asked about again
+    # nor synthesized behind the budget's back.
+    assert asked == [0]
+    synthesize.assert_not_called()
+    for row in manifest["submeshes"]:
+        assert row["material_synthesis"]["attempted"] is False
+        assert row["material_synthesis"]["skipped"] == (
+            mesh_dotnet_material_package.MATERIAL_SYNTHESIS_BUDGET_SKIPPED
+        )
+        assert row["resolved_channels"] == row["raw_resolved_channels"]
+    assert not (package_dir / "material_synthesis").exists()
+
+
 def test_package_synthesis_uses_the_shared_combiner_relief_strength(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1617,14 +1682,16 @@ def test_cancellation_during_material_pixel_synthesis_cleans_partial_output(
         ),
     )
     entered_pixel_loop = False
-    original_decode = material_combiner_images.decode_material_sample
+    # Pixels decode in row tiles; cancelling after the first tile must still
+    # stop before the second one and clean up the partial output.
+    original_decode = material_combiner_images.decode_material_arrays
 
     def tracked_decode(*args, **kwargs):
         nonlocal entered_pixel_loop
         entered_pixel_loop = True
         return original_decode(*args, **kwargs)
 
-    monkeypatch.setattr(material_combiner_images, "decode_material_sample", tracked_decode)
+    monkeypatch.setattr(material_combiner_images, "decode_material_arrays", tracked_decode)
     raw_channels = mesh_dotnet_material_package._dotnet_resolved_texture_channels(submesh)
     raw_contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
         submesh,

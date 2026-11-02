@@ -1559,6 +1559,7 @@
   "Preview motion is approximate. Game physics uses the donor's existing setup.",
   "Preview normal directions",
   "Preview positions from a matching unbaked PAC for the selected Parts or islands. Sculpted positions in that selection will be replaced.",
+  "Preview refused: LOD {value_0} part '{value_1}' has a vertex {value_2} that is not a finite number, so its geometry was not read correctly.",
   "Preview requires unchanged source vertex ownership.",
   "Preview restored fitting shape",
   "Preview settings are not exported. Reset preview to edit the surface.",

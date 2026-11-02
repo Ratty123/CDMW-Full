@@ -6,15 +6,24 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_workflow_service import (
+    apply_sound_bank_edits,
     build_archive_audio_patch_payload,
     export_archive_audio_as_wav,
+    export_archive_payloads_to_mod_ready_loose,
+    list_bank_embedded_media,
+    plan_wwise_media_replacement,
+    read_sound_bank_editor_model,
+    wwise_media_source_id,
 )
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
+from cdmw.ui.archive_browser.sound_bank_editor import SoundBankEditorDialog
 
 
 class ArchivePatchActionsMixin:
@@ -91,67 +100,168 @@ class ArchivePatchActionsMixin:
         )
 
     def _start_archive_audio_patch(self, entry: ArchiveEntry) -> None:
+        # The game refuses rewritten archive indexes and mount lists since the DLC
+        # update, so replacement audio is written as a loose mod for DMM instead of
+        # being patched into the installed archives.
+        source_id = wwise_media_source_id(entry)
+        named_line = entry.extension == ".wem" and source_id is None
+        if named_line:
+            QMessageBox.information(
+                self,
+                "Audio Loose Mod",
+                "This voice line is chosen by name while the game runs, and the game tells Wwise to decode it as "
+                "Wwise Vorbis, so only the .wem is replaced and it must be a Wwise Vorbis .wem made with your own "
+                "Wwise install.",
+            )
+        source_path = self._select_replacement_audio(allow_wem=entry.extension == ".wem", wem_only=named_line)
+        if not source_path:
+            return
+        self._export_audio_replacement(entry, source_path, source_id=source_id)
+
+    def _start_archive_bank_media_replace(self, entry: ArchiveEntry) -> None:
+        def _task(log: Callable[[str], None]) -> object:
+            log(f"Reading the sounds {entry.path} embeds...")
+            return list_bank_embedded_media(entry)
+
+        def _handle_complete(result: object) -> None:
+            media = tuple(result) if isinstance(result, tuple) else ()
+            if not media:
+                QMessageBox.information(
+                    self,
+                    "Replace Embedded Sound",
+                    "This bank embeds no sounds; its media are loose .wem files. Replace the .wem instead.",
+                )
+                return
+            labels = [f"{item.ordinal}: {item.source_id} ({item.size:,} bytes)" for item in media]
+            choice, accepted = QInputDialog.getItem(
+                self, "Replace Embedded Sound", "Sound to replace (preview track: source id):", labels, 0, False
+            )
+            if not accepted or choice not in labels:
+                return
+            source_path = self._select_replacement_audio(allow_wem=True)
+            if source_path:
+                self._export_audio_replacement(entry, source_path, source_id=media[labels.index(choice)].source_id)
+
+        self.shell._run_utility_task(
+            status_message=f"Reading the sounds in {entry.basename}...",
+            task=_task,
+            on_complete=_handle_complete,
+            show_archive_progress=True,
+        )
+
+    def _select_replacement_audio(self, *, allow_wem: bool, wem_only: bool = False) -> str:
+        patterns = "*.wem" if wem_only else "*.wav *.ogg *.mp3" + (" *.wem" if allow_wem else "")
         source_path, _selected = QFileDialog.getOpenFileName(
             self,
             "Select Replacement Audio",
             str(self.shell.settings_file_path.parent),
-            "Audio Files (*.wav *.ogg *.mp3)",
+            f"Audio Files ({patterns})",
         )
-        if not source_path:
-            return
+        return source_path
 
-        warning_text = "A backup of the touched archive files will be created before anything is written."
-        if entry.extension == ".wem":
-            warning_text += (
-                "\n\nWEM patching is best-effort: this rebuilds a simple replacement stream from the selected "
-                "audio, not a full Wwise-authoring rebuild. Some original Wwise codec/container variants may "
-                "not behave the same in-game."
+    def _export_audio_replacement(
+        self,
+        entry: ArchiveEntry,
+        source_path: str,
+        *,
+        source_id: int | None,
+    ) -> None:
+        archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+        def _requests(log, stop_event, notes):
+            log(f"Preparing replacement audio for {entry.path}...")
+            if source_id is None:
+                payload = build_archive_audio_patch_payload(entry, Path(source_path))
+                return [ArchivePatchRequest(entry=entry, payload_data=payload)]
+            replacement = plan_wwise_media_replacement(
+                entry, Path(source_path), source_id, archive_entries, stop_event=stop_event, on_log=log
             )
-        confirmation = QMessageBox.question(
-            self,
-            "Patch Audio To Game",
-            (
-                f"Patch {entry.path} using {Path(source_path).name}?\n\n"
-                f"{warning_text}"
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
+            notes.extend(replacement.notes)
+            return [ArchivePatchRequest(entry=item, payload_data=data) for item, data in replacement.payloads]
 
-        mutation_service = self.shell.app_context.services.require_archive_mutations()
+        self._write_audio_loose_mod(entry, _requests)
+
+    def _start_archive_sound_bank_edit(self, entry: ArchiveEntry) -> None:
+        def _task(log: Callable[[str], None]) -> object:
+            log(f"Reading {entry.path}...")
+            return read_sound_bank_editor_model(entry)
+
+        def _handle_complete(model: object) -> None:
+            if not getattr(model, "rows", None) and not getattr(model, "objects", None):
+                notes = " ".join(getattr(model, "notes", ())) or "This bank stores nothing the editor can change."
+                QMessageBox.information(self, "Edit Sound Bank", notes)
+                return
+            dialog = SoundBankEditorDialog(self, entry.basename, model)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            plan = dialog.plan()
+            archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+            def _requests(log, stop_event, notes):
+                data, changes = apply_sound_bank_edits(entry, plan, archive_entries, stop_event=stop_event, on_log=log)
+                for change in changes:
+                    log(change)
+                notes.append(f"{len(changes):,} change(s) written to {entry.basename}.")
+                return [ArchivePatchRequest(entry=entry, payload_data=data)]
+
+            self._write_audio_loose_mod(entry, _requests)
+
+        self.shell._run_utility_task(
+            status_message=f"Reading {entry.basename}...",
+            task=_task,
+            on_complete=_handle_complete,
+            show_archive_progress=True,
+        )
+
+    def _write_audio_loose_mod(
+        self,
+        entry: ArchiveEntry,
+        build_requests: Callable[[Callable[[str], None], threading.Event, list[str]], list[ArchivePatchRequest]],
+    ) -> None:
+        loose_export_settings = self._collect_archive_mod_ready_export_target(
+            browse_title="Select Audio Mod-Ready Export Parent Root",
+            prompt_for_metadata=True,
+            initial_include_related_files=False,
+            show_include_related_files_option=False,
+            dialog_title="Audio Loose Mod Metadata",
+            allow_dmm_texture_structure=False,
+        )
+        if loose_export_settings is None:
+            return
+        parent_root, package_info, create_no_encrypt_file, _include_related_files, export_options = loose_export_settings
+        notes: list[str] = []
 
         def _task(
             log: Callable[[str], None],
             stop_event: threading.Event,
-        ) -> ArchivePatchResult:
-            log(f"Preparing replacement audio for {entry.path}...")
-            replacement_payload = build_archive_audio_patch_payload(entry, Path(source_path))
-            plan = mutation_service.prepare_patch(
-                ArchivePatchRequest(entry=entry, payload_data=replacement_payload),
-                confirmed=True,
-                description=f"Patch audio entry {entry.path}",
+        ) -> ArchiveLooseExportResult:
+            requests = build_requests(log, stop_event, notes)
+            raise_if_cancelled(stop_event, "Audio loose mod export cancelled.")
+            return export_archive_payloads_to_mod_ready_loose(
+                requests,
+                parent_root=parent_root,
+                package_info=package_info,
+                export_options=export_options,
+                create_no_encrypt_file=create_no_encrypt_file,
+                on_log=log,
             )
-            return mutation_service.apply_patch(plan, on_log=log, stop_event=stop_event)
 
         def _handle_complete(result: object) -> None:
-            if not isinstance(result, ArchivePatchResult):
-                self.shell.set_status_message("Audio patch finished with an unexpected result payload.", error=True)
+            if not isinstance(result, ArchiveLooseExportResult):
+                self.shell.set_status_message("Audio loose mod export finished with an unexpected result payload.", error=True)
                 return
-            self._apply_archive_patch_result(result)
-            current_entry = self._current_archive_entry()
-            if current_entry is not None and current_entry.path == entry.path:
-                self._render_archive_preview(current_entry)
+            note_text = ("\n\n" + "\n\n".join(notes)) if notes else ""
             QMessageBox.information(
                 self,
-                "Audio Patch Complete",
-                f"Patched {entry.path}\n\nBackup: {result.backup_dir}",
+                "Audio Loose Mod Written",
+                f"Wrote replacement audio loose mod package:\n{result.package_root}\n\n"
+                f"Target entry:\n{entry.path}\n\n"
+                f"The installed game archives were not modified. Load the package with DMM.{note_text}",
             )
-            self.shell.set_status_message(f"Patched audio entry {entry.basename}.")
+            self.shell.set_status_message(f"Wrote replacement audio for {entry.basename} as a mod-ready loose package.")
 
         self.shell._run_utility_task(
-            status_message=f"Patching audio for {entry.basename}...",
+            status_message=f"Writing replacement audio for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,

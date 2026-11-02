@@ -60,7 +60,10 @@ from cdmw.core.prefab_binary_edit import (
 )
 
 _ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_/"
-AMBIGUOUS = [0]
+# Reports where a nearer candidate ends before the change and a farther one
+# encloses it. "resolved" ones were settled by the field the walk itself read and
+# validated; "unresolved" ones the file does not settle.
+AMBIGUOUS = {"resolved": 0, "unresolved": 0}
 
 
 # --------------------------------------------------------------------------- oracle
@@ -161,6 +164,7 @@ def judge(
 
     targets = [site + 4 for site in sites]
     candidates = candidates_by_target(original, before, targets)
+    recorded_fields = dict(before.pointee_length_fields)
     result_values = u32_array(result)
     for site in sites:
         target = site + 4
@@ -186,10 +190,18 @@ def judge(
                 continue
             outside = [q for q in fields if q not in enclosing]
             kind = "ambiguous" if outside else "definite"
-            if outside:
+            recorded = recorded_fields.get(site)
+            if outside and recorded is not None:
+                if recorded in outside:
+                    # The walk read this pointee's field before the change, so the
+                    # farther candidates are coincidences.
+                    AMBIGUOUS["resolved"] += 1
+                    continue
+                kind = "definite (recorded field)"
+            elif outside:
                 # A nearer candidate ends before the change, so the genuine field is
                 # most likely that one and this is a coincidental far match.
-                AMBIGUOUS[0] += 1
+                AMBIGUOUS["unresolved"] += 1
                 continue
             problems.append(
                 f"stale length ({kind}): pointee 0x{target:x} encloses a change; "
@@ -498,7 +510,7 @@ def main() -> int:
             if number % 500 == 0:
                 rate = number / (time.time() - started)
                 print(f"{number}/{len(files)} {rate:.1f}/s {dict(totals)}", flush=True)
-    print("ambiguous stale reports (not failures):", AMBIGUOUS[0])
+    print("ambiguous stale reports (not failures):", AMBIGUOUS)
     print("done", dict(totals), f"{time.time() - started:.0f}s")
     return 0
 

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 
+from cdmw import constants
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import read_papgt_directories
@@ -25,7 +26,7 @@ from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemEr
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_package import (
-    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, digest, dlc_content, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
+    MAX_MANIFEST, MAX_TOTAL, PackageReadCache, canonical, dependency_refusal, digest, dlc_content, package_bytes, package_metadata, pinned_digests, read_package, stock_snapshot, unpack_recipe, virtual_path,
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
@@ -213,11 +214,11 @@ def _external_paths(root, state, stop_event=None):
 def _check_dependencies(package, snapshot, stop_event):
     for path, checksum in package.dependencies.items():
         raise_if_cancelled(stop_event)
-        if not snapshot.has_entry(path) or digest(snapshot.payload(path)) != checksum:
+        if not snapshot.has_entry(path) or checksum not in pinned_digests(snapshot, path):
             names = ', '.join(dlc_content(pin for pin in package.dependencies if not snapshot.has_entry(pin)))
             if names:
                 raise IndependentItemError(f'{package.title} was made on a game with DLC content this game does not have ({names}). Install that DLC to use this item.')
-            raise IndependentItemError(f'{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.')
+            raise IndependentItemError(dependency_refusal(package.title, path, snapshot))
 
 
 def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
@@ -534,6 +535,9 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         """What the DLC changes in `plan`: the same item planned on the base game alone."""
         from cdmw.services.independent_item_dlc import dlc_differences
         if not without_dlc_baseline:
+            if on_log:
+                on_log('Some packages were made before the DLC. Reading the game once without it to check '
+                       'that the DLC does not change those items…')
             without_dlc_baseline.append(stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event,
                                                        on_log=on_log, overlay_changes=decoded.values(), include_dlc=False))
         base = without_dlc_baseline[0].discovery_view()
@@ -601,6 +605,11 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             snapshot.payload(dependency.entry.path)
         prior = registry['items'].get(identity)
         previous_layer = next((layer for layer in state['layers'] if prior and layer['id'] == prior['layer']), None)
+        if target == 'virtual' and not constants.VIRTUAL_LOADING_ENABLED:
+            # Items go to DMM, not into the game folder. An overlay left from an earlier
+            # version cannot load since the DLC update and has no removal page now, so it
+            # must not block sending the item.
+            previous_layer = None
         if target == 'virtual' and previous_layer and (previous_layer['active'] or previous_layer.get('disabled')):
             raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
         _check_dependencies(package, snapshot, stop_event)

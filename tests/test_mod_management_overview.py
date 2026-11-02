@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-pytestmark = pytest.mark.usefixtures("retained_archive_overlays", "retained_mod_folder_tools")
+pytestmark = pytest.mark.usefixtures("retained_archive_overlays", "retained_mod_folder_tools", "retained_virtual_loading")
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication
 
@@ -395,28 +395,24 @@ def test_package_details_edit_the_selected_package_and_survive_navigation(tmp_pa
         assert ui.table.columnWidth(1) == 420
         _send(bridge, ui.details_toggle, 'activate')
         manager = ui.detail_fields[5]
-        _send(bridge, manager, 'choose', manager.findData('field_json'))
-        assert not ui.detail_fields[6].isEnabled()
-        _send(bridge, manager, 'choose', manager.findData('cdumm'))
+        # Only the profiles CDMW exports are offered; CDUMM and Field-JSON are not shown.
+        assert [manager.itemData(i) for i in range(manager.count())] == ['dmm']
         structure = ui.detail_fields[6]
         _send(bridge, structure, 'choose', structure.findData('files_wrapper'))
-        _send(bridge, ui.detail_fields[7], 'choose', 1)
-        _send(bridge, ui.detail_fields[8], 'text', 'en')
         _send(bridge, ui.detail_fields[9], 'toggle', False)
         options = ui._export_options_for_row(0)
         assert options.structure == 'files_wrapper'
-        assert options.conflict_mode == 'override' and options.target_language == 'en'
         assert not options.create_zip
         _send(bridge, ui.table, 'select', {'path': [1], 'column': 1})
         assert ui.package_name.text() == 'Second'
-        assert ui.detail_fields[9].isChecked() and not ui.detail_fields[8].text()
+        assert ui.detail_fields[9].isChecked()
         assert ui._export_options_for_row(0) == options
         _send(bridge, ui.details_toggle, 'activate')
         tab.open_page('merge')
         tab.open_page('repackage')
         _send(bridge, ui.table, 'select', {'path': [0], 'column': 1})
         _send(bridge, ui.details_toggle, 'activate')
-        assert ui.detail_fields[8].text() == 'en' and not ui.detail_fields[9].isChecked()
+        assert not ui.detail_fields[9].isChecked()
         assert ui._export_options_for_row(0) == options
         ui.packages.clear()
         ui.summaries.clear()

@@ -465,10 +465,21 @@ class MeshEditorRustProcessMixin:
         show_editor = getattr(host, "show_editor", None)
         if callable(show_editor):
             show_editor()
+        simplified_parts, material_parts = getattr(
+            self.standalone_rust_authoring_session,
+            "material_synthesis_budget_parts",
+            (0, 0),
+        )
         if self.standalone_rust_texture_unavailable_reason:
             self._set_rust_status(
                 "Mesh Editor will use an untextured neutral surface: "
                 f"{self.standalone_rust_texture_unavailable_reason}",
+                error=True,
+            )
+        elif simplified_parts:
+            self._set_rust_status(
+                f"Mesh Editor is ready. {simplified_parts} of {material_parts} parts use simplified "
+                "materials to stay within the 768 MiB texture limit.",
                 error=True,
             )
         else:

@@ -103,8 +103,24 @@ matches them to archive entries; it does not convert OBJ models. Source scans
 and replacement source imports use the main window's background utility worker,
 with the requesting workspace/dialog retained as their result-lifetime guard.
 
-The Tools menu and archive-file context menu temporarily omit HKX actions.
-The underlying HKX editor and import/export code remain available for other workflows.
+### HKX Physics Editor
+
+**Tools > Physics / HKX > Edit HKX Physics** and the `.hkx` context menu open
+`hkx_physics_editor_dialog.py` for the selected file. The older XML-based HKX
+editor and its import/export buttons stay out of the menus.
+
+- Reading the file, building edits and writing output run in the main window's
+  utility worker (`hkx_physics_editor_actions.py`). A refused edit comes back as
+  an ordinary result, not a worker error, and the dialog ignores results once
+  it is closed.
+- The dialog only offers what `services/hkx_physics_editor_service.py` can
+  verify: joint limits and friction located by Havok constraint atom type
+  (`core/archive_hkx_joint_limits.py`), renamed `hkStringPtr` names, and a whole
+  collision file copied from another file with the same root class and patch
+  layout. Every save is parsed again and must read back; joint edits must leave
+  every byte outside their constraint records unchanged.
+- **Save as DMM Mod** uses the shared mod-ready export; **Save HKX File** writes
+  one loose file atomically. Neither writes to the game archives.
 
 ### Dialog cancellation
 
@@ -584,9 +600,9 @@ exact match under a root as an explicit path; a path to another folder stays a
 basename guess or no match. A one-byte length prefix leaking into a scanned string
 is removed only when its value equals the length a chart (`strlen + 1`) or clip
 (`strlen`) frame implies. Animation targets read charts, blend spaces and
-sequences before other containers. `.paac` previews list up to 256 framed
-resource paths (`cdmw/core/archive_action_chart.py`); extensionless strings that
-resolve to nothing are dropped rather than reported missing.
+sequences before other containers. A `.paac` chart's Asset Family lists up to 256
+framed resource paths (`cdmw/core/archive_action_chart.py`); extensionless strings
+that resolve to nothing are dropped rather than reported missing.
 
 The same module owns installed-layout companions, matched by exact path and
 labelled **Path layout** or **Line name** rather than as package guesses:
@@ -604,8 +620,60 @@ companions already reach it.
 
 WEM Details read the RIFF header without decoding (`archive_wwise_stream.py`):
 codec, channel layout, sample rate, length, `smpl` loop range and `cue`/`labl`
-markers. Compressed streams report no bit depth. Patch Audio To Game still writes
-uncompressed PCM; Details says so for non-PCM sources.
+markers. Compressed streams report no bit depth.
+
+Bank previews decode the HIRC object graph of version-150 banks
+(`cdmw/core/archive_wwise_hirc.py`, layouts after wwiser): every object type the
+game ships, with properties, randomizer ranges, playlists, children, media
+sources and effect plugin media. An object is reported as decoded only when its
+body ends exactly on its declared size; a type outside the shipped set keeps its
+framing only. Plugin parameter blocks, decision trees and curves are skipped as
+sized spans, not interpreted.
+
+Audio replacement is written as a DMM loose mod, never into the installed
+archives. **Import WAV as Loose Mod** on a `.wem` and **Replace Embedded Sound
+as Loose Mod** on a `.bnk` both go through `plan_wwise_media_replacement`
+(`cdmw/core/archive_audio.py`): the loose `<id>.wem` copies get the new bytes,
+every bank embedding the id gets DIDX and DATA rebuilt on 16-byte boundaries, and
+every Sound or music-track source that plays the id gets its new size and the
+codec the new media declares (`archive_wwise_bank_edit.py`). In-memory sources
+get the file size. Prefetched and streamed sources get a prefix of the same
+playing time, cut at the replacement's next Vorbis packet (or PCM/ADPCM block),
+and an embedded prefetch prefix is replaced by that cut; this needs the
+complete original, which is the loose `.wem`. The banks are found by scanning
+every `.bnk` in the listing in the background. A `.wem` the user made with their
+own Wwise install is used as it is (Vorbis, ADPCM or PCM); any other audio
+becomes 16-bit PCM with the original's channels, rate and speaker layout, and the
+completion message warns when PCM is four or more times the original's size. The
+whole replacement is refused when any bank plays the id through a non-codec
+plugin, an effect loads it as plugin data, an undecoded object may name it, or a
+stream prefix does not end on a packet. Named `.wem` voice lines are not
+described by any bank, so only the file is replaced.
+
+**Edit Sound Bank as Loose Mod** on a `.bnk` (`sound_bank_editor.py`, model and
+plan in `archive_wwise_bank_plan.py`) lists every value the writer can change:
+stored properties of measured types, randomizer ranges, container loop and
+transition values, playlist weights and Set-property action values. It can also
+add a property or range that some shipped object of the same type stores
+(`change_hirc_properties`, kept sorted by id, objects and HIRC resized), remove
+one so the object inherits it again, add a sound to a random/sequence container
+as a copy of a sibling playing new media embedded in this bank, and remove a
+sound that nothing else names (`archive_wwise_bank_variations.py`). New object
+and media ids are Wwise ShortIDs checked against every bank and loose media id in
+the listing. The plan is applied in a fixed order (values, properties, removed
+then added sounds) in the background, and the bank is written as a loose mod.
+Owned fixtures, headless dialog and action tests, and read-only round trips over
+the shipped banks cover this. In game (2026-11-02, through DMM) added bus and
+Sound properties, an in-place value edit, embedded and loose media swaps (held in
+memory or streamed, with recomputed prefixes), PCM and added container sounds
+were heard working. On a bus, `Volume` affects only sounds routed straight to it;
+`BusVolume` is the bus's own gain. The banks and loose copies a replacement
+touches are the active entry per path, as the game loads them. Removing a sound
+keeps its embedded media, which another bank may play. A named voice line takes
+only a `.wem` in its original codec, because the game names its codec. Music
+tracks keep their clip timing, and the completion message says when a
+replacement is longer or shorter. DMM serves files in language folders only for
+the language selected in DMM.
 
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
@@ -639,6 +707,32 @@ inspectors before the readable-strings fallback:
 - `.imp` tree impostors: `archive_impostor_preview.py` labels the 72-byte record,
   and the builder shows the `_impostor_color.dds` atlas the worker supplies as a
   preview companion (`ArchiveLookupService.AddPreviewCompanionPaths`).
+- `.paac` action charts and the `.paacdesc` package description:
+  `archive_action_chart_preview.py` decodes them with `action_chart_binary.py`
+  (the game loader's member order) and lists animations with time ranges, nodes,
+  each animation's frame events with the names they reference, string tables, byte
+  totals per section and the edit scope. The two `commonactioninfo` files show their sections; the serialized
+  one marks its undecoded reflection tail.
+- Action charts (`action_chart_actions.py`, `action_chart_editor_dialog.py`,
+  `action_chart_finder_dialog.py`, `action_chart_export_dialog.py`): **Edit Action
+  Chart...** on a standard `.paac`, **Find Action Chart by Character...** on any
+  `.paac`/`.paacdesc`, and the **Action Charts** button (finder and **Open Action Chart
+  Mod...**), which works with nothing selected. The live browser keeps no in-process
+  extension index, so the worker builds one with `chart_archive_index` from
+  `scan_archive_entries` (charts, the descriptor, clips, blend spaces, sequencers,
+  prefabs), cached per game folder until a `.pamt` changes. The editor is not modal, so
+  **Show in Archive Browser** can search for a clip while it stays open; **Use Clip
+  Length** reads the clip on the dialog's worker. The worker also builds
+  `chart_scan` (every standard chart's clip table and included charts, about 4 s,
+  cached with the index); the finder lists each slot chart's includes recursively and
+  "used by" names slots that reach a chart through them, so the editor names the other charts that play a clip; **Other Charts Playing
+  This Clip...** queues `LinkedClipChange`s that export applies to those charts in the
+  same mod. Edits apply on that worker through
+  `cdmw/services/action_chart_edit_service.py` and every table is rebuilt from the
+  edited bytes. Export writes a DMM archive-group mod (`0036/0.pamt` + `0.paz`,
+  manifest.json, modinfo.json) into DMM's mods folder or a chosen folder, keeps the
+  other charts of a mod with the same name, and never replaces a folder CDMW did not
+  write; `read_chart_mod` reopens one.
 - `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
   reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
   pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).
@@ -646,6 +740,29 @@ inspectors before the readable-strings fallback:
 A container these readers refuse falls back to readable strings, with the reason
 in Details. A failed font or cursor render keeps the text description. Strings in
 these previews are diagnostic text and are not translated.
+
+### Static data tables
+
+`archive_data_table_preview.py` lists a `.staticinfoheader`/`.staticinfobody` pair's
+rows once both halves come from the same archive index. For the 140 tables in the
+closed compact schema (`cdmw/core/_compact_static_schema.py`, listed by
+`static_table_records.DECODED_TABLES`), it also decodes the first five listed rows
+through `static_table_records.decode_record` and prints their top-level fields: integers by
+storage width, a member the game reads in parts as each part (`u32+u32`), text, and nested
+lists or structures as byte counts. Larger rows are never decoded just for the preview.
+A row the schema refuses keeps its listing line and is counted in Details; nothing is
+guessed; on the installed game that is 13 rows whose readers sit in virtualized game code.
+Tables named `skillinfo` or `reserveslotinfo` in older archives use the `skill` and
+`reserveslot` readers. StringInfo keeps its own reader; BitmapPosition lists rows only.
+
+Edits do not start here. `structured_sidecar_edit_service.write_static_table_edits`
+rewrites only the fixed-width fields in `static_table_records.EDITABLE_FIELDS`
+(inventory slot counts, skill max level, cooldown and low-resource flag, bounty increase,
+mercenary hire and summon limits, character scale and companion call cooldown, and
+gameplay variable defaults), keeps every row length and the row directory unchanged,
+decodes each edited row again, and writes the pair as loose files for a mod manager.
+It never touches PAMT/PAZ. No window calls it yet, and the units and in-game effect of
+those fields are unverified.
 
 ## Read-only boundary and exports
 

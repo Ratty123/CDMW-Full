@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.workers.model_library_rows import ModelLibraryDeleteTarget
+from cdmw.workers.model_library_rows import (
+    ModelLibraryDeleteTarget,
+    is_owned_download_dir,
+    model_library_delete_identity,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +61,7 @@ def _validated_delete_plan(
     root = Path(os.path.abspath(target.allowed_root))
     if path == root or root not in path.parents:
         raise ValueError("target is outside its approved local root")
-    if _path_identity(path) != target.identity:
+    if model_library_delete_identity(path) != target.identity:
         raise ValueError("target identity changed after confirmation")
     if target.target_kind == "local_file":
         if not os.path.lexists(path):
@@ -75,7 +79,7 @@ def _validated_delete_plan(
     resolved_root = root.resolve(strict=True)
     if resolved_root not in resolved_path.parents:
         raise ValueError("download folder resolves outside its approved root")
-    if not path.is_dir() or not (path / "model_metadata.json").is_file():
+    if not path.is_dir() or not is_owned_download_dir(path, stop_event=stop_event):
         raise ValueError("download folder ownership marker is missing")
     files: list[Path] = []
     directories: list[Path] = []
@@ -95,7 +99,10 @@ def _plan_directory(
         for entry in entries:
             raise_if_cancelled(stop_event, "Model Library deletion cancelled.")
             path = Path(entry.path)
-            if entry.is_dir(follow_symlinks=False):
+            if entry.is_symlink() or entry.is_junction():
+                # Remove the link itself; never walk into its target.
+                (directories if os.path.isdir(path) else files).append(path)
+            elif entry.is_dir(follow_symlinks=False):
                 _plan_directory(path, files, directories, stop_event=stop_event)
             else:
                 files.append(path)
@@ -115,10 +122,6 @@ def _commit_delete(
         path.unlink(missing_ok=True)
     for directory in directories:
         directory.rmdir()
-
-
-def _path_identity(path: Path) -> str:
-    return os.path.normcase(os.path.abspath(str(path))).casefold()
 
 
 __all__ = [

@@ -198,3 +198,144 @@ def test_pamlod_placeholder_does_not_match_texture_filename_suffix():
     data[texture:texture + 15] = b"cd_rope_05.dds\0\0"
     entries = _read_pamlod_entries(data, len(data))
     assert len(entries) == 1 and entries[0].texture_name == "cd_rope_05.dds"
+
+
+# Each level lists its parts as (texture, material, vertex count); a part's triangles fan from its
+# first vertex. Level 0's second part keeps a stale descriptor and ".dds" name after its material's
+# terminator, as shipped name fields do (see the notes beside mesh_parser's PAMLOD_* constants).
+SHIPPED_LEVELS = (
+    (("crate.dds", "crate", 4), ("dds", "rope", 5)),
+    (("crate.dds", "crate", 3), ("dds", "rope", 4)),
+    (("crate.dds", "crate", 3),),
+)
+
+
+def _shipped_uv(index: int) -> bytes:
+    return struct.pack("<ee", index / 8, 0.25)
+
+
+def shipped_pamlod(levels=SHIPPED_LEVELS, *, version=4, table_padding=4, geometry_offset=None, uv=_shipped_uv) -> bytes:
+    """Owned bytes in the shipped PAMLOD layout: level descriptors, a block table, level blocks."""
+    count = len(levels)
+    data = bytearray(0x54)
+    struct.pack_into("<I", data, 0x50, count)
+    blocks = []
+    for ordinal, parts in enumerate(levels, 1):
+        data += struct.pack("<II", ordinal, len(parts))
+        vertices, indices = bytearray(), bytearray()
+        for index, (texture, material, vertex_count) in enumerate(parts):
+            record = bytearray(0x218)
+            struct.pack_into("<IIII", record, 0, vertex_count, (vertex_count - 2) * 3,
+                             len(vertices) // 20, len(indices) // 2)
+            record[0x10:0x11 + len(texture)] = texture.encode() + b"\0"
+            record[0x110:0x111 + len(material)] = material.encode() + b"\0"
+            if (ordinal, index) == (1, 1):
+                struct.pack_into("<IIII", record, 0x150, 4, 6, 999, 999)
+                record[0x160:0x16E] = b"fabric_09.dds\0"
+            struct.pack_into("<ff", record, 0x210, 1.5, 2.5)
+            data += record
+            for vertex in range(vertex_count):
+                vertices += struct.pack("<HHHH", vertex * 2000, 60000 - vertex * 2000, 32768, 0)
+                vertices += uv(vertex) + b"\x11" * 8
+            for vertex in range(1, vertex_count - 1):
+                indices += struct.pack("<HHH", 0, vertex, vertex + 1)
+        blocks.append(bytes(vertices + indices))
+        # The cluster trailer varies in length; the first one opens with the next level's ordinal.
+        data += struct.pack("<II", 2, 1) + bytes(85) if ordinal == 1 else bytes(8)
+    entry = 4 if version == 3 else 12
+    geometry = geometry_offset or (len(data) + count * entry + table_padding + 15) & ~15
+    table = geometry - count * entry - table_padding
+    assert table >= len(data)
+    data += bytes(geometry - len(data))
+    struct.pack_into("<II", data, 0, count, geometry)
+    data[0x0C] = version
+    struct.pack_into("<ffffff", data, 0x10, 0, 0, 0, 1, 1, 1)
+    for level, block in enumerate(blocks):
+        if version != 3:
+            data += bytes((-len(data)) % 16)
+            struct.pack_into("<III", data, table + level * 12, len(data), len(block), 0)
+        else:
+            struct.pack_into("<I", data, table + level * 4, len(data))
+        data += block
+    return bytes(data)
+
+
+def _parts(parsed):
+    return [[(p.material, p.texture, len(p.vertices), len(p.faces)) for p in level] for level in parsed.lod_levels]
+
+
+def _shipped_block(data: bytes, level: int) -> int:
+    return struct.unpack_from("<I", data, struct.unpack_from("<I", data, 4)[0] - 40 + level * 12)[0]
+
+
+def test_shipped_pamlod_levels_decode_at_their_stated_blocks():
+    from cdmw.modding.mesh_parser import _scan_pamlod_entry_groups, parse_pamlod
+    data = shipped_pamlod()
+    geometry = struct.unpack_from("<I", data, 4)[0]
+    # The stale name is what the descriptor scan took for an extra part, splitting the levels.
+    assert [len(group) for group in _scan_pamlod_entry_groups(data, geometry, 3)] == [2, 1, 2]
+    parsed = parse_pamlod(data, "object/owned.pamlod")
+    assert _parts(parsed) == [
+        [("crate", "crate.dds", 4, 2), ("rope", "", 5, 3)],
+        [("crate", "crate.dds", 3, 1), ("rope", "", 4, 2)],
+        [("crate", "crate.dds", 3, 1)],
+    ]
+    for level_index, level in enumerate(parsed.lod_levels):
+        start = _shipped_block(data, level_index)
+        first = 0
+        for part in level:
+            count = len(part.vertices)
+            assert part.source_vertex_offsets == [start + (first + i) * 20 for i in range(count)]
+            assert part.uvs == [(i / 8, 0.25) for i in range(count)]
+            assert part.vertices[1] == pytest.approx((2000 / 65535, 58000 / 65535, 32768 / 65535))
+            first += count
+
+
+def test_version_3_pamlod_states_level_offsets_without_sizes():
+    from cdmw.modding.mesh_parser import parse_pamlod
+    parsed = parse_pamlod(shipped_pamlod(version=3, table_padding=0), "object/owned.pamlod")
+    assert [[part[3] for part in level] for level in _parts(parsed)] == [[2, 3], [1, 2], [1]]
+
+
+def test_one_level_block_the_size_of_the_geometry_offset_resolves_by_its_chain():
+    from cdmw.modding.mesh_parser import parse_pamlod
+    # 30 vertices and 84 indices fill 768 bytes, so the u32 four bytes past the real table also
+    # reads 0x300. Only the chain from the geometry offset to the end of the file tells them apart.
+    data = shipped_pamlod(((("crate.dds", "crate", 30),),), geometry_offset=0x300)
+    assert struct.unpack_from("<II", data, 0x2F0) == (0x300, 0x300) and len(data) == 0x600
+    assert _parts(parse_pamlod(data, "object/owned.pamlod")) == [[("crate", "crate.dds", 30, 28)]]
+
+
+@pytest.mark.parametrize("damage,message", [
+    ("foreign_index", "level 1 part 1 indexes vertex 4 of 4"),
+    ("vertex_count", "do not account for the stated level blocks"),
+    ("compressed", "still LZ4-compressed"),
+])
+def test_stated_pamlod_layout_that_does_not_add_up_is_refused(damage, message):
+    from cdmw.modding.mesh_parser import parse_pamlod
+    data = bytearray(shipped_pamlod())
+    geometry = struct.unpack_from("<I", data, 4)[0]
+    if damage == "foreign_index":
+        # Level 1 holds 7 vertices, but its second part owns only 4 of them.
+        struct.pack_into("<H", data, _shipped_block(data, 1) + 7 * 20 + 3 * 2, 4)
+    elif damage == "vertex_count":
+        level_1 = data.find(struct.pack("<II", 2, 2), 0x54)
+        struct.pack_into("<I", data, level_1 + 8, 2)
+    else:
+        for level in range(3):
+            size = struct.unpack_from("<I", data, geometry - 40 + level * 12 + 4)[0]
+            struct.pack_into("<I", data, geometry - 40 + level * 12 + 8, size)
+    with pytest.raises(ValueError, match=message):
+        parse_pamlod(bytes(data), "object/owned.pamlod")
+
+
+def test_authored_nan_uvs_survive_parse_and_a_no_op_round_trip():
+    import math
+    from cdmw.modding.mesh_parser import parse_pamlod
+    from cdmw.modding.mesh_roundtrip import roundtrip_mesh_bytes
+    # Shipped static meshes without texture coordinates store these NaN patterns as their UVs.
+    data = shipped_pamlod(uv=lambda index: b"\xff\x7f\xff\xff")
+    parsed = parse_pamlod(data, "object/owned.pamlod")
+    assert all(math.isnan(u) and math.isnan(v) for level in parsed.lod_levels for part in level for u, v in part.uvs)
+    report = roundtrip_mesh_bytes(data, "object/owned.pamlod").report
+    assert report["byte_identical"] and report["result"] == "PASS", report.get("validation")

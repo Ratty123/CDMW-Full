@@ -72,7 +72,7 @@ class ModMergeDialog(QDialog):
         form.addRow("Output folder:", output_row)
         output_layout.addLayout(form)
         self.dmm_v3 = QCheckBox(self.tr('DMM V3 field JSON (experimental)'))
-        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cditem source; DMM mounting and game behaviour remain unverified.'))
+        self.dmm_v3.setToolTip(self.tr('Export retained independent items using existing models and icons. Unsupported changes refuse. Keep the included .cdmw source; DMM mounting and game behaviour remain unverified.'))
         output_layout.addWidget(self.dmm_v3)
         results = QGroupBox('Compatibility')
         results_layout = QVBoxLayout(results)
@@ -205,7 +205,7 @@ class ModMergeDialog(QDialog):
         elif not constants.ARCHIVE_OVERLAYS_ENABLED and plan.semantic_export is None:
             self.status.setText(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."))
         else:
-            destination = 'CDMW semantic .cditem' if plan.semantic_export is not None else 'DMM'
+            destination = 'CDMW semantic .cdmw' if plan.semantic_export is not None else 'DMM'
             self.status.setText(f"Ready to combine {len(plan.folders)} mods into one {destination} package.")
         def build(stop):
             lines = []
@@ -243,7 +243,7 @@ class ModMergeDialog(QDialog):
         self._plan = None
         self.status.setText(f"Merged mod written to {result.package_root}.")
         if result.manager == 'CDMW':
-            self.review.appendPlainText("\nImport cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.")
+            self.review.appendPlainText("\nImport cdmw-semantic.cdmw through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.")
         else:
             self.review.appendPlainText("\nEnable the combined package in DMM instead of the original selected packages.")
 

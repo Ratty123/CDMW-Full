@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
 from cdmw.domain.research.contracts import (
@@ -61,7 +61,10 @@ from cdmw.ui.research.workers import ResearchRefreshWorker, UIConstraintRefreshW
 
 def refresh_research(self) -> None:
     if self.refresh_thread is not None:
+        # A label saved during a running refresh must not be lost: run once more afterwards.
+        self._research_refresh_queued = True
         return
+    self._research_refresh_queued = False
     if self._prepare_catalogue_research_refresh_if_needed("refresh"):
         return
     self._pending_refresh_catalogue_context = self._research_catalogue_context_key()
@@ -107,6 +110,7 @@ def refresh_research(self) -> None:
     self.refresh_worker = worker
     self.refresh_thread = thread
     self.pending_archive_snapshot_cache_key = archive_snapshot_cache_key
+    self._pending_refresh_cache_generation = getattr(self.archive_snapshot_cache, "generation", 0)
     self._pending_refresh_full_archive_key = full_archive_key
     self._pending_research_view_entry_count = len(working_entries)
     self._pending_research_full_archive_entry_count = len(archive_entries)
@@ -205,7 +209,10 @@ def _handle_refresh_complete(self, payload: object) -> None:
             self._ui_constraint_scan_archive_key = ""
         self.ui_constraint_status_label.setText(ui_constraint_refresh_stale_status_text())
         set_progress_idle(self.ui_constraint_progress)
-    if self.pending_archive_snapshot_cache_key and self.research_payload:
+    # A label saved while this refresh ran cleared the cache; this snapshot predates it.
+    cache_still_current = (getattr(self.archive_snapshot_cache, "generation", 0)
+                           == getattr(self, "_pending_refresh_cache_generation", 0))
+    if self.pending_archive_snapshot_cache_key and self.research_payload and cache_still_current:
         self.archive_snapshot_cache[self.pending_archive_snapshot_cache_key] = {
             "classification_rows": self.research_payload.get("classification_rows", []),
             "texture_groups": self.research_payload.get("texture_groups", []),
@@ -229,6 +236,13 @@ def _cleanup_refresh_refs(self) -> None:
     self.pending_archive_snapshot_cache_key = ""
     self._pending_refresh_full_archive_key = ""
     self.refresh_button.setEnabled(True)
+    if getattr(self, "_research_refresh_queued", False):
+        self._research_refresh_queued = False
+        QTimer.singleShot(0, self.refresh_research)
+
+def refresh_research_from_button(self) -> None:
+    self._clear_pending_classification_review_focus()
+    self.refresh_research()
 
 def _handle_ui_constraint_progress(self, current: int, total: int, detail: str) -> None:
     if self._pending_ui_constraint_catalogue_context != self._research_catalogue_context_key():
@@ -478,7 +492,11 @@ def _finalize_budget_population(self) -> None:
     if self.budget_file_tree.topLevelItemCount() > 0:
         first = self.budget_file_tree.topLevelItem(0)
         if first is not None:
-            self.budget_file_tree.setCurrentItem(first)
+            # A Mip or Normal row selected earlier already owns the detail panel. Leave the
+            # budget list without a current row then, so clicking its first row shows its details.
+            detail_owned = self.mip_tree.topLevelItemCount() > 0 or self.normal_tree.topLevelItemCount() > 0
+            if not detail_owned:
+                self.budget_file_tree.setCurrentItem(first)
 
 def _finish_refresh_population(self) -> None:
     self._stop_refresh_population()

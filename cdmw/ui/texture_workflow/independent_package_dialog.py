@@ -1,4 +1,4 @@
-"""Single-texture .cditem review on the existing shared, queued worker lane."""
+"""Single-texture .cdmw review on the existing shared, queued worker lane."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,7 +25,7 @@ class IndependentTexturePackageDialog(QDialog):
         self._generation = 0
         self._working = self._publishing = self._closed = False
         self.setObjectName('independentTexturePackage')
-        self.setWindowTitle('Texture .cditem package')
+        self.setWindowTitle('Texture .cdmw package')
         self.resize(790, 690)
         layout = QVBoxLayout(self)
         help_text = QLabel(
@@ -71,7 +71,7 @@ class IndependentTexturePackageDialog(QDialog):
         form.addRow('Package title:', self.title)
         form.addRow('Release:', self.release)
         self.destination = QLineEdit()
-        self.destination.setPlaceholderText('Choose a .cditem file outside the game archive folder')
+        self.destination.setPlaceholderText('Choose a .cdmw file outside the game archive folder')
         self.destination_browse = self._path_row(form, 'Package file:', self.destination, self._browse_destination)
         self.status = QLabel('Choose the game archive folder and find an existing texture.')
         self.status.setTextFormat(Qt.TextFormat.PlainText)
@@ -86,7 +86,7 @@ class IndependentTexturePackageDialog(QDialog):
         layout.addWidget(self.review, 1)
         buttons = QHBoxLayout()
         self.review_button = QPushButton('Review replacement')
-        self.write_button = QPushButton('Write .cditem')
+        self.write_button = QPushButton('Write .cdmw')
         self.cancel_button = QPushButton('Cancel operation')
         self.review_button.clicked.connect(self._prepare)
         self.write_button.clicked.connect(self._write)
@@ -130,7 +130,7 @@ class IndependentTexturePackageDialog(QDialog):
 
     def _browse_destination(self):
         path, _ = QFileDialog.getSaveFileName(self, 'Write a new texture package',
-                                              self.destination.text(), 'Independent packages (*.cditem)')
+                                              self.destination.text(), 'Independent packages (*.cdmw)')
         if path:
             self.destination.setText(path)
 
@@ -236,7 +236,7 @@ class IndependentTexturePackageDialog(QDialog):
 
     def _load(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Load a texture package to update',
-                                              self.destination.text(), 'Independent packages (*.cditem)')
+                                              self.destination.text(), 'Independent packages (*.cdmw *.cditem)')
         if not path:
             return
         self._plan = None
@@ -281,7 +281,7 @@ class IndependentTexturePackageDialog(QDialog):
         if self._update is None:
             self._identity = uuid4().hex
         self.status.setText(f'Texture package written to {result.path}.')
-        self.review.appendPlainText('Add this .cditem from Mods. Load the written package before making another update.')
+        self.review.appendPlainText('Add this .cdmw from Mods. Load the written package before making another update.')
 
     def _cancel(self):
         if self.controller.cancel_operation('independent_texture'):

@@ -56,7 +56,8 @@ TOOLS: Mapping[str, str] = {
     ".pab": "Browse Archives > Add Bones...",
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
-    ".wem": "Browse Archives > Import WAV + Patch to Game...",
+    ".wem": "Browse Archives > Import WAV as Loose Mod...",
+    ".bnk": "Browse Archives > Replace Embedded Sound as Loose Mod...",
     ".paseq": "Browse Archives > Edit Structured Data Safely...",
     ".paseqc": "Browse Archives > Edit Structured Data Safely...",
     ".pastage": "Browse Archives > Edit Structured Data Safely...",
@@ -71,7 +72,7 @@ TOOLS: Mapping[str, str] = {
     ".gltf": "Mesh Editor / Create New Item",
     ".obj": "Mesh Editor / Create New Item",
     ".dae": "Mesh Editor / Create New Item",
-    ".cditem": "Create New Item / Mod Management",
+    ".cdmw": "Create New Item / Mod Management",
 }
 
 #: Formats edited as plain text through any editor, once extracted.
@@ -163,9 +164,9 @@ def load_rows(manifest: Optional[Path] = None) -> Tuple[FormatRow, ...]:
         ))
     # A package is not an archive entry. None means the count does not apply;
     # zero remains the known absence of an archive extension in the inventory.
-    if not any(row.extension == ".cditem" for row in rows):
+    if not any(row.extension == ".cdmw" for row in rows):
         rows.append(FormatRow(
-            extension=".cditem", files=None, group="application_packages",
+            extension=".cdmw", files=None, group="application_packages",
             role="Independent item / mod package (Experimental)",
             decode="none", write="none", priority="none", origin="application",
             evidence=(
@@ -174,7 +175,7 @@ def load_rows(manifest: Optional[Path] = None) -> Tuple[FormatRow, ...]:
                 "Mod Management > Mods adds packages for the current loader workflow."
             ),
             remaining="Package compatibility and required capabilities are checked on admission; game and save compatibility need separate validation.",
-            tool=TOOLS[".cditem"], workflow=workflow_for(".cditem"),
+            tool=TOOLS[".cdmw"], workflow=workflow_for(".cdmw"),
         ))
     rows.sort(key=lambda row: (-(row.files or 0), row.extension))
     return tuple(rows)

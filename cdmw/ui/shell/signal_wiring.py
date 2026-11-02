@@ -119,6 +119,7 @@ class ShellSignalWiringMixin:
         self.archive.archive_hkx_import_xml_button.clicked.connect(self.archive._import_current_archive_hkx_xml)
         self.archive.archive_hkx_edit_button.clicked.connect(self.archive._edit_current_archive_hkx)
         self.archive.archive_hkx_placement_button.clicked.connect(self.archive._open_current_archive_hkx_placement)
+        self.archive.archive_hkx_physics_editor_button.clicked.connect(self.archive._open_current_hkx_physics_editor)
         self.archive.archive_hkx_corpus_button.clicked.connect(self.archive._export_hkx_converter_corpus_report)
         self.archive.archive_sidecar_export_json_button.clicked.connect(self.archive._export_current_archive_binary_sidecar_json)
         self.archive.archive_sidecar_inspect_button.clicked.connect(self.archive._inspect_current_archive_binary_sidecar)

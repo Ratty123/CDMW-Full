@@ -232,6 +232,12 @@ internal static class ArchiveDiscoveryTests
             await File.AppendAllTextAsync(generationPamt, "changed saved generation").ConfigureAwait(false);
             var changedBackup = await ArchiveFingerprint.ComputeAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
             Require(changedBackup.Value == liveFingerprint.Value, "changing a backup invalidated the live archive cache");
+            // A generation built by an older index derivation (base copies outranking a
+            // DLC's copies) must not be reused after a CDMW update on the same game files.
+            var olderDerivation = await ArchiveFingerprint.ComputeAsync(
+                fixture.Root, CancellationToken.None, null, null, true, ArchiveFingerprint.IndexDerivation - 1).ConfigureAwait(false);
+            Require(olderDerivation.Value != liveFingerprint.Value,
+                "an older index derivation shares the current archive fingerprint");
         }
         finally
         {

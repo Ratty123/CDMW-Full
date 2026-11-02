@@ -32,12 +32,16 @@ class TextureJobReviewMixin:
         if matcher is None or getattr(matcher, "_shutting_down", False):
             return
         if self.job.busy or matcher.is_busy() or (editor is not None and editor._busy()):
+            if callback:
+                matcher.status_label.setText("Wait for the current texture task to finish, then try again.")
             return
         from cdmw.services.texture_job_service import TextureJobInput, _texture_job_original
         keys = tuple(key for key, asset in self.job.assets.items()
                      if not (asset.package_target and asset.package_target.target_kind == "material_color"))
         revisions = tuple(self.job._revision(key) for key in keys)
         if revisions == getattr(self, "_replacement_review_revisions", None):
+            # Inclusion is not part of a revision; other modes may have changed it.
+            matcher._refresh_queue_tree_rows_only()
             if callback:
                 callback()
             return

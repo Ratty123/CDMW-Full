@@ -235,7 +235,7 @@ def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_
         assert dialog._plan is None and not dialog._working
         assert (destination / 'result').read_bytes() == b'owned fixture'
         if kind == 'merge' and manager == 'CDMW':
-            assert 'Import cdmw-semantic.cditem through CDMW' in dialog.review.toPlainText()
+            assert 'Import cdmw-semantic.cdmw through CDMW' in dialog.review.toPlainText()
     finally:
         release.set()
         dialog.reject()

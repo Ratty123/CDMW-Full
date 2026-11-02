@@ -3,7 +3,11 @@ namespace Cdmw.FullArchive.Tests;
 internal static class Program
 {
     public static Task<int> Main(string[] args) =>
-        args.Length >= 2 && args[0] == "--baseline-report"
+        args.Length >= 6 && args[0] == "--real-export-report"
+            ? RealArchiveExportProbe.RunAsync(args[1], args[2], args[3], args[4], args[5], noFlush: args.Contains("--no-flush"))
+            : args.Length >= 4 && args[0] == "--real-query-report"
+            ? RealArchiveQueryProbe.RunAsync(args[1], args[2], args[3], skipCold: args.Contains("--skip-cold"))
+            : args.Length >= 2 && args[0] == "--baseline-report"
             ? SyntheticBaselineProbe.RunAsync(args[1])
             : args.Length >= 2 && args[0] == "--cache-scale-report"
                 ? SyntheticCacheScaleProbe.RunAsync(args[1])

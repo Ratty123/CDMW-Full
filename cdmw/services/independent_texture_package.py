@@ -137,22 +137,40 @@ def _registry_witness(snapshot, stop_event):
     return root, digest(encode_pathc(snapshot.pathc))
 
 
+def shipped_texture_registry(snapshot, entry, root):
+    """The registry that registers a shipped texture, or None for any other archive.
+
+    Base textures live in groups 0000-0035 and `meta/0.pathc`. A DLC ships its own
+    copies of those groups plus its own (`dlc/dlc_01/0000`-`0040`) and registers
+    their textures only in `dlc/dlc_01/meta/0.pathc`.
+    """
+    archive = Path(entry.pamt_path).resolve()
+    group = archive.parent.name
+    if len(group) != 4 or not group.isascii() or not group.isdigit():
+        return None
+    layer = archive.parent.parent
+    if layer == root:
+        return snapshot.pathc if int(group) < 36 else None
+    names = tuple(getattr(snapshot, 'dlc_pathc_names', ()) or ())
+    if layer.parent != root / 'dlc' or layer.name.casefold() not in names:
+        return None
+    return snapshot.dlc_pathcs[names.index(layer.name.casefold())]
+
+
 def _source_texture(snapshot, path, root, stop_event):
     from cdmw.services.independent_item_package import digest
     if not snapshot.has_entry(path):
         raise IndependentItemError(f'The texture target is not an existing shipped resource: {path}.')
     entry = snapshot.entry(path)
-    archive = Path(entry.pamt_path).resolve()
-    group = archive.parent.name
-    if (archive.parent.parent != root or len(group) != 4 or not group.isascii()
-            or not group.isdigit() or int(group) >= 36):
+    registry = shipped_texture_registry(snapshot, entry, root)
+    if registry is None:
         raise IndependentItemError(f'Texture replacement requires a witnessed shipped target: {path}.')
     original = snapshot.payload(path)
     descriptor = validated_texture(original, stop_event=stop_event)
-    registered = snapshot.pathc.find(path)
+    registered = registry.find(path)
     if registered is None or not registered.is_direct:
         raise IndependentItemError(f'The texture target has no supported direct registry entry: {path}.')
-    if dds_shape(snapshot.pathc.dds_header_for(registered)) != dds_shape(descriptor.header):
+    if dds_shape(registry.dds_header_for(registered)) != dds_shape(descriptor.header):
         raise IndependentItemError(f'The source texture descriptor disagrees with its registry: {path}.')
     if registered.block_infos != descriptor.block_infos:
         raise IndependentItemError(f'The texture registry uses an unsupported mip storage layout: {path}.')

@@ -29,6 +29,7 @@ from cdmw.core.archive_patching import (
     _safe_log,
 )
 from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 if TYPE_CHECKING:
     from cdmw.core.mod_package import MeshLooseModFile, ModPackageExportOptions
@@ -408,7 +409,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         file_rows.append(
             MeshLooseModFile(
                 path=output_request_path,
-                package_group=request.entry.pamt_path.parent.name,
+                package_group=archive_entry_package_group(request.entry),
                 format=request.entry.extension.lstrip(".").lower(),
                 is_new=False,
                 generated_from=source_obj_display,
@@ -479,7 +480,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         package_group = ""
         is_new_file = not isinstance(spec.target_entry, ArchiveEntry)
         if isinstance(spec.target_entry, ArchiveEntry):
-            package_group = spec.target_entry.pamt_path.parent.name
+            package_group = archive_entry_package_group(spec.target_entry)
         file_rows.append(
             MeshLooseModFile(
                 path=output_target_path,
@@ -549,7 +550,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
                 file_rows.append(
                     MeshLooseModFile(
                         path=output_related_path,
-                        package_group=related_entry.pamt_path.parent.name,
+                        package_group=archive_entry_package_group(related_entry),
                         format=related_entry.extension.lstrip(".").lower(),
                         is_new=False,
                         generated_from=source_obj_display,
@@ -565,7 +566,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     asset_rows = [
         MeshLooseModAsset(
             entry_path=primary_manifest_path,
-            package_group=primary_entry.pamt_path.parent.name,
+            package_group=archive_entry_package_group(primary_entry),
             format=primary_entry.extension.lstrip(".").lower(),
             obj_path=source_obj_display,
             vertices=int(preview_result.parsed_mesh.total_vertices or 0),
@@ -730,6 +731,9 @@ def _loose_authority_virtual_path(package_root: Path, local_path: Path) -> str:
     return PurePosixPath(*parts).as_posix()
 
 
+_AUTHORITY_AUDIT_MOUNTED_MANAGER_FOLDERS = frozenset({"dmmsa", "dmmgen"})
+
+
 def _is_active_file_authority_audit_path(path: Path) -> bool:
     name = path.name.casefold()
     return name == "cdmw_active_file_authority_audit.json" or name.endswith(
@@ -759,7 +763,14 @@ def audit_loose_package_active_file_authority(
     )
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.core.archive_scan_cache import discover_pamt_files
+    from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS
 
+    # Browsing hides mod-manager mounts, but a stale install there is exactly what this
+    # audit has to find; backups and caches stay skipped.
+    audit_ignored_folders = tuple(
+        name for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS
+        if name.casefold() not in _AUTHORITY_AUDIT_MOUNTED_MANAGER_FOLDERS
+    )
     root = Path(package_root).expanduser().resolve()
     resolved_game_root = Path(game_root).expanduser().resolve()
     result = ActiveFileAuthorityAuditResult(package_root=root, game_root=resolved_game_root)
@@ -803,7 +814,7 @@ def audit_loose_package_active_file_authority(
         if not expects_files_wrapper and relative_parts_for_layout and relative_parts_for_layout[0].casefold() == "files":
             result_warning = (
                 "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. "
-                "Pick the CDUMM/files-wrapper profile if the manager expects files/."
+                "DMM reads payloads from the game-relative folders, not from files/."
             )
             if result_warning not in result.warnings:
                 result.warnings.append(result_warning)
@@ -824,7 +835,9 @@ def audit_loose_package_active_file_authority(
     if not resolved_game_root.is_dir():
         result.warnings.append(f"Active file authority audit skipped; game root not found: {resolved_game_root}")
     else:
-        for pamt_path in discover_pamt_files(resolved_game_root):
+        for pamt_path in discover_pamt_files(
+            resolved_game_root, ignored_folders=audit_ignored_folders, use_default_ignored_folders=False,
+        ):
             try:
                 entries = parse_archive_pamt(pamt_path)
             except Exception as exc:

@@ -39,6 +39,7 @@ from cdmw.services.new_item_planning import (
     NewItemPlanError,
     build_plan,
     model_files_from_import,
+    needs_own_parts,
     planned_icon_string,
 )
 from cdmw.services.new_item_snapshot import NewItemSnapshot, build_context, build_snapshot
@@ -227,7 +228,7 @@ class NewItemService:
             used = set(snapshot.rows) | {int(value) for value in reserved_keys}
             item_key = allocate_item_key(used, preferred=spec.item_key)
             stem = spec.stem
-            if spec.needs_new_stem and stem is None:
+            if (spec.needs_new_stem or needs_own_parts(spec, snapshot)) and stem is None:
                 family = snapshot.family(spec.template_key)
                 taken = set(snapshot.pappt.index()) | set(snapshot.stringinfo_texts.values()) | set(snapshot.model_stems)
                 taken |= {str(value) for value in reserved_stems if value}
@@ -529,6 +530,16 @@ class NewItemService:
         source_root = Path(existing_root) if existing_root is not None else root
         group = _existing_archive_group(source_root)
         carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
+        targets = None
+        if str(manager or "").upper() == "DMM" and game_root is not None:
+            # DMM replaces whole shop and group rows from a mod's table copy, which
+            # drops what the DLC adds there, and ignores a DLC table copy entirely, so
+            # those additions go to DMM as operations instead of tables.
+            from cdmw.services.dmm_dlc_tables import plan_for_dmm
+            from cdmw.services.independent_item_package import stock_snapshot
+            snapshot = stock_snapshot(game_root, stop_event=stop_event)
+            read_game = lambda path: snapshot.payload(path) if snapshot.has_entry(path) else None  # noqa: E731
+            carried_plan, targets = plan_for_dmm(carried_plan, read_game)
         from cdmw.core.mod_compatibility import capture_patch_compatibility
         compatibility = plan.export_compatibility or capture_patch_compatibility(carried_plan.patches, carried_plan.additions,
             game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in carried_plan.meta_files),
@@ -546,6 +557,12 @@ class NewItemService:
             compatibility=compatibility,
             stop_event=stop_event,
         )
+        if targets is not None:
+            # Adding to an existing mod keeps the earlier items' operations in its folder.
+            from cdmw.services.dmm_dlc_tables import plan_item_keys
+            from cdmw.services.dmm_send import write_operations
+            write_operations(root, str(getattr(info, "title", "") or plan.spec.internal_name), targets,
+                             owned_items=plan_item_keys(plan.manifest))
         if group and group != written.group:
             # Older exports used the next free game slot. Their contents have
             # been carried into the standalone group; retire only the copied
@@ -558,6 +575,11 @@ class NewItemService:
                 old_file.unlink(missing_ok=True)
             if not any(old_file.parent.iterdir()):
                 old_file.parent.rmdir()
+            # The record above was filed for staging that still held the copied group;
+            # file it again for the bytes that are published.
+            from cdmw.core.mod_compatibility import write_compatibility
+
+            write_compatibility(root, compatibility, stop_event=stop_event)
         return NewItemExportResult(
             package_root=root,
             manager=str(manager or "").upper() or "custom",
@@ -690,7 +712,9 @@ def _publish_package_atomically(
         raise_if_cancelled(stop_event, "New item export cancelled.")
         result = writer(staging)
         raise_if_cancelled(stop_event, "New item export cancelled.")
-        if result.manager.upper() == "DMM":
+        # Every mod a manager reads leaves CDMW's authoring records in local history;
+        # only CDMW's own semantic packages, imported back through CDMW, keep them.
+        if result.manager.upper() != "CDMW":
             from cdmw.core.mod_export_history import retain_dmm_history
 
             removed = retain_dmm_history(staging, stop_event=stop_event)
@@ -789,11 +813,11 @@ def _carry_forward_archive_group(
 def _package_root_of(plan: NewItemPlan) -> Path:
     """The install this plan was built against: the folder that holds `meta/0.papgt`."""
 
-    for request in plan.patches:
-        pamt_path = Path(request.entry.pamt_path)
-        return pamt_path.parent.parent
-    for addition in plan.additions:
-        return Path(addition.pamt_path).parent.parent
+    for pamt_path in [Path(request.entry.pamt_path) for request in plan.patches] + [
+            Path(addition.pamt_path) for addition in plan.additions]:
+        root = pamt_path.parent.parent
+        # A DLC's table layers sit in `dlc/dlc_01/<group>`; the install is two levels up.
+        return root.parent.parent if root.parent.name.casefold() == "dlc" else root
     raise NewItemInstallRefused("The plan names no archive to install into.")
 
 

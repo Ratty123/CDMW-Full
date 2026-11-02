@@ -9,6 +9,8 @@ import struct
 from pathlib import Path
 from typing import Mapping, Sequence
 
+import numpy as np
+
 from cdmw.core.atomic_file import atomic_write_bytes
 
 from .mesh_exporter import write_roundtrip_manifest
@@ -486,23 +488,62 @@ def _float_accessor(
     include_min_max: bool = False,
 ) -> int:
     component_count = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}[type_name]
-    if any(len(row) != component_count or any(not math.isfinite(float(v)) for v in row) for row in rows):
-        raise ValueError(f"GLB {type_name} contains incomplete or non-finite values.")
-    raw = b"".join(struct.pack("<" + ("f" * component_count), *tuple(row)[:component_count]) for row in rows)
+    values = _numeric_rows(rows, component_count, "fiub")
+    if values is not None:
+        values = values.astype(np.float64, copy=False)
+    with np.errstate(over="ignore"):  # An overflowing row falls back below.
+        packed = values.astype("<f4") if values is not None and np.isfinite(values).all() else None
+    if packed is None or not np.isfinite(packed).all():
+        # The per-row path keeps its own errors for incomplete, non-finite or
+        # float32-overflowing rows.
+        if any(len(row) != component_count or any(not math.isfinite(float(v)) for v in row) for row in rows):
+            raise ValueError(f"GLB {type_name} contains incomplete or non-finite values.")
+        raw = b"".join(struct.pack("<" + ("f" * component_count), *tuple(row)[:component_count]) for row in rows)
+    else:
+        # The same IEEE float32 rounding struct.pack("<f") applies, row-major.
+        raw = packed.tobytes()
     view = _append_buffer_view(buffer, buffer_views, raw, target)
     accessor: dict[str, object] = {"bufferView": view, "componentType": 5126, "count": len(rows), "type": type_name}
     if include_min_max and rows:
-        accessor["min"] = [min(float(row[axis]) for row in rows) for axis in range(component_count)]
-        accessor["max"] = [max(float(row[axis]) for row in rows) for axis in range(component_count)]
+        if values is not None and packed is not None:
+            accessor["min"] = [_first_extreme(values[:, axis], np.min) for axis in range(component_count)]
+            accessor["max"] = [_first_extreme(values[:, axis], np.max) for axis in range(component_count)]
+        else:
+            accessor["min"] = [min(float(row[axis]) for row in rows) for axis in range(component_count)]
+            accessor["max"] = [max(float(row[axis]) for row in rows) for axis in range(component_count)]
     accessors.append(accessor)
     return len(accessors) - 1
 
 
+def _numeric_rows(rows, width: int, kinds: str) -> np.ndarray | None:
+    """``rows`` as an (n, width) array of one of ``kinds``, or None to use the per-row path."""
+    if not len(rows):
+        return None
+    try:
+        values = np.asarray(rows)
+    except (TypeError, ValueError):
+        return None
+    if values.dtype.kind not in kinds or values.ndim != 2 or values.shape[1] != width:
+        return None
+    return values
+
+
+def _first_extreme(column: np.ndarray, reduce) -> float:
+    # Python's min()/max() keep the first of equal extremes, which decides the sign
+    # of a zero bound; numpy's reductions do not promise which one they return.
+    extreme = reduce(column)
+    return float(column[int(np.argmax(column == extreme))])
+
+
 def _integer_accessor(buffer, buffer_views, accessors, rows, type_name):
     width = 4 if type_name == "VEC4" else 1
-    if any(len(row) != width or any(int(v) != v or v < 0 or v > 65535 for v in row) for row in rows):
-        raise ValueError("GLB integer vertex attribute is invalid.")
-    raw = b"".join(struct.pack("<" + "H" * width, *row) for row in rows)
+    values = _numeric_rows(rows, width, "iu")
+    if values is not None and int(values.min()) >= 0 and int(values.max()) <= 65535:
+        raw = values.astype("<u2").tobytes()
+    else:
+        if any(len(row) != width or any(int(v) != v or v < 0 or v > 65535 for v in row) for row in rows):
+            raise ValueError("GLB integer vertex attribute is invalid.")
+        raw = b"".join(struct.pack("<" + "H" * width, *row) for row in rows)
     view = _append_buffer_view(buffer, buffer_views, raw, 34962)
     accessors.append({"bufferView": view, "componentType": 5123, "count": len(rows), "type": type_name})
     return len(accessors) - 1
@@ -514,10 +555,19 @@ def _index_accessor(
     accessors: list[dict[str, object]],
     indices: Sequence[int],
 ) -> int:
-    max_index = max(indices, default=0)
-    component_type = 5123 if max_index <= 65535 else 5125
-    pack_code = "H" if component_type == 5123 else "I"
-    raw = b"".join(struct.pack("<" + pack_code, int(index)) for index in indices)
+    values = np.asarray(indices) if len(indices) else None
+    if values is not None and values.dtype.kind in "iu" and values.ndim == 1 and int(values.min()) >= 0 \
+            and int(values.max()) <= 0xFFFFFFFF:
+        max_index = int(values.max())
+        min_index = int(values.min())
+        component_type = 5123 if max_index <= 65535 else 5125
+        raw = values.astype("<u2" if component_type == 5123 else "<u4").tobytes()
+    else:
+        max_index = max(indices, default=0)
+        min_index = min(indices) if indices else 0
+        component_type = 5123 if max_index <= 65535 else 5125
+        pack_code = "H" if component_type == 5123 else "I"
+        raw = b"".join(struct.pack("<" + pack_code, int(index)) for index in indices)
     view = _append_buffer_view(buffer, buffer_views, raw, 34963)
     accessors.append(
         {
@@ -525,7 +575,7 @@ def _index_accessor(
             "componentType": component_type,
             "count": len(indices),
             "type": "SCALAR",
-            "min": [min(indices) if indices else 0],
+            "min": [min_index],
             "max": [max_index],
         }
     )

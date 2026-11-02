@@ -22,15 +22,16 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-def test_mesh_package_choices_ignore_saved_archive_output(app, tmp_path):
+def test_mesh_package_choices_keep_the_dmm_archive_group_folder(app, tmp_path):
+    # A DMM archive group is a package folder DMM serves by path; it mounts nothing
+    # into the game, so it stays available while overlays are disabled.
     dialog = MeshModExportDialog(None, title="Mesh", description="", output_parent=str(tmp_path),
                                  output_choice="dmm_archive", manager_profile="dmm")
     try:
         assert not constants.ARCHIVE_OVERLAYS_ENABLED
         choices = [dialog.manager.itemData(i) for i in range(dialog.manager.count())]
-        assert {choice[0] for choice in choices} == {"dmm_loose"}
-        assert all(choice[1] == "loose_mod" for choice in choices)
-        assert dialog.manager.currentData()[0] == "dmm_loose"
+        assert [choice[0] for choice in choices] == ["dmm_loose", "dmm_archive"]
+        assert dialog.manager.currentData()[0] == "dmm_archive"
     finally:
         dialog.deleteLater()
 
@@ -49,8 +50,7 @@ def test_mesh_overlay_requests_stop_before_looking_up_a_game_or_worker():
     owner = SimpleNamespace()
     MeshEditorDirectOutputMixin._start_mesh_overlay_prepare_requested(owner)
     MeshEditorDirectOutputMixin._restore_last_mesh_overlay_requested(owner)
-    for kind in ("overlay_package", "overlay_prepare"):
-        assert MeshEditorDirectOutputMixin._start_mesh_direct_output_worker(owner, kind, None) is False
+    assert MeshEditorDirectOutputMixin._start_mesh_direct_output_worker(owner, "overlay_prepare", None) is False
 
 
 def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, monkeypatch):
@@ -65,7 +65,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
         assert panel.manager.isHidden()
         assert [panel.output_mode.itemText(i) for i in range(panel.output_mode.count())] == [
-            "Mod folder · DMM", "Item package · .cditem"]
+            "Mod folder · DMM", "Item package · .cdmw"]
         from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
         projected = json.dumps(NewItemPresentationBridge(panel).snapshot())
         assert "Game overlay" not in projected
@@ -93,7 +93,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         app.processEvents()
 
 
-def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path):
+def test_mod_management_offers_only_cditem_pages_by_default(app, tmp_path, retained_virtual_loading):
     assert not constants.MOD_FOLDER_TOOLS_ENABLED
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
@@ -141,7 +141,7 @@ def test_new_item_start_screen_has_no_mod_update_check(app):
         app.processEvents()
 
 
-def test_mod_management_hides_overlay_navigation_rows_and_actions(app, tmp_path):
+def test_mod_management_hides_overlay_navigation_rows_and_actions(app, tmp_path, retained_virtual_loading):
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
         tab._busy_changed(False)

@@ -8,9 +8,15 @@ from cdmw.core.pathc_format import PathcError, validate_dds_payload
 
 def private_texture_path(stem, source_path):
     """A stable item-owned destination for one exact stock texture pathname."""
+    from cdmw.core.pathc_format import _TAG_BY_SUFFIX
+
     source_path = source_path.replace("\\", "/").lower()
     name = sha256(source_path.encode("utf-8")).hexdigest()[:16]
-    return str(PurePosixPath(source_path).with_name(f"{stem}_r{name}.dds"))
+    # The game's texture registry, and DMM building it, tell a normal map or mask from a
+    # colour texture by the name's last suffix; a copy keeps its source's.
+    suffix = PurePosixPath(source_path).stem.rsplit("_", 1)[-1] if "_" in PurePosixPath(source_path).stem else ""
+    kind = f"_{suffix}" if suffix in _TAG_BY_SUFFIX else ""
+    return str(PurePosixPath(source_path).with_name(f"{stem}_r{name}{kind}.dds"))
 
 
 def check_owned_resource_budget(planner, size):

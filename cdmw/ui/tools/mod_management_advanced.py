@@ -31,7 +31,12 @@ class ModManagementPages(QTabWidget):
         else:
             self.task.setParent(self)
             self.task.hide()
-        self.addTab(independent, 'Item identities')
+        # Item identities belong to CDMW's own loading; Send to DMM keeps them by itself.
+        if constants.VIRTUAL_LOADING_ENABLED:
+            self.addTab(independent, 'Item identities')
+        else:
+            independent.setParent(self)
+            independent.hide()
         if constants.ARCHIVE_OVERLAYS_ENABLED:
             self.addTab(independent.shared_page, 'Shared files')
         else:

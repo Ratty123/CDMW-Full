@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from uuid import uuid4
 
 import pytest
@@ -343,4 +343,6 @@ def test_archive_export_contract_carries_worker_owned_layout_and_collision_optio
         "include_package_root": True,
         "replace_destination": True,
         "extensions": [".dds", "material"],
+        "flush_to_disk": True,
     }
+    assert to_wire(replace(request, flush_to_disk=False))["flush_to_disk"] is False

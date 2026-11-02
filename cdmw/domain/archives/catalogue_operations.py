@@ -424,6 +424,9 @@ class ArchiveExportRequest:
     include_package_root: bool = False
     replace_destination: bool = False
     extensions: tuple[str, ...] = ()
+    # False skips the per-file flush to disk: faster, but a power loss or system
+    # crash just after the export can leave files empty or incomplete.
+    flush_to_disk: bool = True
 
 
 @dataclass(frozen=True, slots=True)

@@ -15,80 +15,47 @@ Two conventions worth keeping in mind when editing here:
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QDialog,
-    QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
-    QFrame,
-    QGridLayout,
-    QHBoxLayout,
-    QVBoxLayout,
-    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
-    QRadioButton,
-    QWidget,
 )
 
+from .clip_names import socket_label
 from .editing import NUDGE_STEPS, EditError
 from .glossary import AIM_LABEL, tip
 from .report_style import inspector_html
 from .new_socket import NewSocketDialog, keyboard_hint
 from .skeleton import world_to_bone
 from .model import Vec3
-from .session import PlacementSession
 
-# Other mod managers are not updated for the October 2026 DLC, so packages are written for DMM only.
-PACKAGE_MANAGERS = ("DMM",)
+
+#: Kept for callers that import it from here; Save as mod's owner is `save_mod.MOD_MANAGERS`.
+from .save_mod import MOD_MANAGERS as PACKAGE_MANAGERS  # noqa: E402,F401
 
 
 class EditPanelMixin:
     """The edit controls and the actions they drive. Mixed into `PlacementStudioWindow`."""
 
-    def _build_edit_panel(self) -> QWidget:
+    def _build_edit_controls(self) -> None:
+        """Create the editing controls. The Position and Advanced tabs lay them out.
+
+        These used to sit in a three-row strip under the viewport, every one of them disabled
+        until a socket had been found in a tree of bone names. They are grouped by task now,
+        and the window selects the item's own attach point for them (`_auto_select_attach_point`).
+        """
+
         from .window import fit_popup  # local: `window` imports this module
 
-        panel = QFrame()
-        panel.setFrameShape(QFrame.StyledPanel)
-        # Clusters on two rows, not one nine-column grid. A grid ties every row to the same
-        # column widths, so `Undo my changes to this point` in column 4 made column 4 that wide
-        # on every row — which is why `Step:` sat a hand's width from the nudge buttons above
-        # it and the bar spent most of itself on gaps. Each group is its own box now, so a wide
-        # button widens only its own group.
-        rows = QVBoxLayout(panel)
-        rows.setContentsMargins(8, 5, 8, 5)
-        rows.setSpacing(4)
-        # Three rows, measured rather than assumed. The controls need about 3,050px between
-        # them; two rows means 1,525 each and the bar clipped at any ordinary window width. The
-        # rows are grouped by the question each answers: *what am I editing and how far does a
-        # step go*, *move it*, *act on it*.
-        top, middle, bottom = QHBoxLayout(), QHBoxLayout(), QHBoxLayout()
-        for line in (top, middle, bottom):
-            line.setSpacing(6)
-        rows.addLayout(top)
-        rows.addLayout(middle)
-        rows.addLayout(bottom)
-
-        def group(*widgets):
-            """One cluster of controls, spaced tightly and separated from its neighbours."""
-
-            box = QHBoxLayout()
-            box.setSpacing(4)
-            for widget in widgets:
-                box.addWidget(widget)
-            return box
-
-        # Short labels, with the explanation on each row's own tooltip. The long form did not
-        # fit the dropdown and Qt elided it down the middle, so "New attach point (click the
-        # body)" read as "New attach poi...lick the body)".
+        # The drag modes. The two that create or re-route are offered on the Advanced tab;
+        # the combo is the one record of which mode is live.
         self._mode_box = QComboBox()
         for label, value, hint in (
             ("Look around", "off", "Drag to orbit. Nothing is edited in this mode."),
@@ -104,18 +71,12 @@ class EditPanelMixin:
             self._mode_box.setItemData(
                 self._mode_box.count() - 1, hint, Qt.ToolTipRole
             )
-        self._mode_box.setToolTip(
-            "What a click and drag in the viewport does.\n\n"
-            "Move / Rotate / Tilt adjust the selected point. Route sends the selected item to "
-            "a socket you click. New attach point creates a socket where you click on the body."
-        )
-        fit_popup(self._mode_box)
         self._mode_box.currentIndexChanged.connect(self._on_mode_changed)
 
         self._angle_box = QComboBox()
         for degrees in (1.0, 5.0, 15.0, 45.0):
             self._angle_box.addItem(f"{degrees:.0f}°", degrees)
-        self._angle_box.setToolTip("How far each turn moves it. Only used by Rotate and Tilt.")
+        self._angle_box.setToolTip("How far each turn moves it when you drag to rotate or tilt.")
         self._angle_box.setCurrentIndex(1)  # 5° — fine enough to aim, coarse enough to feel
         self._angle_box.currentIndexChanged.connect(
             lambda _i: self._viewport.set_angle_snap(float(self._angle_box.currentData() or 5.0))
@@ -124,10 +85,13 @@ class EditPanelMixin:
         self._step_box = QComboBox()
         for label, value, risky in NUDGE_STEPS:
             # The guide flags 0.100 as a risky jump; say so rather than offering it plainly.
-            self._step_box.addItem(f"{value:.3f}  {label}{'  (risky)' if risky else ''}", value)
+            centimetres = value * 100
+            # Two whole labels rather than an English suffix, which no catalogue can translate.
+            label = f"{centimetres:g} cm  (large)" if risky else f"{centimetres:g} cm"
+            self._step_box.addItem(label, value)
         self._step_box.setToolTip(
-            "How far each nudge moves it, in metres. 0.020 is a normal adjustment; 0.100 is "
-            "flagged as risky because it is large enough to push an item through the body."
+            "How far each Move button and each drag step moves it. 2 cm is a normal "
+            "adjustment; 10 cm is large enough to push an item through the body."
         )
         fit_popup(self._step_box)
         self._step_box.setCurrentIndex(1)  # 0.020 — the guide's "normal nudge"
@@ -135,79 +99,52 @@ class EditPanelMixin:
             lambda _i: self._viewport.set_snap(self._snap_step())
         )
 
-        self._edit_target = QLabel("(no socket selected)")
+        self._edit_target = QLabel("Nothing selected")
         self._edit_target.setStyleSheet("font-weight: bold;")
+        self._edit_target.setWordWrap(True)
 
-        top.addLayout(group(QLabel("Editing:"), self._edit_target))
-        top.addStretch(1)
-        top.addLayout(group(QLabel("Step:"), self._step_box))
-        top.addSpacing(10)
-        top.addLayout(group(QLabel("Mode:"), self._mode_box, self._angle_box))
-
-        # Translation nudges along each axis.
         # Socket translation is in *parent-bone* space, so these axes follow the bone's
         # orientation, not the world. Saying so prevents "-X should move it left" confusion.
-        translate_label = QLabel("Nudge:")
-        translate_label.setToolTip(
-            "Move the selected point one step at a time.\n\n"
-            "The axes follow the bone this point is attached to, not the screen — so on a "
-            "rotated bone, +X may not be the direction you expect. Watch the viewport."
-        )
-        nudges = group(translate_label)
-        middle.addLayout(nudges)
         self._nudge_buttons: List[QPushButton] = []
         for axis, index in (("X", 0), ("Y", 1), ("Z", 2)):
-            for sign, glyph in ((-1.0, "-"), (1.0, "+")):
-                button = QPushButton(f"{glyph}{axis}")
+            for sign, glyph in ((-1.0, "−"), (1.0, "+")):
+                button = QPushButton(f"{axis} {glyph}")
                 button.setToolTip(
-                    "Follows the bone's own direction, not the screen's — watch the viewport"
+                    "Move one step. The directions follow the bone this point is attached to, "
+                    "not the screen, so watch the view to see which way it goes."
                 )
-                button.setFixedWidth(42)
+                button.setFixedWidth(46)
                 button.clicked.connect(
                     lambda _checked=False, i=index, s=sign: self._nudge_axis(i, s)
                 )
-                nudges.addWidget(button)
                 self._nudge_buttons.append(button)
 
         # Rotation is authored in degrees; the guide forbids hand-editing quaternions.
-        rotate_label = QLabel("Angle:")
-        rotate_label.setToolTip(
-            "The exact angle the item sits at, in degrees. Type a value to set it precisely, "
-            "or use Rotate and Tilt in the viewport to aim it by eye."
-        )
-        middle.addSpacing(12)
-        angles = group(rotate_label)
-        middle.addLayout(angles)
-        middle.addStretch(1)
         self._euler: List[QDoubleSpinBox] = []
-        for position, name in enumerate(("roll", "pitch", "yaw")):
+        for name in ("roll", "pitch", "yaw"):
             box = QDoubleSpinBox()
             box.setRange(-180.0, 180.0)
             box.setSingleStep(1.0)
             box.setDecimals(1)
             box.setPrefix(f"{name} ")
-            # Wide enough for the longest thing it can hold, measured rather than guessed:
-            # `pitch` is two characters longer than `yaw` and the value can reach `-180.00`, so
-            # a single hard-coded width clips one box and wastes space on another. 34px covers
-            # the spin arrows and the frame.
-            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -180.0") + 34)
+            box.setSuffix("°")
+            box.setToolTip(
+                "The exact angle, in degrees. Type a value and press Enter, or drag in the view "
+                "with Rotate or Tilt to aim it by eye."
+            )
+            # Wide enough for the longest thing it can hold, measured rather than guessed.
+            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -180.0°") + 34)
             box.editingFinished.connect(self._apply_euler)
-            angles.addWidget(box)
             self._euler.append(box)
 
-        # Short labels; every one of these carries a tooltip saying the rest. Spelled out,
-        # these five buttons wanted 1,052 px between them and the bar asked for 2,262 in a
-        # 1,500 px window — so Qt clipped them and `Undo my changes to this point` became
-        # unreadable anyway. A name that fits beats a sentence that does not.
-        self._revert_button = QPushButton("Revert point")
+        self._revert_button = QPushButton("Reset this point")
         self._revert_button.setToolTip(
-            "Undo every change made to the selected attach point, back to how the game ships "
-            "it. Other points are left alone."
+            "Put the selected attach point back where the game has it. Other points are left "
+            "alone."
         )
         self._revert_button.clicked.connect(self._revert_socket)
 
-
-        self._new_socket_button = QPushButton("New point…")
+        self._new_socket_button = QPushButton("New attach point…")
         self._new_socket_button.setToolTip(tip("Attach point", keyboard_hint()))
         self._new_socket_button.clicked.connect(lambda: self._create_socket())
 
@@ -227,48 +164,29 @@ class EditPanelMixin:
         # corpus, so it is usually right — but the check that decided *whether* to apply it is
         # a geometry heuristic, and it was wrong often enough to ship an inverted sword. It
         # reports now, and this applies the turn when the user agrees.
-        self._turn_over_button = QPushButton("Rotate")
+        self._turn_over_button = QPushButton("Flip 180°")
         self._turn_over_button.setAccessibleName("Turn it the right way up")
         self._turn_over_button.setToolTip(
-            "Add a half turn about Y to the selected child socket.\n\n"
-            "Offered rather than applied: the check that spots an inverted item measures the "
-            "placed geometry, and mesh origins differ enough between assets that it is "
-            "evidence and not a verdict. A socket that aims more than one row is refused."
+            "Turn the item over: a half turn about its attach point.\n\n"
+            "Use it when an item hangs upside down or back to front. Only offered for an "
+            "attach point that aims this one item."
         )
         self._turn_over_button.clicked.connect(self._turn_selected_socket_over)
 
         self._undo_button = QPushButton("Undo")
         self._undo_button.setShortcut("Ctrl+Z")
+        self._undo_button.setToolTip("Undo the last change (Ctrl+Z).")
         self._undo_button.clicked.connect(self._undo)
         self._redo_button = QPushButton("Redo")
         self._redo_button.setShortcut("Ctrl+Y")
+        self._redo_button.setToolTip("Redo the change you undid (Ctrl+Y).")
         self._redo_button.clicked.connect(self._redo)
-        self._export_button = QPushButton("Export…")
-        self._export_button.setToolTip("Write the changed files out as loose files.")
+        self._export_button = QPushButton("Export changed files only…")
+        self._export_button.setToolTip(
+            "Write the changed game files to a folder, without making a mod. For checking "
+            "the files or building a mod by hand; to use the changes in game, Save as mod."
+        )
         self._export_button.clicked.connect(self._export)
-        self._package_button = QPushButton("Packages…")
-        self._package_button.setToolTip(
-            "Write an installable DMM mod package from these changes."
-        )
-        self._package_button.clicked.connect(self._build_packages)
-
-        # Grouped by what they are for: make a point, take a change back, write it out.
-        bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
-        # Writing the mod out is not an editing control, and the top row had the room the
-        # bottom one did not. Both rows now fit a 1,500 px window instead of one overflowing.
-        # Everything that acts on the selection sits together, in the order it is used:
-        # make a point, aim with it, take a change back, write the result out.
-        bottom.addLayout(
-            group(
-                self._new_socket_button,
-                self._use_orientation_button,
-                self._turn_over_button,
-            )
-        )
-        bottom.addSpacing(10)
-        bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
-        bottom.addStretch(1)
-        bottom.addLayout(group(self._export_button, self._package_button))
 
         self._viewport.socket_dragged.connect(self._on_socket_dragged)
         self._viewport.socket_rotated.connect(self._on_socket_rotated)
@@ -276,7 +194,6 @@ class EditPanelMixin:
         self._viewport.socket_rolled.connect(self._on_socket_rolled)
         self._viewport.set_snap(0.020)
         self._viewport.set_angle_snap(5.0)
-        return panel
 
     # ── edit actions ────────────────────────────────────────────────
 
@@ -421,9 +338,12 @@ class EditPanelMixin:
     def _on_mode_changed(self, _index: int) -> None:
         mode = str(self._mode_box.currentData() or "off")
         self._viewport.set_edit_mode(mode)
-        # Rotation snap only means anything in rotate mode; the step box only in move mode.
+        # Rotation snap only means anything while dragging to rotate or tilt. The step box
+        # stays live in every mode: it was disabled outside Move, yet the Move buttons use it.
         self._angle_box.setEnabled(mode in ("rotate", "tilt"))
-        self._step_box.setEnabled(mode == "move")
+        sync = getattr(self, "_sync_mode_buttons", None)
+        if sync is not None:
+            sync(mode)
         if mode == "route":
             self.statusBar().showMessage(self._route_hint())
         elif mode == "pick":
@@ -743,7 +663,7 @@ class EditPanelMixin:
         diagnostic = self._inversion_diagnostic(socket_name)
         if not diagnostic.inverted:
             return ""
-        return f"  —  {INVERSION_MESSAGE} Use {AIM_LABEL} or Turn it the right way up."
+        return f"  —  {INVERSION_MESSAGE} Use {AIM_LABEL} or Flip 180°."
 
     def _turn_selected_socket_over(self) -> None:
         """Add a half turn about Y to the selected child socket, because the user asked.
@@ -769,8 +689,8 @@ class EditPanelMixin:
         if len(users) > 1:
             self.statusBar().showMessage(
                 f"{socket_name} aims {len(users)} rows ({', '.join(users)}), so turning it "
-                f"here would move all of them. Move the item with Swap animations… instead, "
-                f"which makes it a socket of its own."
+                f"here would move all of them. Move the item with Carried at instead, "
+                f"which gives it a point of its own."
             )
             return
         turned = half_turn_about_y(weapon.sockets[socket_name].rotation)
@@ -987,6 +907,8 @@ class EditPanelMixin:
         self._populate_tree()
         if self._selected_socket:
             self._inspector.setHtml(inspector_html(self._describe_socket(self._selected_socket)))
+        # A move can give the item a new attach point; follow it unless one was picked by hand.
+        self._auto_select_attach_point()
         self._report_status()
 
     def _rebuild_session_from_edits(self) -> None:
@@ -1004,6 +926,7 @@ class EditPanelMixin:
 
         if self._edits is None:
             self._diff_view.setHtml(pending_changes_html([], []))
+            self._refresh_mod_list()
             return
         lines = self._edits.diff()
         plan = self._edits.to_plan()
@@ -1025,9 +948,11 @@ class EditPanelMixin:
         )
         # Address the tab by its widget: a hardcoded index silently renamed the wrong tab
         # the moment Animation was inserted ahead of it.
-        self._lower.setTabText(
-            self._lower.indexOf(self._diff_view), f"Pending changes ({len(plan.operations)})"
-        )
+        tabs = getattr(self, "_advanced_tabs", None)
+        if tabs is not None and tabs.indexOf(self._diff_view) >= 0:
+            tabs.setTabText(tabs.indexOf(self._diff_view),
+                            f"File changes ({len(plan.operations)})")
+        self._refresh_mod_list()
 
     def _refresh_edit_panel(self) -> None:
         editable = bool(self._selected_socket) and bool(self._socket_file_of(self._selected_socket))
@@ -1040,7 +965,6 @@ class EditPanelMixin:
         self._redo_button.setEnabled(self._edits is not None and self._edits.can_redo)
         has_changes = bool(self._edits and self._edits.modified_paths())
         self._export_button.setEnabled(has_changes)
-        self._package_button.setEnabled(has_changes)
         self._new_socket_button.setEnabled(self._session is not None and self._edits is not None)
         # Only a child socket on the item can aim it, so the control is live only for those.
         weapon = self._session.weapon if self._session is not None else None
@@ -1059,7 +983,11 @@ class EditPanelMixin:
         self._turn_over_button.setEnabled(bool(aims_one_row))
 
         if not self._selected_socket:
-            self._edit_target.setText("(no socket selected)")
+            self._edit_target.setText("Nothing selected")
+            self._edit_target.setToolTip("")
+            refresh_share = getattr(self, "_refresh_share_note", None)
+            if refresh_share is not None:
+                refresh_share()
             return
 
         path = self._socket_file_of(self._selected_socket)
@@ -1080,10 +1008,14 @@ class EditPanelMixin:
                 )
             if state.parent_changed:
                 parts.append(f"reparented -> {state.current.parent_bone}")
-            suffix = f"   [modified: {', '.join(parts)}]"
+            suffix = f"  (changed: {', '.join(parts)})"
         elif not path:
-            suffix = "   [no defining file — not editable]"
-        self._edit_target.setText(self._selected_socket + suffix)
+            suffix = "  (no game file defines it, so it cannot be changed)"
+        self._edit_target.setText(socket_label(self._selected_socket) + suffix)
+        self._edit_target.setToolTip(f"{self._selected_socket}\n{path}")
+        refresh_share = getattr(self, "_refresh_share_note", None)
+        if refresh_share is not None:
+            refresh_share()
 
         if state is not None:
             roll, pitch, yaw = state.current.rotation.to_euler_degrees()
@@ -1091,220 +1023,6 @@ class EditPanelMixin:
                 box.blockSignals(True)
                 box.setValue(value)
                 box.blockSignals(False)
-
-    def _select_package_operations(self) -> Optional[List[str]]:
-        """Which operations to package. `None` means the user backed out.
-
-        The default is the latest operation and nothing else. Packaging the whole session is
-        what shipped an earlier shield move and an earlier one-handed swap inside a two-handed
-        sword mod, so it is still available and it is no longer the default — and choosing it
-        shows the list first.
-        """
-
-        from PySide6.QtWidgets import QListWidget, QVBoxLayout
-
-        from .packaging import SELECTION_ALL, SELECTION_LATEST, SELECTION_SELECTED
-        from .packaging import operation_ids_for
-
-        edits = self._edits
-        if edits is None:
-            return None
-        operations = edits.operations()
-        if not operations:
-            QMessageBox.warning(
-                self,
-                "Nothing to package",
-                "Every change in this session was made outside an operation. Move an item with "
-                "Swap animations… so the change can be scoped, reviewed and packaged on its own.",
-            )
-            return None
-
-        dialog = QDialog(self)
-        dialog.setObjectName("layout_tools_placement_studio_window_editing__select_package_operations_dialog")
-        dialog.setWindowTitle("What to package")
-        dialog.setMinimumSize(720, 420)
-        modes = {
-            SELECTION_LATEST: QRadioButton("The latest operation only  (recommended)"),
-            SELECTION_SELECTED: QRadioButton("Selected operations"),
-            SELECTION_ALL: QRadioButton("Every pending operation  (advanced)"),
-        }
-        modes[SELECTION_LATEST].setChecked(True)
-        modes[SELECTION_LATEST].setToolTip(
-            "The operation you just accepted, replayed onto vanilla on its own."
-        )
-        modes[SELECTION_ALL].setToolTip(
-            "Everything below, in one package. Read the list first: earlier experiments are in it."
-        )
-
-        listing = QListWidget()
-        listing.setSelectionMode(QAbstractItemView.MultiSelection)
-        for operation in operations:
-            listing.addItem("\n".join(operation.summary_lines()))
-            listing.item(listing.count() - 1).setData(Qt.UserRole, operation.operation_id)
-        listing.item(listing.count() - 1).setSelected(True)
-        loose = len(edits.loose_commands())
-
-        layout = QVBoxLayout(dialog)
-        for button in modes.values():
-            layout.addWidget(button)
-        layout.addWidget(QLabel("Operations in this session, oldest first:"))
-        layout.addWidget(listing, 1)
-        if loose:
-            layout.addWidget(
-                QLabel(
-                    f"{loose} free-form edit(s) were made outside any operation. They are never "
-                    f"packaged."
-                )
-            )
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        if dialog.exec() != QDialog.Accepted:
-            return None
-
-        mode = next(name for name, button in modes.items() if button.isChecked())
-        chosen = [
-            str(listing.item(row).data(Qt.UserRole) or "")
-            for row in range(listing.count())
-            if listing.item(row).isSelected()
-        ]
-        if mode == SELECTION_ALL:
-            confirmed = QMessageBox.question(
-                self,
-                "Package every pending operation?",
-                "This package will contain:\n\n"
-                + "\n".join(f"  {op.describe()}" for op in operations)
-                + "\n\nEarlier experiments are included. Continue?",
-            )
-            if confirmed != QMessageBox.Yes:
-                return None
-        return operation_ids_for(edits, mode, chosen)
-
-    def _build_packages(self) -> None:
-        """Emit every manager layout for the selected operations, replayed onto vanilla.
-
-        Never from the global session preview. The isolated replay is what makes an earlier
-        experiment structurally unable to enter the package, and the preflight is what proves
-        it — and what refuses an in-scope change that is nonetheless unsafe.
-        """
-
-        from .packaging import PackageMetadata, PackagingError, build_for_operations, package_destinations
-
-        if self._edits is None or not self._edits.modified_paths():
-            return
-        operation_ids = self._select_package_operations()
-        if not operation_ids:
-            return
-        target = QFileDialog.getExistingDirectory(self, "Build packages into")
-        if not target:
-            return
-
-        name, ok = QInputDialog.getText(
-            self, "Package name", "Mod name:", text="Placement Studio Mod"
-        )
-        if not ok or not name.strip():
-            return
-
-        metadata = PackageMetadata(
-            name=name.strip(),
-            version="1.0.0",
-            author="",
-            description="Placement and animation changes built with Placement Studio.",
-        )
-        try:
-            destinations = package_destinations(metadata, out_root=Path(target), managers=PACKAGE_MANAGERS)
-        except PackagingError as exc:
-            QMessageBox.warning(self, "Packaging failed", str(exc))
-            return
-        existing = [path for path in destinations if path.exists()]
-        replace_existing = False
-        if existing:
-            replace_existing = QMessageBox.question(
-                self,
-                "Replace existing package folders?",
-                "These folders already exist:\n\n"
-                + "\n".join(str(path) for path in existing)
-                + "\n\nTheir entire contents will be replaced. Each previous folder, including "
-                "any files you added, will be kept in a separate .bak folder beside the package. "
-                "The completion report will show the backup locations. Continue?",
-                QMessageBox.Yes | QMessageBox.Cancel,
-                QMessageBox.Cancel,
-            ) == QMessageBox.Yes
-            if not replace_existing:
-                return
-        units = self._packaged_units(operation_ids)
-        shared = self._shared_socket_users()
-        try:
-            results, verdict = build_for_operations(
-                self._edits,
-                operation_ids,
-                metadata,
-                out_root=Path(target),
-                baseline=self._baseline,
-                units=units,
-                shared_socket_users=shared,
-                replace_existing=replace_existing,
-                managers=PACKAGE_MANAGERS,
-            )
-        except PackagingError as exc:
-            QMessageBox.warning(self, "Packaging failed", str(exc))
-            return
-
-        if verdict.blocked:
-            from .report_style import package_scope_html
-
-            box = QMessageBox(self)
-            box.setWindowTitle("Package blocked")
-            box.setIcon(QMessageBox.Critical)
-            box.setTextFormat(Qt.RichText)
-            box.setText(
-                "Nothing was written. These changes fall outside what the selected "
-                "operation(s) declared:"
-            )
-            box.setInformativeText(
-                package_scope_html(verdict.summary, verdict.errors, verdict.warnings)
-            )
-            box.setDetailedText(verdict.render())
-            box.exec()
-            self.statusBar().showMessage("Package blocked — see the errors")
-            return
-
-        if not results and verdict.needs_confirmation:
-            box = QMessageBox(self)
-            box.setWindowTitle("Confirm the package scope")
-            box.setIcon(QMessageBox.Warning)
-            box.setText("\n".join(f"  {f.describe()}" for f in verdict.warnings))
-            box.setDetailedText(verdict.render())
-            box.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-            box.button(QMessageBox.Yes).setText("Write the package")
-            if box.exec() != QMessageBox.Yes:
-                self.statusBar().showMessage("Package cancelled — nothing was written")
-                return
-            try:
-                results, verdict = build_for_operations(
-                    self._edits,
-                    operation_ids,
-                    metadata,
-                    out_root=Path(target),
-                    baseline=self._baseline,
-                    units=units,
-                    shared_socket_users=shared,
-                    accept_warnings=True,
-                    replace_existing=replace_existing,
-                    managers=PACKAGE_MANAGERS,
-                )
-            except PackagingError as exc:
-                QMessageBox.warning(self, "Packaging failed", str(exc))
-                return
-
-        box = QMessageBox(self)
-        box.setWindowTitle("Packages built")
-        box.setIcon(QMessageBox.Information)
-        box.setText("\n".join(result.describe() for result in results))
-        box.setInformativeText(verdict.summary.render())
-        box.exec()
-        self.statusBar().showMessage(f"Built {len(results)} package(s) in {target}")
 
     def _packaged_units(self, operation_ids: Sequence[str]) -> dict:
         """The equipment units the selected operations belong to, for the scope checks."""

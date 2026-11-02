@@ -286,6 +286,34 @@ void test_index_and_raw_decode(const fs::path& root) {
     require(decoded == payload, "raw decode changed bytes");
 }
 
+void test_dlc_copy_outranks_base_copy(const fs::path& root) {
+    // The base copy sits in a higher-numbered PAMT, which would win every later
+    // tie-break; the DLC's copy of the same group folder must still be active.
+    write_bytes(root / "0015" / "1.paz", {'a'});
+    write_bytes(root / "0015" / "1.pamt", make_pamt(1, 1, 0));
+    write_bytes(root / "dlc" / "dlc_01" / "0015" / "0.paz", {'b', 'b'});
+    write_bytes(root / "dlc" / "dlc_01" / "0015" / "0.pamt", make_pamt(2, 2, 0));
+    const auto index = root / "dlc-override.ali";
+    std::uint64_t count = 0;
+    std::array<char, 512> error{};
+    require(cdmw_full_archive_build_index_utf8(
+        root.u8string().c_str(),
+        index.u8string().c_str(),
+        &count,
+        error.data(),
+        error.size()) == CDMW_FULL_ARCHIVE_OK,
+        std::string("DLC override index build failed: ") + error.data());
+    require(count == 2, "DLC override index count changed");
+    const auto bytes = cdmw::full_archive::read_binary(index, 1024 * 1024);
+    const auto records_offset = static_cast<size_t>(read_u64_at(bytes, 24));
+    for (size_t row = 0; row < 2; ++row) {
+        const auto record = records_offset + row * cdmw::full_archive::kIndexRecordSize;
+        const auto stored_size = read_u64_at(bytes, record + 32);
+        const auto metadata = cdmw::full_archive::read_u32(bytes, record + 68);
+        require(metadata == (stored_size == 2 ? 0x3u : 0x2u), "DLC copy did not outrank the base copy");
+    }
+}
+
 void test_duplicate_override_metadata(const fs::path& root) {
     write_bytes(root / "0009" / "0.paz", {'a'});
     write_bytes(root / "0009" / "0.pamt", make_pamt(1, 1, 0));
@@ -462,6 +490,7 @@ int main() {
         test_index_and_raw_decode(root / "raw");
         test_compact_index_and_extension_flags(root / "compact");
         test_duplicate_override_metadata(root / "duplicates");
+        test_dlc_copy_outranks_base_copy(root / "dlc-override");
         test_index_deduplicates_source_paths(root / "deduplicated-source-paths");
         test_lz4_and_chacha(root / "codec");
         test_partial_dds_pathc(root / "partial-dds");

@@ -10,6 +10,7 @@ from cdmw.domain.research.notes import (
 )
 from cdmw.services.research_service import research_service
 from cdmw.ui.research.models import build_note_item, item_payload
+from cdmw.ui.research.reference_payload_state import normalize_research_target_key
 from cdmw.ui.research.notes_state import (
     research_note_delete_success_status_text,
     research_note_display_state,
@@ -29,11 +30,20 @@ def _populate_note_target(self, source_kind: str, target_key: str) -> None:
         return
     self.notes_target_edit.setText(target_state.normalized_target)
     self.notes_source_label.setText(target_state.source_kind)
-    if target_state.tags_text:
-        self.notes_tags_edit.setText(target_state.tags_text)
-    if target_state.note_text:
-        self.notes_edit.setPlainText(target_state.note_text)
+    # Always replace the editor contents: keeping the previous target's text would save it
+    # under the new target.
+    self.notes_tags_edit.setText(target_state.tags_text)
+    self.notes_edit.setPlainText(target_state.note_text)
     self.status_message_requested.emit(target_state.status_text, False)
+
+def _note_has_unsaved_changes(self) -> bool:
+    """Whether the Notes editor differs from what is saved for its current target."""
+    target_key = normalize_research_target_key(self.notes_target_edit.text())
+    if not target_key:
+        return bool(self.notes_edit.toPlainText().strip() or self.notes_tags_edit.text().strip())
+    saved = research_note_target_state(source_kind="", target_key=target_key, notes=self.notes)
+    return (self.notes_edit.toPlainText().strip() != saved.note_text.strip()
+            or self.notes_tags_edit.text().strip() != saved.tags_text.strip())
 
 def _populate_notes_tree(self) -> None:
     self.notes_tree.clear()
@@ -41,6 +51,8 @@ def _populate_notes_tree(self) -> None:
         self.notes_tree.addTopLevelItem(build_note_item(key, note))
 
 def _save_note(self) -> None:
+    target_key = normalize_research_target_key(self.notes_target_edit.text())
+    had_note = target_key in self.notes
     try:
         upsert_research_note(
             self.notes,
@@ -51,12 +63,22 @@ def _save_note(self) -> None:
         )
         research_service.notes.save(self.notes_path, self.notes)
         self._populate_notes_tree()
-        self.status_message_requested.emit(research_note_save_success_status_text(), False)
     except Exception as exc:
         self.status_message_requested.emit(str(exc), True)
+        return
+    if target_key in self.notes:
+        self.status_message_requested.emit(research_note_save_success_status_text(), False)
+    elif had_note:
+        self.status_message_requested.emit("The note was empty, so the saved note for this target was removed.", False)
+    else:
+        self.status_message_requested.emit("Nothing to save: add tags or note text first.", True)
 
 def _delete_note(self) -> None:
-    delete_research_note(self.notes, self.notes_target_edit.text())
+    target_key = normalize_research_target_key(self.notes_target_edit.text())
+    if not target_key or target_key not in self.notes:
+        self.status_message_requested.emit("There is no saved note for this target.", True)
+        return
+    delete_research_note(self.notes, target_key)
     research_service.notes.save(self.notes_path, self.notes)
     self._populate_notes_tree()
     self.notes_tags_edit.clear()

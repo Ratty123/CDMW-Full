@@ -98,7 +98,11 @@ def compose_packages(packages, folders, root, *, stop_event=None, on_log=None, r
                              stop_event=stop_event, on_log=on_log, read_entry=read_entry,
                              on_progress=lambda value, total, detail: progress(3 + 62 * value // max(1, total), detail))
     progress(66, 'Composing shared game records…')
-    layers = [(layer, resolved.decoded[layer['id']]) for layer in resolved.state['layers']]
+    from cdmw import constants
+    sent = {package.identity for package, _ in resolved.contributions}
+    # Sent to DMM, an item's overlay left from an earlier version is replaced by the item itself.
+    layers = [(layer, resolved.decoded[layer['id']]) for layer in resolved.state['layers']
+              if constants.VIRTUAL_LOADING_ENABLED or layer.get('independent_identity') not in sent]
     # These are transient composition descriptors, never overlay ownership rows.
     virtual_layers = [({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
                         'item_keys': list(resolved.registry['items'][package.identity]['values'].get('iteminfo', {}).values()),

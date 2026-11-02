@@ -19,7 +19,7 @@ from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.dds_native import inspect_dds_native
 from cdmw.core.pappt_format import parse_pappt
-from cdmw.core.papgt_format import parse_papgt
+from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_texture
 from cdmw.core.pbd_cloth import parse_pbd_config_materials
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
@@ -230,7 +230,7 @@ def validate_hair_output(snapshot):
     return state
 
 
-def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes):
+def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes, reference_tables=()):
     """Immutable geometry/material/registration plan; suitable for fixture tests."""
     from cdmw.modding.mesh_parser import parse_mesh
     state = validate_hair_output(snapshot)
@@ -283,7 +283,7 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
         new_path = str(PurePosixPath(key).with_name(f'{template["target_stem"]}_texture_{index:02d}.dds'))
         if new_path in existing_paths:
             raise ValueError(f"Hair texture identity already exists: {new_path}")
-        registry = register_texture(registry, new_path, like=key, dds_header=data)
+        registry = register_texture(registry, new_path, like=key, dds_header=data, reference_tables=reference_tables)
         material = material.replace(path.encode("utf-8"), new_path.encode("utf-8"))
         material_additions.append(HairRegistrationFile(new_path, data))
         texture_donors[new_path] = key
@@ -299,7 +299,8 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
                       if item.path.endswith((".pac", ".pac_xml")) else item for item in plan.additions)
     icon = next(item for item in additions if item.path.endswith(".dds"))
     icon_donor = choice.icon_path.casefold()
-    registry = register_texture(registry, icon.path, like=icon_donor, dds_header=icon.data)
+    registry = register_texture(registry, icon.path, like=icon_donor, dds_header=icon.data,
+                                reference_tables=reference_tables)
     encoded = encode_pathc(registry)
     if parse_pathc(encoded) != registry:
         raise ValueError("Generated texture registry failed reparsing.")
@@ -310,7 +311,8 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
 
 def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None):
     """Build and reparse a complete DMM package outside the installed game."""
-    root = Path(entry.pamt_path).resolve().parent.parent
+    from cdmw.domain.archives.filters import archive_entry_game_root
+    root = archive_entry_game_root(entry)
     output = Path(output).resolve()
     if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
         raise ValueError("Hair output must be a new folder outside the installed game.")
@@ -323,15 +325,25 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     for name in ("0.papgt", "0.pathc", "0.paver"):
         tracker.pin_file(root / "meta" / name)
     mount_bytes = (root / "meta/0.papgt").read_bytes()
-    mounts = parse_papgt(mount_bytes)
+    # Read-only: the shipped mount list is the compact, signed layout since the DLC update.
+    mounts = read_papgt_directories(mount_bytes)
     if not mounts or len({row.name.casefold() for row in mounts}) != len(mounts):
         raise ValueError("A valid unambiguous game mount catalogue is required.")
     entries = {}
-    for mount in mounts:
+    # A DLC ships its own copies of base group folders whose files replace the base
+    # files at the same path; read those copies so the barber list and tables edited
+    # here are the ones the game uses.
+    dlc_layers = []
+    for layer in sorted((root / "dlc").glob("dlc_*")) if (root / "dlc").is_dir() else ():
+        if (layer / "meta/0.papgt").is_file():
+            tracker.pin_file(layer / "meta/0.papgt")
+            dlc_layers.append((layer, read_papgt_directories((layer / "meta/0.papgt").read_bytes())))
+    # The first copy of a path wins, so the DLC layers are read before the base.
+    for folder, mount in [(layer, row) for layer, rows in dlc_layers for row in rows] + [(root, row) for row in mounts]:
         raise_if_cancelled(stop_event, "Hair catalogue scan cancelled.")
         if Path(mount.name).name != mount.name or mount.name in {".", ".."}:
             raise ValueError("The game mount catalogue contains an unsafe directory.")
-        for pamt in sorted((root / mount.name).glob("*.pamt")):
+        for pamt in sorted((folder / mount.name).glob("*.pamt")):
             tracker.pin_file(pamt)
             if on_log:
                 on_log(f"Reading mounted hair dependencies: {mount.name}")
@@ -375,7 +387,14 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         raise ValueError("The donor game Hair physics profile is missing.")
     read("character/descriptors/pbd/" + config["hair"].filename.replace("\\", "/"))
     pathc_bytes = (root / "meta/0.pathc").read_bytes()
-    plan, pathc, texture_donors = prepare_authored_hair(snapshot, rebuilt, files, entries, pathc_bytes)
+    # A DLC registers its own copies of base textures; donors it replaces take that registration.
+    dlc_registries = []
+    for layer, _rows in dlc_layers:
+        if (layer / "meta/0.pathc").is_file():
+            tracker.pin_file(layer / "meta/0.pathc")
+            dlc_registries.append(parse_pathc((layer / "meta/0.pathc").read_bytes()))
+    plan, pathc, texture_donors = prepare_authored_hair(snapshot, rebuilt, files, entries, pathc_bytes,
+                                                        reference_tables=tuple(dlc_registries))
     revision = tracker.capture()
     revision.validate(stop_event)
     plan.check_sources(files)

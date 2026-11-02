@@ -151,6 +151,7 @@ class SettingsPersistenceMixin:
         self.settings.setValue("archive/native_preview_cache_mode", archive_performance_settings.native_preview_cache_mode)
         self.settings.setValue("archive/quick_then_full_preview", archive_performance_settings.quick_then_full_preview)
         self.settings.setValue("archive/maximum_indexing_priority", archive_performance_settings.maximum_indexing_priority)
+        self.settings.setValue("archive/durable_exports", archive_performance_settings.durable_exports)
         if self.textures.dds_output_section.is_body_built():
             self.settings.setValue("dds_output/format_mode", self.textures._combo_value(self.textures.dds_format_mode_combo))
             self.settings.setValue("dds_output/custom_format", self.textures._combo_value(self.textures.dds_custom_format_combo))

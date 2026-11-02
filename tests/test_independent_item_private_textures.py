@@ -308,3 +308,49 @@ def test_private_copy_cost_keeps_portable_inputs_and_source_pins_unchanged(tmp_p
     print(json.dumps({"scope": "synthetic imported mesh with retained template material", "delta": delta,
                       "compiler_seconds": {str(key): value["compiler_seconds"] for key, value in measurements.items()},
                       "native_runtime_cost": "unmeasured"}, sort_keys=True))
+
+
+def test_a_private_copy_keeps_the_texture_kind_suffix():
+    from cdmw.core.pathc_format import header_tag_for
+    from cdmw.services.new_item_resource_copies import private_texture_path
+    dds = b"DDS " + bytes(124)
+    for source, kind in (("character/texture/cd_x_0001_n.dds", "_n"), ("character/texture/cd_x_0001_ma.dds", "_ma"),
+                         ("character/texture/cd_x_0001.dds", "")):
+        copy = private_texture_path("cd_x_9001", source)
+        assert copy.endswith(kind + ".dds") and "_r" in copy
+        # Registries that read the kind from the name, CDMW's and DMM's, tag it like the source.
+        assert header_tag_for(copy, dds) == header_tag_for(source, dds)
+
+
+def test_a_whole_copy_of_a_partially_compressed_texture_records_its_real_mip_sizes():
+    import struct
+    from cdmw.core.pathc_format import block_infos_for, with_stored_mip_sizes
+    header = bytearray(128)
+    header[:4] = b"DDS "
+    struct.pack_into("<7I", header, 4, 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000, 8, 8, 32, 1, 2)
+    struct.pack_into("<11I", header, 32, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0)  # compressed sizes, as the game stores them
+    struct.pack_into("<II4s", header, 76, 32, 0x4, b"DXT1")
+    struct.pack_into("<I", header, 124, 4)
+    data = bytes(header) + bytes(32 + 8)
+    fixed = with_stored_mip_sizes(data)
+    assert struct.unpack_from("<4I", fixed, 32) == struct.unpack("<4I", block_infos_for(data)) == (32, 8, 0, 0)
+    assert fixed[:32] == data[:32] and fixed[76:] == data[76:]
+
+
+def test_a_package_pinned_before_packed_mip_sizes_were_cleared_still_matches(monkeypatch):
+    import struct
+    from cdmw.core import archive_extraction
+    from cdmw.services.independent_item_package import digest, pinned_digests
+    stored = bytearray(128)
+    stored[:4] = b"DDS "
+    struct.pack_into("<4I", stored, 32, 9, 8, 7, 6)  # packed sizes, as the archive's header lists them
+    cleared = bytearray(stored)
+    cleared[32:48] = bytes(16)
+    data = bytes(cleared) + b"mips"
+    entry = SimpleNamespace(compressed=True, compression_type=1, extension=".dds")
+    snapshot = SimpleNamespace(payload=lambda path: data, entry=lambda path: entry)
+    monkeypatch.setattr(archive_extraction, "get_archive_partial_dds_header", lambda found: bytes(stored))
+    assert pinned_digests(snapshot, "x.dds") == {digest(data), digest(bytes(stored) + b"mips")}
+    lz4 = SimpleNamespace(compressed=True, compression_type=2, extension=".dds")
+    plain = SimpleNamespace(payload=lambda path: data, entry=lambda path: lz4)
+    assert pinned_digests(plain, "x.dds") == {digest(data)}

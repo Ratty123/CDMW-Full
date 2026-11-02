@@ -317,10 +317,12 @@ def get_table_spec(source_table: str) -> Optional[TableSpec]:
 def recognized_table_for_path(path: str) -> Optional[TableSpec]:
     name = PurePosixPath(str(path or "").replace("\\", "/")).name
     stem = name
-    for suffix in (".pabgb", ".pabgh", ".pab", ".bin", ".table"):
+    for suffix in (".staticinfobody", ".pabgb", ".pabgh", ".pab", ".bin", ".table"):
         if stem.lower().endswith(suffix):
             stem = stem[: -len(suffix)]
             break
+    # A DLC's layer of a table (`iteminfo.dlc_01.staticinfobody`) holds the same rows.
+    stem = re.sub(r"\.dlc_\d+$", "", stem, flags=re.IGNORECASE)
     normalized = re.sub(r"[^a-z0-9]+", "", stem.lower())
     return _TABLE_BY_PATH_STEM.get(normalized)
 

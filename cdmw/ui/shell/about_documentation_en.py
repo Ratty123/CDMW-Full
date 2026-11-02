@@ -19,7 +19,7 @@ CREATE_NEW_ITEM_SECTION = {
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
 <p><b>Create New Item</b> creates a new equipment or usable item from a supported game template.</p>
-<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+<p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
     <ol>
       <li><b>Template</b>: search internal names, item keys, equipment types, or any available game-language name. The table displays English names when available.</li>
       <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
@@ -27,7 +27,7 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
       <li><b>Effects &amp; Perks</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
-      <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cditem item package.</li>
+      <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cdmw item package.</li>
     </ol>
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
     <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
@@ -59,7 +59,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Mod folder · DMM writes a mod folder for DMM (Definitive Mod Manager), with an optional ZIP. Add the folder in DMM and mount it there.</p>
     <p>Send to DMM writes the same mod straight into DMM's mods folder. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it. Then enable the mod in DMM and click Mount.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
-    <p>Item package · .cditem writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page, apply, then launch. Loading items this way is experimental.</p>
+    <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
@@ -367,7 +367,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "archive_browser",
                 "title": "Archive Browser",
                 "summary": "Archive scan, preview, item lookup, active mod/original state, extraction, and supported patch surface.",
-                "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx",
+                "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx bnk wem wwise sound bank",
                 "html": """
                 <p><b>Archive Browser</b> is the in-app inspection surface for Crimson Desert package data. It can browse archives in flat or tree view, preview many supported formats directly, extract files, and for supported workflows either patch the game archives or write mod-ready loose output with confirmation and backup support.</p>
                 <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Paths &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Performance</b>.</div>
@@ -381,7 +381,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                   <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
                   <tr><td>Mesh Actions</td><td>Inspection, export, and direct mesh authoring.</td><td>Open in Mesh Editor, export OBJ/FBX and dependencies, inspect references, and keep unrelated HKX/placement workflows separate.</td></tr>
-                  <tr><td>Placement &amp; Animations</td><td>Equipment placement and animation review.</td><td>Open the dedicated workspace from Authoring. HKX actions are temporarily absent from the Tools and file context menus; read-only inspection remains available.</td></tr>
+                  <tr><td>Placement &amp; Animations</td><td>Equipment placement and animation review.</td><td>Open the dedicated workspace from Authoring. HKX physics files open in the HKX Physics Editor from the Tools menu or the file's context menu.</td></tr>
                 </table>
                 <ul>
                   <li>Scan package roots and cache the discovered archive index locally.</li>
@@ -395,12 +395,15 @@ class AboutDocumentationEnglishMixin:
                   <li>Use <b>Body &amp; Face Finder</b> to browse character models and appearance variants, including creatures and mounts, with thumbnails and an independent interactive preview.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
-                  <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Use <a href="topic:prefab_inspector">Prefab Inspector</a> to change what a prefab is built from and save it as a mod.</li>
+                  <li>Inspect and extract DDS entries without editing them here, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Replace sounds and edit sound banks as DMM loose mods: <b>Import WAV as Loose Mod</b> on a <code>.wem</code>, and <b>Replace Embedded Sound as Loose Mod</b> or <b>Edit Sound Bank as Loose Mod</b> on a <code>.bnk</code>. The installed game archives are not changed. See <a href="topic:archive_guides">Archive Browser Guides</a>.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
-                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cditem item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
+                <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
+                <p>The DLC ships its own copies of about 13,500 base files, mostly textures, level data and models. Archive Browser, previews and the editors open the DLC's copy, which the game is expected to load instead of the base file. Searching by item name also finds DLC items. Texture packages can replace textures that only the DLC ships; such a package needs the DLC installed. Audio entries offer Import WAV as Loose Mod, which writes a loose mod for DMM instead of changing the game archives.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
@@ -444,8 +447,38 @@ class AboutDocumentationEnglishMixin:
                 <p>Confirmed references identifies explicit paths or Wwise media IDs. An ID does not identify the language or archive override used at runtime. Complete event, music and gameplay-trigger chains are not reconstructed.</p>
                 <p>Sound searches check banks and text metadata first. Bank IDs match numeric .wem filenames; named sounds need a path or filename reference.</p>
                 <p>Action charts, blend spaces and sequences store clips and sub-charts relative to the folders the game reads them from. Those paths count as confirmed references, and an action chart's Asset Family lists the clips, blend spaces, sub-charts and prefabs it names.</p>
+                <h4>Edit an action chart</h4>
+                <ol>
+                  <li>In Archive Browser, click Action Charts and choose Find Action Chart by Character..., select a character's weapon slot and click Edit Chart. You can also right-click an action chart (.paac) and choose Edit Action Chart....</li>
+                  <li>Under each slot, the finder lists the charts that slot's chart includes. Which chart plays depends on the weapons equipped, so check the slot for that loadout and its included charts: Kliff's dual-wield idle comes from dualweapon_upper, which his SubWeapon chart includes.</li>
+                  <li>On the Animations tab, select an animation. Change its clip or blend space and click Set for This Animation; other animations that play the same clip keep theirs.</li>
+                  <li>Use Clip Length sets the animation's Clip end to the length of the clip in the Clip field. Show in Archive Browser finds that clip so you can preview it while the editor stays open.</li>
+                  <li>Click Other Charts Playing This Clip... to see which other charts play the selected clip and which characters use them. The game picks a chart from the character and the weapon in hand, so tick every chart that should change and click Change in Ticked Charts; they get the same clip change in the same mod when you export.</li>
+                  <li>Type new timing values in the New column under Timing. The chart speed rate above the tabs scales the whole chart.</li>
+                  <li>Some moves, such as dodges and rolls, may play from the character's lower-body chart (for Kliff, basic_lower). If a timing change does not show in game, check that chart too.</li>
+                  <li>Under Frame events, select an event to change its socket, equipment part, effect, prefab or sequencer, or a socket event's mode and blend time. Choose Only this animation or Every animation using this event, then click Set Event Fields.</li>
+                  <li>On the Names and Paths tab, choose a table, select an entry and click Replace Everywhere to change every use of it in the chart.</li>
+                  <li>Click Apply and Re-read. The tables and the changes list now show what the edited chart holds.</li>
+                  <li>Click Export DMM Mod..., name the mod and click Send to DMM, then enable it in DMM and click Mount. Save Mod Folder... writes the same mod folder somewhere else.</li>
+                  <li>To ship several charts as one mod, export each chart under the same mod name with Keep the other charts already in a mod with this name ticked. To continue a mod later, click Action Charts, choose Open Action Chart Mod... and select its folder.</li>
+                </ol>
+                <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Clip changes (once every chart that plays the clip was changed), the chart speed rate and speed windows worked in game; other timing values and event edits have not been tested in game yet.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
+                <h4>Replace sounds and edit sound banks</h4>
+                <ol>
+                  <li>To replace a sound, right-click a <code>.wem</code> and choose <b>Import WAV as Loose Mod</b>, or right-click a <code>.bnk</code> and choose <b>Replace Embedded Sound as Loose Mod</b> to pick one of the sounds it carries.</li>
+                  <li>Pick the new audio. A <code>.wem</code> made with your own Wwise install is used as it is; other audio becomes uncompressed PCM with the original's channels and sample rate, which is several times larger.</li>
+                  <li>CDMW finds every sound bank that plays that sound and writes them with the new file into one mod, so the banks describe the new size and format. This can take a minute on the first scan of all banks.</li>
+                  <li>To change a bank's stored values, right-click a <code>.bnk</code> and choose <b>Edit Sound Bank as Loose Mod</b>. Change volume, pitch, filters, delays, loop counts or playlist weights in the <b>New</b> column, add or remove those properties, or add a sound to a random container (a copy of one of its sounds playing your audio) or remove one.</li>
+                  <li>Choose the export folder, then copy the mod into DMM's mods folder, enable it and Mount.</li>
+                </ol>
+                <ul>
+                  <li>On a bus, Volume only affects sounds routed straight to that bus; BusVolume is the bus's own volume.</li>
+                  <li>Music keeps the original sound's clip length: a longer replacement is cut off and a shorter one is followed by silence. The completion message says so.</li>
+                  <li>DMM treats files in a language folder (for example <code>sound\\windows\\english(us)\\</code>) as a language variant and only uses them when that language is selected in DMM.</li>
+                </ul>
+                <div class="doc-callout doc-warning"><b>Limits:</b> CDMW cannot encode Wwise Vorbis itself. A named voice line (a <code>.wem</code> with a name instead of a number) accepts only a Wwise Vorbis <code>.wem</code>, because the game decides how it is decoded; replacing one has not been tested in game yet, and neither has removing a sound from a container. Sounds that a bank only streams with an unrecognised prefix, or that play through the game's external sources, are refused. Value edits, added properties, swapped sounds, PCM and added container sounds were tested in game through DMM.</div>
                 <h4>Find bodies and faces</h4>
                 <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
                 <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>
@@ -476,9 +509,42 @@ class AboutDocumentationEnglishMixin:
                   <li>Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.</li>
                   <li>Set the Extract folder in Archive Locations, then review the destination and existing-file options. Files keep their original formats and folder paths; OBJ/FBX conversion is separate.</li>
                   <li>Individual file selections are limited to 4,096 rows. Use Extract Filtered or Export Folder... for larger sets.</li>
+                  <li>Exports wait until every file is on disk before reporting success. Turn off <b>Settings &gt; Performance &gt; Export safety</b> for much faster exports of many files; a power loss or system crash right after such an export can leave some exported files empty or incomplete.</li>
                   <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
-                <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>
+                <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available. Audio is written as DMM loose mods instead.</p>
+                """,
+            },
+            {
+                "id": "prefab_inspector",
+                "title": "Prefab Inspector",
+                "summary": "Change a prefab's files, text, placements, values and objects, then save it as an item package or a DMM mod folder.",
+                "keywords": "prefab inspector edit path retarget mesh socket tag alias placement transform move rotate scale value number duplicate remove object item package cdmw cditem loose folder dmm prefab edit json",
+                "html": """
+                <p>A prefab lists the parts an item or object is built from: its mesh and other files, sockets, effects, and where each part sits. Prefab Inspector shows that list and lets you change it. The game's archives are never changed; you save the result as a mod.</p>
+                <h4>Open a prefab</h4>
+                <ol>
+                  <li>In Archive Browser, right-click a .prefab file and choose Open Prefab Inspector... The progress bar shows the file being read and the archives being indexed.</li>
+                  <li>Tick Only rows I can change to hide everything you cannot edit.</li>
+                </ol>
+                <p>Each object is a heading with its files, text and values below it.</p>
+                <h4>Change it</h4>
+                <ul>
+                  <li>Double-click a file path to type a new one, or choose Swap for another file... to pick from the files of that kind in the game. Any length is fine.</li>
+                  <li>Double-click text such as a socket name, tag or alias to change it. Leave a row empty to clear it.</li>
+                  <li>Double-click a placement to move, rotate or rescale it. Each entry of a placement list has its own row.</li>
+                  <li>Double-click a number, switch or vector to change it. Values whose layout is not confirmed, such as colours, are shown but cannot be changed.</li>
+                  <li>Right-click an object and choose Duplicate this object or Remove this object. These apply at once, so save or undo row changes first.</li>
+                  <li>Right-click a row and choose Undo this row, or click Undo all changes to start again.</li>
+                </ul>
+                <h4>Save it</h4>
+                <ol>
+                  <li>Click Save changes..., read the list of changes and any warnings, and confirm.</li>
+                  <li>Close the window and choose how to save: Item Package (.cdmw)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.</li>
+                </ol>
+                <p>With Add to Item Package..., the prefab can use a mesh that the package's own item adds.</p>
+                <p>To reuse edits, Export Prefab Edit JSON... saves them as a text file, and Import Prefab Edit JSON... applies one to the selected prefab and offers the same three ways to save.</p>
+                <div class="doc-callout doc-warning"><b>Limitations:</b> Loading edited prefabs in game is untested. About 0.5% of prefabs are read only in part; on those, a file path can only be replaced by one of exactly the same length, and nothing else can be changed. An item package will not load after a game update changes the original prefab, when the edit was made on another mod's version of it, or when a path points at a file that neither the game nor the package provides. Prefabs saved with Duplicate this object or Remove this object in 0.11.0-alpha.31 or earlier are damaged; redo those edits from the game's copy.</div>
                 """,
             },
             {
@@ -498,6 +564,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <p>Very large models with many materials compose their materials only while they fit the 768 MiB texture limit. The remaining parts show their plain game textures, and the status line says how many parts use simplified materials.</p>
                 <h4>Parts</h4>
                 <p>Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport &gt; Display and work outside Morph &amp; Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.</p>
                 <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
@@ -566,6 +633,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Export Mesh File writes a separate rebuilt asset.</li>
                   <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
+                  <li>DMM Archive Group writes the mesh as an archive group in a package folder that DMM serves by path; nothing is installed into the game. Hairstyles are always built this way, with their barber choice.</li>
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
                 <p>Mesh Editor follows the selected interface language. Tool availability still depends on the source format, selected LOD and output route.</p>
@@ -589,16 +657,40 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "placement_studio",
                 "title": "Placement & Animations",
-                "summary": "Move equipment, change sockets, retarget draw/stow clips, and package the result.",
-                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package dmm",
+                "summary": "Move where a weapon is carried, fine-tune it, give it other animations, and save a DMM mod.",
+                "keywords": "placement animations weapon carried position fine-tune attach point socket draw put away armour clipping your mod save dmm edit animation keys timeline reach ik plant foot join blend mirror blender",
                 "html": """
-                <p><b>Placement &amp; Animations</b> is the focused workspace for changing where a weapon or piece of armour sits and how its draw/stow animation route behaves.</p>
+                <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. The 3D view is on the left; the tabs on the right are <b>Position</b>, <b>Animations</b>, <b>Edit animation</b>, <b>Armour</b>, <b>Your mod</b>, <b>Advanced</b> and <b>Help</b>.</p>
+                <p><b>Move a weapon somewhere else on the body</b></p>
+                <ol>
+                  <li>Choose the <b>Character</b> and <b>Weapon</b> at the top. The matching slot is picked for you.</li>
+                  <li>On <b>Position</b>, pick a spot in <b>Carried at</b>. The weapon moves there when put away, and gets an attach point of its own so nothing else moves with it.</li>
+                  <li>Set <b>Show it</b> to <b>Put away</b>, try armour on the <b>Armour</b> tab, and press <b>Check for clipping</b>.</li>
+                  <li>Optional: on <b>Animations</b>, choose <b>Use another weapon's animations…</b> to give it a draw that reaches the new spot. You see every file it would change, and can watch the result, before anything changes.</li>
+                </ol>
+                <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
-                  <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
-                  <li>Choose Prepare preview, compare Before and After, and inspect Details and exact files. Checks distinguish Passed, Warning, Unverified, and Blocked; unsupported runtime behavior remains unverified.</li>
-                  <li>Package reviewed changes for DMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
+                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b>, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
+                  <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
                 </ul>
+                <p><b>Change an animation, or make a new one</b></p>
+                <ol>
+                  <li>Play the animation on <b>Animations</b>, open <b>Edit animation</b> and choose <b>Edit the animation that is playing</b>. <b>Start a new one from this pose</b> builds a new animation from the pose on screen instead.</li>
+                  <li>Pick a <b>Bone</b>, or click its joint in the view, move the playhead on the timeline at the top of the tab, and <b>Turn</b> or <b>Move</b> it. Each change keys that bone at that moment, on top of the animation; between keys the bone eases from one to the next. Drag a key on the timeline to move it to another moment, or right-click it to remove it.</li>
+                  <li>To place a hand or foot, use <b>Reach with a hand or foot</b>: <b>Move</b> it and the arm or leg bends to get it there. <b>Plant here</b> holds it where it is, such as a foot on the ground or a hand on a hilt, until <b>Let go here</b>. If the body moves further away than the arm or leg can reach, the limb straightens toward the spot.</li>
+                  <li>Change <b>Speed</b> or the part of the animation used, play it backwards, hold the end, change the <b>Distance travelled</b>, <b>Mirror left and right</b>, or borrow a body part such as the arms from the animation selected on <b>Animations</b>. The character shows each change as you make it.</li>
+                  <li><b>Join another animation after this one</b> plays the animation selected on <b>Animations</b> straight afterwards. The two blend over the <b>Fade</b>, and the character carries on from where the first one stops, facing the way it faces.</li>
+                  <li>To animate in Blender, choose <b>Export for Blender…</b>, import the .glb in Blender, animate the joints, export glTF 2.0 with the animation, and choose <b>Import from Blender…</b>. Bones are matched by name.</li>
+                  <li>Check <b>Replaces</b>, which names the game animation it will replace, then choose <b>Add to Your mod</b>. The game keeps asking for that file and gets the new motion; distance (LOD) copies are not edited.</li>
+                </ol>
+                <p><b>Save the mod</b></p>
+                <ol>
+                  <li>Open <b>Your mod</b>. Every change is listed in plain words; untick anything to leave out, or remove it.</li>
+                  <li>Give the mod a name and choose <b>Straight into DMM's mods folder</b> or <b>A folder I choose</b>, then press <b>Save as mod</b>.</li>
+                  <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
+                </ol>
+                <p><b>Advanced</b> holds the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <p>Each time the tab opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
             },
             {
@@ -629,16 +721,51 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "research",
                 "title": "Research",
-                "summary": "Texture-family inspection, unknown-resolution, DDS QA, reports, and notes.",
-                "keywords": "research unknown resolver grouped families dds qa reports heatmaps notes references",
+                "summary": "Texture sets, texture types, classification review, references, UI size limits, rebuilt-texture checks and notes.",
+                "keywords": "asset research texture sets classification review label unknown references sidecar ui constraints getrect heatmap texture analysis mip normal budget notes",
                 "html": """
-                <p><b>Research</b> is the analysis surface for grouped texture families and metadata-heavy review.</p>
-                <ul>
-                  <li>Inspect grouped DDS families and their inferred semantic roles.</li>
-                  <li>Use <b>Unknown Resolver</b> to review and assign uncertain classifications.</li>
-                  <li>Open DDS analysis, reports, references, and local notes.</li>
-                  <li>Review planner/path/profile summaries and family-level context before committing to risky workflow overrides.</li>
-                </ul>
+                <p>Asset Research studies the textures in the current Archive Browser view: how they group into sets, what type each texture is, what refers to them, and how your rebuilt textures compare with the originals. It only reads the archives and does not change game files.</p>
+                <ol>
+                  <li>Load the archives in Archive Browser and filter it to the files you want to study.</li>
+                  <li>Open Asset Research under Utilities and click Refresh Research. Texture Sets, Classification Review, Heatmap and Texture Analysis show this snapshot until you refresh again; References looks things up in the current archive, and UI Constraints has its own scan.</li>
+                  <li>Choose a page in the row of tabs. On most pages the Archive Files panel on the right lists the same files; select one to preview it. Classification Review and Texture Analysis show their own details there instead.</li>
+                </ol>
+                <table>
+                  <tr><th>Page</th><th>What it shows</th><th>What to do</th></tr>
+                  <tr><td>Texture Sets</td><td>Related textures grouped into sets, and the type given to each texture.</td><td>Select a set and click Extract Selected Set to extract its textures and sidecar files together.</td></tr>
+                  <tr><td>Classification Review</td><td>Textures that could not be classified with confidence, with a preview and the reasons for each suggestion.</td><td>Choose a label. Under Save to, pick this file, the unknown files in this family, or the unknown files in the selected families. Remove from deletes saved labels again.</td></tr>
+                  <tr><td>References</td><td>Materials, sidecars and XML files that point at a texture, or the textures a material uses.</td><td>Click Find References in Archive Files or double-click a file. You can also type an archive path and click Resolve.</td></tr>
+                  <tr><td>UI Constraints</td><td>UI textures whose size on screen is fixed by a GetRect box in the game's UI XML.</td><td>Click Scan UI Rect References. Upscaling such a texture alone does not make it bigger in game.</td></tr>
+                  <tr><td>Heatmap</td><td>Where textures concentrate, ranked by system area, folder and package.</td><td>Hover a row to see sample paths.</td></tr>
+                  <tr><td>Texture Analysis</td><td>Mip chains, normal maps and memory budget of your rebuilt textures compared with the originals.</td><td>In Textures, set both DDS folders, the originals and your rebuilt textures, then refresh. Select a row for details, or export the report as CSV or JSON.</td></tr>
+                  <tr><td>Notes</td><td>Your own notes and tags on archive files, Text Search results or compared files.</td><td>Choose a target, write the note and click Save Note. Notes are stored beside the EXE.</td></tr>
+                </table>
+                <p>Saved labels stay on this PC. Later scans and the texture policies used when you build reuse them.</p>
+                <div class="doc-callout doc-warning">Texture types and references come from file names, paths and sidecar files. Treat them as evidence to review, not as proof of how the game uses a texture.</div>
+                """,
+            },
+            {
+                "id": "hkx_physics_editor",
+                "title": "HKX Physics Editor",
+                "summary": "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.",
+                "keywords": "hkx havok physics ragdoll joint limit bend twist swing stiffness friction collision rename dmm mod",
+                "html": """
+                <p>HKX Physics Editor shows a Havok physics file in plain terms and saves your changes as a DMM mod. Select an HKX file in Archive Browser, then choose Tools &gt; Physics / HKX &gt; Edit HKX Physics, or use the file's context menu.</p>
+                <table>
+                  <tr><th>Tab</th><th>What you can change</th></tr>
+                  <tr><td>Overview</td><td>What the file is, how many joints and names it has, and the steps to make a mod.</td></tr>
+                  <tr><td>Joints</td><td>How far each ragdoll or physics-system joint bends, twists and swings, in degrees, and how stiff it is. The stiffness of every joint can be scaled at once.</td></tr>
+                  <tr><td>Names</td><td>Body, bone and joint names, at any length.</td></tr>
+                  <tr><td>Collision</td><td>An item or object can take the whole collision file of another one of the same kind.</td></tr>
+                </table>
+                <h4>Make a ragdoll mod</h4>
+                <ol>
+                  <li>Select a file in the character/bin__/havokphysics folder and open the editor.</li>
+                  <li>Pick a joint on the Joints tab and change its values. The shipped value is shown next to each one.</li>
+                  <li>Click Save as DMM Mod, choose a folder and a name, then enable the mod in DMM and click Mount.</li>
+                  <li>Test it in game and change one thing at a time.</li>
+                </ol>
+                <div class="doc-callout doc-warning"><b>Limits:</b> edited physics has not been tested in game. Collision shapes cannot be resized or edited one by one, and bodies, joints or cloth cannot be added; no HKX file contains cloth. Renaming a file section, skeleton or bone can stop a file from working. Saving never changes the game archives.</div>
                 """,
             },
             {
@@ -651,6 +778,8 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Search with preview and syntax-colored match context.</li>
                   <li>Work against archive data or loose folders.</li>
+                  <li>In Path filter, plain text matches anywhere in the path. With * or ? as wildcards, *.xml matches file names and object/* matches that folder at any depth.</li>
+                  <li>With Regex turned on, ^ and $ mark the start and end of each line.</li>
                   <li>Export matched results while preserving folder structure.</li>
                 </ul>
                 """,
@@ -658,18 +787,18 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Add .cditem item packages, apply them and launch the game with the items.",
-                "keywords": "utilities mods cditem item package apply launch runtime identities dmm",
+                "summary": "Keep a list of .cdmw item packages and send them to DMM as one mod.",
+                "keywords": "utilities mods cdmw cditem item package send dmm identities",
                 "html": """
-                <p>Mod Management loads .cditem item packages into the game through CDMW's runtime. Other mods belong in DMM (Definitive Mod Manager).</p>
+                <p>DMM (Definitive Mod Manager) loads CDMW's items into the game. Mod Management keeps a list of .cdmw item packages and sends them to DMM as one mod.</p>
                 <ol>
-                  <li>On Mods, choose Add item packages and select the .cditem files.</li>
-                  <li>Choose Apply changes. CDMW checks each package against the installed game and prepares the item files.</li>
-                  <li>Choose Launch game, or start the game from Steam or DMM. CDMW's runtime in the game's bin64 folder serves the items while the game runs.</li>
+                  <li>On Mods, choose Add item packages and select the .cdmw files.</li>
+                  <li>Select the packages to send, or select none to send them all, and choose Send to DMM. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it.</li>
+                  <li>In DMM, enable the mod named CDMW items, click Mount and start the game from DMM.</li>
                 </ol>
-                <p>Item identities keeps the IDs assigned to each item, so saves find their items again. Export the identity profile with your saves when moving to another computer.</p>
-                <p>To use an item in DMM instead, right-click it on Mods and choose Send to DMM. CDMW rebuilds it as a DMM mod for the installed game and puts it in DMM's mods folder; enable it in DMM and click Mount. A DMM mod carries complete item and shop tables, so two such mods replace each other's items, and a game update can need a new send.</p>
-                <p>Loading items this way is experimental. After a game update, opening Mod Management applies the items again. A DMM mod that replaces the item or shop tables may hide CDMW's items. A successful launch does not verify the items in shops, the inventory or saves.</p>
+                <p>Packages saved before the .cdmw extension was introduced end in .cditem. They still load and need no conversion.</p>
+                <p>Sending again replaces CDMW items. Keep all your CDMW items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items. Each item keeps its ID from one send to the next, so saves find their items again; CDMW records the IDs in the .cdmw folder inside the game folder.</p>
+                <p>After a game update, send the items again. A package that refuses with an incompatible game dependency needs updating in Create New Item first. A DMM mod that replaces the item or shop tables may hide CDMW's items.</p>
                 """,
             },
             {
@@ -678,7 +807,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Converting mods between mod managers is no longer offered.",
                 "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm manifest",
                 "html": """
-                <p>Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cditem packages.</p>
+                <p>Converting mods between mod managers is no longer offered. Since the October 2026 DLC update CDMW writes mods for DMM (Definitive Mod Manager) only, and new items also as .cdmw packages.</p>
                 """,
             },
             {

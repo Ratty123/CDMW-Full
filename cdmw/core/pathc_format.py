@@ -125,6 +125,18 @@ def _dds_descriptor(data: bytes) -> DdsTextureDescriptor:
     return DdsTextureDescriptor(header, counts)
 
 
+def with_stored_mip_sizes(data: bytes) -> bytes:
+    """`data` with its header's mip-size fields describing the mips it actually holds.
+
+    The game's partially compressed textures record their compressed mip sizes in
+    `dwReserved1`; read back in full they keep those numbers, and a loader that trusts
+    the header reads the uncompressed mips short and draws noise. A texture stored raw
+    records its raw sizes there, which is what this writes.
+    """
+    descriptor = _dds_descriptor(data)
+    return bytes(data[:32]) + descriptor.block_infos + bytes(28) + bytes(data[76:])
+
+
 def validate_dds_payload(data: bytes) -> DdsTextureDescriptor:
     """Refuse incomplete or unexplained bytes before publishing a raw DDS texture."""
     descriptor = _dds_descriptor(data)
@@ -239,12 +251,15 @@ def register_texture(
     (:func:`dds_shape`) must equal the header the reference is registered under,
     otherwise the game would decode the new pixels with the wrong size or format.
 
-    `reference_tables` are read-only registries that may hold `like` instead, such
-    as a DLC's own `dlc/dlc_NN/meta/0.pathc`. The new row still goes into `table`,
-    under a header of the reference's shape and tag.
+    `reference_tables` are read-only registries that may hold `like`, such as a
+    DLC's own `dlc/dlc_NN/meta/0.pathc`. A DLC ships its own copy of many base
+    textures and the game loads that copy, so a reference registered there is read
+    from that registry even when `table` registers it too (2,996 of the 6,192 DDS
+    the first DLC replaces are registered with another header). The new row still
+    goes into `table`, under a header of the reference's shape and tag.
     """
 
-    reference = table.find(like)
+    reference = None if any(other.find(like) is not None for other in reference_tables) else table.find(like)
     if reference is None:
         for other in reference_tables:
             found = other.find(like)

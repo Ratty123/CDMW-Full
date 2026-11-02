@@ -17,6 +17,7 @@ from cdmw.domain.archives.constants import (
     ARCHIVE_AUDIO_PATCH_EXTENSIONS,
     ARCHIVE_MESH_EXTENSIONS,
 )
+from cdmw.services.action_chart_edit_service import is_editable_action_chart_path
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.workflow_dependencies import (
@@ -492,6 +493,14 @@ class ArchiveBrowserActionMixin:
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
             continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 
+        if str(entry.extension or "").lower() == ".hkx":
+            _add_menu_section("physics", "Physics / HKX")
+            physics_editor_action = menu.addAction(menu_icons["physics"], "Edit HKX Physics...")
+            physics_editor_action.setToolTip("Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.")
+            physics_editor_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._open_hkx_physics_editor_for_entry(current_entry)
+            )
+
         if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")
             inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")
@@ -527,6 +536,18 @@ class ArchiveBrowserActionMixin:
             )
             import_pab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_pab_edit_json())
 
+        if entry.extension in {".paac", ".paacdesc"}:
+            _add_menu_section("data", "Action Chart")
+            if is_editable_action_chart_path(entry.path):
+                edit_chart_action = menu.addAction(menu_icons["data"], "Edit Action Chart...")
+                edit_chart_action.setToolTip(
+                    "Change the chart's clips, blend spaces, sockets, effects and timing, then export a DMM mod."
+                )
+                edit_chart_action.triggered.connect(lambda _checked=False: self._open_current_archive_action_chart_editor())
+            find_chart_action = menu.addAction(menu_icons["data"], "Find Action Chart by Character...")
+            find_chart_action.setToolTip("Pick a character and weapon slot to open the chart it uses.")
+            find_chart_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())
+
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")
             edit_structured_action.setToolTip(
@@ -543,9 +564,18 @@ class ArchiveBrowserActionMixin:
                 lambda _checked=False, current_entry=entry: self._start_archive_audio_export(current_entry)
             )
             if entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
-                import_audio_action = menu.addAction(menu_icons["audio"], "Import WAV + Patch to Game...")
+                import_audio_action = menu.addAction(menu_icons["audio"], "Import WAV as Loose Mod...")
                 import_audio_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
+                )
+            if entry.extension == ".bnk":
+                replace_bank_sound_action = menu.addAction(menu_icons["audio"], "Replace Embedded Sound as Loose Mod...")
+                replace_bank_sound_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_bank_media_replace(current_entry)
+                )
+                edit_bank_action = menu.addAction(menu_icons["audio"], "Edit Sound Bank as Loose Mod...")
+                edit_bank_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_sound_bank_edit(current_entry)
                 )
 
         elapsed_ms = max(0.0, (time.perf_counter() - context_started_at) * 1000.0)

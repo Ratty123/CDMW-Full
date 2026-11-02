@@ -90,6 +90,11 @@ def read_archive_performance_settings(
                 "archive/maximum_indexing_priority",
                 defaults.maximum_indexing_priority,
             ),
+            durable_exports=_read_bool(
+                settings,
+                "archive/durable_exports",
+                defaults.durable_exports,
+            ),
         )
     )
 

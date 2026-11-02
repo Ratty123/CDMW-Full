@@ -97,6 +97,28 @@ def _refresh_texture_analysis_summary(self) -> None:
     self.analysis_context_label.setText(analysis_context)
     if hasattr(self, "analysis_context_help_button"):
         _set_help_button_text(self.analysis_context_help_button, analysis_context)
+    _refresh_texture_analysis_roots(self)
+
+def _refresh_texture_analysis_roots(self) -> None:
+    if not hasattr(self, "analysis_roots_label"):
+        return
+    original_root = str(self.get_original_root() or "").strip()
+    output_root = str(self.get_output_root() or "").strip()
+    if not original_root and not output_root:
+        self.analysis_roots_label.setText(
+            "Original DDS root and Output root are not set. Set them in the Textures tool to use these checks."
+        )
+    elif not original_root:
+        self.analysis_roots_label.setText(f"Original DDS root is not set. Output root: {output_root}")
+    elif not output_root:
+        self.analysis_roots_label.setText(f"Original DDS root: {original_root}. Output root is not set.")
+    elif not (Path(original_root).expanduser().is_dir() and Path(output_root).expanduser().is_dir()):
+        self.analysis_roots_label.setText(
+            f"Original DDS root: {original_root}\nOutput root: {output_root}\n"
+            "At least one of these folders does not exist; checks cover only the folders that do."
+        )
+    else:
+        self.analysis_roots_label.setText(f"Original DDS root: {original_root}\nOutput root: {output_root}")
 
 def _handle_mip_selection_changed(
     self,

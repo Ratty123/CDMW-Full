@@ -266,6 +266,11 @@ class ArchivePreviewLayoutMixin:
             "Edit the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view."
         )
         self.archive_hkx_placement_button.setEnabled(False)
+        self.archive_hkx_physics_editor_button = QPushButton("Edit HKX Physics...")
+        self.archive_hkx_physics_editor_button.setToolTip(
+            "Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod."
+        )
+        self.archive_hkx_physics_editor_button.setEnabled(False)
         self.archive_hkx_corpus_button = QPushButton("Scan HKX Corpus...")
         self.archive_hkx_corpus_button.setToolTip(
             "Scan a local folder of extracted Crimson Desert .hkx files and export a converter coverage report as JSON or CSV."
@@ -418,6 +423,13 @@ class ArchivePreviewLayoutMixin:
                     ),
                 ),
                 (
+                    "physics",
+                    "Physics / HKX",
+                    (
+                        ("Edit HKX Physics", self.archive_hkx_physics_editor_button),
+                    ),
+                ),
+                (
                     "data",
                     "Structured Data",
                     (
@@ -525,6 +537,7 @@ class ArchivePreviewLayoutMixin:
             self.archive_hkx_import_xml_button,
             self.archive_hkx_edit_button,
             self.archive_hkx_placement_button,
+            self.archive_hkx_physics_editor_button,
             self.archive_hkx_corpus_button,
             self.archive_sidecar_export_json_button,
             self.archive_sidecar_inspect_button,

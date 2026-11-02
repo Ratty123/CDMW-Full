@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QAbstractItemView, QComboBox, QTreeWidget, QTreeWi
 
 from cdmw.services.archive_query_service import build_archive_tree_index
 from cdmw.models import ArchiveEntry
+from cdmw.ui.research.reference_payload_state import normalize_research_target_key
 from cdmw.ui.research.archive_picker_state import (
     archive_picker_available_status_text,
     archive_picker_entries_from_sources,
@@ -276,7 +277,7 @@ def _focus_archive_picker_path(self, path_value: str) -> bool:
     file_item = _find_archive_picker_file_item(container, entry_index)
     if file_item is None:
         return False
-    self.right_panel_stack.setCurrentWidget(self.archive_picker_group)
+    # The side panel follows the visible page; selecting a row here must not swap it.
     self.archive_picker_tree.setCurrentItem(file_item)
     self.archive_picker_tree.scrollToItem(file_item, QAbstractItemView.PositionAtCenter)
     return True
@@ -323,12 +324,23 @@ def use_selected_archive_picker_for_reference(self) -> None:
     if entry is None:
         self.status_message_requested.emit("Select a file in Research -> Archive Files first.", True)
         return
-    self._populate_reference_target(entry.path)
+    # Open the References page and resolve, as the button's tooltip and Help say.
+    self.focus_references_for_path(entry.path)
 
 def use_selected_archive_picker_for_note(self) -> None:
     self._ensure_archive_picker_ready()
     entry = current_archive_picker_entry_from_item(self.archive_picker_tree.currentItem(), self.archive_picker_entries)
     if entry is None:
         self.status_message_requested.emit("Select a file in Research -> Archive Files first.", True)
+        return
+    self.tab_widget.setCurrentWidget(self.notes_tab)
+    if self._note_has_unsaved_changes() and normalize_research_target_key(entry.path) != normalize_research_target_key(
+        self.notes_target_edit.text()
+    ):
+        # Picking another file would replace the editor contents; keep the draft visible.
+        self.status_message_requested.emit(
+            "The note on the Notes page has unsaved changes. Save or delete it before adding a note for another file.",
+            True,
+        )
         return
     self._populate_note_target("archive", entry.path)

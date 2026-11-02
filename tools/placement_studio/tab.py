@@ -155,6 +155,17 @@ def _prepare_startup(root, cancelled, progress, *, resident_source=None):
         baseline, error = result[0]
         if baseline is None:
             raise ValueError(error)
+    elif root and Path(root).is_dir():
+        # A game update leaves the pinned copies describing the old game, and every edit and
+        # package would be built on them. Checked on every open; cheap unless it changed.
+        from .corpus import refresh_baseline
+
+        catalogue = (resident_source.open(cancelled, package_root=root)
+                     if resident_source is not None else None)
+        refreshed = refresh_baseline(baseline, resident_catalogue=catalogue, should_stop=cancelled)
+        baseline = refreshed.baseline
+        if refreshed.updated:
+            baseline.note = refreshed.describe()
     if cancelled():
         return None
     # The shell preloads the Qt window module on the GUI thread. Standalone

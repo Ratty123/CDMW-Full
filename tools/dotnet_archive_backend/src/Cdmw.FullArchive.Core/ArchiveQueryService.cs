@@ -3,7 +3,7 @@ using Cdmw.FullArchive.Contracts;
 
 namespace Cdmw.FullArchive.Core;
 
-public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
+public sealed partial class ArchiveQueryService(ArchiveSessionManager sessions)
 {
     private const int MaximumBoundedEntryIds = 4096;
     public Task<ArchiveQueryHandle> CreateAsync(
@@ -326,8 +326,6 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 generation,
                 direct.EntryCount);
         }
-        var candidates = query.SortActive ? new List<QueryCandidate>() : null;
-        var unsortedIds = query.SortActive ? null : new List<long>();
         var candidateIds = requestedIds;
         if (candidateIds is null && query.Extensions is { Count: > 0 })
         {
@@ -341,44 +339,87 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             }
         }
         var total = candidateIds?.LongLength ?? session.Index.EntryCount;
+        var filter = QueryFilter.Create(query);
+        // The name fields depend only on the file name: read them from the session's
+        // column, and only when a text term could match one.
+        var hasNames = session.TryGetNameIndex(out var nameIndex);
+        var names = hasNames && filter.MayMatchNames(nameIndex!)
+            ? session.GetNameColumn(nameIndex!, cancellationToken)
+            : null;
+        var sortNames = hasNames && query.SortActive &&
+            query.SortField is ArchiveSortField.KnownName or ArchiveSortField.ExactName or ArchiveSortField.NameEvidence
+            ? names ?? session.GetNameColumn(nameIndex!, cancellationToken)
+            : null;
+        var candidatePamts = query.SortActive ? new CandidatePamts(session.Index) : null;
         Publish(progress, new ProgressUpdate(0, total, "query_scan"));
-        for (long candidateIndex = 0; candidateIndex < total; candidateIndex++)
+        var chunkCount = ArchiveParallel.ChunkCount(total);
+        var chunkIds = query.SortActive ? null : new List<long>?[chunkCount];
+        var chunkCandidates = query.SortActive ? new List<QueryCandidate>?[chunkCount] : null;
+        var progressGate = new object();
+        long scanned = 0;
+        ArchiveParallel.ForEachChunk(total, cancellationToken, (chunk, start, end) =>
         {
-            if ((candidateIndex & 0x1FFF) == 0)
+            var ids = chunkIds is null ? null : new List<long>();
+            var candidates = chunkCandidates is null ? null : new List<QueryCandidate>();
+            for (var candidateIndex = start; candidateIndex < end; candidateIndex++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                Publish(progress, new ProgressUpdate(candidateIndex, total, "query_scan"));
+                if ((candidateIndex & 0xFFF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                var entryId = candidateIds is null ? candidateIndex : candidateIds[candidateIndex];
+                if (entryId < 0 || entryId >= session.Index.EntryCount)
+                {
+                    continue;
+                }
+                if (!filter.Matches(session.Index, entryId, names))
+                {
+                    continue;
+                }
+                if (candidates is not null)
+                {
+                    candidates.Add(QueryCandidate.Create(
+                        session.Index,
+                        entryId,
+                        query.SortField,
+                        sortNames?[entryId],
+                        candidatePamts!));
+                }
+                else
+                {
+                    ids!.Add(entryId);
+                }
             }
-            var entryId = candidateIds is null ? candidateIndex : candidateIds[candidateIndex];
-            if (entryId < 0 || entryId >= session.Index.EntryCount)
+            if (chunkIds is not null)
             {
-                continue;
-            }
-            var entry = session.ReadEntry(entryId);
-            if (!Matches(entry, query))
-            {
-                continue;
-            }
-            if (candidates is not null)
-            {
-                candidates.Add(QueryCandidate.Create(entry, query.SortField));
+                chunkIds[chunk] = ids;
             }
             else
             {
-                unsortedIds!.Add(entry.EntryId);
+                chunkCandidates![chunk] = candidates;
             }
-        }
+            lock (progressGate)
+            {
+                scanned += end - start;
+                Publish(progress, new ProgressUpdate(scanned, total, "query_scan"));
+            }
+        });
 
         cancellationToken.ThrowIfCancellationRequested();
         long[] ids;
-        if (candidates is not null)
+        if (chunkCandidates is not null)
         {
-            candidates.Sort((left, right) => CompareCandidates(left, right, query.SortField, query.SortDescending));
+            // Ties fall back on the entry id, so this is a total order and the
+            // parallel merge produces exactly the sequential sort's order.
+            var candidates = ArchiveParallel.SortedConcat(
+                chunkCandidates,
+                (left, right) => CompareCandidates(left, right, query.SortField, query.SortDescending),
+                cancellationToken);
             ids = candidates.Select(static item => item.EntryId).ToArray();
         }
         else
         {
-            ids = unsortedIds!.ToArray();
+            ids = ArchiveParallel.Concat(chunkIds!);
         }
         var queryId = Guid.NewGuid().ToString("N");
         session.StoreQuery(CompiledArchiveQuery.Materialized(queryId, generation, query, ids));
@@ -399,99 +440,6 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         && query.MinimumSize is not > 0
         && !query.PreviewableOnly
         && !query.ActiveOverridesOnly;
-
-    private static bool Matches(ArchiveEntryDto entry, ArchiveQuery query)
-    {
-        if (!MatchesAnyTextPattern(entry, query.IncludeText))
-        {
-            return false;
-        }
-        if (!string.IsNullOrWhiteSpace(query.ExcludeText) && MatchesAnyTextPattern(entry, query.ExcludeText))
-        {
-            return false;
-        }
-        if (query.Extensions is { Count: > 0 } &&
-            !query.Extensions.Any(value => MatchesExtension(entry.Extension, value)))
-        {
-            return false;
-        }
-        if (query.Packages is { Count: > 0 } &&
-            !query.Packages.Any(value => MatchesPackage(entry, value)))
-        {
-            return false;
-        }
-        if (!string.IsNullOrWhiteSpace(query.Folder))
-        {
-            var folder = NormalizeFolder(query.Folder);
-            if (!StructurePath(entry).StartsWith(folder, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-        if (query.Roles is { Count: > 0 } && !query.Roles.Contains(entry.Role))
-        {
-            return false;
-        }
-        if (query.TechnicalSuffixes is { Count: > 0 } &&
-            query.TechnicalSuffixes.Any(pattern => MatchesTextPattern(entry, pattern)))
-        {
-            return false;
-        }
-        if (query.MinimumSize is { } minimum && entry.OriginalSize < minimum)
-        {
-            return false;
-        }
-        if (query.PreviewableOnly && !entry.IsPreviewable)
-        {
-            return false;
-        }
-        return !query.ActiveOverridesOnly || entry.IsActiveOverride;
-    }
-
-    private static bool MatchesAnyTextPattern(ArchiveEntryDto entry, string? filter)
-    {
-        if (string.IsNullOrWhiteSpace(filter))
-        {
-            return true;
-        }
-        return filter
-            .Split([';', ',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Any(pattern => MatchesTextPattern(entry, pattern));
-    }
-
-    private static bool MatchesTextPattern(ArchiveEntryDto entry, string filter)
-    {
-        var text = filter.Trim();
-        if (!text.ContainsAny(['*', '?', '[']))
-        {
-            return entry.Path.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                entry.KnownName.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                entry.ExactName.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                entry.NameEvidence.Contains(text, StringComparison.OrdinalIgnoreCase);
-        }
-        var pattern = "^" + Regex.Escape(text).Replace("\\*", ".*").Replace("\\?", ".") + "$";
-        return Regex.IsMatch(entry.Path, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
-            Regex.IsMatch(entry.Name, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
-            Regex.IsMatch(entry.KnownName, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
-    }
-
-    private static bool MatchesPackage(ArchiveEntryDto entry, string candidate)
-    {
-        var text = candidate.Trim();
-        if (text.Length == 0)
-        {
-            return true;
-        }
-        if (!text.ContainsAny(['*', '?', '[']))
-        {
-            return entry.Package.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                entry.SourcePamt.Contains(text, StringComparison.OrdinalIgnoreCase);
-        }
-        var pattern = "^" + Regex.Escape(text).Replace("\\*", ".*").Replace("\\?", ".") + "$";
-        return Regex.IsMatch(entry.Package, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
-            Regex.IsMatch(entry.SourcePamt, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
-    }
 
     private static bool MatchesExtension(string extension, string candidate)
     {
@@ -746,9 +694,6 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         return value.Replace('\\', '/').Trim('/') + "/";
     }
 
-    private static string StructurePath(ArchiveEntryDto entry) =>
-        StructurePath(entry.SourcePamt, entry.Path);
-
     private static string StructurePath(ArchiveSession session, long entryId, string path) =>
         StructurePath(session.Index.ReadString(session.Index.GetPamtPathRange(entryId)), path);
 
@@ -777,35 +722,81 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         long OriginalSize,
         long StoredSize)
     {
-        public static QueryCandidate Create(ArchiveEntryDto entry, ArchiveSortField field)
+        /// <summary>
+        /// Builds the sort key from the index fields. Each value is the one the matching
+        /// <see cref="ArchiveEntryDto"/> property of an enriched entry holds (named in the
+        /// comments), derived the same way, so a sorted query no longer reads whole entries.
+        /// </summary>
+        public static QueryCandidate Create(
+            ArchiveIndex index,
+            long entryId,
+            ArchiveSortField field,
+            ArchiveEntryNames? names,
+            CandidatePamts pamts)
         {
+            var facts = index.ReadSortFacts(entryId);
+            var pamt = pamts.Get(facts.PamtRange);
+            var compressionType = facts.Flags & 0x0F;
             var (text, number, secondary) = field switch
             {
-                ArchiveSortField.Name => (entry.Name, 0L, 0L),
-                ArchiveSortField.KnownName => (entry.ItemName, 0L, 0L),
-                ArchiveSortField.ExactName => (entry.ExactName, 0L, 0L),
-                ArchiveSortField.NameEvidence => (entry.NameEvidence, 0L, 0L),
-                ArchiveSortField.Extension => (entry.Extension, 0L, 0L),
-                ArchiveSortField.Package => (entry.Package, 0L, 0L),
-                ArchiveSortField.OriginalSize => (string.Empty, entry.OriginalSize, entry.StoredSize),
-                ArchiveSortField.StoredSize => (string.Empty, entry.StoredSize, entry.OriginalSize),
-                ArchiveSortField.Compression => (CompressionLabel(entry.CompressionType), entry.CompressionType, entry.Flags),
-                ArchiveSortField.Role => (ArchiveRoleDisplay.For(entry), 0L, 0L),
-                ArchiveSortField.Category => (entry.Category, 0L, 0L),
-                ArchiveSortField.ActiveOverride => (entry.OverrideState, 0L, 0L),
-                _ => (entry.Path, 0L, 0L),
+                // Name: the file name of the normalized path.
+                ArchiveSortField.Name => (System.IO.Path.GetFileName(facts.Path.Replace('/', System.IO.Path.DirectorySeparatorChar)), 0L, 0L),
+                // ItemName: ExactName, else KnownName, else NameEvidence.
+                ArchiveSortField.KnownName => (ItemName(names), 0L, 0L),
+                ArchiveSortField.ExactName => (names?.ExactName ?? string.Empty, 0L, 0L),
+                ArchiveSortField.NameEvidence => (names?.NameEvidence ?? string.Empty, 0L, 0L),
+                ArchiveSortField.Extension => (Extension(facts.Path), 0L, 0L),
+                ArchiveSortField.Package => (pamt.Package, 0L, 0L),
+                ArchiveSortField.OriginalSize => (string.Empty, facts.OriginalSize, facts.StoredSize),
+                ArchiveSortField.StoredSize => (string.Empty, facts.StoredSize, facts.OriginalSize),
+                // CompressionType is the low flag nibble.
+                ArchiveSortField.Compression => (CompressionLabel(compressionType), compressionType, facts.Flags),
+                ArchiveSortField.Role => (ArchiveRoleDisplay.For(facts.Path, Extension(facts.Path)), 0L, 0L),
+                ArchiveSortField.Category => (ArchiveEntryClassifier.ClassifyExtensionCategory(Extension(facts.Path)).ToString(), 0L, 0L),
+                ArchiveSortField.ActiveOverride => (ArchiveIndex.OverrideState(facts.OverrideMetadata, pamt.SourcePamt), 0L, 0L),
+                _ => (facts.Path, 0L, 0L),
             };
+            // NaturalText is a pure function of its text, so a path key is computed once.
+            var naturalPath = NaturalText(facts.Path);
             return new QueryCandidate(
-                entry.EntryId,
-                NaturalText(text),
+                entryId,
+                ReferenceEquals(text, facts.Path) ? naturalPath : NaturalText(text),
                 number,
                 secondary,
-                NaturalText(entry.Path),
-                NaturalText(entry.Package),
-                entry.PazIndex,
-                entry.Offset,
-                entry.OriginalSize,
-                entry.StoredSize);
+                naturalPath,
+                pamt.NaturalPackage,
+                facts.PazIndex,
+                facts.ArchiveOffset,
+                facts.OriginalSize,
+                facts.StoredSize);
+        }
+
+        private static string Extension(string path) => System.IO.Path.GetExtension(path).ToLowerInvariant();
+
+        private static string ItemName(ArchiveEntryNames? names)
+        {
+            var exactName = names?.ExactName ?? string.Empty;
+            var knownName = names?.KnownName ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(exactName)
+                ? exactName
+                : !string.IsNullOrWhiteSpace(knownName)
+                    ? knownName
+                    : names?.NameEvidence ?? string.Empty;
         }
     }
+
+    /// <summary>The PAMT path and package label sort keys need, read once per PAMT.</summary>
+    private sealed class CandidatePamts(ArchiveIndex index)
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<ArchiveIndexStringRange, CandidatePamt> _pamts = new();
+
+        public CandidatePamt Get(ArchiveIndexStringRange range) => _pamts.GetOrAdd(range, value =>
+        {
+            var sourcePamt = index.ReadString(value);
+            var package = ArchiveEntryClassifier.PackageLabel(sourcePamt);
+            return new CandidatePamt(sourcePamt, package, NaturalText(package));
+        });
+    }
+
+    private sealed record CandidatePamt(string SourcePamt, string Package, string NaturalPackage);
 }

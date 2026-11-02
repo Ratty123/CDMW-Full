@@ -119,6 +119,17 @@ def read_embedded_media(data: bytes) -> Tuple[WwiseEmbeddedMedia, ...]:
     return ()
 
 
+def read_bank_embedded_bytes(data: bytes, media: WwiseEmbeddedMedia) -> bytes:
+    """The bytes of one embedded sound, as DIDX places them in DATA."""
+
+    chunks, _consumed = read_bank_chunks(data)
+    payload = next((chunk for chunk in chunks if chunk.identifier == "DATA"), None)
+    if payload is None or media.offset + media.size > payload.size:
+        raise ValueError(f"Embedded media {media.source_id} is not inside the bank's DATA chunk.")
+    start = payload.offset + media.offset
+    return bytes(data[start : start + media.size])
+
+
 def embedded_media_wem_basenames(data: bytes) -> Tuple[str, ...]:
     """The `.wem` names a bank's embedded sounds would carry as loose files.
 
@@ -225,6 +236,7 @@ __all__ = [
     "is_codec_plugin",
     "is_sound_bank",
     "read_bank_chunks",
+    "read_bank_embedded_bytes",
     "read_embedded_media",
     "read_hirc_objects",
 ]

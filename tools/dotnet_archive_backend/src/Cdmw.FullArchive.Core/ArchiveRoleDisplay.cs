@@ -38,10 +38,13 @@ internal static class ArchiveRoleDisplay
         ".pat", ".patx",
     };
 
-    public static string For(ArchiveEntryDto entry)
+    public static string For(ArchiveEntryDto entry) => For(entry.Path, entry.Extension);
+
+    /// <summary>The label <see cref="For(ArchiveEntryDto)"/> derives from an entry's path and extension.</summary>
+    public static string For(string entryPath, string entryExtension)
     {
-        var extension = entry.Extension.ToLowerInvariant();
-        var path = entry.Path.Replace('\\', '/').ToLowerInvariant();
+        var extension = entryExtension.ToLowerInvariant();
+        var path = entryPath.Replace('\\', '/').ToLowerInvariant();
         var basename = path[(path.LastIndexOf('/') + 1)..];
         string role;
         if (ImageExtensions.Contains(extension))

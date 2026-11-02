@@ -38,7 +38,9 @@ from cdmw.core.archive_data_table_preview import (
     build_static_table_preview,
     find_static_table_companion,
 )
+from cdmw.core.action_chart_binary import ActionChartError
 from cdmw.core.archive_action_chart import MAX_ACTION_CHART_RESOURCE_NAMES, action_chart_resource_names
+from cdmw.core.archive_action_chart_preview import ACTION_CHART_EXTENSIONS, build_action_chart_preview
 from cdmw.core.archive_impostor_preview import IMPOSTOR_EXTENSION, ImpostorError, build_impostor_preview
 from cdmw.core.archive_reflect_preview import (
     REFLECT_OBJECT_EXTENSIONS,
@@ -54,6 +56,11 @@ from cdmw.core.archive_ui_resource_preview import (
     UI_RESOURCE_EXTENSIONS,
     UiResourceError,
     build_ui_resource_preview,
+)
+from cdmw.core.archive_dlc_metadata_preview import (
+    DLC_METADATA_EXTENSIONS,
+    DlcMetadataError,
+    build_dlc_metadata_preview,
 )
 from cdmw.core.effect_binary import EffectBinaryError
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
@@ -555,6 +562,50 @@ def build_archive_preview_result(
                     loose_preview_detail_text=loose_preview_detail_text,
                 )
 
+        if extension in ACTION_CHART_EXTENSIONS:
+            try:
+                chart_preview = build_action_chart_preview(data, entry.path, extension=extension)
+            except (ActionChartError, struct.error) as exc:
+                inspector_note = f"The action chart could not be decoded: {exc}"
+            else:
+                chart_names = action_chart_resource_names(data) if extension == ".paac" else ()
+                related_references = build_archive_related_file_references(
+                    entry,
+                    explicit_reference_names=chart_names,
+                    archive_entries_by_normalized_path=texture_entries_by_normalized_path,
+                    archive_entries_by_basename=texture_entries_by_basename,
+                )
+                detail_extra = "\n\n".join(
+                    part
+                    for part in [
+                        ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                        "\n".join(chart_preview.detail_lines),
+                        (
+                            f"Asset Family lists the first {MAX_ACTION_CHART_RESOURCE_NAMES:,} resource paths this chart names."
+                            if len(chart_names) >= MAX_ACTION_CHART_RESOURCE_NAMES
+                            else ""
+                        ),
+                    ]
+                    if part
+                )
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {chart_preview.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                    preview_text=chart_preview.preview_text,
+                    model_texture_references=related_references,
+                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
+                    preferred_view="text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
         if extension in UI_RESOURCE_EXTENSIONS:
             try:
                 ui_preview = build_ui_resource_preview(data, entry.path, extension=extension)
@@ -569,6 +620,28 @@ def build_archive_preview_result(
                     preview_text=ui_preview.bundle.preview_text,
                     preview_image_path=ui_preview.image_path,
                     preferred_view="image" if ui_preview.image_path else "text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
+
+        if extension in DLC_METADATA_EXTENSIONS:
+            try:
+                dlc_preview = build_dlc_metadata_preview(data, entry.path, extension=extension)
+            except DlcMetadataError as exc:
+                inspector_note = f"The file does not have the shipped DLC metadata layout: {exc}"
+            else:
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | {dlc_preview.metadata_label}",
+                    detail_text=build_archive_entry_detail_text(entry, "\n".join(dlc_preview.detail_lines)),
+                    preview_text=dlc_preview.preview_text,
+                    preferred_view="text",
                     loose_file_path=loose_file_path,
                     loose_preview_image_path=loose_preview_image_path,
                     loose_preview_media_path=loose_preview_media_path,
@@ -1233,12 +1306,14 @@ def build_archive_preview_result(
             except RunCancelled:
                 raise
             except Exception as exc:
-                model_preview_error = str(exc)
-                info_extra_parts.append(f"Visual model preview failed to recover geometry: {exc}")
                 from cdmw.core.model_preview import pam_declares_no_submeshes
 
                 if pam_declares_no_submeshes(data):
+                    # An empty mesh, such as the DLC's all-zero proxy LOD stubs, is not a failure.
                     info_extra_parts.append("This PAM declares no submeshes, so it has no geometry to preview.")
+                else:
+                    model_preview_error = str(exc)
+                    info_extra_parts.append(f"Visual model preview failed to recover geometry: {exc}")
             add_timing("model_geometry_s", geometry_started_at)
         elif extension == ".pamlod":
             geometry_started_at = time.perf_counter()

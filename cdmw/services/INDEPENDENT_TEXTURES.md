@@ -1,6 +1,6 @@
 # Existing texture replacement packages
 
-The v2 .cditem capability and module `texture.replace@1` replace existing shipped
+The v2 .cdmw capability and module `texture.replace@1` replace existing shipped
 textures through the independent package resolver. They own resource blobs
 without an equipment recipe and issue no item, recipe, perk or asset-name IDs.
 Package UUIDs, exact content identities, retained reservations and both existing

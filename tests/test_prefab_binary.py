@@ -468,13 +468,41 @@ def test_a_file_that_does_not_decode_is_not_called_undetermined() -> None:
 
 
 def test_the_shipped_collection_reader_is_restored_afterwards() -> None:
-    """It swaps a module-level function out; leaking that would corrupt later walks."""
+    """It overrides the count reader while probing; leaking that would corrupt later walks."""
 
     from cdmw.core import prefab_binary as module
 
     before = module._read_collection_count
     module.walk_is_determined(_build())
     assert module._read_collection_count is before
+    assert getattr(module._COUNT_READER, "reader", None) is None
+
+
+def test_another_thread_never_sees_the_probe_s_count_reader(monkeypatch) -> None:
+    """The probe used to replace the module function, so a prefab decoded on a
+    worker (New Item planning) while the Inspector probed read wide headers."""
+    import threading
+
+    from cdmw.core import prefab_binary as module
+
+    seen: dict[str, object] = {}
+    shipped = module._read_prefab
+
+    def probing_read(*args, **kwargs):
+        seen["probe"] = getattr(module._COUNT_READER, "reader", None)
+        worker = threading.Thread(
+            target=lambda: seen.__setitem__("worker", getattr(module._COUNT_READER, "reader", None))
+        )
+        worker.start()
+        worker.join()
+        return shipped(*args, **kwargs)
+
+    data = _build()
+    monkeypatch.setattr(module, "_read_prefab", probing_read)
+    module.walk_is_determined(data)
+
+    assert seen["probe"] is not None, "the probing thread reads with the override"
+    assert seen["worker"] is None, "no other thread does"
 
 
 # ── Collection header width ──────────────────────────────────────────────
@@ -741,6 +769,34 @@ def test_a_path_in_a_two_member_reference_stays_a_resource() -> None:
 
     assert document.walk_complete, document.walk_note
     assert [item.text for item in document.resource_strings()] == ["character/model/a/b.pac"]
+
+
+@pytest.mark.parametrize("tags", [("GamePlayTriggerInfo", "SafeZone"), ()])
+def test_a_string_list_opens_with_a_kind_byte(tags: tuple[str, ...]) -> None:
+    """Like a numeric array: 00 and a u32 count, or 01 alone when empty.
+
+    Read as a bare u32, ``00 02 00 00 00`` is 512 strings, which stopped 165
+    shipped trigger prefabs at their tag lists.
+    """
+    root = _typedef(
+        "SceneObject",
+        ("_triggerTags", "staticstringA", 0x000A, 1, 0x1000),
+        ("_label", "IndexedStringA", 0x0001, 1, 0x0000),
+    )
+
+    def blob_for(_base: int) -> bytearray:
+        blob = bytearray(struct.pack("<H", 2) + (0b11).to_bytes(6, "little"))
+        if tags:
+            blob += b"\x00" + struct.pack("<I", len(tags)) + b"".join(_text(tag) for tag in tags)
+        else:
+            blob += b"\x01"
+        blob += _text("after")
+        return blob
+
+    document = decode_prefab_binary(_assemble((root,), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.root_texts] == [*tags, "after"]
 
 
 def test_a_numeric_array_opens_with_a_kind_byte() -> None:

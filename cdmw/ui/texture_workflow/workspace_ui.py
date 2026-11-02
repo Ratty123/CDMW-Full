@@ -96,7 +96,7 @@ class TextureJobUiMixin:
         self.review_export_button = QPushButton("Review && Export")
         self.review_export_button.clicked.connect(self.show_texture_review)
         toolbar.addWidget(self.review_export_button)
-        self.independent_package_button = QPushButton("Texture .cditem...")
+        self.independent_package_button = QPushButton("Texture .cdmw...")
         self.independent_package_button.setToolTip("Create or update a portable replacement for one existing game texture.")
         self.independent_package_button.clicked.connect(self._open_independent_texture_package)
         toolbar.addWidget(self.independent_package_button)

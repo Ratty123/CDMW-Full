@@ -10,7 +10,7 @@ fn control(name: &str, kind: &str, label: &str, props: Value) -> Node {
 fn virtual_loader_uses_tall_local_panes_and_keeps_actions_visible() {
     let mut selection = control("selection", "table", "", json!({"headers":true,"sortable":true,
         "columns":[{"text":"Package or folder","stretch":true},{"text":"Type","width":110}],
-        "total":40,"rows":(0..40).map(|i| json!({"path":[i],"cells":[{"text":format!("Item {i:02}.cditem")},{"text":"Item package"}]})).collect::<Vec<_>>() }));
+        "total":40,"rows":(0..40).map(|i| json!({"path":[i],"cells":[{"text":format!("Item {i:02}.cdmw")},{"text":"Item package"}]})).collect::<Vec<_>>() }));
     selection.stretch = 1;
     let mut left = control("left", "column", "", json!({}));
     left.children = vec![control("sort", "choice", "", json!({"items":[{"text":"Name (A–Z)","enabled":true}],"current":0})),

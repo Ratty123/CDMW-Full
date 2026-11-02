@@ -22,6 +22,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--effect-catalogue-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--archive-verification-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--virtual-profile-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--dmm-send-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--input", default="", help=argparse.SUPPRESS)
     parser.add_argument("--output", default="", help=argparse.SUPPRESS)
     return parser

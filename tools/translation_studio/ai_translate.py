@@ -194,7 +194,7 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
         if config.disable_thinking:
             # Claude 4.6+ thinks by default. A translation pass pays for that and rarely
             # needs it; on an older model the provider rejects the field and says so.
-            body["thinking"] = {"type": "disabled"}
+            body.update(_thinking_off(model))
         headers = {
             "content-type": "application/json",
             "anthropic-version": "2023-06-01",
@@ -234,6 +234,23 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
         headers["Authorization"] = f"Bearer {key}"
     versioned = base if base.endswith("/v1") else f"{base}/v1"
     return HttpRequest(f"{versioned}/chat/completions", headers, _encode(body))
+
+
+#: Models whose thinking cannot be switched off: `{"type": "disabled"}` is a 400 on them,
+#: so the cheapest request is the lowest effort instead.
+_ALWAYS_THINKING = ("claude-opus-5-5", "claude-fable-", "claude-mythos-")
+
+
+def _thinking_off(model: str) -> Dict[str, object]:
+    """The request fields that keep a Claude model from thinking, or think least."""
+
+    name = model.lower()
+    if name.startswith(_ALWAYS_THINKING):
+        return {"output_config": {"effort": "low"}}
+    if name.startswith("claude-sonnet-5-5"):
+        # Sonnet 5.5 refuses `disabled` too; `between_tools` is its thinking-off mode.
+        return {"thinking": {"type": "between_tools"}}
+    return {"thinking": {"type": "disabled"}}
 
 
 def _encode(body: Mapping[str, object]) -> bytes:

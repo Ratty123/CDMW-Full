@@ -192,6 +192,8 @@ class Baseline:
     def __init__(self, root: Path, records: Mapping[str, BaselineRecord]) -> None:
         self._root = Path(root)
         self._records = dict(records)
+        #: One sentence for the user when opening changed these copies, else "".
+        self.note = ""
 
     @property
     def root(self) -> Path:
@@ -286,10 +288,25 @@ def package_signature(root: Optional[Path] = None) -> List[list]:
 
     base = Path(root) if root is not None else game_root()
     paths = set(discover_pamt_files(base))
-    if (base / "meta/0.papgt").exists():
-        paths.add(base / "meta/0.papgt")
+    # Each DLC carries its own mount list beside the base game's; either one changing is an
+    # update the caches have to see.
+    for mount_list in (base / "meta/0.papgt", *base.glob("dlc/*/meta/0.papgt")):
+        if mount_list.exists():
+            paths.add(mount_list)
+    # The archives the tables point into, skipping the folders the archive scan skips: a mod
+    # manager's own mount output (DMM's dmmsa and dmmgen) changes on every Mount, and
+    # signing it read every Mount as a game update that made saving refuse.
+    from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS
+
+    ignored = {name.replace("\\", "/").casefold() for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS}
     try:
-        paths |= set(base.rglob("*.paz"))
+        for directory, subdirectories, filenames in os.walk(base):
+            here = Path(directory)
+            subdirectories[:] = [
+                name for name in subdirectories
+                if (here / name).relative_to(base).as_posix().casefold() not in ignored
+            ]
+            paths.update(here / name for name in filenames if name.lower().endswith(".paz"))
     except OSError:
         pass  # an unreadable tree signs as whatever was reachable; the scan will fail anyway
 
@@ -301,6 +318,20 @@ def package_signature(root: Optional[Path] = None) -> List[list]:
             continue
         signature.append([str(package), stat.st_size, stat.st_mtime_ns])
     return signature
+
+
+def _package_label(root: Path, pamt: Path) -> str:
+    """The table's folder, qualified by its DLC root when it has one.
+
+    A DLC reuses the base game's folder names, so its `0009` labelled as plain `0009` reads
+    as the base table that holds every character.
+    """
+
+    try:
+        parts = Path(pamt).resolve().parent.relative_to(Path(root).resolve()).parts
+    except (OSError, ValueError):
+        return pamt.parent.name
+    return "/".join(parts) if len(parts) > 1 else pamt.parent.name
 
 
 def _iter_archive_entries(root: Path, *, on_error=None):
@@ -316,7 +347,7 @@ def _iter_archive_entries(root: Path, *, on_error=None):
     from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
 
     for pamt in discover_pamt_files(root):
-        package = pamt.parent.name
+        package = _package_label(Path(root), pamt)
         try:
             entries = parse_archive_pamt(pamt)
         except Exception as error:  # noqa: BLE001 - a bad package is not the end of the walk
@@ -354,19 +385,9 @@ def extract_baseline(
             raise InterruptedError("Placement preparation cancelled")
     check_cancelled()
     log(f"Resolving {len(targets):,} path(s) across archive tables...")
-
-    # Later packages patch earlier ones, so the highest package wins.
-    located: Dict[str, tuple[str, object]] = {}
-    entries = (((entry.pamt_path.parent.name, entry) for key in sorted(targets)
-                if (entry := resident_catalogue.active_entry(key)) is not None)
-               if resident_catalogue is not None else _iter_archive_entries(game_root()))
-    for package, entry in entries:
-        key = normalize_game_path(entry.path)
-        if key not in targets:
-            continue
-        previous = located.get(key)
-        if previous is None or package >= previous[0]:
-            located[key] = (package, entry)
+    root = _source_root(resident_catalogue)
+    signature = package_signature(root)
+    located = _locate(targets, resident_catalogue)
 
     missing = sorted(targets - set(located))
     if resident_catalogue is not None:
@@ -381,23 +402,73 @@ def extract_baseline(
         except Exception as exc:  # noqa: BLE001 - report, do not abort the sweep
             failed.append(f"{key}: {exc}")
             continue
-        out_path = base / key
-        out_path.parent.mkdir(parents=True, exist_ok=True)
         check_cancelled()
-        temporary = out_path.with_name(out_path.name + '.preparing')
-        try:
-            temporary.write_bytes(data)
-            temporary.replace(out_path)
-        finally:
-            temporary.unlink(missing_ok=True)
-        records[key] = BaselineRecord(key, sha256_bytes(data), len(data), package)
+        records[key] = _pin(base, key, data, package)
         if index % 25 == 0:
             log(f"  extracted {index:,}/{len(located):,}")
 
+    check_cancelled()
+    if resident_catalogue is not None:
+        resident_catalogue.validate_sources()
+    _write_manifest(base, records, root=root, signature=signature, requested=len(targets),
+                    missing=missing, failed=failed, check_cancelled=check_cancelled)
+    log(f"Baseline written: {len(records):,} file(s) at {base}")
+    return Baseline(base, records)
+
+
+def _source_root(resident_catalogue=None) -> Path:
+    if resident_catalogue is not None:
+        return Path(resident_catalogue.source.package_root)
+    return game_root()
+
+
+def _locate(targets, resident_catalogue=None) -> Dict[str, tuple]:
+    """`path -> (package, entry)` as the game resolves each path: first in mount order wins.
+
+    This used to keep the *highest* package name, which stopped meaning "the patch" once the
+    DLC update put a second set of folders named 0000-0040 under `dlc/`.
+    """
+
+    located: Dict[str, tuple] = {}
+    if resident_catalogue is not None:
+        for key in sorted(targets):
+            entry = resident_catalogue.active_entry(key)
+            if entry is not None:
+                located[key] = (_package_label(Path(resident_catalogue.source.package_root),
+                                               Path(entry.pamt_path)), entry)
+        return located
+    # The mount lists decide what the game can see; a leftover mod folder they do not name
+    # must not be pinned as vanilla.
+    from .relationships import active_entries
+
+    for package, entry in active_entries(game_root()):
+        key = normalize_game_path(entry.path)
+        if key in targets and key not in located:
+            located[key] = (package, entry)
+    return located
+
+
+def _pin(base: Path, key: str, data: bytes, package: str) -> BaselineRecord:
+    out_path = base / key
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = out_path.with_name(out_path.name + '.preparing')
+    try:
+        temporary.write_bytes(data)
+        temporary.replace(out_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return BaselineRecord(key, sha256_bytes(data), len(data), package)
+
+
+def _write_manifest(base: Path, records, *, root, signature, requested, missing, failed,
+                    check_cancelled=lambda: None) -> None:
     manifest = {
         "format": "cdmw_placement_studio_baseline_v1",
-        "game_root": str(resident_catalogue.source.package_root if resident_catalogue is not None else game_root()),
-        "requested": len(targets),
+        "game_root": str(root),
+        # What the copies were taken from. `refresh_baseline` compares it with the installed
+        # game on every open, so a game update cannot leave edits built on the old files.
+        "signature": signature,
+        "requested": requested,
         "extracted": len(records),
         "missing": missing,
         "failed": failed,
@@ -412,8 +483,6 @@ def extract_baseline(
         ],
     }
     check_cancelled()
-    if resident_catalogue is not None:
-        resident_catalogue.validate_sources()
     temporary = base / 'baseline.json.preparing'
     try:
         temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -421,5 +490,157 @@ def extract_baseline(
         temporary.replace(base / 'baseline.json')
     finally:
         temporary.unlink(missing_ok=True)
-    log(f"Baseline written: {len(records):,} file(s) at {base}")
-    return Baseline(base, records)
+
+
+@dataclass(frozen=True, slots=True)
+class BaselineRefresh:
+    """What `refresh_baseline` did to the pinned copies."""
+
+    baseline: "Baseline"
+    checked: bool = False
+    changed: tuple[str, ...] = ()
+    removed: tuple[str, ...] = ()
+    added: tuple[str, ...] = ()
+
+    @property
+    def updated(self) -> bool:
+        return bool(self.changed or self.removed or self.added)
+
+    def describe(self) -> str:
+        if not self.updated:
+            return "The game files Placement & Animations works from match the installed game."
+        return (
+            f"The installed game changed since Placement & Animations last read it: "
+            f"{len(self.changed):,} file(s) updated, {len(self.removed):,} no longer in the "
+            f"game, {len(self.added):,} newly found."
+        )
+
+
+def baseline_is_current(baseline: "Baseline", root: Optional[Path] = None) -> bool:
+    """Whether the pinned copies were taken from the game as it is installed now."""
+
+    stored = _stored_signature(baseline.root)
+    return stored is not None and stored == package_signature(root)
+
+
+def baseline_is_stale(baseline, root: Optional[Path] = None) -> bool:
+    """True only when the copies are known to come from a game install other than this one.
+
+    A baseline with no stored signature (a test fixture, or one taken before signatures) is
+    not called stale here; `refresh_baseline` checks those on open.
+    """
+
+    base = getattr(baseline, "root", None)
+    stored = _stored_signature(base) if base is not None else None
+    if stored is None:
+        return False
+    if root is None:
+        # Compared against the install the copies were taken from, not whatever the
+        # environment points at now.
+        try:
+            recorded = json.loads((Path(base) / "baseline.json").read_text(encoding="utf-8"))
+            root = Path(recorded["game_root"]) if recorded.get("game_root") else None
+        except (OSError, ValueError, KeyError):
+            root = None
+    return stored != package_signature(root)
+
+
+def _stored_signature(base: Path):
+    try:
+        payload = json.loads((Path(base) / "baseline.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    signature = payload.get("signature")
+    return signature if isinstance(signature, list) else None
+
+
+def refresh_baseline(
+    baseline: "Baseline",
+    *,
+    on_log=None,
+    resident_catalogue=None,
+    should_stop=None,
+) -> BaselineRefresh:
+    """Bring the pinned copies up to date with the installed game, when it has changed.
+
+    The copies used to be taken once and trusted forever. After the October 2026 DLC update
+    272 of 503 of them no longer matched the game -- every weapon prefab, both characters'
+    descriptors, socket files and skeletons, and the action charts -- so every edit and every
+    package was built on pre-update files and would have put them back into the game.
+
+    Cheap when nothing changed: the archive signature is compared with the one stored at
+    extraction. When it differs (or a baseline predates the signature), every pinned path is
+    read again from the game, the changed ones are rewritten, the ones the game no longer
+    ships are dropped, and paths that were missing are picked up if the game has them now.
+    """
+
+    log = on_log or (lambda _message: None)
+
+    def check_cancelled():
+        if should_stop is not None and should_stop():
+            raise InterruptedError("Placement preparation cancelled")
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+
+    base = baseline.root
+    root = _source_root(resident_catalogue)
+    signature = package_signature(root)
+    if _stored_signature(base) == signature:
+        return BaselineRefresh(baseline)
+    try:
+        payload = json.loads((Path(base) / "baseline.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    previously_missing = [normalize_game_path(p) for p in payload.get("missing", ()) or ()]
+    wanted = set(baseline.paths()) | set(previously_missing)
+    log(f"Checking {len(wanted):,} game file(s) against the installed game...")
+    located = _locate(wanted, resident_catalogue)
+    records = {path: baseline.record(path) for path in baseline.paths()}
+    changed: List[str] = []
+    added: List[str] = []
+    failed: List[str] = []
+    for index, (key, (package, entry)) in enumerate(sorted(located.items()), start=1):
+        check_cancelled()
+        try:
+            data, _decompressed, _note = read_archive_entry_data(entry)
+        except Exception as exc:  # noqa: BLE001 - report, do not abort the sweep
+            failed.append(f"{key}: {exc}")
+            continue
+        previous = records.get(key)
+        digest = sha256_bytes(data)
+        if previous is not None and previous.sha256 == digest:
+            if previous.package != package:
+                records[key] = BaselineRecord(key, digest, len(data), package)
+            continue
+        records[key] = _pin(base, key, data, package)
+        (changed if previous is not None else added).append(key)
+        if index % 50 == 0:
+            log(f"  checked {index:,}/{len(located):,}")
+    # A copy that could not be read again is dropped with the ones the game no longer ships:
+    # keeping it would mark an unchecked old file as current. It goes back on the missing
+    # list, and the signature is left unset, so the next open tries it again.
+    unreadable = {line.split(": ", 1)[0] for line in failed}
+    removed = sorted(path for path in baseline.paths()
+                     if path not in located or path in unreadable)
+    for path in removed:
+        records.pop(path, None)
+    check_cancelled()
+    if resident_catalogue is not None:
+        resident_catalogue.validate_sources()
+    if package_signature(root) != signature:
+        raise RuntimeError("The game was updated while its files were being checked; reopen to retry")
+    missing = sorted((wanted - set(located)) | unreadable)
+    _write_manifest(base, records, root=root, signature=None if failed else signature,
+                    requested=int(payload.get("requested", len(wanted)) or len(wanted)),
+                    missing=missing, failed=failed, check_cancelled=check_cancelled)
+    # Only once the manifest no longer lists them: deleting first and then failing would
+    # leave a manifest naming files that are gone.
+    for path in removed:
+        try:
+            (Path(base) / path).unlink()
+        except OSError:
+            pass
+    refreshed = Baseline(base, records)
+    result = BaselineRefresh(refreshed, True, tuple(sorted(changed)), tuple(removed), tuple(sorted(added)))
+    log(result.describe())
+    return result

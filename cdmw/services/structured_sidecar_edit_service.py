@@ -6,6 +6,7 @@ import dataclasses
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.atomic_file import atomic_write_bytes
@@ -18,6 +19,7 @@ from cdmw.core.structured_binary_editor import (
     patch_length_prefixed_string,
     rebuild_pabgh_table,
 )
+from cdmw.core.static_table_records import apply_field_edits, require_same_archive, require_table_kind
 from cdmw.models import ArchiveEntry
 
 
@@ -100,10 +102,72 @@ def write_structured_sidecar_edit(
     return StructuredSidecarEditResult(request.output_path, tuple(proof_lines))
 
 
+@dataclass(frozen=True, slots=True)
+class StaticTableEditRequest:
+    """Whitelisted field edits for one static table pair, written as loose files."""
+
+    stem: str
+    header: bytes
+    body: bytes
+    edits: Mapping[tuple[int, str], object]
+    output_dir: Path
+
+
+@dataclass(frozen=True, slots=True)
+class StaticTableEditResult:
+    header_path: Path
+    body_path: Path
+    proof_lines: tuple[str, ...]
+
+
+def load_static_table_pair(
+    header_entry: ArchiveEntry,
+    body_entry: ArchiveEntry,
+    *,
+    stop_event: threading.Event | None = None,
+) -> tuple[bytes, bytes]:
+    """Read both halves of one table pair; they must come from the same archive index."""
+
+    require_same_archive(header_entry.pamt_path, body_entry.pamt_path)
+    raise_if_cancelled(stop_event, "Structured sidecar loading cancelled.")
+    header = read_archive_entry_data(header_entry, stop_event=stop_event)[0]
+    raise_if_cancelled(stop_event, "Structured sidecar loading cancelled.")
+    body = read_archive_entry_data(body_entry, stop_event=stop_event)[0]
+    return bytes(header), bytes(body)
+
+
+def write_static_table_edits(
+    request: StaticTableEditRequest,
+    *,
+    stop_event: threading.Event | None = None,
+) -> StaticTableEditResult:
+    """Apply constrained field edits and write the edited pair under `output_dir`.
+
+    Only loose files are written; installing them is the mod manager's job.
+    """
+
+    kind = require_table_kind(request.stem)
+    raise_if_cancelled(stop_event, "Structured sidecar edit cancelled.")
+    edit = apply_field_edits(kind, request.header, request.body, request.edits)
+    raise_if_cancelled(stop_event, "Structured sidecar edit cancelled.")
+    output_dir = Path(request.output_dir)
+    header_path = output_dir / f"{request.stem}.staticinfoheader"
+    body_path = output_dir / f"{request.stem}.staticinfobody"
+    atomic_write_bytes(body_path, edit.body)
+    atomic_write_bytes(header_path, edit.header)
+    proof = [f"{request.stem}: {len(edit.changes)} field(s) rewritten in place; row directory unchanged."]
+    proof.extend(f"Row {c.key} {c.field}: {c.before} -> {c.after}" for c in edit.changes)
+    return StaticTableEditResult(header_path, body_path, tuple(proof))
+
+
 __all__ = [
+    "StaticTableEditRequest",
+    "StaticTableEditResult",
     "StructuredSidecarDocument",
     "StructuredSidecarEditRequest",
     "StructuredSidecarEditResult",
+    "load_static_table_pair",
     "load_structured_sidecar_document",
+    "write_static_table_edits",
     "write_structured_sidecar_edit",
 ]

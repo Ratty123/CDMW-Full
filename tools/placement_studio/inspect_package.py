@@ -21,7 +21,7 @@ from cdmw.core.mod_compatibility import BASELINE_FILE, COMPATIBILITY_FILE
 
 from . import carry, ops
 from .documents import DescriptorDocument, SocketDocument, is_descriptor_file, is_socket_file
-from .preflight import MANIFEST_NAME
+from .preflight import LEGACY_MANIFEST_NAME, MANIFEST_NAME
 
 #: Files the package writes about itself rather than into the game.
 METADATA_NAMES = frozenset(
@@ -34,6 +34,7 @@ METADATA_NAMES = frozenset(
         BASELINE_FILE,
         COMPATIBILITY_FILE,
         MANIFEST_NAME,
+        LEGACY_MANIFEST_NAME,
     }
 )
 
@@ -240,6 +241,8 @@ def _changed_sockets(game_path: str, vanilla, data: bytes):
 
 def read_manifest(root: Path) -> Optional[Mapping[str, object]]:
     target = Path(root) / MANIFEST_NAME
+    if not target.is_file():
+        target = Path(root) / LEGACY_MANIFEST_NAME
     if not target.is_file():
         return None
     try:

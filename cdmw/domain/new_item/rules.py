@@ -95,6 +95,9 @@ class TemplateFacts:
     model_stem: str = ""
     #: The prefab stems that belong to that family (`..._r`, `..._l`, ...), not borrowed ones.
     owned_stems: Tuple[str, ...] = ()
+    #: Some owned part is only in a DLC part-prefab table, so a new item gets its own
+    #: model family (and a stem) even when the spec keeps the template's look.
+    copies_dlc_parts: bool = False
     levels: Tuple[TemplateLevelFacts, ...] = ()
     price_items: Tuple[int, ...] = ()
     max_stack_count: int = 1
@@ -392,6 +395,12 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
                 issues.append(_issue("placement.store_missing", "placement", "Choose a store."))
             if placement.kind is PlacementKind.SWAP and not str(placement.old_item_name or "").strip():
                 issues.append(_issue("placement.old_item_missing", "placement", "Choose which stock entry the new item replaces."))
+            if placement.kind is PlacementKind.SWAP:
+                # Every output now reaches the game through DMM, whose operations only add stock lines.
+                issues.append(_issue("placement.swap_not_for_dmm", "placement",
+                                     "DMM can only add stock lines, so a Swap placement cannot be sent to DMM or "
+                                     "written as a DMM mod folder. Choose Add to shop for an item that goes to DMM.",
+                                     "warning"))
             if placement.price is not None and not 0 <= int(placement.price) <= _U32_MAX:
                 issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
             if placement.kind is PlacementKind.INSERT and placement.price is not None:
@@ -458,7 +467,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
             reason = _stem_family_taken(stem, context)
             if reason:
                 issues.append(_issue("stem.taken", "stem", f"Stem {stem} cannot be used: {reason}."))
-        if not spec.needs_new_stem:
+        if not spec.needs_new_stem and not template.copies_dlc_parts:
             issues.append(_issue("stem.unused", "stem", "A stem was given but the item keeps the template's model and icon, so it is not used.", "warning"))
     if spec.needs_own_family and not template.owned_stems:
         issues.append(_issue("template.no_owned_stems", "template_key", f"{template.internal_name} owns no prefab stems to clone (all of its parts are borrowed)."))

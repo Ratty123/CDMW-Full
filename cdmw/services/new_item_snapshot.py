@@ -117,6 +117,8 @@ class NewItemSnapshot:
     #: Each installed DLC's own registry (`dlc/dlc_NN/meta/0.pathc`), read only: it
     #: registers the DLC's textures, which a new icon may be shaped after.
     dlc_pathcs: Tuple[PathcTable, ...] = ()
+    #: The DLC folder name of each table in `dlc_pathcs` (`dlc_01`), in the same order.
+    dlc_pathc_names: Tuple[str, ...] = ()
     #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`),
     #: what a visual effect may name.
     effect_stems: FrozenSet[str] = frozenset()
@@ -293,6 +295,25 @@ class NewItemSnapshot:
                     ('Inventory-use template; no equipment model is required.',))
             self._families[key] = cached
         return cached
+
+    def dlc_only_owned_parts(self, item_key: int) -> Tuple[str, ...]:
+        """The template's own part stems that only a DLC part-prefab table holds.
+
+        A new item's row is written to the base ItemInfo, and in game (2026-11-01) a
+        base row naming a part only `partprefabtable_dlc_01.pappt` holds drew no model:
+        the copy of Dommsday plate armour showed nothing while the copy with parts of its
+        own in the base table rendered. Such a template's item therefore copies them.
+        """
+
+        base = self.pappt_base
+        if base is None or base is self.pappt:
+            return ()
+        try:
+            family = self.family(item_key)
+        except ItemModelFamilyError:
+            return ()
+        held, combined = base.index(), self.pappt.index()
+        return tuple(part.stem for part in family.owned_parts if part.stem in combined and part.stem not in held)
 
     def paloc_table(self, language: str) -> LocalizationTable:
         if language == "eng":
@@ -783,12 +804,13 @@ def build_snapshot(
             pathc_source_digest = hashlib.sha256(pathc_bytes).hexdigest()
         except PathcError as exc:
             _log_progress(on_log, f"The texture registry did not decode; new icons will not be registered: {exc}")
-    dlc_pathcs = []
+    dlc_pathcs, dlc_pathc_names = [], []
     dlc_folder = pathc_path.parent.parent / "dlc"
     for dlc_pathc_path in sorted(dlc_folder.glob("dlc_*/meta/0.pathc")) if dlc_folder.is_dir() else ():
         provenance.pin_file(dlc_pathc_path)
         try:
             dlc_pathcs.append(parse_pathc(dlc_pathc_path.read_bytes()))
+            dlc_pathc_names.append(dlc_pathc_path.parent.parent.name.casefold())
         except PathcError:
             pass  # An icon shaped after one of its textures is then refused as unregistered.
     snapshot = NewItemSnapshot(
@@ -820,6 +842,7 @@ def build_snapshot(
         provenance=provenance,
         pathc=pathc,
         dlc_pathcs=tuple(dlc_pathcs),
+        dlc_pathc_names=tuple(dlc_pathc_names),
         pathc_source_digest=pathc_source_digest,
         effect_stems=effect_stems,
         _effect_binary_paths=tuple(sorted(effect_paths)),
@@ -890,6 +913,7 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
         has_stat_block=row.stat_block_offset is not None,
         model_stem=model_stem,
         owned_stems=owned,
+        copies_dlc_parts=bool(snapshot.dlc_only_owned_parts(template_key)),
         levels=levels,
         price_items=price_items,
         max_stack_count=int(row.max_stack_count),

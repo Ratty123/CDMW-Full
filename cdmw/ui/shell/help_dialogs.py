@@ -241,6 +241,8 @@ class AboutDialog(QDialog):
             "new_item_studio",
             "archive_browser",
             "archive_guides",
+            "prefab_inspector",
+            "hkx_physics_editor",
         }:
             return "Assets & Creation"
         if section_id in {"mesh_editor", "placement_studio"}:

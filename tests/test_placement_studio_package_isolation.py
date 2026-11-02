@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cdmw.core.mod_export_history import mod_metadata_path
 from tools.placement_studio import carry, inspect_package, packaging, preflight
 from tools.placement_studio.editing import (
     OP_MOVE_EQUIPMENT,
@@ -405,8 +406,12 @@ class PackageIsolationTests(unittest.TestCase):
                         {"CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"},
                     )
                     self.assertEqual(set(result.contents.animation_targets), {"longsword", "lswd"})
-                    self.assertIn("cdmw-baseline.zip", result.contents.metadata_files)
-                    self.assertIn("cdmw-compatibility.json", result.contents.metadata_files)
+                    # CDMW's records stay in its local history, found by the package's payload;
+                    # mod managers never see them.
+                    for record in ("cdmw-baseline.zip", "cdmw-compatibility.json"):
+                        self.assertNotIn(record, result.contents.metadata_files)
+                        if package.manager == "DMM":
+                            self.assertTrue(mod_metadata_path(package.root, record).is_file())
                     # The new child sockets are additions, and the shared back socket is untouched.
                     self.assertEqual(len(result.contents.all_socket_additions()), 2)
                     self.assertEqual(result.contents.all_socket_changes(), ())

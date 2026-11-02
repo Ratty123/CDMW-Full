@@ -16,6 +16,12 @@ def retained_archive_overlays(monkeypatch):
 
 
 @pytest.fixture
+def retained_virtual_loading(monkeypatch):
+    """Exercise Mod Management's hidden CDMW loading route (Apply changes, Launch game)."""
+    monkeypatch.setattr("cdmw.constants.VIRTUAL_LOADING_ENABLED", True)
+
+
+@pytest.fixture
 def retained_mod_folder_tools(monkeypatch):
     """Exercise Mod Management's hidden mod folder tools (convert, combine, update, health)."""
     monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)

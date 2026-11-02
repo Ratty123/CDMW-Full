@@ -734,11 +734,11 @@ def test_export_target_is_required_even_when_no_mod_has_been_installed(tmp_path)
         assert not dialog._mod_fields.isHidden()
         dialog._collect()
         assert "Manager" in dialog.status.text()
-        dialog.mod_manager.setCurrentIndex(dialog.mod_manager.findData("CDUMM"))
+        dialog.mod_manager.setCurrentIndex(dialog.mod_manager.findData("Definitive Mod Manager"))
         dialog.install_method.setCurrentIndex(dialog.install_method.findData("Not installed yet"))
         dialog.mod_setup.setPlainText("Synthetic texture replacement mod")
         assert not dialog._form_errors()
-        assert "Mods: No mods installed\nManager: CDUMM\nInstallation: Not installed yet" in dialog._details().mod_setup
+        assert "Mods: No mods installed\nManager: Definitive Mod Manager\nInstallation: Not installed yet" in dialog._details().mod_setup
         dialog.input_item.setText("Not applicable")
         assert any(key=="input_item" for key,_ in dialog._form_errors())
         dialog.item_unknown.setChecked(True)

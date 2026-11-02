@@ -110,13 +110,21 @@ private:
         if (try_consume(']')) {
             return value;
         }
+        // JsonValue's std::map member has no noexcept move on MSVC, so a growing
+        // std::vector<JsonValue> deep-copies every element it already holds. A deque
+        // never relocates; its elements are moved once into an exactly sized vector.
+        std::deque<JsonValue> items;
         while (true) {
-            value.array_value.push_back(parse_value());
+            items.push_back(parse_value());
             skip_ws();
             if (try_consume(']')) {
                 break;
             }
             expect(',');
+        }
+        value.array_value.reserve(items.size());
+        for (JsonValue& item : items) {
+            value.array_value.push_back(std::move(item));
         }
         return value;
     }

@@ -397,6 +397,18 @@ class LanguageIndexTests(unittest.TestCase):
         self.assertEqual(index.tables_for("eng"), {bank: self.tables["0000"], ui: self.tables["0019"]})
         self.assertEqual(self.module.load_cached(self.root).tables_for("eng"), index.tables_for("eng"))
 
+    def test_the_post_dlc_compact_mount_list_orders_the_packages(self) -> None:
+        """The legacy-only PAPGT parser refused every install since the October 2026 DLC."""
+
+        names = b"0020\x000019\x00"
+        compact = bytearray(b"\x00\x00\x02\x02")
+        compact += struct.pack("<III", 0x007FFF00, 0, 0) + struct.pack("<III", 0x007FFF00, 5, 0)
+        compact += struct.pack("<I", len(names)) + names + b"\x07" * 64
+        (self.root / "meta").mkdir()
+        (self.root / "meta" / "0.papgt").write_bytes(bytes(compact))
+        # Unmounted 0000 drops out; the first mounted package sorts last, so it wins.
+        self.assertEqual(self._real_tables(self.root), [self.tables["0019"], self.tables["0020"]])
+
     def test_old_empty_language_cache_is_rebuilt(self) -> None:
         import json
         self.contents[self.tables["0019"]] = ["gamedata/stringtable/binary__/eng/ui.paloc"]
@@ -513,6 +525,24 @@ class RequestShapeTests(unittest.TestCase):
 
         request = build_request(self._config("anthropic", disable_thinking=False), "S", "U")
         self.assertNotIn("thinking", json.loads(request.body))
+
+    def test_thinking_is_turned_off_the_way_each_claude_model_accepts(self) -> None:
+        """`disabled` is a 400 on Opus 5.5, Sonnet 5.5 and Fable; the box is ticked by default."""
+
+        import json
+
+        from tools.translation_studio.ai_provider import ProviderConfig
+        from tools.translation_studio.ai_translate import build_request
+
+        def body(model):
+            config = ProviderConfig(preset="anthropic", model=model, api_key="k")
+            return json.loads(build_request(config, "S", "U").body)
+
+        self.assertEqual(body("claude-sonnet-5")["thinking"], {"type": "disabled"})
+        self.assertEqual(body("claude-sonnet-5-5")["thinking"], {"type": "between_tools"})
+        for model in ("claude-opus-5-5", "claude-fable-5-1"):
+            self.assertNotIn("thinking", body(model))
+            self.assertEqual(body(model)["output_config"], {"effort": "low"})
 
     def test_openai(self) -> None:
         import json

@@ -151,7 +151,13 @@ def test_independent_item_mods_merge_into_readable_dmm(tmp_path, current):
     shops = parse_store_table(files[snapshot.storeinfo.payload_entry.path], files[snapshot.storeinfo.header_entry.path],
                               layout="current" if current else "legacy")
     camp = next(shop for shop in shops if shop.name == "Store_Camp_Equipment")
-    assert all(camp.entries_for(item.spec.item_key) for item in plans)
+    # DMM exports add items to shops as operations beside the archive, not as table rows;
+    # the merged mod must carry both kinds.
+    from cdmw.services.dmm_send import OPERATIONS_FILE, _operation_item
+    operations = result.package_root / OPERATIONS_FILE
+    targets = json.loads(operations.read_text(encoding="utf-8"))["targets"] if operations.is_file() else []
+    operated = {_operation_item(intent) for target in targets for intent in target["intents"]}
+    assert all(camp.entries_for(item.spec.item_key) or item.spec.item_key in operated for item in plans)
     assert len({entry.order_index for entry in camp.entries}) == len(camp.entries)
     for root, before in original.items():
         assert fingerprint(root) == before
@@ -213,7 +219,9 @@ def test_selected_parent_mod_supplies_a_recorded_baseline_in_either_order(tmp_pa
 
 def test_missing_or_wrong_recorded_baseline_is_reported(tmp_path):
     _service, _snapshot, entries, _plans, folders = make_mods(tmp_path)
-    manifest_path = folders[0] / "new-item.json"
+    from cdmw.core.mod_export_history import mod_metadata_path
+    manifest_path = mod_metadata_path(folders[0], "new-item.json")
+    assert not manifest_path.is_relative_to(folders[0])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for digest in (None, "a" * 64):
         edited = dict(manifest, sources=[] if digest is None else [dict(row, sha256=digest) for row in manifest["sources"]])

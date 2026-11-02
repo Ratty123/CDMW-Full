@@ -12,6 +12,7 @@ from cdmw.ui.widgets import FlatSectionPanel
 __all__ = [
     "add_flat_section_help",
     "add_help_row",
+    "intro_label",
     "add_titled_help_header",
     "make_research_help_button",
     "set_help_button_text",
@@ -59,6 +60,15 @@ def add_titled_help_header(layout: QVBoxLayout, title: str, text: str) -> None:
     row.addStretch(1)
     row.addWidget(make_research_help_button(text), alignment=Qt.AlignRight | Qt.AlignVCenter)
     layout.addWidget(container)
+
+
+def intro_label(text: str, layout: QVBoxLayout) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setObjectName("HintLabel")
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    layout.addWidget(label)
+    return label
 
 
 def set_help_button_text(button: QToolButton, text: str) -> None:
