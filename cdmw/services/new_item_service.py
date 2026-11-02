@@ -575,6 +575,11 @@ class NewItemService:
                 old_file.unlink(missing_ok=True)
             if not any(old_file.parent.iterdir()):
                 old_file.parent.rmdir()
+            # The record above was filed for staging that still held the copied group;
+            # file it again for the bytes that are published.
+            from cdmw.core.mod_compatibility import write_compatibility
+
+            write_compatibility(root, compatibility, stop_event=stop_event)
         return NewItemExportResult(
             package_root=root,
             manager=str(manager or "").upper() or "custom",

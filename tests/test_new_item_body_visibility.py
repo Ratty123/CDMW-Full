@@ -257,9 +257,13 @@ def test_loose_export_and_mod_base_preserve_each_items_rules_and_provenance(tmp_
     service, snapshot, _ = game(tmp_path)
     first = service.plan(replace(spec("Visibility_A"), body_visibility=SKIN), snapshot)
     folder = tmp_path / "A"
-    service.export_loose(first, folder, manager="CDUMM")
-    assert (folder / "files" / SHRINK_PATH).read_bytes() == first.loose_files[SHRINK_PATH]
-    manifest = json.loads((folder / "new-item.json").read_text(encoding="utf-8"))
+    service.export_loose(first, folder, manager="DMM")
+    from cdmw.core.mod_export_history import mod_metadata_path
+    from cdmw.services.new_item_mod_base import mod_folder_payloads
+    assert mod_folder_payloads(folder)[SHRINK_PATH].read_bytes() == first.loose_files[SHRINK_PATH]
+    # CDMW keeps its item record in local history, not in the mod DMM reads.
+    assert not (folder / "new-item.json").exists()
+    manifest = json.loads(mod_metadata_path(folder, "new-item.json").read_text(encoding="utf-8"))
     assert manifest["body_visibility"]["experimental"]
     assert SHRINK_PATH in json.dumps(manifest["sources"])
     base = build_mod_base_snapshot(service, snapshot, folder, read_entry=_read)

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.core.action_chart_binary import MAX_STRING_BYTES
 from cdmw.services.action_chart_edit_service import ClipUse
 
 _PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -110,6 +111,9 @@ class ActionChartLinkDialog(QDialog):
         )
         if not new_clip or new_clip == self._clip:
             self.error_label.setText("Enter the clip these charts should play instead.")
+            return
+        if len(new_clip) > MAX_STRING_BYTES or not all(" " <= char <= "~" for char in new_clip):
+            self.error_label.setText(f"A clip path must be plain ASCII text of at most {MAX_STRING_BYTES} characters.")
             return
         if not charts:
             self.error_label.setText("Tick at least one chart.")

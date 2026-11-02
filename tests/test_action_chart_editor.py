@@ -676,6 +676,7 @@ def test_export_action_sends_the_mod_to_dmm_on_the_worker(qt_app, monkeypatch, s
 
     data = chart_bytes()
     entry = stored(PATH, data)
+    index, _scans, _root = _index(tmp_path, [entry])
     result = apply_action_chart_edits(data, ActionChartEditRequest((_clip_retarget(CLIPS[0], NEW_CLIP),)), virtual_path=PATH)
     infos: list[str] = []
     monkeypatch.setattr(actions.QMessageBox, "information", lambda parent, title, text: infos.append(text))
@@ -693,26 +694,140 @@ def test_export_action_sends_the_mod_to_dmm_on_the_worker(qt_app, monkeypatch, s
     monkeypatch.setattr(actions, "ActionChartExportDialog", _Details)
     mods = tmp_path / "DMM" / "mods"
     mods.mkdir(parents=True)
-    calls: list[dict] = []
     statuses: list[str] = []
-    browser = SimpleNamespace(shell=_shell(calls, statuses),
+    browser = SimpleNamespace(shell=_shell([], statuses),
                               _choose_action_chart_mod_parent=lambda choice, owner=None, start=None: mods)
 
     payload = ActionChartEditorResult(result.data, result.changes)
     plan = actions.ArchiveActionChartActionsMixin._ask_action_chart_export(browser, entry, payload)
     assert seen["title"] == "sword_upper chart edit" and NEW_CLIP in seen["description"]
     assert plan.parent == mods and plan.sent and plan.title == "My sword" and plan.keep_existing
-    actions.ArchiveActionChartActionsMixin._write_edited_action_chart(browser, entry, data, payload, plan)
-
-    assert not any(mods.iterdir()), "nothing is written before the worker runs"
-    assert calls[0]["task_accepts_cancel"] is True
-    import threading
-    written = calls[0]["task"](lambda _message: None, threading.Event())
-    calls[0]["on_complete"](written)
+    prepared = actions._PreparedChart(index, entry, PATH, data, None, None, {}, ())
+    writer = actions.ArchiveActionChartActionsMixin._action_chart_export_writer(browser, prepared)
+    assert not any(mods.iterdir()), "nothing is written before the editor runs the writer"
+    written = writer(payload, plan, lambda _message: None)
+    actions.ArchiveActionChartActionsMixin._action_chart_mod_written(browser, plan, written)
+    assert [path.name for path in mods.iterdir()] == ["My sword"], "nothing is staged inside DMM's mods folder"
     assert (mods / "My sword" / "0036" / "0.pamt").is_file()
     assert "Sent the action chart mod to DMM" in infos[0] and PATH in infos[0]
     assert statuses[-1].startswith("Wrote action chart DMM mod")
 
+
+def test_a_destination_the_export_may_not_replace_is_refused_before_it_runs(qt_app, monkeypatch, stored, tmp_path):
+    from cdmw.ui.archive_browser import action_chart_actions as actions
+    from cdmw.ui.archive_browser.action_chart_editor_dialog import ActionChartEditorResult
+    from cdmw.ui.archive_browser.action_chart_export_dialog import SEND_TO_DMM
+
+    mods = tmp_path / "mods"
+    item_mod = mods / "My item"
+    item_mod.mkdir(parents=True)
+    (item_mod / "manifest.json").write_text(json.dumps({"generator": "Crimson Desert Mod Workbench", "structure": "archive_group"}))
+    warnings: list[str] = []
+    monkeypatch.setattr(actions.QMessageBox, "warning", lambda parent, title, text: warnings.append(text))
+
+    class _Details:
+        def __init__(self, **_kwargs):
+            self.choice, self.mod_title, self.mod_author, self.mod_version = SEND_TO_DMM, "My item", "", "1.0"
+            self.mod_description, self.keep_existing = "d", True
+
+        def exec(self):
+            return 1
+
+    monkeypatch.setattr(actions, "ActionChartExportDialog", _Details)
+    browser = SimpleNamespace(shell=_shell([], []),
+                              _choose_action_chart_mod_parent=lambda choice, owner=None, start=None: mods)
+    result = apply_action_chart_edits(chart_bytes(), ActionChartEditRequest((_clip_retarget(CLIPS[0], NEW_CLIP),)), virtual_path=PATH)
+    plan = actions.ArchiveActionChartActionsMixin._ask_action_chart_export(
+        browser, stored(PATH, chart_bytes()), ActionChartEditorResult(result.data, result.changes))
+    assert plan is None and "not an action chart mod" in warnings[0]
+    assert [path.name for path in item_mod.iterdir()] == ["manifest.json"]
+
+
+def test_a_failed_export_keeps_the_editor_open_with_its_edits(qt_app):
+    calls: list = []
+
+    def refuse(payload, plan, log):
+        raise ActionChartError("the mods folder is read-only")
+
+    dialog = _editor(export_details=lambda payload: "plan", export_writer=refuse,
+                     export_done=lambda plan, result: calls.append((plan, result)))
+    dialog.rate_spin.setValue(1.5)
+    dialog.apply_button.click()
+    _wait_idle(dialog)
+    dialog.export_button.click()
+    assert not dialog.tabs.isEnabled(), "editing is locked while the export runs"
+    _wait_idle(dialog)
+    assert "export failed, and your edits are kept" in dialog.status_label.text()
+    assert "read-only" in dialog.status_label.text()
+    assert dialog.result_payload is None and dialog.result() == 0 and calls == []
+    assert dialog.export_button.isEnabled() and not dialog._changes.empty and dialog.tabs.isEnabled()
+
+    dialog._export_writer = lambda payload, plan, log: "written"
+    dialog.export_button.click()
+    _wait_idle(dialog)
+    assert calls == [("plan", "written")] and dialog.result_payload is not None
+
+
+def test_editing_is_locked_while_apply_runs(qt_app):
+    dialog = _editor()
+    dialog.rate_spin.setValue(1.5)
+    dialog.apply_button.click()
+    assert dialog.busy() and not dialog.tabs.isEnabled() and not dialog.rate_spin.isEnabled()
+    _wait_idle(dialog)
+    assert dialog.tabs.isEnabled() and dialog.rate_spin.isEnabled()
+
+
+def test_only_action_chart_mods_are_replaced(tmp_path):
+    from cdmw.services.action_chart_edit_service import mod_destination
+
+    item = tmp_path / "New item"
+    item.mkdir()
+    (item / "manifest.json").write_text(json.dumps({"generator": "Crimson Desert Mod Workbench", "structure": "archive_group"}))
+    with pytest.raises(ActionChartError, match="not an action chart mod"):
+        mod_destination(tmp_path, "New item")
+    chart = tmp_path / "Chart"
+    chart.mkdir()
+    (chart / "manifest.json").write_text(json.dumps(
+        {"generator": "Crimson Desert Mod Workbench - action chart editor", "structure": "archive_group"}))
+    assert mod_destination(tmp_path, "Chart") == (chart, True)
+
+
+def test_mods_are_built_beside_the_mods_folder(tmp_path):
+    from cdmw.services.action_chart_edit_service import _staging_parent
+
+    mods = tmp_path / "DMM" / "mods"
+    mods.mkdir(parents=True)
+    assert _staging_parent(mods / "My mod") == mods.parent
+
+
+def test_linked_clips_match_any_case_and_skip_a_clip_already_changed():
+    from cdmw.services.action_chart_edit_service import LinkedClipChange, apply_linked_clip_changes
+
+    data = chart_bytes()
+    upper = apply_linked_clip_changes(data, BASIC, [LinkedClipChange(BASIC, CLIPS[0].upper(), NEW_CLIP)])
+    assert load_editable_chart(upper, BASIC).tables[1].values == (NEW_CLIP, CLIPS[1])
+    third = apply_linked_clip_changes(upper, BASIC, [LinkedClipChange(BASIC, CLIPS[0], "1_pc/other_clip.paa")])
+    assert third == upper, "a kept chart that already plays another clip is left as it is"
+
+
+def test_event_edits_refuse_a_buffer_this_version_cannot_walk():
+    data = bytearray(chart_bytes())
+    chart = load_editable_chart(bytes(data), PATH)
+    struct.pack_into("<H", data, chart.frame_event_buffer.offset + 32, 999)  # second event: unknown kind
+    with pytest.raises(ActionChartError, match="no known size"):
+        apply_action_chart_edits(bytes(data), ActionChartEditRequest(events=(
+            EventFieldEdit(0, 0, "mode", 1, only_this_animation=False),)), virtual_path=PATH)
+
+
+def test_link_dialog_refuses_a_clip_path_a_chart_cannot_hold(qt_app):
+    from cdmw.services.action_chart_edit_service import ClipUse
+    from cdmw.ui.archive_browser.action_chart_link_dialog import ActionChartLinkDialog
+
+    dialog = ActionChartLinkDialog(CLIPS[0], (ClipUse(BASIC, 3),))
+    for bad in ("1_pc/caf\u00e9.paa", "x" * 255):
+        dialog.new_clip_edit.setText(bad)
+        dialog.add_button.click()
+        assert "plain ASCII" in dialog.error_label.text() and not dialog.selected_charts
 
 def test_the_action_charts_button_works_with_nothing_selected(qt_app):
     from cdmw.ui.archive_browser.action_chart_actions import ArchiveActionChartActionsMixin
