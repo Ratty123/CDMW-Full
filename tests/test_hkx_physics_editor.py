@@ -343,5 +343,85 @@ class HkxPhysicsEditorWindowTests(unittest.TestCase):
         self.assertEqual(written[0].relative_to(written[0].parents[4]).as_posix(), "character/bin__/havokphysics/test/ragdoll.hkx")
 
 
+class HkxCollisionReplacementSearchTests(unittest.TestCase):
+    def test_malformed_file_opens_as_a_refusal(self) -> None:
+        data = bytearray(build_physics_fixture())
+        start = data.index(b"TNA1") + 4
+        data[start] = 0x7F  # type count far past the table
+        session = load_hkx_physics_session(bytes(data), "character/bin__/havokphysics/broken.hkx")
+        self.assertEqual(session.codec_status, "refused")
+        self.assertFalse(session.editable)
+
+    def test_candidate_search_filters_family_and_runs_in_the_worker(self) -> None:
+        import threading
+        from pathlib import Path
+
+        from cdmw.models import ArchiveEntry
+        from cdmw.ui.archive_browser.hkx_physics_editor_actions import (
+            ArchiveHkxPhysicsEditorMixin,
+            hkx_replacement_candidates,
+        )
+
+        reads = []
+
+        class CountingEntry(ArchiveEntry):
+            def __getattribute__(self, name):
+                if name == "path":
+                    reads.append(1)
+                return super().__getattribute__(name)
+
+        def entry(path: str) -> ArchiveEntry:
+            return CountingEntry(path=path, pamt_path=Path("0.pamt"), paz_file=Path("0.paz"), offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+
+        # The selected entry is read for the status text; only the other rows count as a walk.
+        own = ArchiveEntry(path="character/bin__/meshphysics/1_pc/sword_a.hkx", pamt_path=Path("0.pamt"), paz_file=Path("0.paz"), offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+        entries = [
+            entry("character/bin__/meshphysics/1_pc/sword_c.hkx"),
+            own,
+            entry("character/bin__/meshphysics/2_mon/claw.hkx"),
+            entry("character/bin__/havokphysics/1_pc/ragdoll.hkx"),
+            entry("character/bin__/meshphysics/1_pc/sword_a.pac"),
+            entry("Character/bin__/MeshPhysics/1_pc/Sword_B.hkx"),
+        ]
+        found = [path for path, _entry in hkx_replacement_candidates(entries, own)]
+        self.assertEqual(
+            found,
+            [
+                "character/bin__/meshphysics/1_pc/sword_b.hkx",
+                "character/bin__/meshphysics/1_pc/sword_c.hkx",
+                "character/bin__/meshphysics/2_mon/claw.hkx",
+            ],
+        )
+
+        tasks = []
+
+        class Shell:
+            def _run_utility_task(self, *, task, on_complete=None, **_kwargs):
+                tasks.append((task, on_complete))
+
+        class Host(ArchiveHkxPhysicsEditorMixin):
+            pass
+
+        host = Host()
+        host.shell = Shell()
+        host.archive_entries = entries
+
+        class Dialog:
+            closed = False
+
+        reads.clear()
+        host._pick_hkx_collision_replacement(Dialog(), own)
+        self.assertEqual(reads, [], "the click must not walk the archive entries on the UI thread")
+        self.assertEqual(len(tasks), 1)
+        task, on_complete = tasks[0]
+        result = task(lambda _message: None, threading.Event())
+        self.assertTrue(reads)
+        self.assertEqual(len(result), 3)
+        chosen = []
+        host._choose_hkx_replacement_entry = lambda _parent, candidates: chosen.append(candidates) or None
+        on_complete(result)
+        self.assertEqual(chosen, [result])
+
+
 if __name__ == "__main__":
     unittest.main()

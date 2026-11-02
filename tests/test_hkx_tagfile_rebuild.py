@@ -270,5 +270,45 @@ class HkxTagfileRebuildTests(unittest.TestCase):
         self.assertEqual(document["structural_edit_gate_v1"]["codec_status"], "exact")
 
 
+def _with_tna1(data: bytes, mutate) -> bytes:
+    """Return ``data`` with its TNA1 payload passed through ``mutate`` (same length)."""
+
+    start = data.index(b"TNA1") + 4
+    size = int.from_bytes(data[start - 8 : start - 4], "big") & 0x3FFFFFFF
+    payload = bytearray(data[start : start - 8 + size])
+    mutate(payload)
+    return data[:start] + bytes(payload) + data[start - 8 + size :]
+
+
+class HkxMalformedTagfileTests(unittest.TestCase):
+    def test_malformed_type_tables_are_refused_not_crashes(self) -> None:
+        data = build_root_fixture()
+        cases = {
+            "count past the end": lambda payload: payload.__setitem__(0, 0x7F),
+            "string index out of range": lambda payload: payload.__setitem__(1, 0x60),
+            "unsupported packed integer marker": lambda payload: payload.__setitem__(1, 0xF8),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(label):
+                broken = _with_tna1(data, mutate)
+                with self.assertRaises(HkxTagfileRefused) as raised:
+                    parse_hkx_tagfile_model(broken)
+                self.assertEqual(raised.exception.code, "bad_type_table")
+                gate = hkx_structural_edit_gate_document(broken)
+                self.assertEqual(gate["codec_status"], "refused")
+
+    def test_single_byte_corruption_only_ever_refuses(self) -> None:
+        for data in (build_root_fixture(), build_convex_fixture()):
+            for position in range(len(data)):
+                for value in (0x00, 0x7F, 0xFF):
+                    if data[position] == value:
+                        continue
+                    broken = data[:position] + bytes((value,)) + data[position + 1 :]
+                    try:
+                        parse_hkx_tagfile_model(broken)
+                    except HkxTagfileRefused:
+                        pass
+
+
 if __name__ == "__main__":
     unittest.main()
