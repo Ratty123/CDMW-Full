@@ -402,6 +402,7 @@ class AboutDocumentationEnglishMixin:
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
+                <p>The DLC ships its own copies of about 13,500 base files, mostly textures, level data and models. Archive Browser, previews and the editors open the DLC's copy, which the game is expected to load instead of the base file. Searching by item name also finds DLC items. Texture packages can replace textures that only the DLC ships; such a package needs the DLC installed. Audio entries offer Import WAV as Loose Mod, which writes a loose mod for DMM instead of changing the game archives.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
@@ -617,6 +618,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Export Mesh File writes a separate rebuilt asset.</li>
                   <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
+                  <li>DMM Archive Group writes the mesh as an archive group in a package folder that DMM serves by path; nothing is installed into the game. Hairstyles are always built this way, with their barber choice.</li>
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
                 <p>Mesh Editor follows the selected interface language. Tool availability still depends on the source format, selected LOD and output route.</p>

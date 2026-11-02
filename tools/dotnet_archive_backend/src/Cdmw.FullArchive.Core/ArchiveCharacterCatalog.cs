@@ -87,8 +87,17 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
         return purpose == "hair_head"
             ? row.Role == "head" && path.Contains("/head/head/", StringComparison.Ordinal)
             : (row.Role is "body" or "whole_character") && path.Contains("/nude/", StringComparison.Ordinal)
-                && Path.GetFileName(path).StartsWith($"cd_{prefix}_00_nude_", StringComparison.Ordinal);
+                && IsNudeBodyName(Path.GetFileName(path), prefix);
     }
+    // The DLC update dropped `cd_` from the 1_phm, 2_phw and 5_pom body files
+    // (`phw_00_nude_00_0001_damian.pac`); older installs keep the prefixed name.
+    // Same rule as cdmw.domain.hair_characters.HairCharacter.accepts_reference.
+    internal static bool IsNudeBodyName(string fileName, string prefix)
+    {
+        var name = fileName.StartsWith("cd_", StringComparison.Ordinal) ? fileName[3..] : fileName;
+        return name.StartsWith($"{prefix}_00_nude_", StringComparison.Ordinal);
+    }
+
     private static bool Matches(string value, string? filter) => string.IsNullOrEmpty(filter) || value == filter;
     private static string SearchText(CharacterCatalogRow row, IEnumerable<string> names) =>
         string.Join(' ', new[] { row.Label, row.InternalName, row.Path, row.Role, row.SourceGroup, row.BodyFamily }

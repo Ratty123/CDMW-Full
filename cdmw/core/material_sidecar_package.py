@@ -22,6 +22,7 @@ from cdmw.core.mod_package import (
     write_mesh_loose_mod_package_metadata,
 )
 from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 
 _WRITE_CHUNK_SIZE = 1024 * 1024
@@ -159,7 +160,7 @@ def export_material_sidecar_mod_package(
         file_rows.append(
             MeshLooseModFile(
                 path=edited_payload_path,
-                package_group=edited_entry.pamt_path.parent.name,
+                package_group=archive_entry_package_group(edited_entry),
                 format=PurePosixPath(edited_payload_path).suffix.lstrip(".").lower(),
                 generated_from=edited_entry.path,
                 note="Edited material sidecar generated from archive XML values.",
@@ -183,7 +184,7 @@ def export_material_sidecar_mod_package(
             file_rows.append(
                 MeshLooseModFile(
                     path=payload_path,
-                    package_group=related_entry.pamt_path.parent.name,
+                    package_group=archive_entry_package_group(related_entry),
                     format=PurePosixPath(payload_path).suffix.lstrip(".").lower(),
                     generated_from=edited_entry.path,
                     note="Related material companion copied from archive.",

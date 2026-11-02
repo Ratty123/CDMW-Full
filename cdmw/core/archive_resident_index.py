@@ -197,7 +197,10 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                             self.missing_mod_mounts.append(str(directory.relative_to(root)))
                             continue
                         raise ValueError(f"Mounted archive is missing: {mount.name}")
-                    self._mounts[str(directory).replace("\\", "/").casefold()] = rank
+                    # A DLC mounts its own copy of each base group folder in the same
+                    # order; its files replace the base files at the same path, so on
+                    # equal rank the DLC copy (layer 0) wins over the base (layer 1).
+                    self._mounts[str(directory).replace("\\", "/").casefold()] = (rank, 0 if mount_root != root else 1)
             self.by_path = _EntryGroups(self, "path")
             self.by_basename = _EntryGroups(self, "basename")
             self.by_extension = _EntryGroups(self, "extension")
@@ -724,7 +727,14 @@ class _EntryGroups(Mapping[str, Sequence[ArchiveEntry]]):
         return rows
 
     def __getitem__(self, key):
-        return _EntryRows(self.index, self.row_ids(key))
+        rows = self.row_ids(key)
+        if self.kind == "path" and len(rows) > 1:
+            # Callers read the first entry of a path as the one the game loads
+            # (a DLC copy of a base file, a mounted mod), so it leads the group.
+            active = next(iter(self.index._active_rows(rows)), None)
+            if active is not None and active != rows[0]:
+                rows = [active, *(row for row in rows if row != active)]
+        return _EntryRows(self.index, rows)
 
     def candidate_keys(self, *, contains="", suffix=""):
         """Filter mapped names before decoding any archive records."""

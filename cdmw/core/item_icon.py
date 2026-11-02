@@ -33,6 +33,7 @@ from cdmw.domain.library.item_icons import (
 )
 from cdmw.domain.textures.output import max_mips_for_size
 from cdmw.core.mod_package import is_mod_package_payload_path, normalize_mod_package_payload_path
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 
 def find_item_icon_source_candidates(
@@ -907,12 +908,7 @@ def _update_loose_mod_manifest_for_item_icon(
     files = list(raw_files) if isinstance(raw_files, list) else []
     kept_files = [row for row in files if _manifest_row_path(row).casefold() != target_text.casefold()]
 
-    package_group = ""
-    pamt_path = getattr(target_entry, "pamt_path", None)
-    if isinstance(pamt_path, Path):
-        package_group = pamt_path.parent.name
-    elif pamt_path is not None:
-        package_group = Path(str(pamt_path)).parent.name
+    package_group = archive_entry_package_group(target_entry)
 
     icon_row: dict[str, object] = {
         "path": target_text,

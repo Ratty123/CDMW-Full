@@ -181,7 +181,8 @@ def test_path_order_and_duplicate_groups_preserve_case_and_override_flags(catalo
     unicode = replace(first, path='model/Äsword.pac')
     index = write_resident_index(root, [later, first, duplicate, unicode], tmp_path / 'path-order',
                                  override_flags=(0, 2, 3, 0)).open()
-    assert list(index.by_path['model/_sword.pac']) == [first, duplicate]
+    # The entry the game loads leads its path group; the others keep index order.
+    assert list(index.by_path['model/_sword.pac']) == [duplicate, first]
     assert index.active_entry('MODEL/_SWORD.PAC') == duplicate
     assert index.active_entry('model/asword.pac') == later
     assert index.active_entry('model/äsword.pac') == unicode
@@ -230,6 +231,22 @@ def test_nonadjacent_unicode_duplicates_keep_the_global_mount_winner(catalogue, 
     assert len(index.by_path) == 2
 
 
+def test_dlc_copy_of_a_base_group_is_the_active_and_first_entry(catalogue, tmp_path):
+    from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, serialize_papgt
+    root, entries, _source = catalogue
+    dlc_root = root / 'dlc' / 'dlc_01'
+    dlc_pamt = dlc_root / '0009' / '0.pamt'
+    dlc_pamt.parent.mkdir(parents=True)
+    dlc_pamt.write_bytes(b'owned DLC fixture')
+    (dlc_root / 'meta').mkdir()
+    (dlc_root / 'meta' / '0.papgt').write_bytes(serialize_papgt([PapgtDirectory('0009', PAPGT_DEFAULT_FLAGS, 0)]))
+    base = entries[0]
+    dlc = replace(base, pamt_path=dlc_pamt)
+    index = write_resident_index(root, [base, dlc], tmp_path / 'dlc-mounts').open()
+    assert index.active_entry(base.path) == dlc
+    assert list(index.by_path[base.path]) == [dlc, base]
+
+
 def test_unicode_ascii_casing_aliases_keep_lookup_filters_and_mount_priority(catalogue, tmp_path):
     from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, serialize_papgt
     root, entries, _source = catalogue
@@ -243,7 +260,7 @@ def test_unicode_ascii_casing_aliases_keep_lookup_filters_and_mount_priority(cat
         PapgtDirectory('0010', PAPGT_DEFAULT_FLAGS, 0), PapgtDirectory('0009', PAPGT_DEFAULT_FLAGS, 0),
     ]))
     index = write_resident_index(root, [winner, between, first], tmp_path / 'unicode-ascii-alias').open()
-    assert list(index.by_path[first.path]) == [first, winner]
+    assert list(index.by_path[first.path]) == [winner, first]
     assert list(index.by_basename[first.basename]) == [first, winner]
     assert index.active_entry(first.path) == winner
     assert list(index.matching(('.pac',), contains='ksword')) == [winner]

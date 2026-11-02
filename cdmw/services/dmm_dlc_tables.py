@@ -19,6 +19,9 @@ from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, parse
 
 _DLC_TABLE = re.compile(r"^(?P<dir>.*/)?(?P<name>storeinfo|itemgroupinfo)\.(?P<dlc>dlc_\d+)\.(?P<kind>staticinfobody|pabgb)$")
 _HEADER = {"staticinfobody": "staticinfoheader", "pabgb": "pabgh"}
+#: Any layer of the shop and item group tables, body or header.
+_SHOP_OR_GROUP_TABLE = re.compile(
+    r"^gamedata/binarystaticinfo__/bin/(storeinfo|itemgroupinfo)(\.dlc_\d+)?\.(staticinfobody|staticinfoheader|pabgb|pabgh)$")
 
 
 class DmmTableError(ValueError):
@@ -156,3 +159,55 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
         on_log(f"Moved {moved['storeinfo']} shop line(s) and {moved['itemgroupinfo']} item group member(s) from the DLC's "
                "copies into the base tables, where DMM takes them and carries them into the DLC's shops and groups.")
     return result
+
+
+def _plan_item_keys(manifest) -> set[int]:
+    """Every item a new-item plan adds: the item, its price perks and the items it carries forward."""
+    keys = set()
+
+    def collect(value):
+        if isinstance(value, dict):
+            if isinstance(value.get("item_key"), int):
+                keys.add(value["item_key"])
+            for nested in value.values():
+                if isinstance(nested, (dict, list, tuple)):
+                    collect(nested)
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                if isinstance(nested, int) and not isinstance(nested, bool):
+                    keys.add(nested)  # `mounted_base.items` may list bare keys
+                else:
+                    collect(nested)
+
+    collect(manifest.get("iteminfo"))
+    collect(manifest.get("owned_price_perks"))
+    collect(manifest.get("previous_items"))
+    collect((manifest.get("mounted_base") or {}).get("items"))
+    return keys
+
+
+def plan_for_dmm(plan, read_game: Callable[[str], Optional[bytes]], *,
+                 on_log: Optional[Callable[[str], None]] = None):
+    """A new-item plan without shop and group tables, and those additions as DMM operations.
+
+    The tables leave the plan: the DLC's copies fold into the base rows and the base
+    rows become append and union operations, so DMM adds the item to the base and the
+    DLC's shops and groups alike instead of replacing either.
+    """
+    from dataclasses import replace
+
+    tables = {path: data for path, data in plan.loose_files.items() if _SHOP_OR_GROUP_TABLE.match(path)}
+    if not tables:
+        return plan, []
+    folded = fold_dlc_additions(tables, read_game, on_log=on_log)
+    kept, targets = field_operations(folded, read_game, _plan_item_keys(plan.manifest))
+    if kept:
+        raise DmmTableError("The shop and item group tables could not all become DMM operations: "
+                            + ", ".join(sorted(kept)) + ".")
+    dropped = set(tables)
+    return replace(
+        plan,
+        patches=tuple(request for request in plan.patches if request.entry.path not in dropped),
+        additions=tuple(item for item in plan.additions if item.path not in dropped),
+        loose_files={path: data for path, data in plan.loose_files.items() if path not in dropped},
+    ), targets

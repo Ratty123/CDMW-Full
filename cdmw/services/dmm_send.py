@@ -68,6 +68,18 @@ def _written_by_cdmw(folder: Path) -> bool:
     return isinstance(manifest, dict) and str(manifest.get("generator", "")).startswith(_CDMW_GENERATOR)
 
 
+def write_operations(folder: Path, title: str, targets) -> None:
+    """Write shop and item group additions as DMM V3 operations beside a mod's archive.
+
+    DMM applies them to the base and the DLC's rows alike; a table copy would replace
+    those rows instead and drop what the DLC adds there.
+    """
+    operations = dict(format=3, modinfo=dict(title=f"{title} (shops and groups)", version="1.0.0", author="CDMW",
+                                             description="Adds CDMW's items to their shops and item groups."),
+                      targets=list(targets))
+    (Path(folder) / OPERATIONS_FILE).write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
+
+
 def destination(mods: Path, title: str) -> tuple[Path, bool]:
     """The mod folder for `title` and whether it replaces a folder CDMW wrote earlier."""
     folder = Path(mods) / sanitize_mod_package_folder_name(title)
@@ -174,12 +186,7 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         retain_dmm_history(staged, stop_event=stop_event)
         (staged / "README.txt").unlink(missing_ok=True)
         if targets:
-            # Shops and item groups go to DMM as additions it applies to the base and
-            # the DLC's rows alike, never as table copies that replace those rows.
-            operations = dict(format=3, modinfo=dict(title=f"{title} (shops and groups)", version="1.0.0", author="CDMW",
-                                                     description="Adds CDMW's items to their shops and item groups."),
-                              targets=targets)
-            (staged / OPERATIONS_FILE).write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
+            write_operations(staged, title, targets)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
         destination(mods, title)  # Refuse a folder that appeared meanwhile.
         # Record the item identities before the mod that uses them appears, so the
@@ -256,4 +263,4 @@ class _ComposedMod:
 
 
 __all__ = ["DMM_FOLDER_SETTING", "DmmSendResult", "destination", "dmm_mods_folder", "find_dmm",
-           "send_item_package", "send_item_packages", "send_plan"]
+           "send_item_package", "send_item_packages", "send_plan", "write_operations"]

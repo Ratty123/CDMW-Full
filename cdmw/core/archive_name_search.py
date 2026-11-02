@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.models import ArchiveEntry
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 2
 _ARCHIVE_NAME_SEARCH_SHARD_META_SUPPORTED_VERSIONS = {1, _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION}
@@ -1155,10 +1156,7 @@ def _archive_name_search_alias_signature(item_search_aliases: Optional[Mapping[s
 
 
 def _archive_entry_package_group(entry: ArchiveEntry) -> str:
-    try:
-        return entry.pamt_path.parent.name.lower()
-    except Exception:
-        return ""
+    return archive_entry_package_group(entry).lower()
 
 
 def _archive_item_mount_signature(package_root: Path) -> str:

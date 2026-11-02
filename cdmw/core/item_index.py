@@ -32,6 +32,7 @@ from cdmw.core.table_catalog import (
 )
 from cdmw.models import ArchiveEntry
 from cdmw.models import RunCancelled
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 
 @dataclass(slots=True)
@@ -309,10 +310,7 @@ def _iter_archive_model_hash_candidate_bases(stem: str) -> Tuple[str, ...]:
 
 
 def _entry_package_group(entry: ArchiveEntry) -> str:
-    try:
-        return entry.pamt_path.parent.name.lower()
-    except Exception:
-        return ""
+    return archive_entry_package_group(entry).lower()
 
 
 def _find_archive_entry(entries: Sequence[ArchiveEntry], package_group: str, needle: str) -> Optional[ArchiveEntry]:

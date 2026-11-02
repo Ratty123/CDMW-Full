@@ -564,7 +564,7 @@ class ArchiveBrowserActionMixin:
                 lambda _checked=False, current_entry=entry: self._start_archive_audio_export(current_entry)
             )
             if entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
-                import_audio_action = menu.addAction(menu_icons["audio"], "Import WAV + Patch to Game...")
+                import_audio_action = menu.addAction(menu_icons["audio"], "Import WAV as Loose Mod...")
                 import_audio_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_audio_patch(current_entry)
                 )

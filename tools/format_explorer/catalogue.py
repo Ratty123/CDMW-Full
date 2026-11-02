@@ -56,7 +56,7 @@ TOOLS: Mapping[str, str] = {
     ".pab": "Browse Archives > Add Bones...",
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
-    ".wem": "Browse Archives > Import WAV + Patch to Game...",
+    ".wem": "Browse Archives > Import WAV as Loose Mod...",
     ".paseq": "Browse Archives > Edit Structured Data Safely...",
     ".paseqc": "Browse Archives > Edit Structured Data Safely...",
     ".pastage": "Browse Archives > Edit Structured Data Safely...",

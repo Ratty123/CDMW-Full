@@ -14,7 +14,7 @@ from cdmw.services.independent_item_package import (
     MAX_BLOB, digest, read_package, stock_snapshot, virtual_path, write_package,
 )
 from cdmw.services.independent_texture_package import (
-    from_texture_replacements, lower_texture_operations,
+    from_texture_replacements, lower_texture_operations, shipped_texture_registry,
 )
 
 MAX_TEXTURE_SEARCH_RESULTS = 200
@@ -135,12 +135,9 @@ def find_existing_texture_targets(root, query='', *, service=None, read_entry=No
             virtual_path(path)
         except IndependentItemError:
             continue
-        archive = Path(entry.pamt_path).resolve()
-        group = archive.parent.name
-        registered = snapshot.pathc.find(path)
-        if (archive.parent.parent != root or len(group) != 4 or not group.isascii()
-                or not group.isdigit() or int(group) >= 36
-                or registered is None or not registered.is_direct):
+        registry = shipped_texture_registry(snapshot, entry, root)
+        registered = registry.find(path) if registry is not None else None
+        if registered is None or not registered.is_direct:
             continue
         matches.append(path)
     matches.sort()

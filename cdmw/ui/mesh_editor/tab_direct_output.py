@@ -107,9 +107,8 @@ class MeshEditorDirectOutputMixin:
         revision = self.standalone_export_validation_revision
         hair = controller.mesh_service._session(controller.active_session_id).hair_state
         if hair is not None:
-            if not constants.ARCHIVE_OVERLAYS_ENABLED:
-                self.status_message_requested.emit(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."), True)
-                return
+            # A hairstyle goes to DMM as an archive-group package folder; nothing is
+            # mounted into the game, so it does not depend on archive overlays.
             session_id = controller.active_session_id
             revision = self.standalone_export_validation_revision
             parent = _tab.QFileDialog.getExistingDirectory(self, "Build Additional Hairstyle — DMM Package",
@@ -252,7 +251,7 @@ class MeshEditorDirectOutputMixin:
         saved_work_root: Path | None = None,
         include_refit_body: bool = False,
     ) -> bool:
-        if kind in {"overlay_package", "overlay_prepare"} and not constants.ARCHIVE_OVERLAYS_ENABLED:
+        if kind == "overlay_prepare" and not constants.ARCHIVE_OVERLAYS_ENABLED:
             return False
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:

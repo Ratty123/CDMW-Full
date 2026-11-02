@@ -364,6 +364,41 @@ def test_known_layout_with_unavailable_decoder_refuses(tmp_path):
         read_package(packed(manifest, blobs))
 
 
+DLC_TEXTURE_PATH = 'character/texture/1_pc/cdmw_dlc_only_d.dds'
+
+
+def dlc_texture_game(tmp_path, *, registered=True):
+    """Add a DLC layer whose texture only the DLC's own registry registers."""
+    from tests.test_new_item_service import build_package
+    root, _ = texture_game(tmp_path)
+    dlc_root = root / 'dlc' / 'dlc_01'
+    build_package(dlc_root, {DLC_TEXTURE_PATH: dds_payload(fill=3)})
+    table = PathcTable(0, 148, (), (), (), b'')
+    if registered:
+        table = register_dds(table, DLC_TEXTURE_PATH, dds_payload(fill=3))
+    (dlc_root / 'meta/0.pathc').write_bytes(encode_pathc(table))
+    return root, stock_snapshot(root)
+
+
+def test_dlc_texture_is_found_and_replaced_against_the_dlc_registry(tmp_path):
+    from cdmw.services.independent_texture_authoring import find_existing_texture_targets
+    root, snapshot = dlc_texture_game(tmp_path)
+    assert snapshot.pathc.find(DLC_TEXTURE_PATH) is None
+    catalogue = find_existing_texture_targets(root, 'dlc_only')
+    assert catalogue.paths == (DLC_TEXTURE_PATH,)
+    replacement = dds_payload(fill=4)
+    package = texture_package(snapshot, {DLC_TEXTURE_PATH: replacement})
+    resolved = install.resolve_items([package_bytes(package)], root, target='virtual')
+    _retained, changes = resolved.contributions[0]
+    assert changes[DLC_TEXTURE_PATH]['after'] == replacement
+
+
+def test_dlc_texture_missing_from_the_dlc_registry_is_refused(tmp_path):
+    root, snapshot = dlc_texture_game(tmp_path, registered=False)
+    with pytest.raises(IndependentItemError, match='registry entry'):
+        texture_package(snapshot, {DLC_TEXTURE_PATH: dds_payload(fill=4)})
+
+
 @pytest.mark.parametrize('mutation', ['source', 'registry', 'missing-registry', 'missing-target'])
 def test_import_requires_exact_source_and_texture_registry(tmp_path, mutation):
     from tests.test_new_item_service import build_package

@@ -45,12 +45,12 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 86,
-        "decode_percent": 51.3,
+        "decode_percent": 54.3,
         "write_percent": 32.6,
         "decode": {
-          "full": 33,
-          "none": 24,
-          "partial": 8,
+          "full": 35,
+          "none": 21,
+          "partial": 9,
           "surface": 21
         },
         "write": {
@@ -61,12 +61,12 @@
       },
       "engine_formats": {
         "extensions": 100,
-        "decode_percent": 50.6,
+        "decode_percent": 53.2,
         "write_percent": 33.5,
         "decode": {
-          "full": 38,
-          "none": 30,
-          "partial": 10,
+          "full": 40,
+          "none": 27,
+          "partial": 11,
           "surface": 22
         },
         "write": {
@@ -77,12 +77,12 @@
       },
       "proprietary_formats": {
         "extensions": 92,
-        "decode_percent": 51.0,
+        "decode_percent": 53.8,
         "write_percent": 34.8,
         "decode": {
-          "full": 37,
-          "none": 28,
-          "partial": 6,
+          "full": 39,
+          "none": 25,
+          "partial": 7,
           "surface": 21
         },
         "write": {
@@ -93,12 +93,12 @@
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 59.0,
+        "decode_percent": 60.6,
         "write_percent": 36.0,
         "decode": {
-          "full": 74,
-          "none": 34,
-          "partial": 10,
+          "full": 76,
+          "none": 31,
+          "partial": 11,
           "surface": 36
         },
         "write": {
@@ -117,12 +117,12 @@
     "by_origin": {
       "proprietary": {
         "extensions": 92,
-        "decode_percent": 51.0,
+        "decode_percent": 53.8,
         "write_percent": 34.8,
         "decode": {
-          "full": 37,
-          "none": 28,
-          "partial": 6,
+          "full": 39,
+          "none": 25,
+          "partial": 7,
           "surface": 21
         },
         "write": {
@@ -205,12 +205,12 @@
       },
       "material_metadata": {
         "extensions": 73,
-        "decode_percent": 51.9,
+        "decode_percent": 55.5,
         "write_percent": 34.9,
         "decode": {
-          "full": 31,
-          "none": 24,
-          "partial": 5,
+          "full": 33,
+          "none": 21,
+          "partial": 6,
           "surface": 13
         },
         "write": {
@@ -464,13 +464,13 @@
     { "extension": ".paacdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 1, "evidence": "cdmw/core/action_chart_binary.py decodes the package table: each character package's main chart and its weapon-slot charts", "remaining": "There is no writer." },
     { "extension": ".paprojdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 1, "evidence": "magic 05001650; projectile info package descriptor", "remaining": "nothing: the single shipped file is fully accounted for and cross-checked against its XML" },
     { "extension": ".paschedulectx", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 2f100000; schedule context naming sequencer spawn files", "remaining": "container identified, record layout unknown" },
-    { "extension": ".binarygimmickcacheddata", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "magic 19000000; 4 MB of cached gimmick data", "remaining": "container identified, record layout unknown" },
+    { "extension": ".binarygimmickcacheddata", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "measured", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "low", "archive_files": 2, "evidence": "Three u32 header fields, the first a record count (base 14,210, dlc_01 1,503), then records whose first 64 bytes match in both layers. Archive Browser shows the header (2026-11-01, game 1.0.0.3446).", "remaining": "The record layout is not decoded. It is probably built from the .binarygimmick charts, so a mod that changes those charts may need it rebuilt." },
     { "extension": ".binarygimmickframeevent", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 0, "evidence": "magic 300c0000; 4.9 MB of gimmick frame events", "remaining": "container identified, record layout unknown" },
 
     { "extension": ".uibinary", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 356, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".pars", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": true, "references": false, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "full", "write": "none", "priority": "low", "archive_files": 246, "evidence": "Encrypted DXBC container with one RTS0 chunk, a serialized D3D12 root signature (version 1.1). Archive Browser decodes the parameters, descriptor ranges and static samplers of all 246 shipped files (2026-10-31, game 1.0.0.3446).", "remaining": "Which pipelines use each root signature is not recorded in the file; there is no writer." },
-    { "extension": ".admeta", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
-    { "extension": ".contentgroupkeymap", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
+    { "extension": ".admeta", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "measured", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Added by the DLC update: dlc_01.admeta holds a u32 length, the DLC id dlc_01 and one u32 (1). Archive Browser shows the id and value (2026-11-01, game 1.0.0.3446).", "remaining": "What the value after the id means is not known; there is no writer." },
+    { "extension": ".contentgroupkeymap", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "measured", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "low", "archive_files": 2, "evidence": "A u32 count and that many u32 keys: base lists 999000, 998003, 0, 8, 10, 11; dlc_01 lists 1001, 1002, 1003, 1005, 1006, 998002. Archive Browser lists the keys (2026-11-01, game 1.0.0.3446).", "remaining": "Which content groups the keys select is not known; there is no writer." },
     { "extension": ".overridedlevellistbinary", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".pacpmt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "Encrypted with the standard filename-derived ChaCha20 key; decrypted LZ4 payloads expand to exactly their declared sizes (2026-10-31 review, game 1.0.0.3446). Earlier extraction failures came from the Python reader's content check, not from the key.", "remaining": "record layout not parsed" },
     { "extension": ".vce_meta", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "none", "archive_files": 3, "evidence": "no analyzer; raw bytes only", "remaining": "" },

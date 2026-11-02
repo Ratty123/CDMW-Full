@@ -29,6 +29,7 @@ from cdmw.core.archive_patching import (
     _safe_log,
 )
 from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.domain.archives.filters import archive_entry_package_group
 
 if TYPE_CHECKING:
     from cdmw.core.mod_package import MeshLooseModFile, ModPackageExportOptions
@@ -408,7 +409,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         file_rows.append(
             MeshLooseModFile(
                 path=output_request_path,
-                package_group=request.entry.pamt_path.parent.name,
+                package_group=archive_entry_package_group(request.entry),
                 format=request.entry.extension.lstrip(".").lower(),
                 is_new=False,
                 generated_from=source_obj_display,
@@ -479,7 +480,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         package_group = ""
         is_new_file = not isinstance(spec.target_entry, ArchiveEntry)
         if isinstance(spec.target_entry, ArchiveEntry):
-            package_group = spec.target_entry.pamt_path.parent.name
+            package_group = archive_entry_package_group(spec.target_entry)
         file_rows.append(
             MeshLooseModFile(
                 path=output_target_path,
@@ -549,7 +550,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
                 file_rows.append(
                     MeshLooseModFile(
                         path=output_related_path,
-                        package_group=related_entry.pamt_path.parent.name,
+                        package_group=archive_entry_package_group(related_entry),
                         format=related_entry.extension.lstrip(".").lower(),
                         is_new=False,
                         generated_from=source_obj_display,
@@ -565,7 +566,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     asset_rows = [
         MeshLooseModAsset(
             entry_path=primary_manifest_path,
-            package_group=primary_entry.pamt_path.parent.name,
+            package_group=archive_entry_package_group(primary_entry),
             format=primary_entry.extension.lstrip(".").lower(),
             obj_path=source_obj_display,
             vertices=int(preview_result.parsed_mesh.total_vertices or 0),
