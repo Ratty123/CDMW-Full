@@ -34,6 +34,8 @@ come before every blob, so a string can change length by rewriting its table alo
 A node's animations are `[first, first + count)` (node +0x54 u32, +0xEE u16); across
 the 558 shipped charts the nodes partition the animation list exactly. The loader
 writes node +0x111 and branch32 +0x14 at load time, so their file values are scratch.
+Frame-event buffers are dense runs of events with one size per kind
+(`FRAME_EVENT_SIZES`), and frame-event instances share events by offset.
 
 `commonactioninfo.paac` and `commonactioninfo_serialized.paac` go through different
 loaders and are decoded to their sections; the serialized file's tail is a separate
@@ -135,6 +137,39 @@ FRAME_EVENT_KINDS = (
 MODEL_ATTACHMENT_SOCKET_KIND = FRAME_EVENT_KINDS.index("ModelAttachmentSocket")
 #: u16 kind, u16, u16, u16 flags, u16 (0xFFFF shipped), 2 bytes of padding.
 FRAME_EVENT_HEADER_SIZE = 12
+
+#: Bytes per event, header included, for every kind the shipped charts use. Each kind
+#: has one size, and these sizes walk every frame-event and key-guide buffer of the
+#: 558 charts to their last byte. A kind missing here has never been seen.
+FRAME_EVENT_SIZES = {
+    0: 16, 1: 16, 2: 16, 3: 16, 4: 108, 5: 44, 6: 16, 7: 308, 8: 16, 9: 44, 10: 84, 11: 264,
+    12: 32, 13: 24, 14: 116, 15: 32, 17: 20, 18: 20, 19: 32, 20: 24, 21: 24, 22: 28, 23: 16,
+    24: 12, 25: 244, 26: 24, 27: 16, 29: 20, 30: 16, 31: 12, 32: 16, 33: 16, 35: 24, 36: 16,
+    37: 148, 38: 24, 39: 256, 40: 32, 41: 12, 42: 20, 43: 24, 44: 96, 45: 20, 46: 16, 47: 44,
+    48: 56, 49: 20, 50: 28, 51: 48, 52: 12, 53: 56, 54: 24, 55: 56, 57: 360, 58: 64, 59: 368,
+    61: 32, 62: 32, 63: 24, 64: 16, 65: 16, 66: 32, 67: 236, 68: 120, 69: 24, 70: 48, 71: 60,
+    72: 40, 73: 16, 75: 60, 76: 76, 77: 20, 78: 28, 79: 40, 80: 32, 81: 20, 82: 72, 83: 16,
+    84: 24, 85: 16, 87: 20, 89: 60, 91: 24, 92: 16, 93: 24, 94: 24, 95: 20, 96: 36, 97: 28,
+    98: 28, 99: 68, 100: 20, 102: 24, 103: 52, 104: 36, 111: 16, 112: 20, 113: 588, 114: 340,
+    115: 48, 116: 12, 117: 20, 118: 28, 121: 28, 122: 16, 123: 16, 124: 36, 125: 32, 126: 52,
+    127: 24, 128: 44, 129: 36, 130: 24, 131: 216, 132: 36, 133: 40, 134: 16, 136: 44, 137: 32,
+    138: 12, 139: 52, 140: 12, 141: 24, 144: 40, 145: 40, 146: 24, 147: 44, 148: 60, 149: 20,
+    150: 28, 152: 68, 153: 12, 156: 188, 157: 20, 158: 12, 160: 16, 161: 56, 162: 84, 163: 76,
+    164: 16, 165: 24, 166: 52, 167: 16, 168: 16, 170: 16, 171: 20, 173: 16, 174: 12, 176: 40,
+    179: 24, 182: 20,
+}
+
+#: u16 string-table indices inside event payloads: kind -> ((role, byte offset, table), ...).
+#: Each field indexes its table (or holds 0xFFFF) in every shipped event of its kind and
+#: names plausible values there; the socket fields are also the placement studio's.
+FRAME_EVENT_REFERENCES = {
+    FRAME_EVENT_KINDS.index("ModelAttachmentSocket"): (("part", 20, 7), ("parent socket", 22, 6), ("child socket", 24, 6)),
+    FRAME_EVENT_KINDS.index("Effect"): (("effect", 284, 3), ("bone", 290, 6)),
+    FRAME_EVENT_KINDS.index("Prefab"): (("prefab", 12, 9), ("parent socket", 14, 6), ("child socket", 16, 6)),
+    FRAME_EVENT_KINDS.index("ShowPart"): (("part", 12, 7),),
+    FRAME_EVENT_KINDS.index("HidePart"): (("part", 12, 7),),
+    FRAME_EVENT_KINDS.index("PlaySequencerConnectActor"): (("sequencer", 12, 8),),
+}
 
 LAYOUT_CHART = "chart"
 LAYOUT_COMMON_ACTION_INFO = "commonactioninfo"
@@ -520,6 +555,48 @@ def socket_event_payload(data: bytes, event: FrameEvent) -> SocketEventPayload:
     return SocketEventPayload(*struct.unpack_from("<fIHHHBBBb", data, event.offset + FRAME_EVENT_HEADER_SIZE))
 
 
+def walk_frame_events(data: bytes, buffer: ChartSpan) -> tuple[FrameEvent, ...]:
+    """Every event in a frame-event buffer, in order, using `FRAME_EVENT_SIZES`."""
+
+    events = []
+    at = 0
+    while at < buffer.size:
+        kind, _, _, flags = struct.unpack_from("<4H", data, buffer.offset + at)
+        size = FRAME_EVENT_SIZES.get(kind)
+        if size is None:
+            raise ActionChartError(f"frame event kind {kind} at buffer offset {at} has no known size")
+        events.append(FrameEvent(buffer.offset + at, kind, flags))
+        at += size
+    if at != buffer.size:
+        raise ActionChartError(f"frame events run {at - buffer.size} bytes past their buffer")
+    return tuple(events)
+
+
+@dataclass(frozen=True, slots=True)
+class EventReference:
+    role: str
+    table: int
+    index: int
+    value: str
+
+
+def event_references(chart: ActionChart, data: bytes, event: FrameEvent) -> tuple[EventReference, ...]:
+    """The string-table entries an event names, for the kinds in `FRAME_EVENT_REFERENCES`."""
+
+    found = []
+    for role, offset, table in FRAME_EVENT_REFERENCES.get(event.kind, ()):
+        index, = struct.unpack_from("<H", data, event.offset + offset)
+        found.append(EventReference(role, table, index, chart.tables[table].value(index)))
+    return tuple(found)
+
+
+def event_users(chart: ActionChart, ref: FrameEventRef) -> tuple[int, ...]:
+    """Indices of the animations whose frame events point at the same event as `ref`."""
+
+    return tuple(sorted({animation.index for animation in chart.animations
+                         for other in animation.events if other.dword_offset == ref.dword_offset}))
+
+
 # --- descriptor -------------------------------------------------------------------
 
 
@@ -600,28 +677,14 @@ def _require_chart(data: bytes, virtual_path: str = "") -> ActionChart:
     return _decode_chart(bytes(data))
 
 
-def replace_chart_strings(data: bytes, table: int, replacements: Mapping[int, str], *, virtual_path: str = "") -> bytes:
-    """Rewrite entries of one string table at any length.
+def _rewrite_table(data: bytes, chart: ActionChart, table: int, raw: Sequence[bytes]) -> bytes:
+    """Splice a rebuilt string table in and prove nothing else changed but its position."""
 
-    The table is rebuilt and spliced in; every other byte moves as one block. The
-    result must decode with the same sections, and every byte outside the table must
-    match the original, or the edit is refused.
-    """
-
-    data = bytes(data)
-    chart = _require_chart(data, virtual_path)
-    if not 0 <= table < len(chart.tables):
-        raise ActionChartError(f"string table {table} does not exist")
     source = chart.tables[table]
-    raw = list(source.raw)
-    for index, value in replacements.items():
-        if not 0 <= index < len(raw):
-            raise ActionChartError(f"string table {table} has no entry {index}")
-        raw[index] = _encode_value(value)
     rebuilt = _encode_strings(raw)
     start, end = source.offset, source.offset + source.size
     patched = data[:start] + rebuilt + data[end:]
-    after = _require_chart(patched)
+    after = _decode_chart(patched)
     if patched[:start] != data[:start] or patched[start + len(rebuilt):] != data[end:]:
         raise ActionChartError("bytes outside the string table changed")
     if after.tables[table].raw != tuple(raw):
@@ -631,6 +694,189 @@ def replace_chart_strings(data: bytes, table: int, replacements: Mapping[int, st
     if before_shape != after_shape:
         raise ActionChartError("the chart's sections changed shape after the edit")
     return patched
+
+
+def replace_chart_strings(data: bytes, table: int, replacements: Mapping[int, str], *, virtual_path: str = "") -> bytes:
+    """Rewrite entries of one string table at any length.
+
+    The table is rebuilt and spliced in; every other byte moves as one block. The
+    result must decode with the same sections, and every byte outside the table must
+    match the original, or the edit is refused. A rewritten entry changes every
+    record that names it; `set_animation_resources` and `apply_event_edits` change one.
+    """
+
+    data = bytes(data)
+    chart = _require_chart(data, virtual_path)
+    if not 0 <= table < len(chart.tables):
+        raise ActionChartError(f"string table {table} does not exist")
+    raw = list(chart.tables[table].raw)
+    for index, value in replacements.items():
+        if not 0 <= index < len(raw):
+            raise ActionChartError(f"string table {table} has no entry {index}")
+        raw[index] = _encode_value(value)
+    return _rewrite_table(data, chart, table, raw)
+
+
+def _string_index(data: bytes, chart: ActionChart, table: int, value: str) -> tuple[bytes, ActionChart, int]:
+    """The index of `value` in `table`, appended at the end when the table lacks it.
+
+    Appending leaves every existing index where it was, so no other record moves.
+    An empty value means "none" (0xFFFF).
+    """
+
+    if value == "":
+        return data, chart, NO_INDEX
+    encoded = _encode_value(value)
+    raw = chart.tables[table].raw
+    if encoded in raw:
+        return data, chart, raw.index(encoded)
+    if len(raw) >= NO_INDEX:
+        raise ActionChartError(f"string table {table} is full")
+    patched = _rewrite_table(data, chart, table, list(raw) + [encoded])
+    return patched, _decode_chart(patched), len(raw)
+
+
+def _patch_fields(data: bytes, chart: ActionChart, fields: Sequence[tuple[int, str, object]]) -> bytes:
+    """Write fixed-size values in place and prove only those bytes changed."""
+
+    buffer = bytearray(data)
+    allowed = bytearray(len(data))
+    for at, code, value in fields:
+        size = struct.calcsize("<" + code)
+        struct.pack_into("<" + code, buffer, at, value)
+        allowed[at:at + size] = b"\1" * size
+    patched = bytes(buffer)
+    for index, (left, right) in enumerate(zip(data, patched)):
+        if left != right and not allowed[index]:
+            raise ActionChartError(f"byte {index} changed outside the edited fields")
+    after = _decode_chart(patched)
+    if [(span.name, span.offset, span.size) for span in after.spans] != [(span.name, span.offset, span.size) for span in chart.spans]:
+        raise ActionChartError("the chart's sections changed after a field edit")
+    return patched
+
+
+def set_animation_resources(data: bytes, animation: int, *, clip: Optional[str] = None, blend: Optional[str] = None,
+                            virtual_path: str = "") -> bytes:
+    """Point one animation at another clip and/or blend space; other animations keep theirs.
+
+    A path the chart does not hold yet is appended to its table. `blend=""` clears the
+    blend space (0xFFFF, as most shipped animations have). The header carries the clip
+    index twice (+0x9C and +0x9E, equal in every shipped animation); both are written.
+    """
+
+    data = bytes(data)
+    chart = _require_chart(data, virtual_path)
+    if not 0 <= animation < len(chart.animations):
+        raise ActionChartError(f"animation {animation} does not exist")
+    fields: list[tuple[int, str, object]] = []
+    if clip is not None:
+        if clip == "":
+            raise ActionChartError("an animation needs a clip")
+        data, chart, index = _string_index(data, chart, ANIMATION_TABLE, clip)
+        at = chart.animations[animation].offset
+        fields += [(at + 0x9C, "H", index), (at + 0x9E, "H", index)]
+    if blend is not None:
+        data, chart, index = _string_index(data, chart, BLEND_TABLE, blend)
+        fields.append((chart.animations[animation].offset + 0xA2, "H", index))
+    return _patch_fields(data, chart, fields) if fields else data
+
+
+#: Socket event payload fields that are not string references: name -> (offset, code).
+_SOCKET_VALUE_FIELDS = {"mode": (26, "B"), "blend time": (12, "f")}
+
+
+@dataclass(frozen=True, slots=True)
+class EventEdit:
+    """Set one field of the event an animation's frame event points at.
+
+    `field` is a reference role from `FRAME_EVENT_REFERENCES` (value: a string, "" for
+    none) or, on ModelAttachmentSocket events, "mode" (0 In, 1 Out, 2 explicit sockets)
+    or "blend time" (seconds).
+    """
+
+    animation: int
+    event: int
+    field: str
+    value: object
+
+
+def event_edit_fields(kind: int) -> tuple[str, ...]:
+    roles = tuple(role for role, _offset, _table in FRAME_EVENT_REFERENCES.get(kind, ()))
+    return roles + (tuple(_SOCKET_VALUE_FIELDS) if kind == MODEL_ATTACHMENT_SOCKET_KIND else ())
+
+
+def _instances(chart: ActionChart, dword: int) -> int:
+    return sum(1 for animation in chart.animations for ref in animation.events if ref.dword_offset == dword) + sum(
+        1 for ref in chart.child_events if ref.dword_offset == dword)
+
+
+def _copy_event(data: bytes, chart: ActionChart, animation: int, event: int) -> tuple[bytes, ActionChart]:
+    """Give one animation its own copy of a shared event, appended to the buffer."""
+
+    buffer = chart.frame_event_buffer
+    ref = chart.animations[animation].events[event]
+    source = frame_event_at(chart, data, ref)
+    size = FRAME_EVENT_SIZES.get(source.kind)
+    if size is None:
+        raise ActionChartError(f"{source.kind_name} events have no known size, so one cannot be copied")
+    walk_frame_events(data, buffer)
+    end = buffer.offset + buffer.size
+    patched = bytearray(data[:end] + data[source.offset:source.offset + size] + data[end:])
+    struct.pack_into("<I", patched, buffer.offset - 4, buffer.size + size)
+    struct.pack_into("<I", patched, ref.offset + 8, buffer.size // 4)
+    patched = bytes(patched)
+    changed = set(range(buffer.offset - 4, buffer.offset)) | set(range(ref.offset + 8, ref.offset + 12))
+    if any(patched[index] != data[index] for index in range(end) if index not in changed) or patched[end + size:] != data[end:]:
+        raise ActionChartError("copying the event changed other bytes")
+    after = _decode_chart(patched)
+    walk_frame_events(patched, after.frame_event_buffer)
+    return patched, after
+
+
+def apply_event_edits(data: bytes, edits: Iterable[EventEdit], *, only_this_animation: bool = True,
+                      virtual_path: str = "") -> bytes:
+    """Edit event payloads in place.
+
+    Events are shared between animations (816,918 frame events point at 71,553 events
+    in the shipped charts), so by default an edited event that other frame events also
+    use is first copied for this animation alone. With `only_this_animation=False`
+    every user of the event sees the change.
+    """
+
+    data = bytes(data)
+    chart = _require_chart(data, virtual_path)
+    for edit in edits:
+        if not 0 <= edit.animation < len(chart.animations):
+            raise ActionChartError(f"animation {edit.animation} does not exist")
+        animation = chart.animations[edit.animation]
+        if not 0 <= edit.event < len(animation.events):
+            raise ActionChartError(f"animation {edit.animation} has no frame event {edit.event}")
+        event = frame_event_at(chart, data, animation.events[edit.event])
+        roles = {role: (offset, table) for role, offset, table in FRAME_EVENT_REFERENCES.get(event.kind, ())}
+        if edit.field in roles:
+            if not isinstance(edit.value, str):
+                raise ActionChartError(f"{edit.field} takes a name")
+            offset, table = roles[edit.field]
+            data, chart, value = _string_index(data, chart, table, edit.value)
+            code = "H"
+        elif event.kind == MODEL_ATTACHMENT_SOCKET_KIND and edit.field in _SOCKET_VALUE_FIELDS:
+            offset, code = _SOCKET_VALUE_FIELDS[edit.field]
+            value = edit.value
+            if edit.field == "mode" and value not in (0, 1, 2):
+                raise ActionChartError("socket mode must be 0 (In), 1 (Out) or 2 (explicit sockets)")
+            if edit.field == "blend time" and not (
+                    isinstance(value, (int, float)) and math.isfinite(value) and 0 <= value <= 60):
+                raise ActionChartError("socket blend time must be between 0 and 60 seconds")
+        else:
+            raise ActionChartError(f"{event.kind_name} events have no editable field {edit.field!r}")
+        ref = chart.animations[edit.animation].events[edit.event]
+        if only_this_animation and _instances(chart, ref.dword_offset) > 1:
+            data, chart = _copy_event(data, chart, edit.animation, edit.event)
+            ref = chart.animations[edit.animation].events[edit.event]
+        at = frame_event_at(chart, data, ref).offset
+        data = _patch_fields(data, chart, [(at + offset, code, value)])
+        chart = _decode_chart(data)
+    return data
 
 
 def retarget_chart_string(data: bytes, table: int, old: str, new: str, *, virtual_path: str = "") -> tuple[bytes, int]:
@@ -773,7 +1019,11 @@ __all__ = [
     "ChartSpan",
     "ChartValueEdit",
     "EDITABLE_CHART_FIELDS",
+    "EventEdit",
+    "EventReference",
     "FRAME_EVENT_KINDS",
+    "FRAME_EVENT_REFERENCES",
+    "FRAME_EVENT_SIZES",
     "FrameEvent",
     "FrameEventRef",
     "MODEL_ATTACHMENT_SOCKET_KIND",
@@ -781,12 +1031,18 @@ __all__ = [
     "StringTable",
     "action_chart_layout",
     "apply_chart_value_edits",
+    "apply_event_edits",
     "chart_value_offset",
     "decode_action_chart",
     "decode_action_package_description",
+    "event_edit_fields",
+    "event_references",
+    "event_users",
     "frame_event_at",
     "replace_chart_strings",
     "retarget_animation",
     "retarget_chart_string",
+    "set_animation_resources",
     "socket_event_payload",
+    "walk_frame_events",
 ]

@@ -1420,20 +1420,28 @@ runtime dump, archives read-only):
   named from the client factory switch, and they moved with the update
   (ModelAttachmentSocket went from 60 to 62, and its event gained a 12-byte
   header). All 171,884 socket events validate against tables 6 and 7.
+- **Event buffers.** Every event kind has one fixed size, and those sizes walk all
+  1,116 frame-event and key-guide buffers to their last byte. Events are shared:
+  816,918 frame-event instances point at 71,553 events. Effect events name their
+  effect (table 3) and bone (table 6); Prefab events their prefab (table 9) and
+  sockets; ShowPart/HidePart a part (table 7); PlaySequencerConnectActor a
+  sequencer (table 8). Sound events carry no string reference.
 - **Not yet named.** Most node, branch, key-guide and frame-event payload fields
   stay raw bytes, as do two u32 hashes and a second rate after
   `ActionSpeedRate`.
 - **Writes (constrained).** Any string table entry can be retargeted at any
   length up to 254 ASCII characters: the table is rebuilt and every other byte
-  moves as one block, which round-trips on every table of all 558 charts. In-place
-  f32 edits cover `ActionSpeedRate`, animation start/end, speed windows and their
-  rate, frame-tag and just-time windows, and frame-event begin/end. Everything
-  else is refused. Archive Browser's **Edit Action Chart...** exposes exactly
-  these writes and exports the chart as a DMM loose mod. On 2026-11-02 a clip
-  retarget plus rate and end-time edits, then their reversal, returned the
-  shipped bytes of `schedule_action_nhm`, `subweapon_upper` and
-  `ride_tank_upper` (source and archives only). None of these edits has been
-  checked in game yet.
+  moves as one block, which round-trips on every table of all 558 charts. One
+  animation can get its own clip or blend space: a new path is appended, so no
+  existing index moves. The named event references above, and a socket event's
+  mode and blend time, can be edited; a shared event is first copied to the end
+  of the buffer for the edited animation, and on all 558 charts the other
+  animations kept the old value. In-place f32 edits cover `ActionSpeedRate`,
+  animation start/end, speed windows and their rate, frame-tag and just-time
+  windows, and frame-event begin/end. Everything else is refused. None of these
+  edits has been checked in game yet.
+  Archive Browser's **Edit Action Chart...** exposes these writes and exports
+  the chart as a DMM mod.
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts

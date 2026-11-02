@@ -20,14 +20,21 @@ from cdmw.core.action_chart_binary import (
     MODEL_ATTACHMENT_SOCKET_KIND,
     ActionChartError,
     ChartValueEdit,
+    EventEdit,
     apply_chart_value_edits,
+    apply_event_edits,
     decode_action_chart,
     decode_action_package_description,
+    event_edit_fields,
+    event_references,
+    event_users,
     frame_event_at,
     replace_chart_strings,
     retarget_animation,
     retarget_chart_string,
+    set_animation_resources,
     socket_event_payload,
+    walk_frame_events,
 )
 from cdmw.core.archive_action_chart_preview import build_action_chart_preview
 from cdmw.models import ArchiveEntry
@@ -56,12 +63,14 @@ def strings(values) -> bytes:
 
 
 def frame_events() -> bytes:
-    """A ModelAttachmentSocket (32 bytes) then an Effect header (16 bytes)."""
+    """A ModelAttachmentSocket (32 bytes) then an Effect (360 bytes) naming effect 0 on bone 0."""
 
     socket = struct.pack("<5H", MODEL_ATTACHMENT_SOCKET_KIND, 0, 0, 0x102, 0xFFFF) + b"\0\0"
     socket += struct.pack("<fIHHHBBBb", 0.0, 0, 0, 1, 0, 2, 0, 0, 0) + b"\0\0"
-    effect = struct.pack("<5H", 57, 0, 0, 0x102, 0xFFFF) + b"\0\0" + b"\0" * 4
-    return socket + effect
+    effect = bytearray(struct.pack("<5H", 57, 0, 0, 0x102, 0xFFFF) + b"\0" * 350)
+    struct.pack_into("<HH", effect, 284, 0, 0)
+    struct.pack_into("<H", effect, 290, 0)
+    return socket + bytes(effect)
 
 
 def animation(index: int, *, end: float, arrays: dict, events: list) -> bytes:
@@ -89,7 +98,7 @@ def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"")
         "animationSpeedInfoArray": [struct.pack("<fffI", 0.0, 1.0, 1.0, 0x1F)],
         "justTimeFrameTagInfo": [struct.pack("<ffII", 0.5, 0.8, 0x30001, 4)],
     }, events=[(0.0, -1.0, 0), (0.3, -1.0, 8)])
-    out += animation(1, end=2.5, arrays={}, events=[])
+    out += animation(1, end=2.5, arrays={}, events=[(0.1, -1.0, 0)])  # shares the socket event
     out += struct.pack("<III", 0, 0, 0)
     out += b"".join(strings(values) for values in tables)
     out += struct.pack("<fIIfBB", 1.0, 0, 0, 1.0, 0, 0)
@@ -127,7 +136,7 @@ def test_chart_decodes_to_the_last_byte_with_named_sections():
     assert [(item.start_time, item.end_time) for item in chart.animations] == [(0.0, 1.5), (0.0, 2.5)]
     assert [(node.first_animation, node.animation_count) for node in chart.nodes] == [(0, 1), (1, 1)]
     assert chart.include_names == (0,) and chart.action_speed_rate == 1.0
-    assert chart.counts["branches"] == 1 and chart.counts["frame events"] == 2
+    assert chart.counts["branches"] == 1 and chart.counts["frame events"] == 3
     assert chart.animations[0].array("frameTag").count == 1
     kinds = [frame_event_at(chart, data, ref).kind_name for ref in chart.animations[0].events]
     assert kinds == ["ModelAttachmentSocket", "Effect"]
@@ -213,6 +222,70 @@ def test_value_edits_write_only_the_named_floats():
 def test_value_edits_refuse_unproven_or_inconsistent_values(edit, message):
     with pytest.raises(ActionChartError, match=message):
         apply_chart_value_edits(chart_bytes(), [edit])
+
+
+def test_event_buffers_walk_to_their_last_byte_and_name_their_references():
+    data = chart_bytes()
+    chart = decode_action_chart(data)
+    events = walk_frame_events(data, chart.frame_event_buffer)
+    assert [event.kind_name for event in events] == ["ModelAttachmentSocket", "Effect"]
+    references = event_references(chart, data, events[1])
+    assert [(item.role, item.value) for item in references] == [
+        ("effect", "fx_sword_trail_a__trail1.action.effect"), ("bone", "Bip01 R Hand")]
+    assert event_users(chart, chart.animations[0].events[0]) == (0, 1)
+    assert event_edit_fields(MODEL_ATTACHMENT_SOCKET_KIND) == ("part", "parent socket", "child socket", "mode", "blend time")
+
+
+def test_one_animation_can_change_clip_and_blend_without_moving_the_others():
+    data = chart_bytes()
+    patched = set_animation_resources(data, 1, clip="1_pc/1_phm/cd_phm_new_heavy_attack_combo_00.paa", blend="")
+    chart = decode_action_chart(patched)
+    assert chart.clip_name(chart.animations[0]) == CLIPS[0]
+    assert chart.clip_name(chart.animations[1]) == "1_pc/1_phm/cd_phm_new_heavy_attack_combo_00.paa"
+    assert chart.tables[1].values[:2] == CLIPS  # appended, existing indices untouched
+    header = chart.animations[1].offset
+    assert struct.unpack_from("<HH", patched, header + 0x9C) == (2, 2)
+    reused = set_animation_resources(data, 0, clip=CLIPS[1], blend="")
+    again = decode_action_chart(reused)
+    assert len(reused) == len(data) and again.clip_name(again.animations[0]) == CLIPS[1]
+    assert again.blend_name(again.animations[0]) == ""
+    with pytest.raises(ActionChartError, match="needs a clip"):
+        set_animation_resources(data, 0, clip="")
+
+
+def test_event_edits_copy_a_shared_event_for_one_animation():
+    data = chart_bytes()
+    patched = apply_event_edits(data, [EventEdit(1, 0, "parent socket", "Pelvis_R_Socket"),
+                                       EventEdit(1, 0, "mode", 2)])
+    chart = decode_action_chart(patched)
+    walk_frame_events(patched, chart.frame_event_buffer)
+    mine = socket_event_payload(patched, frame_event_at(chart, patched, chart.animations[1].events[0]))
+    theirs = socket_event_payload(patched, frame_event_at(chart, patched, chart.animations[0].events[0]))
+    assert chart.tables[6].value(mine.parent) == "Pelvis_R_Socket"
+    assert chart.tables[6].value(theirs.parent) == "RHand_Socket"
+    assert chart.animations[1].events[0].dword_offset != chart.animations[0].events[0].dword_offset
+    everyone = apply_event_edits(data, [EventEdit(1, 0, "parent socket", "Bip01 R Hand")], only_this_animation=False)
+    shared = decode_action_chart(everyone)
+    assert len(everyone) == len(data)
+    assert shared.tables[6].value(socket_event_payload(everyone, frame_event_at(shared, everyone, shared.animations[0].events[0])).parent) == "Bip01 R Hand"
+    effect = apply_event_edits(data, [EventEdit(0, 1, "effect", "fx_new_trail.action.effect")])
+    chart = decode_action_chart(effect)
+    assert event_references(chart, effect, frame_event_at(chart, effect, chart.animations[0].events[1]))[0].value == "fx_new_trail.action.effect"
+
+
+@pytest.mark.parametrize(
+    "edit, message",
+    [
+        (EventEdit(0, 0, "effect", "x"), "no editable field"),
+        (EventEdit(0, 0, "mode", 3), "0 \\(In\\)"),
+        (EventEdit(0, 0, "blend time", float("inf")), "between 0 and 60"),
+        (EventEdit(0, 0, "part", 5), "takes a name"),
+        (EventEdit(0, 4, "part", "x"), "no frame event 4"),
+    ],
+)
+def test_event_edits_refuse_unknown_fields_and_values(edit, message):
+    with pytest.raises(ActionChartError, match=message):
+        apply_event_edits(chart_bytes(), [edit])
 
 
 def test_common_action_info_layouts_are_picked_by_file_name():

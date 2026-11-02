@@ -19,7 +19,9 @@ from cdmw.core.action_chart_binary import (
     ActionChartError,
     decode_action_chart,
     decode_action_package_description,
+    event_references,
     frame_event_at,
+    walk_frame_events,
 )
 from cdmw.core.archive_model_references import _StructuredBinaryPreviewBundle
 
@@ -28,6 +30,7 @@ ANIMATION_ROW_LIMIT = 120
 NODE_ROW_LIMIT = 40
 TABLE_SAMPLE = 6
 SECTION_ROW_LIMIT = 80
+EVENT_ROW_LIMIT = 400
 
 
 def _seconds(value: float) -> str:
@@ -43,6 +46,36 @@ def _event_kinds(chart: ActionChart, data: bytes) -> Counter:
             except (ActionChartError, IndexError, ValueError):
                 kinds["unreadable"] += 1
     return kinds
+
+
+def _event_lines(chart: ActionChart, data: bytes) -> list[str]:
+    """Each animation's frame events with their time and the names they reference."""
+
+    lines = [""]
+    try:
+        walked = len(walk_frame_events(data, chart.frame_event_buffer))
+        lines.append(f"Frame-event buffer: {walked:,} events, read to its last byte.")
+    except ActionChartError as exc:
+        lines.append(f"Frame-event buffer: not fully walked ({exc}).")
+    lines.append("Frame events per animation (seconds, kind, what it names):")
+    shown = 0
+    for animation in chart.animations:
+        if not animation.events:
+            continue
+        if shown >= EVENT_ROW_LIMIT:
+            lines.append("  ... more events in later animations")
+            break
+        lines.append(f"  animation {animation.index}:")
+        for ref in animation.events:
+            try:
+                event = frame_event_at(chart, data, ref)
+            except (ActionChartError, IndexError, ValueError):
+                continue
+            window = f"{ref.begin:.3f}" if ref.end == -1 else f"{ref.begin:.3f}-{ref.end:.3f}"
+            names = ", ".join(f"{item.role} {item.value}" for item in event_references(chart, data, event) if item.value)
+            lines.append(f"    {window}  {event.kind_name}{'  (' + names + ')' if names else ''}")
+            shown += 1
+    return lines
 
 
 def _section_lines(chart: ActionChart) -> list[str]:
@@ -116,10 +149,15 @@ def _chart_lines(chart: ActionChart, data: bytes, virtual_path: str) -> list[str
     if kinds:
         lines.extend(["", "Frame events by kind:"])
         lines.extend(f"  {count:>7,}  {name}" for name, count in kinds.most_common())
+        lines.extend(_event_lines(chart, data))
     lines.extend(_section_lines(chart))
     lines.extend(["", "Editable in place (same length):"])
     lines.extend(f"  {name}" for name in EDITABLE_CHART_FIELDS)
     lines.append("  Any string table entry, at any length up to 254 characters")
+    lines.append("  One animation's clip or blend space (a new path is added to the table)")
+    lines.append("  Event references: socket part, sockets, mode and blend time; effect and its bone;")
+    lines.append("    prefab and its sockets; shown or hidden part; sequencer. A shared event is copied")
+    lines.append("    for the edited animation unless the edit is meant for every animation using it.")
     return lines
 
 

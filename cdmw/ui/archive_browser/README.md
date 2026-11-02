@@ -642,8 +642,8 @@ inspectors before the readable-strings fallback:
 - `.paac` action charts and the `.paacdesc` package description:
   `archive_action_chart_preview.py` decodes them with `action_chart_binary.py`
   (the game loader's member order) and lists animations with time ranges, nodes,
-  frame events by kind, string tables, byte totals per section and the in-place
-  edit scope. The two `commonactioninfo` files show their sections; the serialized
+  each animation's frame events with the names they reference, string tables, byte
+  totals per section and the edit scope. The two `commonactioninfo` files show their sections; the serialized
   one marks its undecoded reflection tail.
 - **Edit Action Chart...** on a standard `.paac` (`action_chart_actions.py`,
   `action_chart_editor_dialog.py`): the worker reads the chart and lists clip
