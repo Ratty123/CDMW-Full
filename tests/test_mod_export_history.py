@@ -189,3 +189,30 @@ def test_no_export_route_ships_authoring_records(tmp_path):
         assert not shipped & {*HISTORY_FILES, "mesh-editor-session.json"}, shipped
         evidence = read_compatibility(root)
         assert evidence is not None and evidence.originals == {"actionchart/bin__/upperaction/test.paac": b"original chart"}
+
+
+def test_an_added_file_keeps_history_but_a_changed_payload_never_does(tmp_path):
+    package = tmp_path / "mod"
+    evidence = _package(package)
+    (package / "character/model").mkdir(parents=True)
+    (package / "character/model/owned.pac").write_bytes(b"asset the user added")
+    assert read_compatibility(package).originals == evidence.originals
+    assert mod_metadata_path(package, "cdmw-compatibility.json").is_file()
+    (package / "0045/0.paz").write_bytes(b"edited payload")
+    assert read_compatibility(package) is None, "an edited payload must not reuse the old baseline"
+
+
+def test_extending_a_new_item_mod_without_its_record_is_refused(tmp_path):
+    from cdmw.core import mod_export_history as history
+
+    service, snapshot, _entries = setup_game(tmp_path)
+    first = service.plan(replace(spec("First"), recipes=()), snapshot)
+    folder = tmp_path / "mod"
+    service.export_loose(first, folder, manager="DMM")
+    (folder / "character/model").mkdir(parents=True)
+    (folder / "character/model/owned.pac").write_bytes(b"asset the user added")
+    base = build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)
+    assert base.base_manifest["item_key"] == first.spec.item_key, "an added file must not hide the earlier items"
+    shutil.rmtree(history._history_root())
+    with pytest.raises(ValueError, match="cannot find its record of the items"):
+        build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)

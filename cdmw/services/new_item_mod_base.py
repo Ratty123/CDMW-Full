@@ -282,4 +282,20 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
         if manifest.stat().st_size > 8 * 1024 * 1024:
             raise ValueError(f"New Item manifest is too large: {manifest}")
         base.base_manifest = json.loads(manifest.read_text(encoding="utf-8"))
+    elif _written_by_create_new_item(folder):
+        # Extending without the record would silently drop the items already in this mod.
+        raise ValueError(
+            f"CDMW cannot find its record of the items in {folder.name}. Its files were changed after export, "
+            "or it was exported on another computer. Export the new item to a new mod instead."
+        )
     return base
+
+
+def _written_by_create_new_item(folder: Path) -> bool:
+    import json
+
+    try:
+        manifest = json.loads((Path(folder) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(manifest, dict) and str(manifest.get("generator", "")).endswith("Create New Item")

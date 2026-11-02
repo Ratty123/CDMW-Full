@@ -60,6 +60,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Combining item mods for DMM keeps every item in its shops and item groups. Since items are added to shops as DMM operations, the combined mod had dropped those additions.
+
+- Adding an item to an existing mod no longer loses the items already in it when a file was added to the mod folder after export. If CDMW cannot find its record of those items, it now refuses instead of dropping them.
+
 - Where the DLC ships its own copy of a base file (about 13,500 files, mostly textures, level data and models), Archive Browser, previews, Mesh Editor and the texture tools now open the DLC's copy, which the game is expected to load, instead of the base copy. Exported mod manifests, including Mesh Editor's, name a DLC copy's folder as `dlc_01/0015` so it is no longer mistaken for the base folder of the same number. CDMW rebuilds its archive index once after this update, so the change applies without a game update.
 
 - Texture packages can replace textures that only the DLC ships, checked against the DLC's own texture registry; such a package needs the DLC installed. Textures the DLC replaces are checked against the DLC's copy.

@@ -66,8 +66,11 @@ def test_current_generation_and_arabic_export(tmp_path):
     for language in ("eng", "ara", "ger"):
         table = parse_paloc(plan.loose_files[f"gamedata/stringtable/binary__/{language}/item.paloc"])
         assert table.index()[plan.spec.name_key].text == ("سيف جديد" if language == "ara" else "First")
-    service.export_loose(plan, tmp_path / "output", manager="CDUMM")
-    assert json.loads((tmp_path / "output/new-item.json").read_text(encoding="utf-8"))["item_key"] == plan.spec.item_key
+    service.export_loose(plan, tmp_path / "output", manager="DMM")
+    # The item record lives in CDMW's history, not in the mod DMM reads.
+    from cdmw.core.mod_export_history import mod_metadata_path
+    assert not (tmp_path / "output/new-item.json").exists()
+    assert json.loads(mod_metadata_path(tmp_path / "output", "new-item.json").read_text(encoding="utf-8"))["item_key"] == plan.spec.item_key
 
 
 def test_incomplete_current_pair_cannot_fall_back_to_legacy(tmp_path):
@@ -101,8 +104,9 @@ def test_empty_dlc_tables_do_not_block_new_item_snapshot_or_export(tmp_path, res
     witnessed = {row.entry.path for row in snapshot.provenance.capture().payloads}
     assert set(empty_headers) <= witnessed
     plan = service.plan(spec(), snapshot)
-    service.export_loose(plan, tmp_path / "output", manager="CDUMM")
-    assert (tmp_path / "output/new-item.json").is_file()
+    service.export_loose(plan, tmp_path / "output", manager="DMM")
+    from cdmw.core.mod_export_history import mod_metadata_path
+    assert mod_metadata_path(tmp_path / "output", "new-item.json").is_file()
 
 
 @pytest.mark.parametrize("header", [b"\1\0", b"\0\1", bytes(3), bytes(5), b'\1', b'\0\0\0\1'])
@@ -163,7 +167,7 @@ def test_second_item_carries_extra_assets_and_records_to_different_folder(tmp_pa
     service, snapshot, _ = setup_game(tmp_path)
     first = service.plan(spec(), snapshot)
     source = tmp_path / "first"
-    service.export_loose(first, source, manager="CDUMM")
+    service.export_loose(first, source, manager="DMM")
     extra = source / "character/model/prior-owned.pac"
     extra.parent.mkdir(parents=True, exist_ok=True)
     extra.write_bytes(b"synthetic owned asset")
@@ -174,11 +178,12 @@ def test_second_item_carries_extra_assets_and_records_to_different_folder(tmp_pa
     assert second.loose_files["character/model/prior-owned.pac"] == extra.read_bytes()
     assert any(a.path == "character/model/prior-owned.pac" for a in second.additions)
     assert second.manifest["previous_items"][0]["item_key"] == first.spec.item_key
-    service.export_loose(second, tmp_path / "combined", manager="CDUMM")
-    assert (tmp_path / "combined/files/character/model/prior-owned.pac").read_bytes() == extra.read_bytes()
+    service.export_loose(second, tmp_path / "combined", manager="DMM")
+    from cdmw.services.new_item_mod_base import mod_folder_payloads
+    assert mod_folder_payloads(tmp_path / "combined")["character/model/prior-owned.pac"].read_bytes() == extra.read_bytes()
     extra.write_bytes(b"changed after plan")
     with pytest.raises(StaleNewItemSource, match="Source changed"):
-        service.export_loose(second, tmp_path / "stale", manager="CDUMM")
+        service.export_loose(second, tmp_path / "stale", manager="DMM")
     assert not (tmp_path / "stale").exists()
 
 

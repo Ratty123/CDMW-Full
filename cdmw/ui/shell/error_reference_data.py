@@ -31584,6 +31584,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "CDMW cannot find its record of the items in {folder.name}. Its files were changed after export, or it was exported on another computer. Export the new item to a new mod instead.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_mod_base.py": 287
+    }
+  },
+  {
+    "area": "items",
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
@@ -75300,7 +75308,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_export_history.py": 171
+      "cdmw/core/mod_export_history.py": 216
     }
   },
   {
@@ -75540,7 +75548,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a new or empty output folder. Existing mod packages are preserved.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 347
+      "cdmw/services/mod_merge_service.py": 367
     }
   },
   {
@@ -75596,7 +75604,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder separate from the game and all selected mods.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 345
+      "cdmw/services/mod_merge_service.py": 365
     }
   },
   {
@@ -76717,7 +76725,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 354
+      "cdmw/services/mod_merge_service.py": 374
     }
   },
   {
@@ -79164,7 +79172,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod history file: {source}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 153
+      "cdmw/core/mod_export_history.py": 197
     }
   },
   {
@@ -80277,7 +80285,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot follow a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 49
+      "cdmw/core/mod_export_history.py": 61
     }
   },
   {
@@ -80285,7 +80293,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot remove a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 178
+      "cdmw/core/mod_export_history.py": 223
     }
   },
   {
@@ -80718,7 +80726,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a CDMW history file: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 104
+      "cdmw/core/mod_export_history.py": 116
     }
   },
   {
@@ -80958,7 +80966,7 @@ MESSAGE_REFERENCE = [
     "message": "Oversized mod history record: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_export_history.py": 148
+      "cdmw/core/mod_export_history.py": 192
     }
   },
   {
@@ -81902,7 +81910,7 @@ MESSAGE_REFERENCE = [
     "message": "Resolve the reported conflicts before writing a merged mod.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 340
+      "cdmw/services/mod_merge_service.py": 360
     }
   },
   {
@@ -83824,7 +83832,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod export must be outside CDMW's local history folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 137
+      "cdmw/core/mod_export_history.py": 181
     }
   },
   {
@@ -84457,6 +84465,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/mod_compatibility.py": 413
+    }
+  },
+  {
+    "area": "other",
+    "message": "The shop and group operations of {Path(folder).name} cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mod_merge_service.py": 348
     }
   },
   {
@@ -106249,7 +106265,7 @@ SOURCE_COVERAGE = {
     "raise": 4
   },
   "cdmw/services/mod_merge_service.py": {
-    "raise": 27
+    "raise": 28
   },
   "cdmw/services/mod_update_service.py": {
     "raise": 17
@@ -106312,7 +106328,7 @@ SOURCE_COVERAGE = {
     "raise": 19
   },
   "cdmw/services/new_item_mod_base.py": {
-    "raise": 9
+    "raise": 10
   },
   "cdmw/services/new_item_mounted_base.py": {
     "raise": 18,
