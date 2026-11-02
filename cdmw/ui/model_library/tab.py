@@ -153,6 +153,9 @@ class ModelLibraryTab(
         self._pending_results_selected_key = ("", "", "")
         self._pending_results_checked_keys: set[tuple[str, str, str]] = set()
         self._populating_results = False
+        self._results_population_active = False
+        self._results_status_after_population: Optional[Callable[[], None]] = None
+        self._queued_results_action: Optional[Callable[[], None]] = None
         self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
         self._checked_payloads_by_item: dict[int, dict[str, object]] = {}
         self._no_texture_download_item_ids: set[int] = set()
@@ -264,6 +267,29 @@ class ModelLibraryTab(
         selected_member: str = "",
     ) -> None:
         if self._task_thread is not None and self._task_thread.isRunning():
+            if bool(getattr(self, "_inline_preview_task_running", False)):
+                # A newer selection supersedes the running preview: cancel it and
+                # resolve this payload once it stops, as long as it is still selected.
+                selection_key = self._payload_population_key(payload)
+                self._inline_preview_request_id += 1
+                self._pending_inline_preview_request = None
+
+                def retry() -> None:
+                    if self._payload_population_key(self._selected_payload()) != selection_key:
+                        return
+                    self._request_payload_import_path(
+                        payload,
+                        status=status,
+                        on_resolved=on_resolved,
+                        on_missing=on_missing,
+                        selected_member=selected_member,
+                    )
+
+                self._pending_model_action_after_task = retry
+                if self._stop_event is not None and hasattr(self._stop_event, "set"):
+                    self._stop_event.set()
+                self._set_inline_preview_status("Cancelling previous preview; queued latest selection...")
+                return
             self._set_status("A model library task is already running.", error=True)
             return
         self._model_action_request_id += 1

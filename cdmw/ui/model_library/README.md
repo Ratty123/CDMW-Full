@@ -97,6 +97,11 @@ prepared-row result in that same tracked task lane. The UI only rejects stale
 request IDs and adds already-prepared rows in batches.
 Checked models are restored by logical identity when sorting or refreshing rows.
 Only models still visible in the rebuilt results remain checked for batch actions.
+A scan or search requested while a task runs is queued behind it; a running
+row-preparation, scan or search task is cancelled in its favour. Refreshes that are
+not a submit (Reload, Clear filters, rescans) keep the last submitted query rather
+than the typed draft. Selecting another row while an inline preview prepares
+cancels that preview and previews the new row.
 Leaving the tab pauses row application and automatic preview requests. Returning
 resumes pending rows with their checked models and selection intact; explicit
 downloads, imports and other started tasks continue in their existing workers.
@@ -122,11 +127,14 @@ Sources lane, the results table and the selection pane, with a task row
 ## Deletion and preview icon workers
 
 Confirmed local deletion also uses the tracked task lane. The worker revalidates
-the approved root and downloaded-folder ownership marker, plans recursively
-with cooperative cancellation before mutation, then removes the confirmed
-targets. Shutdown cancels and drains the owning task thread.
+the approved root, the target's identity (path and file ID, so a replaced folder is
+refused) and the downloaded-folder ownership marker, whose uid must match the
+folder's `-<uid>` suffix. It plans recursively with cooperative cancellation before
+mutation, removes links and junctions without entering them, then removes the
+confirmed targets. Shutdown cancels and drains the owning task thread.
 
 Generated preview icons capture only a detached framebuffer image on the UI
 thread. Scaling, PNG encoding, collision-safe naming, and atomic publication run
 in the same cancellable task lane; stale selections and shutdown suppress output
-delivery and remove unpublished temporary files.
+delivery and remove both unpublished temporary files and an icon published just
+before the selection changed.

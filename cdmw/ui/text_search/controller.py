@@ -137,6 +137,7 @@ class TextSearchControllerMixin:
             return False
 
         self._preview_debounce_timer.stop()
+        self._clear_pending_result_population()
         self.pending_preview_result = None
         self.scheduled_preview_result = None
         self.preview_request_id += 1
@@ -546,10 +547,17 @@ class TextSearchControllerMixin:
         item.setData(0, Qt.UserRole, index)
         return item
 
+    def _reset_unfinished_search_labels(self, message: str) -> None:
+        self.results_summary_label.setText(message)
+        self.preview_title_label.setText("Select a matching file")
+        self.preview_meta_label.setText("Matched files will be previewed here with highlights.")
+        self.preview_find_status_label.setText("No preview loaded.")
+
     def _handle_search_cancelled(self, request_id: int, message: str) -> None:
         if request_id != self.search_request_id:
             return
         self._clear_pending_result_population()
+        self._reset_unfinished_search_labels(message)
         self.search_progress_label.setText(message)
         self.search_progress_bar.setRange(0, 1)
         self.search_progress_bar.setValue(0)
@@ -561,6 +569,7 @@ class TextSearchControllerMixin:
         if request_id != self.search_request_id:
             return
         self._clear_pending_result_population()
+        self._reset_unfinished_search_labels(message)
         self.search_progress_label.setText(message)
         self.search_progress_bar.setRange(0, 1)
         self.search_progress_bar.setValue(0)

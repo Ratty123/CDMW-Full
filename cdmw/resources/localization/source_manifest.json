@@ -941,17 +941,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 464,
+          "line": 465,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 476,
+          "line": 477,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         }
       ]
@@ -981,17 +981,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 464,
+          "line": 465,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 476,
+          "line": 477,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         }
       ]
@@ -1271,17 +1271,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 464,
+          "line": 465,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 476,
+          "line": 477,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         }
       ]
@@ -1566,12 +1566,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 416,
+          "line": 420,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 544,
+          "line": 548,
           "sink": "addItem"
         }
       ]
@@ -1726,7 +1726,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1816,7 +1816,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -1971,7 +1971,7 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -2096,12 +2096,12 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -2146,12 +2146,12 @@
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
@@ -2396,7 +2396,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 472,
+          "line": 473,
           "sink": "setFormat"
         },
         {
@@ -2406,7 +2406,7 @@
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 202,
+          "line": 204,
           "sink": "setFormat"
         }
       ]
@@ -3321,7 +3321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3426,7 +3426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3456,7 +3456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3586,7 +3586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3596,7 +3596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3766,7 +3766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -3826,7 +3826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3926,7 +3926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4041,12 +4041,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -4471,12 +4471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 100,
-          "sink": "_set_status"
-        },
-        {
-          "path": "cdmw/ui/model_library/actions.py",
-          "line": 225,
+          "line": 181,
           "sink": "_set_status"
         },
         {
@@ -4490,23 +4485,28 @@
           "sink": "_set_status"
         },
         {
+          "path": "cdmw/ui/model_library/icon_output.py",
+          "line": 30,
+          "sink": "_set_inline_preview_status"
+        },
+        {
           "path": "cdmw/ui/model_library/preview.py",
           "line": 231,
           "sink": "_set_inline_preview_status"
         },
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 415,
+          "line": 419,
           "sink": "_set_inline_preview_status"
         },
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 443,
+          "line": 447,
           "sink": "_set_inline_preview_status"
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 267,
+          "line": 293,
           "sink": "_set_status"
         },
         {
@@ -5176,7 +5176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 316,
+          "line": 315,
           "sink": "QPushButton"
         }
       ]
@@ -5186,7 +5186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 315,
+          "line": 314,
           "sink": "QPushButton"
         }
       ]
@@ -5201,7 +5201,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 389,
+          "line": 393,
           "sink": "QPushButton"
         }
       ]
@@ -5286,7 +5286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 311,
+          "line": 310,
           "sink": "QCheckBox"
         }
       ]
@@ -6646,7 +6646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 107,
+          "line": 121,
           "sink": "_set_status"
         }
       ]
@@ -7086,7 +7086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 485,
+          "line": 488,
           "sink": "setText"
         }
       ]
@@ -7096,7 +7096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 682,
+          "line": 679,
           "sink": "_emit_status"
         }
       ]
@@ -8616,7 +8616,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 702,
+          "line": 705,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -8681,7 +8681,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 646,
+          "line": 650,
           "sink": "addItem"
         }
       ]
@@ -9266,7 +9266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 634,
+          "line": 637,
           "sink": "append_log"
         }
       ]
@@ -9391,7 +9391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -10301,7 +10301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 213,
+          "line": 215,
           "sink": "set_status_message"
         }
       ]
@@ -10321,7 +10321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 319,
+          "line": 321,
           "sink": "set_status_message"
         }
       ]
@@ -10511,7 +10511,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -11766,7 +11766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 229,
+          "line": 233,
           "sink": "setText"
         }
       ]
@@ -11776,7 +11776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 245,
+          "line": 249,
           "sink": "setText"
         }
       ]
@@ -11971,7 +11971,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -13081,7 +13081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -13556,7 +13556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 159,
+          "line": 158,
           "sink": "addItem"
         }
       ]
@@ -13746,7 +13746,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/language_index.py",
-          "line": 118,
+          "line": 120,
           "sink": "ValueError"
         }
       ]
@@ -14026,7 +14026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -14208,6 +14208,26 @@
           "path": "cdmw/ui/archive_browser/workers.py",
           "line": 864,
           "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/shell/model_library_bridge.py",
+          "line": 463,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/shell/model_library_bridge.py",
+          "line": 464,
+          "sink": "_set_archive_preview_health_message"
+        },
+        {
+          "path": "cdmw/ui/shell/model_library_bridge.py",
+          "line": 465,
+          "sink": "setPlainText"
+        },
+        {
+          "path": "cdmw/ui/shell/model_library_bridge.py",
+          "line": 468,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -14216,7 +14236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -14556,7 +14576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 543,
+          "line": 540,
           "sink": "setText"
         }
       ]
@@ -14681,22 +14701,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -15166,12 +15186,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -15306,7 +15326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 579,
+          "line": 583,
           "sink": "getItem"
         }
       ]
@@ -15991,12 +16011,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -16006,12 +16026,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -16051,7 +16071,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 414,
+          "line": 418,
           "sink": "addRow"
         }
       ]
@@ -16636,7 +16656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 685,
+          "line": 688,
           "sink": "setText"
         }
       ]
@@ -16646,17 +16666,17 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 631,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 663,
+          "line": 634,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 666,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/replace_assistant/queue.py",
+          "line": 669,
           "sink": "append_log"
         }
       ]
@@ -16666,7 +16686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 539,
+          "line": 542,
           "sink": "append_log"
         }
       ]
@@ -16676,7 +16696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 538,
+          "line": 541,
           "sink": "setText"
         }
       ]
@@ -19831,7 +19851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -19941,12 +19961,12 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 173,
+          "line": 172,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 176,
+          "line": 175,
           "sink": "QPushButton"
         },
         {
@@ -20581,7 +20601,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -20941,7 +20961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -20961,7 +20981,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 417,
+          "line": 421,
           "sink": "QPushButton"
         }
       ]
@@ -20971,7 +20991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -21106,7 +21126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 237,
+          "line": 268,
           "sink": "_set_status"
         }
       ]
@@ -21401,7 +21421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 216,
+          "line": 246,
           "sink": "_run_task"
         }
       ]
@@ -21411,7 +21431,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 923,
+          "line": 928,
           "sink": "setText"
         }
       ]
@@ -23446,7 +23466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -23696,7 +23716,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 805,
+          "line": 808,
           "sink": "QPushButton"
         },
         {
@@ -23846,7 +23866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_floating_state.py",
-          "line": 510,
+          "line": 525,
           "sink": "python-return:texture_editor_floating_cancel_status_text"
         }
       ]
@@ -24001,7 +24021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 221,
+          "line": 251,
           "sink": "_set_status"
         }
       ]
@@ -24022,6 +24042,11 @@
         {
           "path": "cdmw/ui/model_library/preview.py",
           "line": 229,
+          "sink": "_set_inline_preview_status"
+        },
+        {
+          "path": "cdmw/ui/model_library/tab.py",
+          "line": 291,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -24471,7 +24496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 464,
+          "line": 468,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -24611,7 +24636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 168,
+          "line": 167,
           "sink": "QCheckBox"
         }
       ]
@@ -24621,7 +24646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 312,
+          "line": 311,
           "sink": "setToolTip"
         }
       ]
@@ -27211,7 +27236,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 804,
+          "line": 807,
           "sink": "QPushButton"
         }
       ]
@@ -27321,7 +27346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 153,
+          "line": 171,
           "sink": "getExistingDirectory"
         }
       ]
@@ -27331,7 +27356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -27691,7 +27716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 210,
+          "line": 213,
           "sink": "_set_status"
         }
       ]
@@ -27701,7 +27726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 58,
+          "line": 59,
           "sink": "getExistingDirectory"
         }
       ]
@@ -27716,7 +27741,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 317,
+          "line": 343,
           "sink": "getItem"
         }
       ]
@@ -27776,7 +27801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 593,
+          "line": 596,
           "sink": "addButton"
         }
       ]
@@ -27796,7 +27821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 579,
+          "line": 582,
           "sink": "setWindowTitle"
         }
       ]
@@ -28296,7 +28321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 525,
+          "line": 528,
           "sink": "setText"
         }
       ]
@@ -28586,7 +28611,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 390,
+          "line": 394,
           "sink": "setToolTip"
         }
       ]
@@ -28876,7 +28901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 579,
+          "line": 583,
           "sink": "getItem"
         }
       ]
@@ -29046,7 +29071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 542,
+          "line": 539,
           "sink": "clear_preview"
         }
       ]
@@ -29231,7 +29256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 783,
+          "line": 786,
           "sink": "setWindowTitle"
         }
       ]
@@ -29646,7 +29671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 702,
+          "line": 705,
           "sink": "getOpenFileName"
         }
       ]
@@ -31056,7 +31081,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 218,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -33326,7 +33351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -33421,7 +33446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -33431,7 +33456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -34426,7 +34451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -35301,12 +35326,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -36751,7 +36776,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 535,
+          "line": 539,
           "sink": "setText"
         }
       ]
@@ -36981,7 +37006,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/language_index.py",
-          "line": 249,
+          "line": 251,
           "sink": "ValueError"
         }
       ]
@@ -38106,22 +38131,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -38186,7 +38211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39666,7 +39691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 702,
+          "line": 705,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -40731,7 +40756,7 @@
         },
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 570,
+          "line": 589,
           "sink": "addButton"
         },
         {
@@ -40786,7 +40811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 591,
+          "line": 610,
           "sink": "addButton"
         }
       ]
@@ -40871,7 +40896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 559,
+          "line": 578,
           "sink": "setWindowTitle"
         }
       ]
@@ -40921,7 +40946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 580,
+          "line": 599,
           "sink": "setWindowTitle"
         },
         {
@@ -41371,7 +41396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 582,
+          "line": 601,
           "sink": "setText"
         }
       ]
@@ -41381,7 +41406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 561,
+          "line": 580,
           "sink": "setText"
         }
       ]
@@ -41416,7 +41441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 407,
+          "line": 412,
           "sink": "_emit_status"
         }
       ]
@@ -42896,7 +42921,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -43216,7 +43241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -43436,7 +43461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -43786,7 +43811,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 394,
+          "line": 398,
           "sink": "QLabel"
         }
       ]
@@ -44082,7 +44107,7 @@
       ]
     },
     {
-      "key": "Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.",
+      "key": "Downloaded archive does not contain an importable OBJ/FBX/DAE/glTF/GLB model.",
       "origins": [
         {
           "path": "cdmw/ui/model_library/commands.py",
@@ -44101,7 +44126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 565,
+          "line": 584,
           "sink": "setInformativeText"
         }
       ]
@@ -44191,12 +44216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -44861,7 +44886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -45431,22 +45456,22 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 328,
+          "line": 329,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 335,
+          "line": 336,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 341,
+          "line": 342,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 568,
+          "line": 577,
           "sink": "append_log"
         },
         {
@@ -47091,7 +47116,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 344,
+          "line": 348,
           "sink": "QCheckBox"
         }
       ]
@@ -47131,7 +47156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -48461,12 +48486,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/icon_output.py",
-          "line": 64,
+          "line": 77,
           "sink": "_set_inline_preview_status"
         },
         {
           "path": "cdmw/ui/model_library/icon_output.py",
-          "line": 65,
+          "line": 78,
           "sink": "_run_task"
         }
       ]
@@ -48791,7 +48816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 177,
+          "line": 200,
           "sink": "_set_status"
         }
       ]
@@ -48801,7 +48826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 281,
+          "line": 280,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -49136,7 +49161,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 567,
+          "line": 576,
           "sink": "setFormat"
         },
         {
@@ -49151,7 +49176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -50706,7 +50731,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 216,
+          "line": 215,
           "sink": "QPushButton"
         },
         {
@@ -50996,7 +51021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -51581,7 +51606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 217,
+          "line": 216,
           "sink": "QPushButton"
         }
       ]
@@ -51826,7 +51851,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 405,
+          "line": 409,
           "sink": "QGroupBox"
         }
       ]
@@ -51911,7 +51936,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 930,
+          "line": 935,
           "sink": "setText"
         }
       ]
@@ -51991,7 +52016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 306,
+          "line": 308,
           "sink": "append_log"
         }
       ]
@@ -52126,7 +52151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 194,
+          "line": 193,
           "sink": "QLabel"
         }
       ]
@@ -52491,7 +52516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 665,
+          "line": 662,
           "sink": "_emit_status"
         }
       ]
@@ -53081,7 +53106,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 264,
+          "line": 263,
           "sink": "setHeaderLabels"
         }
       ]
@@ -53141,7 +53166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 180,
+          "line": 179,
           "sink": "QLabel"
         }
       ]
@@ -53151,7 +53176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -53191,7 +53216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 442,
+          "line": 452,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -53231,7 +53256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -53841,7 +53866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 309,
+          "line": 311,
           "sink": "append_log"
         }
       ]
@@ -53856,7 +53881,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -54081,17 +54106,17 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -54686,7 +54711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 264,
+          "line": 263,
           "sink": "setHeaderLabels"
         }
       ]
@@ -54696,12 +54721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -55161,7 +55186,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 796,
+          "line": 799,
           "sink": "setPlaceholderText"
         }
       ]
@@ -55341,7 +55366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 229,
+          "line": 254,
           "sink": "setPlaceholderText"
         }
       ]
@@ -55421,7 +55446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 789,
+          "line": 792,
           "sink": "QLabel"
         }
       ]
@@ -55661,7 +55686,7 @@
         },
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 291,
+          "line": 318,
           "sink": "setText"
         },
         {
@@ -55676,7 +55701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 291,
+          "line": 318,
           "sink": "setText"
         }
       ]
@@ -55746,7 +55771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 591,
+          "line": 588,
           "sink": "set_preview_image"
         }
       ]
@@ -55851,7 +55876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 593,
+          "line": 590,
           "sink": "setText"
         }
       ]
@@ -55871,7 +55896,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 331,
+          "line": 335,
           "sink": "QLabel"
         }
       ]
@@ -55981,7 +56006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 308,
+          "line": 307,
           "sink": "setPlaceholderText"
         }
       ]
@@ -55991,7 +56016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 266,
+          "line": 267,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -57961,7 +57986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 183,
+          "line": 184,
           "sink": "setText"
         }
       ]
@@ -58681,7 +58706,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -58751,17 +58776,17 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -58786,12 +58811,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -59221,7 +59246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         }
       ]
@@ -59831,7 +59856,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 471,
+          "line": 475,
           "sink": "setText"
         }
       ]
@@ -59841,7 +59866,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 471,
+          "line": 475,
           "sink": "setText"
         }
       ]
@@ -60051,7 +60076,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 692,
+          "line": 696,
           "sink": "setText"
         }
       ]
@@ -60071,7 +60096,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 576,
+          "line": 580,
           "sink": "getText"
         }
       ]
@@ -60361,7 +60386,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -60541,7 +60566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 666,
+          "line": 663,
           "sink": "information"
         }
       ]
@@ -60661,7 +60686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/icon_output.py",
-          "line": 55,
+          "line": 68,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -60681,7 +60706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 636,
+          "line": 633,
           "sink": "_emit_status"
         }
       ]
@@ -61796,7 +61821,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 338,
+          "line": 342,
           "sink": "QLabel"
         },
         {
@@ -64586,7 +64611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 40,
+          "line": 42,
           "sink": "_set_status"
         }
       ]
@@ -65671,7 +65696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -65996,27 +66021,27 @@
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 419,
+          "line": 424,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 607,
+          "line": 604,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 666,
+          "line": 663,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 692,
+          "line": 689,
           "sink": "warning"
         },
         {
@@ -66071,7 +66096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 462,
+          "line": 466,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -66081,12 +66106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/icon_output.py",
-          "line": 62,
+          "line": 75,
           "sink": "_set_inline_preview_status"
         },
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 480,
+          "line": 484,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -66141,7 +66166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         }
       ]
@@ -66461,7 +66486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -67001,7 +67026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 210,
+          "line": 212,
           "sink": "information"
         }
       ]
@@ -67011,12 +67036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 209,
+          "line": 211,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 210,
+          "line": 212,
           "sink": "information"
         }
       ]
@@ -67136,7 +67161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -67596,7 +67621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -67716,12 +67741,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -67731,12 +67756,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -68256,7 +68281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -68356,7 +68381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 303,
+          "line": 305,
           "sink": "_run_utility_task"
         }
       ]
@@ -68441,7 +68466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -68463,6 +68488,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "In Path filter, plain text matches anywhere in the path. With * or ? as wildcards, *.xml matches file names and object/* matches that folder at any depth.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 685,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -69651,7 +69686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 206,
+          "line": 231,
           "sink": "_set_status"
         }
       ]
@@ -69711,7 +69746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 217,
+          "line": 226,
           "sink": "emit"
         }
       ]
@@ -70031,7 +70066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 140,
+          "line": 145,
           "sink": "_add_combo_choice"
         },
         {
@@ -71451,7 +71486,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 592,
+          "line": 596,
           "sink": "setText"
         }
       ]
@@ -72091,7 +72126,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 585,
+          "line": 589,
           "sink": "setText"
         }
       ]
@@ -73261,12 +73296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 381,
+          "line": 386,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 382,
+          "line": 387,
           "sink": "_emit_status"
         }
       ]
@@ -73276,12 +73311,12 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 373,
+          "line": 378,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 375,
+          "line": 380,
           "sink": "_emit_status"
         }
       ]
@@ -73301,7 +73336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 452,
+          "line": 449,
           "sink": "_emit_status"
         }
       ]
@@ -73376,12 +73411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 418,
+          "line": 423,
           "sink": "_emit_status"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 419,
+          "line": 424,
           "sink": "warning"
         }
       ]
@@ -74176,7 +74211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -74251,7 +74286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75261,7 +75296,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 309,
+          "line": 313,
           "sink": "QLabel"
         }
       ]
@@ -75286,7 +75321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75436,7 +75471,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 563,
+          "line": 567,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -75446,7 +75481,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 563,
+          "line": 567,
           "sink": "getOpenFileName"
         }
       ]
@@ -75476,7 +75511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 486,
+          "line": 487,
           "sink": "setText"
         }
       ]
@@ -75546,7 +75581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 594,
+          "line": 597,
           "sink": "addButton"
         }
       ]
@@ -76371,7 +76406,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -76381,27 +76416,27 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -76616,12 +76651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -77216,7 +77251,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 317,
+          "line": 321,
           "sink": "QPushButton"
         }
       ]
@@ -77611,7 +77646,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 631,
+          "line": 635,
           "sink": "setText"
         }
       ]
@@ -77886,7 +77921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 528,
+          "line": 531,
           "sink": "setText"
         }
       ]
@@ -78191,7 +78226,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 554,
+          "line": 558,
           "sink": "question"
         }
       ]
@@ -78221,7 +78256,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 495,
+          "line": 499,
           "sink": "setText"
         }
       ]
@@ -78406,7 +78441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 335,
+          "line": 362,
           "sink": "_set_status"
         }
       ]
@@ -78416,7 +78451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 340,
+          "line": 367,
           "sink": "_set_status"
         }
       ]
@@ -78546,7 +78581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 484,
+          "line": 481,
           "sink": "clear_preview"
         }
       ]
@@ -78831,7 +78866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -78861,7 +78896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 71,
+          "line": 72,
           "sink": "_set_status"
         }
       ]
@@ -78901,22 +78936,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -78946,12 +78981,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -79176,7 +79211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -79441,7 +79476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 533,
+          "line": 534,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -79451,7 +79486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 160,
+          "line": 159,
           "sink": "addItem"
         }
       ]
@@ -79491,7 +79526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 189,
+          "line": 188,
           "sink": "QLabel"
         }
       ]
@@ -79511,17 +79546,17 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 327,
+          "line": 328,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 334,
+          "line": 335,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 340,
+          "line": 341,
           "sink": "emit"
         }
       ]
@@ -79531,7 +79566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 172,
+          "line": 171,
           "sink": "setPlaceholderText"
         }
       ]
@@ -79986,7 +80021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         }
       ]
@@ -80576,7 +80611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -80646,7 +80681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 430,
+          "line": 434,
           "sink": "setText"
         }
       ]
@@ -80655,8 +80690,13 @@
       "key": "Matched files will be previewed here with highlights.",
       "origins": [
         {
+          "path": "cdmw/ui/text_search/controller.py",
+          "line": 553,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 295,
+          "line": 294,
           "sink": "QLabel"
         }
       ]
@@ -80681,7 +80721,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 264,
+          "line": 263,
           "sink": "setHeaderLabels"
         }
       ]
@@ -80691,17 +80731,17 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -80731,7 +80771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 226,
+          "line": 235,
           "sink": "emit"
         }
       ]
@@ -80741,7 +80781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 537,
+          "line": 540,
           "sink": "setFormat"
         }
       ]
@@ -81031,12 +81071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -81591,12 +81631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -81661,12 +81701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -84226,7 +84266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 268,
+          "line": 270,
           "sink": "warning"
         }
       ]
@@ -85551,7 +85591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -85721,7 +85761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85941,7 +85981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -86106,7 +86146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 214,
+          "line": 239,
           "sink": "_set_status"
         }
       ]
@@ -86231,7 +86271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -86396,7 +86436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -86706,7 +86746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -87016,7 +87056,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 412,
+          "line": 416,
           "sink": "addRow"
         }
       ]
@@ -87096,7 +87136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -87391,12 +87431,12 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 341,
+          "line": 343,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 440,
+          "line": 450,
           "sink": "setText"
         },
         {
@@ -87411,17 +87451,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 102,
+          "line": 104,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 113,
+          "line": 115,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 159,
+          "line": 161,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87431,22 +87471,22 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 38,
+          "line": 42,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 41,
+          "line": 45,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 93,
+          "line": 97,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 96,
+          "line": 100,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87506,22 +87546,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 363,
+          "line": 365,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 373,
+          "line": 375,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 383,
+          "line": 393,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 389,
+          "line": 399,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87541,12 +87581,12 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 163,
+          "line": 164,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 176,
+          "line": 177,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87555,28 +87595,33 @@
       "key": "Model Library row preparation cancelled.",
       "origins": [
         {
-          "path": "cdmw/workers/model_library_rows.py",
-          "line": 92,
+          "path": "cdmw/ui/model_library/actions.py",
+          "line": 146,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 121,
+          "line": 93,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 139,
+          "line": 122,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 300,
+          "line": 140,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/model_library_rows.py",
-          "line": 352,
+          "line": 301,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/model_library_rows.py",
+          "line": 353,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87586,7 +87631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 246,
+          "line": 248,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87606,7 +87651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -87721,7 +87766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 200,
+          "line": 202,
           "sink": "set_status_message"
         }
       ]
@@ -87731,7 +87776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 316,
+          "line": 318,
           "sink": "set_status_message"
         }
       ]
@@ -87741,7 +87786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 273,
+          "line": 275,
           "sink": "set_status_message"
         }
       ]
@@ -87751,7 +87796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 248,
+          "line": 250,
           "sink": "FileNotFoundError"
         }
       ]
@@ -87761,7 +87806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 284,
+          "line": 286,
           "sink": "set_status_message"
         }
       ]
@@ -87771,7 +87816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 365,
+          "line": 367,
           "sink": "FileNotFoundError"
         }
       ]
@@ -87781,7 +87826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 435,
+          "line": 445,
           "sink": "set_status_message"
         }
       ]
@@ -87861,7 +87906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 304,
+          "line": 330,
           "sink": "_set_status"
         }
       ]
@@ -87871,7 +87916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 179,
+          "line": 181,
           "sink": "_set_status"
         }
       ]
@@ -88056,12 +88101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -89676,7 +89721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 583,
+          "line": 586,
           "sink": "setText"
         }
       ]
@@ -91936,7 +91981,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 310,
+          "line": 309,
           "sink": "QPushButton"
         },
         {
@@ -92136,7 +92181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 404,
+          "line": 408,
           "sink": "setText"
         }
       ]
@@ -92401,7 +92446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 161,
+          "line": 166,
           "sink": "_add_combo_choice"
         },
         {
@@ -92566,7 +92611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 778,
+          "line": 781,
           "sink": "information"
         }
       ]
@@ -92911,12 +92956,12 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 407,
+          "line": 411,
           "sink": "QLabel"
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 880,
+          "line": 884,
           "sink": "setText"
         }
       ]
@@ -93771,7 +93816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 269,
+          "line": 270,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -94211,7 +94256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 491,
+          "line": 492,
           "sink": "setText"
         }
       ]
@@ -94221,7 +94266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -94276,7 +94321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 492,
+          "line": 493,
           "sink": "setText"
         }
       ]
@@ -95036,17 +95081,22 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 500,
+          "line": 501,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/text_search/controller.py",
+          "line": 554,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 264,
+          "line": 265,
           "sink": "python-return:_preview_match_status_text"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 317,
+          "line": 316,
           "sink": "QLabel"
         }
       ]
@@ -95996,7 +96046,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 541,
+          "line": 545,
           "sink": "setText"
         }
       ]
@@ -96101,7 +96151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 234,
+          "line": 233,
           "sink": "QLabel"
         }
       ]
@@ -96446,7 +96496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -96456,7 +96506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -97346,7 +97396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 319,
+          "line": 320,
           "sink": "append_log"
         }
       ]
@@ -97651,7 +97701,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 866,
+          "line": 870,
           "sink": "setText"
         }
       ]
@@ -98526,7 +98576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -98636,7 +98686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 586,
+          "line": 605,
           "sink": "setInformativeText"
         }
       ]
@@ -98766,7 +98816,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 297,
+          "line": 301,
           "sink": "QPushButton"
         }
       ]
@@ -100321,7 +100371,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 563,
+          "line": 567,
           "sink": "getOpenFileName"
         }
       ]
@@ -100976,7 +101026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 179,
+          "line": 180,
           "sink": "setText"
         }
       ]
@@ -101086,7 +101136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 185,
+          "line": 186,
           "sink": "emit"
         }
       ]
@@ -101096,7 +101146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 184,
+          "line": 185,
           "sink": "append_log"
         }
       ]
@@ -101196,7 +101246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 291,
+          "line": 293,
           "sink": "set_status_message"
         }
       ]
@@ -101326,7 +101376,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 609,
+          "line": 613,
           "sink": "setText"
         }
       ]
@@ -101711,7 +101761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 165,
+          "line": 164,
           "sink": "setPlaceholderText"
         }
       ]
@@ -102746,7 +102796,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -104546,7 +104596,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 264,
+          "line": 263,
           "sink": "setHeaderLabels"
         },
         {
@@ -105006,27 +105056,27 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -106726,7 +106776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         }
       ]
@@ -106906,7 +106956,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 264,
+          "line": 263,
           "sink": "setHeaderLabels"
         },
         {
@@ -106936,7 +106986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 186,
+          "line": 185,
           "sink": "QLabel"
         }
       ]
@@ -106951,7 +107001,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 576,
+          "line": 580,
           "sink": "getText"
         }
       ]
@@ -106966,12 +107016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
@@ -106986,7 +107036,7 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -107006,7 +107056,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -107386,7 +107436,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -107966,7 +108016,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 325,
+          "line": 329,
           "sink": "QLabel"
         }
       ]
@@ -109236,7 +109286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -109631,12 +109681,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 289,
+          "line": 294,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 469,
+          "line": 470,
           "sink": "setText"
         }
       ]
@@ -109646,12 +109696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 388,
+          "line": 407,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 522,
+          "line": 523,
           "sink": "setText"
         }
       ]
@@ -111111,7 +111161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 563,
+          "line": 560,
           "sink": "setText"
         }
       ]
@@ -111206,7 +111256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 562,
+          "line": 559,
           "sink": "clear_preview"
         }
       ]
@@ -111391,12 +111441,12 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 356,
+          "line": 358,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 448,
+          "line": 470,
           "sink": "_run_utility_task"
         }
       ]
@@ -111406,7 +111456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 340,
+          "line": 342,
           "sink": "setText"
         }
       ]
@@ -111416,7 +111466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 181,
+          "line": 183,
           "sink": "_run_task"
         }
       ]
@@ -111641,7 +111691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/job_review.py",
-          "line": 123,
+          "line": 127,
           "sink": "_run_async_task"
         }
       ]
@@ -111651,7 +111701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 364,
+          "line": 365,
           "sink": "setText"
         }
       ]
@@ -111876,7 +111926,7 @@
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 199,
+          "line": 201,
           "sink": "setText"
         }
       ]
@@ -112136,7 +112186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -112316,7 +112366,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 309,
+          "line": 308,
           "sink": "QPushButton"
         }
       ]
@@ -112456,7 +112506,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 290,
+          "line": 289,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -112951,7 +113001,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -113036,7 +113086,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -113101,7 +113151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 437,
+          "line": 441,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -115641,7 +115691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 446,
+          "line": 456,
           "sink": "set_status_message"
         }
       ]
@@ -116141,7 +116191,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -116151,7 +116201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -116506,7 +116556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -117776,7 +117826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -118491,7 +118541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 146,
+          "line": 145,
           "sink": "QLabel"
         }
       ]
@@ -119171,7 +119221,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 609,
+          "line": 613,
           "sink": "setText"
         }
       ]
@@ -119326,7 +119376,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 660,
+          "line": 663,
           "sink": "setFormat"
         },
         {
@@ -119346,12 +119396,12 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 183,
+          "line": 184,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 504,
+          "line": 505,
           "sink": "setFormat"
         },
         {
@@ -119361,7 +119411,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 241,
+          "line": 240,
           "sink": "setFormat"
         },
         {
@@ -119501,7 +119551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 281,
+          "line": 280,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -119571,7 +119621,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 236,
+          "line": 235,
           "sink": "QLabel"
         },
         {
@@ -119671,12 +119721,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -119706,7 +119756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -119951,7 +120001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -120916,7 +120966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -121711,7 +121761,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -121826,7 +121876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 180,
+          "line": 181,
           "sink": "setText"
         }
       ]
@@ -122036,7 +122086,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -122351,7 +122401,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 303,
+          "line": 307,
           "sink": "QPushButton"
         }
       ]
@@ -122771,7 +122821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 169,
+          "line": 168,
           "sink": "QCheckBox"
         }
       ]
@@ -122781,7 +122831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 304,
+          "line": 305,
           "sink": "emit"
         }
       ]
@@ -124116,7 +124166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 753,
+          "line": 756,
           "sink": "append_log"
         }
       ]
@@ -124401,7 +124451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_layer_state.py",
-          "line": 976,
+          "line": 977,
           "sink": "python-return:texture_editor_layers_reordered_status_text"
         }
       ]
@@ -125821,7 +125871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -125836,7 +125886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -125876,7 +125926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -126731,7 +126781,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 378,
+          "line": 382,
           "sink": "QPushButton"
         }
       ]
@@ -127941,7 +127991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -128101,22 +128151,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -128146,7 +128196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -128296,7 +128346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 343,
+          "line": 345,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -129261,7 +129311,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 374,
+          "line": 378,
           "sink": "setToolTip"
         }
       ]
@@ -129436,7 +129486,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 256,
+          "line": 255,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -130306,7 +130356,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 373,
+          "line": 377,
           "sink": "QPushButton"
         }
       ]
@@ -131461,12 +131511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -132676,7 +132726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -132736,7 +132786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -133666,7 +133716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 444,
+          "line": 441,
           "sink": "_emit_status"
         }
       ]
@@ -134401,17 +134451,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 327,
+          "line": 328,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 334,
+          "line": 335,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 340,
+          "line": 341,
           "sink": "emit"
         }
       ]
@@ -134576,17 +134626,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 464,
+          "line": 465,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 476,
+          "line": 477,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         }
       ]
@@ -134686,12 +134736,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 120,
+          "line": 134,
           "sink": "progress"
         },
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 149,
+          "line": 167,
           "sink": "_run_task"
         }
       ]
@@ -135186,12 +135236,12 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 183,
+          "line": 182,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 213,
+          "line": 212,
           "sink": "QPushButton"
         },
         {
@@ -135281,7 +135331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 246,
+          "line": 245,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -135391,7 +135441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 501,
+          "line": 502,
           "sink": "setText"
         }
       ]
@@ -135471,7 +135521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 268,
+          "line": 269,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -135481,7 +135531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 363,
+          "line": 364,
           "sink": "setText"
         }
       ]
@@ -135531,7 +135581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 231,
+          "line": 232,
           "sink": "setText"
         }
       ]
@@ -135541,7 +135591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 234,
+          "line": 260,
           "sink": "setPlaceholderText"
         }
       ]
@@ -135631,7 +135681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 261,
+          "line": 263,
           "sink": "append_log"
         }
       ]
@@ -135641,7 +135691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 163,
+          "line": 162,
           "sink": "setPlaceholderText"
         }
       ]
@@ -135861,12 +135911,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 255,
+          "line": 286,
           "sink": "progress"
         },
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 295,
+          "line": 326,
           "sink": "_run_task"
         }
       ]
@@ -135881,12 +135931,12 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 353,
+          "line": 354,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 362,
+          "line": 363,
           "sink": "setText"
         }
       ]
@@ -135951,7 +136001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -137121,12 +137171,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 767,
+          "line": 770,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 769,
+          "line": 772,
           "sink": "setText"
         },
         {
@@ -137151,7 +137201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 487,
+          "line": 488,
           "sink": "setText"
         }
       ]
@@ -137206,17 +137256,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 327,
+          "line": 328,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 334,
+          "line": 335,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 340,
+          "line": 341,
           "sink": "emit"
         },
         {
@@ -137230,8 +137280,13 @@
       "key": "Select a matching file",
       "origins": [
         {
+          "path": "cdmw/ui/text_search/controller.py",
+          "line": 552,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 293,
+          "line": 292,
           "sink": "QLabel"
         }
       ]
@@ -137291,7 +137346,7 @@
         },
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 411,
+          "line": 415,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -137731,7 +137786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 398,
+          "line": 403,
           "sink": "clear_preview"
         }
       ]
@@ -138521,17 +138576,17 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 397,
+          "line": 402,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 477,
+          "line": 474,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 538,
+          "line": 535,
           "sink": "clear_preview"
         }
       ]
@@ -138541,7 +138596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 768,
+          "line": 771,
           "sink": "setText"
         },
         {
@@ -139356,7 +139411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 437,
+          "line": 440,
           "sink": "setText"
         }
       ]
@@ -141441,7 +141496,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 383,
+          "line": 387,
           "sink": "setToolTip"
         }
       ]
@@ -142031,7 +142086,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 493,
+          "line": 497,
           "sink": "setText"
         }
       ]
@@ -142211,7 +142266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142221,7 +142276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142231,7 +142286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142241,7 +142296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142251,7 +142306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142346,7 +142401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142366,12 +142421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -142396,7 +142451,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -143071,7 +143126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -143106,7 +143161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -143676,7 +143731,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 313,
+          "line": 317,
           "sink": "QLabel"
         }
       ]
@@ -144491,7 +144546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 147,
+          "line": 165,
           "sink": "_set_status"
         }
       ]
@@ -144501,7 +144556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 129,
+          "line": 133,
           "sink": "_set_status"
         }
       ]
@@ -144526,7 +144581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 45,
+          "line": 47,
           "sink": "_set_status"
         }
       ]
@@ -144536,7 +144591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/actions.py",
-          "line": 291,
+          "line": 322,
           "sink": "_set_status"
         }
       ]
@@ -144636,7 +144691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 363,
+          "line": 396,
           "sink": "_set_status"
         }
       ]
@@ -144706,7 +144761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 351,
+          "line": 380,
           "sink": "_set_status"
         }
       ]
@@ -145616,7 +145671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -145676,12 +145731,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -147521,7 +147576,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 178,
+          "line": 177,
           "sink": "QLabel"
         }
       ]
@@ -148376,7 +148431,7 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -149691,7 +149746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 406,
+          "line": 407,
           "sink": "append_log"
         }
       ]
@@ -149701,7 +149756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 407,
+          "line": 408,
           "sink": "emit"
         }
       ]
@@ -149756,7 +149811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 123,
+          "line": 125,
           "sink": "append_log"
         }
       ]
@@ -149766,7 +149821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 124,
+          "line": 126,
           "sink": "emit"
         }
       ]
@@ -149776,7 +149831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 204,
+          "line": 206,
           "sink": "emit"
         }
       ]
@@ -150621,7 +150676,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 214,
+          "line": 213,
           "sink": "QPushButton"
         },
         {
@@ -150706,7 +150761,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 556,
+          "line": 564,
           "sink": "setFormat"
         },
         {
@@ -152451,7 +152506,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -153121,7 +153176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -153556,7 +153611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -153601,7 +153656,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 142,
+          "line": 141,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -153641,12 +153696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 303,
+          "line": 305,
           "sink": "_handle_export_cancelled"
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 359,
+          "line": 361,
           "sink": "_handle_export_cancelled"
         }
       ]
@@ -153656,7 +153711,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 333,
+          "line": 337,
           "sink": "setPlaceholderText"
         }
       ]
@@ -153666,7 +153721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 232,
+          "line": 233,
           "sink": "emit"
         }
       ]
@@ -153676,7 +153731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 353,
+          "line": 355,
           "sink": "_handle_search_cancelled"
         }
       ]
@@ -153891,7 +153946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 486,
+          "line": 489,
           "sink": "append_log"
         }
       ]
@@ -153901,7 +153956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 497,
+          "line": 500,
           "sink": "append_log"
         }
       ]
@@ -153921,12 +153976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 507,
+          "line": 510,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 514,
+          "line": 517,
           "sink": "setText"
         },
         {
@@ -154076,7 +154131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -154106,7 +154161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -154126,12 +154181,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 121,
+          "line": 130,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 125,
+          "line": 134,
           "sink": "emit"
         }
       ]
@@ -154291,12 +154346,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -154811,12 +154866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -155141,22 +155196,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
@@ -155421,7 +155476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 448,
+          "line": 452,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -155501,7 +155556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -155611,7 +155666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155621,7 +155676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155631,7 +155686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -155896,7 +155951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 179,
+          "line": 181,
           "sink": "_handle_export_error"
         }
       ]
@@ -155916,7 +155971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 140,
+          "line": 142,
           "sink": "_handle_preview_error"
         }
       ]
@@ -156651,7 +156706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -160006,7 +160061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/preview.py",
-          "line": 440,
+          "line": 444,
           "sink": "_set_inline_preview_status"
         }
       ]
@@ -160736,7 +160791,7 @@
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 165,
+          "line": 167,
           "sink": "_handle_export_error"
         }
       ]
@@ -161476,7 +161531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 590,
+          "line": 593,
           "sink": "setInformativeText"
         }
       ]
@@ -161941,7 +161996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -162026,7 +162081,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 317,
+          "line": 343,
           "sink": "getItem"
         }
       ]
@@ -162541,7 +162596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -165176,7 +165231,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 382,
+          "line": 386,
           "sink": "QPushButton"
         }
       ]
@@ -165596,7 +165651,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -165706,7 +165761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -166346,12 +166401,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -167606,7 +167661,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 347,
+          "line": 350,
           "sink": "setToolTip"
         }
       ]
@@ -167756,7 +167811,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 554,
+          "line": 558,
           "sink": "question"
         }
       ]
@@ -168586,7 +168641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 496,
+          "line": 499,
           "sink": "setText"
         }
       ]
@@ -168606,7 +168661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_floating_state.py",
-          "line": 514,
+          "line": 529,
           "sink": "python-return:texture_editor_floating_selection_updated_status_text"
         }
       ]
@@ -169286,7 +169341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -169316,7 +169371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -169481,7 +169536,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -169911,7 +169966,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/catalogue.py",
-          "line": 362,
+          "line": 376,
           "sink": "ValueError"
         }
       ]
@@ -170156,7 +170211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -170331,7 +170386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -170716,7 +170771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -172221,12 +172276,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -172376,17 +172431,17 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -172646,12 +172701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 119,
+          "line": 135,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 204,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -173422,6 +173477,16 @@
       ]
     },
     {
+      "key": "Wait for the current texture task to finish, then try again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/job_review.py",
+          "line": 36,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Wait for the selected folder check to finish, or choose a valid Crimson Desert package root.",
       "origins": [
         {
@@ -173811,7 +173876,7 @@
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 259,
+          "line": 261,
           "sink": "append_log"
         }
       ]
@@ -173876,7 +173941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 683,
+          "line": 680,
           "sink": "information"
         }
       ]
@@ -174656,7 +174721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -174706,7 +174771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175061,7 +175126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175071,7 +175136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175101,7 +175166,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 915,
+          "line": 920,
           "sink": "getExistingDirectory"
         }
       ]
@@ -175376,7 +175441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175386,7 +175451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175531,7 +175596,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -175682,6 +175747,16 @@
       ]
     },
     {
+      "key": "With Regex turned on, ^ and $ mark the start and end of each line.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 685,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "With the authored body, closes this share of the outfit's own gap to the skin, down to Clearance. Layers on top move in with it. Cloth hanging well clear of the body keeps its drape. 0% keeps the outfit as made.",
       "origins": [
         {
@@ -175736,7 +175811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 213,
+          "line": 215,
           "sink": "setText"
         }
       ]
@@ -176021,17 +176096,17 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 354,
+          "line": 355,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 366,
+          "line": 367,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 440,
+          "line": 441,
           "sink": "setFormat"
         },
         {
@@ -176186,7 +176261,7 @@
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 313,
+          "line": 312,
           "sink": "QCheckBox"
         }
       ]
@@ -176206,7 +176281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 314,
+          "line": 313,
           "sink": "setToolTip"
         }
       ]
@@ -176966,7 +177041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -177316,7 +177391,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 930,
+          "line": 935,
           "sink": "setText"
         }
       ]
@@ -177916,7 +177991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 326,
+          "line": 352,
           "sink": "_set_status"
         }
       ]
@@ -178066,7 +178141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 232,
+          "line": 241,
           "sink": "emit"
         }
       ]
@@ -178096,7 +178171,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 235,
+          "line": 236,
           "sink": "appendPlainText"
         }
       ]
@@ -178871,12 +178946,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -178886,7 +178961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -178946,7 +179021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -178956,7 +179031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -178966,7 +179041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -179271,12 +179346,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 159,
+          "line": 158,
           "sink": "addItem"
         }
       ]
@@ -179326,7 +179401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -179346,7 +179421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180261,7 +180336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180746,17 +180821,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -181226,12 +181301,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -181281,7 +181356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -181356,7 +181431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -181597,7 +181672,7 @@
       ]
     },
     {
-      "key": "claude-haiku-4-5",
+      "key": "claude-haiku-5-5",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
@@ -181607,17 +181682,7 @@
       ]
     },
     {
-      "key": "claude-opus-4-8",
-      "origins": [
-        {
-          "path": "tools/translation_studio/ai_provider.py",
-          "line": 64,
-          "sink": "ProviderPreset"
-        }
-      ]
-    },
-    {
-      "key": "claude-opus-5",
+      "key": "claude-opus-5-5",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
@@ -181628,6 +181693,16 @@
     },
     {
       "key": "claude-sonnet-5",
+      "origins": [
+        {
+          "path": "tools/translation_studio/ai_provider.py",
+          "line": 64,
+          "sink": "ProviderPreset"
+        }
+      ]
+    },
+    {
+      "key": "claude-sonnet-5-5",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
@@ -181821,7 +181896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -181981,7 +182056,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 66,
+          "line": 70,
           "sink": "ValueError"
         }
       ]
@@ -181991,7 +182066,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 64,
+          "line": 68,
           "sink": "ValueError"
         }
       ]
@@ -182246,7 +182321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -182256,7 +182331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -182376,7 +182451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -182386,7 +182461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -182996,7 +183071,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 73,
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -183006,7 +183081,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 79,
+          "line": 83,
           "sink": "ValueError"
         }
       ]
@@ -183016,7 +183091,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 77,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -183182,7 +183257,7 @@
       ]
     },
     {
-      "key": "e.g. claude-sonnet-5",
+      "key": "e.g. claude-sonnet-5-5",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
@@ -184896,7 +184971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184906,7 +184981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185141,7 +185216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186316,7 +186391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186326,7 +186401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186631,7 +186706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186716,7 +186791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 220,
+          "line": 225,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -186866,7 +186941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186926,7 +187001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186946,7 +187021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -186976,7 +187051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -187491,7 +187566,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 68,
+          "line": 72,
           "sink": "ValueError"
         }
       ]
@@ -187546,7 +187621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/tab.py",
-          "line": 160,
+          "line": 159,
           "sink": "addItem"
         }
       ]
@@ -187726,7 +187801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -189276,7 +189351,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 58,
+          "line": 67,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -189316,7 +189391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -189326,7 +189401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189371,7 +189446,7 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -189581,7 +189656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189651,12 +189726,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/editor_floating_ui.py",
-          "line": 319,
+          "line": 324,
           "sink": "_set_active_tool"
         },
         {
           "path": "cdmw/ui/texture_workflow/editor_floating_ui.py",
-          "line": 348,
+          "line": 353,
           "sink": "_set_active_tool"
         },
         {
@@ -189766,7 +189841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190756,7 +190831,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -191251,12 +191326,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 58,
+          "line": 67,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 414,
+          "line": 424,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -191461,7 +191536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -191526,7 +191601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191921,7 +191996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192336,7 +192411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192566,7 +192641,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 58,
+          "line": 67,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -193046,7 +193121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193056,7 +193131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -194731,7 +194806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -194801,7 +194876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_file_io_ui.py",
-          "line": 500,
+          "line": 501,
           "sink": "emit"
         }
       ]
@@ -195186,7 +195261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -195196,7 +195271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -195856,7 +195931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197331,7 +197406,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 61,
+          "line": 65,
           "sink": "ValueError"
         }
       ]
@@ -197341,7 +197416,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 59,
+          "line": 63,
           "sink": "ValueError"
         }
       ]
@@ -198501,7 +198576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198511,7 +198586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198861,7 +198936,7 @@
       "origins": [
         {
           "path": "cdmw/workers/model_library_delete.py",
-          "line": 71,
+          "line": 75,
           "sink": "ValueError"
         }
       ]
@@ -198936,7 +199011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_file_io_ui.py",
-          "line": 506,
+          "line": 507,
           "sink": "emit"
         },
         {
@@ -199751,7 +199826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 872,
+          "line": 874,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199886,7 +199961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199961,7 +200036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199971,7 +200046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 774,
+          "line": 776,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -200386,7 +200461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 584,
+          "line": 587,
           "sink": "setInformativeText"
         }
       ]
@@ -201031,7 +201106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 149,
+          "line": 154,
           "sink": "_add_combo_choice"
         }
       ]
@@ -201311,7 +201386,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 648,
+          "line": 652,
           "sink": "addItem"
         }
       ]
@@ -201501,22 +201576,22 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 363,
+          "line": 374,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -201621,7 +201696,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 249,
+          "line": 260,
           "sink": "emit"
         },
         {
@@ -201636,12 +201711,12 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 437,
+          "line": 438,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 525,
+          "line": 526,
           "sink": "setFormat"
         },
         {
@@ -202711,7 +202786,7 @@
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
-          "line": 268,
+          "line": 270,
           "sink": "warning"
         }
       ]
@@ -203191,7 +203266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 406,
+          "line": 411,
           "sink": "setText"
         }
       ]
@@ -203201,7 +203276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 407,
+          "line": 412,
           "sink": "_emit_status"
         }
       ]
@@ -203221,7 +203296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 589,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -203556,7 +203631,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 549,
+          "line": 553,
           "sink": "setText"
         }
       ]
@@ -203571,7 +203646,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 885,
+          "line": 889,
           "sink": "setText"
         }
       ]
@@ -203581,7 +203656,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 753,
+          "line": 757,
           "sink": "setText"
         }
       ]
@@ -203591,7 +203666,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 665,
+          "line": 669,
           "sink": "setText"
         }
       ]
@@ -203601,7 +203676,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 663,
+          "line": 667,
           "sink": "setText"
         }
       ]
@@ -203701,7 +203776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 411,
+          "line": 415,
           "sink": "setText"
         }
       ]
@@ -205201,7 +205276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 183,
+          "line": 184,
           "sink": "setText"
         }
       ]
@@ -205391,7 +205466,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 822,
+          "line": 825,
           "sink": "QListWidgetItem"
         },
         {
@@ -205406,7 +205481,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 416,
+          "line": 420,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206151,7 +206226,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
-          "line": 416,
+          "line": 420,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -206221,7 +206296,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 576,
+          "line": 580,
           "sink": "getText"
         }
       ]
@@ -206281,7 +206356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 77,
+          "line": 93,
           "sink": "setText"
         }
       ]
@@ -206291,7 +206366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 75,
+          "line": 91,
           "sink": "setText"
         }
       ]
@@ -206931,7 +207006,7 @@
         },
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 693,
+          "line": 690,
           "sink": "_emit_status"
         },
         {
@@ -206991,12 +207066,12 @@
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 329,
+          "line": 331,
           "sink": "_handle_progress"
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
-          "line": 331,
+          "line": 333,
           "sink": "_handle_export_progress"
         },
         {
@@ -207301,7 +207376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 70,
+          "line": 86,
           "sink": "setText"
         }
       ]
@@ -207846,7 +207921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/item_icons/workers.py",
-          "line": 481,
+          "line": 478,
           "sink": "setText"
         }
       ]

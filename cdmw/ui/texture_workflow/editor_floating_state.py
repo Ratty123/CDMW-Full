@@ -475,26 +475,41 @@ def texture_editor_floating_move_state(
     *,
     dx: int,
     dy: int,
+    floating_pixels: Optional[np.ndarray] = None,
 ) -> Optional[TextureEditorFloatingMoveState]:
     floating = document.floating_selection
     if floating is None:
         return None
+    moved_document = dataclasses.replace(
+        document,
+        floating_selection=dataclasses.replace(
+            floating,
+            offset_x=int(floating.offset_x + int(dx)),
+            offset_y=int(floating.offset_y + int(dy)),
+            committed=False,
+        ),
+    )
+    before_bounds = current_texture_editor_floating_canvas_bounds(document, floating_pixels)
+    after_bounds = current_texture_editor_floating_canvas_bounds(moved_document, floating_pixels)
+    if before_bounds is None or after_bounds is None:
+        # Without pixels the untransformed size is the best available extent.
+        before_bounds = (
+            int(floating.bounds[0] + floating.offset_x),
+            int(floating.bounds[1] + floating.offset_y),
+            int(floating.bounds[2]),
+            int(floating.bounds[3]),
+        )
+        after_bounds = (before_bounds[0] + int(dx), before_bounds[1] + int(dy), before_bounds[2], before_bounds[3])
+    x0 = min(before_bounds[0], after_bounds[0])
+    y0 = min(before_bounds[1], after_bounds[1])
     dirty_bounds = (
-        int(floating.bounds[0] + min(0, floating.offset_x + int(dx))),
-        int(floating.bounds[1] + min(0, floating.offset_y + int(dy))),
-        max(1, int(floating.bounds[2] + abs(int(dx)))),
-        max(1, int(floating.bounds[3] + abs(int(dy)))),
+        int(x0),
+        int(y0),
+        max(1, int(max(before_bounds[0] + before_bounds[2], after_bounds[0] + after_bounds[2]) - x0)),
+        max(1, int(max(before_bounds[1] + before_bounds[3], after_bounds[1] + after_bounds[3]) - y0)),
     )
     return TextureEditorFloatingMoveState(
-        document=dataclasses.replace(
-            document,
-            floating_selection=dataclasses.replace(
-                floating,
-                offset_x=int(floating.offset_x + int(dx)),
-                offset_y=int(floating.offset_y + int(dy)),
-                committed=False,
-            ),
-        ),
+        document=moved_document,
         dirty_bounds=dirty_bounds,
         history_label="Move Floating Selection",
         kind="floating_transform",

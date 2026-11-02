@@ -7497,7 +7497,7 @@ MESSAGE_REFERENCE = [
     "message": "Active file authority audit skipped; game root not found: {resolved_game_root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 825
+      "cdmw/core/archive_loose_export.py": 835
     }
   },
   {
@@ -9356,7 +9356,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active archive payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 889
+      "cdmw/core/archive_loose_export.py": 901
     }
   },
   {
@@ -9364,7 +9364,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active loose payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 857
+      "cdmw/core/archive_loose_export.py": 869
     }
   },
   {
@@ -9421,7 +9421,7 @@ MESSAGE_REFERENCE = [
     "message": "Byte search does not take a regular expression.{detail}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 40
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 37
     }
   },
   {
@@ -10168,7 +10168,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not decode {entry.Path}: {exception.Message}",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 96
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 93
     }
   },
   {
@@ -10296,7 +10296,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not remove stale active file authority audit: {exc}",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 939
+      "cdmw/core/archive_loose_export.py": 951
     }
   },
   {
@@ -10328,7 +10328,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not write active file authority audit: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 933
+      "cdmw/core/archive_loose_export.py": 945
     }
   },
   {
@@ -10976,7 +10976,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active loose file differs from package {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 868
+      "cdmw/core/archive_loose_export.py": 880
     }
   },
   {
@@ -10984,7 +10984,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active {row.active_source} differs from loose {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 900
+      "cdmw/core/archive_loose_export.py": 912
     }
   },
   {
@@ -13835,7 +13835,7 @@ MESSAGE_REFERENCE = [
     "message": "Regular expression timed out for {entry.Path}.",
     "recovery": "timeout",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 147
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 144
     }
   },
   {
@@ -14691,7 +14691,7 @@ MESSAGE_REFERENCE = [
     "message": "Text search query must not be empty.{detail}",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 23
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 24
     }
   },
   {
@@ -16262,7 +16262,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata expects payloads under {files_root or 'files'}/, but found {PurePosixPath(*relative_parts_for_layout).as_posix()}.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 801
+      "cdmw/core/archive_loose_export.py": 811
     }
   },
   {
@@ -16270,7 +16270,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. Pick the CDUMM/files-wrapper profile if the manager expects files/.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 801
+      "cdmw/core/archive_loose_export.py": 811
     }
   },
   {
@@ -41474,6 +41474,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Archive preview failed: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/shell/model_library_bridge.py": 462
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Assign the body Parts before generating body controls.",
     "recovery": "internal",
     "sources": {
@@ -44417,10 +44425,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Downloaded archive does not contain an importable OBJ, DAE, glTF, GLB, or local mesh source.",
+    "message": "Downloaded archive does not contain an importable OBJ, FBX, DAE, glTF, GLB, or local mesh source.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 429
+      "cdmw/core/model_catalogue.py": 432
     }
   },
   {
@@ -44492,7 +44500,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate path in model archive: {member.filename}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/model_catalogue.py": 522
+      "cdmw/core/model_catalogue.py": 530
     }
   },
   {
@@ -44780,7 +44788,7 @@ MESSAGE_REFERENCE = [
     "message": "Encrypted model archive member is not supported: {member.filename}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/model_catalogue.py": 528
+      "cdmw/core/model_catalogue.py": 536
     }
   },
   {
@@ -44788,7 +44796,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a model mirror URL first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/library/models.py": 101
+      "cdmw/domain/library/models.py": 118
     }
   },
   {
@@ -45206,7 +45214,7 @@ MESSAGE_REFERENCE = [
     "message": "External Model",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 414
+      "cdmw/ui/shell/model_library_bridge.py": 424
     }
   },
   {
@@ -47261,7 +47269,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: Preview rejected the capture request.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 462
+      "cdmw/ui/model_library/preview.py": 466
     }
   },
   {
@@ -47269,7 +47277,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: {message or 'Preview framebuffer is empty.'}",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 480
+      "cdmw/ui/model_library/preview.py": 484
     }
   },
   {
@@ -47277,7 +47285,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/icon_output.py": 62
+      "cdmw/ui/model_library/icon_output.py": 75
     }
   },
   {
@@ -51197,7 +51205,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirror URL must be an HTTP or HTTPS URL.",
     "recovery": "network",
     "sources": {
-      "cdmw/domain/library/models.py": 106
+      "cdmw/domain/library/models.py": 123
     }
   },
   {
@@ -51214,6 +51222,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/model_library/commands.py": 248
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Mirror download file name {filename} is not a plain file name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/model_catalogue.py": 449
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Mirror model id {uid} is not a plain file name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/model_catalogue.py": 446
     }
   },
   {
@@ -51325,7 +51349,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive expanded size exceeds the extraction limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 534
+      "cdmw/core/model_catalogue.py": 542
     }
   },
   {
@@ -51333,7 +51357,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive has too many members ({len(members)}).",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 510
+      "cdmw/core/model_catalogue.py": 518
     }
   },
   {
@@ -51341,7 +51365,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member compression ratio is unsafe: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 537
+      "cdmw/core/model_catalogue.py": 545
     }
   },
   {
@@ -51349,7 +51373,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member is too large: {member.filename}",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 531
+      "cdmw/core/model_catalogue.py": 539
     }
   },
   {
@@ -51357,7 +51381,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 550
+      "cdmw/core/model_catalogue.py": 558
     }
   },
   {
@@ -51365,7 +51389,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download did not create a temporary output file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1204
+      "cdmw/core/model_catalogue.py": 1219
     }
   },
   {
@@ -51373,7 +51397,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeded the total time limit.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1189
+      "cdmw/core/model_catalogue.py": 1204
     }
   },
   {
@@ -51381,7 +51405,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeds the size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1173
+      "cdmw/core/model_catalogue.py": 1188
     }
   },
   {
@@ -51389,7 +51413,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1176
+      "cdmw/core/model_catalogue.py": 1191
     }
   },
   {
@@ -51397,7 +51421,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library file is not supported by mesh import: {scene_path.suffix}. Supported: {supported}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 200
+      "cdmw/ui/shell/model_library_bridge.py": 202
     }
   },
   {
@@ -51405,7 +51429,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library file is not supported by preview: {scene_path.suffix}. Supported: {supported}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 316
+      "cdmw/ui/shell/model_library_bridge.py": 318
     }
   },
   {
@@ -51413,7 +51437,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library import failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 273
+      "cdmw/ui/shell/model_library_bridge.py": 275
     }
   },
   {
@@ -51421,7 +51445,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library import file is missing: {scene_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 248
+      "cdmw/ui/shell/model_library_bridge.py": 250
     }
   },
   {
@@ -51429,7 +51453,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library preview file is missing: {scene_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 365
+      "cdmw/ui/shell/model_library_bridge.py": 367
     }
   },
   {
@@ -51485,7 +51509,7 @@ MESSAGE_REFERENCE = [
     "message": "Model resolution failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 304
+      "cdmw/ui/model_library/tab.py": 330
     }
   },
   {
@@ -51493,7 +51517,7 @@ MESSAGE_REFERENCE = [
     "message": "Model row preparation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/controller.py": 179
+      "cdmw/ui/model_library/controller.py": 181
     }
   },
   {
@@ -58049,7 +58073,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose a downloadable archive URL.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 414
+      "cdmw/core/model_catalogue.py": 417
     }
   },
   {
@@ -58057,7 +58081,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose an importable model archive.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 418
+      "cdmw/core/model_catalogue.py": 421
     }
   },
   {
@@ -59043,7 +59067,7 @@ MESSAGE_REFERENCE = [
     "message": "Symlink is not allowed in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 526
+      "cdmw/core/model_catalogue.py": 534
     }
   },
   {
@@ -60303,7 +60327,7 @@ MESSAGE_REFERENCE = [
     "message": "This is a model-library preview. It has not been imported or written into any game archive.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 414
+      "cdmw/ui/shell/model_library_bridge.py": 424
     }
   },
   {
@@ -60859,7 +60883,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe path in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 519
+      "cdmw/core/model_catalogue.py": 527
     }
   },
   {
@@ -61604,7 +61628,7 @@ MESSAGE_REFERENCE = [
     "message": "ZIP model selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 326
+      "cdmw/ui/model_library/tab.py": 352
     }
   },
   {
@@ -62396,7 +62420,7 @@ MESSAGE_REFERENCE = [
     "message": "confirmed local file became a directory",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 66
+      "cdmw/workers/model_library_delete.py": 70
     }
   },
   {
@@ -62404,7 +62428,7 @@ MESSAGE_REFERENCE = [
     "message": "confirmed local file no longer exists",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 64
+      "cdmw/workers/model_library_delete.py": 68
     }
   },
   {
@@ -62676,7 +62700,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder cannot be a symlink",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 73
+      "cdmw/workers/model_library_delete.py": 77
     }
   },
   {
@@ -62684,7 +62708,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder ownership marker is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 79
+      "cdmw/workers/model_library_delete.py": 83
     }
   },
   {
@@ -62692,7 +62716,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder resolves outside its approved root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 77
+      "cdmw/workers/model_library_delete.py": 81
     }
   },
   {
@@ -65078,7 +65102,7 @@ MESSAGE_REFERENCE = [
     "message": "local file resolves outside its approved root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 68
+      "cdmw/workers/model_library_delete.py": 72
     }
   },
   {
@@ -65956,7 +65980,7 @@ MESSAGE_REFERENCE = [
       "cdmw/domain/mesh/parts.py": 127,
       "cdmw/domain/mesh/skeleton.py": 1674,
       "cdmw/ui/model_library/state.py": 156,
-      "cdmw/workers/model_library_rows.py": 618
+      "cdmw/workers/model_library_rows.py": 619
     }
   },
   {
@@ -69502,7 +69526,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/final_package_preview_model.py": 258,
       "cdmw/core/mesh_native.py": 62,
-      "cdmw/core/model_catalogue.py": 1150,
+      "cdmw/core/model_catalogue.py": 1165,
       "cdmw/modding/mesh_native_client.py": 265,
       "cdmw/modding/static_mesh_scene_frame.py": 486,
       "cdmw/rendering/model_preview_prepare.py": 83,
@@ -70576,7 +70600,7 @@ MESSAGE_REFERENCE = [
     "message": "target identity changed after confirmation",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 61
+      "cdmw/workers/model_library_delete.py": 65
     }
   },
   {
@@ -70584,7 +70608,7 @@ MESSAGE_REFERENCE = [
     "message": "target is outside its approved local root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 59
+      "cdmw/workers/model_library_delete.py": 63
     }
   },
   {
@@ -71112,7 +71136,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported delete target type",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 71
+      "cdmw/workers/model_library_delete.py": 75
     }
   },
   {
@@ -71980,7 +72004,7 @@ MESSAGE_REFERENCE = [
     "message": "{scene_path.name} could not be imported. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 268
+      "cdmw/ui/shell/model_library_bridge.py": 270
     }
   },
   {
@@ -72892,7 +72916,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive search result is missing its archive entry reference.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 398
+      "cdmw/core/text_search.py": 420
     }
   },
   {
@@ -75378,7 +75402,7 @@ MESSAGE_REFERENCE = [
       "cdmw/ui/replace_assistant/build.py": 210,
       "cdmw/ui/replace_assistant/queue.py": 225,
       "cdmw/ui/shell/utility_controller.py": 194,
-      "cdmw/ui/text_search/controller.py": 568,
+      "cdmw/ui/text_search/controller.py": 577,
       "cdmw/ui/text_search/export_actions.py": 140
     }
   },
@@ -75621,7 +75645,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a search string or regular expression.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/text_search.py": 107
+      "cdmw/core/text_search.py": 108
     }
   },
   {
@@ -75981,7 +76005,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL {item.source_path}: {item.message or 'export failed'}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/text_search/remote_catalogue.py": 309
+      "cdmw/ui/text_search/remote_catalogue.py": 311
     }
   },
   {
@@ -77414,7 +77438,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid search pattern: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/text_search.py": 115
+      "cdmw/core/text_search.py": 116
     }
   },
   {
@@ -77582,7 +77606,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon library scan failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 381
+      "cdmw/ui/item_icons/workers.py": 386
     }
   },
   {
@@ -77590,7 +77614,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon metadata save failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 452
+      "cdmw/ui/item_icons/workers.py": 449
     }
   },
   {
@@ -77606,7 +77630,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon {request.action} failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 419
+      "cdmw/ui/item_icons/workers.py": 424
     }
   },
   {
@@ -78047,7 +78071,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file has an invalid path: {relative_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/text_search.py": 453
+      "cdmw/core/text_search.py": 475
     }
   },
   {
@@ -78063,7 +78087,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose search result is missing its file path reference.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 413
+      "cdmw/core/text_search.py": 435
     }
   },
   {
@@ -78215,7 +78239,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing archive entry for export.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 504
+      "cdmw/core/text_search.py": 526
     }
   },
   {
@@ -78255,7 +78279,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing loose file path for export.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 508
+      "cdmw/core/text_search.py": 530
     }
   },
   {
@@ -78696,7 +78720,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching file was found for the current query.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/text_search/controller.py": 492
+      "cdmw/ui/text_search/controller.py": 493
     }
   },
   {
@@ -79696,7 +79720,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview truncated to the first {format(len(preview_text), ',')} character(s) to keep the viewer responsive.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 435
+      "cdmw/core/text_search.py": 457
     }
   },
   {
@@ -80794,7 +80818,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor export not found: {resolved_output}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/replace_assistant/queue.py": 507
+      "cdmw/ui/replace_assistant/queue.py": 510
     }
   },
   {
@@ -83854,7 +83878,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not read {entry.path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 234
+      "cdmw/core/text_search.py": 256
     }
   },
   {
@@ -83862,7 +83886,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 324
+      "cdmw/core/text_search.py": 346
     }
   },
   {
@@ -83870,7 +83894,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: {record.warning}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 480
+      "cdmw/ui/item_icons/workers.py": 477
     }
   },
   {
@@ -84038,7 +84062,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{len(results)}] FAIL {result.relative_path} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/text_search.py": 545
+      "cdmw/core/text_search.py": 567
     }
   },
   {
@@ -85476,7 +85500,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/pat_decoder.py": 616,
       "cdmw/domain/xml_text.py": 70,
       "cdmw/modding/scene_gltf_embedded_images.py": 61,
-      "cdmw/ui/replace_assistant/workers.py": 304,
+      "cdmw/ui/replace_assistant/workers.py": 315,
       "cdmw/ui/shell/problem_report_dialog.py": 1102,
       "cdmw/workers/appearance_workers.py": 85,
       "cdmw/workers/attachment_loose_workers.py": 252,
@@ -86158,7 +86182,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/pat_decoder.py": 115,
       "cdmw/core/recolor_variants.py": 1172,
       "cdmw/core/structured_binary_editor.py": 117,
-      "cdmw/core/text_search.py": 151,
+      "cdmw/core/text_search.py": 173,
       "cdmw/domain/xml_text.py": 211,
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
@@ -96467,7 +96491,7 @@ MESSAGE_REFERENCE = [
     "message": "Canceled floating selection.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_floating_state.py": 510
+      "cdmw/ui/texture_workflow/editor_floating_state.py": 525
     }
   },
   {
@@ -97307,7 +97331,7 @@ MESSAGE_REFERENCE = [
     "message": "Matched files preview unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/texture_workflow/workflow_profiles_panel.py": 430
+      "cdmw/ui/texture_workflow/workflow_profiles_panel.py": 434
     }
   },
   {
@@ -97604,6 +97628,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/texture_pipeline/inspection.py": 712
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Not a Texture Editor project: {resolved.name}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 518
     }
   },
   {
@@ -98287,10 +98319,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Editor project has an unreadable version: {data.get('version')}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 522
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture Editor project is missing required asset files: {sample}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 553
+      "cdmw/core/texture_editor_project_io.py": 580
     }
   },
   {
@@ -98298,7 +98338,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project save failed and rollback was incomplete. Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 443
+      "cdmw/core/texture_editor_project_io.py": 446
     }
   },
   {
@@ -98954,7 +98994,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported texture source for Texture Editor: {resolved.suffix}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 73
+      "cdmw/core/texture_editor_project_io.py": 76
     }
   },
   {
@@ -100110,6 +100150,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "{resolved.name} was saved by a newer version of the Texture Editor (project version {project_version}; this build reads up to {_PROJECT_VERSION}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 524
+    }
+  },
+  {
+    "area": "textures",
     "message": "{resolved_format} is not valid for {preset.label}.",
     "recovery": "internal",
     "sources": {
@@ -100169,7 +100217,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount table is unexpectedly large: {mount_file}",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/language_index.py": 118
+      "tools/translation_studio/language_index.py": 120
     }
   },
   {
@@ -100177,7 +100225,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not list languages: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 535
+      "tools/translation_studio/tab.py": 539
     }
   },
   {
@@ -100185,7 +100233,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read archive package: {failed[0]}",
     "recovery": "format",
     "sources": {
-      "tools/translation_studio/language_index.py": 249
+      "tools/translation_studio/language_index.py": 251
     }
   },
   {
@@ -100201,7 +100249,7 @@ MESSAGE_REFERENCE = [
     "message": "Export cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/translation_studio/catalogue.py": 366
+      "tools/translation_studio/catalogue.py": 380
     }
   },
   {
@@ -100209,7 +100257,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {error}",
     "recovery": "write",
     "sources": {
-      "tools/translation_studio/tab.py": 907
+      "tools/translation_studio/tab.py": 912
     }
   },
   {
@@ -100217,7 +100265,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game language code. Use a code such as eng, rus, or zho-cn.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 592
+      "tools/translation_studio/tab.py": 596
     }
   },
   {
@@ -100225,7 +100273,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid table path. Choose a .paloc path under gamedata/stringtable/binary__.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 585
+      "tools/translation_studio/tab.py": 589
     }
   },
   {
@@ -100233,7 +100281,7 @@ MESSAGE_REFERENCE = [
     "message": "Language table path does not match {language}: {path}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 219
+      "tools/translation_studio/catalogue.py": 233
     }
   },
   {
@@ -100241,7 +100289,7 @@ MESSAGE_REFERENCE = [
     "message": "Language tables changed during loading: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "tools/translation_studio/catalogue.py": 345
+      "tools/translation_studio/catalogue.py": 359
     }
   },
   {
@@ -100249,7 +100297,7 @@ MESSAGE_REFERENCE = [
     "message": "Load failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 631
+      "tools/translation_studio/tab.py": 635
     }
   },
   {
@@ -100257,7 +100305,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to export: no lines have been changed.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 898
+      "tools/translation_studio/tab.py": 902
     }
   },
   {
@@ -100265,7 +100313,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to translate: no lines are in view.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 866
+      "tools/translation_studio/tab.py": 870
     }
   },
   {
@@ -100297,7 +100345,7 @@ MESSAGE_REFERENCE = [
     "message": "Use a mod name without folder separators or reserved filename characters.",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 362
+      "tools/translation_studio/catalogue.py": 376
     }
   },
   {
@@ -100347,7 +100395,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "tools/translation_studio/ai_job.py": 85,
       "tools/translation_studio/ai_provider.py": 193,
-      "tools/translation_studio/ai_translate.py": 276
+      "tools/translation_studio/ai_translate.py": 293
     }
   },
   {
@@ -100355,7 +100403,7 @@ MESSAGE_REFERENCE = [
     "message": "row {index} is not in this table",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 152
+      "tools/translation_studio/catalogue.py": 166
     }
   },
   {
@@ -100403,7 +100451,7 @@ MESSAGE_REFERENCE = [
     "message": "the reply contained no JSON",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/ai_translate.py": 308
+      "tools/translation_studio/ai_translate.py": 325
     }
   },
   {
@@ -100419,7 +100467,7 @@ MESSAGE_REFERENCE = [
     "message": "{language} is not in the archives",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 330
+      "tools/translation_studio/catalogue.py": 344
     }
   },
   {
@@ -100443,7 +100491,7 @@ MESSAGE_REFERENCE = [
     "message": "{wanted} is not in the archives",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 315
+      "tools/translation_studio/catalogue.py": 329
     }
   }
 ]
@@ -101915,7 +101963,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/model_catalogue.py": {
     "diagnostic_field": 1,
-    "raise": 21
+    "raise": 23
   },
   "cdmw/core/model_catalogue_zip.py": {
     "raise": 1
@@ -102145,7 +102193,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/texture_editor_layer_ops.py": {},
   "cdmw/core/texture_editor_project_io.py": {
     "finding": 2,
-    "raise": 4
+    "raise": 7
   },
   "cdmw/core/texture_editor_raster_ops.py": {
     "raise": 1
@@ -105486,8 +105534,9 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/menus.py": {},
   "cdmw/ui/shell/model_library_bridge.py": {
     "diagnostic_field": 2,
+    "diagnostic_text": 1,
     "dialog": 1,
-    "display": 3,
+    "display": 5,
     "failure": 1,
     "raise": 3
   },

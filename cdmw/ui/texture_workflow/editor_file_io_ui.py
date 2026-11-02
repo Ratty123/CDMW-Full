@@ -475,6 +475,7 @@ class TextureEditorFileIoUiMixin:
         elif delivery_state.emit_texture_workflow:
             QTimer.singleShot(
                 0,
+                self,
                 lambda path_text=str(delivery_state.output_path), binding=delivery_state.source_binding: self.send_to_texture_workflow_requested.emit(
                     path_text,
                     binding,

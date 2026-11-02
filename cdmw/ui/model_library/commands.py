@@ -275,7 +275,7 @@ class ModelLibraryCommandsMixin:
                     None,
                 )
                 if importable_success is None:
-                    self._set_status("Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.", error=True)
+                    self._set_status("Downloaded archive does not contain an importable OBJ/FBX/DAE/glTF/GLB model.", error=True)
                     return
                 payload, download_result = importable_success
                 self._pending_model_action_after_task = lambda: self._continue_downloaded_model_action(
@@ -297,7 +297,7 @@ class ModelLibraryCommandsMixin:
             status="Choosing model from downloaded archive...",
             on_resolved=resolved,
             on_missing=lambda: self._set_status(
-                "Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.",
+                "Downloaded archive does not contain an importable OBJ/FBX/DAE/glTF/GLB model.",
                 error=True,
             ),
         )

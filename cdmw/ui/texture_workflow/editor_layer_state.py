@@ -282,6 +282,7 @@ def texture_editor_layer_history_label(action: str) -> str:
         "reorder": "Reorder Layer",
         "rename": "Rename Layer",
         "change_opacity": "Change Layer Opacity",
+        "change_blend_mode": "Change Layer Blend Mode",
         "toggle_visibility": "Toggle Layer Visibility",
         "lock_state": "Layer Lock State",
     }

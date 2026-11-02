@@ -66,9 +66,9 @@ PRESETS: Tuple[ProviderPreset, ...] = (
         label="Anthropic (Claude)",
         api=ANTHROPIC,
         base_url="https://api.anthropic.com",
-        models=("claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"),
-        model="claude-sonnet-5",
-        model_hint="e.g. claude-sonnet-5",
+        models=("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-5"),
+        model="claude-sonnet-5-5",
+        model_hint="e.g. claude-sonnet-5-5",
         note=(
             "Key from console.anthropic.com. See Anthropic's documentation for "
             "current model ids and pricing."

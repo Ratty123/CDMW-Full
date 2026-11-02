@@ -26,6 +26,7 @@ from cdmw.workers.model_library_rows import (
     ModelLibraryDeleteTarget,
     ModelLibraryRowsRequest,
     freeze_model_library_rows,
+    model_library_delete_identity,
     prepare_model_library_rows,
 )
 
@@ -323,7 +324,7 @@ def test_delete_worker_revalidates_owned_folder_and_removes_it() -> None:
         downloads = root / "downloads"
         asset = downloads / "Example-uid"
         asset.mkdir(parents=True)
-        (asset / "model_metadata.json").write_text("{}", encoding="utf-8")
+        (asset / "model_metadata.json").write_text(json.dumps({"uid": "uid"}), encoding="utf-8")
         (asset / "nested").mkdir()
         (asset / "nested" / "file.bin").write_bytes(b"payload")
         prepared = prepare_model_library_rows(
@@ -386,7 +387,7 @@ def test_delete_dispatch_and_shutdown_are_fast_and_cancel_before_mutation() -> N
         downloads = root / "downloads"
         asset = downloads / "Example-uid"
         asset.mkdir(parents=True)
-        (asset / "model_metadata.json").write_text("{}", encoding="utf-8")
+        (asset / "model_metadata.json").write_text(json.dumps({"uid": "uid"}), encoding="utf-8")
         scene = asset / "scene.obj"
         scene.write_text("o scene", encoding="utf-8")
         settings = create_settings(settings_file_path=root / "settings.ini")
@@ -438,3 +439,94 @@ def test_model_library_row_and_delete_ui_owners_contain_no_slow_completion_io() 
     assert "shutil.rmtree" not in delete_body and ".unlink(" not in delete_body
     assert "from cdmw.ui" not in workers
     assert "prepare_model_library_rows" in actions and "prepare_model_library_rows" in controller
+
+
+def test_delete_worker_removes_junctions_without_walking_their_target(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    if sys.platform != "win32":
+        return
+    downloads = tmp_path / "downloads"
+    asset = downloads / "Example-uid"
+    asset.mkdir(parents=True)
+    (asset / "model_metadata.json").write_text(json.dumps({"uid": "uid"}), encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    keep = outside / "keep.txt"
+    keep.write_text("keep", encoding="utf-8")
+    link = asset / "linked"
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)], check=True, capture_output=True)
+    target = ModelLibraryDeleteTarget(
+        path=str(asset),
+        label="downloaded folder",
+        target_kind="download_dir",
+        allowed_root=str(downloads),
+        identity=model_library_delete_identity(asset),
+    )
+
+    result = delete_model_library_targets(ModelLibraryDeleteRequest(1, (target,)))
+
+    assert result.errors == () and result.deleted_paths == (str(asset),)
+    assert not asset.exists()
+    assert keep.read_text(encoding="utf-8") == "keep"
+
+
+def test_stray_metadata_marker_neither_groups_nor_makes_a_folder_deletable(tmp_path: Path) -> None:
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    models = tmp_path / "Models"
+    pack = models / "Pack"
+    pack.mkdir(parents=True)
+    (pack / "model_metadata.json").write_text(json.dumps({"uid": "abc", "name": "Pack"}), encoding="utf-8")
+    first = pack / "first.obj"
+    second = pack / "second.obj"
+    first.write_text("o first", encoding="utf-8")
+    second.write_text("o second", encoding="utf-8")
+    rows = [
+        {"kind": "local", "name": path.stem, "path": str(path), "root": str(models), "extension": ".obj", "import_supported": True}
+        for path in (first, second)
+    ]
+
+    prepared = prepare_model_library_rows(
+        ModelLibraryRowsRequest(1, "local", freeze_model_library_rows(rows), str(downloads), normalize_local=True)
+    )
+
+    assert len(prepared.all_rows) == 2
+    targets = [row.local_delete_target for row in prepared.all_rows]
+    assert all(target is not None and target.target_kind == "local_file" for target in targets)
+    forged = ModelLibraryDeleteTarget(
+        path=str(pack),
+        label="downloaded model folder",
+        target_kind="download_dir",
+        allowed_root=str(models),
+        identity=model_library_delete_identity(pack),
+    )
+    result = delete_model_library_targets(ModelLibraryDeleteRequest(1, (forged,)))
+    assert result.deleted_paths == () and result.errors
+    assert first.is_file() and second.is_file()
+
+
+def test_delete_worker_refuses_a_folder_replaced_after_confirmation(tmp_path: Path) -> None:
+    downloads = tmp_path / "downloads"
+    asset = downloads / "Example-uid"
+    asset.mkdir(parents=True)
+    (asset / "model_metadata.json").write_text(json.dumps({"uid": "uid"}), encoding="utf-8")
+    prepared = prepare_model_library_rows(
+        ModelLibraryRowsRequest(
+            1,
+            "local",
+            freeze_model_library_rows([{"kind": "local", "name": "Example", "path": str(asset / "model_metadata.json"), "root": str(downloads), "asset_dir": str(asset)}]),
+            str(downloads),
+        )
+    ).all_rows[0]
+    assert prepared.local_delete_target is not None
+    os.replace(asset, tmp_path / "moved-away")
+    asset.mkdir()
+    (asset / "model_metadata.json").write_text(json.dumps({"uid": "uid"}), encoding="utf-8")
+    (asset / "unrelated.txt").write_text("new", encoding="utf-8")
+
+    result = delete_model_library_targets(ModelLibraryDeleteRequest(2, (prepared.local_delete_target,)))
+
+    assert result.deleted_paths == () and "identity changed" in result.errors[0]
+    assert (asset / "unrelated.txt").is_file()

@@ -308,6 +308,11 @@ class ItemIconWorkerMixin:
             if active_key == key and self._index_worker is not None:
                 self._index_worker.stop()
         elif self._active_index_kind == "scan" and self._index_worker is not None:
+            # The mutation goes first; the interrupted scan runs again after it.
+            if self._pending_scan_request is None and isinstance(
+                self._active_index_request, ItemIconLibraryScanRequest
+            ):
+                self._pending_scan_request = self._active_index_request
             self._index_worker.stop()
         if self._index_thread is None:
             self._start_next_index_worker()
@@ -368,7 +373,7 @@ class ItemIconWorkerMixin:
         self._record_positions_by_key = {
             self._path_key(record.path): index for index, record in enumerate(self.records)
         }
-        self._populate_records_tree(select_path=request.selected_path)
+        self._populate_records_tree(select_path=self.current_source_path() or request.selected_path)
         message = f"Item icon library scanned: {len(self.records):,} supported source image(s)."
         self.library_status_label.setText(message)
         if request.show_status:
@@ -432,15 +437,7 @@ class ItemIconWorkerMixin:
                 notes=payload.notes,
                 favorite=payload.favorite,
             )
-            self._records_by_key[key] = updated
-            position = self._record_positions_by_key.get(key)
-            if position is not None and 0 <= position < len(self.records):
-                self.records[position] = updated
-            current_item = self.records_tree.currentItem()
-            current_path = self.current_source_path(current_item) if current_item is not None else None
-            if current_item is not None and current_path is not None and self._path_key(current_path) == key:
-                current_item.setText(0, ("* " if updated.favorite else "") + updated.path.name)
-                current_item.setText(2, ", ".join(updated.tags))
+            self._upsert_loaded_record(updated)
         self._emit_status(f"Saved item icon metadata for {payload.record_path.name}.")
 
     def _handle_metadata_error(self, request_id: int, message: str) -> None:

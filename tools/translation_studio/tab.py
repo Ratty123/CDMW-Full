@@ -76,6 +76,9 @@ _NONE = "(none)"
 #: Cap the rows a search returns. Nobody reads 90,000 hits, and building that view
 #: costs more than the search itself.
 _MAX_HITS = 5000
+#: Other mod managers are not updated for the October 2026 DLC, so packages are written
+#: for DMM only, as Placement Studio does.
+_PACKAGE_MANAGERS = ("DMM",)
 
 #: Worker threads outlive the widget that started them, deliberately. A `QThread` parented
 #: to the tab is destroyed with it, and destroying a running one is an access violation.
@@ -213,6 +216,7 @@ class _LoadWorker(QObject):
                 self.done.emit(None, "")
                 return
             catalogue = load_catalogue(data, self._language)
+            catalogue.search_index()
             if thread.isInterruptionRequested():
                 self.done.emit(None, "")
                 return
@@ -241,7 +245,7 @@ class _ExportWorker(QObject):
         try:
             results = export_packages(
                 self.catalogue, out_root=self.out_root, name=self.name, author=self.author,
-                is_cancelled=QThread.currentThread().isInterruptionRequested,
+                managers=_PACKAGE_MANAGERS, is_cancelled=QThread.currentThread().isInterruptionRequested,
             )
         except Exception as error:
             self.done.emit(None, str(error))
@@ -902,6 +906,7 @@ class TranslationStudioTab(QWidget):
                 out_root=Path(out_root),
                 name=self.mod_name.text().strip() or "Translation tweak",
                 author=self.mod_author.text().strip(),
+                managers=_PACKAGE_MANAGERS,
             )
         except Exception as error:  # noqa: BLE001
             return f"Export failed: {error}"
