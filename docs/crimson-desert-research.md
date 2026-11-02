@@ -1441,7 +1441,7 @@ runtime dump, archives read-only):
   windows, and frame-event begin/end. Everything else is refused. None of these
   edits has been checked in game yet.
   Archive Browser's **Edit Action Chart...** exposes these writes and exports
-  the chart as a DMM mod.
+  the chart as a DMM archive-group mod.
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts

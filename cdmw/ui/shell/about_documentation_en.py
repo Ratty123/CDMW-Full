@@ -446,13 +446,17 @@ class AboutDocumentationEnglishMixin:
                 <p>Action charts, blend spaces and sequences store clips and sub-charts relative to the folders the game reads them from. Those paths count as confirmed references, and an action chart's Asset Family lists the clips, blend spaces, sub-charts and prefabs it names.</p>
                 <h4>Edit an action chart</h4>
                 <ol>
-                  <li>In Archive Browser, right-click an action chart (.paac) and choose Edit Action Chart... from the menu.</li>
-                  <li>On the Clips tab, select a clip, type the clip to play instead and click Retarget Clip. Clip paths are relative to character/motion/, and every animation that plays the clip changes.</li>
-                  <li>On the Timing tab, select an animation and type values in the New column. The chart speed rate above the tabs scales the whole chart.</li>
+                  <li>In Archive Browser, click Action Charts and choose Find Action Chart by Character..., select a character's weapon slot and click Edit Chart. You can also right-click an action chart (.paac) and choose Edit Action Chart....</li>
+                  <li>On the Animations tab, select an animation. Change its clip or blend space and click Set for This Animation; other animations that play the same clip keep theirs.</li>
+                  <li>Use Clip Length sets the animation's Clip end to the length of the clip in the Clip field. Show in Archive Browser finds that clip so you can preview it while the editor stays open.</li>
+                  <li>Type new timing values in the New column under Timing. The chart speed rate above the tabs scales the whole chart.</li>
+                  <li>Under Frame events, select an event to change its socket, equipment part, effect, prefab or sequencer, or a socket event's mode and blend time. Choose Only this animation or Every animation using this event, then click Set Event Fields.</li>
+                  <li>On the Names and Paths tab, choose a table, select an entry and click Replace Everywhere to change every use of it in the chart.</li>
                   <li>Click Apply and Re-read. The tables and the changes list now show what the edited chart holds.</li>
-                  <li>Click Export DMM Mod..., choose a folder and the mod details, then add the folder in DMM.</li>
+                  <li>Click Export DMM Mod..., name the mod and click Send to DMM, then enable it in DMM and click Mount. Save Mod Folder... writes the same mod folder somewhere else.</li>
+                  <li>To ship several charts as one mod, export each chart under the same mod name with Keep the other charts already in a mod with this name ticked. To continue a mod later, click Action Charts, choose Open Action Chart Mod... and select its folder.</li>
                 </ol>
-                <p>Only clip names, clip start and end times, speed windows, frame tags, just-time windows and frame-event times can change. Branches, conditions and frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. A clip that the game's archives do not contain triggers a warning. If the new clip is longer or shorter, adjust the animation's start and end times. Edited charts have not been tested in game.</p>
+                <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Edited charts have not been tested in game.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
                 <h4>Find bodies and faces</h4>

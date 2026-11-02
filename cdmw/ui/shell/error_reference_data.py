@@ -9586,10 +9586,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Cannot edit {entry.path}: {exc}",
+    "message": "Cannot edit {prepared.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 81
+      "cdmw/ui/archive_browser/action_chart_actions.py": 173
     }
   },
   {
@@ -10245,6 +10245,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not open {chart_path}: {result}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 143
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not parse socket XML: {exc}",
     "recovery": "format",
     "sources": {
@@ -10285,18 +10293,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Could not read {entry.path}: {exc}",
+    "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 49
+      "cdmw/ui/archive_browser/action_chart_actions.py": 298
     }
   },
   {
     "area": "archive",
-    "message": "Could not read {entry.path}: {result}",
+    "message": "Could not read the clip: {outcome.message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 57
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 924
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read {folder}: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 339
     }
   },
   {
@@ -15187,7 +15203,7 @@ MESSAGE_REFERENCE = [
     "message": "The edit was refused: {outcome.message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 517
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1143
     }
   },
   {
@@ -15834,10 +15850,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "These clips are not in the game's archives: {detail} The game cannot play a clip that does not exist. Apply anyway?",
+    "message": "These names are not in the game's archives or in this chart: {detail} A clip or file that does not exist cannot play, and a socket or part the character does not have does nothing. Apply anyway?",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 484
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1102
     }
   },
   {
@@ -18606,6 +18622,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_scan_cache.py": 2275
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{chart_path} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 123
     }
   },
   {
@@ -72313,6 +72337,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 870
+    }
+  },
+  {
+    "area": "other",
     "message": "A frame review requires both --review and --review-sha256.",
     "recovery": "integrity",
     "sources": {
@@ -78540,6 +78572,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Name the mod before exporting it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 915
+    }
+  },
+  {
+    "area": "other",
     "message": "Named table row does not repeat its directory key.",
     "recovery": "internal",
     "sources": {
@@ -80438,6 +80478,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Set the game folder in Archive Browser before editing action charts.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 719
+    }
+  },
+  {
+    "area": "other",
     "message": "SetInformationJobObject: {ctypes.WinError(ctypes.get_last_error())}",
     "recovery": "internal",
     "sources": {
@@ -81139,6 +81187,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 256
+    }
+  },
+  {
+    "area": "other",
+    "message": "The character action package description (.paacdesc) is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 750
     }
   },
   {
@@ -84435,6 +84491,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "animation {old_anim.index} changed its number of frame events",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 537
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {resource.animation} does not read back blend space {resource.blend}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 604
+    }
+  },
+  {
+    "area": "other",
+    "message": "animation {resource.animation} does not read back clip {resource.clip}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 602
+    }
+  },
+  {
+    "area": "other",
     "message": "append_scene_import_to_mesh requires a SceneImportResult.",
     "recovery": "input",
     "sources": {
@@ -84775,6 +84855,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 567
+    }
+  },
+  {
+    "area": "other",
+    "message": "frame event {edit.event + 1} of animation {edit.animation} reads back {edit.field} {stored}, not {edit.value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 608
     }
   },
   {
@@ -86856,6 +86944,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "string table {old_table.index} lost entries",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 524
+    }
+  },
+  {
+    "area": "other",
     "message": "string table {table} ({chart.tables[table].role}) has no entry {old}",
     "recovery": "internal",
     "sources": {
@@ -86952,10 +87048,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "the chart does not read back clip {retarget.new}",
+    "message": "the chart does not read back {retarget.new}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 258
+      "cdmw/services/action_chart_edit_service.py": 598
     }
   },
   {
@@ -86963,7 +87059,7 @@ MESSAGE_REFERENCE = [
     "message": "the chart has no changes to export",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 291
+      "cdmw/services/action_chart_edit_service.py": 918
     }
   },
   {
@@ -87008,10 +87104,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "the edited chart no longer has the shipped chart's shape",
+    "message": "the edited chart no longer has the shipped chart's animations",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 220
+      "cdmw/services/action_chart_edit_service.py": 519
     }
   },
   {
@@ -87208,6 +87304,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "the written mod archive does not read back as the edited charts",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 949
+    }
+  },
+  {
+    "area": "other",
     "message": "this chart has no frame event buffer",
     "recovery": "internal",
     "sources": {
@@ -87328,6 +87432,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{clip} could not be read as an animation clip: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 784
+    }
+  },
+  {
+    "area": "other",
+    "message": "{clip} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 779
+    }
+  },
+  {
+    "area": "other",
     "message": "{count} {label} detected.",
     "recovery": "internal",
     "sources": {
@@ -87387,7 +87507,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} reads back as {stored}, not {edit.value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 262
+      "cdmw/services/action_chart_edit_service.py": 614
     }
   },
   {
@@ -87400,10 +87520,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "{entry.path} is not an action chart",
+    "message": "{entry.path} is not an editable action chart",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 288
+      "cdmw/services/action_chart_edit_service.py": 912
     }
   },
   {
@@ -87540,6 +87660,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/pac_xml_editor.py": 476
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} also holds {path}, which is not in the game archives. Export to a new mod name instead.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 932
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} has no {group}/0.pamt.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 824
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} holds no action charts.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 833
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} is not an action chart mod CDMW wrote.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 819
     }
   },
   {
@@ -87803,7 +87955,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is a shared action table, not an action chart, and cannot be edited.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 138
+      "cdmw/services/action_chart_edit_service.py": 251
     }
   },
   {
@@ -103334,7 +103486,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/__init__.py": {},
   "cdmw/services/action_chart_edit_service.py": {
-    "raise": 6
+    "raise": 22
   },
   "cdmw/services/active_ui_translation.py": {},
   "cdmw/services/application_shutdown_service.py": {
@@ -104150,14 +104302,16 @@ SOURCE_COVERAGE = {
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {
-    "display": 2,
+    "display": 4,
     "raise": 1
   },
   "cdmw/ui/archive_browser/action_chart_editor_dialog.py": {
     "diagnostic_field": 1,
     "dialog": 1,
-    "display": 1
+    "display": 2
   },
+  "cdmw/ui/archive_browser/action_chart_export_dialog.py": {},
+  "cdmw/ui/archive_browser/action_chart_finder_dialog.py": {},
   "cdmw/ui/archive_browser/action_controls.py": {},
   "cdmw/ui/archive_browser/actions.py": {
     "assertion": 1

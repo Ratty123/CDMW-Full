@@ -645,14 +645,21 @@ inspectors before the readable-strings fallback:
   each animation's frame events with the names they reference, string tables, byte
   totals per section and the edit scope. The two `commonactioninfo` files show their sections; the serialized
   one marks its undecoded reflection tail.
-- **Edit Action Chart...** on a standard `.paac` (`action_chart_actions.py`,
-  `action_chart_editor_dialog.py`): the worker reads the chart and lists clip
-  names under `character/motion/`; the dialog collects clip retargets and
-  `EDITABLE_CHART_FIELDS` edits and applies them on its own worker through
-  `cdmw/services/action_chart_edit_service.py`, then rebuilds every table from
-  the edited bytes. Export writes only the chart through
-  `export_archive_payloads_to_mod_ready_loose` (DMM profile). The two
-  `commonactioninfo` tables get no menu entry.
+- Action charts (`action_chart_actions.py`, `action_chart_editor_dialog.py`,
+  `action_chart_finder_dialog.py`, `action_chart_export_dialog.py`): **Edit Action
+  Chart...** on a standard `.paac`, **Find Action Chart by Character...** on any
+  `.paac`/`.paacdesc`, and the **Action Charts** button (finder and **Open Action Chart
+  Mod...**), which works with nothing selected. The live browser keeps no in-process
+  extension index, so the worker builds one with `chart_archive_index` from
+  `scan_archive_entries` (charts, the descriptor, clips, blend spaces, sequencers,
+  prefabs), cached per game folder until a `.pamt` changes. The editor is not modal, so
+  **Show in Archive Browser** can search for a clip while it stays open; **Use Clip
+  Length** reads the clip on the dialog's worker. Edits apply on that worker through
+  `cdmw/services/action_chart_edit_service.py` and every table is rebuilt from the
+  edited bytes. Export writes a DMM archive-group mod (`0036/0.pamt` + `0.paz`,
+  manifest.json, modinfo.json) into DMM's mods folder or a chosen folder, keeps the
+  other charts of a mod with the same name, and never replaces a folder CDMW did not
+  write; `read_chart_mod` reopens one.
 - `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
   reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
   pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).

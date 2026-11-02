@@ -109,7 +109,9 @@ _CONTROLS = (
     "Drafts & Mods", "Continue Editing", "Delete...", "Remove from List...",
     "Add Mod Folder...", "Choose a Draft...", "Name Draft...", "New Project...", "Move to Project...",
     "Duplicate...", "Save Changes", "Include the body", "Add item packages", "Launch game", "Item identities",
-    "Edit Action Chart...", "Retarget Clip", "Apply and Re-read", "Export DMM Mod...",
+    "Edit Action Chart...", "Find Action Chart by Character...", "Edit Chart", "Set for This Animation",
+    "Set Event Fields", "Replace Everywhere", "Apply and Re-read", "Export DMM Mod...", "Send to DMM",
+    "Save Mod Folder...", "Action Charts", "Open Action Chart Mod...", "Use Clip Length", "Show in Archive Browser",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
