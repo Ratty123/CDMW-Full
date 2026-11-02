@@ -83,6 +83,9 @@ class SaveOutcome:
     manual_operation: str = ""
     #: Where the previous version of a replaced mod folder was kept, if it was.
     backup: Optional[Path] = None
+    #: The mod folder is already there and replacing it was not asked for. The window asks;
+    #: it cannot look for words in `problems`, which are already in the user's language.
+    already_exists: bool = False
 
     @property
     def saved(self) -> bool:
@@ -282,6 +285,7 @@ def save_mod(
             problems=(translate_active_ui_text(
                 f"A mod folder with this name already exists: {destination}"),),
             destination=destination,
+            already_exists=True,
         )
 
     include = set(request.include)
@@ -331,6 +335,7 @@ def save_mod(
                 replace_existing=request.replace_existing,
                 extra_files=extra,
                 keep_backup=not request.into_dmm,
+                managed_folder=request.into_dmm,
             )
             if verdict.blocked:
                 return SaveOutcome(problems=tuple(plain_finding(f) for f in verdict.errors),
@@ -346,7 +351,8 @@ def save_mod(
         results = build_all(Plan(name=name), extra, metadata, out_root=Path(request.folder),
                             baseline=baseline, managers=MOD_MANAGERS,
                             replace_existing=request.replace_existing,
-                            keep_backup=not request.into_dmm)
+                            keep_backup=not request.into_dmm,
+                            managed_folder=request.into_dmm)
         return SaveOutcome(tuple(results), destination=destination, manual_operation=manual_id,
                            backup=results[0].backup_root)
     except (PackagingError, EditError, OSError, ValueError) as exc:

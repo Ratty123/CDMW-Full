@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.placement_studio import save_mod
+from tools.placement_studio import preflight, save_mod
 from tools.placement_studio.move_operation import MoveRequest, apply_move, plan_move
 from tests.test_placement_studio_operations import (
     BODY,
@@ -204,7 +204,7 @@ class OtherPanelTests(unittest.TestCase):
             root = Path(folder) / "Hip sword - DMM"
             self.assertEqual((root / papr).read_bytes(), b"tuned")
             self.assertTrue((root / BODY).is_file())
-            manifest = json.loads((root / "operation_manifest.json").read_text(encoding="utf-8"))
+            manifest = json.loads((root / preflight.MANIFEST_NAME).read_text(encoding="utf-8"))
             self.assertEqual(manifest["other_edited_files"], [papr])
 
     def test_driven_bones_alone_save_without_any_operation(self) -> None:
@@ -256,3 +256,44 @@ class RefusalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── alpha.32 release review ─────────────────────────────────────────
+
+
+def _save_into_dmm(mods: Path, **fields):
+    session, edits = _session(), _edits()
+    moved = _moved(session, edits)
+    return save_mod.save_mod(
+        edits, _request(mods, [moved.operation_id], into_dmm=True, **fields),
+        baseline=_Baseline(FILES), shared_socket_users=_shared_users(session))
+
+
+def test_saving_into_dmm_leaves_only_the_mod_in_its_mods_folder(tmp_path) -> None:
+    mods = tmp_path / "DMM" / "mods"
+    mods.mkdir(parents=True)
+    outcome = _save_into_dmm(mods)
+    assert outcome.saved, outcome.problems
+    # DMM lists every folder here and reads every .json in a mod as a mod.
+    assert [p.name for p in mods.iterdir()] == ["Hip sword - DMM"]
+    mod = mods / "Hip sword - DMM"
+    assert {p.name for p in mod.glob("*.json")} <= {"manifest.json", "modinfo.json", "mod.json"}
+    assert (mod / preflight.MANIFEST_NAME).is_file()
+    assert not [p for p in (tmp_path / "DMM").iterdir() if p.name.startswith(".")]
+
+    again = _save_into_dmm(mods, replace_existing=True)
+    assert again.saved, again.problems
+    assert [p.name for p in mods.iterdir()] == ["Hip sword - DMM"]
+    assert again.backup is None
+
+
+def test_an_existing_mod_is_flagged_whatever_the_language(tmp_path, monkeypatch) -> None:
+    folder = tmp_path / "out"
+    (folder / "Hip sword - DMM").mkdir(parents=True)
+    monkeypatch.setattr(save_mod, "translate_active_ui_text", lambda text: "Bereits vorhanden")
+    session, edits = _session(), _edits()
+    moved = _moved(session, edits)
+    outcome = save_mod.save_mod(edits, _request(folder, [moved.operation_id]),
+                                baseline=_Baseline(FILES), shared_socket_users=_shared_users(session))
+    assert outcome.already_exists
+    assert outcome.problems == ("Bereits vorhanden",)

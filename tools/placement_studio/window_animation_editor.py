@@ -576,6 +576,12 @@ class AnimationEditorMixin:
         self._clip_edit = None
         self._clip_edit_undo = []
         self._clip_edit_rendered = self._clip_edit_rendered_for = None
+        # The replace target and its entry belong to the old character too: Start a new one
+        # from this pose and Import from Blender reuse them, and would put this character's
+        # motion over the other character's animation.
+        self._clip_edit_target = ""
+        self._clip_edit_entry = None
+        self._clip_edit_label = ""
         for box in (self._pose_bone_box, self._reach_end_box, self._splice_region):
             box.blockSignals(True)
             box.clear()
@@ -589,6 +595,17 @@ class AnimationEditorMixin:
             self.statusBar().showMessage(translate_active_ui_text(
                 "The animation edit was closed because the character changed. Anything already "
                 "added to Your mod is kept."))
+
+    def _current_model(self) -> str:
+        session = getattr(self, "_session", None)
+        return getattr(session, "model", "") if session is not None else ""
+
+    def _kept_target(self):
+        """The entry and replace target a new edit may keep: only this character's."""
+
+        if self._clip_edit_target and getattr(self, "_clip_edit_model", "") == self._current_model():
+            return self._clip_edit_entry, self._clip_edit_target
+        return None, ""
 
     def _init_animation_editor(self) -> None:
         """Wire the tab to the window once both exist: bone picking follows the open tab."""
@@ -701,8 +718,8 @@ class AnimationEditorMixin:
             QMessageBox.warning(self, "Edit animation", _explain(str(exc)))
             return
         label = translate_active_ui_text(f"New animation from {self._playback.label}")
-        self._begin_clip_edit(base, label, getattr(self, "_playback_entry", None),
-                              self._clip_edit_target)
+        _entry, target = self._kept_target()
+        self._begin_clip_edit(base, label, getattr(self, "_playback_entry", None), target)
 
     def _import_from_blender(self) -> None:
         from tools.paa_motion.gltf_import import GltfImportError, import_animation
@@ -746,7 +763,7 @@ class AnimationEditorMixin:
             QMessageBox.warning(self, "Import from Blender", _explain(str(report)))
             return
         label = report.animation or path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-        self._begin_clip_edit(report.clip, label, self._clip_edit_entry, self._clip_edit_target)
+        self._begin_clip_edit(report.clip, label, *self._kept_target())
         note = translate_active_ui_text(
             f"Imported {len(report.matched)} animated bone(s), {report.seconds:.2f} s.")
         if report.unmatched:
@@ -1393,6 +1410,11 @@ class AnimationEditorMixin:
         target = self._clip_edit_target
         if self._edits is None or not target:
             return
+        if getattr(self, "_clip_edit_model", "") != self._current_model():
+            self._clip_edit_status.setText(translate_active_ui_text(
+                "This animation was edited on another character. Start the edit again on this "
+                "one."))
+            return
         data = self._rendered_bytes()
         if data is None:
             return
@@ -1408,9 +1430,6 @@ class AnimationEditorMixin:
                 "Nothing changed yet: edit the animation first."))
             return
         previous = self._clip_edit_ops.get(target)
-        if previous and any(op.operation_id == previous for op in self._edits.operations()):
-            # Adding the same animation again replaces the earlier version in the mod.
-            self._edits.discard_operation(previous)
         scope = OperationScope(
             kind=OP_EDIT_ANIMATION,
             model=self._session.model if self._session is not None else "",
@@ -1418,8 +1437,13 @@ class AnimationEditorMixin:
         )
         label = translate_active_ui_text(f"Edited animation: {target.rsplit('/', 1)[-1][:-4]}")
         try:
-            with self._edits.begin_operation(scope, label=label) as handle:
-                handle.replace_clip(target, data, self._clip_edit_label, original)
+            # Adding the same animation again replaces the earlier version in the mod, but only
+            # if the new one is recorded: on a failure the earlier version stays.
+            with self._edits.keep_on_failure():
+                if previous and any(op.operation_id == previous for op in self._edits.operations()):
+                    self._edits.discard_operation(previous)
+                with self._edits.begin_operation(scope, label=label) as handle:
+                    handle.replace_clip(target, data, self._clip_edit_label, original)
         except EditError as exc:
             QMessageBox.warning(self, "Edit animation", _explain(str(exc)))
             return

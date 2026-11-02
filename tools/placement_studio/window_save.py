@@ -343,8 +343,8 @@ class SaveModMixin:
             into_dmm=into_dmm,
         )
         outcome = self._run_save(request)
-        if outcome.problems and outcome.destination is not None and outcome.destination.exists() \
-                and any("already exists" in p for p in outcome.problems):
+        if outcome.already_exists and outcome.destination is not None \
+                and outcome.destination.exists():
             if into_dmm:
                 kept = translate_active_ui_text(
                     "The earlier version, including any files you added to that folder, is "

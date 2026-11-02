@@ -32,10 +32,14 @@ def _mounted_names(package_root):
 def active_tables(root):
     """`(label, table)` for every mounted package table, in the order the game reads them.
 
-    The order is the shared archive scan's (`discover_pamt_files`): the base game's mount
-    list first, then each DLC root under `dlc/`. A DLC reuses the base folder names (its
-    `0009` is not the base `0009`), so tables are told apart by their path, and a DLC table
-    is labelled `dlc/<name>/<folder>`. Fixtures without a mount list keep discovery order.
+    Each table ranks by where its own mount list names its folder, and on equal rank a DLC
+    table comes before the base one: a DLC mounts its own copy of each base group folder in
+    the same order, and its files replace the base files at the same path. That is the order
+    the resident archive index keeps (`ArchiveResidentIndex._active_rows`), so a caller that
+    keeps the first entry per path reads what the rest of the workbench reads. A DLC reuses
+    the base folder names (its `0009` is not the base `0009`), so tables are told apart by
+    their path, and a DLC table is labelled `dlc/<name>/<folder>`. Fixtures without a mount
+    list keep discovery order.
     """
     from cdmw.core.archive_format import discover_pamt_files
     # Resolved like discover_pamt_files resolves it, or a junction or short path would make
@@ -59,7 +63,8 @@ def active_tables(root):
         if names is not None and parts[-1].lower() not in names:
             continue  # on disk, but the game does not mount it
         present.add((package_root, parts[-1].lower()))
-        out.append((label, table))
+        rank = list(names).index(parts[-1].lower()) if names is not None else len(out)
+        out.append(((rank, 0 if package_root != root else 1, len(out)), label, table))
     for package_root, names in mounted.items():
         for name, directory in (names or {}).items():
             # Optional directories may legitimately be absent: the language packs, and the
@@ -67,7 +72,7 @@ def active_tables(root):
             if (package_root, name) in present or directory.flags & 0xff:
                 continue
             raise ValueError(f'Mounted archive is missing: {directory.name}')
-    return out
+    return [(label, table) for _order, label, table in sorted(out, key=lambda row: row[0])]
 
 
 def active_entries(root, *, cancelled=lambda: False):

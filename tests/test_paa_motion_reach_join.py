@@ -318,3 +318,37 @@ class ReviewFindingTests(unittest.TestCase):
         held = held.with_pose_key(hand, edit.PoseKey(40))
         trimmed = edit.remap_keys(held, replace(held, trim_start=0.5))
         self.assertEqual(sorted(k.frame for k in trimmed.pose_track(hand).keys), [9, 25])
+
+
+class RootStartTests(unittest.TestCase):
+    """A trimmed or reversed clip starts its root where the untrimmed clip starts."""
+
+    def setUp(self) -> None:
+        self.skeleton = _skeleton()
+        self.clip = _walk(30)
+
+    def test_trimming_the_start_keeps_the_root_starting_where_the_clip_starts(self) -> None:
+        out = render(ClipEdit(self.clip, trim_start=0.5), self.skeleton)
+        start = _at(self.skeleton, self.clip, "Bip01", 0)
+        self.assertLess(abs(_at(self.skeleton, out, "Bip01", 0)[2] - start[2]), 1e-4)
+        # The motion itself is the trimmed part's: same steps, same distance.
+        for frame in (5, 10, 15):
+            moved = _at(self.skeleton, out, "Bip01", frame)[2] - _at(self.skeleton, out, "Bip01", 0)[2]
+            own = (_at(self.skeleton, self.clip, "Bip01", 15 + frame)[2]
+                   - _at(self.skeleton, self.clip, "Bip01", 15)[2])
+            self.assertAlmostEqual(moved, own, delta=1e-4)
+        # Height is kept as the clip has it at that moment.
+        self.assertAlmostEqual(_at(self.skeleton, out, "Bip01", 0)[1],
+                               _at(self.skeleton, self.clip, "Bip01", 15)[1], delta=1e-4)
+
+    def test_playing_backwards_starts_where_the_clip_starts_and_walks_back(self) -> None:
+        out = render(ClipEdit(self.clip, reverse=True), self.skeleton)
+        start = _at(self.skeleton, self.clip, "Bip01", 0)
+        self.assertLess(abs(_at(self.skeleton, out, "Bip01", 0)[2] - start[2]), 1e-4)
+        self.assertGreater(_at(self.skeleton, out, "Bip01", 30)[2], start[2] + 1.0)
+
+    def test_only_speed_changes_nothing_about_the_start(self) -> None:
+        out = render(ClipEdit(self.clip, speed=2.0), self.skeleton)
+        for frame in (0, 7, 15):
+            self.assertLess(_distance(_at(self.skeleton, out, "Bip01", frame),
+                                      _at(self.skeleton, self.clip, "Bip01", frame * 2)), 1e-3)

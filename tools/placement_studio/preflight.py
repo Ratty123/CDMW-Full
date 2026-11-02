@@ -27,7 +27,11 @@ from .model import EquipmentUnit
 LARGE_REPLACEMENT_COUNT = 120
 
 MANIFEST_FORMAT = "cdmw_placement_operation_v1"
-MANIFEST_NAME = "operation_manifest.json"
+# A .txt name although the content is JSON: DMM reads every .json in a mod folder as a mod
+# and reports any it does not recognise as broken. A .txt beside the payload is what every DMM
+# mod's README already is. Packages saved before alpha.32 carry the old name.
+MANIFEST_NAME = "operation_manifest.txt"
+LEGACY_MANIFEST_NAME = "operation_manifest.json"
 
 
 @dataclass(frozen=True, slots=True)

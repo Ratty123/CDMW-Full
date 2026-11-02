@@ -371,7 +371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 606,
+          "line": 618,
           "sink": "log"
         }
       ]
@@ -436,7 +436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 396,
+          "line": 408,
           "sink": "log"
         }
       ]
@@ -4236,7 +4236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 388,
+          "line": 394,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -4451,7 +4451,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 282,
+          "line": 285,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -4461,7 +4461,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 253,
+          "line": 256,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -7106,7 +7106,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1430,
+          "line": 1454,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -7301,12 +7301,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 116,
+          "line": 119,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 133,
+          "line": 136,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -7526,7 +7526,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 153,
+          "line": 156,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -9381,7 +9381,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 398,
+          "line": 404,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -10071,7 +10071,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 147,
+          "line": 150,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -17921,7 +17921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 403,
+          "line": 415,
           "sink": "log"
         }
       ]
@@ -24121,7 +24121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 703,
+          "line": 728,
           "sink": "EditError"
         }
       ]
@@ -24191,7 +24191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 365,
+          "line": 377,
           "sink": "ValueError"
         }
       ]
@@ -25046,7 +25046,7 @@
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 113,
+          "line": 116,
           "sink": "translate_active_ui_text"
         },
         {
@@ -27151,7 +27151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 584,
+          "line": 596,
           "sink": "log"
         }
       ]
@@ -38281,7 +38281,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1367,
+          "line": 1384,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -38296,7 +38296,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1367,
+          "line": 1384,
           "sink": "getSaveFileName"
         }
       ]
@@ -39981,7 +39981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 275,
+          "line": 278,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -44761,7 +44761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 185,
+          "line": 188,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -46366,27 +46366,27 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 680,
+          "line": 697,
           "sink": "question"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 701,
+          "line": 718,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 965,
+          "line": 982,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1359,
+          "line": 1376,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1424,
+          "line": 1448,
           "sink": "warning"
         }
       ]
@@ -46991,7 +46991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 101,
+          "line": 104,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -47001,7 +47001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1419,
+          "line": 1438,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -47196,7 +47196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1166,
+          "line": 1183,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -50636,7 +50636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 117,
+          "line": 122,
           "sink": "python-return:resolve"
         }
       ]
@@ -50646,7 +50646,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 126,
+          "line": 131,
           "sink": "python-return:resolve"
         }
       ]
@@ -51836,12 +51836,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1367,
+          "line": 1384,
           "sink": "getSaveFileName"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1380,
+          "line": 1397,
           "sink": "warning"
         }
       ]
@@ -51946,12 +51946,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 766,
+          "line": 783,
           "sink": "getSaveFileName"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 773,
+          "line": 790,
           "sink": "warning"
         }
       ]
@@ -56446,7 +56446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 148,
+          "line": 149,
           "sink": "EditError"
         }
       ]
@@ -60951,7 +60951,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 251,
+          "line": 254,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -60971,7 +60971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 70,
+          "line": 71,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -67376,7 +67376,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 719,
+          "line": 736,
           "sink": "getOpenFileName"
         }
       ]
@@ -67466,12 +67466,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 742,
+          "line": 759,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 746,
+          "line": 763,
           "sink": "warning"
         }
       ]
@@ -68251,7 +68251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 750,
+          "line": 767,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -70891,7 +70891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 314,
+          "line": 319,
           "sink": "RuntimeError"
         }
       ]
@@ -71086,7 +71086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 124,
+          "line": 129,
           "sink": "python-return:resolve"
         }
       ]
@@ -80056,7 +80056,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 139,
+          "line": 142,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -86416,7 +86416,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 127,
+          "line": 132,
           "sink": "python-return:resolve"
         }
       ]
@@ -88911,7 +88911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 69,
+          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -89396,12 +89396,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 103,
+          "line": 106,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 107,
+          "line": 110,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -89411,7 +89411,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 104,
+          "line": 107,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -89821,12 +89821,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 221,
+          "line": 224,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 225,
+          "line": 228,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -90291,7 +90291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 75,
+          "line": 76,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -91656,7 +91656,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 703,
+          "line": 720,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -91686,12 +91686,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 119,
+          "line": 122,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 135,
+          "line": 138,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95926,22 +95926,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 806,
+          "line": 831,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 815,
+          "line": 840,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 822,
+          "line": 847,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 841,
+          "line": 866,
           "sink": "EditError"
         }
       ]
@@ -97046,12 +97046,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 715,
+          "line": 740,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 768,
+          "line": 793,
           "sink": "EditError"
         }
       ]
@@ -97061,7 +97061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 686,
+          "line": 711,
           "sink": "EditError"
         }
       ]
@@ -97071,7 +97071,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 923,
+          "line": 948,
           "sink": "EditError"
         }
       ]
@@ -97081,7 +97081,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 906,
+          "line": 931,
           "sink": "EditError"
         }
       ]
@@ -97106,7 +97106,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1264,
+          "line": 1281,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -97196,7 +97196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 753,
+          "line": 770,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -97531,7 +97531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1407,
+          "line": 1429,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -97601,7 +97601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 316,
+          "line": 320,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -97681,7 +97681,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 583,
+          "line": 589,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -101536,7 +101536,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 317,
+          "line": 318,
           "sink": "EditError"
         }
       ]
@@ -101546,7 +101546,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 304,
+          "line": 305,
+          "sink": "EditError"
+        },
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 560,
           "sink": "EditError"
         }
       ]
@@ -101556,12 +101561,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 424,
+          "line": 425,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 503,
+          "line": 504,
           "sink": "EditError"
         }
       ]
@@ -108621,7 +108626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 138,
+          "line": 141,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -109421,7 +109426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 691,
+          "line": 708,
           "sink": "showMessage"
         }
       ]
@@ -109431,7 +109436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 663,
+          "line": 680,
           "sink": "showMessage"
         }
       ]
@@ -109461,7 +109466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 763,
+          "line": 780,
           "sink": "showMessage"
         }
       ]
@@ -109516,7 +109521,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 714,
+          "line": 731,
           "sink": "showMessage"
         }
       ]
@@ -118161,12 +118166,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 121,
+          "line": 124,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 145,
+          "line": 148,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -119051,7 +119056,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 736,
+          "line": 753,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -119251,12 +119256,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 948,
+          "line": 965,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1100,
+          "line": 1117,
           "sink": "showMessage"
         }
       ]
@@ -122706,7 +122711,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 852,
+          "line": 877,
           "sink": "EditError"
         }
       ]
@@ -122746,7 +122751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 748,
+          "line": 773,
           "sink": "EditError"
         }
       ]
@@ -123166,17 +123171,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 78,
+          "line": 83,
           "sink": "RuntimeError"
         },
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 207,
+          "line": 212,
           "sink": "RuntimeError"
         },
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 304,
+          "line": 309,
           "sink": "RuntimeError"
         }
       ]
@@ -125061,7 +125066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 111,
+          "line": 114,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -125071,7 +125076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 109,
+          "line": 112,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -128231,7 +128236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 383,
+          "line": 395,
           "sink": "log"
         }
       ]
@@ -128501,7 +128506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 375,
+          "line": 387,
           "sink": "log"
         }
       ]
@@ -130996,7 +131001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 188,
+          "line": 191,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -132796,7 +132801,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 770,
+          "line": 795,
           "sink": "EditError"
         }
       ]
@@ -139696,7 +139701,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1082,
+          "line": 1099,
           "sink": "showMessage"
         }
       ]
@@ -139706,7 +139711,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 931,
+          "line": 948,
           "sink": "showMessage"
         }
       ]
@@ -139716,7 +139721,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1329,
+          "line": 1346,
           "sink": "showMessage"
         }
       ]
@@ -144631,7 +144636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1177,
+          "line": 1194,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -147086,7 +147091,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 911,
+          "line": 936,
           "sink": "EditError"
         }
       ]
@@ -147096,7 +147101,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 774,
+          "line": 799,
           "sink": "EditError"
         }
       ]
@@ -147106,7 +147111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 925,
+          "line": 950,
           "sink": "EditError"
         }
       ]
@@ -149496,7 +149501,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 680,
+          "line": 697,
           "sink": "question"
         }
       ]
@@ -155646,7 +155651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 589,
+          "line": 595,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -157531,7 +157536,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 499,
+          "line": 511,
           "sink": "python-return:describe"
         }
       ]
@@ -157666,7 +157671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 257,
+          "line": 260,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -157676,7 +157681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 619,
+          "line": 631,
           "sink": "RuntimeError"
         }
       ]
@@ -157921,7 +157926,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 500,
+          "line": 512,
           "sink": "python-return:describe"
         }
       ]
@@ -160391,7 +160396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 395,
+          "line": 401,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -161261,7 +161266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 391,
+          "line": 397,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -161426,7 +161431,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 149,
+          "line": 152,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -162090,6 +162095,16 @@
       "key": "This action also changes equipment or docking through unsupported events",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "This animation was edited on another character. Start the edit again on this one.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_animation_editor.py",
+          "line": 1414,
+          "sink": "translate_active_ui_text"
+        }
+      ]
     },
     {
       "key": "This app has taken a lot of spare-time work to research, build, test, and keep improving. You absolutely do not need to tip. If the software helped you, saved time, or made modding a little easier, coffee money is appreciated and helps keep the project moving.",
@@ -166066,7 +166081,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 401,
+          "line": 407,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -166076,7 +166091,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 312,
+          "line": 316,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -167516,7 +167531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/preflight.py",
-          "line": 637,
+          "line": 641,
           "sink": "ValueError"
         }
       ]
@@ -168481,7 +168496,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 195,
+          "line": 200,
           "sink": "python-return:attachment"
         }
       ]
@@ -168491,7 +168506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 192,
+          "line": 197,
           "sink": "python-return:attachment"
         }
       ]
@@ -168946,7 +168961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1147,
+          "line": 1164,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -170416,7 +170431,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 72,
+          "line": 73,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -177356,12 +177371,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 775,
+          "line": 792,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1382,
+          "line": 1399,
           "sink": "showMessage"
         }
       ]
@@ -177766,7 +177781,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 407,
+          "line": 413,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -177791,7 +177806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 301,
+          "line": 305,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -178726,7 +178741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 698,
+          "line": 723,
           "sink": "EditError"
         }
       ]
@@ -183656,7 +183671,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1260,
+          "line": 1277,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -185656,7 +185671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 719,
+          "line": 736,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -185666,7 +185681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 719,
+          "line": 736,
           "sink": "getOpenFileName"
         }
       ]
@@ -185706,7 +185721,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 766,
+          "line": 783,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -185716,7 +185731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 766,
+          "line": 783,
           "sink": "getSaveFileName"
         }
       ]
@@ -187321,7 +187336,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1308,
+          "line": 1325,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -187431,7 +187446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1306,
+          "line": 1323,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -191421,7 +191436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 468,
+          "line": 469,
           "sink": "python-return:adopt_loose_commands"
         }
       ]
@@ -192441,7 +192456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1304,
+          "line": 1321,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -194251,7 +194266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 678,
+          "line": 703,
           "sink": "EditError"
         }
       ]
@@ -200866,7 +200881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1319,
+          "line": 1336,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -200886,7 +200901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1261,
+          "line": 1278,
           "sink": "setText"
         }
       ]
@@ -200906,7 +200921,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1294,
+          "line": 1311,
           "sink": "addItem"
         }
       ]
@@ -202131,7 +202146,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 137,
+          "line": 140,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -202186,7 +202201,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 123,
+          "line": 126,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -203116,7 +203131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1119,
+          "line": 1136,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -203496,7 +203511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 780,
+          "line": 805,
           "sink": "EditError"
         }
       ]
@@ -203546,7 +203561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 383,
+          "line": 389,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -204481,7 +204496,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1288,
+          "line": 1305,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -204491,7 +204506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1310,
+          "line": 1327,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -205986,7 +206001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 405,
+          "line": 411,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -206236,7 +206251,7 @@
         },
         {
           "path": "tools/placement_studio/relationships.py",
-          "line": 124,
+          "line": 129,
           "sink": "python-return:resolve"
         }
       ]
@@ -207186,12 +207201,12 @@
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 705,
+          "line": 730,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 720,
+          "line": 745,
           "sink": "EditError"
         },
         {
