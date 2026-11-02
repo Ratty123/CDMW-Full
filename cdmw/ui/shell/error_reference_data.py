@@ -7446,6 +7446,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "A clip path must be plain ASCII text of at most {MAX_STRING_BYTES} characters.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_link_dialog.py": 116
+    }
+  },
+  {
+    "area": "archive",
     "message": "A declared texture is absent from the mod's registry.",
     "recovery": "internal",
     "sources": {
@@ -9686,7 +9694,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot edit {prepared.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 186
+      "cdmw/ui/archive_browser/action_chart_actions.py": 189
     }
   },
   {
@@ -10377,7 +10385,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not open {chart_path}: {result}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 154
+      "cdmw/ui/archive_browser/action_chart_actions.py": 155
     }
   },
   {
@@ -10425,7 +10433,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 316
+      "cdmw/ui/archive_browser/action_chart_actions.py": 311
     }
   },
   {
@@ -10433,7 +10441,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the clip: {outcome.message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 999
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1010
     }
   },
   {
@@ -10441,7 +10449,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {folder}: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 357
+      "cdmw/ui/archive_browser/action_chart_actions.py": 352
     }
   },
   {
@@ -15846,7 +15854,7 @@ MESSAGE_REFERENCE = [
     "message": "The edit was refused: {outcome.message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1221
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1245
     }
   },
   {
@@ -15919,6 +15927,22 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "cdmw/services/archive_overlay_manager.py": 459
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The export failed, and your edits are kept: {outcome.message}",
+    "recovery": "write",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1297
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The export has no destination.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 268
     }
   },
   {
@@ -16624,7 +16648,7 @@ MESSAGE_REFERENCE = [
     "message": "These names are not in the game's archives or in this chart: {detail} A clip or file that does not exist cannot play, and a socket or part the character does not have does nothing. Apply anyway?",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1180
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1194
     }
   },
   {
@@ -19496,7 +19520,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart_path} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 127
+      "cdmw/ui/archive_browser/action_chart_actions.py": 128
     }
   },
   {
@@ -31056,7 +31080,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 697
+      "cdmw/services/new_item_service.py": 702
     }
   },
   {
@@ -31560,6 +31584,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "CDMW cannot find its record of the items in {folder.name}. Its files were changed after export, or it was exported on another computer. Export the new item to a new mod instead.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_mod_base.py": 287
+    }
+  },
+  {
+    "area": "items",
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
@@ -31963,7 +31995,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_service.py": 597
+      "cdmw/services/new_item_service.py": 602
     }
   },
   {
@@ -32518,7 +32550,7 @@ MESSAGE_REFERENCE = [
     "message": "Installing a new item into the game archives requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 626
+      "cdmw/services/new_item_service.py": 631
     }
   },
   {
@@ -33294,7 +33326,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 690
+      "cdmw/services/new_item_service.py": 695
     }
   },
   {
@@ -34821,7 +34853,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 634,
+      "cdmw/services/new_item_service.py": 639,
       "cdmw/ui/new_item/tab.py": 1163,
       "cdmw/workers/new_item_workers.py": 340
     }
@@ -35191,7 +35223,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan changes nothing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 631
+      "cdmw/services/new_item_service.py": 636
     }
   },
   {
@@ -35207,7 +35239,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 816
+      "cdmw/services/new_item_service.py": 821
     }
   },
   {
@@ -37863,7 +37895,7 @@ MESSAGE_REFERENCE = [
     "message": "{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 629
+      "cdmw/services/new_item_service.py": 634
     }
   },
   {
@@ -74082,7 +74114,7 @@ MESSAGE_REFERENCE = [
     "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1014
+      "cdmw/services/action_chart_edit_service.py": 1027
     }
   },
   {
@@ -75276,7 +75308,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_export_history.py": 171
+      "cdmw/core/mod_export_history.py": 216
     }
   },
   {
@@ -75516,7 +75548,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a new or empty output folder. Existing mod packages are preserved.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 347
+      "cdmw/services/mod_merge_service.py": 367
     }
   },
   {
@@ -75572,7 +75604,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder separate from the game and all selected mods.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 345
+      "cdmw/services/mod_merge_service.py": 365
     }
   },
   {
@@ -76693,7 +76725,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 requires retained .cdmw contributors. Use Export installed items or merge semantic exports.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 354
+      "cdmw/services/mod_merge_service.py": 374
     }
   },
   {
@@ -79140,7 +79172,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod history file: {source}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 153
+      "cdmw/core/mod_export_history.py": 197
     }
   },
   {
@@ -80253,7 +80285,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot follow a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 49
+      "cdmw/core/mod_export_history.py": 61
     }
   },
   {
@@ -80261,7 +80293,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot remove a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 178
+      "cdmw/core/mod_export_history.py": 223
     }
   },
   {
@@ -80365,7 +80397,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before exporting it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1064
+      "cdmw/services/action_chart_edit_service.py": 1095
     }
   },
   {
@@ -80694,7 +80726,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a CDMW history file: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 104
+      "cdmw/core/mod_export_history.py": 116
     }
   },
   {
@@ -80934,7 +80966,7 @@ MESSAGE_REFERENCE = [
     "message": "Oversized mod history record: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_export_history.py": 148
+      "cdmw/core/mod_export_history.py": 192
     }
   },
   {
@@ -81878,7 +81910,7 @@ MESSAGE_REFERENCE = [
     "message": "Resolve the reported conflicts before writing a merged mod.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mod_merge_service.py": 340
+      "cdmw/services/mod_merge_service.py": 360
     }
   },
   {
@@ -82287,7 +82319,7 @@ MESSAGE_REFERENCE = [
     "message": "Set the game folder in Archive Browser before editing action charts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 719
+      "cdmw/services/action_chart_edit_service.py": 726
     }
   },
   {
@@ -83032,7 +83064,7 @@ MESSAGE_REFERENCE = [
     "message": "The character action package description (.paacdesc) is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 750
+      "cdmw/services/action_chart_edit_service.py": 757
     }
   },
   {
@@ -83800,7 +83832,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod export must be outside CDMW's local history folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 137
+      "cdmw/core/mod_export_history.py": 181
     }
   },
   {
@@ -84433,6 +84465,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/mod_compatibility.py": 413
+    }
+  },
+  {
+    "area": "other",
+    "message": "The shop and group operations of {Path(folder).name} cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mod_merge_service.py": 348
     }
   },
   {
@@ -86372,7 +86412,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {resource.animation} does not read back blend space {resource.blend}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 604
+      "cdmw/services/action_chart_edit_service.py": 611
     }
   },
   {
@@ -86380,7 +86420,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {resource.animation} does not read back clip {resource.clip}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 602
+      "cdmw/services/action_chart_edit_service.py": 609
     }
   },
   {
@@ -86732,7 +86772,7 @@ MESSAGE_REFERENCE = [
     "message": "frame event {edit.event + 1} of animation {edit.animation} reads back {edit.field} {stored}, not {edit.value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 608
+      "cdmw/services/action_chart_edit_service.py": 615
     }
   },
   {
@@ -88921,7 +88961,7 @@ MESSAGE_REFERENCE = [
     "message": "the chart does not read back {retarget.new}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 598
+      "cdmw/services/action_chart_edit_service.py": 605
     }
   },
   {
@@ -88929,7 +88969,7 @@ MESSAGE_REFERENCE = [
     "message": "the chart has no changes to export",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1068
+      "cdmw/services/action_chart_edit_service.py": 1099
     }
   },
   {
@@ -89177,7 +89217,7 @@ MESSAGE_REFERENCE = [
     "message": "the written mod archive does not read back as the edited charts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1123
+      "cdmw/services/action_chart_edit_service.py": 1154
     }
   },
   {
@@ -89186,6 +89226,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 531
+    }
+  },
+  {
+    "area": "other",
+    "message": "this chart has no frame events to edit",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 591
     }
   },
   {
@@ -89313,7 +89361,7 @@ MESSAGE_REFERENCE = [
     "message": "{clip} could not be read as an animation clip: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 797
+      "cdmw/services/action_chart_edit_service.py": 804
     }
   },
   {
@@ -89321,7 +89369,7 @@ MESSAGE_REFERENCE = [
     "message": "{clip} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 792
+      "cdmw/services/action_chart_edit_service.py": 799
     }
   },
   {
@@ -89385,7 +89433,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} reads back as {stored}, not {edit.value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 614
+      "cdmw/services/action_chart_edit_service.py": 621
     }
   },
   {
@@ -89401,7 +89449,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not an editable action chart",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1061
+      "cdmw/services/action_chart_edit_service.py": 1092
     }
   },
   {
@@ -89545,7 +89593,7 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} has no {group}/0.pamt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 968
+      "cdmw/services/action_chart_edit_service.py": 978
     }
   },
   {
@@ -89553,7 +89601,15 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} holds no action charts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 977
+      "cdmw/services/action_chart_edit_service.py": 987
+    }
+  },
+  {
+    "area": "other",
+    "message": "{folder.name} is another kind of mod CDMW wrote, not an action chart mod. Choose another mod name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 1025
     }
   },
   {
@@ -89561,7 +89617,7 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} is not an action chart mod CDMW wrote.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 963
+      "cdmw/services/action_chart_edit_service.py": 973
     }
   },
   {
@@ -90105,7 +90161,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} cannot be read to change its clips.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1099
+      "cdmw/services/action_chart_edit_service.py": 1130
     }
   },
   {
@@ -90129,7 +90185,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not in the game archives. Export to a new mod name instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1081
+      "cdmw/services/action_chart_edit_service.py": 1112
     }
   },
   {
@@ -103060,6 +103116,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_archive_refit.py",
     "cdmw/services/mesh_rust_archive_refit.py",
     "cdmw/services/replace_from_archive_service.py",
+    "cdmw/ui/archive_browser/action_chart_actions.py",
     "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
     "cdmw/ui/archive_browser/actions.py",
     "cdmw/ui/archive_browser/appearance_composite.py",
@@ -105673,7 +105730,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/__init__.py": {},
   "cdmw/services/action_chart_edit_service.py": {
-    "raise": 24
+    "raise": 26
   },
   "cdmw/services/active_ui_translation.py": {},
   "cdmw/services/application_shutdown_service.py": {
@@ -106208,7 +106265,7 @@ SOURCE_COVERAGE = {
     "raise": 4
   },
   "cdmw/services/mod_merge_service.py": {
-    "raise": 27
+    "raise": 28
   },
   "cdmw/services/mod_update_service.py": {
     "raise": 17
@@ -106271,7 +106328,7 @@ SOURCE_COVERAGE = {
     "raise": 19
   },
   "cdmw/services/new_item_mod_base.py": {
-    "raise": 9
+    "raise": 10
   },
   "cdmw/services/new_item_mounted_base.py": {
     "raise": 18,
@@ -106504,17 +106561,20 @@ SOURCE_COVERAGE = {
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {
+    "dialog": 1,
     "display": 4,
-    "raise": 1
+    "raise": 2
   },
   "cdmw/ui/archive_browser/action_chart_editor_dialog.py": {
     "diagnostic_field": 1,
     "dialog": 1,
-    "display": 2
+    "display": 3
   },
   "cdmw/ui/archive_browser/action_chart_export_dialog.py": {},
   "cdmw/ui/archive_browser/action_chart_finder_dialog.py": {},
-  "cdmw/ui/archive_browser/action_chart_link_dialog.py": {},
+  "cdmw/ui/archive_browser/action_chart_link_dialog.py": {
+    "display": 1
+  },
   "cdmw/ui/archive_browser/action_controls.py": {},
   "cdmw/ui/archive_browser/actions.py": {
     "assertion": 1

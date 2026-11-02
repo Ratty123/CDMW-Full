@@ -151,7 +151,13 @@ def test_independent_item_mods_merge_into_readable_dmm(tmp_path, current):
     shops = parse_store_table(files[snapshot.storeinfo.payload_entry.path], files[snapshot.storeinfo.header_entry.path],
                               layout="current" if current else "legacy")
     camp = next(shop for shop in shops if shop.name == "Store_Camp_Equipment")
-    assert all(camp.entries_for(item.spec.item_key) for item in plans)
+    # DMM exports add items to shops as operations beside the archive, not as table rows;
+    # the merged mod must carry both kinds.
+    from cdmw.services.dmm_send import OPERATIONS_FILE, _operation_item
+    operations = result.package_root / OPERATIONS_FILE
+    targets = json.loads(operations.read_text(encoding="utf-8"))["targets"] if operations.is_file() else []
+    operated = {_operation_item(intent) for target in targets for intent in target["intents"]}
+    assert all(camp.entries_for(item.spec.item_key) or item.spec.item_key in operated for item in plans)
     assert len({entry.order_index for entry in camp.entries}) == len(camp.entries)
     for root, before in original.items():
         assert fingerprint(root) == before
