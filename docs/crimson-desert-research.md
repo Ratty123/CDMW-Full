@@ -1448,8 +1448,14 @@ runtime dump, archives read-only):
   bytes per entry), Kliff clapped with the sword drawn and the game loaded
   normally. The same edit in `sword_upper.paac` alone changed nothing visible,
   although DmmRuntime served exactly the edited chart, so the sword-drawn idle on
-  screen comes from another chart that plays the same clip. Timing, speed and
-  event edits are not checked in game yet.
+  screen comes from another chart that plays the same clip. Single-chart tests
+  settled it: with two one-handed swords drawn, the idle comes from
+  `dualweapon_upper.paac`, which no package names directly. Player_Kliff's
+  SubWeapon slot uses `subweapon_upper`, and that chart includes
+  `dualweapon_upper` through its included-chart names. `basic_upper_maskset`
+  alone changed nothing. Which chart a player sees therefore depends on the
+  loadout, and a chart can be reached only through another chart's includes.
+  Timing, speed and event edits are not checked in game yet.
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts
