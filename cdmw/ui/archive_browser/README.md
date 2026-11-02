@@ -686,15 +686,21 @@ poses are unaffected. The native package cache invalidates older baked previews.
 ### Add Bones and Skeleton Edit JSON
 
 A `.pab` entry's **Structured Data** menu opens **Add Bones...**
-(`pab_bone_editor_dialog.py`): a searchable bone tree, front and side outlines
-that select a bone on click, **Add Child Bone**, **Add Chain...** (count,
+(`pab_bone_editor_dialog.py`): numbered steps whose current step is bold, a
+**Quick pick** row for common attach points (only those the rig has), a
+searchable bone tree, front and side outlines that select a bone on click,
+**Add Child Bone**, **Add Chain...** (count,
 segment length and a character-space direction), **Remove** (an added bone and
 what was added under it) and a form for the selected added bone. Offsets are
 edited along the character's axes (X left, Y up, Z back) and stored in the
 parent's space; rotation stays relative to the parent. Every change rebuilds the
 skeleton, and the first refusal disables **Save as Mod...** with its reason.
-**Save Draft...** and **Open Draft...** use Skeleton Edit JSON. Game bones are
-shown read-only. A rename to a taken or invalid name is refused without touching other
+**Save Draft...** and **Open Draft...** use Skeleton Edit JSON. A game bone
+shows a read-only summary that explains why it cannot change and names the
+bone offset table, with **Add Child Bone Here** and **Add Chain Here...**.
+Bones outside the rig's largest root (`body_bone_names`) are grouped under
+**Markers (do not follow the body)**, and a bone added under one carries a
+warning, because root-motion, IK and climb targets stay at the feet or origin. A rename to a taken or invalid name is refused without touching other
 bones, and Enter in a field never presses the accept button. Create New Item's **Add bones…** opens the same dialog with
 `initial_edits` and its own accept label (**Use These Bones**) and reads
 `edits()` instead of writing a package (see the New Item README).

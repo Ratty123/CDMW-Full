@@ -1211,12 +1211,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 298,
+          "line": 394,
           "sink": "_vector_boxes"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 543,
+          "line": 698,
           "sink": "setSuffix"
         },
         {
@@ -2572,6 +2572,16 @@
       ]
     },
     {
+      "key": "1. Choose where the new bones attach",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 277,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "1. Enter the query/asset.\n2. Choose the search or analysis.\n3. Open or export the result.",
       "origins": [
         {
@@ -2822,6 +2832,16 @@
       ]
     },
     {
+      "key": "2. Add a child bone or a chain",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 278,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "2. Backend Summary",
       "origins": [
         {
@@ -2903,6 +2923,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3864,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "3. Adjust them, then save",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 279,
+          "sink": "tr"
         }
       ]
     },
@@ -3976,7 +4006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 607,
+          "line": 764,
           "sink": "setText"
         }
       ]
@@ -6051,7 +6081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 234,
+          "line": 263,
           "sink": "setWindowTitle"
         }
       ]
@@ -6076,13 +6106,23 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 526,
+          "line": 681,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 567,
+          "line": 724,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Add Chain Here...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 374,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -6091,7 +6131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 274,
+          "line": 332,
           "sink": "QPushButton"
         }
       ]
@@ -6101,7 +6141,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 271,
+          "line": 329,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Add Child Bone Here",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 372,
           "sink": "QPushButton"
         }
       ]
@@ -6391,7 +6441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 275,
+          "line": 333,
           "sink": "setToolTip"
         }
       ]
@@ -6491,7 +6541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 247,
+          "line": 286,
           "sink": "QLabel"
         }
       ]
@@ -6671,7 +6721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 272,
+          "line": 330,
           "sink": "setToolTip"
         }
       ]
@@ -6916,7 +6966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 471,
+          "line": 619,
           "sink": "setText"
         }
       ]
@@ -6932,21 +6982,11 @@
       ]
     },
     {
-      "key": "Added bone",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 426,
-          "sink": "setTitle"
-        }
-      ]
-    },
-    {
       "key": "Added bone {value_0} ({value_1}): {value_2}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 125,
+          "line": 153,
           "sink": "python-return:build_added_bones"
         }
       ]
@@ -15377,6 +15417,16 @@
       ]
     },
     {
+      "key": "Attached to:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 391,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Attached {value_0} companion descriptor hint document(s) to the HKX converter export.",
       "origins": [
         {
@@ -16894,6 +16944,11 @@
     {
       "key": "Back",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 701,
+          "sink": "tr"
+        },
         {
           "path": "cdmw/ui/new_item/tab.py",
           "line": 593,
@@ -18906,7 +18961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 266,
+          "line": 324,
           "sink": "setHeaderLabels"
         },
         {
@@ -18976,7 +19031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 607,
+          "line": 764,
           "sink": "setText"
         }
       ]
@@ -19006,7 +19061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 607,
+          "line": 764,
           "sink": "setText"
         }
       ]
@@ -19081,7 +19136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 537,
+          "line": 692,
           "sink": "addRow"
         }
       ]
@@ -25666,7 +25721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 309,
+          "line": 405,
           "sink": "addRow"
         }
       ]
@@ -25888,6 +25943,26 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Character's left",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 702,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Character's right",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 702,
+          "sink": "tr"
         }
       ]
     },
@@ -34946,7 +35021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 326,
+          "line": 423,
           "sink": "setToolTip"
         }
       ]
@@ -36911,7 +36986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 663,
+          "line": 820,
           "sink": "warning"
         }
       ]
@@ -42396,7 +42471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 548,
+          "line": 705,
           "sink": "addRow"
         }
       ]
@@ -43599,6 +43674,11 @@
     {
       "key": "Down",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 701,
+          "sink": "tr"
+        },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
           "line": 98,
@@ -55446,7 +55526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 261,
+          "line": 319,
           "sink": "setPlaceholderText"
         }
       ]
@@ -56696,7 +56776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 451,
+          "line": 576,
           "sink": "setText"
         }
       ]
@@ -58395,6 +58475,11 @@
       "key": "Forward",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 701,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 169,
           "sink": "QPushButton"
@@ -58901,7 +58986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 191,
+          "line": 219,
           "sink": "drawText"
         }
       ]
@@ -59452,11 +59537,11 @@
       ]
     },
     {
-      "key": "Game bone (read-only)",
+      "key": "Game bone",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 437,
+          "line": 578,
           "sink": "setTitle"
         }
       ]
@@ -63410,6 +63495,11 @@
           "sink": "rust-presentation"
         },
         {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 301,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 342,
           "sink": "setItemText"
@@ -64798,6 +64888,16 @@
           "path": "cdmw/domain/mesh/morph_layers.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hips",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 302,
+          "sink": "tr"
         }
       ]
     },
@@ -73296,7 +73396,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 668,
+          "line": 825,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -75327,6 +75427,16 @@
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 28,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Left shoulder",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 302,
           "sink": "tr"
         }
       ]
@@ -79423,6 +79533,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1100,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Marker",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 623,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Markers (do not follow the body)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 610,
+          "sink": "setText"
         }
       ]
     },
@@ -89366,7 +89496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 533,
+          "line": 688,
           "sink": "addRow"
         }
       ]
@@ -89656,7 +89786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 295,
+          "line": 389,
           "sink": "addRow"
         },
         {
@@ -90353,6 +90483,11 @@
           "path": "cdmw/domain/mesh/body_regions.py",
           "line": 1,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 301,
+          "sink": "tr"
         }
       ]
     },
@@ -90732,11 +90867,21 @@
       ]
     },
     {
+      "key": "New bone",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 558,
+          "sink": "setTitle"
+        }
+      ]
+    },
+    {
       "key": "New bones have no animation or physics of their own, so they follow their parent. Create New Item can weight a model to them; a skeleton with added bones is untested in game.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 317,
+          "line": 414,
           "sink": "QLabel"
         }
       ]
@@ -97286,7 +97431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 301,
+          "line": 397,
           "sink": "addRow"
         }
       ]
@@ -98001,12 +98146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 668,
+          "line": 825,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 678,
+          "line": 835,
           "sink": "warning"
         }
       ]
@@ -98016,7 +98161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 325,
+          "line": 422,
           "sink": "QPushButton"
         }
       ]
@@ -104683,16 +104828,6 @@
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 44,
           "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Parent:",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 297,
-          "sink": "addRow"
         }
       ]
     },
@@ -116697,6 +116832,16 @@
       ]
     },
     {
+      "key": "Quick pick:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 300,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Quick preview loaded; building full 3D preview...",
       "origins": [
         {
@@ -122411,7 +122556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 277,
+          "line": 335,
           "sink": "QPushButton"
         },
         {
@@ -122876,7 +123021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 278,
+          "line": 336,
           "sink": "setToolTip"
         }
       ]
@@ -130072,6 +130217,16 @@
       ]
     },
     {
+      "key": "Right shoulder",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 303,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Right thigh",
       "origins": [
         {
@@ -130343,6 +130498,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 233,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Root-motion, IK and climb targets at the feet or the origin.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 611,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -130641,7 +130806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 305,
+          "line": 401,
           "sink": "addRow"
         }
       ]
@@ -131871,12 +132036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 654,
+          "line": 811,
           "sink": "getSaveFileName"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 663,
+          "line": 820,
           "sink": "warning"
         }
       ]
@@ -131886,7 +132051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 328,
+          "line": 425,
           "sink": "QPushButton"
         }
       ]
@@ -132026,7 +132191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 335,
+          "line": 432,
           "sink": "addButton"
         }
       ]
@@ -132271,7 +132436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 329,
+          "line": 426,
           "sink": "setToolTip"
         }
       ]
@@ -132411,7 +132576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 665,
+          "line": 822,
           "sink": "setText"
         }
       ]
@@ -133091,7 +133256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 306,
+          "line": 402,
           "sink": "addRow"
         }
       ]
@@ -134836,7 +135001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 544,
+          "line": 699,
           "sink": "addRow"
         }
       ]
@@ -135786,7 +135951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 409,
+          "line": 543,
           "sink": "setText"
         }
       ]
@@ -138787,6 +138952,16 @@
       ]
     },
     {
+      "key": "Select {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 311,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Selected",
       "origins": [
         {
@@ -139011,7 +139186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 291,
+          "line": 349,
           "sink": "QGroupBox"
         },
         {
@@ -143791,7 +143966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 191,
+          "line": 219,
           "sink": "drawText"
         }
       ]
@@ -144601,12 +144776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 654,
+          "line": 811,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 668,
+          "line": 825,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -144626,7 +144801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 654,
+          "line": 811,
           "sink": "getSaveFileName"
         }
       ]
@@ -149176,7 +149351,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 266,
+          "line": 324,
           "sink": "setHeaderLabels"
         },
         {
@@ -156236,7 +156411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 528,
+          "line": 683,
           "sink": "QLabel"
         }
       ]
@@ -161373,6 +161548,16 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 111,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "This is one of the game's own bones, so it cannot be changed here: meshes, animations and sockets depend on it. To reshape a game bone while an item is worn, use the game's bone offset table. You can attach new bones to it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 362,
+          "sink": "QLabel"
         }
       ]
     },
@@ -167120,6 +167305,11 @@
       "key": "Up",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 702,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
           "line": 98,
           "sink": "QPushButton"
@@ -167868,6 +168058,16 @@
           "path": "cdmw/domain/mesh/body_region_sliders.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper back",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 301,
+          "sink": "tr"
         }
       ]
     },
@@ -175291,7 +175491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 337,
+          "line": 434,
           "sink": "setToolTip"
         }
       ]
@@ -176116,7 +176316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 302,
+          "line": 398,
           "sink": "QLabel"
         }
       ]
@@ -189065,11 +189265,6 @@
       "key": "none",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 439,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_helpers.py",
           "line": 158,
           "sink": "python-return:texture_context_path_html"
@@ -198797,6 +198992,16 @@
       ]
     },
     {
+      "key": "{value_0}\nAttached to: {value_1}\nPosition on the character: {value_2}, {value_3}, {value_4} m",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 583,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0}\nBehavior: {value_1}. Approximate box at scale {value_2}: {value_3} × {value_4} × {value_5} m.\nTechnical contents: emitters {value_6}; textures {value_7}",
       "origins": [
         {
@@ -201341,7 +201546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 406,
+          "line": 540,
           "sink": "setText"
         }
       ]
@@ -201568,6 +201773,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
           "line": 515,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
+          "line": 508,
+          "sink": "python-return:_marker_warning"
         }
       ]
     },
@@ -204171,7 +204386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
-          "line": 449,
+          "line": 574,
           "sink": "setText"
         }
       ]
