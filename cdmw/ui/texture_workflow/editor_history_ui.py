@@ -107,7 +107,7 @@ class TextureEditorHistoryUiMixin:
             if isinstance(dirty_bounds, (list, tuple)) and len(dirty_bounds) == 4
             else None
         )
-        layer_blobs = record.get("before_layer_blobs" if direction == "before" else "after_layer_blobs")
+        layer_blobs = record.get("before_layers" if direction == "before" else "after_layers")
         if isinstance(layer_blobs, dict):
             for layer_id in layer_blobs:
                 self._invalidate_layer_thumbnail(str(layer_id))

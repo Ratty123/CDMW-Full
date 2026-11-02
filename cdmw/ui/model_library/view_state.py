@@ -35,14 +35,18 @@ class ModelLibraryResultsViewMixin:
         self._update_filters_button()
         if self._active_results_view == "mirror":
             self._populate_results(self.mirror_results)
-            hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
-            if checked and hidden and self.results_tree.topLevelItemCount() == 0:
-                self._set_status(
-                    f"Hide downloaded is on. All {hidden:,} cached mirror result(s) are already downloaded, so the table is empty."
-                )
-            else:
-                suffix = f" Hidden downloaded: {hidden:,}." if checked else ""
-                self._set_status(f"Showing Mirror Catalogue with {self.results_tree.topLevelItemCount():,} visible result(s).{suffix}")
+
+            def report() -> None:
+                hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
+                if checked and hidden and self.results_tree.topLevelItemCount() == 0:
+                    self._set_status(
+                        f"Hide downloaded is on. All {hidden:,} cached mirror result(s) are already downloaded, so the table is empty."
+                    )
+                else:
+                    suffix = f" Hidden downloaded: {hidden:,}." if checked else ""
+                    self._set_status(f"Showing Mirror Catalogue with {self.results_tree.topLevelItemCount():,} visible result(s).{suffix}")
+
+            self._results_status_after_population = report
 
     def _handle_results_query_changed(self, text: str) -> None:
         if self._updating_results_query:
@@ -126,7 +130,7 @@ class ModelLibraryResultsViewMixin:
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", self.search_edit.text().strip())
             self._populate_results(self.local_models)
-            self._set_status(
+            self._results_status_after_population = lambda: self._set_status(
                 f"Showing Local Library: {self._pending_results_visible_count:,}/{len(self.local_models):,} matching model file(s)."
             )
             return
@@ -164,6 +168,19 @@ class ModelLibraryResultsViewMixin:
         else:
             self._populate_results(self.mirror_results)
 
+    def _restore_saved_result_sort(self) -> None:
+        if self._result_sort_column >= 0:
+            return
+        self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
+        self._result_sort_order = (
+            Qt.SortOrder.DescendingOrder
+            if str(self.settings.value("model_library/result_sort_order", "asc") or "asc") == "desc"
+            else Qt.SortOrder.AscendingOrder
+        )
+        if hasattr(self, "results_tree"):
+            self.results_tree.header().setSortIndicatorShown(True)
+            self.results_tree.header().setSortIndicator(self._result_sort_column, self._result_sort_order)
+
     def _use_result_source_order(self) -> None:
         self._result_sort_column = -1
         if hasattr(self, "results_tree"):
@@ -190,7 +207,9 @@ class ModelLibraryResultsViewMixin:
 
     def showEvent(self, event) -> None:  # noqa: N802
         self._presentation_paused = False
-        if self._populating_results:
+        # _populating_results also covers a scan or search still in its worker;
+        # restarting the timer then would finish a population that has no rows yet.
+        if self._populating_results and getattr(self, "_results_population_active", True):
             self._results_population_timer.start()
         super().showEvent(event)
 
@@ -213,6 +232,12 @@ class ModelLibraryResultsViewMixin:
                 self.settings.setValue("model_library/search_query", self.search_edit.text().strip())
         self._active_results_view = "local" if str(view).strip().lower() == "local" else "mirror"
         local_view = self._active_results_view == "local"
+        # Re-selecting the current view (every scan and search does) keeps the
+        # submitted query; reloading it from settings applied the typed draft.
+        reload_query = previous_view != self._active_results_view or getattr(self, "_applied_results_query", None) is None
+        if local_view:
+            # The mirror view shows catalogue order; bring back the saved local sort.
+            self._restore_saved_result_sort()
         if hasattr(self, "mirror_results_view_button"):
             self.mirror_results_view_button.setChecked(not local_view)
             self.local_results_view_button.setChecked(local_view)
@@ -229,11 +254,13 @@ class ModelLibraryResultsViewMixin:
                 self.search_edit.setPlaceholderText("Filter local models by name, creator, license, format, path, or source")
                 self._set_results_filter_field(str(self.settings.value("model_library/local_search_field", "all") or "all"))
                 self._set_local_texture_filter(str(self.settings.value("model_library/local_texture_filter", "all") or "all"))
-                self._set_results_query_text(str(self.settings.value("model_library/local_search_query", "") or ""))
+                if reload_query:
+                    self._set_results_query_text(str(self.settings.value("model_library/local_search_query", "") or ""))
             else:
                 self.search_edit.setPlaceholderText("Search mirror by name, tag, creator, or UID")
                 self._set_results_filter_field("all")
-                self._set_results_query_text(str(self.settings.value("model_library/search_query", self.search_edit.text()) or ""))
+                if reload_query:
+                    self._set_results_query_text(str(self.settings.value("model_library/search_query", self.search_edit.text()) or ""))
             self._load_column_filters_for_active_view()
         if persist:
             self.settings.setValue("model_library/results_view", self._active_results_view)
@@ -346,11 +373,15 @@ class ModelLibraryResultsViewMixin:
         if self.mirror_results:
             self._use_result_source_order()
             self._populate_results(self.mirror_results)
-            hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
-            suffix = f" {hidden:,} downloaded result(s) hidden." if hidden else ""
-            self._set_status(
-                f"Showing {self.results_tree.topLevelItemCount():,}/{len(self.mirror_results):,} cached mirror catalogue result(s).{suffix} Use Refresh to search again."
-            )
+
+            def report() -> None:
+                hidden = int(getattr(self, "_last_hidden_downloaded_count", 0) or 0)
+                suffix = f" {hidden:,} downloaded result(s) hidden." if hidden else ""
+                self._set_status(
+                    f"Showing {self.results_tree.topLevelItemCount():,}/{len(self.mirror_results):,} cached mirror catalogue result(s).{suffix} Use Refresh to search again."
+                )
+
+            self._results_status_after_population = report
             return
         self.search_mirror()
 
@@ -358,9 +389,13 @@ class ModelLibraryResultsViewMixin:
         self._set_active_results_view("local")
         if self.local_models:
             self._populate_results(self.local_models)
-            visible_count = self.results_tree.topLevelItemCount()
-            suffix = "" if visible_count == len(self.local_models) else f" ({visible_count:,} matching current filter)"
-            self._set_status(f"Showing {len(self.local_models):,} cached local model file(s){suffix}. Use Refresh to scan again.")
+
+            def report() -> None:
+                visible_count = self.results_tree.topLevelItemCount()
+                suffix = "" if visible_count == len(self.local_models) else f" ({visible_count:,} matching current filter)"
+                self._set_status(f"Showing {len(self.local_models):,} cached local model file(s){suffix}. Use Refresh to scan again.")
+
+            self._results_status_after_population = report
             return
         self.scan_local_roots()
 

@@ -89,6 +89,7 @@ class ModelCatalogueTests(unittest.TestCase):
             (root / "model.glb").write_bytes(b"glb")
             (root / "model.dae").write_text("<COLLADA />", encoding="utf-8")
             (root / "source.fbx").write_bytes(b"fbx")
+            (root / "scene.blend").write_bytes(b"blend")
             with zipfile.ZipFile(root / "packed.zip", "w") as zip_file:
                 zip_file.writestr("scene/model.gltf", "{}")
                 zip_file.writestr("textures/diffuse.png", b"png")
@@ -107,11 +108,14 @@ class ModelCatalogueTests(unittest.TestCase):
         self.assertTrue(by_name["model.glb"].import_supported)
         self.assertTrue(by_name["model.dae"].import_supported)
         self.assertTrue(by_name["packed.zip"].import_supported)
-        self.assertFalse(by_name["source.fbx"].import_supported)
+        # FBX imports through the converter; Blender files are listed but not importable.
+        self.assertTrue(by_name["source.fbx"].import_supported)
+        self.assertFalse(by_name["scene.blend"].import_supported)
         self.assertEqual(by_name["model.glb"].texture_status, "Embedded/Unknown")
         self.assertEqual(by_name["model.dae"].texture_status, "Found (1)")
         self.assertEqual(by_name["packed.zip"].texture_status, "In ZIP (1)")
-        self.assertEqual(by_name["source.fbx"].texture_status, "Unknown")
+        self.assertEqual(by_name["source.fbx"].texture_status, "Found (1)")
+        self.assertEqual(by_name["scene.blend"].texture_status, "Unknown")
 
     def test_local_model_texture_status_counts_nearby_and_zip_textures(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -221,7 +225,7 @@ class ModelCatalogueTests(unittest.TestCase):
 
             def write_unsupported_source_zip(_url: str, output_path: Path, *, timeout: float) -> None:
                 with zipfile.ZipFile(output_path, "w") as zip_file:
-                    zip_file.writestr("source.fbx", b"fbx")
+                    zip_file.writestr("source.blend", b"blend")
 
             with self.assertRaisesRegex(ValueError, "importable"):
                 with mock.patch("cdmw.core.model_catalogue._download_url_to_file", side_effect=write_unsupported_source_zip):
@@ -583,6 +587,69 @@ class ModelCatalogueTests(unittest.TestCase):
                 self.assertEqual([row["name"] for row in rows], [expected])
                 self.assertTrue(rows[0]["gltf_url"].startswith(base_url))
             self.assertEqual(fetched_shards, ["https://alpha.test/models/+catalogue/one.json", "https://beta.test/models/+catalogue/one.json"])
+
+    def test_damaged_cached_shard_is_refetched(self) -> None:
+        fetched_shards: list[str] = []
+
+        def fetch_text(url: str, *, timeout: float) -> str:
+            if url.endswith("+README/"):
+                return "readme"
+            if url.endswith("+catalogue/"):
+                return '<a href="one.json">one.json</a>'
+            fetched_shards.append(url)
+            return json.dumps({"results": [{"uid": "alpha", "name": "Alpha", "archives": {"gltf": {"size": 10}}}]})
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch("cdmw.core.model_catalogue._fetch_text", side_effect=fetch_text):
+            root = Path(temp_dir)
+            base_url = "https://alpha.test/models/"
+            build_mirror_catalogue_index(mirror_url=base_url, output_dir=root, clear_existing=True)
+            shard = next((root / "catalogue_shards").rglob("one.json"))
+            shard.write_text('{"results": [{"uid": "trunc', encoding="utf-8")
+            build_mirror_catalogue_index(mirror_url=base_url, output_dir=root, clear_existing=True)
+            rows = search_catalogue_records(root / "mirror_catalogue.sqlite", "", limit=10)
+            self.assertEqual([row["name"] for row in rows], ["Alpha"])
+            self.assertEqual(len(fetched_shards), 2)
+            self.assertEqual(json.loads(shard.read_text(encoding="utf-8"))["results"][0]["uid"], "alpha")
+
+    def test_cancelled_index_keeps_committed_pages_but_reports_cancelled(self) -> None:
+        stop_event = threading.Event()
+
+        def fetch_text(url: str, *, timeout: float) -> str:
+            if url.endswith("+README/"):
+                return "readme"
+            if url.endswith("+catalogue/"):
+                return '<a href="one.json">one.json</a><a href="two.json">two.json</a>'
+            stop_event.set()
+            return json.dumps({"results": [{"uid": "alpha", "name": "Alpha"}]})
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch("cdmw.core.model_catalogue._fetch_text", side_effect=fetch_text):
+            root = Path(temp_dir)
+            with self.assertRaises(RunCancelled):
+                build_mirror_catalogue_index(mirror_url="https://alpha.test/models/", output_dir=root, stop_event=stop_event)
+            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["indexed_catalogue_pages"], 1)
+            self.assertEqual(catalogue_stats(root / "mirror_catalogue.sqlite")["models"], 1)
+
+    def test_zip_member_with_inner_drive_or_stream_colon_is_rejected(self) -> None:
+        from cdmw.core.model_catalogue_zip import safe_zip_member_name
+
+        for name in ("x/C:/Windows/evil.txt", "x/C:evil.txt", "a/file.gltf:ads", "C:/evil.txt"):
+            self.assertEqual(safe_zip_member_name(name), "", name)
+        self.assertEqual(safe_zip_member_name("scene\\model.gltf"), "scene/model.gltf")
+
+    def test_mirror_uid_that_is_not_a_plain_name_cannot_download(self) -> None:
+        record = {"uid": "ab/../../../../evil", "name": "Evil", "archives": {"glb": {"size": 10}}}
+        self.assertEqual(mirror_download_candidates(record, DEFAULT_MODEL_MIRROR_URL), ())
+        candidate = MirrorDownloadCandidate("glb", "GLB", "https://mirror.test/ev.glb", "ev.glb", True)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch("cdmw.core.model_catalogue._download_url_to_file") as download:
+            with self.assertRaises(ValueError):
+                download_mirror_model_candidate(record, candidate, output_root=Path(temp_dir) / "downloads")
+            download.assert_not_called()
+            self.assertFalse((Path(temp_dir) / "downloads").exists())
+        safe = {"uid": "abc123", "name": "Ok"}
+        bad_name = MirrorDownloadCandidate("glb", "GLB", "https://mirror.test/ev.glb", "..\\ev.glb", True)
+        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError):
+            download_mirror_model_candidate(safe, bad_name, output_root=temp_dir)
 
     def test_nested_zip_reopen_reuses_cache_and_repairs_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

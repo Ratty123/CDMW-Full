@@ -318,6 +318,12 @@ def test_html_conversion_preserves_tables_inline_spacing_and_topic_links():
     assert f"({WIKI}Mesh-Editor-fr#mesh_editor)" in rendered
 
 
+def test_html_conversion_escapes_prose_asterisks_but_not_code():
+    body = "<p>Use *.xml or object/* with <code>*.json</code> and <i>this</i>.</p>"
+    rendered = _blocks(DocumentParser(body).root, "en")
+    assert r"Use \*.xml or object/\* with `*.json` and *this*." in rendered
+
+
 def test_export_output_stays_in_the_named_folder_and_check_detects_stale_page(tmp_path, monkeypatch, capsys):
     from scripts.export_github_wiki import main
 

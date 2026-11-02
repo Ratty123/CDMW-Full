@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QListWidget,
-    QListWidgetItem,
     QPushButton,
     QSplitter,
     QVBoxLayout,
@@ -41,104 +40,110 @@ def _fill(box, widget) -> None:
 class AnimationTabMixin:
     """Chart indexing and retargeting. Mixed into `PlacementStudioWindow`."""
 
-    def _build_animation_tab(self, mono: QFont) -> QWidget:
-        """Tier C retargeting: which action charts use a socket, and what may replace it."""
+    def _build_animation_tab(self) -> QWidget:
+        """The everyday animation jobs: give a weapon other animations, and watch any clip.
+
+        This page used to carry the playback bar, the clip browser, the clips routed through
+        a socket, a raw action-chart dump and the chart retarget row all at once. Retargeting
+        and the chart views are expert tools and live under Advanced now; the playback bar sits
+        under the view, where it controls what is being watched.
+        """
 
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(8, 6, 8, 6)
 
-        # Playback sits above the retarget controls: it answers "what does this look like",
-        # which is the question you ask before deciding what to retarget.
-        layout.addWidget(self._build_playback_row())
+        swap_box = QGroupBox("Change this weapon's animations")
+        swap_layout = QVBoxLayout(swap_box)
+        swap_text = QLabel(
+            "Give the selected weapon another weapon's animations: for example the two-hand "
+            "sword's draw and put-away for a one-hand sword you moved to the back. You see "
+            "every file it would change, and can watch the result, before anything changes."
+        )
+        swap_text.setWordWrap(True)
+        swap_layout.addWidget(swap_text)
+        row = QHBoxLayout()
+        row.addWidget(self._carry_swap)
+        row.addStretch(1)
+        swap_layout.addLayout(row)
+        layout.addWidget(swap_box)
 
-        # The retarget controls are a separate job from watching a clip, and unlabelled they
-        # read as more playback settings. Boxing them says which question each row answers.
+        browser_box = QGroupBox("Find and play animations")
+        _fill(browser_box, self._build_clip_browser())
+        layout.addWidget(browser_box, 1)
+
+        # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
+        # the clip index the first time it is opened.
+        self._animation_page = page
+        return page
+
+    def _build_chart_tab(self, mono: QFont) -> QWidget:
+        """Advanced: which charts drive an attach point, and pointing them at another one."""
+
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(8, 6, 8, 6)
+
+        intro = QLabel(
+            "Action charts decide which animation plays when, and which attach point it "
+            "moves. Most changes never need this: use Carried at and the Animations tab first."
+        )
+        intro.setObjectName("HintLabel")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        # The retarget controls are a separate job from reading a chart, and unlabelled they
+        # read as more settings. Boxing them says which question each row answers.
         retarget_box = QGroupBox("Point an animation at a different attach point")
         retarget_box.setToolTip(
-            "Advanced. Rewrites which socket an action chart drives — only possible between "
-            "names of the same length, because the file stores them with their length."
+            "Rewrites which socket an action chart drives — only possible between names of "
+            "the same length, because the file stores them with their length."
         )
         row = QHBoxLayout(retarget_box)
         row.setSpacing(8)
-        row.addWidget(QLabel("Socket used by charts:"))
+        row.addWidget(QLabel("Attach point the charts use:"))
         self._chart_socket_box = QComboBox()
         self._chart_socket_box.currentIndexChanged.connect(self._refresh_retarget_targets)
         self._chart_socket_box.currentIndexChanged.connect(self._refresh_socket_clips)
         row.addWidget(self._chart_socket_box, 1)
 
         row.addSpacing(12)
-        row.addWidget(QLabel("Retarget to:"))
+        row.addWidget(QLabel("Use instead:"))
         self._retarget_box = QComboBox()
         row.addWidget(self._retarget_box, 1)
 
-        self._retarget_button = QPushButton("Apply retarget")
+        self._retarget_button = QPushButton("Apply")
         self._retarget_button.clicked.connect(self._apply_retarget)
         row.addWidget(self._retarget_button)
 
-        # Socket names are long — `Spine2_B_SubWeapon_Socket (4 chart(s))` — and a combo asks to
-        # be as wide as its longest entry by default. Two of those plus a button demanded more
-        # width than the row had, so Qt drew them over each other and over the labels between
-        # them. They elide instead now, and the popup keeps the full text readable.
-        # Only the combos give way. Handing the button `Ignored` too let the two stretching
-        # combos take every pixel and squeeze it off the right-hand edge entirely — a control
-        # that is merely narrow is recoverable, one that is not on screen is not.
+        # Socket names are long and a combo asks to be as wide as its longest entry; only the
+        # combos give way, so the button never leaves the row.
         _let_header_shrink(combos=(self._chart_socket_box, self._retarget_box), labels=())
 
         self._chart_view = QPlainTextEdit()
         self._chart_view.setReadOnly(True)
         self._chart_view.setFont(mono)
 
-        # Browse on the left, charts on the right: picking a clip and reading what drives a
-        # socket are the two halves of the same question, and both want the room.
-        # Stacked, not three columns. The tab lives in a side column now, so splitting it
-        # horizontally gave each pane about 150 px — enough to wrap a file path onto six
-        # lines and not enough to read a clip name.
-        # Each pane says what it is. Stacked unlabelled they ran together into one column of
-        # lists, and which list was which had to be worked out from its contents.
-        browser_box = QGroupBox("Find and play a clip")
-        _fill(browser_box, self._build_clip_browser())
-
-        socket_box = QGroupBox("Animations that run through the selected attach point")
+        socket_box = QGroupBox("Animations that use this attach point")
         socket_box.setToolTip(
             f"Needs {MATCH_LABEL}. These are the clips a chart names alongside this socket."
         )
         _fill(socket_box, self._build_socket_clips_pane())
 
         chart_box = QGroupBox("Action chart contents")
-        chart_box.setToolTip("The raw sockets and clips named by the selected chart.")
+        chart_box.setToolTip("The raw sockets and clips named by the loaded charts.")
         _fill(chart_box, self._chart_view)
 
-        # Two lanes. Four boxes in one column ran together into a single stack of lists with
-        # every one of them squeezed, and the tab is wide now — wide enough that the earlier
-        # objection to splitting it (each pane landing at ~150 px, too narrow to read a clip
-        # name) no longer holds.
-        #
-        # The split follows the two questions being asked: *what does this clip look like* on
-        # the left, and *what is attached here* on the right. Retargeting is neither, so it sits
-        # full width underneath, where its long socket names have room to be read.
-        panes = QSplitter(Qt.Horizontal)
-        panes.addWidget(browser_box)
-        right = QSplitter(Qt.Vertical)
-        right.addWidget(socket_box)
-        right.addWidget(chart_box)
-        right.setChildrenCollapsible(False)
-        right.setStretchFactor(0, 3)
-        right.setStretchFactor(1, 2)
-        right.setSizes([320, 220])
-        panes.addWidget(right)
+        panes = QSplitter(Qt.Vertical)
+        panes.addWidget(socket_box)
+        panes.addWidget(chart_box)
         panes.setChildrenCollapsible(False)
         panes.setStretchFactor(0, 3)
         panes.setStretchFactor(1, 2)
-        panes.setSizes([620, 460])
 
-        layout.addWidget(panes, 1)
-        # A fixed-height strip; the lists take the room.
         retarget_box.setMaximumHeight(retarget_box.sizeHint().height())
         layout.addWidget(retarget_box)
-        # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
-        # the clip index the first time it is opened.
-        self._animation_page = page
+        layout.addWidget(panes, 1)
         return page
 
     def _build_socket_clips_pane(self) -> QWidget:
@@ -184,12 +189,17 @@ class AnimationTabMixin:
         # those Qt-owned rows and the selected clip instead of destroying them
         # on every nudge, Undo and Redo.
         if current != clips:
+            # Rows are written through the model, never as Python item wrappers. Clearing a
+            # list whose rows each held a wrapper crashed the process (an access violation
+            # inside clear()) when the charts landed while the cold-cache scans were running.
             listing.clear()
-            for clip in clips:
-                item = QListWidgetItem(trimmed(clip), listing)
+            listing.addItems([trimmed(clip) for clip in clips])
+            for row, clip in enumerate(clips):
+                index = model.index(row, 0)
                 # Playback needs the full stem, not the trimmed display text.
-                item.setData(Qt.UserRole, clip)
-                item.setToolTip(f"{clip}\n\nDouble-click to play this clip on the rig")
+                model.setData(index, clip, Qt.UserRole)
+                model.setData(index, f"{clip}\n\nDouble-click to play this clip on the rig",
+                              Qt.ToolTipRole)
         self._socket_clips_label.setText(summarise(socket, clips, charts))
 
     def _play_socket_clip(self, item) -> None:

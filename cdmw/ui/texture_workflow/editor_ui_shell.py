@@ -240,7 +240,7 @@ class TextureEditorUiShellMixin:
             left_width = max(editor_tool_min, int(current_sizes[0]) if current_sizes else editor_tool_min)
             self._set_texture_editor_splitter_sizes([left_width, max(520, total_width - left_width), 0])
         if show_inspector and not right_sidebar_was_visible:
-            QTimer.singleShot(0, lambda: self._set_texture_editor_splitter_sizes(self._texture_editor_document_splitter_sizes()))
+            QTimer.singleShot(0, self, lambda: self._set_texture_editor_splitter_sizes(self._texture_editor_document_splitter_sizes()))
 
     def _handle_main_splitter_moved(self, *_args: object) -> None:
         if self._texture_editor_splitter_restoring:
@@ -314,11 +314,12 @@ class TextureEditorUiShellMixin:
         self.duplicate_layer_button.clicked.connect(self.duplicate_layer)
         self.remove_layer_button.clicked.connect(self.remove_layer)
         self.merge_layer_button.clicked.connect(self.merge_layer_down)
-        self.layer_up_button.clicked.connect(lambda: self.reorder_layer(-1))
-        self.layer_down_button.clicked.connect(lambda: self.reorder_layer(1))
+        # The list shows the top layer first; the document stores it last.
+        self.layer_up_button.clicked.connect(lambda: self.reorder_layer(1))
+        self.layer_down_button.clicked.connect(lambda: self.reorder_layer(-1))
         self.layer_name_edit.editingFinished.connect(self.rename_selected_layer)
         self.layer_visible_checkbox.toggled.connect(self.toggle_selected_layer_visibility)
-        self.layer_opacity_slider.valueChanged.connect(self.preview_selected_layer_properties)
+        self.layer_opacity_slider.valueChanged.connect(self.preview_selected_layer_opacity)
         self.layer_opacity_slider.sliderReleased.connect(self.commit_selected_layer_opacity)
         self.layer_add_mask_button.clicked.connect(self.add_mask_to_selected_layer)
         self.layer_invert_mask_button.clicked.connect(self.invert_selected_layer_mask)
@@ -373,7 +374,7 @@ class TextureEditorUiShellMixin:
         self.image_flip_v_button.clicked.connect(lambda: self.flip_document(False, True))
         self.image_rotate_left_button.clicked.connect(lambda: self.rotate_document_90(False))
         self.image_rotate_right_button.clicked.connect(lambda: self.rotate_document_90(True))
-        self.layer_blend_mode_combo.currentIndexChanged.connect(self.preview_selected_layer_properties)
+        self.layer_blend_mode_combo.currentIndexChanged.connect(self.commit_selected_layer_blend_mode)
         self.layer_locked_checkbox.toggled.connect(self.commit_selected_layer_flags)
         self.layer_alpha_locked_checkbox.toggled.connect(self.commit_selected_layer_flags)
         self.adjustment_add_button.clicked.connect(self.add_adjustment_layer)

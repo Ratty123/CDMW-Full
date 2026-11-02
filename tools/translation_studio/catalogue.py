@@ -73,6 +73,9 @@ class TranslationCatalogue:
     reference: Mapping[str, str] = field(default_factory=dict)
     source_ranges: Mapping[str, Tuple[int, int]] = field(default_factory=dict)
     row_references: Mapping[int, str] = field(default_factory=dict)
+    #: `key\0text`, case-folded, per shipped entry. Folding 291,900 lines on every
+    #: keystroke took 0.3 s a search; folding them once makes the scan a plain `in`.
+    _folded: Optional[Tuple[str, ...]] = field(default=None, init=False, repr=False, compare=False)
 
     # ------------------------------------------------------------------ reading
 
@@ -115,6 +118,7 @@ class TranslationCatalogue:
         """
 
         wanted = needle.strip().casefold()
+        folded = self.search_index() if wanted else ()
         out: list[int] = []
         for index, entry in enumerate(self.table.entries):
             if category is not None and entry.category != category:
@@ -122,13 +126,23 @@ class TranslationCatalogue:
             if edited_only and index not in self.edits:
                 continue
             if wanted:
-                text = self.edits.get(index, entry.text)
-                if wanted not in entry.key.casefold() and wanted not in text.casefold():
+                if index in self.edits:
+                    haystack = f"{entry.key}\0{self.edits[index]}".casefold()
+                else:
+                    haystack = folded[index]
+                if wanted not in haystack:
                     continue
             out.append(index)
             if limit and len(out) >= limit:
                 break
         return tuple(out)
+
+    def search_index(self) -> Tuple[str, ...]:
+        """The folded search text, built on first use; the load worker builds it early."""
+
+        if self._folded is None:
+            self._folded = tuple(f"{entry.key}\0{entry.text}".casefold() for entry in self.table.entries)
+        return self._folded
 
     def find_regex(self, pattern: str, *, limit: int = 0) -> Tuple[int, ...]:
         """Same, by regular expression. Raises `re.error` for the caller to report."""

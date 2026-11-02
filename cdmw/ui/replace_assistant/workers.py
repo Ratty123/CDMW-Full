@@ -29,6 +29,15 @@ from cdmw.models import (
 )
 
 
+def _is_deliberate_match(item: ReplaceAssistantItem) -> bool:
+    """A user's pick or an editor-preserved original survives a later Auto-Match."""
+    matched = item.matched_original
+    if matched is None:
+        return False
+    reason = str(matched.match_reason or "").strip().casefold()
+    return reason.startswith(("manual", "preserved"))
+
+
 class ReplaceAssistantPreviewWorker(QObject):
     completed = Signal(int, object)
     error = Signal(int, str)
@@ -230,6 +239,8 @@ class ReplaceAssistantAutoMatchWorker(QObject):
                     return
                 source_path = item.source_path.expanduser().resolve()
                 self.progress.emit(index - 1, total, f"[{index}/{total}] Matching {source_path.name}")
+                if _is_deliberate_match(item):
+                    continue
                 matched = match_replace_assistant_original(source_path, active_index)
                 if matched.archive_entry is not None or matched.original_dds_path is not None:
                     item.matched_original = matched

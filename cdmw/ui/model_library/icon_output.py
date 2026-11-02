@@ -24,6 +24,11 @@ class ModelLibraryIconOutputMixin:
         loaded_path: Path,
         native_capture: bool,
     ) -> None:
+        # The capture completes asynchronously; another task may have started since.
+        # Refuse before claiming the stop event so that task stays cancellable.
+        if self._task_thread is not None:
+            self._set_inline_preview_status("A model library task is already running.", error=True)
+            return
         self._icon_output_request_id += 1
         request_id = self._icon_output_request_id
         stop_event = threading.Event()
@@ -40,16 +45,24 @@ class ModelLibraryIconOutputMixin:
         def task(_progress: Callable[[str], None]) -> object:
             return write_model_library_preview_icon(request, stop_event=stop_event)
 
+        def discard(value: ModelLibraryIconOutputResult) -> None:
+            # The worker had already published this icon; nothing will reference it.
+            output_path = Path(value.output_path)
+            if output_path.parent == request.output_dir:
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
         def complete(value: object) -> None:
-            if (
-                request_id != self._icon_output_request_id
-                or bool(getattr(self, "_model_library_shutting_down", False))
-                or not isinstance(value, ModelLibraryIconOutputResult)
-                or value.request_id != request_id
-            ):
+            if not isinstance(value, ModelLibraryIconOutputResult) or value.request_id != request_id:
+                return
+            if request_id != self._icon_output_request_id or bool(getattr(self, "_model_library_shutting_down", False)):
+                discard(value)
                 return
             selected = self._selected_payload()
             if selected is None or not self._inline_preview_matches_payload(selected):
+                discard(value)
                 return
             prefix = "Preview " if native_capture else ""
             self._set_inline_preview_status(f"Generated {prefix}model preview icon: {value.output_path.name}")

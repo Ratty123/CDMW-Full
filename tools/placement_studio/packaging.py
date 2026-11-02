@@ -348,6 +348,7 @@ def build_package(
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
     replace_existing: bool = False,
+    keep_backup: bool = True,
 ) -> PackageResult:
     """Build fresh output; explicitly approved replacement retains the complete old folder."""
 
@@ -419,7 +420,7 @@ def build_package(
         _validate_destination(root, replace_existing=replace_existing)
         try:
             backup = atomic_publish_directory(
-                staging, resolved, replace_existing=replace_existing, retain_backup=True,
+                staging, resolved, replace_existing=replace_existing, retain_backup=keep_backup,
             )
         except FileExistsError as exc:
             raise PackagingError(f"Package destination already exists: {root}") from exc
@@ -455,6 +456,7 @@ def build_all(
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
     replace_existing: bool = False,
+    keep_backup: bool = True,
 ) -> List[PackageResult]:
     """Emit every manager layout from one plan — the point of the operation model."""
 
@@ -476,6 +478,7 @@ def build_all(
                 scope=scope,
                 manifest=manifest,
                 replace_existing=replace_existing,
+                keep_backup=keep_backup,
             )
         )
     return results
@@ -520,6 +523,8 @@ def build_for_operations(
     replacements: Sequence[object] = (),
     accept_warnings: bool = False,
     replace_existing: bool = False,
+    extra_files: Optional[Mapping[str, bytes]] = None,
+    keep_backup: bool = True,
 ) -> Tuple[List[PackageResult], object]:
     """Package exactly these operations, replayed onto vanilla, or refuse and say why.
 
@@ -529,6 +534,10 @@ def build_for_operations(
     in place, a case row left behind, an animation family that is not this weapon's.
 
     Returns `(results, preflight)`. `results` is empty when the preflight blocked.
+
+    `extra_files` are whole files edited outside the operation history -- Driven bones and
+    Rig behaviour -- written into the same package. They may not touch a file an operation
+    writes; two writers to one file would need a merge nobody has reviewed.
     """
 
     from .preflight import operation_manifest, run_preflight
@@ -555,11 +564,21 @@ def build_for_operations(
         raise PackagingError(
             "The selected operation changes no file, so there is nothing to package"
         )
+    extra = dict(extra_files or {})
+    overlap = sorted(set(extra) & set(files))
+    if overlap:
+        raise PackagingError(
+            "Two kinds of change edit the same file, so they cannot share one mod: "
+            + ", ".join(overlap)
+        )
+    files = {**files, **extra}
     plan = isolated.to_plan(metadata.name or "operation")
     selected = [op for op in session.operations() if op.operation_id in set(wanted)]
     manifest = operation_manifest(selected, verdict.summary, units=units)
     from .prepared_move import digest
     manifest["payload_sha256"] = {path: digest(data) for path, data in sorted(files.items())}
+    if extra:
+        manifest["other_edited_files"] = sorted(extra)
 
     results = build_all(
         plan,
@@ -572,5 +591,6 @@ def build_for_operations(
         scope=verdict.summary,
         manifest=manifest,
         replace_existing=replace_existing,
+        keep_backup=keep_backup,
     )
     return results, verdict

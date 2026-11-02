@@ -41,6 +41,7 @@ from cdmw.domain.library.models import (
     MirrorDownloadCandidate,
     MirrorDownloadResult,
     is_importable_model_path,
+    is_safe_mirror_uid,
     mirror_download_candidates,
     normalize_mirror_base_url,
     normalize_mirror_model_record,
@@ -101,6 +102,8 @@ def scan_local_model_files(
     metadata_name_cache: dict[str, str] = {}
     texture_count_cache: dict[tuple[str, str], int] = {}
     for root_value in roots:
+        if stop_event is not None and stop_event.is_set():
+            break
         root = Path(root_value).expanduser()
         try:
             root = root.resolve()
@@ -426,7 +429,7 @@ def download_mirror_model(
         stop_event=stop_event,
     )
     if require_importable and result.import_path is None and not result.importable_members:
-        raise ValueError("Downloaded archive does not contain an importable OBJ, DAE, glTF, GLB, or local mesh source.")
+        raise ValueError("Downloaded archive does not contain an importable OBJ, FBX, DAE, glTF, GLB, or local mesh source.")
     return result
 
 
@@ -439,10 +442,15 @@ def download_mirror_model_candidate(
     stop_event: Optional[threading.Event] = None,
 ) -> MirrorDownloadResult:
     uid = str(record.get("uid", "") or "").strip()
+    if not is_safe_mirror_uid(uid):
+        raise ValueError(f"Mirror model id {uid!r} is not a plain file name.")
+    filename = str(candidate.filename or "")
+    if not filename or filename != Path(filename).name or ":" in filename or filename in {".", ".."}:
+        raise ValueError(f"Mirror download file name {filename!r} is not a plain file name.")
     name = str(record.get("name", "") or uid or "model").strip()
     asset_dir = Path(output_root).expanduser() / f"{_slugify(name, fallback='model')[:72]}-{uid}"
     asset_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = asset_dir / candidate.filename
+    archive_path = asset_dir / filename
     if not archive_path.is_file():
         download_kwargs: dict[str, object] = {"timeout": timeout}
         if stop_event is not None:
@@ -1030,15 +1038,20 @@ def build_mirror_catalogue_index(
             shard_cache_dir = shards_dir / hashlib.sha256(shard_url.encode("utf-8")).hexdigest()
             shard_cache_dir.mkdir(parents=True, exist_ok=True)
             shard_path = shard_cache_dir / shard_name
+            payload: Any = None
             if shard_path.is_file() and not refresh_shards:
-                raw_text = shard_path.read_text(encoding="utf-8")
-            else:
+                try:
+                    payload = json.loads(shard_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                    # A damaged cached page is refetched rather than dropped from every later index.
+                    payload = None
+            if payload is None:
                 raw_text = _fetch_text(shard_url, timeout=timeout)
-                shard_path.write_text(raw_text, encoding="utf-8")
-            try:
-                payload = json.loads(raw_text)
-            except json.JSONDecodeError:
-                continue
+                try:
+                    payload = json.loads(raw_text)
+                except json.JSONDecodeError:
+                    continue
+                atomic_write_text(shard_path, raw_text)
             raw_results = payload.get("results") if isinstance(payload, Mapping) else None
             if not isinstance(raw_results, list):
                 records: list[dict[str, Any]] = []
@@ -1094,6 +1107,8 @@ def build_mirror_catalogue_index(
         "model_archives_downloaded": False,
     }
     (root / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Committed pages stay indexed, but a stopped run must not report itself complete.
+    raise_if_cancelled(stop_event)
     return manifest
 
 

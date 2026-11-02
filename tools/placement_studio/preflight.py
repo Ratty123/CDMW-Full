@@ -20,7 +20,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from . import carry
 from .documents import is_descriptor_file, is_socket_file
-from .editing import EditOperation, EditSession, OP_MOVE_EQUIPMENT
+from .editing import EditOperation, EditSession, OP_MANUAL_ORIENTATION, OP_MOVE_EQUIPMENT
 from .model import EquipmentUnit
 
 #: How many animation replacements count as "a lot", and so need saying out loud.
@@ -478,6 +478,10 @@ def _check_operation_safety(
                 operation.equipment_unit_id in units
             ) else set(operation.scope.allowed_descriptor_parts)
             outside = [name for name in users if name not in owned]
+            if operation.kind == OP_MANUAL_ORIENTATION and not operation.equipment_unit_id:
+                # Hand adjustments belong to no equipment unit, so "owned" is empty. A point
+                # that one row uses moves only that row; only a shared one moves others.
+                outside = []
             if outside or len(users) > 1:
                 errors.append(
                     Finding(

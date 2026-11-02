@@ -35,6 +35,9 @@ from cdmw.models import (
 )
 
 
+_PROJECT_OWNED_ASSET_FOLDERS = frozenset({"layers", "masks", "floating"})
+
+
 def make_texture_editor_workspace_root(base_dir: Path) -> Path:
     root = workspace_paths(base_dir)["texture_editor_workspace_root"]
     root.mkdir(parents=True, exist_ok=True)
@@ -445,7 +448,20 @@ def _publish_texture_editor_project(
                 f"Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}"
             ) from rollback_errors[0]
         raise
+    # A reopened project exports into its own assets folder (exports/, native_previews),
+    # and other tools hold those paths; only the folders a save writes are replaced.
+    retained_all = True
+    if had_assets:
+        for child in tuple(backup_assets_dir.iterdir()):
+            if child.name in _PROJECT_OWNED_ASSET_FOLDERS or _path_exists(assets_dir / child.name):
+                continue
+            try:
+                _replace_path(child, assets_dir / child.name)
+            except OSError:
+                retained_all = False
     for backup_path in (backup_project_path, backup_assets_dir):
+        if backup_path == backup_assets_dir and not retained_all:
+            continue
         try:
             _remove_path(backup_path)
         except OSError:
@@ -498,6 +514,17 @@ def load_texture_editor_project(
 ) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray], Optional[np.ndarray]]:
     resolved = project_path.expanduser().resolve()
     data = json.loads(resolved.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Not a Texture Editor project: {resolved.name}")
+    try:
+        project_version = int(data.get("version", 1) or 1)
+    except (TypeError, ValueError):
+        raise ValueError(f"Texture Editor project has an unreadable version: {data.get('version')!r}") from None
+    if project_version > _PROJECT_VERSION:
+        raise ValueError(
+            f"{resolved.name} was saved by a newer version of the Texture Editor "
+            f"(project version {project_version}; this build reads up to {_PROJECT_VERSION})."
+        )
     assets_dir = _texture_editor_assets_dir(resolved)
     layers: List[TextureEditorLayer] = []
     layer_pixels: Dict[str, np.ndarray] = {}

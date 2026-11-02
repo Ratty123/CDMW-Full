@@ -343,6 +343,9 @@ class ReplaceAssistantQueueMixin:
                 row.setText(3, item.source_kind)
                 row.setText(4, item.status_detail or item.status)
                 row.setData(0, Qt.UserRole, index)
+                if self.workspace is not None:
+                    included = self.workspace.replacement_item_key(item) in self.workspace.job.selected
+                    row.setCheckState(0, Qt.Checked if included else Qt.Unchecked)
                 row.setToolTip(0, str(item.source_path))
                 row.setToolTip(1, original_text or "Unmatched")
                 row.setToolTip(4, item.warning or item.status_detail or item.status)

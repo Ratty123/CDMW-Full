@@ -7497,7 +7497,7 @@ MESSAGE_REFERENCE = [
     "message": "Active file authority audit skipped; game root not found: {resolved_game_root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 825
+      "cdmw/core/archive_loose_export.py": 835
     }
   },
   {
@@ -9356,7 +9356,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active archive payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 889
+      "cdmw/core/archive_loose_export.py": 901
     }
   },
   {
@@ -9364,7 +9364,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active loose payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 857
+      "cdmw/core/archive_loose_export.py": 869
     }
   },
   {
@@ -9421,7 +9421,7 @@ MESSAGE_REFERENCE = [
     "message": "Byte search does not take a regular expression.{detail}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 40
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 37
     }
   },
   {
@@ -10168,7 +10168,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not decode {entry.Path}: {exception.Message}",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 96
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 93
     }
   },
   {
@@ -10296,7 +10296,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not remove stale active file authority audit: {exc}",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 939
+      "cdmw/core/archive_loose_export.py": 951
     }
   },
   {
@@ -10328,7 +10328,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not write active file authority audit: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 933
+      "cdmw/core/archive_loose_export.py": 945
     }
   },
   {
@@ -10976,7 +10976,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active loose file differs from package {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 868
+      "cdmw/core/archive_loose_export.py": 880
     }
   },
   {
@@ -10984,7 +10984,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active {row.active_source} differs from loose {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 900
+      "cdmw/core/archive_loose_export.py": 912
     }
   },
   {
@@ -13835,7 +13835,7 @@ MESSAGE_REFERENCE = [
     "message": "Regular expression timed out for {entry.Path}.",
     "recovery": "timeout",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 147
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 144
     }
   },
   {
@@ -14691,7 +14691,7 @@ MESSAGE_REFERENCE = [
     "message": "Text search query must not be empty.{detail}",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 23
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveTextSearchService.cs": 24
     }
   },
   {
@@ -16262,7 +16262,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata expects payloads under {files_root or 'files'}/, but found {PurePosixPath(*relative_parts_for_layout).as_posix()}.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 801
+      "cdmw/core/archive_loose_export.py": 811
     }
   },
   {
@@ -16270,7 +16270,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. Pick the CDUMM/files-wrapper profile if the manager expects files/.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 801
+      "cdmw/core/archive_loose_export.py": 811
     }
   },
   {
@@ -41474,6 +41474,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Archive preview failed: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/shell/model_library_bridge.py": 462
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Assign the body Parts before generating body controls.",
     "recovery": "internal",
     "sources": {
@@ -44417,10 +44425,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Downloaded archive does not contain an importable OBJ, DAE, glTF, GLB, or local mesh source.",
+    "message": "Downloaded archive does not contain an importable OBJ, FBX, DAE, glTF, GLB, or local mesh source.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 429
+      "cdmw/core/model_catalogue.py": 432
     }
   },
   {
@@ -44492,7 +44500,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate path in model archive: {member.filename}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/model_catalogue.py": 522
+      "cdmw/core/model_catalogue.py": 530
     }
   },
   {
@@ -44780,7 +44788,7 @@ MESSAGE_REFERENCE = [
     "message": "Encrypted model archive member is not supported: {member.filename}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/model_catalogue.py": 528
+      "cdmw/core/model_catalogue.py": 536
     }
   },
   {
@@ -44788,7 +44796,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a model mirror URL first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/library/models.py": 101
+      "cdmw/domain/library/models.py": 118
     }
   },
   {
@@ -45206,7 +45214,7 @@ MESSAGE_REFERENCE = [
     "message": "External Model",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 414
+      "cdmw/ui/shell/model_library_bridge.py": 424
     }
   },
   {
@@ -47261,7 +47269,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: Preview rejected the capture request.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 462
+      "cdmw/ui/model_library/preview.py": 466
     }
   },
   {
@@ -47269,7 +47277,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: {message or 'Preview framebuffer is empty.'}",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 480
+      "cdmw/ui/model_library/preview.py": 484
     }
   },
   {
@@ -47277,7 +47285,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/icon_output.py": 62
+      "cdmw/ui/model_library/icon_output.py": 75
     }
   },
   {
@@ -51197,7 +51205,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirror URL must be an HTTP or HTTPS URL.",
     "recovery": "network",
     "sources": {
-      "cdmw/domain/library/models.py": 106
+      "cdmw/domain/library/models.py": 123
     }
   },
   {
@@ -51214,6 +51222,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/model_library/commands.py": 248
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Mirror download file name {filename} is not a plain file name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/model_catalogue.py": 449
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Mirror model id {uid} is not a plain file name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/model_catalogue.py": 446
     }
   },
   {
@@ -51325,7 +51349,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive expanded size exceeds the extraction limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 534
+      "cdmw/core/model_catalogue.py": 542
     }
   },
   {
@@ -51333,7 +51357,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive has too many members ({len(members)}).",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 510
+      "cdmw/core/model_catalogue.py": 518
     }
   },
   {
@@ -51341,7 +51365,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member compression ratio is unsafe: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 537
+      "cdmw/core/model_catalogue.py": 545
     }
   },
   {
@@ -51349,7 +51373,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member is too large: {member.filename}",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 531
+      "cdmw/core/model_catalogue.py": 539
     }
   },
   {
@@ -51357,7 +51381,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 550
+      "cdmw/core/model_catalogue.py": 558
     }
   },
   {
@@ -51365,7 +51389,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download did not create a temporary output file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1204
+      "cdmw/core/model_catalogue.py": 1219
     }
   },
   {
@@ -51373,7 +51397,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeded the total time limit.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1189
+      "cdmw/core/model_catalogue.py": 1204
     }
   },
   {
@@ -51381,7 +51405,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeds the size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1173
+      "cdmw/core/model_catalogue.py": 1188
     }
   },
   {
@@ -51389,7 +51413,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1176
+      "cdmw/core/model_catalogue.py": 1191
     }
   },
   {
@@ -51397,7 +51421,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library file is not supported by mesh import: {scene_path.suffix}. Supported: {supported}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 200
+      "cdmw/ui/shell/model_library_bridge.py": 202
     }
   },
   {
@@ -51405,7 +51429,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library file is not supported by preview: {scene_path.suffix}. Supported: {supported}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 316
+      "cdmw/ui/shell/model_library_bridge.py": 318
     }
   },
   {
@@ -51413,7 +51437,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library import failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 273
+      "cdmw/ui/shell/model_library_bridge.py": 275
     }
   },
   {
@@ -51421,7 +51445,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library import file is missing: {scene_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 248
+      "cdmw/ui/shell/model_library_bridge.py": 250
     }
   },
   {
@@ -51429,7 +51453,7 @@ MESSAGE_REFERENCE = [
     "message": "Model library preview file is missing: {scene_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 365
+      "cdmw/ui/shell/model_library_bridge.py": 367
     }
   },
   {
@@ -51485,7 +51509,7 @@ MESSAGE_REFERENCE = [
     "message": "Model resolution failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 304
+      "cdmw/ui/model_library/tab.py": 330
     }
   },
   {
@@ -51493,7 +51517,7 @@ MESSAGE_REFERENCE = [
     "message": "Model row preparation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/controller.py": 179
+      "cdmw/ui/model_library/controller.py": 181
     }
   },
   {
@@ -58049,7 +58073,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose a downloadable archive URL.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 414
+      "cdmw/core/model_catalogue.py": 417
     }
   },
   {
@@ -58057,7 +58081,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose an importable model archive.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 418
+      "cdmw/core/model_catalogue.py": 421
     }
   },
   {
@@ -59043,7 +59067,7 @@ MESSAGE_REFERENCE = [
     "message": "Symlink is not allowed in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 526
+      "cdmw/core/model_catalogue.py": 534
     }
   },
   {
@@ -60303,7 +60327,7 @@ MESSAGE_REFERENCE = [
     "message": "This is a model-library preview. It has not been imported or written into any game archive.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 414
+      "cdmw/ui/shell/model_library_bridge.py": 424
     }
   },
   {
@@ -60859,7 +60883,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe path in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 519
+      "cdmw/core/model_catalogue.py": 527
     }
   },
   {
@@ -61604,7 +61628,7 @@ MESSAGE_REFERENCE = [
     "message": "ZIP model selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 326
+      "cdmw/ui/model_library/tab.py": 352
     }
   },
   {
@@ -62396,7 +62420,7 @@ MESSAGE_REFERENCE = [
     "message": "confirmed local file became a directory",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 66
+      "cdmw/workers/model_library_delete.py": 70
     }
   },
   {
@@ -62404,7 +62428,7 @@ MESSAGE_REFERENCE = [
     "message": "confirmed local file no longer exists",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 64
+      "cdmw/workers/model_library_delete.py": 68
     }
   },
   {
@@ -62676,7 +62700,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder cannot be a symlink",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 73
+      "cdmw/workers/model_library_delete.py": 77
     }
   },
   {
@@ -62684,7 +62708,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder ownership marker is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 79
+      "cdmw/workers/model_library_delete.py": 83
     }
   },
   {
@@ -62692,7 +62716,7 @@ MESSAGE_REFERENCE = [
     "message": "download folder resolves outside its approved root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 77
+      "cdmw/workers/model_library_delete.py": 81
     }
   },
   {
@@ -65078,7 +65102,7 @@ MESSAGE_REFERENCE = [
     "message": "local file resolves outside its approved root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 68
+      "cdmw/workers/model_library_delete.py": 72
     }
   },
   {
@@ -65956,7 +65980,7 @@ MESSAGE_REFERENCE = [
       "cdmw/domain/mesh/parts.py": 127,
       "cdmw/domain/mesh/skeleton.py": 1674,
       "cdmw/ui/model_library/state.py": 156,
-      "cdmw/workers/model_library_rows.py": 618
+      "cdmw/workers/model_library_rows.py": 619
     }
   },
   {
@@ -69502,7 +69526,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/final_package_preview_model.py": 258,
       "cdmw/core/mesh_native.py": 62,
-      "cdmw/core/model_catalogue.py": 1150,
+      "cdmw/core/model_catalogue.py": 1165,
       "cdmw/modding/mesh_native_client.py": 265,
       "cdmw/modding/static_mesh_scene_frame.py": 486,
       "cdmw/rendering/model_preview_prepare.py": 83,
@@ -70576,7 +70600,7 @@ MESSAGE_REFERENCE = [
     "message": "target identity changed after confirmation",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 61
+      "cdmw/workers/model_library_delete.py": 65
     }
   },
   {
@@ -70584,7 +70608,7 @@ MESSAGE_REFERENCE = [
     "message": "target is outside its approved local root",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 59
+      "cdmw/workers/model_library_delete.py": 63
     }
   },
   {
@@ -71112,7 +71136,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported delete target type",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/model_library_delete.py": 71
+      "cdmw/workers/model_library_delete.py": 75
     }
   },
   {
@@ -71980,7 +72004,7 @@ MESSAGE_REFERENCE = [
     "message": "{scene_path.name} could not be imported. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/model_library_bridge.py": 268
+      "cdmw/ui/shell/model_library_bridge.py": 270
     }
   },
   {
@@ -72892,7 +72916,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive search result is missing its archive entry reference.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 398
+      "cdmw/core/text_search.py": 420
     }
   },
   {
@@ -75378,7 +75402,7 @@ MESSAGE_REFERENCE = [
       "cdmw/ui/replace_assistant/build.py": 210,
       "cdmw/ui/replace_assistant/queue.py": 225,
       "cdmw/ui/shell/utility_controller.py": 194,
-      "cdmw/ui/text_search/controller.py": 568,
+      "cdmw/ui/text_search/controller.py": 577,
       "cdmw/ui/text_search/export_actions.py": 140
     }
   },
@@ -75621,7 +75645,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a search string or regular expression.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/text_search.py": 107
+      "cdmw/core/text_search.py": 108
     }
   },
   {
@@ -75981,7 +76005,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL {item.source_path}: {item.message or 'export failed'}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/text_search/remote_catalogue.py": 309
+      "cdmw/ui/text_search/remote_catalogue.py": 311
     }
   },
   {
@@ -77414,7 +77438,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid search pattern: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/text_search.py": 115
+      "cdmw/core/text_search.py": 116
     }
   },
   {
@@ -77582,7 +77606,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon library scan failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 381
+      "cdmw/ui/item_icons/workers.py": 386
     }
   },
   {
@@ -77590,7 +77614,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon metadata save failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 452
+      "cdmw/ui/item_icons/workers.py": 449
     }
   },
   {
@@ -77606,7 +77630,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon {request.action} failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 419
+      "cdmw/ui/item_icons/workers.py": 424
     }
   },
   {
@@ -78047,7 +78071,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file has an invalid path: {relative_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/text_search.py": 453
+      "cdmw/core/text_search.py": 475
     }
   },
   {
@@ -78063,7 +78087,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose search result is missing its file path reference.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 413
+      "cdmw/core/text_search.py": 435
     }
   },
   {
@@ -78215,7 +78239,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing archive entry for export.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 504
+      "cdmw/core/text_search.py": 526
     }
   },
   {
@@ -78255,7 +78279,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing loose file path for export.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/text_search.py": 508
+      "cdmw/core/text_search.py": 530
     }
   },
   {
@@ -78696,7 +78720,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching file was found for the current query.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/text_search/controller.py": 492
+      "cdmw/ui/text_search/controller.py": 493
     }
   },
   {
@@ -79696,7 +79720,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview truncated to the first {format(len(preview_text), ',')} character(s) to keep the viewer responsive.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 435
+      "cdmw/core/text_search.py": 457
     }
   },
   {
@@ -80794,7 +80818,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor export not found: {resolved_output}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/replace_assistant/queue.py": 507
+      "cdmw/ui/replace_assistant/queue.py": 510
     }
   },
   {
@@ -83854,7 +83878,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not read {entry.path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 234
+      "cdmw/core/text_search.py": 256
     }
   },
   {
@@ -83862,7 +83886,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/text_search.py": 324
+      "cdmw/core/text_search.py": 346
     }
   },
   {
@@ -83870,7 +83894,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: {record.warning}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 480
+      "cdmw/ui/item_icons/workers.py": 477
     }
   },
   {
@@ -84038,7 +84062,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{len(results)}] FAIL {result.relative_path} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/text_search.py": 545
+      "cdmw/core/text_search.py": 567
     }
   },
   {
@@ -85476,7 +85500,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/pat_decoder.py": 616,
       "cdmw/domain/xml_text.py": 70,
       "cdmw/modding/scene_gltf_embedded_images.py": 61,
-      "cdmw/ui/replace_assistant/workers.py": 304,
+      "cdmw/ui/replace_assistant/workers.py": 315,
       "cdmw/ui/shell/problem_report_dialog.py": 1102,
       "cdmw/workers/appearance_workers.py": 85,
       "cdmw/workers/attachment_loose_workers.py": 252,
@@ -86158,7 +86182,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/pat_decoder.py": 115,
       "cdmw/core/recolor_variants.py": 1172,
       "cdmw/core/structured_binary_editor.py": 117,
-      "cdmw/core/text_search.py": 151,
+      "cdmw/core/text_search.py": 173,
       "cdmw/domain/xml_text.py": 211,
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
@@ -89323,6 +89347,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "A bone transform cannot be inverted",
+    "recovery": "input",
+    "sources": {
+      "tools/paa_motion/edit.py": 438
+    }
+  },
+  {
+    "area": "placement",
     "message": "A filename is required to decode geometry (the parser needs the suffix)",
     "recovery": "format",
     "sources": {
@@ -89638,7 +89670,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot apply {command.kind} to {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 596
+      "tools/placement_studio/editing.py": 703
     }
   },
   {
@@ -89662,7 +89694,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot extend a different baseline directory",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/corpus.py": 346
+      "tools/placement_studio/corpus.py": 365
     }
   },
   {
@@ -89785,7 +89817,7 @@ MESSAGE_REFERENCE = [
     "message": "Clip preparation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_clips.py": 364
+      "tools/placement_studio/window_clips.py": 365
     }
   },
   {
@@ -89857,8 +89889,8 @@ MESSAGE_REFERENCE = [
     "message": "Could not apply: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_constraints.py": 456,
-      "tools/placement_studio/window_rig_behaviour.py": 397
+      "tools/placement_studio/window_constraints.py": 471,
+      "tools/placement_studio/window_rig_behaviour.py": 379
     }
   },
   {
@@ -89906,7 +89938,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the archives: {message}",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_rig_tabs.py": 179
+      "tools/placement_studio/window_rig_tabs.py": 187
     }
   },
   {
@@ -89922,7 +89954,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not scale: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_rig_behaviour.py": 409
+      "tools/placement_studio/window_rig_behaviour.py": 391
     }
   },
   {
@@ -90010,7 +90042,7 @@ MESSAGE_REFERENCE = [
     "message": "Draw analysis incomplete: {len(error.splitlines())} unreadable clips",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_carry.py": 1085
+      "tools/placement_studio/window_carry.py": 1042
     }
   },
   {
@@ -90167,14 +90199,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Every change in this session was made outside an operation. Move an item with Swap animations… so the change can be scoped, reviewed and packaged on its own.",
-    "recovery": "internal",
-    "sources": {
-      "tools/placement_studio/window_editing.py": 1114
-    }
-  },
-  {
-    "area": "placement",
     "message": "Example clip index outside animation array",
     "recovery": "internal",
     "sources": {
@@ -90235,15 +90259,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/motionblending.py": 247
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Export failed: {error}",
-    "recovery": "write",
-    "sources": {
-      "tools/placement_studio/window_constraints.py": 524,
-      "tools/placement_studio/window_rig_behaviour.py": 447
     }
   },
   {
@@ -90372,7 +90387,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish the current edit before preparing a replacement",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 143
+      "tools/placement_studio/editing.py": 148
     }
   },
   {
@@ -90852,7 +90867,7 @@ MESSAGE_REFERENCE = [
     "message": "Installation changed during relationship inspection; refresh required",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/relationships.py": 278
+      "tools/placement_studio/relationships.py": 314
     }
   },
   {
@@ -91274,6 +91289,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Join a full animation, not a distance (LOD) copy",
+    "recovery": "input",
+    "sources": {
+      "tools/paa_motion/edit.py": 1031
+    }
+  },
+  {
+    "area": "placement",
     "message": "Length changed",
     "recovery": "internal",
     "sources": {
@@ -91498,6 +91521,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Mirroring needs the character's skeleton",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/edit.py": 1050
+    }
+  },
+  {
+    "area": "placement",
     "message": "Missing",
     "recovery": "missing",
     "sources": {
@@ -91573,7 +91604,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing mapped animation and default",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/relationships.py": 91
+      "tools/placement_studio/relationships.py": 127
     }
   },
   {
@@ -91629,7 +91660,7 @@ MESSAGE_REFERENCE = [
     "message": "Mounted archive is missing: {directory.name}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/relationships.py": 38
+      "tools/placement_studio/relationships.py": 69
     }
   },
   {
@@ -91778,6 +91809,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "No animated node in the file matches a bone of this character. Export from the file Placement & Animations wrote, and keep the bone names.",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 183
+    }
+  },
+  {
+    "area": "placement",
     "message": "No blendspace examples",
     "recovery": "internal",
     "sources": {
@@ -91797,7 +91836,7 @@ MESSAGE_REFERENCE = [
     "message": "No defined socket matches the {len(chart_socket)} characters of {chart_socket}, so the draw animation cannot be retargeted yet. A socket of exactly that length unblocks it.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_editing.py": 479
+      "tools/placement_studio/window_editing.py": 399
     }
   },
   {
@@ -91885,7 +91924,7 @@ MESSAGE_REFERENCE = [
     "message": "No operation selected, so there is nothing to package",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 538
+      "tools/placement_studio/packaging.py": 547
     }
   },
   {
@@ -91901,7 +91940,7 @@ MESSAGE_REFERENCE = [
     "message": "No pinned vanilla baseline at {base}. Run: placement_studio extract",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/corpus.py": 223
+      "tools/placement_studio/corpus.py": 225
     }
   },
   {
@@ -91941,7 +91980,7 @@ MESSAGE_REFERENCE = [
     "message": "No socket {name} in {game_path}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 699
+      "tools/placement_studio/editing.py": 806
     }
   },
   {
@@ -92053,7 +92092,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded action chart: {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 608
+      "tools/placement_studio/editing.py": 715
     }
   },
   {
@@ -92061,7 +92100,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded action chart: {game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 661
+      "tools/placement_studio/editing.py": 768
     }
   },
   {
@@ -92069,7 +92108,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded file: {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 579
+      "tools/placement_studio/editing.py": 686
     }
   },
   {
@@ -92086,7 +92125,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/placement_studio/documents.py": 210,
-      "tools/placement_studio/editing.py": 816
+      "tools/placement_studio/editing.py": 923
     }
   },
   {
@@ -92094,7 +92133,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a socket file: {game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 799
+      "tools/placement_studio/editing.py": 906
     }
   },
   {
@@ -92110,7 +92149,7 @@ MESSAGE_REFERENCE = [
     "message": "Not in pinned vanilla baseline: {game_path}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/corpus.py": 215
+      "tools/placement_studio/corpus.py": 217
     }
   },
   {
@@ -92123,26 +92162,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Nothing to export: the descriptor is unchanged.",
-    "recovery": "empty",
-    "sources": {
-      "tools/placement_studio/window_rig_behaviour.py": 438
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Nothing to export: the rig is unchanged.",
-    "recovery": "empty",
-    "sources": {
-      "tools/placement_studio/window_constraints.py": 513
-    }
-  },
-  {
-    "area": "placement",
     "message": "Nothing to package: no edited files",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 358
+      "tools/placement_studio/packaging.py": 359
     }
   },
   {
@@ -92150,7 +92173,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing was changed: {error or 'cancelled'}",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/window_carry.py": 410
+      "tools/placement_studio/window_carry.py": 413
     }
   },
   {
@@ -92206,7 +92229,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {handle.operation_id} is already closed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 312
+      "tools/placement_studio/editing.py": 317
     }
   },
   {
@@ -92214,7 +92237,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {oid} is not in the session history, so it cannot be packaged",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 608
+      "tools/placement_studio/preflight.py": 612
     }
   },
   {
@@ -92222,7 +92245,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {self._active.operation_id} is still open; commit or roll it back before starting another",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 299
+      "tools/placement_studio/editing.py": 304
     }
   },
   {
@@ -92230,7 +92253,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {self._active.operation_id} is still open; commit or roll it back first",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 401
+      "tools/placement_studio/editing.py": 424
     }
   },
   {
@@ -92291,26 +92314,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Package blocked — see the errors",
-    "recovery": "input",
-    "sources": {
-      "tools/placement_studio/window_editing.py": 1270
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Package cancelled — nothing was written",
-    "recovery": "cancelled",
-    "sources": {
-      "tools/placement_studio/window_editing.py": 1282
-    }
-  },
-  {
-    "area": "placement",
     "message": "Package destination already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "tools/placement_studio/packaging.py": 425
+      "tools/placement_studio/packaging.py": 426
     }
   },
   {
@@ -92438,7 +92445,7 @@ MESSAGE_REFERENCE = [
     "message": "Placement Studio could not prepare its baseline. {error} The rest of the app is unaffected.",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/tab.py": 273
+      "tools/placement_studio/tab.py": 284
     }
   },
   {
@@ -92454,7 +92461,7 @@ MESSAGE_REFERENCE = [
     "message": "Placement preparation cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/corpus.py": 354,
+      "tools/placement_studio/corpus.py": 373,
       "tools/placement_studio/tab.py": 50
     }
   },
@@ -92480,7 +92487,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/placement_studio/prepared_move.py": 212,
-      "tools/placement_studio/window_carry.py": 475
+      "tools/placement_studio/window_carry.py": 478
     }
   },
   {
@@ -92504,7 +92511,7 @@ MESSAGE_REFERENCE = [
     "message": "Preparation source changed; refresh and prepare the operation again: {path}",
     "recovery": "stale",
     "sources": {
-      "tools/placement_studio/preflight.py": 649
+      "tools/placement_studio/preflight.py": 653
     }
   },
   {
@@ -92717,6 +92724,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Reach needs a hand or foot with an arm or leg above it",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/edit.py": 773
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Reach needs the character's skeleton",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/edit.py": 1036
+    }
+  },
+  {
+    "area": "placement",
     "message": "Rebuilt replacement is invalid: {detail}",
     "recovery": "input",
     "sources": {
@@ -92728,7 +92751,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing a non-normalized quaternion",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 745
+      "tools/placement_studio/editing.py": 852
     }
   },
   {
@@ -92744,7 +92767,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to write an empty clip to {game_path}",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/editing.py": 641
+      "tools/placement_studio/editing.py": 748
     }
   },
   {
@@ -92768,7 +92791,7 @@ MESSAGE_REFERENCE = [
     "message": "Relationship inspection cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/relationships.py": 42
+      "tools/placement_studio/relationships.py": 78
     }
   },
   {
@@ -92793,6 +92816,22 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/services/mesh_replacement_draft.py": 191
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Remove every change you have made here and go back to the game as it is? This cannot be undone.",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/window_save.py": 263
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Remove “{title}” from your changes? This cannot be undone.",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/window_save.py": 238
     }
   },
   {
@@ -93032,7 +93071,7 @@ MESSAGE_REFERENCE = [
     "message": "Resolved {len(located)}; missing {len(missing)}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/corpus.py": 374
+      "tools/placement_studio/corpus.py": 383
     }
   },
   {
@@ -93089,7 +93128,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/animation.py": 238,
-      "tools/placement_studio/editing.py": 663
+      "tools/placement_studio/editing.py": 770
     }
   },
   {
@@ -93168,6 +93207,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Carried at, which gives it a point of its own.",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/window_tasks.py": 313
+    }
+  },
+  {
+    "area": "placement",
     "message": "Sidecar contains stack/equip attachment offsets; replacement geometry should preserve the intended anchor placement.",
     "recovery": "internal",
     "sources": {
@@ -93219,7 +93266,7 @@ MESSAGE_REFERENCE = [
     "message": "Socket {new_name} is not defined by any loaded file; create the definition before retargeting to it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 667
+      "tools/placement_studio/editing.py": 774
     }
   },
   {
@@ -93228,7 +93275,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/documents.py": 131,
-      "tools/placement_studio/editing.py": 804
+      "tools/placement_studio/editing.py": 911
     }
   },
   {
@@ -93236,7 +93283,7 @@ MESSAGE_REFERENCE = [
     "message": "Socket {socket_name} is not defined by any loaded file; create the definition before routing to it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 818
+      "tools/placement_studio/editing.py": 925
     }
   },
   {
@@ -93277,7 +93324,7 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "tools/placement_studio/loading.py": 145,
-      "tools/placement_studio/window_carry.py": 490
+      "tools/placement_studio/window_carry.py": 493
     }
   },
   {
@@ -93302,6 +93349,22 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py": 1967
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Speed must be above zero",
+    "recovery": "input",
+    "sources": {
+      "tools/paa_motion/edit.py": 1025
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Start from a full animation, not a distance (LOD) copy",
+    "recovery": "input",
+    "sources": {
+      "tools/paa_motion/edit.py": 1308
     }
   },
   {
@@ -93410,10 +93473,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The .glb has no JSON chunk",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 66
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The .gltf points at a buffer outside its own folder",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 81
+    }
+  },
+  {
+    "area": "placement",
     "message": "The aim for {', '.join(sorted(borrowed_aims))} was borrowed or authored by hand and has not been marked reviewed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 520
+      "tools/placement_studio/preflight.py": 524
     }
   },
   {
@@ -93454,6 +93533,38 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 190
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The file has no animation in it",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 146
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The file has {len(animations)} animation(s)",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 148
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The game was updated while its files were being checked; reopen to retry",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/corpus.py": 619
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The import was cancelled",
+    "recovery": "cancelled",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 139
     }
   },
   {
@@ -93501,7 +93612,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation contains blocked preparation checks",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 640
+      "tools/placement_studio/preflight.py": 644
     }
   },
   {
@@ -93509,7 +93620,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation payload differs from its reviewed preparation",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/preflight.py": 637
+      "tools/placement_studio/preflight.py": 641
     }
   },
   {
@@ -93517,7 +93628,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation preparation record is invalid",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 653
+      "tools/placement_studio/preflight.py": 657
     }
   },
   {
@@ -93542,6 +93653,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/effect_placement_package.py": 319
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The render was replaced by a newer edit",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/edit.py": 1014
     }
   },
   {
@@ -93573,7 +93692,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected operation changes no file, so there is nothing to package",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 555
+      "tools/placement_studio/packaging.py": 564
     }
   },
   {
@@ -93626,6 +93745,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "This is a distance (LOD) copy of an animation, stored in a lossy format. Edit the full animation instead; the game builds the distance copy from it.",
+    "recovery": "internal",
+    "sources": {
+      "tools/paa_motion/edit.py": 1018
+    }
+  },
+  {
+    "area": "placement",
     "message": "This older replacement draft has no saved import normals. Import the model again before using Reset Placement or Fit to Original.",
     "recovery": "internal",
     "sources": {
@@ -93637,7 +93764,7 @@ MESSAGE_REFERENCE = [
     "message": "This placement operation did not record its destination socket, so the orientation zone check could not run",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 534
+      "tools/placement_studio/preflight.py": 538
     }
   },
   {
@@ -93778,6 +93905,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Two kinds of change edit the same file, so they cannot share one mod: {detail}",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/packaging.py": 570
+    }
+  },
+  {
+    "area": "placement",
     "message": "Unavailable until the resident .NET material-parameter channel is Ready.",
     "recovery": "missing",
     "sources": {
@@ -93829,7 +93964,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown manager profile: {manager}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/packaging.py": 356
+      "tools/placement_studio/packaging.py": 357
     }
   },
   {
@@ -93853,7 +93988,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown preparation evidence version",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 633
+      "tools/placement_studio/preflight.py": 637
     }
   },
   {
@@ -93949,7 +94084,15 @@ MESSAGE_REFERENCE = [
     "message": "Unverified: animation set is missing",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/relationships.py": 159
+      "tools/placement_studio/relationships.py": 195
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Use a full animation as the template, not a distance (LOD) copy",
+    "recovery": "input",
+    "sources": {
+      "tools/paa_motion/gltf_import.py": 142
     }
   },
   {
@@ -94029,7 +94172,7 @@ MESSAGE_REFERENCE = [
     "message": "add_socket without a socket",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 591
+      "tools/placement_studio/editing.py": 698
     }
   },
   {
@@ -94482,7 +94625,7 @@ MESSAGE_REFERENCE = [
     "message": "replace_file without a payload",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/editing.py": 571
+      "tools/placement_studio/editing.py": 678
     }
   },
   {
@@ -94667,7 +94810,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target} hangs on {destination} ({want_zone}) but is aimed by {child}, which belongs to the {have_zone}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 505
+      "tools/placement_studio/preflight.py": 509
     }
   },
   {
@@ -94675,7 +94818,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target}.{command.field_name} points at {command.text}, which no packaged file defines",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 555
+      "tools/placement_studio/preflight.py": 559
     }
   },
   {
@@ -94771,7 +94914,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} does not ship a .papr, so there is nothing to tune here. Only {count} of the game's characters have one — the four playable rigs and sixteen creatures. Pick one of those to see this tab populated, or use Rig behaviour, which covers every rig.",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/window_constraints.py": 314
+      "tools/placement_studio/window_constraints.py": 298
     }
   },
   {
@@ -94787,7 +94930,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(changed.animation_paths)} animation files would be replaced",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 573
+      "tools/placement_studio/preflight.py": 577
     }
   },
   {
@@ -94859,7 +95002,7 @@ MESSAGE_REFERENCE = [
     "message": "{new_name} is not a valid retarget for {old_name}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 673
+      "tools/placement_studio/editing.py": 780
     }
   },
   {
@@ -94916,6 +95059,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "tools/placement_studio/preflight.py": 318
+    }
+  },
+  {
+    "area": "placement",
+    "message": "{outcome.destination} already exists. Replace it with this version? {kept}",
+    "recovery": "conflict",
+    "sources": {
+      "tools/placement_studio/window_save.py": 355
     }
   },
   {
@@ -95091,7 +95242,7 @@ MESSAGE_REFERENCE = [
     "message": "{socket_name} is used by {', '.join(users)} and was changed in place; clone it and reroute only this operation's rows",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 483
+      "tools/placement_studio/preflight.py": 487
     }
   },
   {
@@ -96340,7 +96491,7 @@ MESSAGE_REFERENCE = [
     "message": "Canceled floating selection.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_floating_state.py": 510
+      "cdmw/ui/texture_workflow/editor_floating_state.py": 525
     }
   },
   {
@@ -97180,7 +97331,7 @@ MESSAGE_REFERENCE = [
     "message": "Matched files preview unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/texture_workflow/workflow_profiles_panel.py": 430
+      "cdmw/ui/texture_workflow/workflow_profiles_panel.py": 434
     }
   },
   {
@@ -97477,6 +97628,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/texture_pipeline/inspection.py": 712
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Not a Texture Editor project: {resolved.name}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 518
     }
   },
   {
@@ -98160,10 +98319,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Editor project has an unreadable version: {data.get('version')}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 522
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture Editor project is missing required asset files: {sample}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 553
+      "cdmw/core/texture_editor_project_io.py": 580
     }
   },
   {
@@ -98171,7 +98338,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project save failed and rollback was incomplete. Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 443
+      "cdmw/core/texture_editor_project_io.py": 446
     }
   },
   {
@@ -98827,7 +98994,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported texture source for Texture Editor: {resolved.suffix}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 73
+      "cdmw/core/texture_editor_project_io.py": 76
     }
   },
   {
@@ -99983,6 +100150,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "{resolved.name} was saved by a newer version of the Texture Editor (project version {project_version}; this build reads up to {_PROJECT_VERSION}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 524
+    }
+  },
+  {
+    "area": "textures",
     "message": "{resolved_format} is not valid for {preset.label}.",
     "recovery": "internal",
     "sources": {
@@ -100042,7 +100217,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount table is unexpectedly large: {mount_file}",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/language_index.py": 118
+      "tools/translation_studio/language_index.py": 120
     }
   },
   {
@@ -100050,7 +100225,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not list languages: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 535
+      "tools/translation_studio/tab.py": 539
     }
   },
   {
@@ -100058,7 +100233,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read archive package: {failed[0]}",
     "recovery": "format",
     "sources": {
-      "tools/translation_studio/language_index.py": 249
+      "tools/translation_studio/language_index.py": 251
     }
   },
   {
@@ -100074,7 +100249,7 @@ MESSAGE_REFERENCE = [
     "message": "Export cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/translation_studio/catalogue.py": 366
+      "tools/translation_studio/catalogue.py": 380
     }
   },
   {
@@ -100082,7 +100257,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {error}",
     "recovery": "write",
     "sources": {
-      "tools/translation_studio/tab.py": 907
+      "tools/translation_studio/tab.py": 912
     }
   },
   {
@@ -100090,7 +100265,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game language code. Use a code such as eng, rus, or zho-cn.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 592
+      "tools/translation_studio/tab.py": 596
     }
   },
   {
@@ -100098,7 +100273,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid table path. Choose a .paloc path under gamedata/stringtable/binary__.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 585
+      "tools/translation_studio/tab.py": 589
     }
   },
   {
@@ -100106,7 +100281,7 @@ MESSAGE_REFERENCE = [
     "message": "Language table path does not match {language}: {path}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 219
+      "tools/translation_studio/catalogue.py": 233
     }
   },
   {
@@ -100114,7 +100289,7 @@ MESSAGE_REFERENCE = [
     "message": "Language tables changed during loading: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "tools/translation_studio/catalogue.py": 345
+      "tools/translation_studio/catalogue.py": 359
     }
   },
   {
@@ -100122,7 +100297,7 @@ MESSAGE_REFERENCE = [
     "message": "Load failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 631
+      "tools/translation_studio/tab.py": 635
     }
   },
   {
@@ -100130,7 +100305,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to export: no lines have been changed.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 898
+      "tools/translation_studio/tab.py": 902
     }
   },
   {
@@ -100138,7 +100313,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to translate: no lines are in view.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 866
+      "tools/translation_studio/tab.py": 870
     }
   },
   {
@@ -100170,7 +100345,7 @@ MESSAGE_REFERENCE = [
     "message": "Use a mod name without folder separators or reserved filename characters.",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 362
+      "tools/translation_studio/catalogue.py": 376
     }
   },
   {
@@ -100220,7 +100395,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "tools/translation_studio/ai_job.py": 85,
       "tools/translation_studio/ai_provider.py": 193,
-      "tools/translation_studio/ai_translate.py": 276
+      "tools/translation_studio/ai_translate.py": 293
     }
   },
   {
@@ -100228,7 +100403,7 @@ MESSAGE_REFERENCE = [
     "message": "row {index} is not in this table",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 152
+      "tools/translation_studio/catalogue.py": 166
     }
   },
   {
@@ -100276,7 +100451,7 @@ MESSAGE_REFERENCE = [
     "message": "the reply contained no JSON",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/ai_translate.py": 308
+      "tools/translation_studio/ai_translate.py": 325
     }
   },
   {
@@ -100292,7 +100467,7 @@ MESSAGE_REFERENCE = [
     "message": "{language} is not in the archives",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 330
+      "tools/translation_studio/catalogue.py": 344
     }
   },
   {
@@ -100316,7 +100491,7 @@ MESSAGE_REFERENCE = [
     "message": "{wanted} is not in the archives",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/catalogue.py": 315
+      "tools/translation_studio/catalogue.py": 329
     }
   }
 ]
@@ -101052,10 +101227,12 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/relationships.py",
     "tools/placement_studio/resolver.py",
     "tools/placement_studio/rig_files.py",
+    "tools/placement_studio/save_mod.py",
     "tools/placement_studio/session.py",
     "tools/placement_studio/tab.py",
     "tools/placement_studio/window.py",
     "tools/placement_studio/window_animation.py",
+    "tools/placement_studio/window_animation_editor.py",
     "tools/placement_studio/window_armour.py",
     "tools/placement_studio/window_carry.py",
     "tools/placement_studio/window_clips.py",
@@ -101064,6 +101241,7 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/window_loading.py",
     "tools/placement_studio/window_rig_behaviour.py",
     "tools/placement_studio/window_rig_tabs.py",
+    "tools/placement_studio/window_save.py",
     "tools/weapon_placement_studio_ctf_smoke.py"
   ],
   "settings": [
@@ -101785,7 +101963,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/model_catalogue.py": {
     "diagnostic_field": 1,
-    "raise": 21
+    "raise": 23
   },
   "cdmw/core/model_catalogue_zip.py": {
     "raise": 1
@@ -102015,7 +102193,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/texture_editor_layer_ops.py": {},
   "cdmw/core/texture_editor_project_io.py": {
     "finding": 2,
-    "raise": 4
+    "raise": 7
   },
   "cdmw/core/texture_editor_raster_ops.py": {
     "raise": 1
@@ -105356,8 +105534,9 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/menus.py": {},
   "cdmw/ui/shell/model_library_bridge.py": {
     "diagnostic_field": 2,
+    "diagnostic_text": 1,
     "dialog": 1,
-    "display": 3,
+    "display": 5,
     "failure": 1,
     "raise": 3
   },
@@ -106628,6 +106807,9 @@ SOURCE_COVERAGE = {
     "finding": 2,
     "raise": 1
   },
+  "tools/paa_motion/edit.py": {
+    "raise": 10
+  },
   "tools/paa_motion/encode.py": {
     "assertion": 1,
     "raise": 16
@@ -106636,6 +106818,9 @@ SOURCE_COVERAGE = {
     "raise": 13
   },
   "tools/paa_motion/gltf.py": {},
+  "tools/paa_motion/gltf_import.py": {
+    "raise": 7
+  },
   "tools/paa_motion/pose.py": {},
   "tools/paa_motion/timing.py": {
     "raise": 2
@@ -106710,15 +106895,15 @@ SOURCE_COVERAGE = {
   },
   "tools/placement_studio/corpus.py": {
     "display": 1,
-    "finding": 1,
-    "raise": 5
+    "finding": 2,
+    "raise": 7
   },
   "tools/placement_studio/documents.py": {
     "finding": 2,
     "raise": 4
   },
   "tools/placement_studio/editing.py": {
-    "raise": 29
+    "raise": 30
   },
   "tools/placement_studio/editing_operations.py": {
     "finding": 1
@@ -106747,6 +106932,7 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/glossary.py": {},
   "tools/placement_studio/inspect_package.py": {},
   "tools/placement_studio/inspector.py": {},
+  "tools/placement_studio/key_timeline.py": {},
   "tools/placement_studio/layout_util.py": {},
   "tools/placement_studio/loading.py": {
     "raise": 2
@@ -106788,7 +106974,7 @@ SOURCE_COVERAGE = {
     "raise": 13
   },
   "tools/placement_studio/packaging.py": {
-    "raise": 12
+    "raise": 13
   },
   "tools/placement_studio/palette.py": {},
   "tools/placement_studio/playback.py": {
@@ -106825,6 +107011,9 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/rig_files.py": {
     "assertion": 1
   },
+  "tools/placement_studio/save_mod.py": {
+    "diagnostic_field": 1
+  },
   "tools/placement_studio/scene_preparation.py": {
     "raise": 3,
     "report": 6
@@ -106853,6 +107042,11 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/window_animation.py": {
     "display": 1
   },
+  "tools/placement_studio/window_animation_editor.py": {
+    "dialog": 8,
+    "display": 2,
+    "report": 2
+  },
   "tools/placement_studio/window_armour.py": {
     "diagnostic_field": 1,
     "display": 2,
@@ -106870,12 +107064,10 @@ SOURCE_COVERAGE = {
   },
   "tools/placement_studio/window_constraints.py": {
     "display": 2,
-    "report": 1,
-    "validation": 3
+    "report": 1
   },
   "tools/placement_studio/window_editing.py": {
-    "dialog": 5,
-    "display": 2,
+    "dialog": 1,
     "validation": 1
   },
   "tools/placement_studio/window_loading.py": {
@@ -106887,13 +107079,18 @@ SOURCE_COVERAGE = {
     "display": 1
   },
   "tools/placement_studio/window_rig_behaviour.py": {
-    "display": 3,
-    "validation": 2
+    "display": 3
   },
   "tools/placement_studio/window_rig_tabs.py": {
     "display": 2,
     "failure": 1,
     "report": 1
+  },
+  "tools/placement_studio/window_save.py": {
+    "dialog": 4
+  },
+  "tools/placement_studio/window_tasks.py": {
+    "display": 1
   },
   "tools/placement_studio/xmldoc.py": {
     "raise": 6

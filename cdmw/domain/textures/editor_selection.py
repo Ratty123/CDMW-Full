@@ -319,12 +319,16 @@ def swap_texture_editor_layer_channels(
     updated[..., index_b] = temp
     return updated
 
+def _unfeathered(selection: TextureEditorSelection) -> TextureEditorSelection:
+    return dataclasses.replace(selection, feather_radius=0) if int(selection.feather_radius or 0) else selection
+
 def apply_texture_editor_selection_stroke(
     document: TextureEditorDocument,
     tool_settings: TextureEditorToolSettings,
     points: Sequence[Tuple[int, int]],
 ) -> TextureEditorDocument:
-    mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    # The stored selection is feathered on read; editing that result would blur it again.
+    mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     if mask is None:
         mask = np.zeros((max(1, document.height), max(1, document.width)), dtype=np.uint8)
     updated_mask = np.asarray(mask, dtype=np.uint8).copy()
@@ -375,7 +379,7 @@ def apply_texture_editor_selection_fill(
     height = max(1, int(document.height))
     x = max(0, min(width - 1, int(point[0])))
     y = max(0, min(height - 1, int(point[1])))
-    mask = build_texture_editor_selection_mask(width, height, document.selection)
+    mask = build_texture_editor_selection_mask(width, height, _unfeathered(document.selection))
     if mask is None:
         mask = np.zeros((height, width), dtype=np.uint8)
     updated_mask = np.asarray(mask, dtype=np.uint8).copy()

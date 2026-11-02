@@ -335,10 +335,13 @@ def page_url(page: str, locale: str, anchor: str = "") -> str:
     return WIKI + page_slug(page, locale) + ("#" + anchor if anchor else "")
 
 
-def _inline(node: Node | str, locale: str) -> str:
+def _inline(node: Node | str, locale: str, *, literal: bool = False) -> str:
     if isinstance(node, str):
-        return re.sub(r"\s+", " ", node)
-    body = "".join(_inline(child, locale) for child in node.children)
+        text = re.sub(r"\s+", " ", node)
+        # A literal asterisk in prose, such as a *.xml wildcard, must not open emphasis.
+        return text if literal else text.replace("*", r"\*")
+    literal = literal or node.tag == "code"
+    body = "".join(_inline(child, locale, literal=literal) for child in node.children)
     if node.tag in {"b", "strong"}:
         return f"**{body.strip()}**"
     if node.tag in {"i", "em"}:

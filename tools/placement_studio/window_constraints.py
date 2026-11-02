@@ -42,7 +42,6 @@ absent from the screen.
 from __future__ import annotations
 
 from collections import Counter
-from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt
@@ -51,7 +50,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QSlider,
     QSplitter,
@@ -68,7 +66,6 @@ from .constraints import (
     changed_files,
     constraint_path_for_model,
     describe_changes,
-    export_packages,
     freeze_chain,
     load_constraints,
     set_chain_strength,
@@ -219,11 +216,11 @@ class SecondaryMotionMixin:
         intent = QHBoxLayout()
         self._chain_softer = QPushButton("Softer")
         self._chain_softer.setToolTip("Follow the body less, so the chain swings more.")
-        self._chain_softer.clicked.connect(lambda: self._nudge(-_NUDGE))
+        self._chain_softer.clicked.connect(lambda: self._nudge_strength(-_NUDGE))
         intent.addWidget(self._chain_softer)
         self._chain_stiffer = QPushButton("Stiffer")
         self._chain_stiffer.setToolTip("Follow the body more, so the chain moves less.")
-        self._chain_stiffer.clicked.connect(lambda: self._nudge(_NUDGE))
+        self._chain_stiffer.clicked.connect(lambda: self._nudge_strength(_NUDGE))
         intent.addWidget(self._chain_stiffer)
         self._chain_off = QPushButton("Off")
         self._chain_off.setToolTip("Take all secondary motion out of this chain.")
@@ -254,40 +251,23 @@ class SecondaryMotionMixin:
         return box
 
     def _build_export_row(self) -> QWidget:
-        """Name, author and the button on one line.
+        """What is pending, and where it goes.
 
-        A `QFormLayout` with its own row per field spent about 200px of a 780px panel on
-        two text boxes, which is what forced the chain list down to a single visible row.
-        Placeholders carry the labels instead.
+        This panel had its own name, author and Build button, which wrote a separate mod and
+        still wrote a CDMW-unsupported CDUMM copy. Everything is saved from Your mod now.
         """
 
-        box = QGroupBox("Export as a mod")
+        box = QGroupBox("Your changes here")
         layout = QVBoxLayout(box)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(4)
         self._constraint_pending = QLabel("No changes.")
         self._constraint_pending.setWordWrap(True)
         layout.addWidget(self._constraint_pending)
-
-        row = QHBoxLayout()
-        self._constraint_mod_name = QLineEdit("Secondary motion tweak")
-        self._constraint_mod_name.setPlaceholderText("Mod name")
-        self._constraint_mod_name.setToolTip("Mod name, as the mod manager will list it.")
-        row.addWidget(self._constraint_mod_name, 3)
-        self._constraint_mod_author = QLineEdit()
-        self._constraint_mod_author.setPlaceholderText("Author")
-        self._constraint_mod_author.setToolTip("Your name, written into the package metadata.")
-        row.addWidget(self._constraint_mod_author, 2)
-        self._constraint_export = QPushButton("Build")
-        self._constraint_export.setToolTip("Write one package per supported mod manager.")
-        self._constraint_export.setEnabled(False)
-        self._constraint_export.clicked.connect(self._on_export_clicked)
-        row.addWidget(self._constraint_export)
-        layout.addLayout(row)
-
-        self._constraint_export_note = QLabel("")
-        self._constraint_export_note.setWordWrap(True)
-        layout.addWidget(self._constraint_export_note)
+        note = QLabel("Saved together with your other changes: open Your mod and choose Save as mod.")
+        note.setObjectName("HintLabel")
+        note.setWordWrap(True)
+        layout.addWidget(note)
         return box
 
     def _set_controls_enabled(self, enabled: bool) -> None:
@@ -307,6 +287,10 @@ class SecondaryMotionMixin:
         an error message, or None when a rig loaded or none exists.
         """
 
+        if self.constraint_changes() and rig_path != getattr(self, "_constraint_rig_shown", ""):
+            # The panel holds one rig at a time; say so rather than losing the edits quietly.
+            self.statusBar().showMessage(
+                "Driven bones changes for the previous character were discarded")
         self._constraint_rig_shown = rig_path
         path = constraint_path_for_model(rig_path, rig_files.constraint_paths)
         data = rig_files.constraints.get(path or "", b"")
@@ -345,6 +329,7 @@ class SecondaryMotionMixin:
         self._rig_constraints = rig
         self._rig_constraints_original = rig
         self._rig_constraints_bytes = bytes(data)
+        self._chain_targets = {}
         self._refresh_chain_table()
         # Land on a chain rather than on an empty detail pane and dead buttons. The list is
         # sorted with the categories worth tuning first, so row 0 is a reasonable answer to
@@ -429,48 +414,75 @@ class SecondaryMotionMixin:
     # -------------------------------------------------------------------- edits
 
     def _on_strength_preview(self, value: int) -> None:
-        """Label tracks the slider; the file is only touched on release."""
+        """Label tracks the slider; a drag applies on release, a key or page step at once.
+
+        Applying only on mouse release left the arrow keys and page clicks moving the handle
+        and the label while the rig never changed.
+        """
 
         self._chain_value.setText(f"{value}%")
+        if not self._constraint_updating and not self._chain_slider.isSliderDown():
+            self._apply_strength(value)
 
     def _on_strength_committed(self) -> None:
         self._apply_strength(self._chain_slider.value())
 
-    def _nudge(self, delta: int) -> None:
+    # Named apart from the edit panel's `_nudge(dx, dy, dz)`: both are mixed into one window,
+    # and the shared name made Softer and Stiffer call the socket nudge and fail.
+    def _nudge_strength(self, delta: int) -> None:
         chain = self._selected_chain()
         if chain is None:
             return
         self._apply_strength(max(0, min(100, int(round(chain.strength)) + delta)))
 
     def _apply_strength(self, value: int) -> None:
-        rig = self._rig_constraints
+        self._set_chain_target(float(value))
+
+    def _set_chain_target(self, value: float) -> None:
+        """Record the strength wanted for the selected chain and rebuild from the game's rig.
+
+        Each chain's strength is kept as a target and applied to the shipped rig, rather than
+        scaled from whatever the chain holds now. Scaling made Off permanent: a chain at zero
+        has no weights left to scale, so it could never be raised again.
+        """
+
+        original = self._rig_constraints_original
         name = self._selected_chain_name()
-        if rig is None or not name:
+        if original is None or not name:
             return
-        chain = rig.chain_named(name)
-        if chain is None or chain.strength <= 0:
+        shipped = original.chain_named(name)
+        if shipped is None or shipped.strength <= 0:
             return
+        current = self._selected_chain()
+        if current is not None and abs(current.strength - value) < 0.5:
+            # A click on the slider that did not move it: rounding to whole percents would
+            # rescale the chain by up to half a point, which no change list would show.
+            return
+        targets = dict(getattr(self, "_chain_targets", {}))
+        targets[name] = value
         try:
-            self._rig_constraints = set_chain_strength(rig, name, float(value))
+            rig = original
+            for chain_name, target in targets.items():
+                if target <= 0:
+                    rig = freeze_chain(rig, chain_name)
+                elif abs(target - original.chain_named(chain_name).strength) > 1e-6:
+                    rig = set_chain_strength(rig, chain_name, target)
         except Exception as error:  # noqa: BLE001
             self._constraint_pending.setText(f"Could not apply: {error}")
             return
+        self._chain_targets = targets
+        self._rig_constraints = rig
         self._refresh_chain_table()
         self._reselect(name)
 
     def _on_chain_off(self) -> None:
-        rig = self._rig_constraints
-        name = self._selected_chain_name()
-        if rig is None or not name:
-            return
-        self._rig_constraints = freeze_chain(rig, name)
-        self._refresh_chain_table()
-        self._reselect(name)
+        self._set_chain_target(0.0)
 
     def _on_chain_reset(self) -> None:
         if self._rig_constraints_original is None:
             return
         name = self._selected_chain_name()
+        self._chain_targets = {}
         self._rig_constraints = self._rig_constraints_original
         self._refresh_chain_table()
         if name:
@@ -493,43 +505,21 @@ class SecondaryMotionMixin:
         self._constraint_pending.setText(
             "No changes." if not lines else "Pending: " + "; ".join(lines)
         )
-        self._constraint_export.setEnabled(bool(lines))
+        refresh = getattr(self, "_refresh_mod_list", None)
+        if refresh is not None:
+            refresh()
+
+    def constraint_changes(self) -> tuple:
+        """Plain lines for the Your mod list, empty when the rig is unchanged."""
+
+        rig = getattr(self, "_rig_constraints", None)
+        base = getattr(self, "_rig_constraints_original", None)
+        return tuple(describe_changes(base, rig)) if rig and base else ()
 
     def constraint_mod_files(self) -> dict:
         """`{game path: bytes}` for the packager, empty when nothing changed."""
 
-        rig = self._rig_constraints
-        if rig is None or not self._rig_constraints_bytes:
+        rig = getattr(self, "_rig_constraints", None)
+        if rig is None or not getattr(self, "_rig_constraints_bytes", b""):
             return {}
         return dict(changed_files(self._rig_constraints_bytes, rig))
-
-    # ------------------------------------------------------------------- export
-
-    def export_constraint_mod(self, out_root) -> str:
-        """Build the packages and return a line describing what happened."""
-
-        rig = self._rig_constraints
-        if rig is None or not self.constraint_mod_files():
-            return "Nothing to export: the rig is unchanged."
-        name = self._constraint_mod_name.text().strip() or "Secondary motion tweak"
-        try:
-            results = export_packages(
-                rig,
-                self._rig_constraints_bytes,
-                out_root=Path(out_root),
-                name=name,
-                author=self._constraint_mod_author.text().strip(),
-            )
-        except Exception as error:  # noqa: BLE001 - report, never take the window down
-            return f"Export failed: {error}"
-        if not results:
-            return "Nothing to export: the rig is unchanged."
-        return f"Wrote {len(results)} package(s) to {out_root}"
-
-    def _on_export_clicked(self) -> None:
-        from PySide6.QtWidgets import QFileDialog
-
-        out_root = QFileDialog.getExistingDirectory(None, "Where should the packages go?")
-        if not out_root:
-            return
-        self._constraint_export_note.setText(self.export_constraint_mod(out_root))

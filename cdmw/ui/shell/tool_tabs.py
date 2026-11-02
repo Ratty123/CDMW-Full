@@ -796,7 +796,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
         self._register_detachable_tool("mod_management", self.mod_management_tab, "Mod Management")
-        self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
+        self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animations")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
         self._register_detachable_tool(
             "format_explorer",

@@ -50,6 +50,10 @@ NUDGE_STEPS: Tuple[Tuple[str, float, bool], ...] = (
 
 _ROUTE_FIELDS = ("in_socket", "out_socket", "in_child_socket", "out_child_socket")
 
+#: Free-form edits that may be gathered into the manual operation and saved: where a point
+#: sits, how it is turned, what it hangs from, and new points. See `adopt_loose_commands`.
+ADOPTABLE_KINDS = frozenset({"translate", "rotate", "reparent", "add_socket"})
+
 # Every vanilla socket name is drawn from this set, and it is also the safe intersection of two
 # formats: an XML attribute value, and a length-prefixed ASCII string inside a `.paac` chart.
 _NAME_PATTERN = re.compile(r"[A-Za-z0-9_]+")
@@ -86,6 +90,7 @@ class ScopeError(EditError):
 
 
 from .editing_operations import (
+    OP_EDIT_ANIMATION,
     OP_FREEFORM,
     OP_MANUAL_ORIENTATION,
     OP_MOVE_EQUIPMENT,
@@ -387,6 +392,103 @@ class EditSession:
 
         return [c for c in self._commands[: self._cursor] if not c.operation_id]
 
+    def manual_operation(self) -> Optional[EditOperation]:
+        """The one operation that holds adopted hand adjustments, if any are standing."""
+
+        return next((op for op in self.operations() if op.kind == OP_MANUAL_ORIENTATION), None)
+
+    def adoptable_loose_commands(self) -> List[Command]:
+        """The free-form edits `adopt_loose_commands` takes: position, angle, new points."""
+
+        return [c for c in self.loose_commands() if c.kind in ADOPTABLE_KINDS]
+
+    def adopt_loose_commands(self, label: str = "Manual adjustments") -> str:
+        """Gather the free-form position edits into the session's manual operation.
+
+        Free-form edits -- a nudge, a typed angle, a new attach point -- used to be refused by
+        packaging outright, which left no way to save the most basic change as a mod. They are
+        gathered into one operation scoped to exactly what they touched, so the preflight still
+        checks everything it checks for any operation: a shared attach point changed in place
+        is still refused, and nothing else can enter the package. Every adoption extends the
+        same operation, so adjusting a point again later stays one change rather than two that
+        set the same value differently.
+
+        Hand re-routes and chart retargets are left loose. A route skips the checks a move runs
+        (the sheath that has to follow, the zone the aim belongs to), and a retarget can name a
+        socket only another change defines; neither ever reached a package before.
+
+        Returns the manual operation's id, or "" when there is none.
+        """
+
+        if self._active is not None:
+            raise EditError(
+                f"Operation {self._active.operation_id} is still open; commit or roll it back "
+                f"first"
+            )
+        existing = self.manual_operation()
+        positions = [
+            index for index, command in enumerate(self._commands[: self._cursor])
+            if not command.operation_id and command.kind in ADOPTABLE_KINDS
+        ]
+        if not positions:
+            return existing.operation_id if existing is not None else ""
+        loose = [self._commands[index] for index in positions]
+        before = existing.scope if existing is not None else OperationScope(kind=OP_MANUAL_ORIENTATION)
+        scope = replace(
+            before,
+            enforce=True,
+            allowed_socket_files=tuple(sorted(set(before.allowed_socket_files)
+                                              | {c.game_path for c in loose})),
+            allowed_socket_names=tuple(sorted(set(before.allowed_socket_names)
+                                              | {c.target for c in loose
+                                                 if c.kind == "add_socket"})),
+        )
+        if existing is not None:
+            operation_id = existing.operation_id
+            start = len(existing.commands)
+        else:
+            number = next(self._operation_counter)
+            operation_id = f"op-{number:03d}-{self.baseline_revision[:6]}"
+            start = 0
+        for order, index in enumerate(positions, start=start):
+            self._commands[index] = replace(
+                self._commands[index],
+                operation_id=operation_id,
+                scope_kind=scope.kind,
+                created_order=order,
+            )
+        self._operation_records[operation_id] = EditOperation(
+            operation_id=operation_id,
+            kind=scope.kind,
+            equipment_unit_id="",
+            baseline_revision=self.baseline_revision,
+            scope=scope,
+            label=label,
+        )
+        return operation_id
+
+    def drop_hand_edits(self, *, adoptable: bool) -> int:
+        """Remove free-form edits of one sort: position edits, or re-routes and retargets.
+
+        Position edits that were already gathered into the manual operation go with them.
+        Returns how many commands were removed.
+        """
+
+        def doomed(command: Command) -> bool:
+            if adoptable and command.scope_kind == OP_MANUAL_ORIENTATION and command.operation_id:
+                return True
+            return not command.operation_id and (command.kind in ADOPTABLE_KINDS) == adoptable
+
+        removed_before_cursor = sum(1 for c in self._commands[: self._cursor] if doomed(c))
+        kept = [c for c in self._commands if not doomed(c)]
+        dropped = len(self._commands) - len(kept)
+        if not dropped:
+            return 0
+        self._commands = kept
+        self._cursor -= removed_before_cursor
+        self._replay()
+        return dropped
+
     def start_clean_operation(self) -> int:
         """Drop every edit that belongs to no operation, keeping the committed ones.
 
@@ -526,11 +628,16 @@ class EditSession:
                 created[command.target] = command.operation_id
 
         # A socket one operation created and another then re-aimed is a hidden dependency:
-        # packaging either alone gives a different result from packaging both.
+        # packaging either alone gives a different result from packaging both. Hand
+        # adjustments are the exception: fine-tuning the point a move created is what Fine-tune
+        # is for, both are replayed in history order, and `save_mod.manual_dependencies`
+        # refuses to package the adjustment without the move.
         for command in self._commands[: self._cursor]:
             if command.operation_id not in wanted:
                 continue
             if command.kind not in {"translate", "rotate", "reparent"}:
+                continue
+            if command.scope_kind == OP_MANUAL_ORIENTATION:
                 continue
             owner = created.get(command.target)
             if owner and owner != command.operation_id:
