@@ -655,8 +655,9 @@ inspectors before the readable-strings fallback:
   prefabs), cached per game folder until a `.pamt` changes. The editor is not modal, so
   **Show in Archive Browser** can search for a clip while it stays open; **Use Clip
   Length** reads the clip on the dialog's worker. The worker also builds
-  `clip_usage_index` (every standard chart's clip table, about 4 s, cached with the
-  index), so the editor names the other charts that play a clip; **Other Charts Playing
+  `chart_scan` (every standard chart's clip table and included charts, about 4 s,
+  cached with the index); the finder lists each slot chart's includes recursively and
+  "used by" names slots that reach a chart through them, so the editor names the other charts that play a clip; **Other Charts Playing
   This Clip...** queues `LinkedClipChange`s that export applies to those charts in the
   same mod. Edits apply on that worker through
   `cdmw/services/action_chart_edit_service.py` and every table is rebuilt from the

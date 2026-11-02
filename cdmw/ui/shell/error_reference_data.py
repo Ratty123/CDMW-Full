@@ -9589,7 +9589,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot edit {prepared.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 184
+      "cdmw/ui/archive_browser/action_chart_actions.py": 186
     }
   },
   {
@@ -10248,7 +10248,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not open {chart_path}: {result}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 152
+      "cdmw/ui/archive_browser/action_chart_actions.py": 154
     }
   },
   {
@@ -10296,7 +10296,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 312
+      "cdmw/ui/archive_browser/action_chart_actions.py": 316
     }
   },
   {
@@ -10312,7 +10312,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {folder}: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 353
+      "cdmw/ui/archive_browser/action_chart_actions.py": 357
     }
   },
   {
@@ -18629,7 +18629,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart_path} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 126
+      "cdmw/ui/archive_browser/action_chart_actions.py": 127
     }
   },
   {
@@ -72340,7 +72340,7 @@ MESSAGE_REFERENCE = [
     "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 957
+      "cdmw/services/action_chart_edit_service.py": 1014
     }
   },
   {
@@ -78575,7 +78575,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before exporting it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1007
+      "cdmw/services/action_chart_edit_service.py": 1064
     }
   },
   {
@@ -87067,7 +87067,7 @@ MESSAGE_REFERENCE = [
     "message": "the chart has no changes to export",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1011
+      "cdmw/services/action_chart_edit_service.py": 1068
     }
   },
   {
@@ -87315,7 +87315,7 @@ MESSAGE_REFERENCE = [
     "message": "the written mod archive does not read back as the edited charts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1066
+      "cdmw/services/action_chart_edit_service.py": 1123
     }
   },
   {
@@ -87443,7 +87443,7 @@ MESSAGE_REFERENCE = [
     "message": "{clip} could not be read as an animation clip: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 784
+      "cdmw/services/action_chart_edit_service.py": 797
     }
   },
   {
@@ -87451,7 +87451,7 @@ MESSAGE_REFERENCE = [
     "message": "{clip} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 779
+      "cdmw/services/action_chart_edit_service.py": 792
     }
   },
   {
@@ -87531,7 +87531,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not an editable action chart",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1004
+      "cdmw/services/action_chart_edit_service.py": 1061
     }
   },
   {
@@ -87675,7 +87675,7 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} has no {group}/0.pamt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 911
+      "cdmw/services/action_chart_edit_service.py": 968
     }
   },
   {
@@ -87683,7 +87683,7 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} holds no action charts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 920
+      "cdmw/services/action_chart_edit_service.py": 977
     }
   },
   {
@@ -87691,7 +87691,7 @@ MESSAGE_REFERENCE = [
     "message": "{folder.name} is not an action chart mod CDMW wrote.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 906
+      "cdmw/services/action_chart_edit_service.py": 963
     }
   },
   {
@@ -88163,7 +88163,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} cannot be read to change its clips.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1042
+      "cdmw/services/action_chart_edit_service.py": 1099
     }
   },
   {
@@ -88187,7 +88187,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not in the game archives. Export to a new mod name instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1024
+      "cdmw/services/action_chart_edit_service.py": 1081
     }
   },
   {

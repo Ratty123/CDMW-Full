@@ -600,8 +600,8 @@ def test_finder_action_opens_the_chosen_chart(stored, tmp_path, monkeypatch):
     seen: dict = {}
 
     class _Finder:
-        def __init__(self, rows, available, parent):
-            seen.update(rows=rows, available=available)
+        def __init__(self, rows, available, includes, parent):
+            seen.update(rows=rows, available=available, includes=includes)
             self.selected_path = PATH
 
         def exec(self):
@@ -815,3 +815,39 @@ def test_link_dialog_needs_a_new_clip_and_a_ticked_chart(qt_app):
     dialog.table.item(1, 0).setCheckState(dialog.table.item(1, 0).checkState().Unchecked)
     dialog.add_button.click()
     assert dialog.selected_charts == (BASIC,) and dialog.new_clip == NEW_CLIP
+
+
+# --- included charts ------------------------------------------------------------------
+
+BRANCHSET = "actionchart/bin__/upperaction/1_pc/1_phm/common_upper_branchset.paac"
+
+
+def test_the_scan_records_included_charts_and_slots_reach_them(stored, tmp_path):
+    from cdmw.services.action_chart_edit_service import chart_scan, chart_users, character_chart_rows, included_charts
+
+    data = chart_bytes()  # table 0 entry 0, the chart's include, names common_upper_branchset
+    index, _scans, _root = _index(tmp_path, [stored(PATH, data), stored(BRANCHSET, data)])
+    scan = chart_scan(index, lambda entry: entry.paz_file.read_bytes())
+    assert scan.includes[PATH.lower()] == (BRANCHSET,)
+    assert included_charts(scan.includes, PATH) == (BRANCHSET,)
+    assert included_charts(scan.includes, BRANCHSET) == (), "a chart never lists itself"
+    rows = character_chart_rows(descriptor_bytes())
+    assert chart_users(rows, BRANCHSET, scan.includes) == ("Player_Kliff (Sword, via sword_upper)",)
+    assert chart_users(rows, BRANCHSET) == ()
+
+
+def test_the_finder_lists_included_charts_under_each_slot(qt_app):
+    from cdmw.ui.archive_browser.action_chart_finder_dialog import ActionChartFinderDialog
+
+    rows = character_chart_rows(descriptor_bytes())
+    includes = {PATH.lower(): (BRANCHSET,), BRANCHSET.lower(): (PATH,)}
+    dialog = ActionChartFinderDialog(rows, available={PATH, BRANCHSET}, includes=includes)
+    sword = dialog.tree.topLevelItem(0).child(1)
+    assert sword.childCount() == 1, "a chart that includes its includer is not listed again"
+    included = sword.child(0)
+    assert (included.text(0), included.text(1)) == ("includes", "upperaction/1_pc/1_phm/common_upper_branchset")
+    dialog.filter_edit.setText("branchset")
+    assert not included.isHidden() and not sword.isHidden() and dialog.tree.topLevelItem(0).child(0).isHidden()
+    dialog.tree.setCurrentItem(included)
+    dialog.edit_button.click()
+    assert dialog.selected_path == BRANCHSET

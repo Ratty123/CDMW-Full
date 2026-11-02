@@ -447,6 +447,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Edit an action chart</h4>
                 <ol>
                   <li>In Archive Browser, click Action Charts and choose Find Action Chart by Character..., select a character's weapon slot and click Edit Chart. You can also right-click an action chart (.paac) and choose Edit Action Chart....</li>
+                  <li>Under each slot, the finder lists the charts that slot's chart includes. Which chart plays depends on the weapons equipped, so check the slot for that loadout and its included charts: Kliff's dual-wield idle comes from dualweapon_upper, which his SubWeapon chart includes.</li>
                   <li>On the Animations tab, select an animation. Change its clip or blend space and click Set for This Animation; other animations that play the same clip keep theirs.</li>
                   <li>Use Clip Length sets the animation's Clip end to the length of the clip in the Clip field. Show in Archive Browser finds that clip so you can preview it while the editor stays open.</li>
                   <li>Click Other Charts Playing This Clip... to see which other charts play the selected clip and which characters use them. The game picks a chart from the character and the weapon in hand, so tick every chart that should change and click Change in Ticked Charts; they get the same clip change in the same mod when you export.</li>

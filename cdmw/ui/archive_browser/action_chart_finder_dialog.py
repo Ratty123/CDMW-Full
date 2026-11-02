@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.services.action_chart_edit_service import CharacterChartRow
+from cdmw.services.action_chart_edit_service import CHART_ROOT, CharacterChartRow, included_charts
 
 _PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 
@@ -30,11 +30,13 @@ class ActionChartFinderDialog(QDialog):
         rows: Sequence[CharacterChartRow],
         *,
         available: Optional[set[str]] = None,
+        includes: Optional[Mapping[str, Sequence[str]]] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.selected_path = ""
         self._available = available
+        self._includes = includes or {}
         self.setWindowTitle("Find Action Chart by Character")
         self.resize(900, 640)
         layout = QVBoxLayout(self)
@@ -45,6 +47,13 @@ class ActionChartFinderDialog(QDialog):
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
+        hint = QLabel(
+            "Which chart plays depends on the weapons equipped: check the slot for that loadout and the charts it "
+            "includes. Kliff's dual-wield idle, for example, comes from dualweapon_upper, which his SubWeapon chart "
+            "includes."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("Filter by character, slot or chart...")
         self.filter_edit.textChanged.connect(self._filter)
@@ -86,18 +95,43 @@ class ActionChartFinderDialog(QDialog):
                 font.setBold(True)
                 child.setFont(0, font)
             parent.addChild(child)
+            self._add_included(child, row.archive_path, {row.archive_path.lower()})
+
+    def _add_included(self, item: QTreeWidgetItem, chart: str, seen: set[str]) -> None:
+        """List the charts `chart` includes under it, each chart once per slot."""
+
+        for path in self._includes.get(chart.lower(), ()):
+            if path.lower() in seen:
+                continue
+            seen.add(path.lower())
+            name = path[len(CHART_ROOT):] if path.lower().startswith(CHART_ROOT) else path
+            if name.lower().endswith(".paac"):
+                name = name[: -len(".paac")]
+            child = QTreeWidgetItem(["includes", name])
+            child.setData(0, _PATH_ROLE, path)
+            child.setToolTip(1, path)
+            item.addChild(child)
+            self._add_included(child, path, seen)
 
     def _filter(self, text: str) -> None:
         needle = str(text or "").strip().lower()
+
+        def show(item: QTreeWidgetItem, forced: bool) -> bool:
+            own = not needle or forced or needle in item.text(0).lower() or needle in item.text(1).lower()
+            below = False
+            for index in range(item.childCount()):
+                below = show(item.child(index), own and bool(needle) and forced) or below
+            visible = own or below
+            item.setHidden(not visible)
+            item.setExpanded(bool(needle) and below)
+            return visible
+
         for index in range(self.tree.topLevelItemCount()):
             parent = self.tree.topLevelItem(index)
-            package_hit = needle in parent.text(0).lower()
+            package_hit = bool(needle) and needle in parent.text(0).lower()
             visible = False
             for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                hit = not needle or package_hit or needle in child.text(0).lower() or needle in child.text(1).lower()
-                child.setHidden(not hit)
-                visible = visible or hit
+                visible = show(parent.child(child_index), package_hit) or visible
             parent.setHidden(not visible)
             parent.setExpanded(bool(needle) and visible)
 

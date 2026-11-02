@@ -26,9 +26,9 @@ from cdmw.services.action_chart_edit_service import (
     change_summary,
     character_rows_from_index,
     chart_archive_index,
+    chart_scan,
     chart_users,
     clip_info,
-    clip_usage_index,
     compare_charts,
     is_editable_action_chart_path,
     load_editable_chart,
@@ -72,6 +72,7 @@ class _PreparedChart:
     used_by: tuple[str, ...]
     character_rows: tuple = ()
     clip_uses: Optional[dict] = None
+    includes: Optional[dict] = None
 
 
 class ArchiveActionChartActionsMixin:
@@ -141,11 +142,12 @@ class ArchiveActionChartActionsMixin:
                 rows = ()
             log("Finding which charts play each clip (the first time takes a few seconds)")
             try:
-                clip_uses = dict(clip_usage_index(index, _read))
+                scan = chart_scan(index, _read)
+                clip_uses, includes = dict(scan.clip_uses), dict(scan.includes)
             except (ActionChartError, OSError, ValueError):
-                clip_uses = None
+                clip_uses = includes = None
             return _PreparedChart(index, entry, entry.path, data, edited, changes, catalogs,
-                                  chart_users(rows, entry.path), tuple(rows), clip_uses)
+                                  chart_users(rows, entry.path, includes), tuple(rows), clip_uses, includes)
 
         def _open_prepared_action_chart(result: object) -> None:
             if not isinstance(result, _PreparedChart):
@@ -175,7 +177,7 @@ class ArchiveActionChartActionsMixin:
                 clip_info=lambda clip: clip_info(index, clip, _read),
                 show_in_browser=self._show_action_chart_clip_in_browser,
                 clip_uses=prepared.clip_uses,
-                chart_users_of=lambda path: chart_users(prepared.character_rows, path),
+                chart_users_of=lambda path: chart_users(prepared.character_rows, path, prepared.includes),
                 export_details=lambda payload: self._ask_action_chart_export(prepared.entry, payload, mod),
                 title=f"Action Chart Editor - {PurePosixPath(prepared.path).name}",
                 parent=self,
@@ -305,14 +307,16 @@ class ArchiveActionChartActionsMixin:
             index = chart_archive_index(root)
             log("Reading the character action packages")
             rows = character_rows_from_index(index, _read)
-            return rows, {path.lower() for path in index.paths_by_extension.get(".paac", ())}
+            log("Finding which charts each slot chart includes (the first time takes a few seconds)")
+            includes = dict(chart_scan(index, _read).includes)
+            return rows, {path.lower() for path in index.paths_by_extension.get(".paac", ())}, includes
 
         def _show_action_chart_finder(result: object) -> None:
-            if not isinstance(result, tuple) or len(result) != 2:
+            if not isinstance(result, tuple) or len(result) != 3:
                 self.shell.set_status_message(f"Could not read the character action packages: {result!r}", error=True)
                 return
-            rows, available = result
-            dialog = ActionChartFinderDialog(rows, available=available, parent=self)
+            rows, available, includes = result
+            dialog = ActionChartFinderDialog(rows, available=available, includes=includes, parent=self)
             if dialog.exec() and dialog.selected_path:
                 self._open_action_chart_editor(dialog.selected_path)
 

@@ -26,7 +26,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Callable, Iterable, Iterator, Mapping, Optional
+from typing import Callable, Iterable, Iterator, Mapping, Optional, Sequence
 
 from cdmw.core.action_chart_binary import (
     ACTION_CHART_STRING_TABLES,
@@ -751,9 +751,22 @@ def character_rows_from_index(index: ChartArchiveIndex, read: Callable[[ArchiveE
     return character_chart_rows(read(entry))
 
 
-def chart_users(rows: Iterable["CharacterChartRow"], chart_path: str) -> tuple[str, ...]:
+def chart_users(
+    rows: Iterable["CharacterChartRow"],
+    chart_path: str,
+    includes: Optional[Mapping[str, Sequence[str]]] = None,
+) -> tuple[str, ...]:
+    """Character slots that use a chart, directly or through a slot chart that includes it."""
+
     wanted = _normal(chart_path).lower()
-    return tuple(f"{row.package} ({row.slot})" for row in rows if row.archive_path.lower() == wanted)
+    users: list[str] = []
+    for row in rows:
+        path = row.archive_path.lower()
+        if path == wanted:
+            users.append(f"{row.package} ({row.slot})")
+        elif includes is not None and wanted in {item.lower() for item in included_charts(includes, path)}:
+            users.append(f"{row.package} ({row.slot}, via {PurePosixPath(row.chart).name})")
+    return tuple(dict.fromkeys(users))
 
 
 @dataclass(frozen=True, slots=True)
@@ -805,20 +818,29 @@ class LinkedClipChange:
     new: str
 
 
+@dataclass(frozen=True, slots=True)
+class ChartScan:
+    """What every standard chart plays and includes, from one pass over the game's charts."""
+
+    clip_uses: Mapping[str, tuple[ClipUse, ...]]
+    includes: Mapping[str, tuple[str, ...]]
+
+
 _USAGE_LOCK = threading.Lock()
-_USAGE_CACHE: dict[int, tuple[ChartArchiveIndex, dict[str, tuple[ClipUse, ...]]]] = {}
+_USAGE_CACHE: dict[int, tuple[ChartArchiveIndex, ChartScan]] = {}
 
 
-def clip_usage_index(
+def chart_scan(
     index: ChartArchiveIndex,
     read: Callable[[ArchiveEntry], bytes],
     *,
     stop_event: Optional[threading.Event] = None,
-) -> Mapping[str, tuple[ClipUse, ...]]:
-    """Which charts play each clip, across every standard chart in the game.
+) -> ChartScan:
+    """Read every standard chart once: which clips it plays and which charts it includes.
 
-    Reading and decoding all charts takes a few seconds, so the result is kept for
-    as long as `index` is the current one.
+    Included charts are the sub-chart names in table 0 (`include_names`), stored
+    without the folder and extension. Reading all charts takes a few seconds, so the
+    result is kept for as long as `index` is the current one.
     """
 
     with _USAGE_LOCK:
@@ -826,6 +848,7 @@ def clip_usage_index(
     if cached is not None and cached[0] is index:
         return cached[1]
     uses: dict[str, list[ClipUse]] = {}
+    includes: dict[str, tuple[str, ...]] = {}
     for path in index.paths_by_extension.get(ACTION_CHART_EXTENSION, ()):
         if not is_editable_action_chart_path(path):
             continue
@@ -841,11 +864,45 @@ def clip_usage_index(
         for row in string_rows(chart, data, ANIMATION_TABLE):
             if row.uses:
                 uses.setdefault(row.value.lower(), []).append(ClipUse(path, int(row.uses)))
-    result = {clip: tuple(items) for clip, items in uses.items()}
+        names = chart.tables[0]
+        found = []
+        for at in chart.include_names:
+            included = index.entry_for_path(chart_archive_path(names.value(at))) if names.value(at) else None
+            if included is not None:
+                found.append(_normal(included.path))
+        includes[path.lower()] = tuple(dict.fromkeys(found))
+    result = ChartScan({clip: tuple(items) for clip, items in uses.items()}, includes)
     with _USAGE_LOCK:
         _USAGE_CACHE.clear()
         _USAGE_CACHE[id(index)] = (index, result)
     return result
+
+
+def clip_usage_index(
+    index: ChartArchiveIndex,
+    read: Callable[[ArchiveEntry], bytes],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Mapping[str, tuple[ClipUse, ...]]:
+    """Which charts play each clip, across every standard chart in the game."""
+
+    return chart_scan(index, read, stop_event=stop_event).clip_uses
+
+
+def included_charts(includes: Mapping[str, Sequence[str]], chart: str) -> tuple[str, ...]:
+    """Every chart `chart` includes, directly or through other included charts, once each."""
+
+    seen: dict[str, str] = {}
+    stack = list(reversed(includes.get(_normal(chart).lower(), ())))
+    own = _normal(chart).lower()
+    while stack:
+        path = stack.pop()
+        key = path.lower()
+        if key == own or key in seen:
+            continue
+        seen[key] = path
+        stack.extend(reversed(includes.get(key, ())))
+    return tuple(seen.values())
 
 
 def charts_playing_clip(
@@ -1098,6 +1155,7 @@ __all__ = [
     "ActionChartModResult",
     "ChartArchiveIndex",
     "ChartMod",
+    "ChartScan",
     "ClipInfo",
     "ClipUse",
     "LinkedClipChange",
@@ -1118,6 +1176,8 @@ __all__ = [
     "animation_value_rows",
     "apply_linked_clip_changes",
     "charts_playing_clip",
+    "chart_scan",
+    "included_charts",
     "clip_usage_index",
     "apply_action_chart_edits",
     "build_resource_catalog",
