@@ -9694,7 +9694,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot edit {prepared.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 189
+      "cdmw/ui/archive_browser/action_chart_actions.py": 188
     }
   },
   {
@@ -10385,7 +10385,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not open {chart_path}: {result}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 155
+      "cdmw/ui/archive_browser/action_chart_actions.py": 154
     }
   },
   {
@@ -10433,7 +10433,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 311
+      "cdmw/ui/archive_browser/action_chart_actions.py": 310
     }
   },
   {
@@ -10449,7 +10449,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {folder}: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 352
+      "cdmw/ui/archive_browser/action_chart_actions.py": 351
     }
   },
   {
@@ -15942,7 +15942,7 @@ MESSAGE_REFERENCE = [
     "message": "The export has no destination.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 268
+      "cdmw/ui/archive_browser/action_chart_actions.py": 267
     }
   },
   {
@@ -19520,7 +19520,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart_path} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 128
+      "cdmw/ui/archive_browser/action_chart_actions.py": 127
     }
   },
   {
@@ -39865,7 +39865,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh .NET material package synthesis cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_dotnet_material_package.py": 1411
+      "cdmw/services/mesh_dotnet_material_package.py": 1425
     }
   },
   {
@@ -41570,7 +41570,7 @@ MESSAGE_REFERENCE = [
     "message": "albedo synthesis failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/material_combiner.py": 658
+      "cdmw/rendering/material_combiner.py": 661
     }
   },
   {
@@ -41663,7 +41663,7 @@ MESSAGE_REFERENCE = [
     "message": "layer-only base rejected:{_texture_label(item.source_texture_path, item.texture_name)}",
     "recovery": "input",
     "sources": {
-      "cdmw/rendering/material_combiner.py": 562
+      "cdmw/rendering/material_combiner.py": 565
     }
   },
   {
@@ -41671,7 +41671,7 @@ MESSAGE_REFERENCE = [
     "message": "material layer selector missing:{mask_label}",
     "recovery": "missing",
     "sources": {
-      "cdmw/rendering/material_combiner.py": 778
+      "cdmw/rendering/material_combiner.py": 781
     }
   },
   {
@@ -41719,7 +41719,7 @@ MESSAGE_REFERENCE = [
     "message": "non-color base rejected:{_texture_label(item.source_texture_path, item.texture_name)}",
     "recovery": "input",
     "sources": {
-      "cdmw/rendering/material_combiner.py": 568
+      "cdmw/rendering/material_combiner.py": 571
     }
   },
   {
@@ -41890,7 +41890,7 @@ MESSAGE_REFERENCE = [
     "message": "technical base rejected:{_texture_label(item.source_texture_path, item.texture_name)}",
     "recovery": "input",
     "sources": {
-      "cdmw/rendering/material_combiner.py": 565
+      "cdmw/rendering/material_combiner.py": 568
     }
   },
   {

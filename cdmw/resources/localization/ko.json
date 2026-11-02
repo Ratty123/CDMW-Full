@@ -5091,7 +5091,7 @@
     "Find:": "찾기:",
     "Finding": "찾기",
     "Finding appearance contexts for {value_0}...": "{value_0}의 모양 컨텍스트를 찾는 중...",
-    "Finding collision files like {value_0}...": "{value_0}와(과) 비슷한 충돌 파일을 찾는 중...",
+    "Finding collision files like {value_0}...": "{value_0}과(와) 같은 충돌 파일을 찾는 중...",
     "Finding exact authored appearances...": "정확히 제작된 외형을 찾는 중...",
     "Finding exact body appearance contexts for {value_0}...": "{value_0}의 정확한 바디 모양 컨텍스트를 찾는 중...",
     "Finding existing game textures...": "기존 게임 텍스처를 찾는 중...",

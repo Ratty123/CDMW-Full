@@ -5091,7 +5091,7 @@
     "Find:": "検索:",
     "Finding": "見つける",
     "Finding appearance contexts for {value_0}...": "{value_0} の外観コンテキストを検索しています...",
-    "Finding collision files like {value_0}...": "{value_0} に似た衝突ファイルを検索中...",
+    "Finding collision files like {value_0}...": "{value_0} と同じ種類の衝突ファイルを検索しています...",
     "Finding exact authored appearances...": "作成済みの正確な外観を検索しています...",
     "Finding exact body appearance contexts for {value_0}...": "{value_0} の正確なボディ外観コンテキストを検索しています...",
     "Finding existing game textures...": "既存のゲームテクスチャを検索中...",

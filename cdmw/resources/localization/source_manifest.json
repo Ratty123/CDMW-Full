@@ -1541,7 +1541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 583,
+          "line": 597,
           "sink": "python-return:show_saved"
         }
       ]
@@ -1706,7 +1706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 464,
+          "line": 478,
           "sink": "setText"
         }
       ]
@@ -4571,7 +4571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 527,
+          "line": 541,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -12291,7 +12291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 257,
+          "line": 271,
           "sink": "QPushButton"
         }
       ]
@@ -33611,7 +33611,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 201,
+          "line": 203,
           "sink": "QPushButton"
         },
         {
@@ -34241,7 +34241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 363,
+          "line": 377,
           "sink": "addTab"
         },
         {
@@ -34351,7 +34351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 580,
+          "line": 594,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -34411,7 +34411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 234,
+          "line": 248,
           "sink": "QLabel"
         }
       ]
@@ -57576,7 +57576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 267,
+          "line": 281,
           "sink": "setPlaceholderText"
         }
       ]
@@ -64866,7 +64866,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 524,
+          "line": 538,
           "sink": "warning"
         },
         {
@@ -64881,7 +64881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 171,
+          "line": 173,
           "sink": "setWindowTitle"
         }
       ]
@@ -68501,7 +68501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 219,
+          "line": 230,
           "sink": "QLabel"
         }
       ]
@@ -76941,7 +76941,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 271,
+          "line": 285,
           "sink": "setHeaderLabels"
         }
       ]
@@ -76971,7 +76971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 303,
+          "line": 317,
           "sink": "addTab"
         },
         {
@@ -76986,7 +76986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 230,
+          "line": 243,
           "sink": "QLabel"
         }
       ]
@@ -77086,7 +77086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 353,
+          "line": 367,
           "sink": "QPushButton"
         }
       ]
@@ -92691,7 +92691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 255,
+          "line": 269,
           "sink": "setToolTip"
         }
       ]
@@ -93051,7 +93051,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 317,
+          "line": 331,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -93261,7 +93261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 397,
+          "line": 411,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -93686,7 +93686,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 332,
+          "line": 346,
           "sink": "addTab"
         },
         {
@@ -94986,7 +94986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 317,
+          "line": 331,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -96021,7 +96021,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 543,
+          "line": 557,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -107446,7 +107446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 237,
+          "line": 251,
           "sink": "addTab"
         },
         {
@@ -111506,7 +111506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 242,
+          "line": 256,
           "sink": "QLabel"
         }
       ]
@@ -128156,7 +128156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 231,
+          "line": 245,
           "sink": "QLabel"
         }
       ]
@@ -130551,7 +130551,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 193,
+          "line": 195,
           "sink": "QPushButton"
         }
       ]
@@ -130756,7 +130756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 295,
+          "line": 309,
           "sink": "QPushButton"
         }
       ]
@@ -137131,7 +137131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 195,
+          "line": 197,
           "sink": "QPushButton"
         }
       ]
@@ -137281,7 +137281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 198,
+          "line": 200,
           "sink": "QPushButton"
         }
       ]
@@ -138101,7 +138101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 571,
+          "line": 585,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -138346,7 +138346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 505,
+          "line": 519,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -138356,7 +138356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 141,
+          "line": 143,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -147676,7 +147676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 410,
+          "line": 424,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -155506,7 +155506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 248,
+          "line": 262,
           "sink": "QLabel"
         }
       ]
@@ -162601,7 +162601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 582,
+          "line": 596,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -163986,7 +163986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 503,
+          "line": 517,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -167871,7 +167871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 346,
+          "line": 360,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -168131,7 +168131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 395,
+          "line": 409,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -169601,7 +169601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 337,
+          "line": 351,
           "sink": "QLabel"
         }
       ]
@@ -171661,7 +171661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 271,
+          "line": 285,
           "sink": "setHeaderLabels"
         },
         {
@@ -171736,7 +171736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 310,
+          "line": 324,
           "sink": "QLabel"
         }
       ]
@@ -175236,7 +175236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 350,
+          "line": 364,
           "sink": "QPushButton"
         }
       ]
@@ -176816,7 +176816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 317,
+          "line": 331,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -182406,7 +182406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 199,
+          "line": 201,
           "sink": "setToolTip"
         }
       ]
@@ -182656,7 +182656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 196,
+          "line": 198,
           "sink": "setToolTip"
         }
       ]
@@ -206566,7 +206566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 254,
+          "line": 268,
           "sink": "setPrefix"
         },
         {
@@ -207771,7 +207771,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 393,
+          "line": 407,
           "sink": "setText"
         },
         {
@@ -208971,7 +208971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 543,
+          "line": 557,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -213651,7 +213651,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 234,
+          "line": 248,
           "sink": "QLabel"
         },
         {
@@ -214026,7 +214026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 518,
+          "line": 532,
           "sink": "python-return:range_problem"
         }
       ]
@@ -214126,7 +214126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 583,
+          "line": 597,
           "sink": "python-return:show_saved"
         }
       ]
@@ -214791,7 +214791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
-          "line": 425,
+          "line": 439,
           "sink": "python-return:_format"
         },
         {

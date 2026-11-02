@@ -3018,7 +3018,7 @@
     "Collision and attachment overrides": "Pominięcie kolizji i dołączenia",
     "Collision copied from {value_0}": "Kolizja skopiowana z {value_0}",
     "Collision editor row limit reached; use XML / Raw for remaining values.": "Osiągnięto limit wierszy edytora kolizji; użyj XML/Raw dla pozostałych wartości.",
-    "Collision file search cancelled.": "Wyszukiwanie plików kolizji anulowane.",
+    "Collision file search cancelled.": "Anulowano wyszukiwanie plików kolizji.",
     "Collision input selection cancelled; preview inputs are unchanged.": "Anulowano wybór pliku kolizji; dane wejściowe podglądu pozostają bez zmian.",
     "Collision inputs need a decoded cloth preview; body/head inputs also need a matching rig.": "Dane kolizji wymagają zdekodowanego podglądu tkaniny; dane ciała/głowy wymagają także zgodnego szkieletu.",
     "Collision margin": "Margines kolizji",

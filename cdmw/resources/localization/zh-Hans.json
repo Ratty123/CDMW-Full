@@ -5091,7 +5091,7 @@
     "Find:": "查找：",
     "Finding": "寻找",
     "Finding appearance contexts for {value_0}...": "正在查找 {value_0} 的外观上下文...",
-    "Finding collision files like {value_0}...": "正在查找与 {value_0} 类似的碰撞文件...",
+    "Finding collision files like {value_0}...": "正在查找与 {value_0} 同类的碰撞文件...",
     "Finding exact authored appearances...": "正在查找精确的已制作外观...",
     "Finding exact body appearance contexts for {value_0}...": "正在查找 {value_0} 的准确身体外观上下文...",
     "Finding existing game textures...": "正在查找现有游戏纹理...",
