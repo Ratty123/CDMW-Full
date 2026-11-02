@@ -97,7 +97,7 @@ def test_archive_browser_import_writes_a_loose_mod_only_after_the_edit_applies(t
     payload = exported(data)
     payload["add_bones"] = [{"parent": "Bip01 Head", "name": "Hair_00", "position": [0, 0.1, 0]}]
     document = tmp_path / "owned.skeleton-edit.json"
-    document.write_text(json.dumps(payload), encoding="utf-8")
+    document.write_text(json.dumps(payload), encoding="utf-8-sig")  # Notepad adds a byte-order mark
     monkeypatch.setattr(actions.QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(document), ""))
     monkeypatch.setattr(actions, "read_archive_entry_data", lambda entry: (data, False, ""))
     exports, messages = [], []

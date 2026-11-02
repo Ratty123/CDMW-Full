@@ -147,7 +147,7 @@ class ArchivePabJsonActionsMixin:
             log(f"Reading skeleton: {entry.path}")
             data, _decompressed, _note = read_archive_entry_data(entry)
             log(f"Applying Skeleton Edit JSON to {entry.basename}...")
-            return apply_pab_edit_json(data, document_path.read_text(encoding="utf-8"), virtual_path=entry.path)
+            return apply_pab_edit_json(data, document_path.read_text(encoding="utf-8-sig"), virtual_path=entry.path)
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, PabEditOutcome):
