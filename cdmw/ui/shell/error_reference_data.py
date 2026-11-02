@@ -9586,6 +9586,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Cannot edit {entry.path}: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 81
+    }
+  },
+  {
+    "area": "archive",
     "message": "Cannot export {state.entry.path}: required companion {paired_entry.path} could not be rebuilt. No replacement package was written. {exc}",
     "recovery": "missing",
     "sources": {
@@ -10273,6 +10281,22 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/attachment_socket_editor.py": 102
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read {entry.path}: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 49
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read {entry.path}: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_actions.py": 57
     }
   },
   {
@@ -15160,6 +15184,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The edit was refused: {outcome.message}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 517
+    }
+  },
+  {
+    "area": "archive",
     "message": "The edited mesh's materials belong to a different source.",
     "recovery": "internal",
     "sources": {
@@ -15798,6 +15830,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/archive_reference_cleanup.py": 52
+    }
+  },
+  {
+    "area": "archive",
+    "message": "These clips are not in the game's archives: {detail} The game cannot play a clip that does not exist. Apply anyway?",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 484
     }
   },
   {
@@ -80417,7 +80457,7 @@ MESSAGE_REFERENCE = [
     "message": "ShareValue sections {share_counts} are not decoded (every shipped chart has none)",
     "recovery": "format",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 390
+      "cdmw/core/action_chart_binary.py": 396
     }
   },
   {
@@ -84198,7 +84238,7 @@ MESSAGE_REFERENCE = [
     "message": "a string table holds at most 65,535 strings",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 573
+      "cdmw/core/action_chart_binary.py": 579
     }
   },
   {
@@ -84326,7 +84366,7 @@ MESSAGE_REFERENCE = [
     "message": "animation count {animation_count} cannot fit in {len(data)} bytes",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 359
+      "cdmw/core/action_chart_binary.py": 365
     }
   },
   {
@@ -84334,7 +84374,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {animation.index}: frame event offset {ref.dword_offset * 4} is outside the buffer",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 427
+      "cdmw/core/action_chart_binary.py": 433
     }
   },
   {
@@ -84342,7 +84382,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {edit.animation} does not exist",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 688
+      "cdmw/core/action_chart_binary.py": 694
     }
   },
   {
@@ -84350,7 +84390,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {edit.animation} has no frame event {edit.item}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 694
+      "cdmw/core/action_chart_binary.py": 700
     }
   },
   {
@@ -84358,7 +84398,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {edit.animation} has no {record} entry {edit.item}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 698
+      "cdmw/core/action_chart_binary.py": 704
     }
   },
   {
@@ -84366,7 +84406,7 @@ MESSAGE_REFERENCE = [
     "message": "animation {index}: frame event {sequence} carries sequence {ref.sequence}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 370
+      "cdmw/core/action_chart_binary.py": 376
     }
   },
   {
@@ -84470,7 +84510,7 @@ MESSAGE_REFERENCE = [
     "message": "byte {index} changed outside the edited fields",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 742
+      "cdmw/core/action_chart_binary.py": 754
     }
   },
   {
@@ -84478,7 +84518,7 @@ MESSAGE_REFERENCE = [
     "message": "bytes outside the string table changed",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 620
+      "cdmw/core/action_chart_binary.py": 626
     }
   },
   {
@@ -84526,7 +84566,7 @@ MESSAGE_REFERENCE = [
     "message": "chart strings hold at most {MAX_STRING_BYTES} characters: {value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 587
+      "cdmw/core/action_chart_binary.py": 593
     }
   },
   {
@@ -84534,7 +84574,7 @@ MESSAGE_REFERENCE = [
     "message": "chart strings must be printable ASCII and not empty: {value}",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 584
+      "cdmw/core/action_chart_binary.py": 590
     }
   },
   {
@@ -84574,7 +84614,7 @@ MESSAGE_REFERENCE = [
     "message": "descriptor string index {index} is out of range",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 552
+      "cdmw/core/action_chart_binary.py": 558
     }
   },
   {
@@ -84630,7 +84670,7 @@ MESSAGE_REFERENCE = [
     "message": "event at {event.offset} is {event.kind_name}, not ModelAttachmentSocket",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 513
+      "cdmw/core/action_chart_binary.py": 519
     }
   },
   {
@@ -84694,7 +84734,7 @@ MESSAGE_REFERENCE = [
     "message": "frame event at {base} would end before it begins",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 731
+      "cdmw/core/action_chart_binary.py": 743
     }
   },
   {
@@ -86056,7 +86096,7 @@ MESSAGE_REFERENCE = [
     "message": "node {index} names animations {first}..{first + count} of {animation_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 408
+      "cdmw/core/action_chart_binary.py": 414
     }
   },
   {
@@ -86120,7 +86160,7 @@ MESSAGE_REFERENCE = [
     "message": "only standard action charts can be edited, not the commonactioninfo tables",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 593
+      "cdmw/core/action_chart_binary.py": 599
     }
   },
   {
@@ -86192,7 +86232,7 @@ MESSAGE_REFERENCE = [
     "message": "package {item} names sub-packages {first}..{first + count} of {sub_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 560
+      "cdmw/core/action_chart_binary.py": 566
     }
   },
   {
@@ -86755,7 +86795,7 @@ MESSAGE_REFERENCE = [
     "message": "string table {table} ({chart.tables[table].role}) has no entry {old}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 638
+      "cdmw/core/action_chart_binary.py": 644
     }
   },
   {
@@ -86763,7 +86803,7 @@ MESSAGE_REFERENCE = [
     "message": "string table {table} does not exist",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 608
+      "cdmw/core/action_chart_binary.py": 614
     }
   },
   {
@@ -86771,7 +86811,7 @@ MESSAGE_REFERENCE = [
     "message": "string table {table} has no entry {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 613
+      "cdmw/core/action_chart_binary.py": 619
     }
   },
   {
@@ -86840,10 +86880,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "the chart does not read back clip {retarget.new}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 258
+    }
+  },
+  {
+    "area": "other",
+    "message": "the chart has no changes to export",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 291
+    }
+  },
+  {
+    "area": "other",
     "message": "the chart's sections changed after a value edit",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 745
+      "cdmw/core/action_chart_binary.py": 757
     }
   },
   {
@@ -86851,7 +86907,7 @@ MESSAGE_REFERENCE = [
     "message": "the chart's sections changed shape after the edit",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 626
+      "cdmw/core/action_chart_binary.py": 632
     }
   },
   {
@@ -86868,6 +86924,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_icon_registry.py": 110
+    }
+  },
+  {
+    "area": "other",
+    "message": "the edited chart no longer has the shipped chart's shape",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 220
     }
   },
   {
@@ -86955,7 +87019,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt string table does not read back",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 622
+      "cdmw/core/action_chart_binary.py": 628
     }
   },
   {
@@ -87067,7 +87131,7 @@ MESSAGE_REFERENCE = [
     "message": "this chart has no frame event buffer",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 490
+      "cdmw/core/action_chart_binary.py": 496
     }
   },
   {
@@ -87203,7 +87267,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} is not an editable chart field",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 683
+      "cdmw/core/action_chart_binary.py": 689
     }
   },
   {
@@ -87211,7 +87275,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} must be -1 (instant) or between 0 and 3600 seconds",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 721
+      "cdmw/core/action_chart_binary.py": 733
     }
   },
   {
@@ -87219,7 +87283,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} must be above 0 and at most 100",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 717
+      "cdmw/core/action_chart_binary.py": 729
     }
   },
   {
@@ -87227,7 +87291,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} must be between 0 and 3600 seconds",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 719
+      "cdmw/core/action_chart_binary.py": 731
     }
   },
   {
@@ -87235,7 +87299,23 @@ MESSAGE_REFERENCE = [
     "message": "{edit.field} must be finite",
     "recovery": "input",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 715
+      "cdmw/core/action_chart_binary.py": 727
+    }
+  },
+  {
+    "area": "other",
+    "message": "{edit.field} reads back as {stored}, not {edit.value}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 262
+    }
+  },
+  {
+    "area": "other",
+    "message": "{entry.path} is not an action chart",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 288
     }
   },
   {
@@ -87507,7 +87587,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(data) - stream.pos} bytes follow the last chart section",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 423
+      "cdmw/core/action_chart_binary.py": 429
     }
   },
   {
@@ -87515,7 +87595,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(data) - stream.pos} bytes follow the last commonactioninfo section",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 467
+      "cdmw/core/action_chart_binary.py": 473
     }
   },
   {
@@ -87539,7 +87619,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(stream.data) - stream.pos} bytes follow the descriptor",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 548
+      "cdmw/core/action_chart_binary.py": 554
     }
   },
   {
@@ -87620,6 +87700,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/asset_authoring_service.py": 1140
+    }
+  },
+  {
+    "area": "other",
+    "message": "{name} is a shared action table, not an action chart, and cannot be edited.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/action_chart_edit_service.py": 138
     }
   },
   {
@@ -87899,7 +87987,7 @@ MESSAGE_REFERENCE = [
     "message": "{record} at {base} would end before it starts",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/action_chart_binary.py": 735
+      "cdmw/core/action_chart_binary.py": 747
     }
   },
   {
@@ -100575,6 +100663,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_archive_refit.py",
     "cdmw/services/mesh_rust_archive_refit.py",
     "cdmw/services/replace_from_archive_service.py",
+    "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
     "cdmw/ui/archive_browser/actions.py",
     "cdmw/ui/archive_browser/appearance_composite.py",
     "cdmw/ui/archive_browser/appearance_swap.py",
@@ -103140,6 +103229,9 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/services/__init__.py": {},
+  "cdmw/services/action_chart_edit_service.py": {
+    "raise": 6
+  },
   "cdmw/services/active_ui_translation.py": {},
   "cdmw/services/application_shutdown_service.py": {
     "assertion": 1,
@@ -103953,6 +104045,15 @@ SOURCE_COVERAGE = {
   "cdmw/ui/__init__.py": {},
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
+  "cdmw/ui/archive_browser/action_chart_actions.py": {
+    "display": 2,
+    "raise": 1
+  },
+  "cdmw/ui/archive_browser/action_chart_editor_dialog.py": {
+    "diagnostic_field": 1,
+    "dialog": 1,
+    "display": 1
+  },
   "cdmw/ui/archive_browser/action_controls.py": {},
   "cdmw/ui/archive_browser/actions.py": {
     "assertion": 1

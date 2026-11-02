@@ -645,6 +645,14 @@ inspectors before the readable-strings fallback:
   frame events by kind, string tables, byte totals per section and the in-place
   edit scope. The two `commonactioninfo` files show their sections; the serialized
   one marks its undecoded reflection tail.
+- **Edit Action Chart...** on a standard `.paac` (`action_chart_actions.py`,
+  `action_chart_editor_dialog.py`): the worker reads the chart and lists clip
+  names under `character/motion/`; the dialog collects clip retargets and
+  `EDITABLE_CHART_FIELDS` edits and applies them on its own worker through
+  `cdmw/services/action_chart_edit_service.py`, then rebuilds every table from
+  the edited bytes. Export writes only the chart through
+  `export_archive_payloads_to_mod_ready_loose` (DMM profile). The two
+  `commonactioninfo` tables get no menu entry.
 - `.ttf`/`.otf`/`.ttc` fonts and `.ani` cursors: `archive_ui_resource_preview.py`
   reads the sfnt tables or RIFF chunks and renders a PNG with Pillow into the
   pruned `archive_preview_cache` (units named `ui-<kind>-v1-<content hash>`).

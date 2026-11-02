@@ -23,6 +23,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser opens action charts (.paac) as a structured view instead of a strings list. It lists every animation the chart plays with its start and end time, clip and blend space, the nodes that group them, the frame events by kind (attacks, effects, sounds, socket changes and the rest), and the chart's string tables. The character action package description (.paacdesc) lists which chart each character uses for its main actions and for each weapon slot. Format Explorer reflects the improved read support.
 
+- Archive Browser can edit an action chart and export it as a DMM mod. Right-click a .paac file and choose **Edit Action Chart...** to point a clip at another animation (every animation that plays it changes, at any path length) or to change the chart's speed rate, an animation's start and end time, its speed windows, frame tags, just-time windows and frame-event times. **Apply and Re-read** rewrites the chart and shows what the edited copy now holds; **Export DMM Mod...** writes it into a DMM mod folder. Branches, conditions and frame-event contents cannot be changed, and the shared commonactioninfo tables cannot be edited. Edited charts have not been tested in game.
+
 - Create New Item and Mesh Editor add two experimental shader experiments that use the game's blended transparency pass, so layers behind each other stay visible. **Layered glass** gives equipment a real Opacity value with edge opacity, roughness, reflectance and tint. **Sheer net veil** makes see-through hexagonal net for veils, tulle and net lace. Both accept plain opaque or glowing equipment; in-game appearance after conversion is untested.
 
 ### Changed

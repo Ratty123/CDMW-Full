@@ -17,6 +17,7 @@ from cdmw.domain.archives.constants import (
     ARCHIVE_AUDIO_PATCH_EXTENSIONS,
     ARCHIVE_MESH_EXTENSIONS,
 )
+from cdmw.services.action_chart_edit_service import is_editable_action_chart_path
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.workflow_dependencies import (
@@ -508,6 +509,14 @@ class ArchiveBrowserActionMixin:
                 export_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_prefab_edit_json())
                 import_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Import Prefab Edit JSON...")
                 import_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_prefab_edit_json())
+
+        if is_editable_action_chart_path(entry.path):
+            _add_menu_section("data", "Structured Data")
+            edit_chart_action = menu.addAction(menu_icons["data"], "Edit Action Chart...")
+            edit_chart_action.setToolTip(
+                "Retarget the chart's animation clips or change its timing values, then export a DMM mod."
+            )
+            edit_chart_action.triggered.connect(lambda _checked=False: self._open_current_archive_action_chart_editor())
 
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")

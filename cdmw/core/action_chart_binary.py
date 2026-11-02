@@ -339,6 +339,12 @@ def _layout_for_path(virtual_path: str) -> str:
     return LAYOUT_CHART
 
 
+def action_chart_layout(virtual_path: str) -> str:
+    """Which loader the game uses for a `.paac`, chosen by file name."""
+
+    return _layout_for_path(virtual_path)
+
+
 def decode_action_chart(data: bytes, *, virtual_path: str = "") -> ActionChart:
     """Decode a `.paac`. The file name picks the loader, as it does in the game."""
 
@@ -700,6 +706,12 @@ def _edit_offset(chart: ActionChart, edit: ChartValueEdit) -> tuple[int, str, in
     return base + offset, kind, base
 
 
+def chart_value_offset(chart: ActionChart, edit: ChartValueEdit) -> int:
+    """Where the f32 an edit would write lives; raises as the writer does for a missing target."""
+
+    return _edit_offset(chart, edit)[0]
+
+
 def apply_chart_value_edits(data: bytes, edits: Iterable[ChartValueEdit], *, virtual_path: str = "") -> bytes:
     """Write f32 values in place. Same length; only the edited 4-byte fields change."""
 
@@ -767,7 +779,9 @@ __all__ = [
     "MODEL_ATTACHMENT_SOCKET_KIND",
     "SocketEventPayload",
     "StringTable",
+    "action_chart_layout",
     "apply_chart_value_edits",
+    "chart_value_offset",
     "decode_action_chart",
     "decode_action_package_description",
     "frame_event_at",
