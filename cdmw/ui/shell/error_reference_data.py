@@ -9406,7 +9406,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {clash} already exists; choose another prefix.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 529
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 565
     }
   },
   {
@@ -10354,7 +10354,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save the draft: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 605
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 663
     }
   },
   {
@@ -10842,7 +10842,7 @@ MESSAGE_REFERENCE = [
     "message": "Fix the error above to see it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 415
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 451
     }
   },
   {
@@ -30723,7 +30723,15 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 739
+      "cdmw/services/new_item_planning.py": 751
+    }
+  },
+  {
+    "area": "items",
+    "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 747
     }
   },
   {
@@ -30739,7 +30747,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 813
+      "cdmw/services/new_item_planning.py": 825
     }
   },
   {
@@ -30771,7 +30779,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1018
+      "cdmw/services/new_item_planning.py": 1030
     }
   },
   {
@@ -32888,7 +32896,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 904
+      "cdmw/services/new_item_planning.py": 916
     }
   },
   {
@@ -32960,7 +32968,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 934
+      "cdmw/services/new_item_planning.py": 946
     }
   },
   {
@@ -34577,7 +34585,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1070
+      "cdmw/services/new_item_planning.py": 1082
     }
   },
   {
@@ -34657,7 +34665,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 788
+      "cdmw/services/new_item_planning.py": 800
     }
   },
   {
@@ -34993,7 +35001,7 @@ MESSAGE_REFERENCE = [
     "message": "This template has no model variant to dye.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 126
+      "cdmw/ui/new_item/controller_variant_mixin.py": 131
     }
   },
   {
@@ -35899,7 +35907,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 958
+      "cdmw/services/new_item_planning.py": 970
     }
   },
   {
@@ -36139,7 +36147,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 965
+      "cdmw/services/new_item_planning.py": 977
     }
   },
   {
@@ -36147,7 +36155,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 967
+      "cdmw/services/new_item_planning.py": 979
     }
   },
   {
@@ -36219,7 +36227,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 910
+      "cdmw/services/new_item_planning.py": 922
     }
   },
   {
@@ -36605,7 +36613,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 947
+      "cdmw/services/new_item_planning.py": 959
     }
   },
   {
@@ -36613,7 +36621,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 933
+      "cdmw/services/new_item_planning.py": 945
     }
   },
   {
@@ -36790,7 +36798,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1113
+      "cdmw/services/new_item_planning.py": 1125
     }
   },
   {
@@ -36846,7 +36854,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 895
+      "cdmw/services/new_item_planning.py": 907
     }
   },
   {
@@ -36862,7 +36870,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 767
+      "cdmw/services/new_item_planning.py": 779
     }
   },
   {
@@ -36870,7 +36878,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 996
+      "cdmw/services/new_item_planning.py": 1008
     }
   },
   {
@@ -36878,7 +36886,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 993
+      "cdmw/services/new_item_planning.py": 1005
     }
   },
   {
@@ -36886,7 +36894,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 970
+      "cdmw/services/new_item_planning.py": 982
     }
   },
   {
@@ -37079,7 +37087,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 815
+      "cdmw/services/new_item_planning.py": 827
     }
   },
   {
@@ -37272,7 +37280,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 857
+      "cdmw/services/new_item_planning.py": 869
     }
   },
   {
@@ -37368,7 +37376,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 742
+      "cdmw/services/new_item_planning.py": 754
     }
   },
   {
@@ -37472,7 +37480,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 899
+      "cdmw/services/new_item_planning.py": 911
     }
   },
   {
@@ -37488,7 +37496,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 761
+      "cdmw/services/new_item_planning.py": 773
     }
   },
   {
@@ -41370,7 +41378,7 @@ MESSAGE_REFERENCE = [
     "message": "A PAB serializes one to three volume sets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 409
+      "cdmw/modding/skeleton_writer.py": 410
     }
   },
   {
@@ -42872,7 +42880,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone names must be 1-255 printable ASCII characters.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 437
+      "cdmw/modding/skeleton_writer.py": 438
     }
   },
   {
@@ -42928,7 +42936,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {index} name must be 1-255 printable ASCII characters.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 414
+      "cdmw/modding/skeleton_writer.py": 415
     }
   },
   {
@@ -42936,7 +42944,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {index} parent {bone.parent_index} is out of range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 412
+      "cdmw/modding/skeleton_writer.py": 413
     }
   },
   {
@@ -42944,7 +42952,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {name} already exists.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 443
+      "cdmw/modding/skeleton_writer.py": 444
     }
   },
   {
@@ -42952,7 +42960,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {name} has the same name hash as {bone.name}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 445
+      "cdmw/modding/skeleton_writer.py": 446
     }
   },
   {
@@ -42960,7 +42968,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {name} hashes below {PAB_MAX_BONES}; volume keys would read it as an index.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 447
+      "cdmw/modding/skeleton_writer.py": 448
     }
   },
   {
@@ -44362,7 +44370,7 @@ MESSAGE_REFERENCE = [
     "message": "Core-bone flags must be present exactly when header bit 0x02 is set.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 404
+      "cdmw/modding/skeleton_writer.py": 405
     }
   },
   {
@@ -44970,7 +44978,7 @@ MESSAGE_REFERENCE = [
     "message": "Document header flags or bone count are out of range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 400
+      "cdmw/modding/skeleton_writer.py": 401
     }
   },
   {
@@ -55398,7 +55406,7 @@ MESSAGE_REFERENCE = [
     "message": "Per-bone tail arrays must have one entry per bone.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 407
+      "cdmw/modding/skeleton_writer.py": 408
     }
   },
   {
@@ -58527,7 +58535,7 @@ MESSAGE_REFERENCE = [
     "message": "Secondary parents must be present exactly when header bit 0x10 is set.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 402
+      "cdmw/modding/skeleton_writer.py": 403
     }
   },
   {
@@ -60092,7 +60100,7 @@ MESSAGE_REFERENCE = [
     "message": "The bind transform is singular.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 499
+      "cdmw/modding/skeleton_writer.py": 500
     }
   },
   {
@@ -60748,7 +60756,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected template has no unique matching skeleton.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 205
+      "cdmw/services/mesh_skinning_preflight.py": 207
     }
   },
   {
@@ -60756,7 +60764,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected template's skeleton is not a complete fixed-layout PAB.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 209
+      "cdmw/services/mesh_skinning_preflight.py": 211
     }
   },
   {
@@ -60908,7 +60916,7 @@ MESSAGE_REFERENCE = [
     "message": "The {label} must be {size} finite numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 466
+      "cdmw/modding/skeleton_writer.py": 467
     }
   },
   {
@@ -60916,7 +60924,7 @@ MESSAGE_REFERENCE = [
     "message": "The {label} must be {size} numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 464
+      "cdmw/modding/skeleton_writer.py": 465
     }
   },
   {
@@ -61451,7 +61459,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Two edits add bone {added.bone.name} with different definitions.",
+    "message": "Two edits add bone {added.bone.name} with different definitions; give the bones different names in one of them.",
     "recovery": "internal",
     "sources": {
       "cdmw/modding/skeleton_writer.py": 361
@@ -62314,7 +62322,7 @@ MESSAGE_REFERENCE = [
     "message": "Volume flags need header bit 0x04.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 431
+      "cdmw/modding/skeleton_writer.py": 432
     }
   },
   {
@@ -62322,7 +62330,7 @@ MESSAGE_REFERENCE = [
     "message": "Volume key {count} would turn from a name hash into a bone index.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 369
+      "cdmw/modding/skeleton_writer.py": 370
     }
   },
   {
@@ -62338,7 +62346,7 @@ MESSAGE_REFERENCE = [
     "message": "Volume parameters do not match its shape.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/skeleton_writer.py": 426
+      "cdmw/modding/skeleton_writer.py": 427
     }
   },
   {
@@ -72417,7 +72425,7 @@ MESSAGE_REFERENCE = [
     "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to this variant's skeleton with Add bones… in the Rig row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 250
+      "cdmw/services/mesh_skinning_preflight.py": 252
     }
   },
   {
@@ -72425,7 +72433,7 @@ MESSAGE_REFERENCE = [
     "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Add bones… in the Rig row, then import again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 253
+      "cdmw/services/mesh_skinning_preflight.py": 255
     }
   },
   {
@@ -105393,7 +105401,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
     "finding": 15,
-    "raise": 34
+    "raise": 35
   },
   "cdmw/services/new_item_prices.py": {
     "raise": 1
