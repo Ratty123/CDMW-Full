@@ -57,6 +57,7 @@ TOOLS: Mapping[str, str] = {
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
     ".wem": "Browse Archives > Import WAV as Loose Mod...",
+    ".bnk": "Browse Archives > Replace Embedded Sound as Loose Mod...",
     ".paseq": "Browse Archives > Edit Structured Data Safely...",
     ".paseqc": "Browse Archives > Edit Structured Data Safely...",
     ".pastage": "Browse Archives > Edit Structured Data Safely...",

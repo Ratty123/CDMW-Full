@@ -164,8 +164,9 @@ def wem_stream_detail_lines(info: WemStreamInfo) -> list[str]:
         lines.append(f"Marker at {_seconds(marker.position, info.sample_rate)}" + (f": {marker.label}" if marker.label else ""))
     if info.codec != "PCM":
         lines.append(
-            "Import WAV as Loose Mod writes uncompressed PCM with this stream's channel count and sample rate; "
-            f"it does not re-encode Wwise {info.codec}."
+            "Import WAV as Loose Mod writes uncompressed PCM with this stream's channel count, sample rate and "
+            f"speaker layout and switches the banks that play it to PCM; it does not encode Wwise {info.codec}. "
+            "A .wem made with your own Wwise install is used as it is."
         )
     return lines
 

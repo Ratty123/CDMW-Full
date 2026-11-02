@@ -2182,9 +2182,53 @@ Wwise BNK inspection recovers section tags and the DIDX media table; supported
 embedded sounds can be decoded through the bundled audio path. The 2026-10-30
 source expansion adds incoming texture/audio path searches and media-ID links in
 Asset Family / Used By. Standard little-endian HIRC Sound source headers in bank
-versions 113–154 expose embedded or streamed source IDs; generators, music graphs,
-event/action semantics and gameplay triggers remain outside the reader. Unknown
-versions report incomplete bank coverage while retaining valid DIDX IDs.
+versions 113–154 expose embedded or streamed source IDs for Find references.
+Unknown versions report incomplete bank coverage while retaining valid DIDX IDs.
+
+**HIRC decode (2026-11-02).** All 3,450 shipped banks are version 150 (Wwise
+2023.1 in wwiser's table). `cdmw/core/archive_wwise_hirc.py` decodes Sounds,
+actions, events, random/sequence, switch and layer containers, actor-mixers and
+music tracks after wwiser's version-150 layouts, and counts an object only when
+its body ends exactly on its declared size. On the whole shipped corpus (the
+installed game on 2026-11-02, read-only extraction) every one of the 260,852 objects frames, and all
+229,311 objects of those eight types decode to the byte, none left over or
+overrun. The remaining 31,541 (buses, attenuations, effect share sets and custom
+effects, modulators, audio devices, music segments, music switch and playlist
+containers) keep framing only. Stored property types were measured on every
+occurrence: Volume, Pitch, LPF, HPF, MakeUpGain, Priority, aux send volumes,
+InitialDelay and CenterPercent are floats; Loop, DelayTime and TransitionTime are
+integers; AttenuationID is an id. Events are almost all Play actions (8,786 of
+9,258 actions), with Seek, Stop, Pause, Resume, Trigger and SetState making up the
+rest. Event names are FNV hashes with no string table in the banks, and gameplay
+triggers are still outside the reader.
+
+**Media sizes in banks.** Every in-memory source stores its media's exact byte
+size: 29,912 Sounds whose media the bank embeds and 94,807 whose media is a loose
+`.wem` match to the byte. Prefetched sources (579) embed an exact prefix of the
+loose file; streamed sources (516) store a smaller size whose rule did not match
+the data offset or the Vorbis setup/audio offsets, so it is not derived. Embedded
+media sit on 16-byte boundaries with zero padding, DIDX is sorted by id and
+precedes DATA, and DATA ends at the last sound. Embedded media are Wwise Vorbis
+(25,282) or PTADPCM (2,709, format 0x8311, plugin "ADPCM"); 3,152 embedded blobs
+are prefetch prefixes, not complete files.
+
+**Constrained bank writing (2026-11-02).** `archive_wwise_bank_edit.py` admits
+three edits, each re-decoded before it is returned: in-place fixed-size values
+(existing properties of the measured types, randomizer bounds, container loop and
+transition values, playlist weights, Set-property action values); replacing an
+embedded sound with DIDX and DATA rebuilt; and retargeting the sources that load
+a loose `.wem` (size and codec plugin). Writing every shipped value back unchanged
+reproduced all 3,376 banks with values byte for byte (637,629 edits), replacing
+each of 24,839 complete embedded sounds with itself reproduced its bank, and a
+1,522-bank sample of loose retargets did the same. Of the 101,563 media ids that
+decoded sources reference, 99,329 are replaceable; 2,204 are refused because some
+source prefetches or streams them and 30 because they play through the external
+source plugin. Adding or removing objects, events or sounds is not implemented.
+A source-level run on real game data rebuilt a bank and retargeted seven banks
+for one loose id; vgmstream decoded the replaced and an untouched subsong and the
+PCM `.wem`. None of this is game evidence: whether the 2023.1 runtime accepts PCM
+under a bank that declared Vorbis, or a resized in-memory sound, needs an
+in-game check.
 The source-header layout follows `CAkBankMgr__LoadSource` and
 `CAkBankMgr__ReadSourceParent_CAkSound_` in
 [wwiser's parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py).
@@ -2201,22 +2245,32 @@ named dialogue files need a path or filename reference. An isolated copy of the
 reported cached dialogue clip decodes to PCM and loads in Qt after removing the
 Windows I/O prefix from decoder arguments; this is cached-asset/headless evidence,
 not packaged-app or game acceptance.
-Swapping a known sound and adding a new event remain different capabilities.
 
 The same 2026-10-31 inventory found 488,038 `.wem` files. Numeric media IDs under
 `sound/windows/media/` are unique across languages (211,988 IDs, one file each),
 so an ID has no language copies to link. Named dialogue files repeat across
 `sound/windows/<language>/` in three or eight languages, and 330 banks repeat in
-three. All 3,000 sampled streams were Wwise Vorbis with a 0x42-byte `fmt `;
-a few carry `smpl` loops or a `cue` marker labelled with the source WAV name.
-The header reader's sample count, rate, channels, speaker mask and loop points
-matched `vgmstream-cli -m` on all 40 extracted samples. This is header evidence,
-not a decoder or encoder change.
+three. A 2026-11-02 header sweep of all 488,038 found every one Wwise Vorbis with
+a 0x42-byte `fmt ` (278,025 at 48 kHz, 210,013 at 44.1 kHz; 483,618 mono, 4,400
+stereo, 20 four-channel); a few carry `smpl` loops or a `cue` marker labelled with
+the source WAV name. The header reader's sample count, rate, channels, speaker
+mask and loop points matched `vgmstream-cli -m` on all 40 extracted samples.
 
-Supported WEM playback/export does not imply a general Wwise encoder. The
-implemented writer is limited to the admitted uncompressed PCM path; Vorbis
-and Opus authoring remain outside that contract. Other media/interchange
-formats retain their own decoder/tool availability limits.
+**Encoder finding (2026-11-02).** No redistributable route writes Wwise Vorbis.
+Open tools decode it (vgmstream, ww2ogg and its MIT successors) but none encodes
+it; the one open converter that writes `.wem` takes 16-bit WAV only and says other
+codecs need Wwise. A home-made encoder would need libvorbis plus a remap onto
+Wwise's packed codebook library and could not be checked except in game, so it was
+not attempted. The clean route is Audiokinetic's own authoring tool, installed and
+licensed by the user: `WwiseConsole convert-external-source` with a Vorbis
+conversion setting, ideally from Wwise 2023.1 to match the banks. CDMW must not
+bundle or download it; whether a free non-commercial licence covers a given mod is
+the user's call under Audiokinetic's terms. CDMW therefore accepts a `.wem` the
+user made that way as it is, and otherwise writes 16-bit PCM with the original's
+channels, rate and speaker layout and switches the banks that play it to Wwise's
+built-in PCM codec. PCM came to 4.3 and 5.3 times the Vorbis size in the two real
+cases tried. No shipped
+bank declares PCM, so PCM playback in game is unproven.
 
 ### 11.4 Text, UI and shader resources
 
@@ -3578,7 +3632,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.aac` | Open | Surface | None |
 | `.avi` | Open | Surface | None |
 | `.bk2` | Open | Surface | None |
-| `.bnk` | Middleware | Surface | None |
+| `.bnk` | Middleware | Partial | Constrained |
 | `.flac` | Open | Surface | None |
 | `.m4a` | Open | Surface | None |
 | `.m4v` | Open | Surface | None |

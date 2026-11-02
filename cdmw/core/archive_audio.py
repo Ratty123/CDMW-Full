@@ -185,7 +185,7 @@ def _normalize_audio_input(audio_path: Path, *, sample_rate: int, channels: int)
     return output_path
 
 
-def _build_pcm_wem(wav_data: bytes, sample_rate: int, channels: int) -> bytes:
+def _build_pcm_wem(wav_data: bytes, sample_rate: int, channels: int, *, channel_layout: int | None = None) -> bytes:
     pcm_data = b""
     if wav_data[:4] == b"RIFF" and wav_data[8:12] == b"WAVE":
         cursor = 12
@@ -205,20 +205,77 @@ def _build_pcm_wem(wav_data: bytes, sample_rate: int, channels: int) -> bytes:
     bits_per_sample = 16
     byte_rate = sample_rate * channels * (bits_per_sample // 8)
     block_align = channels * (bits_per_sample // 8)
-    fmt_chunk = struct.pack(
-        "<4sIHHIIHH",
-        b"fmt ",
-        16,
-        1,
-        channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        bits_per_sample,
-    )
+    if channel_layout is None:
+        fmt_chunk = struct.pack(
+            "<4sIHHIIHH",
+            b"fmt ",
+            16,
+            1,
+            channels,
+            sample_rate,
+            byte_rate,
+            block_align,
+            bits_per_sample,
+        )
+    else:
+        # Wwise's own 0x18-byte layout: the extensible tag, then the packed channel
+        # configuration word its Vorbis streams carry at the same offset.
+        fmt_chunk = struct.pack(
+            "<4sIHHIIHHHHI",
+            b"fmt ",
+            0x18,
+            0xFFFE,
+            channels,
+            sample_rate,
+            byte_rate,
+            block_align,
+            bits_per_sample,
+            6,
+            bits_per_sample,
+            channel_layout,
+        )
     data_chunk = b"data" + struct.pack("<I", len(pcm_data)) + pcm_data
     riff_size = 4 + len(fmt_chunk) + len(data_chunk)
     return b"RIFF" + struct.pack("<I", riff_size) + b"WAVE" + fmt_chunk + data_chunk
+
+
+def _wwise_channel_layout(media: bytes, channels: int) -> int | None:
+    """The packed channel configuration a Wwise stream stores at `fmt ` + 0x14."""
+
+    for chunk_id, chunk_size, chunk_offset in _iter_riff_chunks(media):
+        if chunk_id == b"fmt " and chunk_size >= 0x18 and chunk_offset + 0x18 <= len(media):
+            layout = struct.unpack_from("<I", media, chunk_offset + 0x14)[0]
+            return layout if layout & 0xFF == channels else None
+    return None
+
+
+def build_wwise_replacement_media(original_media: bytes, replacement_audio_path: Path) -> bytes:
+    """The bytes that replace one Wwise media file.
+
+    A `.wem` the user made with their own Wwise authoring install is taken as it
+    is, after checking it is a codec this game's banks play. Any other audio is
+    converted to 16-bit PCM with the original's channel count, sample rate and
+    speaker layout; CDMW has no Wwise Vorbis encoder.
+    """
+
+    from cdmw.core.archive_wwise_bank_edit import codec_plugin_for_media
+
+    normalized_path = replacement_audio_path.expanduser().resolve()
+    if not normalized_path.is_file():
+        raise FileNotFoundError(f"Audio replacement file was not found: {normalized_path}")
+    if normalized_path.suffix.lower() == ".wem":
+        media = normalized_path.read_bytes()
+        codec_plugin_for_media(media)
+        return media
+    sample_rate = 48000
+    channels = 1
+    original_wav_info = _read_wav_format_info_from_bytes(original_media)
+    if original_wav_info is not None:
+        channels = max(1, int(original_wav_info.channels))
+        sample_rate = max(1, int(original_wav_info.sample_rate))
+    normalized_wav = _normalize_audio_input(normalized_path, sample_rate=sample_rate, channels=channels)
+    layout = _wwise_channel_layout(original_media, channels)
+    return _build_pcm_wem(normalized_wav.read_bytes(), sample_rate, channels, channel_layout=layout)
 
 
 def build_archive_audio_patch_payload(entry: ArchiveEntry, replacement_audio_path: Path) -> bytes:
@@ -235,17 +292,157 @@ def build_archive_audio_patch_payload(entry: ArchiveEntry, replacement_audio_pat
         raise ValueError(f"Archive audio patching currently supports .wav and .wem targets only, not {entry.extension}.")
 
     original_data, _decompressed, _note = read_archive_entry_data(entry)
-    sample_rate = 48000
-    channels = 1
-    original_wav_info = _read_wav_format_info_from_bytes(original_data)
-    if original_wav_info is not None:
-        channels = max(1, int(original_wav_info.channels))
-        sample_rate = max(1, int(original_wav_info.sample_rate))
-    normalized_wav = _normalize_audio_input(normalized_path, sample_rate=sample_rate, channels=channels)
-    return _build_pcm_wem(normalized_wav.read_bytes(), sample_rate, channels)
+    return build_wwise_replacement_media(original_data, normalized_path)
+
+
+#: PCM larger than this many times the media it replaces is called out to the user.
+_PCM_SIZE_WARNING_RATIO = 4.0
+
+
+@dataclass(slots=True, frozen=True)
+class WwiseMediaReplacement:
+    """Every archive file one media replacement touches, with what changed in each."""
+
+    source_id: int
+    payloads: Tuple[Tuple[ArchiveEntry, bytes], ...]
+    notes: Tuple[str, ...]
+
+
+def wwise_media_source_id(entry: ArchiveEntry) -> Optional[int]:
+    """The Wwise source id a loose `.wem` carries as its name, if it is numeric."""
+
+    stem = Path(entry.basename).stem
+    return int(stem) if entry.extension == ".wem" and stem.isdigit() else None
+
+
+def build_wwise_media_replacement(
+    source_id: int,
+    media: bytes,
+    *,
+    original_media: bytes,
+    wem_entries: Sequence[ArchiveEntry],
+    bank_entries: Sequence[ArchiveEntry],
+    read_entry=None,
+    stop_event=None,
+    on_log=None,
+) -> WwiseMediaReplacement:
+    """Replaces one media id everywhere the game reads it.
+
+    The loose `.wem` copies get the new bytes, every bank that embeds the id
+    gets its embedded copy replaced, and every bank whose Sounds load it from
+    memory gets the new size and codec. A bank that prefetches or streams the id
+    refuses the whole replacement, so no partial set of files is produced.
+    """
+
+    from cdmw.core.archive_wwise_bank_edit import (
+        WwiseBankEditError,
+        bank_media_references,
+        codec_plugin_for_media,
+        replace_embedded_media,
+        retarget_loose_media,
+    )
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    if read_entry is None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+
+        def read_entry(entry: ArchiveEntry) -> bytes:
+            return read_archive_entry_data(entry)[0]
+
+    log = on_log or (lambda _message: None)
+    plugin = codec_plugin_for_media(media)
+    payloads: List[Tuple[ArchiveEntry, bytes]] = [(entry, media) for entry in wem_entries]
+    notes: List[str] = []
+    needle = struct.pack("<I", int(source_id))
+    for index, bank in enumerate(bank_entries):
+        if index % 200 == 0:
+            raise_if_cancelled(stop_event, "Audio replacement cancelled.")
+        data = read_entry(bank)
+        if needle not in data:
+            continue
+        embedded, sounds = bank_media_references(data, source_id)
+        if not embedded and not sounds:
+            continue
+        try:
+            result = replace_embedded_media(data, source_id, media) if embedded else retarget_loose_media(data, source_id, media)
+        except WwiseBankEditError as error:
+            raise WwiseBankEditError(f"{bank.path}: {error}") from error
+        payloads.append((bank, result.data))
+        log(f"{bank.path}: " + "; ".join(result.changes))
+    if len(payloads) == len(wem_entries):
+        notes.append(
+            f"No bank declares media {source_id}; the replacement is written, but nothing in the shipped banks plays it."
+        )
+    if plugin == 0x00010001:
+        ratio = len(media) / max(1, len(original_media))
+        notes.append(
+            "The replacement is uncompressed PCM, which no shipped bank declares; the banks that play it were switched "
+            "to Wwise's built-in PCM codec. This is not yet confirmed in game."
+        )
+        if ratio >= _PCM_SIZE_WARNING_RATIO:
+            notes.append(
+                f"PCM is {ratio:,.1f} times the size of the Wwise Vorbis original "
+                f"({len(media):,} bytes against {len(original_media):,}); sounds held in memory cost that much more."
+            )
+    return WwiseMediaReplacement(int(source_id), tuple(payloads), tuple(notes))
+
+
+def list_bank_embedded_media(entry: ArchiveEntry):
+    """The sounds a bank archive entry embeds, in preview-track order."""
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_wwise_bank import read_embedded_media
+
+    return read_embedded_media(read_archive_entry_data(entry)[0])
+
+
+def plan_wwise_media_replacement(
+    entry: ArchiveEntry,
+    replacement_audio_path: Path,
+    source_id: int,
+    archive_entries: Sequence[ArchiveEntry],
+    *,
+    stop_event=None,
+    on_log=None,
+) -> WwiseMediaReplacement:
+    """Plans one media replacement started from a loose `.wem` or from a bank's embedded sound.
+
+    `archive_entries` is the scanned archive listing; the loose copies named
+    `<source id>.wem` and every `.bnk` are taken from it.
+    """
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_wwise_bank import read_bank_embedded_bytes, read_embedded_media
+
+    wem_name = f"{int(source_id)}.wem"
+    wem_entries = [item for item in archive_entries if item.basename.lower() == wem_name]
+    bank_entries = [item for item in archive_entries if item.extension == ".bnk"]
+    if entry.extension == ".bnk" and not any(item is entry for item in bank_entries):
+        bank_entries.append(entry)
+    data = read_archive_entry_data(entry)[0]
+    if entry.extension == ".bnk":
+        embedded = next((item for item in read_embedded_media(data) if item.source_id == int(source_id)), None)
+        if embedded is None:
+            raise ValueError(f"{entry.path} does not embed media {source_id}.")
+        original = read_bank_embedded_bytes(data, embedded)
+    else:
+        original = data
+    media = build_wwise_replacement_media(original, replacement_audio_path)
+    if on_log is not None:
+        on_log(f"Looking for the banks that play media {source_id} among {len(bank_entries):,} banks...")
+    return build_wwise_media_replacement(
+        int(source_id),
+        media,
+        original_media=original,
+        wem_entries=wem_entries,
+        bank_entries=bank_entries,
+        stop_event=stop_event,
+        on_log=on_log,
+    )
 
 
 __all__ = [
+    "WwiseMediaReplacement",
     "_WavFormatInfo",
     "_build_pcm_wem",
     "_convert_audio_to_wav",
@@ -257,5 +454,10 @@ __all__ = [
     "_read_wav_format_info_from_bytes",
     "_run_hidden_process",
     "build_archive_audio_patch_payload",
+    "build_wwise_media_replacement",
+    "build_wwise_replacement_media",
     "export_archive_audio_as_wav",
+    "list_bank_embedded_media",
+    "plan_wwise_media_replacement",
+    "wwise_media_source_id",
 ]

@@ -604,8 +604,34 @@ companions already reach it.
 
 WEM Details read the RIFF header without decoding (`archive_wwise_stream.py`):
 codec, channel layout, sample rate, length, `smpl` loop range and `cue`/`labl`
-markers. Compressed streams report no bit depth. Patch Audio To Game still writes
-uncompressed PCM; Details says so for non-PCM sources.
+markers. Compressed streams report no bit depth.
+
+Bank previews decode the HIRC object graph of version-150 banks
+(`cdmw/core/archive_wwise_hirc.py`, layouts after wwiser): Sounds, actions,
+events, random/sequence, switch and layer containers, actor-mixers and music
+tracks, with their properties, randomizer ranges, playlists, children and media
+sources. An object is reported as decoded only when its body ends exactly on its
+declared size; other types (buses, attenuations, effects, modulators, music
+segments and music containers) keep their framing only.
+
+Audio replacement is written as a DMM loose mod, never into the installed
+archives. **Import WAV as Loose Mod** on a `.wem` and **Replace Embedded Sound
+as Loose Mod** on a `.bnk` both go through `plan_wwise_media_replacement`
+(`cdmw/core/archive_audio.py`): the loose `<id>.wem` copies get the new bytes,
+every bank embedding the id gets DIDX and DATA rebuilt on 16-byte boundaries, and
+every Sound or music-track source that loads the id from memory gets the new byte
+size and the codec the new media declares (`archive_wwise_bank_edit.py`). The
+banks are found by scanning every `.bnk` in the listing in the background. A
+`.wem` the user made with their own Wwise install is used as it is (Vorbis, ADPCM
+or PCM); any other audio becomes 16-bit PCM with the original's channels, rate
+and speaker layout, and the completion message warns when PCM is four or more
+times the original's size. The whole replacement is refused when any bank
+prefetches or streams the id, plays it through a non-codec plugin, or holds it
+inside an object the decoder does not model. Named `.wem` voice lines are not
+described by any bank, so only the file is replaced. In-place HIRC value edits
+(`apply_hirc_edits`) are a core API with no UI yet. Owned fixtures, a headless
+action test and read-only sweeps of the shipped banks cover this; none of it is
+confirmed in game.
 
 WEM preview and WAV export remove the Windows extended-path prefix only from
 vgmstream's command arguments: its wildcard parser treats the prefix's `?` as a
