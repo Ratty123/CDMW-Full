@@ -18467,6 +18467,16 @@
       ]
     },
     {
+      "key": "BitmapPosition keeps only row names and boundaries. Thirteen rows use readers in virtualized game code and stay refused. The units and in-game effect of every editable field are unverified, and no UI writes these tables yet.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Black",
       "origins": [
         {
@@ -102747,16 +102757,6 @@
       ]
     },
     {
-      "key": "Other tables keep only their row names and boundaries; their record fields are not modelled.",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
-        }
-      ]
-    },
-    {
       "key": "Other tool / feature *",
       "origins": [
         {
@@ -132272,7 +132272,7 @@
       ]
     },
     {
-      "key": "Row data for the staticinfo tables; row boundaries and names come from the header for all 212 pairs. cdmw/core/compact_static.py and its closed schema decode the ItemInfo, shop, group, crafting, reward, equipment-bonus, string and dye records Create New Item edits, including all 8,616 base and DLC ItemInfo records.",
+      "key": "Row data for the staticinfo tables; the header gives row boundaries and names for all 212 pairs. A closed schema taken from the game's table serializers decodes 140 of the 142 tables, including items, shops, skills, characters, quests, stages, gimmicks, conditions, knowledge and effects; StringInfo has its own reader. On the 1.0.0.3479 base and DLC data, 310,026 of the 310,039 rows in those tables decode exactly and the others are refused, none misread. Archive Browser previews show their fields, and whitelisted fixed-width fields can be rewritten in place as a loose table pair.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",

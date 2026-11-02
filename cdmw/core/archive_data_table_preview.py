@@ -24,6 +24,7 @@ STATIC_TABLE_HEADER_EXTENSION = ".staticinfoheader"
 STATIC_TABLE_BODY_EXTENSION = ".staticinfobody"
 STATIC_TABLE_EXTENSIONS = frozenset({STATIC_TABLE_HEADER_EXTENSION, STATIC_TABLE_BODY_EXTENSION})
 _TEXT_COLUMN_LIMIT = 200
+_FIELD_PREVIEW_ROWS = 5
 
 
 def _one_line(text: str) -> str:
@@ -118,6 +119,42 @@ def _row_key_text(key: bytes) -> str:
     return str(int.from_bytes(key, "little")) if len(key) <= 8 else "0x" + key.hex()
 
 
+def _append_decoded_fields(lines, detail, stem, body, key_width, shown) -> None:
+    """Field values for tables with a closed record schema, decoded for the listed rows only."""
+
+    from cdmw.core.static_table_records import StaticTableError, decode_record, table_kind_for_stem
+    from cdmw.core.new_item_record import RecordError
+
+    kind = table_kind_for_stem(stem)
+    if kind is None:
+        return
+    records, refused = [], 0
+    for _row, start, end in shown:
+        try:
+            records.append(decode_record(kind, body[start:end], start=start, key_width=key_width))
+        except (RecordError, StaticTableError, UnicodeDecodeError):
+            refused += 1
+    lines.extend(["", f"Decoded fields ({len(records):,} of {len(shown):,} listed rows):"])
+    for record in records[:_FIELD_PREVIEW_ROWS]:
+        lines.append(f"  key {record.key}  {record.name}")
+        for field in record.fields:
+            if field.name in ("_stringKey", "_key"):
+                continue
+            if field.shape == "nested":
+                value = f"{field.value:,} bytes"
+            elif field.shape == "text":
+                value = repr(_one_line(field.value))
+            else:
+                value = str(field.value)
+            lines.append(f"    {field.name} ({field.shape}) = {value}")
+    if len(records) > _FIELD_PREVIEW_ROWS:
+        lines.append(f"  ... fields of {len(records) - _FIELD_PREVIEW_ROWS:,} more decoded rows not shown")
+    message = f"The closed {kind} record schema decoded {len(records):,} of the {len(shown):,} listed rows."
+    if refused:
+        message += f" {refused:,} did not decode with it and are listed without fields."
+    detail.append(message)
+
+
 def build_static_table_preview(
     data: bytes,
     virtual_path: str,
@@ -182,6 +219,7 @@ def build_static_table_preview(
             if len(spans) > len(shown):
                 lines.append(f"  ... {len(spans) - len(shown):,} more")
             detail.append(f"Resolved {len(table.rows):,} rows from the header and body pair.")
+            _append_decoded_fields(lines, detail, stem, body, table.key_width, shown)
     detail.append("This inspector is read-only.")
     return _StructuredBinaryPreviewBundle(
         preview_text="\n".join(lines),
