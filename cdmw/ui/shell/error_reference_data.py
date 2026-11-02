@@ -7409,7 +7409,7 @@ MESSAGE_REFERENCE = [
     "message": "- Requires PATHC/manifest registration: {'Yes' if crimson_info.requires_pathc else 'No'}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 294
+      "cdmw/core/archive_media_preview.py": 295
     }
   },
   {
@@ -7462,6 +7462,23 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "A new value is not a number: {error}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 256
+    }
+  },
+  {
+    "area": "archive",
+    "message": "A playlist weight cannot be negative.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 334,
+      "cdmw/core/archive_wwise_bank_variations.py": 324
+    }
+  },
+  {
+    "area": "archive",
     "message": "A prepared overlay change targets a file outside its ownership.",
     "recovery": "internal",
     "sources": {
@@ -7478,6 +7495,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "A property bundle stores the same id twice; refusing to rebuild it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 371
+    }
+  },
+  {
+    "area": "archive",
+    "message": "A range needs a (min, max) pair, not {change.value}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 406
+    }
+  },
+  {
+    "area": "archive",
+    "message": "A range needs two numbers, minimum then maximum.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 179
+    }
+  },
+  {
+    "area": "archive",
     "message": "A resolved existing target icon entry is required for custom item icons.",
     "recovery": "input",
     "sources": {
@@ -7490,6 +7531,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/ui/archive_browser/character_dependency_export.py": 144
+    }
+  },
+  {
+    "area": "archive",
+    "message": "A sound must come before the container that lists it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 249
     }
   },
   {
@@ -7514,6 +7563,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_loose_export.py": 836
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Adding a variation needs a media builder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_plan.py": 194
     }
   },
   {
@@ -7562,6 +7619,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/ui/archive_browser/remote_controller.py": 158
+    }
+  },
+  {
+    "area": "archive",
+    "message": "An object cannot store more than 255 properties.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 377
     }
   },
   {
@@ -7921,7 +7986,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive audio patching currently supports .wav and .wem targets only, not {entry.extension}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_audio.py": 235
+      "cdmw/core/archive_audio.py": 292
     }
   },
   {
@@ -9348,7 +9413,7 @@ MESSAGE_REFERENCE = [
     "message": "Audio replacement file was not found: {normalized_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_audio.py": 229
+      "cdmw/core/archive_audio.py": 265
     }
   },
   {
@@ -9389,6 +9454,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/archive_overlay_manager.py": 451
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Bank version {graph.version} is not version {SUPPORTED_BANK_VERSION}; refusing to edit it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 276
     }
   },
   {
@@ -9437,7 +9510,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_audio.py": 76,
-      "cdmw/core/archive_media_preview.py": 584
+      "cdmw/core/archive_media_preview.py": 585
     }
   },
   {
@@ -9654,6 +9727,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_format.py": 259
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Change target {change.target} is not a property or range name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 386
     }
   },
   {
@@ -10120,6 +10201,30 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/domain/archives/mod_merge.py": 51
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Container {container.object_id} does not store its playlist right after its children.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 114
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Container {container.object_id} lists sound {sound.object_id} more than once.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 208
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Container {container.object_id} would be left without sounds.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 202
     }
   },
   {
@@ -10621,10 +10726,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Edit target {edit.target} is not recognised.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 337
+    }
+  },
+  {
+    "area": "archive",
     "message": "Edited assets contain conflicting companion files.",
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_archive_results.py": 165
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Effect {node.object_id} loads media {source_id} as plugin data, not as a sound; refusing to change it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 525
     }
   },
   {
@@ -10637,10 +10758,43 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Embedded media {item.source_id} does not read back intact; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 729
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Embedded media {item.source_id} runs past the DATA chunk.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 675,
+      "cdmw/core/archive_wwise_bank_variations.py": 104
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Embedded media {media.source_id} is not inside the bank's DATA chunk.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank.py": 128
+    }
+  },
+  {
+    "area": "archive",
     "message": "Enter a folder path relative to the game folder, without wildcards or '..'.",
     "recovery": "internal",
     "sources": {
       "cdmw/domain/archives/discovery.py": 40
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Enter one number for the property.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 185
     }
   },
   {
@@ -10993,6 +11147,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 474
+    }
+  },
+  {
+    "area": "archive",
+    "message": "HIRC object {node.object_id} (type {node.kind}) is not decoded and may refer to media {source_id}; refusing to change that media.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 519
     }
   },
   {
@@ -11512,7 +11674,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file preview from: {resolved_path} This loose file type cannot be previewed as an image.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 508
+      "cdmw/core/archive_media_preview.py": 509
     }
   },
   {
@@ -11609,6 +11771,22 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_mesh_import_validation.py": 249
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Media {source.source_id} is prefetched or streamed; its original file is needed to size the new prefix.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 550
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Media {source_id} is both held in memory and prefetched or streamed in this bank; no shipped bank does that, so it is refused.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 539
     }
   },
   {
@@ -11857,7 +12035,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing DDS header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 146
+      "cdmw/core/archive_media_preview.py": 147
     }
   },
   {
@@ -12183,6 +12361,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "No loose {source_id}.wem is in the archive listing.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_audio.py": 480
+    }
+  },
+  {
+    "area": "archive",
     "message": "No matching archive entries were found for the related-set extraction.",
     "recovery": "empty",
     "sources": {
@@ -12220,6 +12406,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/archive_browser/appearance_composite.py": 503
+    }
+  },
+  {
+    "area": "archive",
+    "message": "No shipped object of type {node.kind} stores {change.target}, so it is not added to object {node.object_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 397
     }
   },
   {
@@ -12276,6 +12470,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 245
+    }
+  },
+  {
+    "area": "archive",
+    "message": "No unused id could be made for {name}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 75
     }
   },
   {
@@ -12356,6 +12558,126 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_mesh_export.py": 727
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {edit.object_id} did not decode exactly; refusing to edit it.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 355
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} does not store its ranges right after its properties.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 451
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} does not store {rest}; adding a property changes the object's size.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 307
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} has no fixed-size value named {rest}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 324
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} has no playlist entry {child}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 336
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} has no randomizer range for {name}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 320
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} has no randomizer ranges.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 455
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} plays media {source_id} through plugin 0x{source.plugin_id}, not a codec this writer can retarget.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 532
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {node.object_id} stores no {change.target}; nothing to remove.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 393
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {object_id} has no decoded property bundle; refusing to change it.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 433
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {object_id} is not a decoded {label}.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 94
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {old.object_id} changed although it was not edited; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 492
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {old.object_id} decodes differently after the change; nothing was written.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 484
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {old.object_id} decodes differently after the edit; nothing was written.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 502
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Object {old.object_id} does not read back its properties; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 490
     }
   },
   {
@@ -13489,7 +13811,15 @@ MESSAGE_REFERENCE = [
     "message": "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 751
+      "cdmw/core/archive_media_preview.py": 752
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Playlist entry {rest} is not an object id.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 330
     }
   },
   {
@@ -13704,10 +14034,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Property {name} is not one with a measured, fixed type.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 388
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Property {rest} is not one with a measured, fixed type.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 304
+    }
+  },
+  {
+    "area": "archive",
     "message": "RIFF/WAVE format chunk was not available in the analyzed prefix.",
     "recovery": "internal",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.Archive.Content/ArchiveStructuredAnalyzers.cs": 406
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Range minimum {low} is above its maximum {high}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 408
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Range {rest} is not an editable property bound.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 315
     }
   },
   {
@@ -14064,6 +14426,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Replacement media format 0x{tag} is not one this game's banks play (Wwise Vorbis, Wwise ADPCM or PCM).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 172
+    }
+  },
+  {
+    "area": "archive",
     "message": "Representative real HKX corpus: {real_plan.get('status') or 'unknown'} | missing: {', '.join(missing_roles[:6])}",
     "recovery": "missing",
     "sources": {
@@ -14336,10 +14706,50 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Sound {request.template_sound_id} is not in this bank.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_plan.py": 198
+    }
+  },
+  {
+    "area": "archive",
     "message": "Sound {selected_index} could not be decoded: {error}",
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_wwise_bank_preview.py": 70
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Sound {sound.object_id} is also named by object {others[0]}; refusing to remove it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 205
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Sound {sound.object_id} is not a child of container {container.object_id}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 200
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Sound {template_sound_id} does not play media through a codec; pick another sibling.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 307
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Sound {template_sound_id} is not a child of container {container_id}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 304
     }
   },
   {
@@ -14936,6 +15346,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The added sound does not read back; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 336
+    }
+  },
+  {
+    "area": "archive",
     "message": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
     "recovery": "internal",
     "sources": {
@@ -15168,6 +15586,159 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The bank already embeds media {variation.media[0]}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 254
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank does not embed media {source_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 672
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank does not start with its header; refusing to rebuild it.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 164
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank embeds media {source_id}; replace the embedded copy instead.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 631
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank embeds no media.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 664
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank embeds only a prefix of media {source_id} but holds it in memory; refusing.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 683
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank embeds only a stream prefix of media {source_id}; its original file is needed to cut a new one.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 687
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has bytes after its last chunk; refusing to rebuild it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 469,
+      "cdmw/core/archive_wwise_bank_variations.py": 129
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has more than one media table; refusing to rebuild it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 666
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has no HIRC object {edit.object_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 350
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has no HIRC object {object_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 428
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has {len(matches)} HIRC objects with id {edit.object_id}; the edit is ambiguous.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 352
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has {len(matches)} HIRC objects with id {object_id}; expected one {label}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 91
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank has {len(matches)} HIRC objects with id {object_id}; the change is ambiguous.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 430
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank header is not 40 bytes plus zero padding; refusing to resize it.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 176
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank's HIRC objects do not frame completely; refusing to edit it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 278
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank's chunk list is not the shipped shape; refusing to rebuild it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 132
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank's stream prefix of {original_size} bytes does not end on a packet boundary of the original media.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 259
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The bank's stream prefix of {original_size} bytes does not fit the original media.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 257
+    }
+  },
+  {
+    "area": "archive",
     "message": "The canonical preview cache root is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -15204,6 +15775,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/archive_overlay_manager.py": 58
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The container does not list the added sound; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 338
     }
   },
   {
@@ -15272,6 +15851,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The edited bank no longer frames like the original; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 499
+    }
+  },
+  {
+    "area": "archive",
     "message": "The edited mesh's materials belong to a different source.",
     "recovery": "internal",
     "sources": {
@@ -15316,6 +15903,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/mesh_archive_results.py": 169
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The embedded prefix of media {source_id} is not a prefix of the original file.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 691
     }
   },
   {
@@ -15504,6 +16099,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The media sound {request.template_sound_id} plays is not available.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_plan.py": 206
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The media table size is not a whole number of records.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 669
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The media's length is unknown, so its stream prefix cannot be scaled.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 263
+    }
+  },
+  {
+    "area": "archive",
     "message": "The merged archive dependency set does not contain the selected file.",
     "recovery": "input",
     "sources": {
@@ -15576,6 +16195,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The new {label} id {value} is already used in this bank.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 311
+    }
+  },
+  {
+    "area": "archive",
     "message": "The original archive list was not restored.",
     "recovery": "internal",
     "sources": {
@@ -15588,6 +16215,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_mesh_import_validation.py": 207
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The original or replacement media header cannot be read to size its stream prefix.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 255
     }
   },
   {
@@ -15736,10 +16371,58 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The rebuilt bank does not decode; nothing was written.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 262
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The rebuilt bank does not frame like the original; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 481
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The rebuilt bank lists different objects; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_variations.py": 266
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The rebuilt media table lists different sounds; nothing was written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 723
+    }
+  },
+  {
+    "area": "archive",
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_preview_result_builder.py": 1227
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The replacement is not a RIFF/WAVE Wwise media file.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 167
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The replacement media has no data chunk.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 169
     }
   },
   {
@@ -16047,6 +16730,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/mesh_direct_patch.py": 267
+    }
+  },
+  {
+    "area": "archive",
+    "message": "This voice line is chosen by name while the game runs and keeps the codec the game asks for; the replacement .wem uses a different codec. Encode it as Wwise Vorbis.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_audio.py": 313
+    }
+  },
+  {
+    "area": "archive",
+    "message": "This voice line is chosen by name while the game runs, and the game tells Wwise to decode it as Wwise Vorbis, so only the .wem is replaced and it must be a Wwise Vorbis .wem made with your own Wwise install.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/patch_actions.py": 109
+    }
+  },
+  {
+    "area": "archive",
+    "message": "This voice line is chosen by name while the game runs, and the game tells Wwise which codec to decode it with (Wwise Vorbis), so converted audio would not play. Use a .wem made with your own Wwise install.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_audio.py": 307
     }
   },
   {
@@ -16768,6 +17475,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "action type 0x{node.action_type} is not modelled",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 475
+    }
+  },
+  {
+    "area": "archive",
     "message": "added",
     "recovery": "internal",
     "sources": {
@@ -16931,6 +17646,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "tools/scan_archive_format_corpus.py": 65
+    }
+  },
+  {
+    "area": "archive",
+    "message": "body ended at {reader.pos}, {node.end - reader.pos} bytes before the declared end",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 720
     }
   },
   {
@@ -17797,6 +18520,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "list of {value} items of {item_size} bytes passes the object end",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 310
+    }
+  },
+  {
+    "area": "archive",
     "message": "matching PAB skeleton was not resolved",
     "recovery": "internal",
     "sources": {
@@ -17857,6 +18588,22 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_scan_cache.py": 2278
+    }
+  },
+  {
+    "area": "archive",
+    "message": "music playlist item count does not match its tree",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 665
+    }
+  },
+  {
+    "area": "archive",
+    "message": "music playlist nests deeper than 64 levels",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 651
     }
   },
   {
@@ -18215,6 +18962,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "read of {size} bytes at {start} passes the object end {self.end}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 272
+    }
+  },
+  {
+    "area": "archive",
     "message": "read past end at 0x{offset}",
     "recovery": "internal",
     "sources": {
@@ -18237,7 +18992,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_accelerator.py": 94,
       "cdmw/core/archive_attachment_iteminfo.py": 38,
       "cdmw/core/archive_format.py": 249,
-      "cdmw/core/archive_media_preview.py": 697,
+      "cdmw/core/archive_media_preview.py": 698,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
       "cdmw/core/archive_preview_result_builder.py": 1134,
@@ -18383,7 +19138,7 @@ MESSAGE_REFERENCE = [
     "message": "strict",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 65
+      "cdmw/core/archive_media_preview.py": 66
     }
   },
   {
@@ -18585,6 +19340,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "variable-size integer longer than five bytes",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_hirc.py": 305
+    }
+  },
+  {
+    "area": "archive",
     "message": "vgmstream-cli could not decode this Wwise stream.",
     "recovery": "format",
     "sources": {
@@ -18685,7 +19448,15 @@ MESSAGE_REFERENCE = [
     "message": "{backup_dir} does not contain a backup_manifest.json file.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/ui/archive_browser/patch_actions.py": 186
+      "cdmw/ui/archive_browser/patch_actions.py": 292
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{bank.path}: {undecoded} object(s) this reader does not decode hold media id {source_id}; refusing to change that media.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_audio.py": 390
     }
   },
   {
@@ -18770,6 +19541,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "{entry.path} does not embed media {source_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_audio.py": 540
+    }
+  },
+  {
+    "area": "archive",
     "message": "{entry.path} is not a supported mesh entry.",
     "recovery": "input",
     "sources": {
@@ -18846,6 +19625,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_overlay.py": 143
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{item.target} of object {item.object_id} takes a whole number.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/sound_bank_editor.py": 240
     }
   },
   {
@@ -19374,6 +20161,38 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/pac_xml_editor_composition.py": 214
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{value} does not fit a 32-bit float.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 289
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{value} does not fit this field: {error}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 296
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{value} is not a finite number.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 286
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{value} must be a whole number.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/archive_wwise_bank_edit.py": 292
     }
   },
   {
@@ -103078,7 +103897,7 @@ SOURCE_COVERAGE = {
     "raise": 15
   },
   "cdmw/core/archive_audio.py": {
-    "raise": 11
+    "raise": 18
   },
   "cdmw/core/archive_binary_preview.py": {
     "diagnostic_field": 1
@@ -103450,11 +104269,24 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/core/archive_wwise_bank.py": {
-    "diagnostic_field": 1
+    "diagnostic_field": 1,
+    "raise": 1
+  },
+  "cdmw/core/archive_wwise_bank_edit.py": {
+    "raise": 62
+  },
+  "cdmw/core/archive_wwise_bank_plan.py": {
+    "raise": 3
   },
   "cdmw/core/archive_wwise_bank_preview.py": {
     "raise": 1,
     "validation": 1
+  },
+  "cdmw/core/archive_wwise_bank_variations.py": {
+    "raise": 23
+  },
+  "cdmw/core/archive_wwise_hirc.py": {
+    "raise": 7
   },
   "cdmw/core/archive_wwise_stream.py": {
     "diagnostic_field": 1
@@ -105975,7 +106807,7 @@ SOURCE_COVERAGE = {
     "display": 1
   },
   "cdmw/ui/archive_browser/patch_actions.py": {
-    "dialog": 1
+    "dialog": 2
   },
   "cdmw/ui/archive_browser/prefab_inspector_actions.py": {
     "display": 1,
@@ -106101,6 +106933,10 @@ SOURCE_COVERAGE = {
     "diagnostic_text": 1,
     "display": 2,
     "report": 1
+  },
+  "cdmw/ui/archive_browser/sound_bank_editor.py": {
+    "dialog": 3,
+    "raise": 1
   },
   "cdmw/ui/archive_browser/source_mix_actions.py": {
     "diagnostic_field": 1,

@@ -4667,6 +4667,16 @@
       ]
     },
     {
+      "key": "A new value is not a number: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 256,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "A newer material result replaced this one; the obsolete result is ignored.",
       "origins": [
         {
@@ -4798,6 +4808,16 @@
           "path": "cdmw/services/mesh_service_morph_authoring.py",
           "line": 260,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "A range needs two numbers, minimum then maximum.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 179,
+          "sink": "warning"
         }
       ]
     },
@@ -6732,6 +6752,26 @@
       "manual": true
     },
     {
+      "key": "Add Property",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 98,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 179,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 185,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "Add Rule",
       "origins": [],
       "manual": true
@@ -6743,6 +6783,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
           "line": 818,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Add Sound to Container",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 209,
+          "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Add Sound to Container...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 109,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -11006,7 +11066,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 78,
+          "line": 79,
           "sink": "python-data:_TEXT_TOOL"
         }
       ]
@@ -13866,7 +13926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 573,
+          "line": 582,
           "sink": "append_archive_log"
         }
       ]
@@ -14576,7 +14636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 31,
+          "line": 37,
           "sink": "set_status_message"
         }
       ]
@@ -16566,7 +16626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 86,
+          "line": 92,
           "sink": "information"
         }
       ]
@@ -16576,17 +16636,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 100,
+          "line": 154,
+          "sink": "getOpenFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 214,
           "sink": "getOpenFileName:filter-label"
         }
       ]
     },
     {
-      "key": "Audio Files (*.wav *.ogg *.mp3)",
+      "key": "Audio Files (*.wav *.ogg *.mp3 *.wem)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 214,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Audio Files ({value_0})",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 100,
+          "line": 154,
           "sink": "getOpenFileName"
         }
       ]
@@ -16606,7 +16681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 116,
+          "line": 221,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -16616,7 +16691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 148,
+          "line": 254,
           "sink": "information"
         }
       ]
@@ -16626,7 +16701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 84,
+          "line": 90,
           "sink": "set_status_message"
         }
       ]
@@ -16636,7 +16711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 134,
+          "line": 239,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -16646,7 +16721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 146,
+          "line": 251,
           "sink": "set_status_message"
         }
       ]
@@ -18161,7 +18236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 221,
+          "line": 327,
           "sink": "information"
         }
       ]
@@ -20893,6 +20968,11 @@
           "path": "tools/format_explorer/catalogue.py",
           "line": 63,
           "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 64,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -21001,7 +21081,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 82,
+          "line": 83,
           "sink": "python-data:_HEADLINE"
         }
       ]
@@ -21331,7 +21411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 644,
+          "line": 653,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -24341,7 +24421,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 95,
+          "line": 96,
           "sink": "python-data:WRITE_WORDS"
         }
       ]
@@ -24493,6 +24573,11 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 548,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 129,
+          "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/source_mix_actions.py",
@@ -37091,7 +37176,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 601,
+          "line": 610,
           "sink": "set_status_message"
         }
       ]
@@ -37281,7 +37366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 597,
+          "line": 606,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -37643,6 +37728,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 274,
           "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Copy the settings of sound:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 209,
+          "sink": "getItem"
         }
       ]
     },
@@ -38906,11 +39001,6 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 64,
-          "sink": "python-data:TOOLS"
-        },
-        {
-          "path": "tools/format_explorer/catalogue.py",
           "line": 65,
           "sink": "python-data:TOOLS"
         },
@@ -38957,6 +39047,11 @@
         {
           "path": "tools/format_explorer/catalogue.py",
           "line": 74,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 75,
           "sink": "python-data:TOOLS"
         }
       ]
@@ -47752,6 +47847,46 @@
       ]
     },
     {
+      "key": "Edit Sound Bank",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 192,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 256,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 259,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Edit Sound Bank as Loose Mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 576,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
+      "key": "Edit Sound Bank: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 37,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
       "key": "Edit Structured Data Safely",
       "origins": [
         {
@@ -47771,11 +47906,6 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 60,
-          "sink": "python-data:TOOLS"
-        },
-        {
-          "path": "tools/format_explorer/catalogue.py",
           "line": 61,
           "sink": "python-data:TOOLS"
         },
@@ -47787,6 +47917,11 @@
         {
           "path": "tools/format_explorer/catalogue.py",
           "line": 63,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 64,
           "sink": "python-data:TOOLS"
         }
       ]
@@ -48258,6 +48393,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 339,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit the values this bank stores, add or remove properties, and add or remove sounds in random containers. The result is written as a DMM loose mod; the installed game is not changed. On a bus, Volume affects only sounds routed straight to it; BusVolume is the bus's own volume. Added sounds have not been confirmed in game yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 46,
+          "sink": "QLabel"
         }
       ]
     },
@@ -49216,12 +49361,12 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 64,
+          "line": 65,
           "sink": "python-data:TOOLS"
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 65,
+          "line": 66,
           "sink": "python-data:TOOLS"
         }
       ]
@@ -50442,6 +50587,16 @@
         {
           "path": "cdmw/ui/new_item/tab.py",
           "line": 1157,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Enter one number for the property.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 185,
           "sink": "warning"
         }
       ]
@@ -52506,7 +52661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 607,
+          "line": 616,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -52551,7 +52706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 69,
+          "line": 75,
           "sink": "getSaveFileName"
         }
       ]
@@ -52576,7 +52731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 650,
+          "line": 659,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -52851,7 +53006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 638,
+          "line": 647,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -52886,7 +53041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 604,
+          "line": 613,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -54211,7 +54366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 86,
+          "line": 92,
           "sink": "information"
         }
       ]
@@ -54401,7 +54556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 87,
+          "line": 93,
           "sink": "set_status_message"
         }
       ]
@@ -54806,12 +54961,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 79,
+          "line": 85,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 89,
+          "line": 95,
           "sink": "_run_utility_task"
         }
       ]
@@ -55156,7 +55311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 610,
+          "line": 619,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -55491,12 +55646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 619,
+          "line": 628,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 625,
+          "line": 634,
           "sink": "_run_archive_extract"
         }
       ]
@@ -57082,6 +57237,16 @@
       ]
     },
     {
+      "key": "Filter by object id or value name",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 60,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Filter by path fragments, package, file extension, role, size, and previewability.",
       "origins": [
         {
@@ -57351,7 +57516,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 632,
+          "line": 641,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -61621,7 +61786,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 89,
+          "line": 90,
           "sink": "python-data:READ_WORDS"
         }
       ]
@@ -64158,16 +64323,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 613,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "HIRC event/action tables not parsed, so sounds can be swapped but not added",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -79161,7 +79316,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 96,
+          "line": 97,
           "sink": "python-data:WRITE_WORDS"
         },
         {
@@ -85191,11 +85346,6 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 69,
-          "sink": "python-data:TOOLS"
-        },
-        {
-          "path": "tools/format_explorer/catalogue.py",
           "line": 70,
           "sink": "python-data:TOOLS"
         },
@@ -85212,6 +85362,11 @@
         {
           "path": "tools/format_explorer/catalogue.py",
           "line": 73,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 74,
           "sink": "python-data:TOOLS"
         },
         {
@@ -89211,7 +89366,7 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 74,
+          "line": 75,
           "sink": "python-data:TOOLS"
         }
       ]
@@ -93286,7 +93441,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 91,
+          "line": 92,
           "sink": "python-data:READ_WORDS"
         }
       ]
@@ -95186,7 +95341,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 80,
+          "line": 81,
           "sink": "python-data:NO_REMAINING_NOTE"
         }
       ]
@@ -95356,7 +95511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 169,
+          "line": 275,
           "sink": "set_status_message"
         }
       ]
@@ -97937,6 +98092,16 @@
       ]
     },
     {
+      "key": "No redistributable Wwise Vorbis encoder exists (2026-11-02 finding); Vorbis needs the user's own Wwise authoring install. Loose .wem replacement, in memory and streamed, and PCM under banks switched from Vorbis play in game (2026-11-02). Named voice lines take only a .wem in their original codec, and PCM is several times larger",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "No referenced files",
       "origins": [
         {
@@ -98886,7 +99051,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 79,
+          "line": 80,
           "sink": "python-data:_NO_TOOL"
         }
       ]
@@ -99886,7 +100051,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 92,
+          "line": 93,
           "sink": "python-data:READ_WORDS"
         }
       ]
@@ -100229,6 +100394,11 @@
     {
       "key": "Nothing has been changed yet.",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 259,
+          "sink": "information"
+        },
         {
           "path": "tools/placement_studio/report_style.py",
           "line": 71,
@@ -102236,7 +102406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 591,
+          "line": 600,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -108846,7 +109016,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 90,
+          "line": 91,
           "sink": "python-data:READ_WORDS"
         }
       ]
@@ -110183,6 +110353,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 467,
           "sink": "python-return:_hkx_mod_package_preview_text"
+        }
+      ]
+    },
+    {
+      "key": "Pending structural changes",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 119,
+          "sink": "QLabel"
         }
       ]
     },
@@ -112472,6 +112652,16 @@
       ]
     },
     {
+      "key": "Plugin parameter blocks, music decision trees and curves are sized but not interpreted. One streamed media id whose prefix is off a packet and the 30 external-source placeholders are refused. New events are not offered. Removing objects is not yet confirmed in game",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "Point an animation at a different attach point",
       "origins": [
         {
@@ -114591,7 +114781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 132,
+          "line": 172,
           "sink": "log"
         }
       ]
@@ -115301,7 +115491,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 585,
+          "line": 594,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -121336,7 +121526,7 @@
         },
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 97,
+          "line": 98,
           "sink": "python-data:WRITE_WORDS"
         },
         {
@@ -122262,6 +122452,26 @@
       ]
     },
     {
+      "key": "Reading the sounds in {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 145,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
+      "key": "Reading the sounds {value_0} embeds...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 123,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Reading the tables from {value_0} archive entries...",
       "origins": [
         {
@@ -122328,6 +122538,16 @@
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 995,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 186,
+          "sink": "log"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 209,
+          "sink": "_run_utility_task"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
@@ -126722,6 +126942,36 @@
       ]
     },
     {
+      "key": "Remove Selected Property",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 107,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Remove Sound from Container",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 227,
+          "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Remove Sound from Container...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 111,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Remove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.",
       "origins": [
         {
@@ -127763,6 +128013,36 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 94,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Replace Embedded Sound",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 129,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 136,
+          "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Replace Embedded Sound as Loose Mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 572,
+          "sink": "addAction"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 60,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -131826,7 +132106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 193,
+          "line": 299,
           "sink": "question"
         }
       ]
@@ -131836,7 +132116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 186,
+          "line": 292,
           "sink": "warning"
         }
       ]
@@ -132011,7 +132291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 193,
+          "line": 299,
           "sink": "question"
         }
       ]
@@ -132586,7 +132866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 220,
+          "line": 326,
           "sink": "set_status_message"
         }
       ]
@@ -132596,7 +132876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 221,
+          "line": 327,
           "sink": "information"
         }
       ]
@@ -132626,7 +132906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 228,
+          "line": 334,
           "sink": "_run_utility_task"
         }
       ]
@@ -132636,7 +132916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 210,
+          "line": 316,
           "sink": "log"
         }
       ]
@@ -139681,7 +139961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 175,
+          "line": 281,
           "sink": "getExistingDirectory"
         }
       ]
@@ -139691,8 +139971,18 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 116,
+          "line": 221,
           "sink": "_collect_archive_mod_ready_export_target"
+        }
+      ]
+    },
+    {
+      "key": "Select Audio for the New Sound",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 214,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -140111,7 +140401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 100,
+          "line": 154,
           "sink": "getOpenFileName"
         }
       ]
@@ -141841,7 +142131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 617,
+          "line": 626,
           "sink": "set_status_message"
         }
       ]
@@ -151358,6 +151648,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 365,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Sound to remove:",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 227,
+          "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Sound to replace (preview track: source id):",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 136,
+          "sink": "getItem"
         }
       ]
     },
@@ -166442,6 +166752,26 @@
       ]
     },
     {
+      "key": "This bank embeds no sounds; its media are loose .wem files. Replace the .wem instead.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 129,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "This bank stores nothing the editor can change.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 192,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "This bone has no influence on the loaded mesh.",
       "origins": [
         {
@@ -167898,6 +168228,16 @@
           "path": "cdmw/ui/new_item/effect_placement_package.py",
           "line": 370,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This voice line is chosen by name while the game runs, and the game tells Wwise to decode it as Wwise Vorbis, so only the .wem is replaced and it must be a Wwise Vorbis .wem made with your own Wwise install.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 109,
+          "sink": "information"
         }
       ]
     },
@@ -177741,7 +178081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 69,
+          "line": 75,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -177751,18 +178091,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 69,
+          "line": 75,
           "sink": "getSaveFileName"
-        }
-      ]
-    },
-    {
-      "key": "WEM replacement is best-effort: this rebuilds a simple replacement stream from the selected audio, not a full Wwise-authoring rebuild. Some original Wwise codec/container variants may not behave the same in-game.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 109,
-          "sink": "information"
         }
       ]
     },
@@ -181103,6 +181433,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 203,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 126,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -181721,7 +182056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 157,
+          "line": 263,
           "sink": "_run_utility_task"
         }
       ]
@@ -182196,17 +182531,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 155,
+          "line": 261,
           "sink": "set_status_message"
         }
       ]
     },
     {
-      "key": "Wrote replacement audio loose mod package:\n{value_0}\n\nTarget entry:\n{value_1}\n\nThe installed game archives were not modified. Load the package with DMM.",
+      "key": "Wrote replacement audio loose mod package:\n{value_0}\n\nTarget entry:\n{value_1}\n\nThe installed game archives were not modified. Load the package with DMM.{value_2}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 148,
+          "line": 254,
           "sink": "information"
         }
       ]
@@ -185067,16 +185402,6 @@
       ]
     },
     {
-      "key": "bnk analyzer recovers section tags and the DIDX media table; embedded sounds decode through bundled vgmstream as subsongs",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
-        }
-      ]
-    },
-    {
       "key": "bodies={value_0}",
       "origins": [
         {
@@ -185851,7 +186176,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_workflow_exports.py",
-          "line": 78,
+          "line": 91,
           "sink": "_add"
         }
       ]
@@ -185861,7 +186186,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_workflow_exports.py",
-          "line": 79,
+          "line": 92,
           "sink": "_add"
         }
       ]
@@ -185921,7 +186246,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_workflow_exports.py",
-          "line": 73,
+          "line": 86,
           "sink": "_add"
         }
       ]
@@ -185947,11 +186272,31 @@
       ]
     },
     {
+      "key": "cdmw.core.archive_wwise_bank_edit",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 82,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_wwise_bank_plan",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 83,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
       "key": "cdmw.core.prefab_json",
       "origins": [
         {
           "path": "cdmw/services/archive_workflow_exports.py",
-          "line": 71,
+          "line": 84,
           "sink": "_add"
         }
       ]
@@ -185961,7 +186306,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_workflow_exports.py",
-          "line": 72,
+          "line": 85,
           "sink": "_add"
         }
       ]
@@ -185987,7 +186332,7 @@
       ]
     },
     {
-      "key": "cdmw/core/archive_audio.py writes .wav on export",
+      "key": "cdmw/core/archive_audio.py decodes to .wav; a replacement is written as a loose mod with every bank that plays the media id updated. A user-made Wwise Vorbis/ADPCM/PCM .wem is used as is; other audio becomes PCM with the original's channels, rate and speaker layout and the banks are switched to PCM. All 488,038 shipped .wem are Wwise Vorbis (2026-11-02 header sweep)",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -185997,7 +186342,7 @@
       ]
     },
     {
-      "key": "cdmw/core/archive_audio.py: decodes to .wav and rebuilds PCM .wem",
+      "key": "cdmw/core/archive_audio.py writes .wav on export",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -186028,6 +186373,16 @@
     },
     {
       "key": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate; the tagfile codec rebuilds 69,299 of 69,301 shipped files byte for byte from their item graph and relocates every reference, so strings can change length; ragdoll joint limits and friction are located by constraint atom type and edited in the HKX Physics Editor",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
+      "key": "cdmw/core/archive_wwise_hirc.py decodes every HIRC object type of version-150 banks; all 260,852 objects in the 3,450 shipped banks decode to the byte (2026-11-02). cdmw/core/archive_wwise_bank_edit.py, archive_wwise_bank_variations.py and archive_wwise_bank_plan.py replace embedded or loose media (stream prefixes cut to the same playing time), edit measured fixed-size values, add or remove stored properties, and add or remove sounds in random containers; round trips over the shipped banks reproduce them byte for byte. Embedded sounds decode through bundled vgmstream as subsongs. In game 2026-11-02 (build 1.0.0.3479, via DMM): added bus volumes, an in-place filter edit, embedded and loose sound swaps (in memory and streamed), PCM, added Sound properties and added container sounds all played as intended",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -187268,6 +187623,26 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
+      "key": "container {value_0}: add {value_1} (settings of sound {value_2})",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 220,
+          "sink": "_pending"
+        }
+      ]
+    },
+    {
+      "key": "container {value_0}: remove sound {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 230,
+          "sink": "_pending"
         }
       ]
     },
@@ -196202,6 +196577,26 @@
       ]
     },
     {
+      "key": "object {value_0}: add {value_1} = {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 188,
+          "sink": "_pending"
+        }
+      ]
+    },
+    {
+      "key": "object {value_0}: remove {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 202,
+          "sink": "_pending"
+        }
+      ]
+    },
+    {
       "key": "object/null/data/string/type/packed buckets",
       "origins": [
         {
@@ -196428,16 +196823,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 286,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -198207,6 +198592,16 @@
       ]
     },
     {
+      "key": "property:{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 149,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "property_record={value_0}",
       "origins": [
         {
@@ -198527,6 +198922,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 621,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "range:{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 151,
           "sink": "addItem"
         }
       ]
@@ -204392,6 +204797,16 @@
       ]
     },
     {
+      "key": "value, or min, max for a range",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 97,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "variation {value_0}",
       "origins": [
         {
@@ -206360,6 +206775,11 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 93,
+          "sink": "addItem"
+        },
+        {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 531,
           "sink": "setItemText"
@@ -207941,7 +208361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 186,
+          "line": 292,
           "sink": "warning"
         }
       ]
@@ -209112,6 +209532,16 @@
       ]
     },
     {
+      "key": "{value_0} of object {value_1} takes a whole number.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 240,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} of {value_1} Parts",
       "origins": [
         {
@@ -209428,6 +209858,16 @@
           "path": "cdmw/ui/archive_browser/attachment_socket_editor.py",
           "line": 196,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} range",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/sound_bank_editor.py",
+          "line": 151,
+          "sink": "addItem"
         }
       ]
     },
@@ -212504,6 +212944,11 @@
     {
       "key": "{value_0}: {value_1} ({value_2} bytes)",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/patch_actions.py",
+          "line": 136,
+          "sink": "getItem"
+        },
         {
           "path": "cdmw/ui/archive_browser/source_mix_actions.py",
           "line": 343,
