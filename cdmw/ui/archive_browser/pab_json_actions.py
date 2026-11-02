@@ -1,4 +1,4 @@
-"""Archive Browser Skeleton Edit JSON actions for .pab entries."""
+"""Archive Browser skeleton actions for .pab entries: Add Bones and Skeleton Edit JSON."""
 
 from __future__ import annotations
 
@@ -17,12 +17,13 @@ from cdmw.services.archive_workflow_service import (
 from cdmw.services.pab_skeleton_edit_service import (
     PabEditOutcome,
     apply_pab_edit_json,
+    apply_pab_edits,
     dumps_pab_edit_json,
 )
 
 
 class ArchivePabJsonActionsMixin:
-    """Export a skeleton as Skeleton Edit JSON and import added bones as a loose mod."""
+    """Add bones to a skeleton, by dialog or Skeleton Edit JSON, and write them as a loose mod."""
 
     def _current_archive_pab_entry(self) -> ArchiveEntry | None:
         if self.archive_preview_showing_loose:
@@ -34,6 +35,55 @@ class ArchivePabJsonActionsMixin:
         default_dir = self.shell.settings_file_path.parent / "skeleton_edit_json"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "skeleton"
         return default_dir / f"{stem}.skeleton-edit.json"
+
+    def _open_current_archive_pab_bone_editor(self) -> None:
+        entry = self._current_archive_pab_entry()
+        if entry is None:
+            self.shell.set_status_message("Select a .pab archive entry before adding bones.", error=True)
+            return
+
+        def _task(log: Callable[[str], None]) -> bytes:
+            log(f"Reading skeleton: {entry.path}")
+            data, _decompressed, _note = read_archive_entry_data(entry)
+            return data
+
+        def _handle_complete(result: object) -> None:
+            if not isinstance(result, (bytes, bytearray)):
+                self.shell.set_status_message("Skeleton Edit JSON import finished with an unexpected result payload.", error=True)
+                return
+            self._show_pab_bone_editor(entry, bytes(result))
+
+        self.shell._run_utility_task(
+            status_message=f"Reading skeleton: {entry.path}",
+            task=_task,
+            on_complete=_handle_complete,
+            show_archive_progress=True,
+        )
+
+    def _show_pab_bone_editor(self, entry: ArchiveEntry, data: bytes) -> None:
+        from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+
+        dialog = PabBoneEditorDialog(
+            data, entry.path, self, draft_directory=self._default_archive_pab_edit_json_path(entry).parent)
+        if dialog.exec() != PabBoneEditorDialog.Accepted:
+            return
+        edits = dialog.edits()
+        if not edits:
+            return
+
+        def _task(log: Callable[[str], None]) -> PabEditOutcome:
+            log(f"Applying Skeleton Edit JSON to {entry.basename}...")
+            return apply_pab_edits(data, edits, path=entry.path)
+
+        self.shell._run_utility_task(
+            status_message=f"Applying Skeleton Edit JSON to {entry.basename}...",
+            task=_task,
+            on_complete=lambda result: (
+                self._write_pab_edit_loose_mod(entry, result) if isinstance(result, PabEditOutcome)
+                else self.shell.set_status_message(
+                    "Skeleton Edit JSON import finished with an unexpected result payload.", error=True)),
+            show_archive_progress=True,
+        )
 
     def _export_current_archive_pab_edit_json(self) -> None:
         entry = self._current_archive_pab_entry()

@@ -175,6 +175,11 @@ Skeleton Edit JSON format behind the Archive Browser actions: `bones` is a
 read-only reference (names and parents must stay unchanged, floats are
 ignored), `add_bones` lists `parent`, `name`, `position`, `rotation`, `scale`
 and `core`, and `source.sha256` must match the skeleton being edited.
+`read_pab_edit_json` validates a draft without applying it. The Add Bones dialog
+also uses `preview_pab_edits`, `plan_bone_chain` (a chain in a character-space
+direction from `PAB_CHAIN_DIRECTIONS`: Y up, facing -Z, left +X) and
+`euler_degrees_to_quaternion` / `quaternion_to_euler_degrees` (turns about the
+parent's X, then Y, then Z).
 
 ## PAC vertex jiggle contribution
 

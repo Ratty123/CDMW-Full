@@ -1052,8 +1052,10 @@ it only for bones added in the same edit, because a shipped bone's hash is held
 by data the service cannot rewrite. Removing or reordering bones is not
 offered, since both shift indices. A PAC can list a new bone in its palette
 through the existing palette extension, checked against an edited rig in owned
-fixtures. Archive Browser exposes appending as Export and Import Skeleton Edit
-JSON, which writes a mod-ready loose package. New bones have no tracks, PABC
+fixtures. Archive Browser exposes appending as an Add Bones dialog (bone tree,
+front and side outlines, single bones or chains in a character-space direction)
+and as Export and Import Skeleton Edit JSON; both write a mod-ready loose
+package. New bones have no tracks, PABC
 records, volumes or Havok bodies, so they can only follow their parent
 rigidly. None of this has been loaded in game: whether the engine accepts a longer skeleton, and what the secondary
 parent and core flag need for a new bone, are open.

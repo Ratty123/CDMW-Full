@@ -511,6 +511,11 @@ class ArchiveBrowserActionMixin:
 
         if entry.extension == ".pab":
             _add_menu_section("data", "Structured Data")
+            add_bones_action = menu.addAction(menu_icons["data"], "Add Bones...")
+            add_bones_action.setToolTip(
+                "Add child bones for capes, long hair or tails, then save the skeleton as a mod-ready loose package."
+            )
+            add_bones_action.triggered.connect(lambda _checked=False: self._open_current_archive_pab_bone_editor())
             export_pab_edit_json_action = menu.addAction(menu_icons["data"], "Export Skeleton Edit JSON...")
             export_pab_edit_json_action.setToolTip(
                 "Write the skeleton's bones as JSON with an empty list for adding child bones."
