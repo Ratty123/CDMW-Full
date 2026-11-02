@@ -45,66 +45,66 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 86,
-        "decode_percent": 49.7,
-        "write_percent": 32.0,
+        "decode_percent": 50.1,
+        "write_percent": 32.6,
         "decode": {
-          "full": 31,
+          "full": 32,
           "none": 25,
-          "partial": 9,
+          "partial": 8,
           "surface": 21
         },
         "write": {
-          "constrained": 15,
+          "constrained": 16,
           "full": 20,
-          "none": 51
+          "none": 50
         }
       },
       "engine_formats": {
         "extensions": 100,
-        "decode_percent": 49.2,
-        "write_percent": 33.0,
+        "decode_percent": 49.6,
+        "write_percent": 33.5,
         "decode": {
-          "full": 36,
+          "full": 37,
           "none": 31,
-          "partial": 11,
+          "partial": 10,
           "surface": 22
         },
         "write": {
-          "constrained": 18,
+          "constrained": 19,
           "full": 24,
-          "none": 58
+          "none": 57
         }
       },
       "proprietary_formats": {
         "extensions": 92,
-        "decode_percent": 49.5,
-        "write_percent": 34.2,
+        "decode_percent": 49.9,
+        "write_percent": 34.8,
         "decode": {
-          "full": 35,
+          "full": 36,
           "none": 29,
-          "partial": 7,
+          "partial": 6,
           "surface": 21
         },
         "write": {
-          "constrained": 15,
+          "constrained": 16,
           "full": 24,
-          "none": 53
+          "none": 52
         }
       },
       "all_formats": {
         "extensions": 154,
-        "decode_percent": 58.1,
-        "write_percent": 35.7,
+        "decode_percent": 58.3,
+        "write_percent": 36.0,
         "decode": {
-          "full": 72,
+          "full": 73,
           "none": 35,
-          "partial": 11,
+          "partial": 10,
           "surface": 36
         },
         "write": {
-          "constrained": 18,
+          "constrained": 19,
           "full": 46,
-          "none": 90
+          "none": 89
         }
       }
     },
@@ -117,18 +117,18 @@
     "by_origin": {
       "proprietary": {
         "extensions": 92,
-        "decode_percent": 49.5,
-        "write_percent": 34.2,
+        "decode_percent": 49.9,
+        "write_percent": 34.8,
         "decode": {
-          "full": 35,
+          "full": 36,
           "none": 29,
-          "partial": 7,
+          "partial": 6,
           "surface": 21
         },
         "write": {
-          "constrained": 15,
+          "constrained": 16,
           "full": 24,
-          "none": 53
+          "none": 52
         }
       },
       "third_party": {
@@ -221,18 +221,18 @@
       },
       "model_mesh_physics": {
         "extensions": 19,
-        "decode_percent": 56.3,
-        "write_percent": 36.8,
+        "decode_percent": 58.4,
+        "write_percent": 39.5,
         "decode": {
-          "full": 8,
+          "full": 9,
           "none": 6,
-          "partial": 4,
+          "partial": 3,
           "surface": 1
         },
         "write": {
-          "constrained": 2,
+          "constrained": 3,
           "full": 6,
-          "none": 11
+          "none": 10
         }
       },
       "texture_image": {
@@ -390,7 +390,7 @@
     { "extension": ".pamlod", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pamlod", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 35603, "evidence": "cdmw/modding/mesh_pamlod_builder.py: parse, render, edit and rebuild", "remaining": "Topology-changing exact rebuild is LOD0-only; LOD1+ can be read but is not proven for authoring and lower LODs are copied unchanged. Additional operation gates come from cdmw/domain/mesh/authoring_capability.py. Free Edit output is a separate non-exact OBJ package." },
     { "extension": ".pat", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pat", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "archive_files": 1497, "evidence": "cdmw/core/pat_decoder.py + the native preview core: LOD0 bounds, quantised vertices/normals/UVs, 16-bit indices, draw ranges and material candidates; OBJ export", "remaining": "no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only" },
     { "extension": ".patx", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "no analyzer; raw bytes only", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: container purpose unknown" },
-    { "extension": ".pab", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pab", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 269, "evidence": "cdmw/modding/skeleton_parser.py: fixed-layout parse of bind pose, hierarchy and bone-name hashes, proven by driving .paa playback against the rig", "remaining": "unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed" },
+    { "extension": ".pab", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "medium", "archive_files": 269, "evidence": "cdmw/modding/skeleton_writer.py reads every byte of all 269 shipped files and writes each back byte for byte: header flags, fixed bone records, an optional per-bone secondary parent (bit 0x10) and core-bone flag (bit 0x02), then one or three collision-volume sets with per-volume flags under bit 0x04. All 23,454 bone hashes are the PA checksum of the case-sensitive name. Child bones can be appended, and bones added in the same edit renamed; scripts/pab_corpus_check.py re-derives these figures", "remaining": "the meaning of header bits 0x01 and 0x08, of the secondary parent (357 of 23,308 bones differ from their parent) and of the core-bone flag is unknown; 73 sheared local matrices cannot be rebuilt from scale, rotation and position; renaming, removing or reordering shipped bones is refused, because meshes, clips, appearance and morph data bind them by hash and sockets, the bone offset table and Havok files by name; appended bones have no tracks, volumes or Havok body and are untested in game" },
     { "extension": ".hkx", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 69583, "evidence": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate", "remaining": "structural edits (topology, counts, references, strings, arrays) blocked pending semantic rebuild proof - no new collision shapes or ragdoll bodies" },
     { "extension": ".hkt", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "none", "archive_files": 0, "evidence": "shares the .hkx owners", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: same structural gate as .hkx" },
 

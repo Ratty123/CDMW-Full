@@ -424,6 +424,7 @@ from cdmw.core.archive_hkx_preview_geometry import (
     build_hkx_model_preview_from_document,
 )
 from cdmw.modding.skeleton_parser import parse_pab
+from cdmw.modding.skeleton_writer import pab_layout_summary
 
 from cdmw.core.archive_hkx_mesh_export_helpers_0 import (
     _hkx_export_box_shape_summary_for_record,
@@ -565,6 +566,8 @@ def build_pab_preview(data: bytes, virtual_path: str) -> SkeletonPreviewResult:
     ]
     if parse_warning:
         detail_lines.append(parse_warning)
+    layout_lines = pab_layout_summary(data)
+    detail_lines.extend(layout_lines)
     if not skeleton.bones:
         lines.append("No bones were recovered.")
         return SkeletonPreviewResult(preview_text="\n".join(lines), detail_lines=detail_lines)
@@ -613,6 +616,7 @@ def build_pab_preview(data: bytes, virtual_path: str) -> SkeletonPreviewResult:
             f"- Max hierarchy depth: {max_depth}",
             f"- Parser mode: {parser_mode}",
             f"- Tail data: {len(tail_data):,} bytes",
+            *(f"- {line}" for line in layout_lines),
         ]
     )
     if parse_warning:

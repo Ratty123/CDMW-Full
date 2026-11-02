@@ -81,7 +81,7 @@ can be writable without a semantic validator for its contents.
 | Archives | Indexes, payload ranges, known compression and filename-derived encryption can be decoded. Mounted resources have an explicit priority order. | Unknown encryption/compression and unsupported partial layouts remain refused. |
 | Textures | Supported DDS resources can be reconstructed, decoded, edited and registered. Material parameters are stronger evidence than filename suffixes. | A valid DDS is not proof that a particular game material accepts a changed layout. |
 | Meshes | Proven PAC/PAM/PAMLOD layouts support inspection and bounded authoring; static PAT geometry has a read-only route. | Export depends on format, LOD, source mapping and the specific operation. |
-| Skeletons | Proven PAB hierarchy and bind transforms support bone resolution, skinning and clip playback. | Arbitrary skeleton restructuring and unknown layouts are not supported. |
+| Skeletons | Every shipped PAB decodes and writes back byte for byte; hierarchy and bind transforms support bone resolution, skinning and clip playback. | Child bones can be appended, untested in game; shipped bones cannot be renamed, removed or reordered. |
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
 | Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states, save presets and convex collision geometry walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; the effect-grammar formats other than presets have no writer. |
@@ -1005,9 +1005,51 @@ The head applied its own `cd_phw_00_head_00_0111.pabc` (209 of 210 records)
 and `phw_damian.pamt`; the two eye PACs and the hair's `uptail` PAC resolve no
 skeleton and are skipped. Not compared in game.
 
-The fixed-layout decoder and a best-effort legacy scan carry different proof.
-A recovered bone-shaped record is not authority to add, remove or rename bones.
-There is no general skeleton restructuring writer.
+Reviewed 2026-11-02 (archive inspection of game 1.0.0.3446, source and owned
+fixtures; no game observation): the PAB layout is closed. All 269 shipped files
+(266 base, 3 dlc_01; 254 distinct) decode to the last byte and write back byte
+for byte through `cdmw/modding/skeleton_writer.py`, and
+`scripts/pab_corpus_check.py` re-derives the figures below from extracted files.
+The fixed bone records are followed, by header flag, by an i32 per bone (0x10),
+a u8 per bone (0x02) and one or three volume sets in the PABV record grammar,
+each volume carrying a flags word under 0x04. Shipped headers use flags 0x17
+(236 files), 0x1F (17), 0x15 (9), 0x07 (4), 0x05 (1) and 0x00 (2, which carry
+one empty set). Bits 0x01 and 0x08 add no bytes, and what they mean is unknown.
+The best-effort legacy scan never triggers on a shipped file.
+
+- **Name hash.** Every one of the 23,454 bone hashes is the PA checksum of its
+  case-sensitive name, the same function that produces the executable's
+  interned `Bip01 Head` key (`0xA23A288E`).
+- **Secondary parent (0x10).** It equals the hierarchy parent for 22,951 of
+  23,308 bones and always names an earlier bone. The rest point elsewhere:
+  each clavicle at the neck rather than Spine2, the tongue at the jaw. Its
+  engine use is unknown.
+- **Core-bone flag (0x02).** It is set on every root and on 8,532 bones in all,
+  in a rig such as `phm_01.pab` the locomotion chain, IK targets and weapon
+  sockets (57 of 448), and never on a bone whose parent lacks it. Its engine use
+  is unknown.
+- **Bind data.** Stored scale, rotation and position rebuild the local bind
+  matrix for all but 73 bones, whose local matrices are sheared.
+
+Skeleton edits are now possible within those findings. A child bone can be
+appended after the last bone, with both bind pairs computed from a local
+transform; the secondary parent defaults to the parent and the core flag to
+zero. Appending changes no existing index or hash. That matters because almost
+everything outside the file binds bones by hash or name: PAC palettes, PAA
+tracks, PABC records and PAMT morph bones by hash; prefab sockets, the bone
+offset table and Havok files by name. Inside the file, volume keys below the
+bone count are indices and larger keys are hashes, so an append is refused if
+a stored hash would fall below the new count. `.meshinfo` files sit under
+object, level and tree folders and name no character skeleton. Renaming
+recomputes the hash and the file's own volume keys, but the edit service allows
+it only for bones added in the same edit, because a shipped bone's hash is held
+by data the service cannot rewrite. Removing or reordering bones is not
+offered, since both shift indices. A PAC can list a new bone in its palette
+through the existing palette extension, checked against an edited rig in owned
+fixtures. New bones have no tracks, PABC records, volumes or Havok bodies, so
+they can only follow their parent rigidly. None of this has been loaded in
+game: whether the engine accepts a longer skeleton, and what the secondary
+parent and core flag need for a new bone, are open.
 
 Reviewed 2026-10-26 (archive inspection): humanoid characters under
 `character/model/2_mon/cd_m0001_00_twofeet/` share bone names with the player rigs,
@@ -3253,7 +3295,7 @@ This is a research register, not a promised delivery schedule.
 | What do the high-volume string-only binaries contain? | `.pampg` (24,639) starts `PAM ` version 5 and names impostor `.pat` files; about half of 200 sampled also hold byte patterns shaped like 64-bit process addresses. `.binarygimmick` (15,713 interactive-object charts) repeats a 4-byte marker and keys its records by 32-bit hashes with no type table. `.pbd` (636 world-object rope and cloth files) starts `PBD ` and a version-like u32 (three values in 25 sampled files); the two files dumped continue with repeated 12-byte groups. `.imp` leaves ten floats unidentified | A record grammar checked against every file of each format, with any address-like or hashed fields explained |
 | Can exact mesh authoring be broadened? | Operation/LOD-specific writer gates | Source-preserving layouts, lower-LOD correspondence and physics/skin retention for each new operation |
 | Do imported authored-weight garments animate correctly in game? | New Item preserves compatible authored skin with explicit loss/transfer policies. The internal source/PAB-bound 93-to-95 extension passed complete Rosa primary output, materials and independently decoded four-LOD skin records. Current 1.0.0.2976 executable analysis confirms the counted reader, count-sized CPU remap, 1,024-entry/index bounds and remap-resource preparation. Sixty D3D12 captures compare four/six-weight LOD0 outputs with the original under seven controlled poses and three decoded PHW motion samples; six weights is closer, with localized reduction loss still present. | Final resource stride, matrix/upload/draw/shader and special-physics consumers; artist approval of the six-influence source; exact PABC/item/companion appearance, full playback, lower-LOD deformation and packaged/game animation comparisons |
-| Can skeletons be restructured? | Proven fixed-layout hierarchy and bind transforms | A semantic writer, all dependent bindings and game acceptance |
+| Can skeletons be restructured? | Exact PAB layout and writer for all 269 files; appended child bones keep every existing index and hash | Game acceptance of an appended bone, a PAC weighted to it in game, and the engine meaning of the secondary parent and core-bone flag |
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |
 | Can effect previews reproduce runtime surfaces and final appearance? | Keyed reflection, selected lightning kernels and static-surface spawning | Animated stream-out surfaces, actual seed/birth state, shader variants and attachment/lifetime evidence |

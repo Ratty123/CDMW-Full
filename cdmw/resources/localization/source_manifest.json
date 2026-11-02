@@ -178602,7 +178602,7 @@
       ]
     },
     {
-      "key": "cdmw/modding/skeleton_parser.py: fixed-layout parse of bind pose, hierarchy and bone-name hashes, proven by driving .paa playback against the rig",
+      "key": "cdmw/modding/skeleton_writer.py reads every byte of all 269 shipped files and writes each back byte for byte: header flags, fixed bone records, an optional per-bone secondary parent (bit 0x10) and core-bone flag (bit 0x02), then one or three collision-volume sets with per-volume flags under bit 0x04. All 23,454 bone hashes are the PA checksum of the case-sensitive name. Child bones can be appended, and bones added in the same edit renamed; scripts/pab_corpus_check.py re-derives these figures",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -195142,6 +195142,16 @@
       ]
     },
     {
+      "key": "the meaning of header bits 0x01 and 0x08, of the secondary parent (357 of 23,308 bones differ from their parent) and of the core-bone flag is unknown; 73 sheared local matrices cannot be rebuilt from scale, rotation and position; renaming, removing or reordering shipped bones is refused, because meshes, clips, appearance and morph data bind them by hash and sockets, the bone offset table and Havok files by name; appended bones have no tracks, volumes or Havok body and are untested in game",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
       "key": "the model id from your OpenAI dashboard",
       "origins": [
         {
@@ -196098,16 +196108,6 @@
           "path": "cdmw/ui/shell/dashboard_controller.py",
           "line": 119,
           "sink": "_set_archive_cache_health"
-        }
-      ]
-    },
-    {
-      "key": "unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed",
-      "origins": [
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },

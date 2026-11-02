@@ -15,6 +15,7 @@ and backup policy stay behind archive services/core paths.
 - [Body region decomposition](#body-region-decomposition)
 - [PAC skin-influence layout](#pac-skin-influence-layout)
 - [PAB bind transforms](#pab-bind-transforms)
+- [PAB layout and skeleton edits](#pab-layout-and-skeleton-edits)
 - [PAC vertex jiggle contribution](#pac-vertex-jiggle-contribution)
 - [PABV skeleton volumes (read-only)](#pabv-skeleton-volumes-read-only)
 - [PAC cloth guides (read-only)](#pac-cloth-guides-read-only)
@@ -131,6 +132,43 @@ head overrides over the body's pose without resetting bones absent from the head
 PABC. Version 1 neutral-appearance metadata in interchange files and drafts preserves
 this optional field; older payloads load with an empty tuple. Coordinate reversal
 continues to use the retained skin matrices and each PAC's own palette.
+
+## PAB layout and skeleton edits
+
+`skeleton_writer.py` is the strict PAB reader and the only PAB writer.
+`read_pab_document` explains every byte or raises `PabFormatError`, and
+`write_pab_document` reproduces an unedited read byte for byte. All 269 shipped
+files (game 1.0.0.3446, base and dlc_01) pass; `scripts/pab_corpus_check.py
+--corpus <dir>` re-derives the figures from extracted files. `parse_pab` stays
+the lenient reader; its legacy scan never triggers on shipped files.
+
+After the fixed bone records come, by header flag: an i32 secondary parent per
+bone (0x10), a u8 core-bone flag per bone (0x02), and one or three volume sets
+in the PABV record grammar (`pabv_parser.py`), with a per-volume flags word
+under 0x04. Bits 0x01 and 0x08 add no bytes. A bone's hash is
+`calculate_pa_checksum(name)`, case-sensitive.
+
+Edits return a new document and refuse rather than guess:
+
+- `append_child_bone` adds a bone after the last one, from a local scale,
+  rotation (unit quaternion xyzw) and position in the parent's space, and fills
+  both bind pairs (`local * parentGlobal = global`, row-vector). The secondary
+  parent defaults to the parent and the core flag to 0. It refuses duplicate
+  names or hashes, hashes below 1,024 (volume keys would read them as indices),
+  a core bone under a plain parent, more than 1,024 bones, and a volume key that
+  would turn into an index.
+- `rename_bone` recomputes the hash and the volume keys that name it. It
+  refuses a bone whose stored hash is not its name's checksum and any hash in
+  `protected_hashes`.
+
+`cdmw/services/pab_skeleton_edit_service.py` applies an ordered edit list to
+source bytes for a loose package. It allows renaming only bones appended in
+the same list: PAC palettes, PAA tracks, PABC records and PAMT morph bones bind
+shipped bones by hash, and prefab sockets, the bone offset table and Havok
+files by name. Appending keeps every index and hash, so all of those still bind.
+A PAC needs `pac_palette_extension.extend_pac_palette` with the edited rig
+before vertices can weight to a new bone. New bones have no tracks, PABC
+records, volumes or Havok bodies. Nothing here has been loaded in game.
 
 ## PAC vertex jiggle contribution
 
