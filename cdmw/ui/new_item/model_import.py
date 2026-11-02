@@ -835,6 +835,8 @@ class ModelImportSource:
     skinning_target: str = ""
     raw_import_mesh: object = None
     skinning_choices: tuple = ()
+    #: the Skeleton Edit recipe the weights were prepared against (its bones appended to the template's rig)
+    skeleton_edit: object = None
     skinning_generation: int = 0
 
     @property
@@ -1382,6 +1384,15 @@ def build_placed_import(
         palette_extension=getattr(scene.mesh, "interchange_palette_extension", None),
         palette_skeleton=getattr(scene.mesh, "interchange_skeleton", None),
     )
+    if source.skeleton_edit is not None:
+        appended = set(result.palette_extension.appended_names if result.palette_extension is not None else ())
+        used = [name for name in source.skeleton_edit.bone_names if name in appended]
+        if used:
+            result.skeleton_edit = source.skeleton_edit
+            result.summary_lines.append(f"Skeleton edit: {source.skeleton_edit.path} ships with "
+                                        f"{len(source.skeleton_edit.bone_names)} added bone(s); weighted to {', '.join(used)}")
+        else:
+            result.summary_lines.append("Skeleton edit: not shipped; the imported weights use none of its added bones")
     if source.skinning_reports:
         result.summary_lines.extend("Skin weights import: " + report.summary() for report in source.skinning_reports)
         result.summary_lines.append("Skin weights physics: " + ("retain template bindings" if keep_template_physics

@@ -46,6 +46,8 @@ from cdmw.ui.wrapping_layout import WrappingLayout
 
 #: what a Blender looks like on each platform, for the dialog that points the studio at one
 BLENDER_FILE_FILTER = "Blender (blender.exe blender);;All files (*)"
+#: the folder Skeleton Edit JSON picks and rig GLB exports last used
+RIG_DIR_SETTING = "ui/new_item_rig_dir"
 
 
 def _spin(minimum: float, maximum: float, step: float, decimals: int, suffix: str = "") -> QDoubleSpinBox:
@@ -809,6 +811,41 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
                                          "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
         skin_row.addWidget(self.import_skin_policy, 1)
         model_layout.addLayout(skin_row)
+        rig_row = QHBoxLayout()
+        rig_label = QLabel("Rig")
+        rig_label.setToolTip(
+            "Weight a model to new bones, for capes, tails or long hair:\n"
+            "1. Choose Add bones… and add child bones or a chain to this variant's skeleton.\n"
+            "2. Choose Export rig GLB… and weight your model to the new bones in Blender.\n"
+            "3. Import the model here. The item ships the added bones.")
+        rig_row.addWidget(rig_label)
+        self.rig_summary = QLabel("Template skeleton")
+        self.rig_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.rig_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        rig_row.addWidget(self.rig_summary, 1)
+        self.add_bones_button = QPushButton("Add bones…")
+        self.add_bones_button.setToolTip(
+            "Add child bones or chains to this variant's skeleton, or open a Skeleton Edit JSON draft. Imported weights "
+            "can then use those bones; the item ships the edited skeleton, and Send to DMM combines bones that other "
+            "items add. Added bones follow their parent rigidly and are not proven in game. Male and female variants "
+            "use different skeletons; add bones to each.")
+        self.add_bones_button.clicked.connect(self._controller.start_add_bones)
+        rig_row.addWidget(self.add_bones_button)
+        self.clear_skeleton_edit_button = QPushButton("Clear")
+        self.clear_skeleton_edit_button.setToolTip("Forget the skeleton edits and weight the model against the template's own skeleton.")
+        self.clear_skeleton_edit_button.clicked.connect(self._controller.clear_skeleton_edit)
+        self.clear_skeleton_edit_button.setVisible(False)
+        rig_row.addWidget(self.clear_skeleton_edit_button)
+        self.export_rig_button = QPushButton("Export rig GLB…")
+        self.export_rig_button.setToolTip(
+            "Write the template mesh skinned to its skeleton, with any added bones, as GLB to weight a model against in Blender.")
+        self.export_rig_button.clicked.connect(self._pick_rig_export_folder)
+        rig_row.addWidget(self.export_rig_button)
+        model_layout.addLayout(rig_row)
+        self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
+        # Open the dialog after the reading task has finished, not inside its callback.
+        self._controller.rig_source_ready.connect(
+            lambda source: QTimer.singleShot(0, lambda: self._open_bone_editor(source)))
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -1261,6 +1298,50 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _sheath_changed(self, own: bool) -> None:
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.invalidate_plan()
+
+    def _rig_folder(self) -> str:
+        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        folder = str(settings.value(RIG_DIR_SETTING, "") or "")
+        return folder if folder and Path(folder).is_dir() else str(Path.home())
+
+    def _remember_rig_folder(self, folder: Path) -> None:
+        QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench").setValue(RIG_DIR_SETTING, str(folder))
+
+    def _open_bone_editor(self, source) -> None:
+        from PySide6.QtWidgets import QDialog
+        from cdmw.ui.archive_browser.pab_bone_editor_dialog import PabBoneEditorDialog
+        data, pab_path = source
+        current = next((edit for edit in self._controller.skeleton_edits if edit.path == pab_path), None)
+        dialog = PabBoneEditorDialog(
+            data, pab_path, self, initial_edits=current.add_bones if current is not None else (),
+            accept_text=self.tr("Use These Bones"),
+            accept_tooltip=self.tr("Weight imported models to these bones. The item ships them in this skeleton."),
+            draft_directory=Path(self._rig_folder()))
+        self._bone_editor = dialog
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self._controller.set_skeleton_edit(pab_path, dialog.edits())
+        finally:
+            self._bone_editor = None
+            dialog.deleteLater()
+
+    def _pick_rig_export_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Export the template rig as GLB", self._rig_folder())
+        if folder:
+            self._remember_rig_folder(Path(folder))
+            self._controller.start_rig_export(Path(folder))
+
+    def _show_skeleton_edit(self, edits) -> None:
+        edits = tuple(edits or ())
+        if not edits:
+            self.rig_summary.setText("Template skeleton")
+            self.rig_summary.setToolTip("")
+        else:
+            self.rig_summary.setText("; ".join(
+                f"{edit.path.rsplit('/', 1)[-1]} + {len(edit.bone_names)} added bone(s)" for edit in edits))
+            self.rig_summary.setToolTip("\n".join(
+                f"{edit.path}: {', '.join(edit.bone_names)}" for edit in edits))
+        self.clear_skeleton_edit_button.setVisible(bool(edits))
 
     def _edit_skinning(self):
         from cdmw.ui.new_item.skinning_dialog import SkinningDialog

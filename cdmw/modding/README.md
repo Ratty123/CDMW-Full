@@ -15,6 +15,7 @@ and backup policy stay behind archive services/core paths.
 - [Body region decomposition](#body-region-decomposition)
 - [PAC skin-influence layout](#pac-skin-influence-layout)
 - [PAB bind transforms](#pab-bind-transforms)
+- [PAB layout and skeleton edits](#pab-layout-and-skeleton-edits)
 - [PAC vertex jiggle contribution](#pac-vertex-jiggle-contribution)
 - [PABV skeleton volumes (read-only)](#pabv-skeleton-volumes-read-only)
 - [PAC cloth guides (read-only)](#pac-cloth-guides-read-only)
@@ -131,6 +132,70 @@ head overrides over the body's pose without resetting bones absent from the head
 PABC. Version 1 neutral-appearance metadata in interchange files and drafts preserves
 this optional field; older payloads load with an empty tuple. Coordinate reversal
 continues to use the retained skin matrices and each PAC's own palette.
+
+## PAB layout and skeleton edits
+
+`skeleton_writer.py` is the strict PAB reader and the only PAB writer.
+`read_pab_document` explains every byte or raises `PabFormatError`, and
+`write_pab_document` reproduces an unedited read byte for byte. All 269 shipped
+files (game 1.0.0.3446, base and dlc_01) pass; `scripts/pab_corpus_check.py
+--corpus <dir>` re-derives the figures from extracted files. `parse_pab` stays
+the lenient reader; its legacy scan never triggers on shipped files.
+
+After the fixed bone records come, by header flag: an i32 secondary parent per
+bone (0x10), a u8 core-bone flag per bone (0x02), and one or three volume sets
+in the PABV record grammar (`pabv_parser.py`), with a per-volume flags word
+under 0x04. Bits 0x01 and 0x08 add no bytes. A bone's hash is
+`calculate_pa_checksum(name)`, case-sensitive.
+
+Edits return a new document and refuse rather than guess:
+
+- `append_child_bone` adds a bone after the last one, from a local scale,
+  rotation (unit quaternion xyzw) and position in the parent's space, and fills
+  both bind pairs (`local * parentGlobal = global`, row-vector). The secondary
+  parent defaults to the parent and the core flag to 0. It refuses duplicate
+  names or hashes, hashes below 1,024 (volume keys would read them as indices),
+  a core bone under a plain parent, more than 1,024 bones, and a volume key that
+  would turn into an index.
+- `rename_bone` recomputes the hash and the volume keys that name it. It
+  refuses a bone whose stored hash is not its name's checksum and any hash in
+  `protected_hashes`.
+
+`cdmw/services/pab_skeleton_edit_service.py` applies an ordered edit list to
+source bytes for a loose package. It allows renaming only bones appended in
+the same list: PAC palettes, PAA tracks, PABC records and PAMT morph bones bind
+shipped bones by hash, and prefab sockets, the bone offset table and Havok
+files by name. Appending keeps every index and hash, so all of those still bind.
+A PAC needs `pac_palette_extension.extend_pac_palette` with the edited rig
+before vertices can weight to a new bone. New bones have no tracks, PABC
+records, volumes or Havok bodies. Nothing here has been loaded in game.
+
+Equipment carries no skeleton: a character's nude prefab names its rig, and a
+worn PAC's palette resolves against that shared file. A mod's added bones
+therefore have to live in the shipped rig itself, and two mods that add bones
+must be combined. `appended_bones(source, edited)` returns what an edit appends,
+refusing any other difference (flags, shipped records, tail arrays, volumes), and
+`append_bone_definitions` adds another edit's bones by name: the same name with
+the same definition is kept once, a different definition is refused, and bind
+matrices are copied rather than recomputed. `merge_appended_bones` is the
+three-way form the overlay composer uses for `.pab` files. Indices of added bones
+may differ between compositions; everything that binds them uses the hash. The
+shipped `phm_01.pab` and `phw_01.pab` (448 and 449 bones, three volume sets) merge
+two such edits in either order and keep every shipped byte; neither rig has a
+dlc_01 copy (the three DLC skeletons are a boss, a monster and a mount).
+
+`dumps_pab_edit_json` and `apply_pab_edit_json` in the same service are the
+Skeleton Edit JSON format behind the Archive Browser actions: `bones` is a
+read-only reference (names and parents must stay unchanged, floats are
+ignored), `add_bones` lists `parent`, `name`, `position`, `rotation`, `scale`
+and `core`, and `source.sha256` must match the skeleton being edited.
+`read_pab_edit_json` validates a draft without applying it and returns the added
+bones as a `SkeletonEditRecipe` (rig path plus append edits), the form Create New
+Item stores in item packages. The Add Bones dialog also uses `preview_pab_edits`,
+`plan_bone_chain` (a chain in a character-space direction from
+`PAB_CHAIN_DIRECTIONS`: Y up, facing -Z, left +X) and
+`euler_degrees_to_quaternion` / `quaternion_to_euler_degrees` (turns about the
+parent's X, then Y, then Z).
 
 ## PAC vertex jiggle contribution
 

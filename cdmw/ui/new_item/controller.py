@@ -85,6 +85,10 @@ class NewItemStudioController(
     #: a model file was not read, with the reason: the step says so where the reader is,
     #: since the window's status line is not where they are looking
     model_import_failed = Signal(str)
+    #: the skeleton edits imports weight against changed (a tuple of recipes, one per rig)
+    skeleton_edit_changed = Signal(object)
+    #: the current variant's skeleton was read for the Add Bones dialog: (pab bytes, pab path)
+    rig_source_ready = Signal(object)
     #: placement conversion failed; keep the reason beside Apply placement
     model_apply_failed = Signal(str)
     #: an imported model accepted one stable Mesh Editor revision
@@ -142,10 +146,15 @@ class NewItemStudioController(
         self.model_scene: object | None = None
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
+        #: bones appended to the template's rigs for imported weights (SkeletonEditRecipe, one per rig)
+        self.skeleton_edits: tuple = ()
         self.model_placement: ModelPlacement = ModelPlacement()
         self._active_variant = None
         self._variant_states = {}
         self._task_source_leases = []
+        #: a skeleton edit changed while a task ran; weight the import again once idle
+        self._reweight_pending = False
+        self.busy_changed.connect(self._run_pending_reweight)
         self.preview_lighting_preset = "neutral_studio"
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)

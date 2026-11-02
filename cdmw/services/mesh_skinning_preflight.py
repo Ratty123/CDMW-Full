@@ -136,35 +136,145 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
         reports.append(report)
     if missing_parts:
         names = sorted({name for missing in missing_parts.values() for name in missing})
-        raise ValueError(f"Missing equipment palette bones: {', '.join(names)}. "
-                         "Keep imported weights cannot substitute bones. Palette extension requires separate validation. "
-                         + "; ".join(f"{part}: {', '.join(missing)}" for part, missing in missing_parts.items()))
+        error = ValueError(f"Missing equipment palette bones: {', '.join(names)}. "
+                           "Keep imported weights cannot substitute bones. Palette extension requires separate validation. "
+                           + "; ".join(f"{part}: {', '.join(missing)}" for part, missing in missing_parts.items()))
+        # New Item adds what the user can do about bones the skeleton lacks.
+        error.missing_bones = tuple(names)
+        raise error
     refresh_mesh_totals(source)
     source.has_bones = any(part.bone_weights for part in source.submeshes)
     return source, tuple(reports)
 
 
-def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event=None, palette_extension_bones=(),
-                          transfer_transform=None):
-    """Resolve the exact captured template/PAB through snapshot provenance."""
+def edited_rig(skeleton_data, skeleton_path, skeleton_edit):
+    """The template's rig with a skeleton edit's bones appended, and its bytes."""
+    from cdmw.modding.skeleton_parser import parse_pab
+    from cdmw.modding.skeleton_writer import PabEditRefused
+
+    resolved = str(skeleton_path).replace("\\", "/").lower()
+    if skeleton_edit.path and skeleton_edit.path != resolved:
+        raise ValueError(f"The skeleton edit is for {skeleton_edit.path}, but this template binds to {resolved}.")
+    try:
+        data = skeleton_edit.apply(skeleton_data).data
+    except PabEditRefused as exc:
+        raise ValueError(f"The skeleton edit cannot be applied to {resolved}: {exc}") from exc
+    return parse_pab(data, skeleton_path), data
+
+
+def used_added_bones(mesh, skeleton_edit, choices=()):
+    """Added bones the kept imported weights use, in the edit's order.
+
+    A zero weight, or a part whose weights are replaced by a transfer, does not
+    put a bone into the palette, and so does not ship it in the shared rig.
+    """
+    transferred = {choice.part_index for choice in choices if choice.policy in {"transfer", "body_transfer"}}
+    used = set()
+    for index, part in enumerate(mesh.submeshes):
+        skin = part.interchange_skin
+        if index in transferred or not skin or not part.bone_indices:
+            continue
+        names = [str(skin["nodes"][joint].get("name", "")) for joint in skin["joints"]]
+        used.update(names[joint] for row, weights in zip(part.bone_indices, part.bone_weights)
+                    for joint, weight in zip(row, weights) if weight > 0 and 0 <= joint < len(names))
+    return tuple(name for name in skeleton_edit.bone_names if name in used)
+
+
+def rig_path(path):
+    return str(path).replace("\\", "/").lower()
+
+
+def template_skeleton(snapshot, target_path, skeleton_edit=None, *, skeleton_edits=()):
+    """The template's own PAB through snapshot provenance, with a skeleton edit applied.
+
+    ``skeleton_edit`` must be for this rig. Of ``skeleton_edits`` (one per rig, so
+    a male and a female variant can each have theirs) the one for this rig is
+    used, if any. Returns the parsed rig, its bytes, the shipped PAB's archive
+    path and the edit applied (or None).
+    """
     from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
-    from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.modding.skeleton_parser import parse_pab
 
-    raise_if_cancelled(stop_event)
     by_path, by_basename = snapshot.archive_index_maps()
-    original = snapshot.payload(target_path)
     entry, _report = resolve_skeleton_for_model(
         snapshot.entry(target_path), archive_entries_by_normalized_path=by_path,
-        archive_entries_by_basename=by_basename, pac_data=original,
+        archive_entries_by_basename=by_basename, pac_data=snapshot.payload(target_path),
         read_entry_data=lambda item: snapshot.payload(item.path),
     )
     if entry is None:
-        raise ValueError("Keep imported weights needs the selected template's unique matching skeleton.")
+        raise ValueError("The selected template has no unique matching skeleton.")
     skeleton_data = snapshot.payload(entry.path)
     skeleton = parse_pab(skeleton_data, entry.path)
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning:
-        raise ValueError("Keep imported weights needs a complete fixed-layout target skeleton.")
+        raise ValueError("The selected template's skeleton is not a complete fixed-layout PAB.")
+    if skeleton_edit is None:
+        skeleton_edit = next((edit for edit in skeleton_edits if edit.path == rig_path(entry.path)), None)
+    if skeleton_edit is not None:
+        skeleton, skeleton_data = edited_rig(skeleton_data, entry.path, skeleton_edit)
+    return skeleton, skeleton_data, entry.path, skeleton_edit
+
+
+def export_template_rig_glb(snapshot, target_path, output_dir, *, skeleton_edit=None, skeleton_edits=(), stop_event=None):
+    """Write the template mesh skinned to its rig as GLB, added bones included, for weighting elsewhere."""
+    from pathlib import Path, PurePosixPath
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.modding.mesh_glb_interchange import export_glb
+
+    raise_if_cancelled(stop_event)
+    skeleton, _data, _path, skeleton_edit = template_skeleton(snapshot, target_path, skeleton_edit,
+                                                               skeleton_edits=skeleton_edits)
+    original = snapshot.payload(target_path)
+    mesh = parse_pac(original, target_path)
+    palette = resolve_pac_bone_palette(original, skeleton)
+    mesh.interchange_skeleton = skeleton
+    raise_if_cancelled(stop_event)
+    name = PurePosixPath(str(target_path).replace("\\", "/")).stem + ("_edited_rig" if skeleton_edit is not None else "_rig")
+    paths = export_glb(mesh, output_dir, name, skeleton=skeleton, bone_palette=palette)
+    # This is a rig to weight a new model against, not a round-trip package. Its
+    # sidecar would make a model saved back over the same name import as one.
+    sidecar = Path(paths[0] + ".meta.json")
+    sidecar.unlink(missing_ok=True)
+    return [path for path in paths if Path(path) != sidecar]
+
+
+def _missing_bone_advice(error, skeleton, pab_path, skeleton_edits):
+    """The palette refusal, with what the user can do about bones the skeleton lacks."""
+    rig = rig_path(pab_path)
+    known = {bone.name for bone in skeleton.bones}
+    absent = ", ".join(name for name in getattr(error, "missing_bones", ()) if name not in known)
+    if not absent:
+        return error
+    elsewhere = ", ".join(sorted({edit.path for edit in skeleton_edits if edit.path != rig
+                                  and set(absent.split(", ")) & set(edit.bone_names)}))
+    if elsewhere:
+        advice = ValueError(f"{error} {absent}: added to {elsewhere}, but this model binds to {rig}. "
+                            "Add the same bones to this variant's skeleton with Add bones… in the Rig row.")
+    else:
+        advice = ValueError(f"{error} {absent}: not in {rig}. To weight to new bones, add them with "
+                            "Add bones… in the Rig row, then import again.")
+    advice.missing_bones = error.missing_bones
+    return advice
+
+
+def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event=None, palette_extension_bones=(),
+                          transfer_transform=None, skeleton_edit=None, skeleton_edits=()):
+    """Resolve the exact captured template/PAB through snapshot provenance.
+
+    With a skeleton edit for the template's rig (``skeleton_edit``, or the
+    matching one of ``skeleton_edits``) the binding rig is that PAB with the
+    edit's bones appended, and every added bone the imported weights use joins
+    the PAC palette. The returned mesh's ``interchange_skeleton_edit`` names the
+    edit applied, or None.
+    """
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    raise_if_cancelled(stop_event)
+    original = snapshot.payload(target_path)
+    skeleton, skeleton_data, pab_path, skeleton_edit = template_skeleton(
+        snapshot, target_path, skeleton_edit, skeleton_edits=skeleton_edits)
+    if skeleton_edit is not None:
+        palette_extension_bones = tuple(dict.fromkeys((*palette_extension_bones,
+                                                       *used_added_bones(mesh, skeleton_edit, choices))))
     body = {}
     if any(choice.policy == "body_transfer" for choice in choices):
         from cdmw.services.new_item_skinning import verified_body_surface
@@ -174,8 +284,17 @@ def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event
             donor_target, _contract = extend_pac_palette(original, skeleton, palette_extension_bones)
         donor, path, report = verified_body_surface(snapshot, skeleton, resolve_pac_bone_palette(donor_target, skeleton))
         body = dict(body_donor=donor, body_path=path, body_report=report)
-    mapped, reports = preflight_imported_skin(mesh, original, skeleton, target_path, choices=choices,
-        stop_event=stop_event, palette_extension_bones=palette_extension_bones, transfer_transform=transfer_transform, **body)
+    try:
+        mapped, reports = preflight_imported_skin(mesh, original, skeleton, target_path, choices=choices,
+            stop_event=stop_event, palette_extension_bones=palette_extension_bones, transfer_transform=transfer_transform, **body)
+    except ValueError as exc:
+        if not getattr(exc, "missing_bones", ()):
+            raise
+        advice = _missing_bone_advice(exc, skeleton, pab_path, skeleton_edits)
+        if advice is exc:
+            raise
+        raise advice from exc
+    mapped.interchange_skeleton_edit = skeleton_edit
     result = mapped, tuple(replace(report, skeleton_sha256=hashlib.sha256(skeleton_data).hexdigest()) for report in reports)
     raise_if_cancelled(stop_event)
     return result

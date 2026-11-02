@@ -721,6 +721,31 @@ only when the complete corrected matrix matches the PAB bind within 1e-4
 retaining small authored adjustments and other neutral shape changes. Animation
 poses are unaffected. The native package cache invalidates older baked previews.
 
+### Add Bones and Skeleton Edit JSON
+
+A `.pab` entry's **Structured Data** menu opens **Add Bones...**
+(`pab_bone_editor_dialog.py`): a searchable bone tree, front and side outlines
+that select a bone on click, **Add Child Bone**, **Add Chain...** (count,
+segment length and a character-space direction), **Remove** (an added bone and
+what was added under it) and a form for the selected added bone. Offsets are
+edited along the character's axes (X left, Y up, Z back) and stored in the
+parent's space; rotation stays relative to the parent. Every change rebuilds the
+skeleton, and the first refusal disables **Save as Mod...** with its reason.
+**Save Draft...** and **Open Draft...** use Skeleton Edit JSON. Game bones are
+shown read-only. Create New Item's **Add bones…** opens the same dialog with
+`initial_edits` and its own accept label (**Use These Bones**) and reads
+`edits()` instead of writing a package (see the New Item README).
+
+The same menu offers **Export Skeleton Edit JSON...**
+and **Import Skeleton Edit JSON...** (`pab_json_actions.py`). The export lists
+every bone as a read-only reference and an empty `add_bones` list. Import
+checks the document against the selected skeleton's SHA-256 and its unchanged
+bone names and parents, appends the listed child bones through
+`cdmw/services/pab_skeleton_edit_service.py`, and only then asks for a
+mod-ready loose package target. A document that adds nothing writes nothing.
+Shipped bones cannot be renamed, removed or reordered (see the modding README),
+and added bones are untested in game.
+
 ### OBJ export and round trips
 
 OBJ, MTL and round-trip metadata support Unicode output folders and file names,

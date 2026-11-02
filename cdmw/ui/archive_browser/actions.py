@@ -517,6 +517,24 @@ class ArchiveBrowserActionMixin:
                 import_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Import Prefab Edit JSON...")
                 import_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_prefab_edit_json())
 
+        if entry.extension == ".pab":
+            _add_menu_section("data", "Structured Data")
+            add_bones_action = menu.addAction(menu_icons["data"], "Add Bones...")
+            add_bones_action.setToolTip(
+                "Add child bones for capes, long hair or tails, then save the skeleton as a mod-ready loose package."
+            )
+            add_bones_action.triggered.connect(lambda _checked=False: self._open_current_archive_pab_bone_editor())
+            export_pab_edit_json_action = menu.addAction(menu_icons["data"], "Export Skeleton Edit JSON...")
+            export_pab_edit_json_action.setToolTip(
+                "Write the skeleton's bones as JSON with an empty list for adding child bones."
+            )
+            export_pab_edit_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_pab_edit_json())
+            import_pab_edit_json_action = menu.addAction(menu_icons["data"], "Import Skeleton Edit JSON...")
+            import_pab_edit_json_action.setToolTip(
+                "Add the child bones listed in Skeleton Edit JSON and write the skeleton as a mod-ready loose package."
+            )
+            import_pab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_pab_edit_json())
+
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")
             edit_structured_action.setToolTip(

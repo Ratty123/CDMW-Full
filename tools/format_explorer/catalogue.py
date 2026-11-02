@@ -53,7 +53,7 @@ TOOLS: Mapping[str, str] = {
     ".hkx": "Browse Archives > Edit HKX...",
     ".hkt": "Browse Archives > Edit HKX...",
     ".paa": "Placement & Animations",
-    ".pab": "Placement & Animations",
+    ".pab": "Browse Archives > Add Bones...",
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
     ".wem": "Browse Archives > Import WAV + Patch to Game...",

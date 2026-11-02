@@ -131,6 +131,8 @@ class ModelFiles:
     notes: Tuple[str, ...] = ()
     warnings: Tuple[str, ...] = ()
     palette_extension: object = None
+    #: bones the mesh's palette uses that are appended to its rig (SkeletonEditRecipe); the plan patches that PAB
+    skeleton_edit: object = None
 
 
 @dataclass(slots=True)
@@ -703,6 +705,42 @@ class _Planner(EffectPlanningMixin):
             self.patch(self.snapshot.entry(BONE_OFFSET_PATH), changed,
                        f"Bone offsets: the template's fit correction copied for {len(copies)} prefab(s)")
 
+    def plan_skeleton_edits(self) -> None:
+        """Append the bones the item's meshes are weighted to onto the shared rig.
+
+        Every character on that rig sees the bones, so models that each append to it
+        are combined by name, as Send to DMM combines items.
+        """
+
+        from cdmw.modding.skeleton_writer import (
+            append_bone_definitions, appended_bones, read_pab_document, write_pab_document)
+        from cdmw.services.pab_skeleton_edit_service import PAB_APPEND_NOTES
+
+        models = [self.model, *self.variant_models.values()]
+        recipes = [model.skeleton_edit for model in models if model is not None and model.skeleton_edit is not None]
+        by_path: Dict[str, list] = {}
+        for recipe in recipes:
+            by_path.setdefault(recipe.path, []).append(recipe)
+        if not by_path:
+            return
+        self.manifest["skeleton_edits"] = [{"path": path, "bones": list(dict.fromkeys(
+            name for recipe in group for name in recipe.bone_names))} for path, group in sorted(by_path.items())]
+        for path, group in sorted(by_path.items()):
+            entry = self.snapshot.entry(path)
+            source = self.snapshot.payload(path)
+            try:
+                shipped = read_pab_document(source, path)
+                document = shipped
+                for recipe in group:
+                    document = append_bone_definitions(
+                        document, appended_bones(shipped, read_pab_document(recipe.apply(source).data, path)))
+                changed = write_pab_document(document)
+            except ValueError as exc:
+                raise NewItemPlanError(f"Cannot add the model's bones to {path}: {exc}") from exc
+            added = len(document.bones) - len(shipped.bones)
+            self.patch(entry, changed, f"Skeleton: {added} bone(s) appended to {path}")
+            self.warnings.append(f"{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}")
+
     def plan_model_files(self) -> None:
         if self.variant_plan is not None:
             from cdmw.services.new_item_variants import plan_variant_files
@@ -983,6 +1021,7 @@ def build_plan(
             (planner.plan_acquisition, "reward acquisition"), (planner.plan_item_row, "item row"),
             (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
             (planner.plan_model_files, "model files"), (planner.plan_bone_offsets, "bone offsets"),
+            (planner.plan_skeleton_edits, "skeleton edits"),
             (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
         ):
             planner.check()
@@ -1094,6 +1133,7 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
         notes=tuple(line for line in lines if line.startswith("Skin weights ")),
         warnings=tuple(line.removeprefix("Warning: ") for line in lines if line.startswith("Warning: skin weights ")),
         palette_extension=getattr(result, "palette_extension", None),
+        skeleton_edit=getattr(result, "skeleton_edit", None),
     )
 
 

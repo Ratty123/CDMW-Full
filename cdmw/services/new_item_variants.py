@@ -102,9 +102,14 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             from cdmw.modding.pac_cloth import pac_cloth_lods
             from cdmw.services.new_item_skinning import validate_imported_skin_physics
             validate_imported_skin_physics(part for level in pac_cloth_lods(files.pac_data) for part in level.submeshes)
+        rigs = None
+        if files.skeleton_edit is not None:
+            # The contract was captured against the template's rig with this model's bones appended.
+            rig = files.skeleton_edit.path
+            rigs = {rig: files.skeleton_edit.apply(snapshot.payload(rig)).data}
         try:
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path,
-                                 palette_extension=files.palette_extension)
+                                 palette_extension=files.palette_extension, rigs=rigs)
         except _SkinPaletteBoundsError:
             source = getattr(scenes.get(appearance.identity), "mesh", None)
             if (isinstance(model, ModelFiles) or "/armor/" not in appearance.model_path.replace("\\", "/").casefold()
@@ -126,8 +131,13 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
     return result
 
 
-def validate_variant_rig(snapshot, target_path, payload, *, prefab_path="", palette_extension=None):
-    """Preserve an exact attachment or require the target's actual skin palette."""
+def validate_variant_rig(snapshot, target_path, payload, *, prefab_path="", palette_extension=None, rigs=None):
+    """Preserve an exact attachment or require the target's actual skin palette.
+
+    ``rigs`` maps a PAB path to the skeleton the item ships in its place (the
+    shipped rig with appended bones). The import's palette may then add those
+    bones after the template's own palette, and nothing else.
+    """
     from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
     from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
     from cdmw.modding.skeleton_parser import parse_pab
@@ -164,7 +174,9 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path="", pale
     )
     if selected is None:
         raise ValueError("The selected variant's skeleton is missing or ambiguous.")
-    skeleton = parse_pab(snapshot.payload(selected.path), selected.path)
+    shipped = snapshot.payload(selected.path)
+    edited = (rigs or {}).get(str(selected.path).replace("\\", "/").lower())
+    skeleton = parse_pab(shipped if edited is None else edited, selected.path)
     palette = resolve_pac_bone_palette(original, skeleton)
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning or not palette:
         raise ValueError("The selected variant's skeleton is missing or ambiguous.")
@@ -172,6 +184,12 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path="", pale
     if palette_extension is not None:
         from cdmw.modding.pac_palette_extension import validate_palette_extension
         validate_palette_extension(original, payload, skeleton, palette_extension)
+    elif edited is not None:
+        shipped_count = len(parse_pab(shipped, selected.path).bones)
+        if (tuple(output_palette[:len(palette)]) != tuple(palette)
+                or any(index < shipped_count for index in output_palette[len(palette):])):
+            raise ValueError("The import's skin palette differs from the selected variant's target rig "
+                             "and the bones the item adds to it.")
     elif output_palette != palette:
         raise ValueError("The import's skin palette differs from the selected variant's target rig.")
     limit = len(output_palette)

@@ -51,6 +51,7 @@ from cdmw.ui.archive_browser.appearance_composite import ArchiveAppearanceCompos
 from cdmw.ui.archive_browser.appearance_swap import ArchiveAppearanceSwapMixin
 from cdmw.ui.archive_browser.binary_sidecar_actions import ArchiveBinarySidecarActionsMixin
 from cdmw.ui.archive_browser.prefab_inspector_actions import ArchivePrefabInspectorActionsMixin
+from cdmw.ui.archive_browser.pab_json_actions import ArchivePabJsonActionsMixin
 from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin
 from cdmw.ui.archive_browser.hkx_document_actions import ArchiveHkxDocumentActionsMixin
 from cdmw.ui.archive_browser.hkx_editor_dialog import ArchiveHkxEditorDialogMixin
@@ -144,6 +145,7 @@ class ArchiveBrowserWorkspace(
     ArchiveBinarySidecarActionsMixin,
     ArchivePrefabInspectorActionsMixin,
     ArchivePrefabJsonActionsMixin,
+    ArchivePabJsonActionsMixin,
     ArchiveHkxDocumentActionsMixin,
     ArchiveHkxEditorDialogMixin,
     ArchiveHkxPhysicsEditorMixin,
