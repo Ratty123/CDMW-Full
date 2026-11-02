@@ -496,7 +496,8 @@ class ArchiveBrowserActionMixin:
         if str(entry.extension or "").lower() == ".hkx":
             _add_menu_section("physics", "Physics / HKX")
             physics_editor_action = menu.addAction(menu_icons["physics"], "Edit HKX Physics...")
-            physics_editor_action.setToolTip("Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod.")
+            physics_editor_action.setToolTip("Change ragdoll joint limits and stiffness, rename physics names, or swap an item's collision, and save a DMM mod. "
+                                              "Experimental: edited physics has not been tested in game.")
             physics_editor_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._open_hkx_physics_editor_for_entry(current_entry)
             )
@@ -522,7 +523,8 @@ class ArchiveBrowserActionMixin:
             _add_menu_section("data", "Structured Data")
             add_bones_action = menu.addAction(menu_icons["data"], "Add Bones...")
             add_bones_action.setToolTip(
-                "Add child bones for capes, long hair or tails, then save the skeleton as a mod-ready loose package."
+                "Add child bones for capes, long hair or tails, then save the skeleton as a mod-ready loose package. "
+                "Experimental: a skeleton with added bones has not been tested in game."
             )
             add_bones_action.triggered.connect(lambda _checked=False: self._open_current_archive_pab_bone_editor())
             export_pab_edit_json_action = menu.addAction(menu_icons["data"], "Export Skeleton Edit JSON...")

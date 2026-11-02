@@ -479,6 +479,14 @@ class AboutDocumentationEnglishMixin:
                   <li>DMM treats files in a language folder (for example <code>sound\\windows\\english(us)\\</code>) as a language variant and only uses them when that language is selected in DMM.</li>
                 </ul>
                 <div class="doc-callout doc-warning"><b>Limits:</b> CDMW cannot encode Wwise Vorbis itself. A named voice line (a <code>.wem</code> with a name instead of a number) accepts only a Wwise Vorbis <code>.wem</code>, because the game decides how it is decoded; replacing one has not been tested in game yet, and neither has removing a sound from a container. Sounds that a bank only streams with an unrecognised prefix, or that play through the game's external sources, are refused. Value edits, added properties, swapped sounds, PCM and added container sounds were tested in game through DMM.</div>
+                <h4>Add bones to a skeleton</h4>
+                <ol>
+                  <li>Right-click a <code>.pab</code> skeleton and choose <b>Add Bones...</b>.</li>
+                  <li>Pick the bone to hang new bones from, in the tree or on the front and side views, then click <b>Add Child Bone</b> or <b>Add Chain...</b> and set each new bone's offset.</li>
+                  <li>Click <b>Save as Mod...</b> to write a mod-ready loose package, or <b>Save Draft...</b> to continue later.</li>
+                  <li>For a new item, choose <b>Add bones...</b> in Create New Item's Rig row instead, so an imported model can be weighted to the new bones and the item ships them.</li>
+                </ol>
+                <div class="doc-callout doc-warning"><b>Experimental:</b> a skeleton with added bones has not been tested in game. New bones have no animation or physics of their own, shipped bones cannot be renamed, removed or reordered, and another mod that replaces the same skeleton file overrides the added bones.</div>
                 <h4>Find bodies and faces</h4>
                 <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
                 <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>
@@ -690,6 +698,7 @@ class AboutDocumentationEnglishMixin:
                   <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
                 </ol>
                 <p><b>Advanced</b> holds the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <div class="doc-callout doc-warning"><b>Experimental:</b> edited and new animations, Reach, Plant, joins and retiming, and mods saved from <b>Your mod</b> have not been tested in game yet. Check the result in game before relying on it.</div>
                 <p>Each time the tab opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
             },

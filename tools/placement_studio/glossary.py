@@ -182,7 +182,8 @@ TABS: Tuple[Tuple[str, str], ...] = (
     ("Edit animation",
      "Change an animation or make a new one: key bone poses on a timeline, reach and plant "
      "hands and feet, retime it, mirror it, borrow body parts, join another animation after "
-     "it, or animate it in Blender and import it back."),
+     "it, or animate it in Blender and import it back. Experimental: edited animations have "
+     "not been tested in game yet."),
     ("Armour",
      "Dress the character. Pick a piece per slot and it appears on the body, so you can see "
      "whether a moved weapon collides with what is worn."),
