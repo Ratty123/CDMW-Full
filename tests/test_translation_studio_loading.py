@@ -193,6 +193,22 @@ def test_open_paloc_is_background_and_preserves_mod_text_source_and_export_slot(
     assert tab._catalogue.text_at(0) == "Existing fan translation"
 
 
+def test_build_mod_packages_writes_the_dmm_package_only(panel, monkeypatch, tmp_path):
+    """Other managers are not updated for the October 2026 DLC; Help names one target."""
+
+    tab, _edit, _settings = panel
+    catalogue = load_catalogue(ENGLISH, "eng")
+    tab._on_loaded(catalogue, "")
+    assert tab.model.setData(tab.model.index(0, 2), "A correction", Qt.EditRole)
+    out = tmp_path / "out"
+    monkeypatch.setattr(module.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(out))
+    tab.export_button.click()
+    until(lambda: not tab.iter_shutdown_workers())
+    QApplication.processEvents()
+    assert "Wrote 1 package(s)" in tab.export_note.text(), tab.export_note.text()
+    assert sorted(path.name for path in out.iterdir()) == ["Translation tweak - DMM"]
+
+
 def test_invalid_file_preserves_edits_and_cancelled_replacement_does_not_load(panel, monkeypatch, tmp_path):
     tab, _edit, _settings = panel
     original = load_catalogue(ENGLISH, "eng")

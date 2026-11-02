@@ -180,7 +180,7 @@ list of (u32 length, name, u32) records naming `dlc_01`, then the four build byt
 DLC's `meta/0.paeid` holds u32 7, the DLC's Steam app id `5001840` and 64 opaque bytes,
 probably a signature. What the content group keys and the gimmick cache records mean is
 not established; `entitlementinfo` (base and DLC layer) maps reward packages to store
-SKUs and has no field schema in CDMW.
+SKUs; it had no field schema on main at the time of this audit.
 
 **31 October 2026 inspector pass** (same installation): formats that still fell
 back to a readable-strings dump were matched against documented or decoded

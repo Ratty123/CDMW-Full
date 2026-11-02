@@ -9,6 +9,20 @@ from PySide6.QtGui import QColor
 from cdmw.ui.texture_workflow.editor_view_state import texture_editor_grid_color_hex, texture_editor_view_mode_key
 
 
+def _settings_bool(value: object, default: bool) -> bool:
+    # INI-backed QSettings returns "true"/"false" strings, and bool("false") is True.
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value if value is not None else "").strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return bool(default)
+
+
 class TextureEditorSettingsPersistenceMixin:
     def _saved_texture_editor_splitter_sizes(self) -> list[int]:
         raw_sizes = self.settings.value("texture_editor/main_splitter_sizes", "")
@@ -101,11 +115,11 @@ class TextureEditorSettingsPersistenceMixin:
         soften_index = self.soften_mode_combo.findData(soften_mode)
         if soften_index >= 0:
             self.soften_mode_combo.setCurrentIndex(soften_index)
-        self.sample_visible_layers_checkbox.setChecked(bool(self.settings.value("texture_editor/sample_visible_layers", True)))
-        self.clone_aligned_checkbox.setChecked(bool(self.settings.value("texture_editor/clone_aligned", True)))
+        self.sample_visible_layers_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/sample_visible_layers", True), True))
+        self.clone_aligned_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/clone_aligned", True), True))
         self.fill_tolerance_slider.setValue(int(self.settings.value("texture_editor/fill_tolerance", 24)))
-        self.fill_contiguous_checkbox.setChecked(bool(self.settings.value("texture_editor/fill_contiguous", True)))
-        self.lasso_snap_checkbox.setChecked(bool(self.settings.value("texture_editor/lasso_snap_to_edges", False)))
+        self.fill_contiguous_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/fill_contiguous", True), True))
+        self.lasso_snap_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/lasso_snap_to_edges", False), False))
         self.lasso_snap_radius_slider.setValue(int(self.settings.value("texture_editor/lasso_snap_radius", 10)))
         self.lasso_snap_sensitivity_slider.setValue(int(self.settings.value("texture_editor/lasso_edge_sensitivity", 55)))
         self.selection_refine_spin.setValue(int(self.settings.value("texture_editor/selection_refine_amount", 4)))
@@ -113,13 +127,13 @@ class TextureEditorSettingsPersistenceMixin:
         self.recolor_target_edit.setText(str(self.settings.value("texture_editor/recolor_target", "#C85A30")))
         self.recolor_tolerance_slider.setValue(int(self.settings.value("texture_editor/recolor_tolerance", 48)))
         self.recolor_strength_slider.setValue(int(self.settings.value("texture_editor/recolor_strength", 100)))
-        self.recolor_preserve_luma_checkbox.setChecked(bool(self.settings.value("texture_editor/recolor_preserve_luma", True)))
+        self.recolor_preserve_luma_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/recolor_preserve_luma", True), True))
         view_mode = str(self.settings.value("texture_editor/view_mode", "edited"))
         view_mode_index = self.view_mode_combo.findData(view_mode)
         if view_mode_index >= 0:
             self.view_mode_combo.setCurrentIndex(view_mode_index)
         self.compare_split_slider.setValue(int(self.settings.value("texture_editor/compare_split", 50)))
-        self.grid_checkbox.setChecked(bool(self.settings.value("texture_editor/grid_enabled", False)))
+        self.grid_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/grid_enabled", False), False))
         self.grid_size_spin.setValue(int(self.settings.value("texture_editor/grid_size", 64)))
         self._set_grid_color(
             QColor(str(self.settings.value("texture_editor/grid_color", "#74C1FF"))),

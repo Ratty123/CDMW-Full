@@ -62,6 +62,22 @@ class ModelLibrarySelectionMixin:
                 or no_texture_download_count
             )
         )
+        if getattr(self, "_task_thread", None) is not None:
+            # _run_task disables these for the task's lifetime; a row click must
+            # not re-enable them. Preview stays live during an inline preview,
+            # because a new selection supersedes it.
+            for button in (
+                self.download_button,
+                self.download_import_button,
+                self.open_file_url_button,
+                self.generate_icon_button,
+                self.more_actions_button,
+                self.delete_local_button,
+                self.delete_no_texture_downloads_button,
+            ):
+                button.setEnabled(False)
+            if not bool(getattr(self, "_inline_preview_task_running", False)):
+                self.preview_button.setEnabled(False)
         self.select_all_button.setEnabled(result_count > 0)
         self.select_none_button.setEnabled(checked_count > 0)
         self.remove_local_root_button.setEnabled(self.roots_tree.currentItem() is not None)

@@ -38,7 +38,7 @@ PAGE_TOPICS = {
     "Home": ("overview", "safety"),
     "Getting-Started": ("first_run_checklist",),
     "Tools-and-Navigation": ("documentation_index",),
-    "Archive-Browser": ("archive_browser", "archive_guides"),
+    "Archive-Browser": ("archive_browser", "archive_guides", "prefab_inspector"),
     "Create-New-Item": ("new_item_studio",),
     "Mesh-Editor": ("mesh_editor",),
     "Textures": (
@@ -109,6 +109,9 @@ _CONTROLS = (
     "Drafts & Mods", "Continue Editing", "Delete...", "Remove from List...",
     "Add Mod Folder...", "Choose a Draft...", "Name Draft...", "New Project...", "Move to Project...",
     "Duplicate...", "Save Changes", "Include the body", "Add item packages", "Launch game", "Item identities",
+    "Open Prefab Inspector...", "Only rows I can change", "Swap for another file...", "Duplicate this object",
+    "Remove this object", "Undo this row", "Undo all changes", "Save changes...", "Item Package (.cditem)...",
+    "Add to Item Package...", "Loose Folder...", "Export Prefab Edit JSON...", "Import Prefab Edit JSON...",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
@@ -332,10 +335,13 @@ def page_url(page: str, locale: str, anchor: str = "") -> str:
     return WIKI + page_slug(page, locale) + ("#" + anchor if anchor else "")
 
 
-def _inline(node: Node | str, locale: str) -> str:
+def _inline(node: Node | str, locale: str, *, literal: bool = False) -> str:
     if isinstance(node, str):
-        return re.sub(r"\s+", " ", node)
-    body = "".join(_inline(child, locale) for child in node.children)
+        text = re.sub(r"\s+", " ", node)
+        # A literal asterisk in prose, such as a *.xml wildcard, must not open emphasis.
+        return text if literal else text.replace("*", r"\*")
+    literal = literal or node.tag == "code"
+    body = "".join(_inline(child, locale, literal=literal) for child in node.children)
     if node.tag in {"b", "strong"}:
         return f"**{body.strip()}**"
     if node.tag in {"i", "em"}:

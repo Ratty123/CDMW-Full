@@ -107,7 +107,9 @@ def _package_tables(root: Path):
     from cdmw.core.archive_format import discover_pamt_files
 
     tables = list(discover_pamt_files(Path(root)))
-    from cdmw.core.papgt_format import parse_papgt
+    # Read-only, so the compact post-DLC layout counts too; `parse_papgt` accepts only
+    # the legacy checksummed one and refused every current install.
+    from cdmw.core.papgt_format import read_papgt_directories
 
     priorities = {}
     for parent in {path.parent.parent for path in tables}:
@@ -116,7 +118,7 @@ def _package_tables(root: Path):
             continue
         if mount_file.stat().st_size > 1024 * 1024:
             raise ValueError(f"Archive mount table is unexpectedly large: {mount_file}")
-        mounts = parse_papgt(mount_file.read_bytes())
+        mounts = read_papgt_directories(mount_file.read_bytes())
         order = {row.name.casefold(): -index for index, row in enumerate(mounts)}
         tables = [path for path in tables if path.parent.parent != parent or path.parent.name.casefold() in order]
         priorities.update({path: order[path.parent.name.casefold()] for path in tables if path.parent.parent == parent})

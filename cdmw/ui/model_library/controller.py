@@ -136,7 +136,9 @@ class ModelLibraryResultsMixin:
         self._results_filter_timer.stop()
         self._results_population_timer.stop()
         self._auto_preview_timer.stop()
-        running = self._task_thread is not None and self._task_thread.isRunning()
+        # A stopped thread whose finished cleanup is still queued counts as busy:
+        # _run_task refuses until that cleanup runs, which would drop this request.
+        running = self._task_thread is not None
         if running and self._results_task_kind in {"scan", "search"}:
             self._pending_results_refresh = True
             self._populating_results = True
@@ -185,7 +187,8 @@ class ModelLibraryResultsMixin:
             return
         if self._pending_prepared_rows_result is not None:
             return
-        if self._task_thread is not None and self._task_thread.isRunning():
+        if self._task_thread is not None:
+            # The finished handler schedules this again once the thread is gone.
             return
         request = self._pending_results_request
         self._pending_results_request = None
@@ -226,6 +229,7 @@ class ModelLibraryResultsMixin:
         self._pending_results_total_count = len(result.all_rows)
         self._pending_results_visible_count = len(result.visible_indices)
         self._populating_results = True
+        self._results_population_active = True
         self.results_status_label.setText(f"Applying prepared rows... 0 / {len(result.all_rows):,}")
         self._results_population_timer.start()
         return True
@@ -274,6 +278,7 @@ class ModelLibraryResultsMixin:
             self._payload_population_key(payload) for payload in self._checked_payloads()
         )
         self._populating_results = True
+        self._results_population_active = True
         self.results_tree.setSortingEnabled(False)
         self.results_tree.blockSignals(True)
         self.results_tree.setUpdatesEnabled(False)
@@ -330,7 +335,15 @@ class ModelLibraryResultsMixin:
         return (
             str(payload.get("kind", "") or ""),
             str(payload.get("uid", "") or payload.get("id", "") or ""),
-            str(payload.get("import_path", "") or payload.get("path", "") or payload.get("relative_path", "") or payload.get("name", "") or ""),
+            # import_path is filled in by downloads and ZIP resolution, so it would
+            # change a row's identity between refreshes; use it only as a last resort.
+            str(
+                payload.get("path", "")
+                or payload.get("relative_path", "")
+                or payload.get("name", "")
+                or payload.get("import_path", "")
+                or ""
+            ),
         )
 
     def _finish_results_population(self) -> None:
@@ -352,6 +365,7 @@ class ModelLibraryResultsMixin:
         self._pending_results_selected_payload = None
         self._pending_results_selected_key = ("", "", "")
         self._pending_results_checked_keys.clear()
+        self._results_population_active = False
         # Keep the busy state truthful until both row application and the
         # owning worker/thread teardown have completed.  A stopped QThread can
         # still have its queued ``finished`` cleanup pending; allowing another
@@ -362,6 +376,11 @@ class ModelLibraryResultsMixin:
         )
         self._populating_results = result_task_owned
         self._update_selection_state()
+        # Count-bearing status lines wait for the rows they describe.
+        status_after_population = getattr(self, "_results_status_after_population", None)
+        self._results_status_after_population = None
+        if status_after_population is not None:
+            status_after_population()
         if self._pending_results_refresh and (self._task_thread is None or not self._task_thread.isRunning()):
             self._results_population_timer.stop()
             QTimer.singleShot(0, self._start_pending_results_request)

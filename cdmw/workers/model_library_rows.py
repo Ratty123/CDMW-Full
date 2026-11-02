@@ -16,6 +16,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.models import (
     DEFAULT_MODEL_MIRROR_URL,
     is_importable_model_path,
+    is_owned_download_folder,
     mirror_download_candidates,
 )
 _METADATA_MAX_BYTES = 4 * 1024 * 1024
@@ -353,9 +354,9 @@ def _mirror_download_directory_index(
         if not candidate.is_dir():
             continue
         metadata = _read_metadata(candidate / "model_metadata.json", stop_event=stop_event)
-        uid = str(metadata.get("uid", "") or metadata.get("id", "") or "").strip().casefold()
-        if not uid:
+        if not is_owned_download_folder(candidate.name, metadata):
             continue
+        uid = str(metadata.get("uid", "") or "").strip().casefold()
         try:
             modified_at = float(candidate.stat().st_mtime)
         except OSError:
@@ -385,7 +386,7 @@ def _nearest_metadata(path: Path, root: Optional[Path], *, require_under_root: b
         if require_under_root and resolved_root is not None and candidate_dir == resolved_root.parent:
             break
         metadata_path = candidate_dir / "model_metadata.json"
-        if metadata_path.is_file():
+        if metadata_path.is_file() and is_owned_download_dir(candidate_dir):
             return metadata_path
         if resolved_root is not None and candidate_dir == resolved_root:
             break
@@ -542,7 +543,7 @@ def _local_delete_target(payload: Mapping[str, object], download_root: Path) -> 
     root_text = str(payload.get("root", "") or "").strip()
     asset_dir = Path(asset_text) if asset_text else None
     row_root = Path(root_text) if root_text else None
-    if asset_dir is not None and asset_dir.is_dir() and (asset_dir / "model_metadata.json").is_file():
+    if asset_dir is not None and asset_dir.is_dir() and is_owned_download_dir(asset_dir):
         allowed = download_root if _is_under(_resolved(asset_dir), _resolved(download_root)) else row_root
         if allowed is not None and _is_under(_resolved(asset_dir), _resolved(allowed)):
             return _delete_target(asset_dir, "downloaded model folder", "download_dir", allowed)
@@ -579,7 +580,7 @@ def _delete_target(path: Path, label: str, kind: str, allowed_root: Path) -> Mod
         label=label,
         target_kind=kind,
         allowed_root=str(absolute_root),
-        identity=_path_identity(absolute_path),
+        identity=model_library_delete_identity(absolute_path),
     )
 
 
@@ -661,6 +662,26 @@ def _path_identity(path: Path) -> str:
     return os.path.normcase(os.path.abspath(str(path))).casefold()
 
 
+def is_owned_download_dir(directory: Path, *, stop_event: Optional[threading.Event] = None) -> bool:
+    """Whether ``directory`` carries a metadata marker that names it."""
+
+    metadata_path = Path(directory) / "model_metadata.json"
+    if not metadata_path.is_file():
+        return False
+    return is_owned_download_folder(Path(directory).name, _read_metadata(metadata_path, stop_event=stop_event))
+
+
+def model_library_delete_identity(path: Path) -> str:
+    """Path plus file ID, so a target replaced after confirmation is refused."""
+
+    try:
+        stat_result = os.lstat(path)
+        file_id = f"{stat_result.st_dev}:{stat_result.st_ino}"
+    except OSError:
+        file_id = "missing"
+    return f"{_path_identity(path)}|{file_id}"
+
+
 def _int_value(value: object) -> int:
     try:
         return int(value or 0)
@@ -682,6 +703,8 @@ __all__ = [
     "ModelLibraryPreparedRowsResult",
     "ModelLibraryRowsRequest",
     "freeze_model_library_rows",
+    "is_owned_download_dir",
+    "model_library_delete_identity",
     "normalize_local_model_rows",
     "prepare_model_library_rows",
 ]

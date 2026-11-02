@@ -731,6 +731,9 @@ def _loose_authority_virtual_path(package_root: Path, local_path: Path) -> str:
     return PurePosixPath(*parts).as_posix()
 
 
+_AUTHORITY_AUDIT_MOUNTED_MANAGER_FOLDERS = frozenset({"dmmsa", "dmmgen"})
+
+
 def _is_active_file_authority_audit_path(path: Path) -> bool:
     name = path.name.casefold()
     return name == "cdmw_active_file_authority_audit.json" or name.endswith(
@@ -760,7 +763,14 @@ def audit_loose_package_active_file_authority(
     )
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.core.archive_scan_cache import discover_pamt_files
+    from cdmw.domain.archives.discovery import BUILTIN_IGNORED_ARCHIVE_FOLDERS
 
+    # Browsing hides mod-manager mounts, but a stale install there is exactly what this
+    # audit has to find; backups and caches stay skipped.
+    audit_ignored_folders = tuple(
+        name for name in BUILTIN_IGNORED_ARCHIVE_FOLDERS
+        if name.casefold() not in _AUTHORITY_AUDIT_MOUNTED_MANAGER_FOLDERS
+    )
     root = Path(package_root).expanduser().resolve()
     resolved_game_root = Path(game_root).expanduser().resolve()
     result = ActiveFileAuthorityAuditResult(package_root=root, game_root=resolved_game_root)
@@ -825,7 +835,9 @@ def audit_loose_package_active_file_authority(
     if not resolved_game_root.is_dir():
         result.warnings.append(f"Active file authority audit skipped; game root not found: {resolved_game_root}")
     else:
-        for pamt_path in discover_pamt_files(resolved_game_root):
+        for pamt_path in discover_pamt_files(
+            resolved_game_root, ignored_folders=audit_ignored_folders, use_default_ignored_folders=False,
+        ):
             try:
                 entries = parse_archive_pamt(pamt_path)
             except Exception as exc:

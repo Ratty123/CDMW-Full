@@ -59,86 +59,110 @@ TERMS: Tuple[Term, ...] = (
     Term(
         "Character",
         "The body being edited — `1_phm` is the player character.",
-        "Everything else on screen belongs to this character: its skeleton, its sockets, "
+        "Everything else on screen belongs to this character: its skeleton, its attach points, "
         "and the animations built for it.",
     ),
     Term(
-        "Socket",
-        "A named point on the body where something can be attached, like a peg.",
-        "Sockets are defined by the game and move with the bone they sit on, so a weapon on "
-        "a hip socket follows the hip through every animation.",
+        "Attach point",
+        "A named point where something is attached, like a peg. The game calls them sockets.",
+        "Points on the body move with the bone they sit on, so a weapon on the hip follows the "
+        "hip through every animation. Each item also has points of its own, which decide the "
+        "angle it hangs at. You can make new ones under Advanced > Attach points; an animation "
+        "can only be pointed at a new one whose name is exactly as long as the name it "
+        "replaces.",
     ),
     Term(
-        "Child socket",
-        "A matching point on the *item*, which decides the angle it hangs at.",
-        "The body socket says where an item goes; the child socket says which way it points. "
-        "Move a sword to the back without changing its child socket and it hangs at the "
-        "hip's angle — sticking out sideways.",
-    ),
-    Term(
-        "Part",
-        "One row of the character's equipment list — a single item slot to work on.",
-        "The arrow in the dropdown shows where that part currently hangs: first when stowed, "
-        "then when held.",
+        "Slot",
+        "One row of the character's equipment list: the main weapon in the right hand, the "
+        "shield, the bow.",
+        "The arrow in the list shows where that slot hangs today: first when put away, then "
+        "when in hand. Picking a weapon picks the slot that fits it.",
     ),
     Term(
         "Carry",
-        "Where the selected part hangs when it is stowed — hip, back, thigh or in hand. "
-        "Labelled *Hangs on* in the header.",
-        "Changing it is the main edit this tool exists for: the item moves there, its angle "
-        "follows, and you are offered the matching animations.",
+        "Where the item hangs when it is put away: hip, back or thigh. Set with *Carried at* on "
+        "the Position tab.",
+        "This is the main change the tool exists for: the item moves there, its angle follows, "
+        "and it gets an attach point of its own so nothing else moves with it.",
     ),
     Term(
         "Stowed and held",
-        "Stowed is the item put away; held is the item in the character's hand.",
+        "Put away, or in the character's hand. *Show it* on the Position tab switches between "
+        "the two.",
         "They are two separate placements on the same item, so a sword has both a spot on the "
-        "hip and a grip in the hand.",
+        "hip and a grip in the hand. Fine-tune adjusts the one on screen.",
     ),
     Term(
-        "Draw and sheathe",
+        "Draw and put away",
         "The animations for taking a weapon out (`weapon_out`) and putting it away "
         "(`weapon_in`).",
-        "These are the clips that have to change when a weapon moves, because the arm reaches "
-        "somewhere different.",
+        "These are the animations that have to change when a weapon moves, because the arm "
+        "reaches somewhere different.",
     ),
     Term(
         MATCH_LABEL,
-        "Works out which draws start from which carry position, by playing each one and "
-        "watching where the hands go.",
+        "Works out which draw animations start from which spot on the body, by playing each "
+        "one and watching where the hands go.",
         "The game files do not record this anywhere, so it has to be measured. It takes about "
         "half a minute, changes nothing, and is remembered afterwards.",
     ),
     Term(
-        "Swap animations",
-        "Gives the weapon the other grip's animation set — the two-hand animations for a "
-        "one-hand weapon, or the reverse.",
-        "This is how a moved weapon gets a draw that suits its new position. The new "
-        "animation is written at the old clip's path, so the game's action charts are never "
-        "touched. Choose draws alone, or everything including how the character stands and "
-        "moves while carrying it.",
+        "Use another weapon's animations",
+        "Gives the weapon another weapon's animations, such as the two-hand sword's draw for a "
+        "one-hand sword moved to the back.",
+        "The new animation is written in place of the old one, so the game keeps asking for "
+        "the same file and gets the new motion. You see every file it would change, and can "
+        "watch the result, before anything changes.",
     ),
     Term(
-        "Attach point",
-        "A socket you create yourself, at a spot you pick on the body.",
-        "Use it when the game has no socket where you want something to sit. Animations can "
-        "only be pointed at a new attach point if its name is exactly as long as the one it "
-        "replaces — the file format stores names with their length.",
-    ),
-    Term(
-        "Pending changes",
-        "Edits made so far, held in the tool rather than written to disk.",
-        "Nothing touches the game until Export files or Build packages, so it is safe to "
-        "experiment and undo.",
+        "Your mod",
+        "Every change made so far, kept in the tool rather than written to the game.",
+        "Nothing touches the game until you save the mod and enable it in DMM, so it is safe "
+        "to experiment, undo, and remove changes you do not want.",
     ),
     Term(
         "Clipping",
-        "How far the weapon sinks into the body at the current frame.",
-        "A little is normal; a lot means the item is buried. It is measured on demand because "
-        "the check is too slow to run on every frame of a playing animation.",
+        "How far the weapon sinks into the body in the pose on screen.",
+        "A little is normal; a lot means the item is buried. It is measured when you ask, "
+        "because the check is too slow to run on every frame of a playing animation.",
+    ),
+    Term(
+        "Pose key",
+        "A bone's turn or move at one moment of an animation, set on the Edit animation tab.",
+        "Keys add to what the animation already does there. Between two keys the bone eases "
+        "from one to the other; before the first and after the last it holds.",
+    ),
+    Term(
+        "Reach",
+        "Moving a hand or foot and letting the arm or leg bend to get it there, set on the "
+        "Edit animation tab.",
+        "The elbow or knee keeps pointing the way the animation bends it, and the bones keep "
+        "their length: a spot further away than the limb reaches straightens it toward the spot.",
+    ),
+    Term(
+        "Plant",
+        "Holding a hand or foot where it is while the body moves, such as a foot on the ground "
+        "during a step.",
+        "Plant here at the first moment and again at the last; Let go here hands it back to the "
+        "animation.",
+    ),
+    Term(
+        "Fade",
+        "How long two joined animations blend into each other.",
+        "The second starts that long before the first ends, and the character's pace eases from "
+        "one into the other.",
+    ),
+    Term(
+        "Shared attach point",
+        "An attach point that several slots use, such as the grip every weapon in the right "
+        "hand uses.",
+        "Changing it moves all of them, so Save as mod refuses that change. Use Carried at "
+        "instead: it gives the item a point of its own.",
     ),
     Term(
         "LOD clips",
-        "Simplified copies of an animation used when the character is far from the camera.",
+        "Simplified copies of an animation used when the character is far from the camera. "
+        "Shown with *Distant versions*.",
         "Usually not what you want to look at — they are the same motion with less detail.",
     ),
 )
@@ -147,49 +171,47 @@ BY_NAME: Dict[str, Term] = {term.name: term for term in TERMS}
 
 
 
-#: What each tab is for. The walkthrough covers the one job most people came to do; this is
-#: the map for everything else, which until now the Help page did not mention at all.
+#: What each tab is for, in the order they sit.
 TABS: Tuple[Tuple[str, str], ...] = (
-    ("Inspector",
-     "What the selected attach point is, what hangs on it, and what else moves if you change "
-     "it. The question the manual workflow keeps asking."),
-    ("Clips &amp; animation",
-     "Find any motion clip in the game and play it on the character. Also lists which clips "
-     "run through the selected attach point, and — for advanced use — can point an action "
-     "chart at a different socket."),
+    ("Position",
+     "What to work on, where it is carried, fine-tuning its position and angle, and checking "
+     "whether it sinks into the body."),
+    ("Animations",
+     "Give the weapon another weapon's animations, and find and play any animation in the "
+     "game on the character."),
+    ("Edit animation",
+     "Change an animation or make a new one: key bone poses on a timeline, reach and plant "
+     "hands and feet, retime it, mirror it, borrow body parts, join another animation after "
+     "it, or animate it in Blender and import it back."),
     ("Armour",
-     "Dress the character. Pick a piece per slot and it appears on the rig, so you can see "
+     "Dress the character. Pick a piece per slot and it appears on the body, so you can see "
      "whether a moved weapon collides with what is worn."),
-    ("Driven bones",
-     "Bones that follow other bones rather than the animation — cloth, hair, scabbards. Shows "
-     "what drives what."),
-    ("Rig behaviour",
-     "The rig's own rules: pose fix-ups and jiggle settings the game applies on top of a clip."),
-    ("Pending changes",
-     "Every edit so far, as a list, with the files each one would write. Nothing reaches the "
-     "game until you export."),
+    ("Your mod",
+     "Every change in plain words. Untick what to leave out, then Save as mod. It can go "
+     "straight into DMM's mods folder."),
+    ("Advanced",
+     "Attach points (with the full list and what else moves if one changes), Driven bones, "
+     "Rig behaviour, action charts, and the exact file changes."),
 )
 
-#: The viewport controls. These are on screen with no labels beyond a checkbox, so what they
-#: do and — for the two that cost something — what they cost has to be written down somewhere.
+#: The view controls. These are on screen with no labels beyond a checkbox, so what they do
+#: and — for the two that cost something — what they cost has to be written down somewhere.
 VIEWPORT: Tuple[Tuple[str, str], ...] = (
-    ("Orbit, pan, zoom",
-     "Drag with the left button to orbit, the middle button to pan, the wheel to zoom. The "
-     "grid is fixed to the world, so it does not change as you move."),
-    ("Meshes",
-     "Draw the character's geometry, not just its skeleton. The body is the bare figure — "
-     "hands, feet and face — and clothing appears only as you put it on in the Armour tab."),
+    ("Turn, pan, zoom",
+     "Drag with the left button to turn the view, the middle button to pan, the wheel to "
+     "zoom. R resets the view."),
+    ("Body and gear",
+     "Draw the character's body, what it wears and the weapon, not just the skeleton. The "
+     "body is the bare figure; clothing appears as you put it on in the Armour tab."),
     ("Solid",
-     "Opaque instead of see-through. Solid is lit by the direction each surface faces, so "
-     "shapes read as round; see-through is what lets you look inside the body at a weapon "
-     "sunk into it."),
-    ("Bones, Labels, Unused sockets",
-     "Overlays. Unused sockets are attach points nothing currently hangs on — useful when "
-     "looking for somewhere to move an item to, noise otherwise."),
-    ("Check Fit/Clipping",
-     "Counts how many of the weapon's vertices are inside the body at the current pose, and "
-     "colours them red. It measures this frame only — press it again after moving the item "
-     "or scrubbing to a different pose."),
+     "Opaque instead of see-through. See-through is what lets you look inside the body at a "
+     "weapon sunk into it."),
+    ("Skeleton, Labels, Spare attach points",
+     "Overlays. Spare attach points are the ones nothing hangs on yet, useful when looking "
+     "for somewhere to move an item to."),
+    ("Playing an animation",
+     "The bar under the view plays the animation chosen on the Animations tab. Bind pose "
+     "puts the character back at rest."),
 )
 
 def tip(name: str, extra: str = "") -> str:
@@ -201,52 +223,102 @@ def tip(name: str, extra: str = "") -> str:
     return f"{term.tooltip()}\n\n{extra}" if extra else term.tooltip()
 
 
-#: The steps of the one job this tool exists for, each as (what you do, what happens).
-WALKTHROUGH: Tuple[Tuple[str, str], ...] = (
+#: The jobs people open the tool for, each as numbered steps of (what you do, what happens).
+TASKS: Tuple[Tuple[str, Tuple[Tuple[str, str], ...]], ...] = (
     (
-        "Pick the <b>Part</b> to move",
-        "A sword is a <code>CD_MainWeapon</code> row. The arrow beside each row shows where "
-        "it hangs today.",
+        "Move a weapon somewhere else on the body",
+        (
+            ("Choose the <b>Weapon</b> at the top",
+             "The slot that fits it is picked for you on the Position tab."),
+            ("On <b>Position</b>, pick a spot in <b>Carried at</b>",
+             "The weapon moves there when put away, and its angle follows."),
+            ("Set <b>Show it</b> to <b>Put away</b> and look",
+             "Turn the view, try armour on the Armour tab, and press <b>Check for clipping</b>."),
+            ("Optional: on <b>Animations</b>, <b>Use another weapon's animations…</b>",
+             "Gives it a draw that reaches the new spot. You see every file first."),
+            ("On <b>Your mod</b>, press <b>Save as mod</b>",
+             "Then tick the mod in DMM and press Mount."),
+        ),
     ),
     (
-        "Choose a new <b>Hangs on</b> position",
-        "The item moves there and its angle follows automatically.",
+        "Adjust where it sits or how it is angled",
+        (
+            ("On <b>Position</b>, look at <b>3. Fine-tune</b>",
+             "It already shows the point that holds the item the way it is on screen."),
+            ("Use the <b>Move</b> buttons, or type an <b>Angle</b>",
+             "Or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view."),
+            ("Read the note under the point's name",
+             "It says what else moves with it, and whether the change can be saved."),
+            ("Save from <b>Your mod</b>",
+             "Your adjustments are saved together as one change."),
+        ),
     ),
     (
-        "Press <b>Swap animations...</b>",
-        "Gives the weapon the other grip's animations — the two-hand set for a one-hand "
-        "weapon. Choose draws only, or everything including how the character stands and "
-        "moves. It offers to play the result so you can see it.",
+        "Change an animation, or make a new one",
+        (
+            ("Play it on the <b>Animations</b> tab, then open <b>Edit animation</b>",
+             "Choose <b>Edit the animation that is playing</b>, or <b>Start a new one from "
+             "this pose</b> to build one from a still pose."),
+            ("Pick a <b>Bone</b> or click its joint, move the playhead, and <b>Turn</b> or "
+             "<b>Move</b> it",
+             "Each change keys that bone at that moment, on top of the animation. Drag keys on "
+             "the timeline to retime them."),
+            ("Move a hand or foot under <b>Reach</b>, or <b>Plant</b> it",
+             "The arm or leg bends to get it there; a planted foot stays put while the body "
+             "moves."),
+            ("Adjust <b>Speed</b>, the part used, <b>Mirror left and right</b>, borrow a "
+             "body part, or join another animation",
+             "The character shows the result as you go; <b>Undo edit</b> takes a step back."),
+            ("Optional: <b>Export for Blender…</b>, animate there, <b>Import from Blender…</b>",
+             "Keep the bone names Blender shows; they are how the motion finds its bones."),
+            ("Check <b>Replaces</b>, then <b>Add to Your mod</b>",
+             "It replaces that animation in the game; save it from <b>Your mod</b>."),
+        ),
     ),
     (
-        "Optional: <b>" + MATCH_LABEL + "</b>",
-        "Measures which draws start from which body position, so the clip list can be "
-        "filtered with <b>Only draws for this spot</b>. Takes about half a minute, once. "
-        "The swap does not need it.",
-    ),
-    (
-        "Check <b>Pending changes</b>, then export",
-        "Nothing has touched the game until you press <b>Export files</b> or "
-        "<b>Build packages</b>.",
+        "Look at an animation",
+        (
+            ("On <b>Animations</b>, search or filter the list",
+             "<b>Only draws for this spot</b> needs <b>" + MATCH_LABEL + "</b> once."),
+            ("Double-click an animation, or press <b>Play selected</b>",
+             "It plays on the character; the bar under the view pauses and scrubs it."),
+        ),
     ),
 )
 
-#: Symptom -> cause and cure. The three things that actually go wrong.
+#: Symptom -> cause and cure. The things that actually go wrong.
 TROUBLESHOOTING: Tuple[Tuple[str, str], ...] = (
     (
-        "The item hangs at a strange angle after I moved it",
-        "The game defines no angle for the new spot. Select the socket you want it aimed at "
-        "and press <b>" + AIM_LABEL + "</b>, or aim it by hand with Rotate and Tilt.",
+        "Save as mod says a point is shared",
+        "That attach point is used by other slots too, so changing it would move them as well. "
+        "Remove that adjustment on Your mod and move the item with <b>Carried at</b> instead, "
+        "which gives it a point of its own.",
     ),
     (
-        "No draws were found for the position I chose",
-        "Not every spot on the body has an animation that reaches it. The item will still "
-        "move; you just have to pick an animation yourself.",
+        "The item hangs at a strange angle after I moved it",
+        "The game defines no angle for the new spot. Use <b>Flip 180°</b> or the <b>Angle</b> "
+        "boxes on Position, or select the point to aim with under Advanced > Attach points and "
+        "press <b>" + AIM_LABEL + "</b>.",
+    ),
+    (
+        "No draws were found for the spot I chose",
+        "Not every spot on the body has an animation that reaches it. The item still moves; "
+        "pick an animation yourself with <b>Use another weapon's animations…</b>.",
     ),
     (
         "My new attach point is ignored by the animations",
         "An animation can only be pointed at a name exactly as long as the one it replaces, "
         "because the file stores names with their length. Rename it to match.",
+    ),
+    (
+        "A planted foot still slides",
+        "The body moved further from the spot than the leg reaches, so the leg straightened "
+        "toward it. Plant for a shorter stretch, or lower <b>Distance travelled</b>.",
+    ),
+    (
+        "The game was updated",
+        "Placement & Animations checks its copies of the game files each time it opens and "
+        "refreshes them. Changes made before an update cannot be saved; make them again.",
     ),
 )
 
@@ -302,21 +374,24 @@ def _pairs(rows) -> str:
 def as_html() -> str:
     """The Help panel.
 
-    Ordered by what a reader needs first: what the tool is for, the one job most people came to
-    do, then the map of everything else, then the words, then what goes wrong. Every part is a
-    two-column table rather than paragraphs, because the thing a reader wants from reference
-    text is to find *one* entry and stop reading.
+    Ordered by what a reader needs first: what the tool is for, the jobs most people came to
+    do as numbered steps, then the map of the tabs and the view, then the words, then what
+    goes wrong. Every part is a table rather than paragraphs, because the thing a reader
+    wants from reference text is to find *one* entry and stop reading.
     """
 
-    steps = []
-    for number, (action, effect) in enumerate(WALKTHROUGH, start=1):
-        steps.append(
-            f"<tr>"
-            f"<td valign='top' width='26'><b class='step'>{number}</b></td>"
-            f"<td valign='top' width='38%'>{action}</td>"
-            f"<td valign='top' class='why'>{effect}</td>"
-            f"</tr>"
-        )
+    tasks = []
+    for title, steps in TASKS:
+        rows = []
+        for number, (action, effect) in enumerate(steps, start=1):
+            rows.append(
+                f"<tr>"
+                f"<td valign='top' width='26'><b class='step'>{number}</b></td>"
+                f"<td valign='top' width='42%'>{action}</td>"
+                f"<td valign='top' class='why'>{effect}</td>"
+                f"</tr>"
+            )
+        tasks.append(_section(title, "".join(rows)))
 
     words = []
     for term in TERMS:
@@ -331,12 +406,13 @@ def as_html() -> str:
     body = [
         _STYLE,
         "<h2>What this tool does</h2>",
-        "<p class='lead'>It moves where a character carries their equipment — a sword from "
-        "the hip to the back, say — and keeps the take-out and put-away animations in step "
-        "with the new position. Nothing you do here touches the game until you export.</p>",
-        _section("Moving a weapon, start to finish", "".join(steps)),
+        "<p class='lead'>It changes where a character carries equipment (a sword from the hip "
+        "to the back, say) and which animations go with it, then saves the result as a mod "
+        "for DMM. Nothing you do here touches the game until you save the mod and enable it "
+        "in DMM.</p>",
+        *tasks,
         _section("The tabs", _pairs(TABS)),
-        _section("The 3D view", _pairs(VIEWPORT)),
+        _section("The view", _pairs(VIEWPORT)),
         _section("Words this tool uses", "".join(words)),
         _section("If something looks wrong", _pairs(TROUBLESHOOTING)),
     ]

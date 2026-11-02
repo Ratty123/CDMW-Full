@@ -23,8 +23,16 @@ import struct
 from dataclasses import dataclass
 
 _TRANSFORM_TYPES = frozenset({"Transform", "TiledTransform"})
-_SIGNED = {"int8": "b", "int16": "h", "int32": "i", "int64": "q"}
-_UNSIGNED = {"uint8": "B", "uint16": "H", "uint32": "I", "uint64": "Q"}
+# ``int`` is how the reflection data names a plain 32-bit integer (``_type`` and
+# similar), and ``ItemKey`` is an item's 32-bit key: both are only offered where
+# the stored width agrees.
+_SIGNED = {"int8": "b", "int16": "h", "int32": "i", "int64": "q", "int": "i"}
+_UNSIGNED = {"uint8": "B", "uint16": "H", "uint32": "I", "uint64": "Q", "ItemKey": "I"}
+#: Float vectors and how many components each holds.
+_VECTORS = {"float2": 2, "float3": 3, "float4": 4}
+#: Byte width of an element a fixed-size array can be split into. A
+#: ``Transform[]`` is laid out as whole 40-byte transforms end to end.
+_ELEMENT_SIZES = {"Transform": 40, "float": 4, "float2": 8, "float3": 12, "float4": 16}
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +174,7 @@ def placement_space(member_name: str) -> str:
 #: their own editor; anything whose declared type and byte width do not agree
 #: is left read-only rather than guessed at.
 def editable_kind(type_name: str, raw: bytes) -> str:
-    """``"bool"``, ``"float"``, ``"int"``, ``"float3"`` or ``""``.
+    """``"bool"``, ``"float"``, ``"int"``, ``"float2"``, ``"float3"``, ``"float4"`` or ``""``.
 
     Empty means "do not offer an editor". Writing a value whose type we have
     not confirmed is how a tool turns a readable file into a broken one.
@@ -181,8 +189,8 @@ def editable_kind(type_name: str, raw: bytes) -> str:
         return "float"
     if name == "double" and size == 8:
         return "float"
-    if name == "float3" and size == 12:
-        return "float3"
+    if name in _VECTORS and size == 4 * _VECTORS[name]:
+        return name
     code = _UNSIGNED.get(name) or _SIGNED.get(name)
     if code and size == struct.calcsize(f"<{code}"):
         return "int"
@@ -217,11 +225,12 @@ def encode_value(type_name: str, raw: bytes, value: object) -> bytes:
         return bytes([1 if value else 0])
     if kind == "float":
         return struct.pack("<f" if len(data) == 4 else "<d", float(value))  # type: ignore[arg-type]
-    if kind == "float3":
-        triple = tuple(float(item) for item in value)  # type: ignore[union-attr]
-        if len(triple) != 3:
-            raise ValueError("float3 needs exactly three numbers")
-        return struct.pack("<3f", *triple)
+    if kind in _VECTORS:
+        count = _VECTORS[kind]
+        values = tuple(float(item) for item in value)  # type: ignore[union-attr]
+        if len(values) != count:
+            raise ValueError(f"{kind} needs exactly {count} numbers")
+        return struct.pack(f"<{count}f", *values)
     limits = value_limits(name)
     number = int(value)  # type: ignore[arg-type]
     if limits and not (limits[0] <= number <= limits[1]):
@@ -239,8 +248,8 @@ def decode_value(type_name: str, raw: bytes) -> object:
         return bool(data[0])
     if kind == "float":
         return struct.unpack("<f" if len(data) == 4 else "<d", data)[0]
-    if kind == "float3":
-        return struct.unpack("<3f", data)
+    if kind in _VECTORS:
+        return struct.unpack(f"<{_VECTORS[kind]}f", data)
     if kind == "int":
         code = _UNSIGNED.get(name) or _SIGNED.get(name)
         return struct.unpack(f"<{code}", data)[0]
@@ -249,6 +258,24 @@ def decode_value(type_name: str, raw: bytes) -> object:
 
 def _round(values: tuple[float, ...], places: int = 3) -> str:
     return ", ".join(f"{value:g}" for value in (round(v, places) for v in values))
+
+
+def array_elements(type_name: str, raw: bytes) -> tuple[tuple[str, int, bytes], ...]:
+    """``(element type, byte offset within raw, element bytes)`` for a fixed array.
+
+    Empty unless the type is ``X[]`` with ``X`` of a known width that divides
+    the stored bytes exactly. Each element is then a value of its own, written
+    in place without moving anything.
+    """
+    name = str(type_name or "")
+    data = bytes(raw or b"")
+    if not name.endswith("[]"):
+        return ()
+    element = name[:-2]
+    size = _ELEMENT_SIZES.get(element)
+    if not size or not data or len(data) % size:
+        return ()
+    return tuple((element, start, data[start : start + size]) for start in range(0, len(data), size))
 
 
 def describe_value(type_name: str, raw: bytes) -> str:
@@ -276,8 +303,8 @@ def describe_value(type_name: str, raw: bytes) -> str:
         return f"{struct.unpack('<f', data)[0]:g}"
     if name == "double" and len(data) == 8:
         return f"{struct.unpack('<d', data)[0]:g}"
-    if name == "float3" and len(data) == 12:
-        return f"({_round(struct.unpack('<3f', data))})"
+    if name in _VECTORS and len(data) == 4 * _VECTORS[name]:
+        return f"({_round(struct.unpack(f'<{_VECTORS[name]}f', data))})"
     code = _UNSIGNED.get(name) or _SIGNED.get(name)
     if code and len(data) == struct.calcsize(f"<{code}"):
         return str(struct.unpack(f"<{code}", data)[0])
@@ -289,15 +316,16 @@ def describe_value(type_name: str, raw: bytes) -> str:
 __all__ = [
     "POLE_PITCH_DEGREES",
     "Placement",
-    "degrees_to_rotation",
+    "array_elements",
     "decode_value",
+    "degrees_to_rotation",
     "describe_value",
     "editable_kind",
     "encode_value",
     "is_near_pole",
     "placement_space",
-    "value_limits",
     "read_placement",
     "rotation_degrees",
+    "value_limits",
     "write_placement",
 ]

@@ -1629,7 +1629,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
         "Average FPS",
         "Active/hover color",
         "Click anywhere on the body to create a socket at that spot.",
-        "socket in use",
+        "attach point in use",
         "Updating app colors and preview panes...",
         "No Matching Topics",
         (
@@ -1763,7 +1763,7 @@ def test_generated_manifest_records_expected_origins() -> None:
     )
     assert any(
         origin["sink"] == "translate_active_ui_text"
-        for origin in entries["socket in use"]["origins"]
+        for origin in entries["attach point in use"]["origins"]
     )
     assert entries["Updating app colors and preview panes..."]["manual"] is True
     assert entries["No Matching Topics"]["manual"] is True

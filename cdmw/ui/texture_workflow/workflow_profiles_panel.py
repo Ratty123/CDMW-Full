@@ -128,8 +128,13 @@ class TextureWorkflowProfilesPanelMixin:
             rule.intermediate_value or "",
         )
 
-    def _refresh_workflow_profile_ncnn_model_combo(self) -> None:
-        current_value = self._combo_value(self.workflow_profile_ncnn_model_combo)
+    def _refresh_workflow_profile_ncnn_model_combo(self, preferred_value: Optional[str] = None) -> None:
+        # The profile being shown names its own model; it may not be in the list yet.
+        current_value = (
+            self._combo_value(self.workflow_profile_ncnn_model_combo)
+            if preferred_value is None
+            else str(preferred_value or "").strip()
+        )
         models = (
             [self.ncnn_model_combo.itemData(index) for index in range(self.ncnn_model_combo.count())]
             if self.chainner_section.is_body_built()
@@ -298,7 +303,7 @@ class TextureWorkflowProfilesPanelMixin:
                 self.workflow_profile_custom_height_spin.setValue(2048)
                 self._set_combo_by_value(self.workflow_profile_mip_combo, "")
                 self.workflow_profile_custom_mip_spin.setValue(1)
-                self._refresh_workflow_profile_ncnn_model_combo()
+                self._refresh_workflow_profile_ncnn_model_combo("")
                 self._set_combo_by_value(self.workflow_profile_ncnn_scale_combo, "")
                 self.workflow_profile_ncnn_tile_override_checkbox.setChecked(False)
                 self.workflow_profile_ncnn_tile_spin.setValue(max(0, direct_tile_size))
@@ -322,8 +327,7 @@ class TextureWorkflowProfilesPanelMixin:
                     self.workflow_profile_custom_mip_spin.setValue(int(mip_value))
                 else:
                     self._set_combo_by_value(self.workflow_profile_mip_combo, mip_value)
-                self._refresh_workflow_profile_ncnn_model_combo()
-                self._set_combo_by_value(self.workflow_profile_ncnn_model_combo, profile.ncnn_model_name)
+                self._refresh_workflow_profile_ncnn_model_combo(profile.ncnn_model_name)
                 self._set_combo_by_value(
                     self.workflow_profile_ncnn_scale_combo,
                     str(profile.ncnn_scale) if profile.ncnn_scale is not None else "",

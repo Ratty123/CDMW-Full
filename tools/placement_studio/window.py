@@ -6,9 +6,10 @@ the same widget tree, so there is one implementation to keep working.
 Asset preparation runs separately from the UI in the embedded and standalone application.
 The viewport draws its own geometry rather than driving a helper process.
 
-Panes: a tree (bones -> sockets -> parts), a projected viewport with the body and placed weapon,
-an edit panel, and an inspector answering the question the manual workflow keeps asking —
-*what else moves if I change this?*
+The view takes the left of the window and a column of task tabs the right: Position,
+Animations, Armour, Your mod, Advanced and Help (see `window_tasks.py` for why it is laid out
+by task). The attach-point tree and the inspector answering *what else moves if I change
+this?* are under Advanced.
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
     QPlainTextEdit,
@@ -46,6 +46,7 @@ from .glossary import as_html as glossary_html, tip
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
+from .window_animation_editor import AnimationEditorMixin
 from .window_loading import StudioLoadingMixin
 from .window_editing import EditPanelMixin
 from .window_armour import ArmourPickerMixin
@@ -55,6 +56,8 @@ from .window_constraints import SecondaryMotionMixin
 from .window_playback import PlaybackMixin
 from .window_rig_behaviour import RigBehaviourMixin
 from .window_rig_tabs import RigTabsMixin
+from .window_save import SaveModMixin
+from .window_tasks import TaskPanelMixin
 
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
@@ -111,14 +114,14 @@ fit_popup = _fit_popup
 class PlacementStudioWindow(
     StudioLoadingMixin, EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
     CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
-    RigTabsMixin, QMainWindow
+    RigTabsMixin, TaskPanelMixin, SaveModMixin, AnimationEditorMixin, QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
     def __init__(self, baseline: Baseline, parent: Optional[QWidget] = None, *,
                  background_loading: bool = False, resident_source=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Placement & Animation Studio")
+        self.setWindowTitle("Placement & Animations")
         self.resize(1360, 860)
 
         self._baseline = baseline
@@ -193,8 +196,8 @@ class PlacementStudioWindow(
         self._weapon_box = QComboBox()
         self._weapon_box.setProperty("_i18n_composed_labels", True)
         self._weapon_box.setToolTip(
-            tip("Part", "Choosing a weapon here loads its own attachment points, which is "
-                        "what lets it be aimed once you move it.")
+            "The weapon to show and work on. Its own attach points come with it, which is what "
+            "lets it be aimed once you move it."
         )
         self._weapon_box.currentIndexChanged.connect(self._on_weapon_changed)
 
@@ -202,19 +205,19 @@ class PlacementStudioWindow(
         self._show_bones.setToolTip("Draw the skeleton the character is built on.")
         self._show_bones.setChecked(True)
         self._show_labels = QCheckBox("Labels")
-        self._show_labels.setToolTip("Name each attachment point in the viewport.")
+        self._show_labels.setToolTip("Name each attach point in the view.")
         self._show_labels.setChecked(True)
         self._show_unused = QCheckBox("Unused sockets")
         self._show_unused.setToolTip(
-            "Also show attachment points that nothing is currently hanging on — the spare "
-            "places you could move something to."
+            "Also show attach points nothing hangs on yet: the spare places you could move "
+            "something to."
         )
         # Off by default: they are the spare places you *could* move something to, and a
         # couple of them (a fishing-bobber start, a docking anchor) sit metres off the body
         # with a leader line back to it, which reads as geometry going wrong.
         self._show_unused.setChecked(False)
         self._show_meshes = QCheckBox("Meshes")
-        self._show_meshes.setToolTip("Draw the actual body and item shapes, not just bones.")
+        self._show_meshes.setToolTip("Draw the body, its gear and the weapon, not just bones.")
         self._show_meshes.setChecked(True)
         self._solid_body = QCheckBox("Solid")
         self._solid_body.setToolTip(
@@ -229,85 +232,37 @@ class PlacementStudioWindow(
         # one that shows both.
         self._mesh_role_box.addItem("in hand (held)", "held")
         self._mesh_role_box.addItem("put away (stowed)", "stowed")
-        self._mesh_role_box.currentIndexChanged.connect(lambda _i: self._refresh_meshes())
+        self._mesh_role_box.currentIndexChanged.connect(self._on_role_changed)
 
         # The part being worked on. Reachable in the tree too, but the tree groups by parent
         # bone, so finding one row of 71 meant knowing which bone carried it first.
         self._part_box = QComboBox()
         self._part_box.setProperty("_i18n_composed_labels", True)
-        self._part_box.setToolTip(tip("Part"))
+        self._part_box.setToolTip(tip("Slot"))
         self._part_box.setMinimumWidth(230)
         self._part_box.currentIndexChanged.connect(self._on_part_box_changed)
 
-        self._clipping_label = QLabel("sinks into body: not measured")
+        self._clipping_label = QLabel("Sinks into the body: not measured yet")
         self._clipping_label.setObjectName("HintLabel")
-        self._measure_clipping_button = QPushButton("Check Fit/Clipping")
+        self._clipping_label.setWordWrap(True)
+        self._measure_clipping_button = QPushButton("Check for clipping")
         self._measure_clipping_button.setToolTip(
-            tip("Clipping", "Checks this frame only. Press it again after moving the item "
-                            "or scrubbing to a different pose.")
+            tip("Clipping", "Checks the pose on screen only. Press it again after moving the "
+                            "item or choosing another moment of an animation.")
         )
         self._measure_clipping_button.clicked.connect(self._request_clipping)
 
-        carry_box, history_button, carry_swap, carry_status = self._build_carry_controls()
-
-        # Two rows, not one. What is being edited goes on top; how it is displayed goes
-        # underneath. On one row these controls asked for a 2,522 px window before anything
-        # else was laid out, which is wider than the monitors this runs on.
-        header = QWidget()
-        header_rows = QVBoxLayout(header)
-        header_rows.setContentsMargins(8, 6, 8, 4)
-        header_rows.setSpacing(4)
-
-        subject = QHBoxLayout()
-        subject.addWidget(QLabel("Character:"))
-        subject.addWidget(self._model_box, 2)
-        subject.addSpacing(12)
-        subject.addWidget(QLabel("Weapon:"))
-        subject.addWidget(self._weapon_box, 3)
-        subject.addSpacing(12)
-        subject.addWidget(QLabel("Part:"))
-        subject.addWidget(self._part_box, 3)
-        subject.addSpacing(12)
-        subject.addWidget(QLabel("Hangs on:"))
-        subject.addWidget(carry_box, 2)
-        header_rows.addLayout(subject)
-
-        display = QHBoxLayout()
-        # The two animation actions sit on the second row: the first is already five controls
-        # wide, and adding them there pushed the window minimum past a 1600 px monitor.
-        display.addWidget(carry_swap)
-        display.addWidget(history_button)
-        display.addSpacing(16)
-        display.addWidget(QLabel("Show:"))
-        display.addWidget(self._mesh_role_box)
-        display.addSpacing(12)
-        for box in (
-            self._show_bones,
-            self._show_labels,
-            self._show_unused,
-            self._show_meshes,
-            self._solid_body,
-        ):
-            display.addWidget(box)
-        display.addStretch(1)
-        display.addWidget(carry_status)
-        display.addSpacing(12)
-        display.addWidget(self._clipping_label)
-        display.addWidget(self._measure_clipping_button)
-        header_rows.addLayout(display)
-
+        self._build_carry_controls()
         fit_popup(self._mesh_role_box)
         _let_header_shrink(
             combos=(
                 self._model_box, self._weapon_box, self._part_box,
                 self._carry_box, self._mesh_role_box,
             ),
-            labels=(self._clipping_label, carry_status),
-            buttons=(self._measure_clipping_button,),
         )
 
         self._tree = QTreeWidget()
-        self._tree.setHeaderLabels(["Socket / Part", "Detail"])
+        self._tree.setHeaderLabels(["Attach point / Slot", "Detail"])
         self._tree.setColumnWidth(0, 300)
         self._tree.setAlternatingRowColors(True)
         self._tree.currentItemChanged.connect(self._on_tree_selection)
@@ -328,61 +283,61 @@ class PlacementStudioWindow(
         self._diff_view = QTextBrowser()
         self._diff_view.setFont(mono)
 
-        self._lower = QTabWidget()
-        self._lower.addTab(self._inspector, "Inspector")
-        self._lower.setTabToolTip(0, "What else moves if you change the selected socket.")
-        self._lower.addTab(self._build_animation_tab(mono), "Clips && animation")
-        self._lower.setTabToolTip(1, "Find a motion clip and play it on the character.")
-        self._lower.addTab(self._build_armour_tab(), "Armour")
-        self._lower.setTabToolTip(2, "Dress the character, to check an item against real gear.")
-        self._lower.addTab(self._build_secondary_motion_tab(), "Driven bones")
-        self._lower.setTabToolTip(
-            3,
-            "Bones that follow other bones: muscle bulge, joint creasing, and the few "
-            "jiggle chains. The viewport cannot show it; the game solves it at runtime.",
-        )
-        self._lower.addTab(self._build_rig_behaviour_tab(), "Rig behaviour")
-        self._lower.setTabToolTip(
-            4,
-            "Pose-modifier settings the game actually runs: look-at ranges, spine lag, "
-            "IK reach, vehicle suspension. Keyed by skeleton.",
-        )
-        self._lower.addTab(self._diff_view, "Pending changes")
-        self._lower.setTabToolTip(5, tip("Pending changes"))
-        self._lower.addTab(self._build_help_tab(), "Help")
-        self._lower.setTabToolTip(6, "What the words mean, and how to move a weapon.")
+        self._build_edit_controls()
+        header = self._build_header()
 
-        # Both rig tabs need a four-second archive walk, so they load when first opened
+        self._lower = QTabWidget()
+        self._lower.addTab(self._build_position_tab(), "Position")
+        self._lower.setTabToolTip(0, "Where the item is carried, and fine-tuning its position.")
+        self._lower.addTab(self._build_animation_tab(), "Animations")
+        self._lower.setTabToolTip(1, "Give the weapon other animations, and watch any clip.")
+        self._lower.addTab(self._build_animation_editor_tab(), "Edit animation")
+        self._lower.setTabToolTip(
+            2, "Change an animation or make a new one: pose bones, reach and plant hands and "
+               "feet, retime, mirror, borrow body parts, join animations, or work in Blender.")
+        self._lower.addTab(self._build_armour_tab(), "Armour")
+        self._lower.setTabToolTip(3, "Dress the character, to check an item against real gear.")
+        self._lower.addTab(self._build_mod_tab(), "Your mod")
+        self._lower.setTabToolTip(4, "Every change, and saving them as a mod for DMM.")
+        self._lower.addTab(self._build_advanced_tab(mono), "Advanced")
+        self._lower.setTabToolTip(
+            5, "Attach points, Driven bones, Rig behaviour, action charts and file changes.")
+        self._lower.addTab(self._build_help_tab(), "Help")
+        self._lower.setTabToolTip(6, "Getting started, and what the words mean.")
+
+        # Both rig panels need a four-second archive walk, so they load when first opened
         # rather than at startup, and re-target whenever the character changes.
-        self._init_rig_tabs()
+        self._init_rig_tabs(
+            {"constraints": self._constraints_page, "behaviour": self._behaviour_page},
+            (self._lower, self._advanced_tabs),
+        )
         # The clip index is deferred the same way, and for the same reason.
         self._init_clip_tab()
+        self._init_animation_editor()
 
-        # Viewport and the edit strip stack; the tabs get their own full-height column.
-        # Sharing the vertical space left the Animation tab a few rows tall, which is not
-        # enough for a clip browser, a socket-clip list and a chart dump side by side.
-        centre = QSplitter(Qt.Vertical)
-        centre.addWidget(self._viewport)
-        centre.addWidget(self._build_edit_panel())
-        centre.setChildrenCollapsible(False)
-        centre.setSizes([640, 150])
+        # The view, what it draws, and the clip playing in it, stacked in one column.
+        centre = QWidget()
+        centre_layout = QVBoxLayout(centre)
+        centre_layout.setContentsMargins(0, 0, 0, 0)
+        centre_layout.setSpacing(0)
+        centre_layout.addWidget(self._viewport, 1)
+        centre_layout.addWidget(self._build_view_strip())
+        playback = self._build_playback_row()
+        playback.setContentsMargins(8, 2, 8, 4)
+        centre_layout.addWidget(playback)
 
-        # Minimum widths, not just initial sizes: without them the tree collapsed to its
-        # expander arrows and the tab column squeezed three panes into unreadable slivers
-        # whenever the window was resized.
-        self._tree.setMinimumWidth(240)
-        centre.setMinimumWidth(520)
-        self._lower.setMinimumWidth(420)
+        # Minimum widths, not just initial sizes: without them the panes collapsed into
+        # unreadable slivers whenever the window was resized.
+        centre.setMinimumWidth(480)
+        self._lower.setMinimumWidth(440)
 
         body = QSplitter(Qt.Horizontal)
-        body.addWidget(self._tree)
         body.addWidget(centre)
         body.addWidget(self._lower)
         body.setChildrenCollapsible(False)
-        body.setSizes([300, 900, 620])
-        body.setStretchFactor(0, 0)
-        body.setStretchFactor(1, 3)
-        body.setStretchFactor(2, 1)
+        body.setSizes([900, 560])
+        body.setStretchFactor(0, 3)
+        body.setStretchFactor(1, 2)
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -407,6 +362,11 @@ class PlacementStudioWindow(
         reset.triggered.connect(self._viewport.reset_view)
         self.addAction(reset)
 
+    def _on_role_changed(self, _index: int) -> None:
+        """In hand or put away: redraw, and point Fine-tune at the matching attach point."""
+
+        self._refresh_meshes()
+        self._auto_select_attach_point(force=True)
 
     def _load_models(self) -> None:
         if self._background_loading:
@@ -459,6 +419,10 @@ class PlacementStudioWindow(
         self._refresh_edit_panel()
         self._refresh_animation()
         self._sync_rig_tabs()
+        self._editor_follow_character()
+        # A new weapon starts from the default choice of point again.
+        self._adjust_explicit = False
+        self._auto_select_attach_point(force=True)
         self._report_status()
 
     # ── part selection ──────────────────────────────────────────────
@@ -527,6 +491,7 @@ class PlacementStudioWindow(
         # The carry control follows the part, not the other way round.
         if hasattr(self, "_carry_box"):
             self._populate_carry_box()
+        self._auto_select_attach_point(force=True)
 
     def _sync_part_box(self, part_name: str) -> None:
         """Reflect a tree selection in the dropdown without re-entering its handler."""
@@ -1067,12 +1032,12 @@ class PlacementStudioWindow(
         # A broken proxy outranks the clipping number, because the number is derived from it and
         # would otherwise read as a confident "no clipping".
         if self._body_problems:
-            text = "body proxy: " + "; ".join(self._body_problems[:2])
+            text = "Body could not be measured: " + "; ".join(self._body_problems[:2])
             health_state = "stale"
         else:
             report = self._clipping_report
             if report is None:
-                text = "sinks into body: press Check Fit/Clipping"
+                text = "Sinks into the body: press Check for clipping"
                 health_state = ""
             else:
                 subject = self._selected_part or "CD_MainWeapon_Sword_R"
@@ -1095,15 +1060,21 @@ class PlacementStudioWindow(
 
         if self._session is None:
             return
-        report = self._session.report()
         message = (
-            "Pick a Part, then change where it is carried — the Help tab explains the words.  "
-            f"|  {self._session.summary()}  |  {report.resolved_count}/{len(report.bindings)} "
-            f"rows fully resolved"
+            "Choose where the weapon is carried on the Position tab, change its animations on "
+            "the Animations tab, then save it under Your mod. Help explains every step."
         )
-        if self._session.warnings:
-            message += f"  |  {len(self._session.warnings)} warning(s)"
+        note = getattr(self._baseline, "note", "")
+        if note:
+            message = f"{note}  {message}"
         self.statusBar().showMessage(message)
+        # The counts are for whoever is checking the rig, not for someone starting out.
+        report = self._session.report()
+        detail = (f"{self._session.summary()}\n{report.resolved_count}/{len(report.bindings)} "
+                  f"slots fully resolved")
+        if self._session.warnings:
+            detail += f"\n{len(self._session.warnings)} warning(s)"
+        self.statusBar().setToolTip(detail)
 
     # ── tree ────────────────────────────────────────────────────────
 
@@ -1188,7 +1159,6 @@ class PlacementStudioWindow(
             self._viewport.set_selected(socket_name)
             self._viewport.set_attachments({})
             self._inspector.setHtml(inspector_html(self._describe_socket(socket_name)))
-            self._lower.setCurrentIndex(0)
             self._update_gizmo_anchor()
         elif part_name:
             self._selected_part = part_name
@@ -1248,7 +1218,12 @@ def launch(baseline: Optional[Baseline] = None) -> int:
     from PySide6.QtWidgets import QApplication
     from cdmw.ui.display_scaling import ensure_app_display_scaling
 
-    resolved = baseline if baseline is not None else Baseline.load()
+    if baseline is not None:
+        resolved = baseline
+    else:
+        from .corpus import refresh_baseline
+
+        resolved = refresh_baseline(Baseline.load(), on_log=print).baseline
     app = QApplication.instance() or QApplication(sys.argv)
     ensure_app_display_scaling(app)
     window = PlacementStudioWindow(resolved, background_loading=True)

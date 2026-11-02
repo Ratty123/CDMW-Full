@@ -28,7 +28,6 @@ character's settings is the one outcome worth going out of the way to prevent.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt
@@ -56,7 +55,6 @@ from .rig_behaviour import (
     apply_edit,
     apply_scale,
     describe_changes,
-    export_packages,
     load_rig_behaviour,
     pab_for_model,
 )
@@ -195,39 +193,19 @@ class RigBehaviourMixin:
         return panel
 
     def _build_behaviour_export(self) -> QWidget:
-        """Name, author and the button on one line, as in Driven bones.
+        """What is pending, and where it goes; saved from Your mod like everything else."""
 
-        A row per field cost about 200px of panel height for two text boxes; placeholders
-        carry the labels instead.
-        """
-
-        box = QGroupBox("Export as a mod")
+        box = QGroupBox("Your changes here")
         layout = QVBoxLayout(box)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(4)
         self._behaviour_pending = QLabel("No changes.")
         self._behaviour_pending.setWordWrap(True)
         layout.addWidget(self._behaviour_pending)
-
-        row = QHBoxLayout()
-        self._behaviour_name = QLineEdit("Rig behaviour tweak")
-        self._behaviour_name.setPlaceholderText("Mod name")
-        self._behaviour_name.setToolTip("Mod name, as the mod manager will list it.")
-        row.addWidget(self._behaviour_name, 3)
-        self._behaviour_author = QLineEdit()
-        self._behaviour_author.setPlaceholderText("Author")
-        self._behaviour_author.setToolTip("Your name, written into the package metadata.")
-        row.addWidget(self._behaviour_author, 2)
-        self._behaviour_export = QPushButton("Build")
-        self._behaviour_export.setToolTip("Write one package per supported mod manager.")
-        self._behaviour_export.setEnabled(False)
-        self._behaviour_export.clicked.connect(self._on_behaviour_export_clicked)
-        row.addWidget(self._behaviour_export)
-        layout.addLayout(row)
-
-        self._behaviour_export_note = QLabel("")
-        self._behaviour_export_note.setWordWrap(True)
-        layout.addWidget(self._behaviour_export_note)
+        note = QLabel("Saved together with your other changes: open Your mod and choose Save as mod.")
+        note.setObjectName("HintLabel")
+        note.setWordWrap(True)
+        layout.addWidget(note)
         return box
 
     # ------------------------------------------------------------------ loading
@@ -240,6 +218,10 @@ class RigBehaviourMixin:
         nothing.
         """
 
+        if self.rig_behaviour_changes() and label != getattr(self, "_behaviour_shown_label", ""):
+            # Reloading the descriptor resets it; say so rather than losing the edits quietly.
+            self.statusBar().showMessage(
+                "Rig behaviour changes made before switching character were discarded")
         self._behaviour_shown_label = label
         if not rig_files.pose_modifier:
             self._behaviour_header.setText(_NO_DESCRIPTOR.format(path=GAME_PATH))
@@ -424,33 +406,19 @@ class RigBehaviourMixin:
             else f"{len(lines)} change(s): " + "; ".join(lines[:4])
             + ("..." if len(lines) > 4 else "")
         )
-        self._behaviour_export.setEnabled(bool(lines))
+        refresh = getattr(self, "_refresh_mod_list", None)
+        if refresh is not None:
+            refresh()
+
+    def rig_behaviour_changes(self) -> tuple:
+        """Plain lines for the Your mod list, empty when nothing changed."""
+
+        rig = getattr(self, "_behaviour", None)
+        base = getattr(self, "_behaviour_original", None)
+        return tuple(describe_changes(base, rig)) if rig and base else ()
 
     # ------------------------------------------------------------------- export
 
     def rig_behaviour_mod_files(self) -> dict:
-        rig = self._behaviour
+        rig = getattr(self, "_behaviour", None)
         return dict(rig.changed()) if rig else {}
-
-    def export_rig_behaviour_mod(self, out_root) -> str:
-        rig = self._behaviour
-        if rig is None or not rig.changed():
-            return "Nothing to export: the descriptor is unchanged."
-        try:
-            results = export_packages(
-                rig,
-                out_root=Path(out_root),
-                name=self._behaviour_name.text().strip() or "Rig behaviour tweak",
-                author=self._behaviour_author.text().strip(),
-            )
-        except Exception as error:  # noqa: BLE001
-            return f"Export failed: {error}"
-        return f"Wrote {len(results)} package(s) to {out_root}"
-
-    def _on_behaviour_export_clicked(self) -> None:
-        from PySide6.QtWidgets import QFileDialog
-
-        out_root = QFileDialog.getExistingDirectory(None, "Where should the packages go?")
-        if not out_root:
-            return
-        self._behaviour_export_note.setText(self.export_rig_behaviour_mod(out_root))

@@ -11,6 +11,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QTreeWidgetItem
 
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.model_library_service import ModelLibraryService
 from cdmw.workers.model_library_rows import (
     ModelLibraryPreparedRowsResult,
@@ -95,9 +96,22 @@ class ModelLibraryActionsMixin:
         if path.is_dir():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
+    def _defer_results_action_while_busy(self, action: Callable[[], None]) -> bool:
+        """Queue a scan or search behind the current task; True when deferred.
+
+        A results task (row preparation, scan, search) is superseded and
+        cancelled. Any other task finishes first. Refusing instead left a
+        cleared filter or a new query on screen with stale rows under it.
+        """
+        if self._task_thread is None:
+            return False
+        self._queued_results_action = action
+        if self._results_task_kind in {"population", "scan", "search"} and self._results_task_stop_event is not None:
+            self._results_task_stop_event.set()
+        return True
+
     def scan_local_roots(self) -> None:
-        if self._task_thread is not None and self._task_thread.isRunning():
-            self._set_status("A model library task is already running.", error=True)
+        if self._defer_results_action_while_busy(self.scan_local_roots):
             return
         self._set_active_results_view("local")
         roots = list(self.local_roots)
@@ -126,6 +140,10 @@ class ModelLibraryActionsMixin:
                     service=self.model_library_service,
                 )
             )
+            rows = list(rows)
+            # The scanner returns what it found so far when stopped; a partial
+            # list must not replace the library as if it were complete.
+            raise_if_cancelled(stop_event, "Model Library row preparation cancelled.")
             prepared_request = replace(
                 request,
                 rows=freeze_model_library_rows(rows, stop_event=stop_event),
@@ -157,6 +175,11 @@ class ModelLibraryActionsMixin:
             self._update_catalogue_status()
 
     def build_mirror_index(self) -> None:
+        if self._task_thread is not None:
+            # Checked before claiming the stop event, which would leave the
+            # running task uncancellable once _run_task refused this one.
+            self._set_status("A model library task is already running.", error=True)
+            return
         self._save_mirror_settings()
         self._stop_event = threading.Event()
         try:
@@ -178,6 +201,8 @@ class ModelLibraryActionsMixin:
             self._stop_event = None
             return
 
+        stop_event = self._stop_event
+
         def task(progress: Callable[[str], None]) -> object:
             return build_mirror_catalogue_index(
                 service=self.model_library_service,
@@ -190,7 +215,7 @@ class ModelLibraryActionsMixin:
                 creator_excludes=creator_excludes,
                 required_format=format_filter,
                 clear_existing=index_current_search,
-                stop_event=self._stop_event,
+                stop_event=stop_event,
                 on_progress=lambda _current, _total, message: progress(message),
             )
 
@@ -213,7 +238,12 @@ class ModelLibraryActionsMixin:
             else:
                 self._set_status("Mirror catalogue index finished.")
 
-        self._run_task("Building mirror metadata index...", task, complete)
+        def handle_error(message: str) -> None:
+            # A cancelled build keeps the pages it committed; show what is there now.
+            self._update_catalogue_status()
+            self._set_status(message, error=True)
+
+        self._run_task("Building mirror metadata index...", task, complete, error_handler=handle_error)
 
     def cancel_current_task(self) -> None:
         if self._stop_event is not None:
@@ -221,12 +251,13 @@ class ModelLibraryActionsMixin:
             self._set_status("Cancelling current model library task...")
 
     def search_mirror(self, *, query_override: Optional[str] = None) -> None:
-        if self._task_thread is not None and self._task_thread.isRunning():
-            self._set_status("A model library task is already running.", error=True)
+        if self._defer_results_action_while_busy(lambda: self.search_mirror(query_override=query_override)):
             return
         self._set_active_results_view("mirror")
         self._save_mirror_settings()
-        query = self.search_edit.text().strip() if query_override is None else str(query_override)
+        # Enter and Search apply the typed text before calling this; any other
+        # refresh keeps the last submitted query rather than an unsent draft.
+        query = self.applied_results_query() if query_override is None else str(query_override)
         if query_override is None:
             self.settings.setValue("model_library/search_query", query)
         db_path = self.catalogue_db_path()
