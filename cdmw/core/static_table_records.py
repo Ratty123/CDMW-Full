@@ -157,9 +157,17 @@ def _resolved_shape(op):
     return op
 
 
+def root_ops(kind):
+    """The table root's operations, stepping through a root that only calls another reader."""
+    op = READERS[TABLE_READERS[kind]]
+    while op[0] == "seq" and len(op) == 2 and op[1][0] == "call":
+        op = READERS[op[1][1]]
+    return op[1:] if op[0] == "seq" else (op,)
+
+
 def _top_level_shapes(kind):
     shapes = {}
-    for op in READERS[TABLE_READERS[kind]][1:]:
+    for op in root_ops(kind):
         if op[0] == "field":
             shapes.setdefault(op[2], _resolved_shape(op[3]))
     return shapes
@@ -206,7 +214,8 @@ def decode_static_table(kind: str, header: bytes, body: bytes) -> StaticTable:
     for directory, start, end in spans:
         try:
             record = decode_record(kind, body[start:end], start=start, key_width=table.key_width)
-            if record.key != directory.row_id:
+            # Composite-key tables keep only the leading u32 in row_id.
+            if record.key != int.from_bytes(directory.key or directory.row_id.to_bytes(table.key_width, "little"), "little"):
                 raise RecordError("The row's inline key differs from its directory key.")
         except (RecordError, StaticTableError, UnicodeDecodeError) as exc:
             refused.append((directory.row_id, str(exc)))
@@ -300,5 +309,6 @@ __all__ = [
     "decode_static_table",
     "require_same_archive",
     "require_table_kind",
+    "root_ops",
     "table_kind_for_stem",
 ]

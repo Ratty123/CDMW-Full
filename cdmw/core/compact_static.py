@@ -14,6 +14,7 @@ _RECORD_LIMITS = {
     "conditioninfo": (65536, 1_000_000),
     "gimmickinfo": (1 << 20, 4_000_000),
     "gimmickgroupinfo": (1 << 20, 4_000_000),
+    "factionnodespawninfo": (1 << 20, 4_000_000),
 }
 _DEFAULT_LIMITS = (65536, 200000)
 # Condition logic nests AND/OR/NOT nodes; each level costs about four walk levels

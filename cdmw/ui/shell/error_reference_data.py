@@ -72348,7 +72348,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 115
+      "cdmw/core/compact_static.py": 127
     }
   },
   {
@@ -72556,7 +72556,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 62
+      "cdmw/core/compact_static.py": 74
     }
   },
   {
@@ -74295,7 +74295,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 50
+      "cdmw/core/compact_static.py": 62
     }
   },
   {
@@ -74303,7 +74303,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 28
+      "cdmw/core/compact_static.py": 39
     }
   },
   {
@@ -75395,7 +75395,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit of row {key} changed bytes outside its fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 277
+      "cdmw/core/static_table_records.py": 292
     }
   },
   {
@@ -76917,7 +76917,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 44
+      "cdmw/core/compact_static.py": 56
     }
   },
   {
@@ -77566,7 +77566,7 @@ MESSAGE_REFERENCE = [
     "message": "Inventory {key}: default slots exceed the maximum.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/static_table_records.py": 271
+      "cdmw/core/static_table_records.py": 286
     }
   },
   {
@@ -78648,7 +78648,7 @@ MESSAGE_REFERENCE = [
     "message": "No edits were requested.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 245
+      "cdmw/core/static_table_records.py": 260
     }
   },
   {
@@ -82298,7 +82298,7 @@ MESSAGE_REFERENCE = [
     "message": "The row's inline key differs from its directory key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 204
+      "cdmw/core/static_table_records.py": 219
     }
   },
   {
@@ -82723,7 +82723,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 96
+      "cdmw/core/compact_static.py": 108
     }
   },
   {
@@ -82731,7 +82731,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 31
+      "cdmw/core/compact_static.py": 42
     }
   },
   {
@@ -83083,7 +83083,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 75
+      "cdmw/core/compact_static.py": 87
     }
   },
   {
@@ -83419,7 +83419,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 70
+      "cdmw/core/compact_static.py": 82
     }
   },
   {
@@ -83427,7 +83427,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 19
+      "cdmw/core/compact_static.py": 30
     }
   },
   {
@@ -87227,7 +87227,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 180
+      "cdmw/core/static_table_records.py": 194
     }
   },
   {
@@ -87235,7 +87235,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no editable fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 243
+      "cdmw/core/static_table_records.py": 258
     }
   },
   {
@@ -87243,7 +87243,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no row with key {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 255
+      "cdmw/core/static_table_records.py": 270
     }
   },
   {
@@ -87251,7 +87251,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 260
+      "cdmw/core/static_table_records.py": 275
     }
   },
   {
@@ -87259,7 +87259,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} is not an editable field.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 253
+      "cdmw/core/static_table_records.py": 268
     }
   },
   {
@@ -87555,7 +87555,7 @@ MESSAGE_REFERENCE = [
     "message": "{number} is outside {rule.minimum}-{rule.maximum}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 216
+      "cdmw/core/static_table_records.py": 231
     }
   },
   {
@@ -87923,7 +87923,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is not an integer.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 221
+      "cdmw/core/static_table_records.py": 236
     }
   },
   {
@@ -87931,7 +87931,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is outside {int(rule.minimum)}-{int(rule.maximum)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 223
+      "cdmw/core/static_table_records.py": 238
     }
   },
   {
