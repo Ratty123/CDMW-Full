@@ -5146,22 +5146,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 54,
+          "line": 80,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 71,
+          "line": 97,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 82,
+          "line": 108,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 92,
+          "line": 118,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -10436,7 +10436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 249,
+          "line": 256,
           "sink": "tr"
         }
       ]
@@ -11206,12 +11206,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 127,
+          "line": 133,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 244,
+          "line": 251,
           "sink": "tr"
         }
       ]
@@ -11381,12 +11381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 97,
+          "line": 99,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 115,
+          "line": 117,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -12866,7 +12866,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_provenance.py",
-          "line": 173,
+          "line": 175,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -12931,7 +12931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 534,
+          "line": 547,
           "sink": "append_archive_log"
         }
       ]
@@ -13366,12 +13366,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 155,
+          "line": 161,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 161,
+          "line": 167,
           "sink": "tr"
         }
       ]
@@ -14891,7 +14891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 378,
+          "line": 388,
           "sink": "tr"
         }
       ]
@@ -15511,7 +15511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 522,
+          "line": 535,
           "sink": "_add_menu_section"
         },
         {
@@ -17051,7 +17051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 471,
+          "line": 475,
           "sink": "_run"
         }
       ]
@@ -20056,7 +20056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 605,
+          "line": 618,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -21081,7 +21081,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 224,
+          "line": 238,
           "sink": "progress"
         }
       ]
@@ -21916,7 +21916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 248,
+          "line": 255,
           "sink": "tr"
         }
       ]
@@ -24646,7 +24646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 488,
+          "line": 492,
           "sink": "setText"
         }
       ]
@@ -26231,12 +26231,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 430,
+          "line": 434,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 357,
+          "line": 367,
           "sink": "tr"
         }
       ]
@@ -26321,7 +26321,7 @@
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 93,
+          "line": 162,
           "sink": "progress"
         }
       ]
@@ -26516,7 +26516,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 204,
+          "line": 218,
           "sink": "progress"
         }
       ]
@@ -26526,7 +26526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 448,
+          "line": 452,
           "sink": "_run"
         }
       ]
@@ -26571,7 +26571,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 406,
+          "line": 416,
           "sink": "tr"
         }
       ]
@@ -33226,7 +33226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 436,
+          "line": 440,
           "sink": "_run"
         }
       ]
@@ -33541,7 +33541,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 114,
+          "line": 100,
           "sink": "progress"
         }
       ]
@@ -34381,7 +34381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 379,
+          "line": 389,
           "sink": "tr"
         }
       ]
@@ -35141,7 +35141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 562,
+          "line": 575,
           "sink": "set_status_message"
         }
       ]
@@ -35331,7 +35331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 558,
+          "line": 571,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -37151,7 +37151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 514,
+          "line": 527,
           "sink": "setToolTip"
         }
       ]
@@ -37741,7 +37741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 441,
+          "line": 451,
           "sink": "tr"
         }
       ]
@@ -42346,12 +42346,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 154,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 251,
+          "line": 258,
           "sink": "tr"
         },
         {
@@ -42521,7 +42521,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 226,
+          "line": 233,
           "sink": "tr"
         }
       ]
@@ -45556,7 +45556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 513,
+          "line": 526,
           "sink": "addAction"
         },
         {
@@ -47606,12 +47606,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 148,
+          "line": 154,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 161,
+          "line": 167,
           "sink": "tr"
         },
         {
@@ -47676,7 +47676,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 226,
+          "line": 233,
           "sink": "tr"
         }
       ]
@@ -49686,7 +49686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 254,
+          "line": 261,
           "sink": "tr"
         }
       ]
@@ -50036,7 +50036,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 568,
+          "line": 581,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -50106,7 +50106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 611,
+          "line": 624,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -50371,7 +50371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 599,
+          "line": 612,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -50406,7 +50406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 565,
+          "line": 578,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -50926,7 +50926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 41,
+          "line": 43,
           "sink": "getSaveFileName"
         }
       ]
@@ -50961,7 +50961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 523,
+          "line": 536,
           "sink": "addAction"
         }
       ]
@@ -51646,7 +51646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 70,
+          "line": 72,
           "sink": "set_status_message"
         }
       ]
@@ -52066,7 +52066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 72,
+          "line": 74,
           "sink": "_run_utility_task"
         }
       ]
@@ -52441,7 +52441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 161,
+          "line": 167,
           "sink": "tr"
         }
       ]
@@ -52591,7 +52591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 571,
+          "line": 584,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -52926,12 +52926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 580,
+          "line": 593,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 586,
+          "line": 599,
           "sink": "_run_archive_extract"
         }
       ]
@@ -54696,7 +54696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 593,
+          "line": 606,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -57971,7 +57971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 378,
+          "line": 388,
           "sink": "tr"
         }
       ]
@@ -58916,7 +58916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 155,
+          "line": 161,
           "sink": "tr"
         },
         {
@@ -59231,7 +59231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 495,
+          "line": 505,
           "sink": "tr"
         }
       ]
@@ -66246,12 +66246,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 84,
+          "line": 86,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 105,
+          "line": 107,
           "sink": "information"
         }
       ]
@@ -66281,7 +66281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 528,
+          "line": 541,
           "sink": "addAction"
         },
         {
@@ -71706,7 +71706,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 319,
+          "line": 329,
           "sink": "tr"
         }
       ]
@@ -72551,7 +72551,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 155,
+          "line": 161,
           "sink": "tr"
         }
       ]
@@ -72918,6 +72918,16 @@
           "path": "cdmw/ui/archive_browser/import_actions.py",
           "line": 32,
           "sink": "_start_current_archive_hkx_document_import"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 43,
+          "sink": "getSaveFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 86,
+          "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
@@ -73406,7 +73416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 227,
+          "line": 234,
           "sink": "tr"
         }
       ]
@@ -78766,12 +78776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 162,
+          "line": 168,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 229,
+          "line": 236,
           "sink": "tr"
         }
       ]
@@ -85101,7 +85111,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 149,
+          "line": 155,
           "sink": "tr"
         },
         {
@@ -85611,7 +85621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 370,
+          "line": 380,
           "sink": "tr"
         }
       ]
@@ -90056,22 +90066,22 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 150,
+          "line": 156,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 150,
+          "line": 156,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 152,
+          "line": 158,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 249,
+          "line": 256,
           "sink": "tr"
         },
         {
@@ -90791,7 +90801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 412,
+          "line": 413,
           "sink": "setText"
         }
       ]
@@ -95801,7 +95811,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 149,
+          "line": 155,
           "sink": "tr"
         }
       ]
@@ -98026,7 +98036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 552,
+          "line": 565,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -100091,7 +100101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 527,
+          "line": 531,
           "sink": "setText"
         }
       ]
@@ -103386,7 +103396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 377,
+          "line": 387,
           "sink": "tr"
         }
       ]
@@ -106041,12 +106051,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 249,
+          "line": 256,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 251,
+          "line": 258,
           "sink": "tr"
         },
         {
@@ -108041,7 +108051,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 968,
+          "line": 974,
           "sink": "log"
         }
       ]
@@ -109351,7 +109361,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 218,
+          "line": 232,
           "sink": "progress"
         }
       ]
@@ -110251,12 +110261,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 444,
+          "line": 448,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 341,
+          "line": 351,
           "sink": "tr"
         }
       ]
@@ -110656,7 +110666,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 987,
+          "line": 993,
           "sink": "add"
         }
       ]
@@ -110976,7 +110986,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 546,
+          "line": 559,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -114686,7 +114696,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 467,
+          "line": 477,
           "sink": "tr"
         }
       ]
@@ -117501,12 +117511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 54,
+          "line": 56,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 95,
+          "line": 97,
           "sink": "log"
         }
       ]
@@ -118036,7 +118046,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 128,
+          "line": 134,
           "sink": "tr"
         }
       ]
@@ -118657,16 +118667,6 @@
       ]
     },
     {
-      "key": "Rebuild this item as a DMM mod for the installed game and put it in DMM's mods folder.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 297,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Rebuilding Preview package...",
       "origins": [
         {
@@ -119036,7 +119036,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 268,
+          "line": 282,
           "sink": "progress"
         }
       ]
@@ -122291,7 +122291,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 222,
+          "line": 228,
           "sink": "tr"
         }
       ]
@@ -128126,7 +128126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 453,
+          "line": 457,
           "sink": "question"
         }
       ]
@@ -128146,7 +128146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 474,
+          "line": 478,
           "sink": "setText"
         }
       ]
@@ -128516,7 +128516,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 221,
+          "line": 235,
           "sink": "progress"
         }
       ]
@@ -129136,7 +129136,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 221,
+          "line": 227,
           "sink": "tr"
         }
       ]
@@ -134703,6 +134703,11 @@
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 251,
           "sink": "_collect_archive_mod_ready_export_target"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 125,
+          "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
     },
@@ -134986,7 +134991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 39,
+          "line": 41,
           "sink": "set_status_message"
         }
       ]
@@ -134996,7 +135001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 82,
+          "line": 84,
           "sink": "set_status_message"
         }
       ]
@@ -136551,7 +136556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 578,
+          "line": 591,
           "sink": "set_status_message"
         }
       ]
@@ -137092,6 +137097,16 @@
       ]
     },
     {
+      "key": "Select at least one item package to send to DMM.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_send.py",
+          "line": 132,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select at least one manager output.",
       "origins": [
         {
@@ -137621,7 +137636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 230,
+          "line": 237,
           "sink": "tr"
         }
       ]
@@ -139741,7 +139756,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 320,
+          "line": 330,
           "sink": "tr"
         }
       ]
@@ -139752,6 +139767,11 @@
         {
           "path": "cdmw/services/dmm_send.py",
           "line": 94,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/dmm_send.py",
+          "line": 147,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -139771,7 +139791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 296,
+          "line": 82,
           "sink": "tr"
         }
       ]
@@ -139807,11 +139827,11 @@
       ]
     },
     {
-      "key": "Sending to DMM…",
+      "key": "Sending {value_0} item package(s) to DMM…",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 312,
+          "line": 322,
           "sink": "tr"
         }
       ]
@@ -139822,16 +139842,6 @@
         {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 771,
-          "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 315,
-          "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 317,
           "sink": "tr"
         }
       ]
@@ -139846,8 +139856,18 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 316,
+          "line": 327,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Sent {value_0} item package(s) to DMM as one mod. In DMM, enable it and click Mount.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_list.py",
+          "line": 325,
+          "sink": "tr"
         }
       ]
     },
@@ -143986,12 +144006,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 41,
+          "line": 43,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 84,
+          "line": 86,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -144001,7 +144021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 63,
+          "line": 65,
           "sink": "information"
         }
       ]
@@ -144011,7 +144031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 147,
+          "line": 149,
           "sink": "information"
         }
       ]
@@ -144021,12 +144041,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 102,
+          "line": 104,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 145,
+          "line": 147,
           "sink": "set_status_message"
         }
       ]
@@ -147576,7 +147596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 453,
+          "line": 457,
           "sink": "question"
         },
         {
@@ -147856,7 +147876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 460,
+          "line": 464,
           "sink": "setText"
         }
       ]
@@ -147926,7 +147946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 493,
+          "line": 503,
           "sink": "tr"
         }
       ]
@@ -149252,6 +149272,11 @@
         {
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 496,
+          "sink": "_add_menu_section"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 513,
           "sink": "_add_menu_section"
         }
       ]
@@ -155056,12 +155081,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 105,
+          "line": 107,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 110,
+          "line": 112,
           "sink": "set_status_message"
         }
       ]
@@ -166606,7 +166631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 499,
+          "line": 503,
           "sink": "_run"
         }
       ]
@@ -169876,7 +169901,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 177,
+          "line": 191,
           "sink": "progress"
         }
       ]
@@ -170501,7 +170526,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 280,
+          "line": 294,
           "sink": "progress"
         }
       ]
@@ -174467,6 +174492,16 @@
       ]
     },
     {
+      "key": "Write the selected item packages, or every enabled one when none is selected, as one DMM mod named CDMW items. Sending again replaces it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_list.py",
+          "line": 84,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Write the skeleton's bones as JSON with an empty list for adding child bones.",
       "origins": [
         {
@@ -174656,12 +174691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 133,
+          "line": 135,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 160,
+          "line": 162,
           "sink": "_run_utility_task"
         }
       ]
@@ -174846,7 +174881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 63,
+          "line": 65,
           "sink": "information"
         }
       ]
@@ -174921,7 +174956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 147,
+          "line": 149,
           "sink": "information"
         }
       ]
@@ -175101,7 +175136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 158,
+          "line": 160,
           "sink": "set_status_message"
         }
       ]
@@ -177166,7 +177201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 522,
+          "line": 535,
           "sink": "_add_menu_section"
         },
         {
@@ -180156,12 +180191,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         }
       ]
@@ -180287,6 +180322,11 @@
         {
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 496,
+          "sink": "_add_menu_section"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 513,
           "sink": "_add_menu_section"
         }
       ]
@@ -180786,12 +180826,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         }
       ]
@@ -184046,7 +184086,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 843,
+          "line": 849,
           "sink": "add"
         }
       ]
@@ -184641,12 +184681,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         }
       ]
@@ -184721,12 +184761,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         }
       ]
@@ -187286,12 +187326,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 46,
+          "line": 63,
           "sink": "optional_pair"
         }
       ]
@@ -193636,7 +193676,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 804,
+          "line": 810,
           "sink": "add"
         }
       ]
@@ -195271,7 +195311,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 792,
+          "line": 798,
           "sink": "add"
         }
       ]
@@ -200286,7 +200326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 412,
+          "line": 413,
           "sink": "setText"
         }
       ]
@@ -201171,7 +201211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 256,
+          "line": 263,
           "sink": "tr"
         }
       ]
@@ -201416,7 +201456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 482,
+          "line": 486,
           "sink": "question"
         }
       ]
@@ -201876,7 +201916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_list.py",
-          "line": 255,
+          "line": 262,
           "sink": "tr"
         }
       ]
@@ -202431,7 +202471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 503,
+          "line": 507,
           "sink": "setText"
         }
       ]
@@ -202451,7 +202491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 482,
+          "line": 486,
           "sink": "question"
         }
       ]
@@ -204226,7 +204266,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 776,
+          "line": 782,
           "sink": "add"
         },
         {
