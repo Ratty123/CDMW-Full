@@ -1021,13 +1021,19 @@ The best-effort legacy scan never triggers on a shipped file.
   case-sensitive name, the same function that produces the executable's
   interned `Bip01 Head` key (`0xA23A288E`).
 - **Secondary parent (0x10).** It equals the hierarchy parent for 22,951 of
-  23,308 bones and always names an earlier bone. The rest point elsewhere:
-  each clavicle at the neck rather than Spine2, the tongue at the jaw. Its
-  engine use is unknown.
+  23,308 bones and always names an earlier bone. Each of the other 357 names
+  an earlier sibling under the same parent: both clavicles the neck beside
+  them under the spine (the link 3ds Max Biped uses), the teeth the upper or
+  lower jaw piece, the second tongue bone the first. It looks like a
+  source-hierarchy link kept beside the flattened one; its engine use is not
+  traced.
 - **Core-bone flag (0x02).** It is set on every root and on 8,532 bones in all,
   in a rig such as `phm_01.pab` the locomotion chain, IK targets and weapon
-  sockets (57 of 448), and never on a bone whose parent lacks it. Its engine use
-  is unknown.
+  sockets (57 of 448; no fingers, face, twist or cloth bones), and never on a
+  bone whose parent lacks it. The 1.0.0.3479 executable names a core-bone
+  subsystem (`CoreBoneAnimationBuffer`, `CopyCoreBoneAnimationMatrix`,
+  `CollectUnderRayOnlyCoreBone`), which fits a reduced set of bones copied
+  for CPU-side queries; which code reads this byte is not traced.
 - **Bind data.** Stored scale, rotation and position rebuild the local bind
   matrix for all but 73 bones, whose local matrices are sheared.
 
@@ -1046,9 +1052,10 @@ it only for bones added in the same edit, because a shipped bone's hash is held
 by data the service cannot rewrite. Removing or reordering bones is not
 offered, since both shift indices. A PAC can list a new bone in its palette
 through the existing palette extension, checked against an edited rig in owned
-fixtures. New bones have no tracks, PABC records, volumes or Havok bodies, so
-they can only follow their parent rigidly. None of this has been loaded in
-game: whether the engine accepts a longer skeleton, and what the secondary
+fixtures. Archive Browser exposes appending as Export and Import Skeleton Edit
+JSON, which writes a mod-ready loose package. New bones have no tracks, PABC
+records, volumes or Havok bodies, so they can only follow their parent
+rigidly. None of this has been loaded in game: whether the engine accepts a longer skeleton, and what the secondary
 parent and core flag need for a new bone, are open.
 
 Reviewed 2026-10-26 (archive inspection): humanoid characters under

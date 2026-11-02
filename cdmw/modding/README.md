@@ -170,6 +170,12 @@ A PAC needs `pac_palette_extension.extend_pac_palette` with the edited rig
 before vertices can weight to a new bone. New bones have no tracks, PABC
 records, volumes or Havok bodies. Nothing here has been loaded in game.
 
+`dumps_pab_edit_json` and `apply_pab_edit_json` in the same service are the
+Skeleton Edit JSON format behind the Archive Browser actions: `bones` is a
+read-only reference (names and parents must stay unchanged, floats are
+ignored), `add_bones` lists `parent`, `name`, `position`, `rotation`, `scale`
+and `core`, and `source.sha256` must match the skeleton being edited.
+
 ## PAC vertex jiggle contribution
 
 `pac_jiggle.py` edits only byte 38's low nibble in validated 40-byte records.

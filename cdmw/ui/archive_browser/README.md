@@ -683,6 +683,18 @@ only when the complete corrected matrix matches the PAB bind within 1e-4
 retaining small authored adjustments and other neutral shape changes. Animation
 poses are unaffected. The native package cache invalidates older baked previews.
 
+### Skeleton Edit JSON
+
+A `.pab` entry's **Structured Data** menu offers **Export Skeleton Edit JSON...**
+and **Import Skeleton Edit JSON...** (`pab_json_actions.py`). The export lists
+every bone as a read-only reference and an empty `add_bones` list. Import
+checks the document against the selected skeleton's SHA-256 and its unchanged
+bone names and parents, appends the listed child bones through
+`cdmw/services/pab_skeleton_edit_service.py`, and only then asks for a
+mod-ready loose package target. A document that adds nothing writes nothing.
+Shipped bones cannot be renamed, removed or reordered (see the modding README),
+and added bones are untested in game.
+
 ### OBJ export and round trips
 
 OBJ, MTL and round-trip metadata support Unicode output folders and file names,
