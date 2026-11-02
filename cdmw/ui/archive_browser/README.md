@@ -647,6 +647,27 @@ A container these readers refuse falls back to readable strings, with the reason
 in Details. A failed font or cursor render keeps the text description. Strings in
 these previews are diagnostic text and are not translated.
 
+### Static data tables
+
+`archive_data_table_preview.py` lists a `.staticinfoheader`/`.staticinfobody` pair's
+rows once both halves come from the same archive index. For the 58 tables in the
+closed compact schema (`cdmw/core/_compact_static_schema.py`, listed by
+`static_table_records.DECODED_TABLES`), it also decodes the listed rows through
+`static_table_records.decode_record` and prints the top-level fields of the first five:
+integers by storage width, text, and nested lists or structures as byte counts.
+A row the schema refuses keeps its listing line and is counted in Details; nothing is
+guessed. Skill tables named `skillinfo` or `reserveslotinfo` in older archives use the
+`skill` and `reserveslot` readers.
+
+Edits do not start here. `structured_sidecar_edit_service.write_static_table_edits`
+rewrites only the fixed-width fields in `static_table_records.EDITABLE_FIELDS`
+(inventory slot counts, skill max level, cooldown and low-resource flag, bounty increase,
+mercenary hire and summon limits, character scale and companion call cooldown, and
+gameplay variable defaults), keeps every row length and the row directory unchanged,
+decodes each edited row again, and writes the pair as loose files for a mod manager.
+It never touches PAMT/PAZ. No window calls it yet, and the units and in-game effect of
+those fields are unverified.
+
 ## Read-only boundary and exports
 
 Browsing, preview, scan, extraction, and package preparation are read-only.

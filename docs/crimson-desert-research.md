@@ -85,7 +85,7 @@ can be writable without a semantic validator for its contents.
 | Physics | Several render-cloth, jiggle and collision consumers have been traced and reproduced as bounded reference stages. | Preview motion, resource activation and game physics compatibility remain distinct. |
 | Animation | PAA tracks, supported clocks, bind-relative motion and lossless encoding are implemented. | Action-chart semantics, arbitrary timing profiles and game acceptance of edited clips remain incomplete. |
 | Prefabs | Reflection metadata and a supported structural heap grammar enable safe reference and placement edits. Render/simulation presets, UI animation states, save presets and convex collision geometry walk completely with the effect grammar. | Ambiguous or incomplete walks restrict editing; the effect-grammar formats other than presets have no writer. |
-| Game data | Known table directories and typed item, string, shop, group, recipe and reward subsets support new-item composition. | Unmodelled fields and unrelated table families remain opaque. |
+| Game data | Known table directories, typed item, string, shop, group, recipe and reward subsets for new-item composition, and a closed serializer-derived schema that decodes 58 table families. | 83 table families keep only row names and boundaries; field units and gameplay effects are unverified. |
 | Effects | PAE/PAEM reflection, keyed inheritance and constrained authoring are implemented; selected particle shader behaviour is reproduced. | Exact runtime target binding, animated surfaces and complete game appearance remain open. |
 | Packages | Independent packages retain identities, owned resources, explicit requirements and recoverable lifecycle changes. | Typed adapters cover selected domains, not every mod category. |
 | Virtual loading | A guarded launch route has narrow recorded game evidence; native registration has also been investigated. | General redirection, additive native registration and save compatibility cannot be inferred from those results. |
@@ -1587,6 +1587,7 @@ read/write limits.
 | MultiChangeInfo | Supported enhancement transitions and known item-reference locations | Other payload fields retain their opaque/source-preserving treatment. |
 | Recipe and reward families | Current bounded recipe, item-reward and ItemUse reward codecs and their verified connections | Unknown connections, missing ingredients/tools/rewards and unmodelled consumers block a complete item plan. |
 | PAPPT and icon registries | Supported part/prefab bindings and icon registrations | Registry structure, stem/hash identity, referenced assets and source conflicts must all agree. |
+| 48 further gameplay tables | Closed field layouts for skills, characters, NPCs, inventories, knowledge, missions, quests, effects, regions, jobs, factions, mercenaries, vehicles, bounties and smaller tables; constrained in-place edits of whitelisted fixed-width fields | Obfuscated variants refuse their rows; StageInfo, GimmickInfo, ConditionInfo and 80 other families are boundaries only; no edited table has been loaded by the game. |
 
 Targeted decoder correction, 2026-10-23, against `9d542c85` plus the scoped
 ItemInfo patch: stack counts use the full eight-byte field; the earlier u8 item
@@ -1703,6 +1704,35 @@ support only. No executable/game/ASI execution, real archive writes, packaging
 or publication occurred for this extension. Native admission, game behavior and
 save compatibility remain open. The nearest feature contract owns selectors and
 the closed wire shape; no new schema dump or licensed input is committed.
+
+Gameplay-table extension, 2 November 2026, on the installed game 1.0.0.3479 (base
+plus `dlc/dlc_01`, data of 1 November). The 30 October serializer extraction from the
+1.0.0.3446 executable was rebuilt byte for byte and extended with 48 more table reader
+roots, found through each class's read-failure member names. Five extraction gaps were
+closed from the disassembly: incremental-link `jmp` thunks and tail-called fixed-width
+reads were followed instead of read as garbage, an outer fixed loop around a counted
+list is kept (CharacterInfo's friendly-knowledge data is three lists, which had shifted
+every later field), u8 tag switches select one reader per tag, and ConditionData's u16
+type selects a per-type object whose vtable slots 0x80 and 0x98 read it. The
+CharacterInfo tree of the 3446 readers matches the 3479 executable event for event,
+apart from an added helper call. The resulting closed schema covers 58 tables (the ten
+Create New Item tables and 48 others). On the installed data, 105,468 of their 105,691
+rows decode to the exact row end with the inline key equal to the directory key; the
+other 223 stop on a closed refusal and none on a misread. Those refusals are 91 of 502
+ConditionData types and two BuffData variants whose constructors sit in obfuscated code
+(151 QuestInfo, 58 CharacterInfo, 12 NpcInfo and 2 SkillInfo rows). Every row of the ten
+existing tables still decodes, and the BuffInfo and ItemUseInfo rows that were refused
+before now decode. StageInfo, GimmickInfo, ConditionInfo, InteractionInfo,
+GameAdviceInfo, FactionNode, HousingObjectInfo, GimmickGroupInfo, AIMoveSpeedInfo and
+TerrainRegionAutoSpawnInfo were attempted but left out: they refuse many rows or still
+misread some. `static_table_records.py` exposes each record's top-level fields, which
+the Archive Browser preview shows, and rewrites only whitelisted fixed-width fields
+in place (inventory slot counts, skill max level, cooldown and low-resource flag, bounty
+increase, mercenary hire and summon limits, character scale and companion call cooldown,
+gameplay variable defaults), proving that no other byte changed. Owned constructed rows
+and an opt-in installed-corpus test cover this. It is byte-level evidence only: field
+units, gameplay effects and game acceptance of an edited table are untested, and no
+window writes these tables.
 
 Historical game observations establish acceptance of selected appended item/string
 records and shop substitutions. They do not establish arbitrary table rewrites.
@@ -3262,6 +3292,7 @@ This is a research register, not a promised delivery schedule.
 | Can native resource loading be generalized safely? | Recorded asynchronous manager/provider route | Exact receiver/build provenance, texture binding, retirement, failure recovery and required socket consumers |
 | Can arbitrary package domains compose? | Typed item, field, link and texture subsets | A complete adapter and real consumer for each new domain; explicit conflict semantics |
 | Can save migration/removal be admitted generally? | Identity profiles, backups, receipts and experiment tools | Trusted origin, complete requirements, successful save commitment, controlled absent-provider/load evidence |
+| What do the remaining table families and refused variants hold? | 58 families decoded by the closed schema; 91 ConditionData types and two BuffData variants are constructed in obfuscated code | Readable constructors (or another executable build), then corpus walks with zero misreads; in-game checks of edited fields |
 | Which remaining binary resources are encrypted or merely unmodelled? | Capability inventory and inspected container signatures | Algorithm/key evidence or a complete record grammar; readable metadata alone is insufficient |
 
 ### 15.3 Approaches not to repeat without new evidence
