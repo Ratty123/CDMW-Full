@@ -179,6 +179,37 @@ def test_a_plain_copy_of_a_template_whose_parts_are_dlc_only_gets_its_own(tmp_pa
     assert dlc_path not in plan.loose_files
 
 
+def test_unselected_variants_of_dlc_only_parts_get_unchanged_copies(tmp_path):
+    # The selected variant is copied anyway; an unselected part the base table lacks
+    # must be copied too, or the new base row points at a part it cannot reach.
+    from cdmw.core.pappt_format import parse_pappt, encode_pappt
+    from cdmw.services.new_item_variants import variant_bindings
+    from tests.test_new_item_variant_authoring import selections
+    source = files()
+    path = 'character/bin__/partprefabtable.pappt'
+    dlc_path = 'character/bin__/partprefabtable_dlc_01.pappt'
+    original = parse_pappt(source[path])
+    service = NewItemService()
+    probe = service.build_snapshot(parse_archive_pamt(build_package(tmp_path/'probe', dict(source))), read_entry=_read)
+    parts = {part.stem: part for part, _path in variant_bindings(probe.family(TEMPLATE))}
+    assert len(parts) > 1
+    source[path] = encode_pappt(replace(original, records=tuple(r for r in original.records if r.stem not in parts)))
+    entries = parse_archive_pamt(build_package(tmp_path/'game', source))
+    dlc = replace(original, records=tuple(r for r in original.records if r.stem in parts))
+    entries += parse_archive_pamt(build_package(tmp_path/'game/dlc/dlc_01', {dlc_path: encode_pappt(dlc)}))
+    snapshot = service.build_snapshot(entries, read_entry=_read)
+    chosen = selections(snapshot)[0]
+    plan = service.plan(replace(spec('DlcVariant'), variants=(chosen,)), snapshot)
+    mapping = plan.manifest['pappt_records']
+    assert set(mapping) == set(parts)
+    exported = parse_pappt(plan.loose_files[path]).index()
+    assert set(mapping.values()) <= set(exported) and not set(parts) & set(exported)
+    unselected = [row for row in plan.manifest['variants'] if row['prefab_path'].casefold() != chosen.prefab_path.casefold()]
+    assert unselected and all(row['appearance'] == 'owned template copy' and row['companion'] for row in unselected)
+    assert all(any(p.endswith(f'{mapping[stem]}.prefab') for p in plan.new_paths) for stem in parts)
+    assert dlc_path not in plan.loose_files
+
+
 def test_unavailable_dlc_recipe_and_reward_keys_are_still_reserved(tmp_path):
     from cdmw.core.item_layout import replace_layout_fields
     from cdmw.services.new_item_acquisition_index import load_acquisition_index
