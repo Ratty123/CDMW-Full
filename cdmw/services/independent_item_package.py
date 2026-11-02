@@ -127,6 +127,28 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def pinned_digests(snapshot, path):
+    """The digests a package may have pinned for one stock file.
+
+    Partially compressed textures used to read back with their header still listing
+    the packed mip sizes; they now read back with those words cleared. Packages made
+    before then pinned the old bytes, which are the stored header over the same data.
+    """
+    data = snapshot.payload(path)
+    digests = {digest(data)}
+    try:
+        entry = snapshot.entry(path)
+        if entry.compressed and entry.compression_type == 1 and entry.extension == ".dds" and data[:4] == b"DDS ":
+            from cdmw.core.archive_extraction import get_archive_partial_dds_header
+            header = get_archive_partial_dds_header(entry)
+            size = 0x94 if header[84:88] == b"DX10" else 0x80
+            if len(header) >= size and len(data) >= size:
+                digests.add(digest(header[:size] + data[size:]))
+    except (AttributeError, OSError, ValueError, KeyError):
+        pass
+    return digests
+
+
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 

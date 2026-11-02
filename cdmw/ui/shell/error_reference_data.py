@@ -25075,7 +25075,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 568
+      "cdmw/services/independent_item_package.py": 590
     }
   },
   {
@@ -25147,7 +25147,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 808
+      "cdmw/services/independent_item_package.py": 830
     }
   },
   {
@@ -25259,7 +25259,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 622
+      "cdmw/services/independent_item_package.py": 644
     }
   },
   {
@@ -25371,7 +25371,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW packages use the .cdmw extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 801
+      "cdmw/services/independent_item_package.py": 823
     }
   },
   {
@@ -25820,7 +25820,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose Item package · .cdmw and rebuild the plan first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 368
+      "cdmw/services/independent_item_package.py": 390
     }
   },
   {
@@ -26076,7 +26076,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 758
+      "cdmw/services/independent_item_package.py": 780
     }
   },
   {
@@ -26084,7 +26084,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 773
+      "cdmw/services/independent_item_package.py": 795
     }
   },
   {
@@ -26092,7 +26092,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 589
+      "cdmw/services/independent_item_package.py": 611
     }
   },
   {
@@ -26220,7 +26220,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item changes an existing {name} record.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 339
+      "cdmw/services/independent_item_package.py": 361
     }
   },
   {
@@ -26244,7 +26244,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot carry the shared change: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 344
+      "cdmw/services/independent_item_package.py": 366
     }
   },
   {
@@ -26252,7 +26252,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot modify existing reward consumers or include another mod base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 316
+      "cdmw/services/independent_item_package.py": 338
     }
   },
   {
@@ -26260,7 +26260,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 395
+      "cdmw/services/independent_item_package.py": 417
     }
   },
   {
@@ -26268,7 +26268,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages require verified source dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 370
+      "cdmw/services/independent_item_package.py": 392
     }
   },
   {
@@ -26276,7 +26276,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages support adding shop stock, not replacing existing stock.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 318
+      "cdmw/services/independent_item_package.py": 340
     }
   },
   {
@@ -26397,7 +26397,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 528
+      "cdmw/services/independent_item_package.py": 550
     }
   },
   {
@@ -26445,7 +26445,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 795
+      "cdmw/services/independent_item_package.py": 817
     }
   },
   {
@@ -26453,7 +26453,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 544
+      "cdmw/services/independent_item_package.py": 566
     }
   },
   {
@@ -26477,7 +26477,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 520
+      "cdmw/services/independent_item_package.py": 542
     }
   },
   {
@@ -26581,7 +26581,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid package resource path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 138
+      "cdmw/services/independent_item_package.py": 160
     }
   },
   {
@@ -26597,7 +26597,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 575
+      "cdmw/services/independent_item_package.py": 597
     }
   },
   {
@@ -26605,7 +26605,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 586
+      "cdmw/services/independent_item_package.py": 608
     }
   },
   {
@@ -26613,7 +26613,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 583
+      "cdmw/services/independent_item_package.py": 605
     }
   },
   {
@@ -26877,7 +26877,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 532
+      "cdmw/services/independent_item_package.py": 554
     }
   },
   {
@@ -26885,7 +26885,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 620
+      "cdmw/services/independent_item_package.py": 642
     }
   },
   {
@@ -26909,7 +26909,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 682
+      "cdmw/services/independent_item_package.py": 704
     }
   },
   {
@@ -26941,7 +26941,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 564
+      "cdmw/services/independent_item_package.py": 586
     }
   },
   {
@@ -27053,7 +27053,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 547
+      "cdmw/services/independent_item_package.py": 569
     }
   },
   {
@@ -27478,7 +27478,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 806
+      "cdmw/services/independent_item_package.py": 828
     }
   },
   {
@@ -27759,7 +27759,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed during snapshot validation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 252
+      "cdmw/services/independent_item_package.py": 274
     }
   },
   {
@@ -27767,7 +27767,7 @@ MESSAGE_REFERENCE = [
     "message": "The clean game catalogue changed while building its snapshot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 273
+      "cdmw/services/independent_item_package.py": 295
     }
   },
   {
@@ -27855,7 +27855,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 832
+      "cdmw/services/independent_item_package.py": 854
     }
   },
   {
@@ -27903,7 +27903,7 @@ MESSAGE_REFERENCE = [
     "message": "The game archive layout is unsupported for independent items.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 173
+      "cdmw/services/independent_item_package.py": 195
     }
   },
   {
@@ -28039,7 +28039,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 784
+      "cdmw/services/independent_item_package.py": 806
     }
   },
   {
@@ -28047,7 +28047,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 603
+      "cdmw/services/independent_item_package.py": 625
     }
   },
   {
@@ -28071,7 +28071,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 522
+      "cdmw/services/independent_item_package.py": 544
     }
   },
   {
@@ -28087,7 +28087,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 530
+      "cdmw/services/independent_item_package.py": 552
     }
   },
   {
@@ -28095,7 +28095,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 812
+      "cdmw/services/independent_item_package.py": 834
     }
   },
   {
@@ -28663,7 +28663,7 @@ MESSAGE_REFERENCE = [
     "message": "The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 269
+      "cdmw/services/independent_item_package.py": 291
     }
   },
   {
@@ -28679,7 +28679,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 398
+      "cdmw/services/independent_item_package.py": 420
     }
   },
   {
@@ -28687,7 +28687,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 823
+      "cdmw/services/independent_item_package.py": 845
     }
   },
   {
@@ -28895,7 +28895,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 701
+      "cdmw/services/independent_item_package.py": 723
     }
   },
   {
@@ -29015,7 +29015,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 765
+      "cdmw/services/independent_item_package.py": 787
     }
   },
   {
@@ -29072,7 +29072,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 510
+      "cdmw/services/independent_item_package.py": 532
     }
   },
   {
@@ -29137,7 +29137,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported owned resource: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 348
+      "cdmw/services/independent_item_package.py": 370
     }
   },
   {
@@ -29145,7 +29145,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported package resource path: {value}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 148
+      "cdmw/services/independent_item_package.py": 170
     }
   },
   {
@@ -29169,7 +29169,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 578
+      "cdmw/services/independent_item_package.py": 600
     }
   },
   {
@@ -29193,7 +29193,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 350
+      "cdmw/services/independent_item_package.py": 372
     }
   },
   {
@@ -29201,7 +29201,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported shared table: {name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 333
+      "cdmw/services/independent_item_package.py": 355
     }
   },
   {
@@ -29659,7 +29659,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 480
+      "cdmw/services/independent_item_package.py": 502
     }
   },
   {

@@ -335,3 +335,22 @@ def test_a_whole_copy_of_a_partially_compressed_texture_records_its_real_mip_siz
     fixed = with_stored_mip_sizes(data)
     assert struct.unpack_from("<4I", fixed, 32) == struct.unpack("<4I", block_infos_for(data)) == (32, 8, 0, 0)
     assert fixed[:32] == data[:32] and fixed[76:] == data[76:]
+
+
+def test_a_package_pinned_before_packed_mip_sizes_were_cleared_still_matches(monkeypatch):
+    import struct
+    from cdmw.core import archive_extraction
+    from cdmw.services.independent_item_package import digest, pinned_digests
+    stored = bytearray(128)
+    stored[:4] = b"DDS "
+    struct.pack_into("<4I", stored, 32, 9, 8, 7, 6)  # packed sizes, as the archive's header lists them
+    cleared = bytearray(stored)
+    cleared[32:48] = bytes(16)
+    data = bytes(cleared) + b"mips"
+    entry = SimpleNamespace(compressed=True, compression_type=1, extension=".dds")
+    snapshot = SimpleNamespace(payload=lambda path: data, entry=lambda path: entry)
+    monkeypatch.setattr(archive_extraction, "get_archive_partial_dds_header", lambda found: bytes(stored))
+    assert pinned_digests(snapshot, "x.dds") == {digest(data), digest(bytes(stored) + b"mips")}
+    lz4 = SimpleNamespace(compressed=True, compression_type=2, extension=".dds")
+    plain = SimpleNamespace(payload=lambda path: data, entry=lambda path: lz4)
+    assert pinned_digests(plain, "x.dds") == {digest(data)}
