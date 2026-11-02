@@ -85,6 +85,8 @@ class NewItemStudioController(
     #: a model file was not read, with the reason: the step says so where the reader is,
     #: since the window's status line is not where they are looking
     model_import_failed = Signal(str)
+    #: the Skeleton Edit recipe the next import weights against changed (a recipe or None)
+    skeleton_edit_changed = Signal(object)
     #: placement conversion failed; keep the reason beside Apply placement
     model_apply_failed = Signal(str)
     #: an imported model accepted one stable Mesh Editor revision
@@ -142,6 +144,8 @@ class NewItemStudioController(
         self.model_scene: object | None = None
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
+        #: bones appended to the template's rig for the next import's weights (SkeletonEditRecipe)
+        self.skeleton_edit = None
         self.model_placement: ModelPlacement = ModelPlacement()
         self._active_variant = None
         self._variant_states = {}

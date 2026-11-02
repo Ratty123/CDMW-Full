@@ -2491,6 +2491,28 @@ part's donor. Build plan resolves the template's declared PAB through
 and checks the rebuilt palette and every weighted index. Rigid helmets keep their
 prefab attachment; deforming headgear uses its character rig.
 
+#### Added bones (Skeleton Edit JSON)
+
+The **Rig** row lets an import weight to bones appended to the template's skeleton.
+**Skeleton edit…** reads a Skeleton Edit JSON exported from that template's `.pab` in
+Archive Browser and checks it against the resolved PAB's SHA-256 and bone list; the
+recipe is cleared when the template changes. The next import (and **Skin weights…**)
+binds against the edited rig through `prepare_new_item_skin(skeleton_edit=...)`, and
+every added bone the imported weights use joins the PAC palette through the existing
+palette extension. **Export rig GLB…** writes the template mesh skinned to the same
+rig, added joints included, for weighting in Blender.
+
+`ModelFiles.skeleton_edit` carries the recipe only when the palette names one of its
+bones. Build plan's skeleton step re-applies it to the installed PAB and patches that
+file, combining several variants' recipes by name. An item package stores the recipe,
+not the edited file, in its prepared model; composition and Send to DMM merge the
+`.pab` with other items through `overlay_merge._skeleton`, which appends each side's
+added bones by name and refuses the same name with a different definition or any change
+to a shipped bone. A DMM mod outside CDMW that replaces the same PAB still wins or
+loses by DMM's load order. The rig is shared by every character that uses it, added
+bones have no animation tracks, volumes or Havok bodies, and none of this has been
+loaded in game. Mesh Editor Import Replacement still binds to the shipped rig.
+
 #### Verified body weight donors
 
 Some torso templates carry influences beyond their resolved character palette. For an

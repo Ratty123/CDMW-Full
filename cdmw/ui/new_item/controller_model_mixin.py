@@ -227,6 +227,10 @@ class NewItemModelControllerMixin:
         had_import = previous_import is not None
         self.model_import = None
         self.model_placement = ModelPlacement()
+        if self.skeleton_edit is not None:
+            # A skeleton edit is checked against one template's rig.
+            self.skeleton_edit = None
+            self.skeleton_edit_changed.emit(None)
         self.template_changed.emit(template_key)
         if had_import:
             self.model_import_changed.emit(None)
@@ -320,6 +324,7 @@ class NewItemModelControllerMixin:
         import_template_key = int(self.draft.template_key)
         import_variant = self._active_variant
         import_entry = self.template_primary_entry()
+        skeleton_edit = self.skeleton_edit
         wearable = self._template_is_wearable()
         template_geometry = self._template_geometry_build()
         template_build = template_geometry[1] if template_geometry is not None else None
@@ -349,7 +354,9 @@ class NewItemModelControllerMixin:
                     from cdmw.ui.new_item.model_import import prepare_model_import_mesh_edit
                     mesh, reports = prepare_new_item_skin(
                         result.scene.mesh, import_snapshot, import_entry.path, choices=choices, stop_event=stop_event,
-                        **({"palette_extension_bones":tuple(palette_extension_bones)} if palette_extension_bones else {}))
+                        **({"palette_extension_bones":tuple(palette_extension_bones)} if palette_extension_bones else {}),
+                        **({"skeleton_edit": skeleton_edit} if skeleton_edit is not None else {}))
+                    result.skeleton_edit = skeleton_edit
                     result.scene, result.preview_model, analysis, result.texture_count = prepare_model_import_mesh_edit(
                         mesh, scene=result.scene, model_path=result.model_path, stop_event=stop_event)
                     result.preview_mesh = mesh
@@ -426,6 +433,71 @@ class NewItemModelControllerMixin:
 
         return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
+    def start_skeleton_edit(self, path: Path) -> bool:
+        """Read a Skeleton Edit JSON against the template's rig, off the UI thread. On
+        success the next import weights against that rig with the added bones."""
+
+        chosen = Path(path)
+        snapshot, entry = self.snapshot, self.template_primary_entry()
+        if snapshot is None or entry is None:
+            self.status_message.emit("Choose a template first; a skeleton edit is checked against its rig.", True)
+            return False
+        template_key = self.draft.template_key
+
+        def task(log, progress, stop_event):
+            from cdmw.services.mesh_skinning_preflight import edited_rig, template_skeleton
+            from cdmw.services.pab_skeleton_edit_service import read_pab_edit_json
+            progress(0, 0, f"Reading {chosen.name}")
+            text = chosen.read_text(encoding="utf-8")
+            _skeleton, data, pab_path = template_skeleton(snapshot, entry.path)
+            raise_if_cancelled(stop_event)
+            recipe = read_pab_edit_json(data, text, virtual_path=pab_path)
+            if not recipe.add_bones:
+                raise ValueError("The skeleton edit adds no bones; fill add_bones first.")
+            edited_rig(data, pab_path, recipe)
+            log(f"Skeleton edit: {len(recipe.add_bones)} bone(s) added to {pab_path}")
+            return recipe
+
+        def done(recipe):
+            if self.snapshot is not snapshot or self.draft.template_key != template_key:
+                return
+            self.skeleton_edit = recipe
+            self.skeleton_edit_changed.emit(recipe)
+            self.status_message.emit(f"Skeleton edit ready: {', '.join(recipe.bone_names)}. "
+                                     "Import the model again to weight it against this rig.", False)
+
+        def failed(message):
+            self.status_message.emit(f"The skeleton edit could not be used: {message}", True)
+
+        return self._run("skeleton_edit", task, done, failed, task_accepts_progress=True)
+
+    def clear_skeleton_edit(self) -> None:
+        if self.skeleton_edit is not None:
+            self.skeleton_edit = None
+            self.skeleton_edit_changed.emit(None)
+
+    def start_rig_export(self, output_dir: Path) -> bool:
+        """Write the template skinned to its rig (with the skeleton edit's bones) as GLB."""
+
+        snapshot, entry, recipe = self.snapshot, self.template_primary_entry(), self.skeleton_edit
+        if snapshot is None or entry is None:
+            self.status_message.emit("Choose a template first; its mesh and rig are exported.", True)
+            return False
+        folder = Path(output_dir)
+
+        def task(log, progress, stop_event):
+            from cdmw.services.mesh_skinning_preflight import export_template_rig_glb
+            progress(0, 0, "Exporting the template rig")
+            return export_template_rig_glb(snapshot, entry.path, folder, skeleton_edit=recipe, stop_event=stop_event)
+
+        def done(paths):
+            self.status_message.emit(f"Rig exported: {paths[0]}", False)
+
+        def failed(message):
+            self.status_message.emit(f"The rig could not be exported: {message}", True)
+
+        return self._run("rig_export", task, done, failed, task_accepts_progress=True)
+
     def start_model_skinning(self, choices) -> bool:
         """Re-prepare explicit per-part decisions from the retained original skin."""
         source, snapshot, variant = self.model_import, self.snapshot, self._active_variant
@@ -454,7 +526,8 @@ class NewItemModelControllerMixin:
                 progress(0, 0, "Checking imported skin weights")
                 mesh, reports = prepare_new_item_skin(source.raw_import_mesh, snapshot, target,
                     choices=choices, stop_event=stop_event, transfer_transform=transfer_transform,
-                    palette_extension_bones=extension_bones)
+                    palette_extension_bones=extension_bones,
+                    **({"skeleton_edit": source.skeleton_edit} if source.skeleton_edit is not None else {}))
                 prepared = prepare_model_import_mesh_edit(mesh, scene=captured_scene,
                     model_path=source.model_path, stop_event=stop_event)
                 baked = bake_mesh(mesh, source_bake)

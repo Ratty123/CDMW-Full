@@ -10062,6 +10062,16 @@
       ]
     },
     {
+      "key": "Another mod changes shipped bones of this skeleton ({value_0}); disable the other mod to load this item.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 540,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Another mod changes this file, and the item was built against the game's own copy. CDMW cannot combine changes to this kind of file; disable the other mod to load this item.",
       "origins": [
         {
@@ -27557,6 +27567,16 @@
       ]
     },
     {
+      "key": "Choose a Skeleton Edit JSON",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1291,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
       "key": "Choose a Source Mod folder or zip first.",
       "origins": [
         {
@@ -28218,6 +28238,26 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 875,
           "sink": "set_note"
+        }
+      ]
+    },
+    {
+      "key": "Choose a template first; a skeleton edit is checked against its rig.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 443,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Choose a template first; its mesh and rig are exported.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 484,
+          "sink": "emit"
         }
       ]
     },
@@ -30378,6 +30418,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 214,
           "sink": "_fixed_button"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 825,
+          "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
@@ -51352,6 +51397,16 @@
       ]
     },
     {
+      "key": "Export rig GLB…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 830,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Export root",
       "origins": [
         {
@@ -51513,6 +51568,16 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 488,
           "sink": "_add_action"
+        }
+      ]
+    },
+    {
+      "key": "Export the template rig as GLB",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1297,
+          "sink": "getExistingDirectory"
         }
       ]
     },
@@ -52223,6 +52288,16 @@
           "path": "cdmw/ui/text_search/workers.py",
           "line": 222,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Exporting the template rig",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 490,
+          "sink": "progress"
         }
       ]
     },
@@ -72918,6 +72993,16 @@
           "path": "cdmw/ui/archive_browser/import_actions.py",
           "line": 32,
           "sink": "_start_current_archive_hkx_document_import"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 43,
+          "sink": "getSaveFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 86,
+          "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_json_actions.py",
@@ -106752,6 +106837,16 @@
       ]
     },
     {
+      "key": "Pick a Skeleton Edit JSON exported from this template's .pab in Archive Browser, with bones under add_bones. Imported weights can then use those bones; the item ships the edited skeleton, and Send to DMM combines bones that other items add. Added bones follow their parent rigidly and are not proven in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 819,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model Library reads it (its own textures too) and shown over the template below, where you place it. An FBX is read too once the studio has been pointed at a Blender, which converts it first.",
       "origins": [
         {
@@ -117738,6 +117833,16 @@
           "path": "cdmw/services/new_item_snapshot.py",
           "line": 779,
           "sink": "_log_progress"
+        }
+      ]
+    },
+    {
+      "key": "Reading {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 450,
+          "sink": "progress"
         }
       ]
     },
@@ -129363,6 +129468,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 147,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 813,
+          "sink": "QLabel"
         }
       ]
     },
@@ -129438,6 +129548,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 513,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Rig exported: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 494,
+          "sink": "emit"
         }
       ]
     },
@@ -134702,6 +134822,11 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 251,
+          "sink": "_collect_archive_mod_ready_export_target"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/pab_json_actions.py",
+          "line": 125,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -143986,13 +144111,28 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 41,
+          "line": 43,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
-          "line": 84,
+          "line": 86,
           "sink": "getOpenFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1291,
+          "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Skeleton Edit JSON (*.skeleton-edit.json *.json)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1291,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -144028,6 +144168,36 @@
           "path": "cdmw/ui/archive_browser/pab_json_actions.py",
           "line": 145,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Skeleton edit ready: {value_0}. Import the model again to weight it against this rig.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 466,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Skeleton edit: {value_0} bone(s) added to {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 458,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Skeleton edit…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 818,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -151497,6 +151667,21 @@
       ]
     },
     {
+      "key": "Template skeleton",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 814,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1303,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Template stats: {value_0}.",
       "origins": [
         {
@@ -157782,6 +157967,16 @@
       ]
     },
     {
+      "key": "The rig could not be exported: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 497,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "The rigid target requires its single attachment slot; this import changes the skin binding.",
       "origins": [
         {
@@ -158408,6 +158603,46 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 298,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "The skeleton edit adds no bones; fill add_bones first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 456,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The skeleton edit cannot be applied to {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 158,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The skeleton edit could not be used: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 470,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "The skeleton edit is for {value_0}, but this template binds to {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_skinning_preflight.py",
+          "line": 154,
+          "sink": "ValueError"
         }
       ]
     },
@@ -172292,6 +172527,16 @@
       ]
     },
     {
+      "key": "Weight the next import against the template's own skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 826,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Weight total: {value_0}",
       "origins": [
         {
@@ -174472,6 +174717,16 @@
         {
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 515,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Write the template mesh skinned to its skeleton, with any added bones, as GLB to weight a model against in Blender.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 831,
           "sink": "setToolTip"
         }
       ]
@@ -198883,6 +199138,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 583,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} + {value_1} added bone(s): {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 1305,
+          "sink": "setText"
         }
       ]
     },

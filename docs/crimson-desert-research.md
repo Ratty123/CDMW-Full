@@ -1058,6 +1058,19 @@ records, volumes or Havok bodies, so they can only follow their parent
 rigidly. None of this has been loaded in game: whether the engine accepts a longer skeleton, and what the secondary
 parent and core flag need for a new bone, are open.
 
+Reviewed 2026-11-02 (source and owned fixtures; no game observation): Create New
+Item can now weight an imported model to added bones. Because equipment binds to
+the wearer's rig, which the nude prefab's `SkeletonName` chooses, a per-mod copy of
+`phm_01.pab` cannot isolate the bones; the edit has to change the shared rig. The
+item package therefore stores the added bones as a recipe against the template's
+PAB, the plan appends them to the installed file, and composition (including Send
+to DMM) merges several items' `.pab` changes by bone name, refusing the same name
+with a different definition or any change to a shipped bone. The owned-fixture
+chain covers the edited rig, the PAC palette, a rig GLB with the added joint, the
+package recipe and a two-item composition. Still open beyond the questions above:
+whether a DMM mod that replaces the same PAB is common enough to need a warning
+outside CDMW, and how added bones behave under animation once loaded.
+
 Reviewed 2026-10-26 (archive inspection): humanoid characters under
 `character/model/2_mon/cd_m0001_00_twofeet/` share bone names with the player rigs,
 so an outfit's bone palette alone ties between `phm_01.pab`, the other player rigs

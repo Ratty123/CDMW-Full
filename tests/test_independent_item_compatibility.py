@@ -275,5 +275,10 @@ def test_external_archive_added_after_review_refuses_without_writing(tmp_path, a
 
 def test_another_mods_change_to_a_skeleton_dependency_is_refused_with_a_reason():
     from cdmw.services.independent_item_compatibility import _check_collection_additions
-    with pytest.raises(OverlayConflict, match="Another mod changes this file.*disable the other mod"):
-        _check_collection_additions('character/model/1_pc/2_phw/phw_01.pab', b'PAB shipped', b'PAB modded')
+    from cdmw.services.pab_skeleton_edit_service import PabAppendEdit, apply_pab_edits
+    from tests.test_pab_skeleton_writer import pab
+    path = 'character/model/1_pc/2_phw/phw_01.pab'
+    with pytest.raises(OverlayConflict, match="Another mod changes shipped bones.*disable the other mod"):
+        _check_collection_additions(path, b'PAB shipped', b'PAB modded')
+    # A mod that only appends bones keeps every bone the item binds.
+    _check_collection_additions(path, pab(), apply_pab_edits(pab(), (PabAppendEdit("Bip01", "Tail_00"),)).data)

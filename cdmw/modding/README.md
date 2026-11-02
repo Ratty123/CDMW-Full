@@ -170,11 +170,24 @@ A PAC needs `pac_palette_extension.extend_pac_palette` with the edited rig
 before vertices can weight to a new bone. New bones have no tracks, PABC
 records, volumes or Havok bodies. Nothing here has been loaded in game.
 
+Equipment carries no skeleton: a character's nude prefab names its rig, and a
+worn PAC's palette resolves against that shared file. A mod's added bones
+therefore have to live in the shipped rig itself, and two mods that add bones
+must be combined. `appended_bones(source, edited)` returns what an edit appends,
+refusing any other difference (flags, shipped records, tail arrays, volumes), and
+`append_bone_definitions` adds another edit's bones by name: the same name with
+the same definition is kept once, a different definition is refused, and bind
+matrices are copied rather than recomputed. `merge_appended_bones` is the
+three-way form the overlay composer uses for `.pab` files. Indices of added bones
+may differ between compositions; everything that binds them uses the hash.
+
 `dumps_pab_edit_json` and `apply_pab_edit_json` in the same service are the
 Skeleton Edit JSON format behind the Archive Browser actions: `bones` is a
 read-only reference (names and parents must stay unchanged, floats are
 ignored), `add_bones` lists `parent`, `name`, `position`, `rotation`, `scale`
 and `core`, and `source.sha256` must match the skeleton being edited.
+`read_pab_edit_json` returns the added bones as a `SkeletonEditRecipe` (rig path
+plus append edits), the form Create New Item stores in item packages.
 
 ## PAC vertex jiggle contribution
 

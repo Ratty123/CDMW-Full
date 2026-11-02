@@ -338,6 +338,15 @@ def _bone_offsets(before, after, current, where):
     return result
 
 
+def _skeleton(before, after, current, where):
+    """Bones each side appends to the shipped skeleton are combined by name."""
+    from cdmw.modding.skeleton_writer import merge_appended_bones
+    try:
+        return merge_appended_bones(before, after, current, where)
+    except ValueError as exc:
+        raise OverlayConflict(f'{exc} ({where})') from exc
+
+
 def merge_overlay_files(before, after, current):
     """Apply one owned change onto current files. Missing values mean no file."""
     result = dict(current)
@@ -374,6 +383,8 @@ def merge_overlay_files(before, after, current):
             result[path] = _icons(b, a, c, path)
         elif path == 'character/descriptors/boneoffset/boneoffsetsample.xml':
             result[path] = _bone_offsets(b, a, c, path)
+        elif path.endswith('.pab'):
+            result[path] = _skeleton(b, a, c, path)
         else:
             raise OverlayConflict(f'Overlay conflict in {path}; overlapping file edits cannot be separated safely.')
     return result

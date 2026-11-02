@@ -294,6 +294,105 @@ def append_child_bone(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class AppendedBone:
+    """A bone appended after a source skeleton, with its links named, not indexed."""
+
+    bone: PabBone
+    parent: str
+    secondary_parent: str | None
+    core_flag: int | None
+
+    def same_definition(self, other: AppendedBone) -> bool:
+        return (replace(self.bone, parent_index=0) == replace(other.bone, parent_index=0)
+                and (self.parent, self.secondary_parent, self.core_flag)
+                == (other.parent, other.secondary_parent, other.core_flag))
+
+
+def appended_bones(source: PabDocument, edited: PabDocument) -> tuple[AppendedBone, ...]:
+    """The bones ``edited`` appends to ``source``; refuse any other difference.
+
+    Everything ``source`` holds must be unchanged: header flags, every bone
+    record, both tail arrays and every volume. Appended bones carry no volumes.
+    """
+    count = len(source.bones)
+    if (edited.flags != source.flags or len(edited.bones) < count
+            or edited.bones[:count] != source.bones
+            or (edited.secondary_parents or ())[:count] != (source.secondary_parents or ())
+            or (edited.core_flags or b"")[:count] != (source.core_flags or b"")
+            or _volume_contents(edited) != _volume_contents(source)):
+        raise PabEditRefused("The edited skeleton changes the source skeleton; only appended bones can be combined.")
+
+    def name(index: int) -> str | None:
+        return edited.bones[index].name if index >= 0 else None
+
+    return tuple(
+        AppendedBone(bone, name(bone.parent_index),
+                     None if edited.secondary_parents is None else name(edited.secondary_parents[index]),
+                     None if edited.core_flags is None else edited.core_flags[index])
+        for index, bone in enumerate(edited.bones[count:], count))
+
+
+def _volume_contents(document: PabDocument) -> tuple:
+    """Every volume as written, without where it was read from."""
+    return tuple(tuple(replace(volume, file_offset=0, file_end=0) for volume in volumes.volumes)
+                 for volumes in document.volume_sets)
+
+
+def append_bone_definitions(document: PabDocument, bones: Iterable[AppendedBone]) -> PabDocument:
+    """Append bones taken from another edit of the same source, matching them by name.
+
+    A bone ``document`` already appended with the identical definition is kept
+    once; the same name with a different definition is refused. Bind matrices
+    are copied, not recomputed, so every appended record stays byte-identical.
+    """
+    names = {bone.name: index for index, bone in enumerate(document.bones)}
+    for added in bones:
+        existing = names.get(added.bone.name)
+        if existing is not None:
+            current = document.bones[existing]
+            mine = AppendedBone(
+                current, document.bones[current.parent_index].name if current.parent_index >= 0 else None,
+                None if document.secondary_parents is None else (
+                    document.bones[document.secondary_parents[existing]].name
+                    if document.secondary_parents[existing] >= 0 else None),
+                None if document.core_flags is None else document.core_flags[existing])
+            if not mine.same_definition(added):
+                raise PabEditRefused(f"Two edits add bone {added.bone.name!r} with different definitions.")
+            continue
+        count = len(document.bones)
+        if count + 1 > PAB_MAX_BONES:
+            raise PabEditRefused(f"A skeleton cannot exceed {PAB_MAX_BONES} bones.")
+        _checked_new_identity(document, added.bone.name)
+        for volumes in document.volume_sets:
+            if any(volume.bone_key == count for volume in volumes.volumes):
+                raise PabEditRefused(f"Volume key {count} would turn from a name hash into a bone index.")
+        parent = document.bone_index(added.parent)
+        secondary = (document.bone_index(added.secondary_parent) if added.secondary_parent is not None else -1)
+        document = replace(
+            document,
+            bones=document.bones + (replace(added.bone, parent_index=parent),),
+            secondary_parents=None if document.secondary_parents is None
+            else document.secondary_parents + (secondary,),
+            core_flags=None if document.core_flags is None else document.core_flags + bytes((added.core_flag or 0,)),
+        )
+        names[added.bone.name] = count
+    return document
+
+
+def merge_appended_bones(before: bytes, after: bytes, current: bytes, path: str = "") -> bytes:
+    """Three-way merge of two edits that each append bones to ``before``.
+
+    The bones ``after`` appends are added to ``current`` by name, in order. Both
+    sides must leave every source byte alone; appended bones bind by name hash
+    everywhere outside the file, so their final indices may differ per merge.
+    """
+    source = read_pab_document(before, path)
+    edited, composed = read_pab_document(after, path), read_pab_document(current, path)
+    appended_bones(source, composed)
+    return write_pab_document(append_bone_definitions(composed, appended_bones(source, edited)))
+
+
 def _check_document(document: PabDocument) -> None:
     count = len(document.bones)
     flags = document.flags

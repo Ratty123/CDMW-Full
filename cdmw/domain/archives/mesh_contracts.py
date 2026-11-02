@@ -43,6 +43,8 @@ class MeshImportPreviewResult:
     #: agreeing only by having read the same pipeline.
     imported_material_manifest: Any = None
     palette_extension: Any = None
+    #: New Item: the skeleton edit whose added bones the palette extension uses
+    skeleton_edit: Any = None
 
 @dataclass(slots=True)
 class ArchiveLooseExportResult:

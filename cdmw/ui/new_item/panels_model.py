@@ -809,6 +809,31 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
                                          "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
         skin_row.addWidget(self.import_skin_policy, 1)
         model_layout.addLayout(skin_row)
+        rig_row = QHBoxLayout()
+        rig_row.addWidget(QLabel("Rig"))
+        self.rig_summary = QLabel("Template skeleton")
+        self.rig_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.rig_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        rig_row.addWidget(self.rig_summary, 1)
+        self.skeleton_edit_button = QPushButton("Skeleton edit…")
+        self.skeleton_edit_button.setToolTip(
+            "Pick a Skeleton Edit JSON exported from this template's .pab in Archive Browser, with bones under add_bones. "
+            "Imported weights can then use those bones; the item ships the edited skeleton, and Send to DMM combines "
+            "bones that other items add. Added bones follow their parent rigidly and are not proven in game.")
+        self.skeleton_edit_button.clicked.connect(self._pick_skeleton_edit)
+        rig_row.addWidget(self.skeleton_edit_button)
+        self.clear_skeleton_edit_button = QPushButton("Clear")
+        self.clear_skeleton_edit_button.setToolTip("Weight the next import against the template's own skeleton.")
+        self.clear_skeleton_edit_button.clicked.connect(self._controller.clear_skeleton_edit)
+        self.clear_skeleton_edit_button.setVisible(False)
+        rig_row.addWidget(self.clear_skeleton_edit_button)
+        self.export_rig_button = QPushButton("Export rig GLB…")
+        self.export_rig_button.setToolTip(
+            "Write the template mesh skinned to its skeleton, with any added bones, as GLB to weight a model against in Blender.")
+        self.export_rig_button.clicked.connect(self._pick_rig_export_folder)
+        rig_row.addWidget(self.export_rig_button)
+        model_layout.addLayout(rig_row)
+        self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -1261,6 +1286,25 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _sheath_changed(self, own: bool) -> None:
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.invalidate_plan()
+
+    def _pick_skeleton_edit(self) -> None:
+        path, _selected = QFileDialog.getOpenFileName(
+            self, "Choose a Skeleton Edit JSON", "", "Skeleton Edit JSON (*.skeleton-edit.json *.json)")
+        if path:
+            self._controller.start_skeleton_edit(Path(path))
+
+    def _pick_rig_export_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Export the template rig as GLB")
+        if folder:
+            self._controller.start_rig_export(Path(folder))
+
+    def _show_skeleton_edit(self, recipe) -> None:
+        if recipe is None:
+            self.rig_summary.setText("Template skeleton")
+        else:
+            self.rig_summary.setText(f"{recipe.path.rsplit('/', 1)[-1]} + {len(recipe.bone_names)} added bone(s): "
+                                     + ", ".join(recipe.bone_names))
+        self.clear_skeleton_edit_button.setVisible(recipe is not None)
 
     def _edit_skinning(self):
         from cdmw.ui.new_item.skinning_dialog import SkinningDialog

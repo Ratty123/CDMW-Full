@@ -530,6 +530,16 @@ def _check_collection_additions(path, before, after):
         if (b.reserved, b.tag_prefix, b.head_records) != (a.reserved, a.tag_prefix, a.head_records):
             raise OverlayConflict('Required prefab metadata changed.')
         old, new = b.index(), a.index()
+    elif path.endswith('.pab'):
+        # A skeleton that keeps every shipped bone and only appends more binds the
+        # item's palette; the merge then adds the item's own bones by name.
+        from cdmw.modding.skeleton_writer import appended_bones, read_pab_document
+        try:
+            appended_bones(read_pab_document(before, path), read_pab_document(after, path))
+        except ValueError as exc:
+            raise OverlayConflict(f'Another mod changes shipped bones of this skeleton ({exc}); '
+                                  'disable the other mod to load this item.') from exc
+        return
     else:
         # Only tables, localisation and prefab lists have a known record boundary; any
         # other file (a skeleton, a model) cannot be checked against the item.

@@ -144,19 +144,44 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
     return source, tuple(reports)
 
 
-def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event=None, palette_extension_bones=(),
-                          transfer_transform=None):
-    """Resolve the exact captured template/PAB through snapshot provenance."""
+def edited_rig(skeleton_data, skeleton_path, skeleton_edit):
+    """The template's rig with a skeleton edit's bones appended, and its bytes."""
+    from cdmw.modding.skeleton_parser import parse_pab
+    from cdmw.modding.skeleton_writer import PabEditRefused
+
+    resolved = str(skeleton_path).replace("\\", "/").lower()
+    if skeleton_edit.path and skeleton_edit.path != resolved:
+        raise ValueError(f"The skeleton edit is for {skeleton_edit.path}, but this template binds to {resolved}.")
+    try:
+        data = skeleton_edit.apply(skeleton_data).data
+    except PabEditRefused as exc:
+        raise ValueError(f"The skeleton edit cannot be applied to {resolved}: {exc}") from exc
+    return parse_pab(data, skeleton_path), data
+
+
+def used_added_bones(mesh, skeleton_edit):
+    """Added bones the imported weights use, in the edit's order."""
+    used = set()
+    for part in mesh.submeshes:
+        skin = part.interchange_skin
+        if skin and part.bone_indices:
+            names = [str(skin["nodes"][joint].get("name", "")) for joint in skin["joints"]]
+            used.update(names[joint] for row in part.bone_indices for joint in row if 0 <= joint < len(names))
+    return tuple(name for name in skeleton_edit.bone_names if name in used)
+
+
+def template_skeleton(snapshot, target_path, skeleton_edit=None):
+    """The template's own PAB through snapshot provenance, with any skeleton edit applied.
+
+    Returns the parsed rig, its bytes and the shipped PAB's archive path.
+    """
     from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
-    from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.modding.skeleton_parser import parse_pab
 
-    raise_if_cancelled(stop_event)
     by_path, by_basename = snapshot.archive_index_maps()
-    original = snapshot.payload(target_path)
     entry, _report = resolve_skeleton_for_model(
         snapshot.entry(target_path), archive_entries_by_normalized_path=by_path,
-        archive_entries_by_basename=by_basename, pac_data=original,
+        archive_entries_by_basename=by_basename, pac_data=snapshot.payload(target_path),
         read_entry_data=lambda item: snapshot.payload(item.path),
     )
     if entry is None:
@@ -165,6 +190,44 @@ def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event
     skeleton = parse_pab(skeleton_data, entry.path)
     if skeleton.parser_mode != "fixed" or skeleton.parse_warning:
         raise ValueError("Keep imported weights needs a complete fixed-layout target skeleton.")
+    if skeleton_edit is not None:
+        skeleton, skeleton_data = edited_rig(skeleton_data, entry.path, skeleton_edit)
+    return skeleton, skeleton_data, entry.path
+
+
+def export_template_rig_glb(snapshot, target_path, output_dir, *, skeleton_edit=None, stop_event=None):
+    """Write the template mesh skinned to its rig as GLB, added bones included, for weighting elsewhere."""
+    from pathlib import PurePosixPath
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.modding.mesh_glb_interchange import export_glb
+
+    raise_if_cancelled(stop_event)
+    skeleton, _data, _path = template_skeleton(snapshot, target_path, skeleton_edit)
+    original = snapshot.payload(target_path)
+    mesh = parse_pac(original, target_path)
+    palette = resolve_pac_bone_palette(original, skeleton)
+    mesh.interchange_skeleton = skeleton
+    raise_if_cancelled(stop_event)
+    name = PurePosixPath(str(target_path).replace("\\", "/")).stem + ("_edited_rig" if skeleton_edit is not None else "_rig")
+    return export_glb(mesh, output_dir, name, skeleton=skeleton, bone_palette=palette)
+
+
+def prepare_new_item_skin(mesh, snapshot, target_path, *, choices=(), stop_event=None, palette_extension_bones=(),
+                          transfer_transform=None, skeleton_edit=None):
+    """Resolve the exact captured template/PAB through snapshot provenance.
+
+    With ``skeleton_edit`` the binding rig is the template's PAB with the edit's
+    bones appended, and every added bone the imported weights use joins the
+    PAC palette.
+    """
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    raise_if_cancelled(stop_event)
+    original = snapshot.payload(target_path)
+    skeleton, skeleton_data, _path = template_skeleton(snapshot, target_path, skeleton_edit)
+    if skeleton_edit is not None:
+        palette_extension_bones = tuple(dict.fromkeys((*palette_extension_bones,
+                                                       *used_added_bones(mesh, skeleton_edit))))
     body = {}
     if any(choice.policy == "body_transfer" for choice in choices):
         from cdmw.services.new_item_skinning import verified_body_surface

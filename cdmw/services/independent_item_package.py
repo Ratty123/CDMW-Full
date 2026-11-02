@@ -339,6 +339,13 @@ def audit_plan(plan, snapshot, *, stop_event=None):
         elif path in pairs.values() or path.endswith((".paloc", ".pappt")) or path in (
                 "ui/xml/texture/cd_item_icon.xml", BONE_OFFSET_PATH):
             continue
+        elif path.endswith(".pab"):
+            # A model's added bones: the shipped rig must stay intact so composition can merge by name.
+            from cdmw.modding.skeleton_writer import appended_bones, read_pab_document
+            try:
+                appended_bones(read_pab_document(snapshot.payload(path), path), read_pab_document(files[path], path))
+            except ValueError as exc:
+                raise IndependentItemError(f"Independent item changes shipped bones of {path}: {exc}") from exc
         else:
             raise IndependentItemError(f"Independent packages cannot carry the shared change: {path}")
     for request in plan.additions:
@@ -380,8 +387,11 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
     def model_value(value):
         if value is None:
             return None
-        return {"pac": blob(value.pac_data), "side_files": {virtual_path(path.lower()): blob(data) for path, data in value.side_files.items()},
-                "material_route": value.material_route}
+        result = {"pac": blob(value.pac_data), "side_files": {virtual_path(path.lower()): blob(data) for path, data in value.side_files.items()},
+                  "material_route": value.material_route}
+        if value.skeleton_edit is not None:
+            result["skeleton_edit"] = value.skeleton_edit.to_dict()
+        return result
     from cdmw.domain.new_item.item_properties import property_values
     properties = property_values(plan.spec)
     legacy_spec = replace(_prepared_spec(plan.spec), item_settings=None, stat_settings=None, inventory_settings=None, definition_settings=None, behavior_settings=None, **dict.fromkeys(properties))
@@ -570,12 +580,21 @@ def _recipe_values(package):
     def model(raw):
         if raw is None:
             return None
-        if not isinstance(raw, dict) or set(raw) != {"pac", "side_files", "material_route"} or not isinstance(raw["side_files"], dict) or not isinstance(raw["material_route"], str):
+        if (not isinstance(raw, dict) or set(raw) - {"skeleton_edit"} != {"pac", "side_files", "material_route"}
+                or not isinstance(raw["side_files"], dict) or not isinstance(raw["material_route"], str)):
             raise IndependentItemError("Invalid prepared model.")
         side = {virtual_path(path): blob(key) for path, key in raw["side_files"].items()}
         if any(not path.endswith((".pac", ".pac_xml", ".dds")) for path in side):
             raise IndependentItemError("Unsupported prepared model side file.")
-        return ModelFiles(blob(raw["pac"]), side, raw["material_route"])
+        skeleton_edit = None
+        if "skeleton_edit" in raw:
+            from cdmw.services.pab_skeleton_edit_service import SkeletonEditRecipe
+            try:
+                skeleton_edit = SkeletonEditRecipe.from_dict(raw["skeleton_edit"])
+            except ValueError as exc:
+                raise IndependentItemError(f"Invalid prepared skeleton edit: {exc}") from exc
+            virtual_path(skeleton_edit.path)
+        return ModelFiles(blob(raw["pac"]), side, raw["material_route"], skeleton_edit=skeleton_edit)
     primary = model(value["model"])
     variants = {}
     if not isinstance(value["variants"], list) or len(value["variants"]) > 128:
