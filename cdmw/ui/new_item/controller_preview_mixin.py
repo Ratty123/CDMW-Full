@@ -59,13 +59,13 @@ def _placement_progressive_source(
     placement,
     character_mesh,
     token,
-    shader_controls=(), snapshot=None, *, plain_pbr=False, geometry_token=None, translucency=None,
+    shader_controls=(), snapshot=None, *, plain_pbr=False, geometry_token=None, translucency=None, hide_template=False,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
     def build_geometry_scene(stop_event):
         return PlacementScene(
-            template=geometry_build(stop_event),
+            template=None if hide_template else geometry_build(stop_event),
             model=source.baked_scene_mesh(),
             placement=placement,
             model_bounds=source.baked_bounds(),
@@ -84,7 +84,7 @@ def _placement_progressive_source(
         return compose_template_materials(
             template_build,
             lambda template: PlacementScene(
-                template=template,
+                template=None if hide_template else template,
                 model=shader_preview_mesh(model, shader_controls, snapshot=snapshot,
                                           stop_event=stop_event, plain_pbr=plain_pbr),
                 placement=placement,
@@ -142,7 +142,7 @@ def _template_progressive_source(
     shader_controls=(), snapshot=None,
     placement_scene=False,
 ):
-    geometry_token = ("template-scene", token, bool(include_character))
+    geometry_token = ("template-scene", token, include_character)
     # The plain template package is read-only in the viewport; the gizmo moves only the
     # editable role of a placement scene, so Model & Placement asks for one.
     if not placement_scene and not include_character and glow is None and translucency is None and not shader_controls:
@@ -160,7 +160,7 @@ def _template_progressive_source(
     # The composed material cache must name the same scene as its geometry and
     # worker request. Include character visibility and invalidate packages that
     # lost the template's wrapper names before applying appearance edits.
-    token = (*token, "appearance-v3", bool(include_character), repr(glow), repr(translucency), repr(shader_controls))
+    token = (*token, "appearance-v3", include_character, repr(glow), repr(translucency), repr(shader_controls))
     scene_token = ("template-character", template_key, token) if include_character else token
 
     def appearance(mesh, stop_event):
@@ -287,7 +287,51 @@ class NewItemPreviewControllerMixin:
             merged = placement_reference_mesh(merged, parsed)
         return merged
 
-    def item_preview_source(self, *, include_character: bool = False, editable_template: bool = False):
+    def item_preview_source(self, *, include_character: bool = False, editable_template: bool = False,
+                            include_installed_reference: bool = False):
+        reference = self.installed_reference if include_installed_reference else None
+        result = self._item_preview_source(include_character=include_character,
+            editable_template=editable_template, reference=reference)
+        if reference is None or result is None:
+            return result
+        from dataclasses import replace
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
+
+        token, build = result
+        acquire = getattr(build, 'acquire_usage', None)
+
+        class ReferenceUsage:
+            def __init__(self, leases):
+                self.leases = leases
+
+            def release(self):
+                for lease in self.leases:
+                    lease.release()
+                self.leases = ()
+
+        def acquire_usage():
+            leases = []
+            try:
+                for owner in (reference.acquire_usage, acquire):
+                    if owner is None:
+                        continue
+                    lease = owner()
+                    if lease is None:
+                        ReferenceUsage(leases).release()
+                        return None
+                    leases.append(lease)
+            except BaseException:
+                ReferenceUsage(leases).release()
+                raise
+            return ReferenceUsage(leases)
+
+        if isinstance(build, ProgressivePreviewSource):
+            build = replace(build, acquire_usage=acquire_usage)
+        else:
+            build = _progressive_preview_source(build, build, acquire_usage)
+        return token, build
+
+    def _item_preview_source(self, *, include_character=False, editable_template=False, reference=None):
         """What the Model and icon step's viewport shows, textured the way the Model
         Library and the Builder show it: a `(token, build)` pair, or None when there
         is nothing to show. The builders run off the UI thread and return preview data,
@@ -298,7 +342,9 @@ class NewItemPreviewControllerMixin:
         ``editable_template`` shows the template's own model as a placement scene, so
         the gizmo can move it about the item origin the template transform uses."""
 
-        include_character = bool(include_character)
+        show_game_character = bool(include_character)
+        include_character = (('installed-reference', reference.cache_identity, show_game_character)
+                             if reference is not None else show_game_character)
         variant_binding = self._active_variant or ()
         character_lock = threading.Lock()
         character_cache: list = []
@@ -309,6 +355,14 @@ class NewItemPreviewControllerMixin:
             with character_lock:
                 if character_cache:
                     return character_cache[0]
+                if reference is not None:
+                    reference.dmm_source_revision.validate(stop_event)
+                    reference_mesh = reference.baked_preview_mesh()
+                    # Installed garments keep their authored frame. They never get
+                    # the editable item's placement or material changes.
+                    if not show_game_character:
+                        character_cache.append(reference_mesh)
+                        return reference_mesh
                 held = (self.character_holding_the_item(stop_event=stop_event, variant_binding=variant_binding)
                         if variant_binding else self.character_holding_the_item(stop_event=stop_event))
                 mesh = getattr(held, "mesh", None)
@@ -326,6 +380,9 @@ class NewItemPreviewControllerMixin:
                     from cdmw.services.effect_character_reference import rotate_mesh
 
                     mesh = rotate_mesh(mesh, inverse)
+                if reference is not None:
+                    from cdmw.ui.new_item.item_preview_materials import placement_reference_mesh
+                    mesh = placement_reference_mesh(mesh, reference_mesh)
                 character_cache.append(mesh)
                 return mesh
 
@@ -351,6 +408,7 @@ class NewItemPreviewControllerMixin:
                 character_mesh,
                 token, self.draft.shader_controls, self.snapshot,
                 plain_pbr=self.draft.material_route is MaterialRoute.PLAIN_PBR,
+                hide_template=reference is not None,
                 translucency=self.draft.translucency,
                 geometry_token=("placement-scene", source.cache_identity, source.bake,
                                 source.mesh_generation, template_token, include_character),
@@ -381,7 +439,7 @@ class NewItemPreviewControllerMixin:
                 if mesh is not None and include_character:
                     return PlacementScene(template=None, model=mesh, character=character_mesh(stop_event))
                 return mesh
-            token = (("imported-bare-character", id(result), self.draft.template_key)
+            token = (("imported-bare-character", id(result), self.draft.template_key, include_character)
                      if include_character else ("imported-bare", id(result)))
             return token, build_imported
         template = self._template_preview_build()

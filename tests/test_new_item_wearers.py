@@ -63,7 +63,7 @@ def test_add_remove_preserves_other_fields_selectors_and_drop_model(generation):
 
 
 @pytest.mark.parametrize('case,reason', (
-    ('multiple', 'ambiguous'), ('no_worn', 'ambiguous'), ('empty', 'no_selectors'),
+    ('multiple', 'ambiguous'), ('no_worn', 'ambiguous'),
     ('role', 'unsupported'), ('gimmick', 'unsupported'), ('not_equipment', 'not_equipment'),
     ('removed_inherited', 'unsupported'),
 ))
@@ -102,6 +102,24 @@ def test_inherited_support_missing_strings_and_unrelated_overrides():
     existing = ItemBehaviorSettings({'prefabs': prefabs, 'memo': 'Keep'})
     changed = set_wearer_support(row, existing, STRINGS, 'kliff', True)
     assert set_wearer_support(row, changed, STRINGS, 'kliff', False) == existing
+
+
+def test_empty_selector_list_stays_unrestricted():
+    row = _row()
+    prefabs = read_behavior_fields(row.raw)['prefabs']
+    prefabs[0]['tribe_genders'] = []
+    override = ItemBehaviorSettings({'prefabs': deepcopy(prefabs)})
+    assert wearer_support(row, override, STRINGS).unrestricted
+    assert set_wearer_support(row, override, STRINGS, 'kliff', True) == override
+    row = parse_iteminfo_row(set_behavior_fields(row.raw, {'prefabs': prefabs}), structured=True)
+    support = wearer_support(row, None, STRINGS)
+    assert support.selected == support.inherited == set(PLAYER_SELECTORS)
+    assert set_wearer_support(row, None, STRINGS, 'kliff', True) is None
+    with pytest.raises(WearerSupportError, match='inherited'):
+        set_wearer_support(row, None, STRINGS, 'kliff', False)
+    prefabs[0]['tribe_genders'] = [KLIFF]
+    with pytest.raises(WearerSupportError, match='unsupported'):
+        set_wearer_support(row, ItemBehaviorSettings({'prefabs': prefabs}), STRINGS, 'kliff', False)
 
 
 @pytest.fixture

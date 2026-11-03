@@ -57,7 +57,7 @@ class InstalledCharacterModels(QDialog):
         self.context.setTextFormat(Qt.TextFormat.PlainText)
         self.context.setWordWrap(True)
         layout.addWidget(self.context)
-        self.note = QLabel('Choose a replacement for this equipment part. To change who can wear the item, use Wearable by on Template.')
+        self.note = QLabel('Preview and fitting only. Installed models and textures are never included in your item. Import your own model to export it.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         source = QGroupBox('Installed mod')
@@ -138,7 +138,7 @@ class InstalledCharacterModels(QDialog):
         self.close_button.clicked.connect(self.reject)
         row.addWidget(self.close_button)
         row.addStretch(1)
-        self.load_button = QPushButton('Use this model')
+        self.load_button = QPushButton('Show fitting reference')
         self.load_button.clicked.connect(self._load)
         row.addWidget(self.load_button)
         layout.addLayout(row)
@@ -148,8 +148,8 @@ class InstalledCharacterModels(QDialog):
         controller.snapshot_ready.connect(self._snapshot_ready)
         controller.busy_changed.connect(self._enabled)
         controller.template_changed.connect(self._template_changed)
-        controller.model_import_changed.connect(self._import_ready)
-        controller.model_import_failed.connect(self._import_failed)
+        controller.installed_reference_changed.connect(self._import_ready)
+        controller.installed_reference_failed.connect(self._import_failed)
         self.finished.connect(self._closed)
         self._template_changed()
 
@@ -168,7 +168,7 @@ class InstalledCharacterModels(QDialog):
         # Closing the picker cancels only the import it started. The controller
         # retains the previous usable source until a complete result is accepted.
         if self._loading:
-            self.controller.cancel_operation('model_import')
+            self.controller.cancel_operation('installed_reference')
         self._loading = False
         self._models_snapshot = None
 
@@ -209,10 +209,9 @@ class InstalledCharacterModels(QDialog):
             return
         previous = self.collection.currentData()
         if self.library is not None and changed:
-            _, _, owners = self.controller.variant_plan_inputs()
-            if any(getattr(source, 'dmm_source_revision', None) is not None for source in owners):
-                self.controller.invalidate_plan()
-                self._message(tr('Installed files changed. Load the model again before building or exporting.'))
+            if self.controller.installed_reference is not None:
+                self.controller.clear_installed_reference()
+                self._message(tr('Installed files changed. Choose the fitting reference again.'))
         self.library = library
         self.modules.setText(tr('Installed files can be browsed before mounting. Game fit and equipping still need testing.'))
         self.modules.setToolTip(tr('DMM selection — Equip All Armor: {armor}; CharacterCreator.asi: {creator}.').format(
@@ -310,7 +309,7 @@ class InstalledCharacterModels(QDialog):
             mismatch = self._template_category != 'other' and character_model_category(path) != self._template_category
             self.guidance.setText(tr('Choose {part} for this template. This model belongs to a different part.').format(
                 part=_category_label(self._template_category)) if mismatch else
-                tr('The part matches. Loading checks the rig; it does not prove body fit. Review the preview, then Apply placement.'))
+                tr('Compare this reference with your item in the preview. It does not change who can wear the item or apply automatic fitting.'))
         self._enabled()
 
     def _enabled(self, *_args):
@@ -353,10 +352,10 @@ class InstalledCharacterModels(QDialog):
         if not self.load_button.isEnabled() or self.library is None or path is None:
             return
         self._loading = True
-        self._message(tr('Loading model and checking its rig…'))
+        self._message(tr('Loading fitting reference…'))
         self._enabled()
         request = InstalledCharacterModel(self.library, self.collection.currentData(), path)
-        if not self.controller.start_model_import(Path(path), installed_model=request) and self._loading:
+        if not self.controller.start_installed_reference(request) and self._loading:
             self._import_failed('')
 
     def _import_failed(self, message):

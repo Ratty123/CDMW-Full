@@ -102,13 +102,17 @@ def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> No
                 merged.setdefault(target["file"], []).append(intent)
     for target in targets:
         intents = merged.setdefault(target["file"], [])
+        if target["file"] == "character/bin__/partprefabtable.pappt":
+            names = {intent.get("new", {}).get("key_a") for intent in target["intents"]}
+            # Rebuilding an item restates its owned part once, even if a slot changed.
+            intents[:] = [intent for intent in intents if intent.get("new", {}).get("key_a") not in names]
         intents.extend(intent for intent in target["intents"] if intent not in intents)
     merged = {name: intents for name, intents in merged.items() if intents}
     if not merged:
         path.unlink(missing_ok=True)
         return
-    operations = dict(format=3, modinfo=dict(title=f"{title} (shops and groups)", version="1.0.0", author="CDMW",
-                                             description="Adds CDMW's items to their shops and item groups."),
+    operations = dict(format=3, modinfo=dict(title=f"{title} (item registrations)", version="1.0.0", author="CDMW",
+                                             description="Adds CDMW's parts, shop stock and item groups. Requires DMM 4.4.0 or newer."),
                       targets=[dict(file=name, intents=intents) for name, intents in merged.items()])
     path.write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
 

@@ -1080,7 +1080,15 @@ Fit declares 1,130 female-body replacement rules and supplies 868 PACs; Module's
 subpart prefab references absent from PAPPT. Creator supplies 78 PACs. These are
 file inventories, not runtime compatibility assertions. A Fit upper-body model
 was imported with declared game textures and its source PAB joint identity.
-The source guards cover installed-file updates before planning and exporting.
+Following the mod author's 2026-11-03 guidance, installed models and textures are
+preview/fitting references only and are excluded from item recipes and exports.
+The author confirms that CC changes Kliff's body, not his equip identity; new-item
+wearer choices are written into the item itself. Original game parts can reuse
+FAF/FAM rules; custom parts do not automatically inherit them. CDMW emits no
+additional fitting rules for existing parts, and DMM exports register new parts
+with additive PAPPT intents instead of replacing the shared table. Source guards
+check installed-file updates when preparing references. Owned-fixture tests cover
+reference isolation and output contracts; no game acceptance is claimed.
 The current-profile format and ASI behavior were not validated; the existing
 9.1.16 profile-reader boundary above remains unchanged. See the
 [local-test contract](../cdmw/ui/new_item/README.md#installed-character-models-local-test).

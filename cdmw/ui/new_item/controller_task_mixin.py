@@ -118,6 +118,7 @@ class NewItemTaskControllerMixin:
                 self._template_shader_options = {}
                 self._template_translucency = {}
                 self.snapshot = result
+                self.clear_installed_reference()
                 self._snapshot_error = ""
                 self.invalidate_plan()
                 # a different install can have different bodies and rigs
@@ -666,6 +667,7 @@ class NewItemTaskControllerMixin:
             thread.quit()
         source, self.model_import = self.model_import, None
         self._cleanup_model_source(source)
+        self.clear_installed_reference()
         self._effect_lane.request_shutdown()
         self._template_search_lane.request_shutdown()
         self._template_selection_lane.request_shutdown()

@@ -44,7 +44,8 @@ class WearerEditor(QGroupBox):
         if row is not None:
             try:
                 support = wearer_support(row, self.controller.draft.behavior_settings, snapshot.stringinfo_texts)
-                message = tr('Locked choices are already included by the template.')
+                message = (tr('All characters are already allowed by this template.') if support.unrestricted
+                           else tr('Locked choices are already included by the template.'))
             except (ValueError, KeyError, TypeError) as exc:
                 reason = str(exc) if isinstance(exc, WearerSupportError) else 'unsupported'
                 message = {

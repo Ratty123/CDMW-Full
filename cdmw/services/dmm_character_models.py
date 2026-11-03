@@ -1,13 +1,13 @@
 """Prepare one installed model with its declared textures and proven source rig."""
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry
 from cdmw.services.dmm_character_mods import DmmCharacterLibrary, _read, normalized
-from cdmw.services.new_item_provenance import SourceRevision, StaleNewItemSource
+from cdmw.services.new_item_provenance import SourceRevision
 
 
 @dataclass(frozen=True)
@@ -138,28 +138,11 @@ def bind_installed_materials(mesh, root, bindings):
 
 def validate_installed_sources(owners, stop_event=None):
     for owner in owners:
-        revision = getattr(owner, "dmm_source_revision", None)
-        if revision is not None:
-            try:
-                revision.validate(stop_event)
-            except StaleNewItemSource as exc:
-                raise StaleNewItemSource("Installed files changed. Load the model again before building or exporting.") from exc
+        if getattr(owner, "dmm_source_revision", None) is not None:
+            raise ValueError("Installed character models are fitting references only and cannot be exported.")
 
 
 def retain_installed_sources(plan, owners, stop_event=None):
-    """Carry the same checks into every existing export/install boundary."""
+    """Refuse a legacy installed-model import before it reaches any output recipe."""
     validate_installed_sources(owners, stop_event)
-    revisions = [source.dmm_source_revision for source in owners
-                 if getattr(source, "dmm_source_revision", None) is not None]
-    if not revisions:
-        return plan
-    original = plan.source_revision
-    if original is None:
-        raise ValueError("An installed character model requires a witnessed game snapshot.")
-    files, hashes = dict(original.files), dict(original.indexes)
-    for revision in revisions:
-        for target, source in ((files, revision.files), (hashes, revision.indexes)):
-            for path, stamp in source:
-                if target.setdefault(path, stamp) != stamp:
-                    raise StaleNewItemSource("Models from different DMM revisions cannot be exported together. Load them again.")
-    return replace(plan, source_revision=replace(original, files=tuple(files.items()), indexes=tuple(hashes.items())))
+    return plan

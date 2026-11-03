@@ -1,4 +1,4 @@
-"""Adapt a witnessed installed PAC to the existing authored-model import path."""
+"""Prepare a witnessed installed PAC for a preview-only fitting reference."""
 from cdmw.core.owned_temp import cleanup_owned_temp_directory, create_owned_temp_directory
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.dmm_character_models import bind_installed_materials, prepare_installed_character_model

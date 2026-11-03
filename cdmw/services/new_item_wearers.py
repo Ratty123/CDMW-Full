@@ -24,6 +24,7 @@ class WearerSupport:
     inherited: frozenset[str]
     selected: frozenset[str]
     available: frozenset[str]
+    unrestricted: bool = False
 
 
 def _worn_entry(prefabs):
@@ -37,8 +38,6 @@ def _worn_entry(prefabs):
     entry = prefabs[index]
     if not entry['prefabs'] or entry['use_gimmick_prefab'] or entry['craft_material']:
         raise WearerSupportError('unsupported')
-    if not entry['tribe_genders']:
-        raise WearerSupportError('no_selectors')
     return index
 
 
@@ -53,7 +52,8 @@ def _prefab_lists(row, settings):
     index = _worn_entry(source)
     if len(current) != len(source) or _worn_entry(current) != index:
         raise WearerSupportError('unsupported')
-    if not set(source[index]['tribe_genders']).issubset(current[index]['tribe_genders']):
+    original_selectors, selected = source[index]['tribe_genders'], current[index]['tribe_genders']
+    if selected and (not original_selectors or not set(original_selectors).issubset(selected)):
         # A manually restricted override must not be silently broadened/reset.
         raise WearerSupportError('unsupported')
     return source, current, index
@@ -62,6 +62,10 @@ def _prefab_lists(row, settings):
 def wearer_support(row, settings, strings):
     source, current, index = _prefab_lists(row, settings)
     keys = {name: stringinfo_key(selector) for name, selector in PLAYER_SELECTORS.items()}
+    # An empty selector list is unrestricted, as used by CC's Equip All Armor.
+    # Do not turn it into a restriction merely by clicking a character checkbox.
+    if not current[index]['tribe_genders']:
+        return WearerSupport(frozenset(keys), frozenset(keys), frozenset(keys), unrestricted=True)
     return WearerSupport(
         frozenset(name for name, key in keys.items() if key in source[index]['tribe_genders']),
         frozenset(name for name, key in keys.items() if key in current[index]['tribe_genders']),
@@ -76,6 +80,8 @@ def set_wearer_support(row, settings, strings, character, enabled):
     if character in support.inherited and not enabled:
         raise WearerSupportError('inherited')
     source, current, index = _prefab_lists(row, settings)
+    if not current[index]['tribe_genders']:
+        return settings
     changed = deepcopy(current)
     selectors = changed[index]['tribe_genders']
     key = stringinfo_key(PLAYER_SELECTORS[character])

@@ -105,20 +105,17 @@ def test_unknown_rules_and_configuration_refuse_and_cancel_is_observed(installed
         normalized('../outside.pac')
 
 
-@pytest.mark.parametrize('manager', ('DMM', 'CDMW'))
-def test_installed_witnesses_reach_real_export_boundary(installed, tmp_path, manager):
+def test_installed_sources_cannot_enter_any_export_plan(installed, tmp_path):
     install, mods, model, _ = installed
     library = scan_character_library(str(install))
     owner = SimpleNamespace(dmm_source_revision=library.revision)
     service, snapshot, _ = setup_game(tmp_path)
-    plan = retain_installed_sources(service.plan(spec(), snapshot), (owner,))
-    plan.source_revision.validate()
-    write(mods, 'fit/0009/' + model, b'updated')
-    with pytest.raises(StaleNewItemSource, match='Load the model again'):
+    plan = service.plan(spec(), snapshot)
+    with pytest.raises(ValueError, match='fitting references only'):
+        retain_installed_sources(plan, (owner,))
+    with pytest.raises(ValueError, match='fitting references only'):
         validate_installed_sources((owner,))
-    with pytest.raises(StaleNewItemSource):
-        service.export_loose(plan, tmp_path / 'export', manager=manager)
-    assert not (tmp_path / 'export').exists()
+    assert retain_installed_sources(plan, ()) is plan
 
 
 def test_names_follow_explicit_item_rule_and_prefab_not_similar_filenames(installed):

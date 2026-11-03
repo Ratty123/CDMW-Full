@@ -20,9 +20,16 @@ IMPORT_DIR_SETTING = "ui/new_item_import_dir"
 
 class ModelPanelPreviewMixin:
     def _installed_model_loaded(self):
-        # Show the accepted replacement immediately, instead of hiding a small
-        # part inside the old template's overlay. The normal view menu remains.
-        self.view_mode.setCurrentIndex(self.view_mode.findData('replacement_only'))
+        self.show_installed_reference.setChecked(True)
+        self.view_mode.setCurrentIndex(self.view_mode.findData('side_by_side'))
+        self._installed_reference_changed()
+
+    def _installed_reference_changed(self, *_args):
+        source = self._controller.installed_reference
+        self.show_installed_reference.setEnabled(source is not None)
+        self.clear_reference_button.setEnabled(source is not None and not self._controller.busy)
+        self.reference_name.setText(source.chosen_path.name if source is not None else '')
+        self._preview_mesh_token = None
         self.refresh_preview()
 
     def _icon_source_changed(self, keep: bool) -> None:
@@ -49,6 +56,8 @@ class ModelPanelPreviewMixin:
     def refresh_preview(self) -> None:
         """Show the selected item source in the inline resident viewport."""
 
+        if self._controller._shutdown_requested:
+            return
         self._appearance_preview_timer.stop()
         window = self.window()
         if not (self.isVisible() or (window is not None and window.isVisible())):
@@ -64,10 +73,12 @@ class ModelPanelPreviewMixin:
             self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
             return
         show_character = self.show_character.isChecked()
+        show_reference = self.show_installed_reference.isChecked() and self._controller.installed_reference is not None
         imported = self._controller.model_import
         template_model = imported is None and self._controller.model_result is None
         source = self._controller.item_preview_source(
             include_character=show_character,
+            include_installed_reference=show_reference,
             editable_template=template_model and self.preview.placement_editable,
         )
         if source is None:
@@ -76,7 +87,7 @@ class ModelPanelPreviewMixin:
             self._preview_mesh_token = None
             return
         token, build = source
-        if imported is not None or show_character or template_model:
+        if imported is not None or show_character or show_reference or template_model:
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
@@ -231,6 +242,7 @@ class ModelPanelPreviewMixin:
         for widget in (
             self.import_button,
             self.installed_model_button,
+            self.clear_reference_button,
             self.apply_button,
             self.fit_button,
             self.import_skin_policy,
@@ -242,6 +254,7 @@ class ModelPanelPreviewMixin:
         ):
             widget.setEnabled(not busy)
         source = self._controller.model_import
+        self.clear_reference_button.setEnabled(not busy and self._controller.installed_reference is not None)
         self.skinning_button.setEnabled(bool(not busy and source is not None and source.skinning_target
             and source.mesh_generation == source.skinning_generation))
         model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit", "model_skinning", "model_hide", "transparency_mask"}

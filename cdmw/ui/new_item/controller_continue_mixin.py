@@ -67,6 +67,7 @@ class NewItemContinueControllerMixin:
             self._variant_states[identity] = VariantModelState(
                 appearance, None, result, None, None, ModelPlacement(), tuple(appearance.glow_parts),
                 tuple(appearance.glow_color), appearance.glow_intensity, None, appearance.dyes != ())
+        self.clear_installed_reference()
         self.draft = draft
         self.model_import, self.model_entry, self.model_scene = None, None, None
         self.model_placement = ModelPlacement()

@@ -230,6 +230,7 @@ class NewItemModelControllerMixin:
         self.template_failed.emit(str(message))
 
     def _commit_template(self, template_key) -> None:
+        self.clear_installed_reference()
         self.reset_variants()
         # A continued package is written back only while its own item is open.
         self.forget_continued_package()
@@ -320,11 +321,41 @@ class NewItemModelControllerMixin:
         finally:
             self.model_result = saved
 
+    def clear_installed_reference(self) -> None:
+        source, self.installed_reference = self.installed_reference, None
+        self._cleanup_model_source(source)
+        self.installed_reference_changed.emit(None)
+
+    def start_installed_reference(self, request) -> bool:
+        """Load an installed asset for viewing only; never put it in the item recipe."""
+        snapshot, key, variant = self.snapshot, self.draft.template_key, self._active_variant
+        if snapshot is None or key is None:
+            return False
+
+        def task(log, progress, stop_event):
+            from cdmw.ui.new_item.installed_model_import import load_installed_model
+            return load_installed_model(request, snapshot, stop_event=stop_event, on_log=log)
+
+        def done(result):
+            if self.snapshot is not snapshot or self.draft.template_key != key or self._active_variant != variant:
+                self._cleanup_model_source(result)
+                self.installed_reference_failed.emit("The template changed. Choose the fitting reference again.")
+                return
+            previous, self.installed_reference = self.installed_reference, result
+            self.installed_reference_changed.emit(result)
+            self._cleanup_model_source(previous)
+
+        return self._run("installed_reference", task, done, self.installed_reference_failed.emit,
+                         task_accepts_progress=True)
+
     def start_model_import(self, path: Path, *, skin_policy="preserve", palette_extension_bones=(), installed_model=None) -> bool:
         """Read a model file (or a zip holding one) for the studio's own placement: the
         scene import and the source's textures, off the UI thread. On success the model
         shows over the template at a first fit; a result built before is dropped."""
 
+        # Compatibility for older callers: installed files are never authored models.
+        if installed_model is not None:
+            return self.start_installed_reference(installed_model)
         chosen = Path(path)
         if self.snapshot is None or self.draft.template_key is None:
             self.status_message.emit("Choose a template first; the model is placed over its mesh.", True)
@@ -359,11 +390,7 @@ class NewItemModelControllerMixin:
             if needs_blender and not blender:
                 raise ValueError(fbx_needs_blender_message(needs_blender))
             report(f"Reading {chosen.name}...")
-            if installed_model is not None:
-                from cdmw.ui.new_item.installed_model_import import load_installed_model
-                result = load_installed_model(installed_model, import_snapshot, stop_event=stop_event, on_log=report)
-            else:
-                result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
+            result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
             try:
                 from cdmw.services.mesh_skinning_preflight import has_authored_skin, prepare_new_item_skin
                 authored = has_authored_skin(result.scene.mesh)

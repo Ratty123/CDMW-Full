@@ -1181,9 +1181,10 @@ planning and reference validation as other prefab overrides. No new package fiel
 or version is introduced. With no additions, the template stays inherited. Other
 behavior overrides survive adding or removing a wearer.
 
-This guided control accepts equipment with exactly one type-0 prefab entry with
-explicit wearer selectors; other entries must be type-3 drops. It refuses multiple
-wearable variants, implicit/empty selectors, unknown roles, gimmick/craft prefabs,
+This guided control accepts equipment with exactly one type-0 prefab entry;
+other entries must be type-3 drops. Empty selectors mean unrestricted and show all
+three characters as already allowed without turning that into a restriction.
+It refuses multiple wearable variants, unknown roles, gimmick/craft prefabs,
 and overrides that remove inherited selectors or change the entry structure. A
 character can be added only when its exact selector exists in loaded StringInfo.
 The loaded CharacterInfo records inspected on 2026-11-03 map Kliff/1 to `player_1`,
@@ -1191,8 +1192,9 @@ Damian/4 to `player_2`, and Oongka/6 to `player_3`. Generic race/gender selector
 other player variants are deliberately not inferred from these identities.
 
 The control does not change bodies, skeletons, skin weights, model fit or conditional
-body visibility. A Character Creator appearance change does not prove that the game
-changed the character's equipment identity. Source data and owned-fixture export
+body visibility. As confirmed by CC's author, a female Kliff still has Kliff's
+equipment identity. Add Kliff explicitly; this new item's own selectors do not
+depend on when Equip All Armor runs. Source data and owned-fixture export
 checks do not establish successful equipping or appearance in game.
 
 ### Installed character models (local test)
@@ -1205,17 +1207,20 @@ in `definitiveLoadOrder` alone never means selected. A selection does not prove 
 successful mount. This reader does not enable mods, mount them or execute ASIs.
 
 Choose an installed source and equipment part, search by item name or model ID,
-select a row, then **Use this model**. The picker starts with the template part
+select a row, then **Show fitting reference**. The picker starts with the template part
 and prioritizes Female Armor Fit over character components. Nothing is selected
 automatically. Known part mismatches cannot be loaded through this guided picker;
 part matching does not establish rig or body compatibility. Names are resolved
 only through an item’s worn prefab, an explicit mod replacement rule and its
 target prefab’s PAC reference. Unmapped models remain labelled unnamed.
 
-Successful loading closes the picker and shows **Your model only** in Model &
-Placement. Review it and choose **Apply placement** to include it in output.
-Failures remain beside the load action, retaining the previous usable model.
-Closing the picker cancels its own pending import. Fit and Module are alternative
+Successful loading closes the picker and compares the reference beside the item
+in Model & Placement. **Show fitting reference** toggles it; **Clear reference**
+retires its private staging files after preview workers release them. It never
+becomes `model_import`, a variant input, an icon capture, or an output dependency.
+Import the author's own model and use **Apply placement** to change the item.
+Failures retain the previous usable reference. Closing the picker cancels only
+its pending reference load. Fit and Module are alternative
 collections; neither is layered over the other. Creator provides shared dependencies. All loose
 PACs in a chosen collection are listed. Module additionally resolves its declared
 female-body replacement targets through PAPPT and exact, unique prefab references
@@ -1225,31 +1230,42 @@ or configuration formats are refused rather than interpreted as supported versio
 Discovery runs on cancellable lookup lanes, on opening and every 15 seconds while
 the picker is open and idle; **Refresh DMM** checks immediately. Files and directory witnesses detect
 replacement, deletion and addition without relying on a version-number bump.
-Imports stage a private snapshot with declared DDS dependencies and proven PAB
-joint identities. Skinned PACs pass through a private GLB interchange before the
-existing skin-preserving preflight; the target's palette, joint hierarchy and
-bind-frame checks remain in force. Material slots retain their exact sidecar bindings.
-Exact material slots bind shared texture names without filename guessing. The
-selected template must still have a compatible rig. The original installed files
-are never edited. No author assets or ASIs are bundled with CDMW.
+References stage a private snapshot with declared DDS dependencies and proven PAB
+joint identities. Material slots retain their exact sidecar bindings without
+filename guessing. The original installed files are never edited. Installed
+models and textures are preview/fitting references only, under the author's
+2026-11-03 permission; none are bundled with CDMW or exported in DMM/.cdmw output.
+Legacy internal callers that try applying or planning an installed import are refused.
 
-An update refreshes the catalogue and invalidates a plan using installed models.
-It does not overwrite the author's mesh edits: load the model again to adopt the
-new revision. Source file hashes/witnesses are checked before and after planning
-and retained by the plan's existing export guards. A continued package contains
-its saved finished model; reimport from DMM to adopt later installed updates.
+An update refreshes the catalogue and clears a displayed reference; select it
+again to adopt the new revision. Source witnesses are checked when preparing and
+building the reference preview. Item settings and author-owned mesh edits remain
+unchanged. References are not saved into continued packages.
+
+New item identity does not imply new part identity: retaining game part names lets
+separately installed FAF/FAM rules act in game. Custom/new parts do not inherit
+those rules. CDMW emits no additional conditional rules for the mods' existing
+parts. DMM 4.4.0+ output lowers owned PAPPT additions to `list_append`, key 0,
+field `primary`, using the [public parser's PAPPT shape](https://github.com/exodiaprivate-eng/dmm-parser/blob/main/src/tables/pappt/info.rs).
+Whole PAPPT files, replacements of existing records/private heads, duplicate names
+and registrations without an emitted prefab are refused. Both direct exports and
+composed `.cdmw` sends use this lowering. The existing operations filename stays
+compatible; its DMM title is now **item registrations**. Dye rows continue to use
+the new model's path and require compatible material mappings.
 
 Read-only inspection on 2026-11-03 covered Creator 9.1.30, Fit 1.0.9 and Module
 3.1: 78 Creator PACs, 868 Fit PACs and 438 distinct models referenced by Module's
 491 replacement rules. The supplied Fit descriptor has 1,130 replacement rules.
 These counts describe those installed files, not fixed compatibility limits.
-Owned fixtures cover discovery, cancellation, update refusal, texture/rig import
-and export guards. One installed Fit PAC was prepared with textures and source
-joint identity. This is source/import evidence, not visible or in-game acceptance.
+Owned fixtures cover discovery, cancellation, stale results, texture/rig preparation,
+reference isolation and additive export contracts. One installed Fit PAC was
+previously prepared with textures and source joint identity. These checks do not
+establish successful equipping or appearance in game.
 Current Character Creator profile parsing, ASI behavior, automatic body selection,
 conditional fitting and successful equipping are not established by this feature.
 The existing 9.1.16 profile-reader contract is unchanged. Keep this integration
-local pending the author's response and game testing.
+local pending game testing. Do not reuse earlier experimental exports that included
+installed models; recreate them with author-owned models or original game parts.
 
 ### Stats and prices
 
@@ -2141,11 +2157,13 @@ the DLC update. The writer for CDUMM's `files/` layout is retained but not offer
 
 ### DMM archive compatibility
 
-DMM 1.0 (October 2026) unpacks an archive-group mod and serves its files to the game by
-path through its runtime plugin; it does not change the game's mount list. Re-enabled on
-2026-10-31 with the layout above, checked against a compact (post-DLC) fixture. Mounting a
-Create New Item package in DMM 1.0 and its in-game result are untested. The earlier
-2026-10-21 testing route and DMM 3.5.0 findings below are historical.
+DMM 4.6.0 was detected locally on 2026-11-03. New parts require DMM 4.4.0+:
+the archive group carries model resources and the companion **item registrations**
+entry appends owned parts, shop stock and group members. It does not replace the
+shared PAPPT table or duplicate the installed character mods' condition rules.
+Enable both entries in DMM. These routes are checked with owned fixtures; this
+revision has not been mounted or accepted in game. The earlier 2026-10-21 route
+and DMM 3.5.0 findings below are historical.
 
 The earlier DMM 3.5.0 mount generated a vanilla-only ItemInfo table ahead of the
 mod's complete table, hiding its added item record. The shop still referenced that

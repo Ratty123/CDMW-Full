@@ -121,7 +121,9 @@ def field_operations(files: Mapping[str, bytes], read_game: Callable[[str], Opti
             result.pop(header, None)
             if intents:
                 targets.append(dict(file=f"{name}.pabgb", intents=intents))
-    return result, targets
+    from cdmw.services.dmm_part_table import part_operations
+    result, parts = part_operations(result, read_game)
+    return result, targets + parts
 
 
 def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Optional[bytes]], *,
@@ -205,12 +207,16 @@ def plan_for_dmm(plan, read_game: Callable[[str], Optional[bytes]], *,
     """
     from dataclasses import replace
 
-    tables = {path: data for path, data in plan.loose_files.items() if _SHOP_OR_GROUP_TABLE.match(path)}
+    from cdmw.services.dmm_part_table import PART_TABLE
+    # Include prefab files as ownership witnesses for the part registrations.
+    files = dict(plan.loose_files)
+    files.update((item.path, item.payload_data) for item in plan.additions)
+    tables = {path: data for path, data in files.items() if _SHOP_OR_GROUP_TABLE.match(path) or path == PART_TABLE}
     if not tables:
         return plan, []
-    folded = fold_dlc_additions(tables, read_game, on_log=on_log)
+    folded = fold_dlc_additions(files, read_game, on_log=on_log)
     kept, targets = field_operations(folded, read_game, plan_item_keys(plan.manifest))
-    if kept:
+    if set(kept) & set(tables):
         raise DmmTableError("The shop and item group tables could not all become DMM operations: "
                             + ", ".join(sorted(kept)) + ".")
     dropped = set(tables)

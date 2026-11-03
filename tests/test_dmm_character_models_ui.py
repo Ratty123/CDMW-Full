@@ -22,6 +22,7 @@ def test_guided_picker_filters_parts_reports_import_failure_and_refreshes(studio
     editor = tab.model_panel.installed_models
     assert not hasattr(tab.template_panel, 'installed_models')
     assert tab.template_panel.wearers.parentWidget() is tab.template_panel.preview_group
+    assert tab.model_panel.reference_group.parentWidget() is tab.model_panel.preview_controls.parentWidget()
     monkeypatch.setattr(tab.model_panel, 'refresh_preview', lambda: None)
     monkeypatch.setattr(tab.controller, 'template_primary_entry', lambda: SimpleNamespace(path=path))
     editor._settings = SimpleNamespace(setValue=lambda *_: None)
@@ -38,12 +39,12 @@ def test_guided_picker_filters_parts_reports_import_failure_and_refreshes(studio
     editor.models.setCurrentItem(item)
     assert editor.load_button.isEnabled()
     captured = []
-    monkeypatch.setattr(tab.controller, 'start_model_import', lambda file, **kwargs: captured.append((file, kwargs)) or True)
+    monkeypatch.setattr(tab.controller, 'start_installed_reference', lambda request: captured.append(request) or True)
     before = tab.controller.model_import
     _send(bridge, editor.load_button, 'activate')
-    request = captured[0][1]['installed_model']
+    request = captured[0]
     assert request.path == path and editor._loading
-    tab.controller.model_import_failed.emit('Missing required texture: eyes.dds___')
+    tab.controller.installed_reference_failed.emit('Missing required texture: eyes.dds___')
     assert not editor._loading and editor.isVisible()
     assert 'unchanged' in editor.feedback.text() and 'eyes.dds___' in editor.error_details.toPlainText()
     assert editor.error_details.isHidden() and not editor.details_button.isHidden()
@@ -53,13 +54,13 @@ def test_guided_picker_filters_parts_reports_import_failure_and_refreshes(studio
     _send(bridge, editor.category, 'choose', editor.category.findData('head'))
     editor.models.setCurrentItem(editor.models.topLevelItem(0))
     assert not editor.load_button.isEnabled() and 'different part' in editor.guidance.text()
-    owner = SimpleNamespace(dmm_source_revision=request.library.revision)
-    monkeypatch.setattr(tab.controller, 'variant_plan_inputs', lambda: ({}, {}, (owner,)))
+    tab.controller.installed_reference = SimpleNamespace(dmm_source_revision=request.library.revision)
+    monkeypatch.setattr(tab.controller, '_cleanup_model_source', lambda _: None)
     invalidated = []
     tab.controller.plan_invalidated.connect(lambda: invalidated.append(True))
     write(mods, 'fit/0009/' + path.replace('zz_test', 'zz_new'), b'new mesh')
     _send(bridge, editor.refresh_button, 'activate')
-    assert invalidated and len(editor._paths) == 3
+    assert not invalidated and tab.controller.installed_reference is None and len(editor._paths) == 3
     _send(bridge, editor.filter, 'text', 'zz_new')
     assert editor.models.topLevelItemCount() == 1
     assert 'zz_new' in editor.models.topLevelItem(0).data(0, Qt.UserRole)
@@ -67,14 +68,15 @@ def test_guided_picker_filters_parts_reports_import_failure_and_refreshes(studio
     editor.reject()
 
 
-def test_success_shows_replacement_and_close_cancels_only_owned_import(studio, monkeypatch):
+def test_success_shows_reference_and_close_cancels_only_owned_reference(studio, monkeypatch):
     _, tab, _ = studio
     editor = tab.model_panel.installed_models
     tab.show_step(2)
     editor._open = True
     editor._loading = True
     editor._import_ready(object())
-    assert tab.model_panel.view_mode.currentData() == 'replacement_only'
+    assert tab.model_panel.view_mode.currentData() == 'side_by_side'
+    assert tab.model_panel.show_installed_reference.isChecked()
     assert not editor._open and not editor._loading
     cancelled = []
     monkeypatch.setattr(tab.controller, 'cancel_operation', lambda lane: cancelled.append(lane))
@@ -82,7 +84,7 @@ def test_success_shows_replacement_and_close_cancels_only_owned_import(studio, m
     assert not cancelled
     editor._open = editor._loading = True
     editor._closed()
-    assert cancelled == ['model_import'] and not editor._open
+    assert cancelled == ['installed_reference'] and not editor._open
     editor._import_ready(object())  # A late result must not reopen/accept a closed picker.
     assert not editor._open
 
@@ -139,7 +141,7 @@ def test_installed_model_controls_translate_in_all_builtin_languages(tmp_path):
             try:
                 localizer.apply(editor)
                 assert editor.windowTitle() == localizer.translate('Installed character models (local test)')
-                assert editor.load_button.text() == localizer.translate('Use this model')
+                assert editor.load_button.text() == localizer.translate('Show fitting reference')
                 editor._filter()
                 assert editor.status.text() == localizer.translate('No models match this part. Try another installed mod, part or search.')
                 if language.code != 'en':

@@ -838,7 +838,7 @@ class ModelImportSource:
     #: the Skeleton Edit recipe the weights were prepared against (its bones appended to the template's rig)
     skeleton_edit: object = None
     skinning_generation: int = 0
-    #: Live installed-mod witnesses; preserved through editing and checked at export.
+    #: Installed-mod witnesses mark preview-only sources, which output paths refuse.
     dmm_source_revision: object = None
 
     @property
@@ -1413,6 +1413,9 @@ def build_placed_import(
     from cdmw.services.preview_workflow_service import build_mesh_import_preview
     from cdmw.services.mesh_workflow_service import apply_full_import_model_replacement_preset
     from cdmw.services.new_item_variants import bind_static_import_to_attachment
+
+    if source.dmm_source_revision is not None:
+        raise ValueError("Installed character models are fitting references only and cannot be exported.")
 
     options = dc_replace(
         apply_full_import_model_replacement_preset(),

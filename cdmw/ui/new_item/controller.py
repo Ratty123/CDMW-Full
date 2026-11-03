@@ -86,6 +86,8 @@ class NewItemStudioController(
     model_changed = Signal(object)
     #: a model file was read for the studio (a ModelImportSource), or discarded (None)
     model_import_changed = Signal(object)
+    installed_reference_changed = Signal(object)
+    installed_reference_failed = Signal(str)
     #: a model file was not read, with the reason: the step says so where the reader is,
     #: since the window's status line is not where they are looking
     model_import_failed = Signal(str)
@@ -150,6 +152,7 @@ class NewItemStudioController(
         self.model_scene: object | None = None
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
+        self.installed_reference: Optional[ModelImportSource] = None
         #: bones appended to the template's rigs for imported weights (SkeletonEditRecipe, one per rig)
         self.skeleton_edits: tuple = ()
         self.model_placement: ModelPlacement = ModelPlacement()
