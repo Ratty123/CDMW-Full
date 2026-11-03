@@ -1386,6 +1386,7 @@
     "Armor/helmet: rotate X +90": "갑옷/헬멧: X +90 회전",
     "Armor/helmet: rotate X -90": "갑옷/헬멧: X -90 회전",
     "Armour": "갑옷",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "갑옷과 의상은 자동 회전이나 크기 조정 없이 내보낸 그대로 배치되므로, 게임의 신체 좌표계에서 똑바로 선 상태로 내보내세요. 템플릿에 맞추기는 대신 모델을 템플릿의 형태에 맞게 크기 조정하고 회전합니다. 이 회전은 회전 (°) 값에 표시되지 않으며, 회전 초기화로도 되돌릴 수 없습니다.",
     "Armour indexing cancelled": "아머 인덱싱 취소됨",
     "Armour weight donor: {value_0}": "방어구 가중치 원본: {value_0}",
     "Armour weight transfer cancelled.": "방어구 가중치 전송이 취소되었습니다.",

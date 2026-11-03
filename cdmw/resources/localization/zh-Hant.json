@@ -1386,6 +1386,7 @@
     "Armor/helmet: rotate X +90": "盔甲/頭盔：旋轉X +90",
     "Armor/helmet: rotate X -90": "盔甲/頭盔：旋轉X -90",
     "Armour": "裝甲",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "盔甲和服裝會依匯出時的樣子放置，不會自動旋轉或縮放，因此請在遊戲的身體座標系中以直立姿態匯出。貼合範本則會依範本的形狀縮放並旋轉模型；該旋轉不會顯示在旋轉 (°) 的數值中，重設旋轉也無法復原它。",
     "Armour indexing cancelled": "裝甲索引已取消",
     "Armour weight donor: {value_0}": "護甲權重來源：{value_0}",
     "Armour weight transfer cancelled.": "已取消護甲權重傳遞。",

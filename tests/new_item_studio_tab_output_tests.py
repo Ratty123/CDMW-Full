@@ -620,6 +620,45 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_an_unrigged_garment_keeps_its_authored_frame(self) -> None:
+        """A wearable template's first fit must not turn the model to match the
+        template's shape axes; an upright outfit over an arms-out upper body was
+        turned sideways at an angle the rotation numbers could not show."""
+
+        from types import SimpleNamespace
+
+        from cdmw.core.archive_modding import parsed_mesh_to_preview_model
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, analyze_mesh_geometry
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        # tall and narrow (an outfit) over wide and short (arms out)
+        corners = lambda lo, hi: [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]  # noqa: E731
+        outfit = ParsedMesh(path="outfit.glb", format="glb", submeshes=[SubMesh(
+            name="outfit", vertices=corners((-0.3, 0.0, -0.15), (0.3, 1.8, 0.15)), faces=[(0, 1, 2)])])
+        outfit.total_vertices = 8
+        template_mesh = ParsedMesh(path="template.pac", format="pac", submeshes=[SubMesh(
+            name="template", vertices=corners((-0.8, 1.0, -0.12), (0.8, 1.5, 0.12)), faces=[])])
+        analysis = analyze_mesh_geometry(outfit)
+        source = ModelImportSource(
+            chosen_path=Path(r"E:/models/outfit.glb"), model_path=Path(r"E:/models/outfit.glb"),
+            scene=SimpleNamespace(mesh=outfit, diagnostics=()), preview_model=parsed_mesh_to_preview_model(outfit),
+            bounds=analysis.bounds, centroid=analysis.centroid, principal_frame=analysis.principal_frame,
+        )
+        with patch.object(
+            tab.controller, "_template_geometry_build", return_value=(("template",), lambda _stop: template_mesh),
+        ), patch.object(tab.controller, "_template_uses_weapon_fit", return_value=False), patch.object(
+            tab.controller, "_template_is_wearable", return_value=True,
+        ), patch("cdmw.ui.new_item.controller.load_model_import_source", lambda path, **kw: source):
+            self.assertTrue(tab.controller.start_model_import(Path(r"E:/models/outfit.glb")))
+            self.app.processEvents()
+        self.assertIs(tab.controller.model_import, source)
+        self.assertEqual(source.bake, ModelPlacement(), "the garment is placed as authored")
+        self.assertEqual(source.baked_bounds(), analysis.bounds)
+        tab.close()
+        tab.deleteLater()
+
     def test_failed_initial_geometry_bake_cleans_the_unpublished_import(self) -> None:
         from cdmw.ui.new_item.controller import NewItemStudioController
         from cdmw.ui.new_item.model_import import ModelImportSource

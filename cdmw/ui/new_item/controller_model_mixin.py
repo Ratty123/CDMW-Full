@@ -379,8 +379,11 @@ class NewItemModelControllerMixin:
                 result.fit_template_centroid = template_analysis.centroid
                 result.fit_template_frame = template_analysis.principal_frame
                 result.fit_match_grip = bool(match_grip)
+                # A garment is authored in the body's frame. Matching its shape axes to a
+                # differently shaped template turns it at a hidden angle, so it stays as
+                # authored; Fit to template remains for a model made elsewhere.
                 result.set_bake(
-                    ModelPlacement() if authored else fitted_placement(
+                    ModelPlacement() if authored or wearable else fitted_placement(
                         result.bounds,
                         result.fit_template_bounds,
                         source_centroid=result.centroid,

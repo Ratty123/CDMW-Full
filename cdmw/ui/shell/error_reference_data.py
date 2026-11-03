@@ -33471,7 +33471,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 868
+      "cdmw/ui/new_item/controller_model_mixin.py": 871
     }
   },
   {
@@ -34420,7 +34420,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 621
+      "cdmw/ui/new_item/controller_model_mixin.py": 624
     }
   },
   {
@@ -34781,7 +34781,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 798,
+      "cdmw/ui/new_item/controller_model_mixin.py": 801,
       "cdmw/ui/new_item/model_import.py": 978
     }
   },
@@ -35384,7 +35384,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 433
+      "cdmw/ui/new_item/controller_model_mixin.py": 436
     }
   },
   {
@@ -35448,7 +35448,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 745
+      "cdmw/ui/new_item/controller_model_mixin.py": 748
     }
   },
   {

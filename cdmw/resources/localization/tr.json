@@ -1386,6 +1386,7 @@
     "Armor/helmet: rotate X +90": "Zırh/kask: X +90 döndür",
     "Armor/helmet: rotate X -90": "Zırh/kask: X -90 döndür",
     "Armour": "Zırh",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "Zırh ve giysiler, otomatik döndürme veya ölçekleme olmadan dışa aktarıldıkları gibi yerleştirilir; bu yüzden onları oyunun gövde koordinat sisteminde dik duracak şekilde dışa aktarın. Şablona sığdır ise modeli şablonun biçimine göre ölçekler ve döndürür; bu döndürme Döndürme (°) değerlerinde görünmez ve Döndürmeyi sıfırla onu geri almaz.",
     "Armour indexing cancelled": "Zırh indeksleme iptal edildi",
     "Armour weight donor: {value_0}": "Zırh ağırlığı kaynağı: {value_0}",
     "Armour weight transfer cancelled.": "Zırh ağırlığı aktarımı iptal edildi.",

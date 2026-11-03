@@ -1386,6 +1386,7 @@
     "Armor/helmet: rotate X +90": "Armure/casque : rotation X +90",
     "Armor/helmet: rotate X -90": "Armure/casque : rotation X -90",
     "Armour": "Armure",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "Les armures et les vêtements sont placés tels qu’exportés, sans rotation ni mise à l’échelle automatiques ; exportez-les donc debout, dans le repère du corps du jeu. Adapter au modèle de référence met à l’échelle et fait pivoter l’objet selon la forme du modèle ; cette rotation n’apparaît pas dans les valeurs de Rotation (°), et Réinitialiser la rotation ne l’annule pas.",
     "Armour indexing cancelled": "Indexation de l'armure annulée",
     "Armour weight donor: {value_0}": "Source des poids de l’armure : {value_0}",
     "Armour weight transfer cancelled.": "Transfert des poids de l’armure annulé.",

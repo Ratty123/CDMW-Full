@@ -103,6 +103,7 @@ _CONTROLS = (
     "Add to Archive Browser", "Edited results", "Export Mesh File", "Import", "Settings",
     "Archive Locations", "Open Folder", "Auto-Match", "Reload Folder", "Review & Export",
     "Weights on next import", "Transfer from template", "Keep imported weights", "Export rig GLB…",
+    "Fit to template", "Reset rotation",
     "Move", "Rotate", "Scale", "Uniform scale", "Template", "Identity", "Distribution", "Output",
     "Glow", "Translucency", "Shader experiments", "Parts", "Part colors", "Report a Problem",
     "Island colors", "Open Parts on hover", "Fit all enabled garments", "Use the authored body",
