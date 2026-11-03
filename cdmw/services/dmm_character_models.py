@@ -100,7 +100,10 @@ def prepare_installed_character_model(request, snapshot, root, *, stop_event=Non
     for texture in sorted(textures):
         raise_if_cancelled(stop_event)
         target = destination / texture
-        payload = sources.payload(texture)
+        try:
+            payload = sources.payload(texture)
+        except (KeyError, FileNotFoundError) as exc:
+            raise ValueError(f"Missing required texture: {texture}") from exc
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(payload)
     revision = sources.revision()

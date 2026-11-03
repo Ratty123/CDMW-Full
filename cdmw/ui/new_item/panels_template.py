@@ -75,10 +75,6 @@ class TemplatePanel(QGroupBox):
         selection_layout.addWidget(self.compatibility)
         from cdmw.ui.new_item.wearer_editor import WearerEditor
         self.wearers = WearerEditor(controller, self)
-        selection_layout.addWidget(self.wearers)
-        from cdmw.ui.new_item.installed_character_models import InstalledCharacterModels
-        self.installed_models = InstalledCharacterModels(controller, self)
-        selection_layout.addWidget(self.installed_models)
         self.matches = QTreeWidget()
         self.matches.setColumnCount(5)
         self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type", "Authoring"])
@@ -133,6 +129,7 @@ class TemplatePanel(QGroupBox):
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)
         preview_layout.addWidget(self.preview_status)
+        preview_layout.addWidget(self.wearers)
         self.workspace_splitter.addWidget(self.preview_group)
         self.workspace_splitter.setStretchFactor(0, 3)
         self.workspace_splitter.setStretchFactor(1, 2)

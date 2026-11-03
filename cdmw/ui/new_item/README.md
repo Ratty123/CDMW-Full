@@ -1169,7 +1169,7 @@ cannot be recovered from settings alone.
 
 ### Wearable by
 
-The visible **Template** page includes **Wearable by**. It preserves the template's
+The **Template** preview has **Wearable by** beneath it. It preserves the template's
 existing wearer selectors and lets the author add Kliff, Damiane or Oongka. Checked,
 disabled characters are inherited; unchecking an added character removes only that
 addition. Other selectors, prefab references, scales, conditions and drop entries
@@ -1197,23 +1197,33 @@ checks do not establish successful equipping or appearance in game.
 
 ### Installed character models (local test)
 
-Template's **Installed character models (local test)** reads DMM's existing
+**Model & Placement > Browse installed models…** opens the dedicated installed-model picker. It reads DMM's existing
 `dmm/install_folder` setting or detects its usual installation location. **Choose
 DMM folder…** selects the directory containing `DMM.exe`. `config.json` owns the
 mods directory and selected modules. Metadata supplies installed versions; presence
 in `definitiveLoadOrder` alone never means selected. A selection does not prove a
 successful mount. This reader does not enable mods, mount them or execute ASIs.
 
-Choose Character Creator, Female Armor Fit or Female Armor Module, search a model
-path and **Load selected model**. Fit and Module are alternative collections;
-neither is layered over the other. Creator provides shared dependencies. All loose
+Choose an installed source and equipment part, search by item name or model ID,
+select a row, then **Use this model**. The picker starts with the template part
+and prioritizes Female Armor Fit over character components. Nothing is selected
+automatically. Known part mismatches cannot be loaded through this guided picker;
+part matching does not establish rig or body compatibility. Names are resolved
+only through an item’s worn prefab, an explicit mod replacement rule and its
+target prefab’s PAC reference. Unmapped models remain labelled unnamed.
+
+Successful loading closes the picker and shows **Your model only** in Model &
+Placement. Review it and choose **Apply placement** to include it in output.
+Failures remain beside the load action, retaining the previous usable model.
+Closing the picker cancels its own pending import. Fit and Module are alternative
+collections; neither is layered over the other. Creator provides shared dependencies. All loose
 PACs in a chosen collection are listed. Module additionally resolves its declared
 female-body replacement targets through PAPPT and exact, unique prefab references
 in the loaded game. Unresolved targets are reported and unavailable. Unknown rule
 or configuration formats are refused rather than interpreted as supported versions.
 
 Discovery runs on cancellable lookup lanes, on opening and every 15 seconds while
-idle; **Refresh DMM** checks immediately. Files and directory witnesses detect
+the picker is open and idle; **Refresh DMM** checks immediately. Files and directory witnesses detect
 replacement, deletion and addition without relying on a version-number bump.
 Imports stage a private snapshot with declared DDS dependencies and proven PAB
 joint identities, then use the existing skin-preserving import/preflight path.

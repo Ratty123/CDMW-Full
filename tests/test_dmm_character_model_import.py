@@ -15,7 +15,8 @@ from cdmw.services.new_item_materials import encode_emissive_solid
 from tests.test_pac_xml_standard_material import HEAD, TAIL, texture, wrapper
 
 
-def test_loader_keeps_resolved_joint_identity_and_discovers_declared_game_texture(installed, editor):
+@pytest.mark.parametrize('missing', (False, True))
+def test_loader_keeps_resolved_joint_identity_and_discovers_declared_game_texture(installed, editor, missing):
     install, mods, model, _ = installed
     service, sid, _ = editor
     captured = service.capture_export_snapshot(sid)
@@ -30,11 +31,15 @@ def test_loader_keeps_resolved_joint_identity_and_discovers_declared_game_textur
     pixels = encode_emissive_solid()
     def payload(path):
         reads.append(path)
-        if path != texture_path:
+        if missing or path != texture_path:
             raise KeyError(path)
         return pixels
     snapshot = SimpleNamespace(payload=payload, entry_paths_with_extensions=lambda _ext: ())
     request = InstalledCharacterModel(scan_character_library(str(install)), 'fit', model)
+    if missing:
+        with pytest.raises(ValueError, match='Missing required texture: character/texture/owned/shared.dds'):
+            load_installed_model(request, snapshot)
+        return
     source = load_installed_model(request, snapshot)
     root = source.extract_root
     try:

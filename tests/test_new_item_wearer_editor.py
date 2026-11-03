@@ -84,7 +84,7 @@ def test_wearer_control_translates_in_every_builtin_language(tmp_path, wearer_ga
                 assert editor.title() == localizer.translate('Wearable by')
                 assert editor.choices['damiane'].isChecked()
                 assert editor.status.text() == localizer.translate(
-                    'Checked, disabled characters are inherited from the template. Other inherited selectors are preserved.')
+                    'Locked choices are already included by the template.')
                 if language.code != 'en':
                     assert editor.title() != 'Wearable by'
                     assert not editor.note.text().startswith('Keeps the template')

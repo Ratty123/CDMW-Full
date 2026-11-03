@@ -19,6 +19,12 @@ IMPORT_DIR_SETTING = "ui/new_item_import_dir"
 
 
 class ModelPanelPreviewMixin:
+    def _installed_model_loaded(self):
+        # Show the accepted replacement immediately, instead of hiding a small
+        # part inside the old template's overlay. The normal view menu remains.
+        self.view_mode.setCurrentIndex(self.view_mode.findData('replacement_only'))
+        self.refresh_preview()
+
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
         for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):
@@ -224,6 +230,7 @@ class ModelPanelPreviewMixin:
         lane = getattr(self._controller, "_lane", "")
         for widget in (
             self.import_button,
+            self.installed_model_button,
             self.apply_button,
             self.fit_button,
             self.import_skin_policy,

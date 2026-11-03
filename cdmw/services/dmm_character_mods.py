@@ -219,6 +219,7 @@ def scan_character_library(saved="", *, stop_event=None):
 class CharacterModelCatalogue:
     paths: tuple[str, ...]
     unresolved: tuple[str, ...] = ()
+    item_names: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 def character_model_paths(library, identifier, snapshot=None, *, stop_event=None):
@@ -230,7 +231,8 @@ def character_model_paths(library, identifier, snapshot=None, *, stop_event=None
     sources = library.sources(identifier)
     paths = {path for path, _ in mod.files if path.startswith("character/model/") and path.endswith(".pac")}
     unresolved = []
-    if mod.kind == "module" and snapshot is not None:
+    targets = {}
+    if mod.kind in {"fit", "module"} and snapshot is not None:
         records = {r.stem.casefold(): r for r in snapshot.pappt.records}
         if _PAPPT in sources:
             records.update({r.stem.casefold(): r for r in parse_pappt(sources[_PAPPT].read_bytes()).records})
@@ -248,19 +250,55 @@ def character_model_paths(library, identifier, snapshot=None, *, stop_event=None
                     prefab_paths.update(p for p in sources if p.endswith(".prefab"))
                 matches = [p for p in prefab_paths if p.rsplit("/", 1)[-1] == target + ".prefab"]
                 if len(matches) != 1:
-                    unresolved.append(target)
+                    if mod.kind == 'module':
+                        unresolved.append(target)
                     continue
                 path = matches[0]
             if path not in sources and not snapshot.has_entry(path):
-                unresolved.append(target)
+                if mod.kind == 'module':
+                    unresolved.append(target)
                 continue
             data = sources[path].read_bytes() if path in sources else snapshot.payload(path)
             document = decode_prefab_binary(data)
             models = [normalized(row.text) for row in document.resource_strings()
                       if row.text.casefold().endswith(".pac")]
             if not models or any(model not in sources and not snapshot.has_entry(model) for model in models):
-                unresolved.append(target)
+                if mod.kind == 'module':
+                    unresolved.append(target)
             else:
-                paths.update(models)
+                targets[target] = tuple(models)
+                if mod.kind == 'module':
+                    paths.update(models)
+    names = _replacement_item_names(mod, snapshot, targets, paths, stop_event)
     library.revision.validate(stop_event)
-    return CharacterModelCatalogue(tuple(sorted(paths)), tuple(unresolved))
+    return CharacterModelCatalogue(tuple(sorted(paths)), tuple(unresolved), names)
+
+
+def _replacement_item_names(mod, snapshot, targets, paths, stop_event):
+    """Labels follow item -> worn prefab -> explicit mod rule -> target PAC only."""
+    from collections import defaultdict
+    from cdmw.core.iteminfo_behavior import read_behavior_fields
+
+    rules = defaultdict(set)
+    for source, target in mod.replacements:
+        rules[source].update(path for path in targets.get(target, ()) if path in paths)
+    if not rules or snapshot is None or not hasattr(snapshot, 'rows'):
+        return ()
+    names = defaultdict(set)
+    display = snapshot.item_display_names()
+    for key, row in snapshot.rows.items():
+        raise_if_cancelled(stop_event)
+        if not row.equip_type_key:
+            continue
+        try:
+            prefabs = read_behavior_fields(row.raw)['prefabs']
+        except ValueError:
+            continue  # An unqualified row is never a basis for a friendly label.
+        for entry in prefabs:
+            if entry['data_type'] != 0:
+                continue
+            for prefab in entry['prefabs']:
+                source = snapshot.stringinfo_texts.get(prefab, '').casefold()
+                for path in rules.get(source, ()):
+                    names[path].add(display.get(key) or row.string_key.replace('_', ' '))
+    return tuple((path, tuple(sorted(labels))) for path, labels in sorted(names.items()))

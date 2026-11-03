@@ -119,3 +119,40 @@ def test_installed_witnesses_reach_real_export_boundary(installed, tmp_path, man
     with pytest.raises(StaleNewItemSource):
         service.export_loose(plan, tmp_path / 'export', manager=manager)
     assert not (tmp_path / 'export').exists()
+
+
+def test_names_follow_explicit_item_rule_and_prefab_not_similar_filenames(installed):
+    from dataclasses import replace
+    from cdmw.core.iteminfo_behavior import read_behavior_fields, set_behavior_fields
+    from tests.test_new_item_wearers import _row
+    from tests.test_prefab_binary_edit import _build
+    install, mods, model, _ = installed
+    prefab = 'character/bin__/prefab/owned/zz_test.prefab'
+    write(mods, 'fit/0009/' + prefab, _build(model))
+    unrelated = model.replace('zz_test', 'zz_test_alike')
+    write(mods, 'fit/0009/' + unrelated, b'unnamed')
+    row = _row()
+    fields = read_behavior_fields(row.raw)
+    fields['prefabs'][0]['prefabs'] = [123]
+    row = replace(row, raw=set_behavior_fields(row.raw, {'prefabs': fields['prefabs']}))
+    snapshot = SimpleNamespace(
+        pappt=SimpleNamespace(records=(SimpleNamespace(stem='zz_test', prefab_path=prefab),)),
+        rows={row.key: row}, stringinfo_texts={123: 'original'},
+        item_display_names=lambda: {row.key: 'White Bloodwind Leather Armor'},
+        entry_paths_with_extensions=lambda _ext: (), has_entry=lambda _: False)
+    result = character_model_paths(scan_character_library(str(install)), 'fit', snapshot)
+    assert dict(result.item_names) == {model: ('White Bloodwind Leather Armor',)}
+    assert unrelated in result.paths and unrelated not in dict(result.item_names)
+
+
+@pytest.mark.parametrize('folder,category', (
+    ('1_pc/1_phm/armor/9_upperbody', 'chest'),
+    ('1_pc/2_phw/armor_south/10_lowerbody', 'legs'),
+    ('1_pc/9_pgm/head/head_sub', 'head'),
+    ('1_pc/1_phm/armor/11_hand', 'gloves'),
+    ('7_horse/armor/9_upperbody', 'other'),
+    ('2_mon/cd_m0001_00_twofeet/armor/9_upperbody', 'chest'),
+))
+def test_category_describes_part_without_claiming_wearer(folder, category):
+    from cdmw.domain.new_item.installed_model_category import character_model_category
+    assert character_model_category('character/model/' + folder + '/model.pac') == category

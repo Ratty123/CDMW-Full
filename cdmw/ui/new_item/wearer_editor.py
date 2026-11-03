@@ -12,7 +12,7 @@ class WearerEditor(QGroupBox):
         self.setTitle('Wearable by')
         self.controller = controller
         layout = QVBoxLayout(self)
-        self.note = QLabel('Keeps the template\'s wearers. Add another character without changing the model or rig. Equipping and fit still need an in-game check.')
+        self.note = QLabel('Choose the playable character, even when Character Creator changes their appearance. This does not change model fit.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         row = QHBoxLayout()
@@ -44,7 +44,7 @@ class WearerEditor(QGroupBox):
         if row is not None:
             try:
                 support = wearer_support(row, self.controller.draft.behavior_settings, snapshot.stringinfo_texts)
-                message = tr('Checked, disabled characters are inherited from the template. Other inherited selectors are preserved.')
+                message = tr('Locked choices are already included by the template.')
             except (ValueError, KeyError, TypeError) as exc:
                 reason = str(exc) if isinstance(exc, WearerSupportError) else 'unsupported'
                 message = {

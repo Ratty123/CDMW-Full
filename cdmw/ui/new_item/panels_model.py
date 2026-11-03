@@ -775,6 +775,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_layout.addLayout(source_choices)
         row = QHBoxLayout()
         row.setContentsMargins(0,0,0,0)
+        picker_row = QHBoxLayout()
+        picker_row.setContentsMargins(0, 0, 0, 0)
         self.import_button = QPushButton("Import model…")
         self.import_button.setToolTip(
             "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model "
@@ -782,7 +784,15 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             "once the studio has been pointed at a Blender, which converts it first."
         )
         self.import_button.clicked.connect(self._pick_model_file)
-        row.addWidget(self.import_button)
+        picker_row.addWidget(self.import_button)
+        from cdmw.ui.new_item.installed_character_models import InstalledCharacterModels
+        self.installed_models = InstalledCharacterModels(self._controller, self)
+        self.installed_models.loaded.connect(self._installed_model_loaded)
+        self.installed_model_button = QPushButton("Browse installed models…")
+        self.installed_model_button.clicked.connect(self.installed_models.open)
+        picker_row.addWidget(self.installed_model_button)
+        picker_row.addStretch(1)
+        model_layout.addLayout(picker_row)
         self.clear_button = QPushButton("Discard")
         self.clear_button.setToolTip("Discard the imported model.")
         self.clear_button.clicked.connect(self._controller.discard_model)
