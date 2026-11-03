@@ -28407,6 +28407,16 @@
       ]
     },
     {
+      "key": "Checked, disabled characters are inherited from the template. Other inherited selectors are preserved.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 47,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Checking",
       "origins": [
         {
@@ -42633,6 +42643,16 @@
           "path": "tools/placement_studio/clip_names.py",
           "line": 338,
           "sink": "python-data:_TRIM_ABBREV"
+        }
+      ]
+    },
+    {
+      "key": "Damiane",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 20,
+          "sink": "tr"
         }
       ]
     },
@@ -74322,6 +74342,16 @@
       ]
     },
     {
+      "key": "Inherited from the template; this control only adds wearers.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 59,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Init Workspace",
       "origins": [
         {
@@ -79017,6 +79047,16 @@
       ]
     },
     {
+      "key": "Keeps the template's wearers. Add another character without changing the model or rig. Equipping and fit still need an in-game check.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 15,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Kept at the source virtual path because the copied source prefab refers to this socket descriptor.",
       "origins": [
         {
@@ -79253,6 +79293,11 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 301,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 20,
+          "sink": "tr"
         },
         {
           "path": "tools/placement_studio/clip_names.py",
@@ -103823,6 +103868,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 404,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Oongka",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 20,
+          "sink": "tr"
         }
       ]
     },
@@ -145182,6 +145237,16 @@
       ]
     },
     {
+      "key": "Select an equipment template to view wearer support.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 43,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Select an exact variant binding from this template.",
       "origins": [
         {
@@ -171232,6 +171297,16 @@
       ]
     },
     {
+      "key": "This player selector is missing from the loaded game data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 61,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "This policy applies before DDS rebuild for every backend. Files kept out of the PNG path are copied through as original DDS when the current rules say they are safer untouched.",
       "origins": [],
       "manual": true
@@ -171717,6 +171792,16 @@
       ]
     },
     {
+      "key": "This template has no explicit wearer selectors to extend.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 53,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "This template has no model variant to dye.",
       "origins": [
         {
@@ -171733,6 +171818,21 @@
           "path": "cdmw/services/new_item_recipes.py",
           "line": 36,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This template or its prefab overrides cannot be changed safely with this control.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 54,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 75,
+          "sink": "tr"
         }
       ]
     },
@@ -183268,6 +183368,46 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1736,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Wearable by",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 12,
+          "sink": "setTitle"
+        }
+      ]
+    },
+    {
+      "key": "Wearable by on Template keeps the inherited wearer settings and lets you add Kliff, Damiane or Oongka. Checked, disabled characters come from the template; uncheck an added character to undo that addition. Other wearer selectors and the dropped model are preserved. The control requires one wearable model entry with explicit selectors; ambiguous variants and unsupported overrides are disabled with an explanation. Changes travel in DMM exports and .cdmw packages and reset when you change templates. This changes player selectors, not body shape, model fit or rigging. Character Creator appearance changes do not establish equipment compatibility; test equipping and fit in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 94,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Wearer changes are available only for equipment.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 51,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Wearer changes need one wearable model entry. This template has no single choice.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/wearer_editor.py",
+          "line": 52,
+          "sink": "tr"
         }
       ]
     },

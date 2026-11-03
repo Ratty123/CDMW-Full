@@ -1167,6 +1167,34 @@ more than 200 plans, so older exports absent from the current archive snapshot d
 not lose their reservations. Reservations already discarded by an older build
 cannot be recovered from settings alone.
 
+### Wearable by
+
+The visible **Template** page includes **Wearable by**. It preserves the template's
+existing wearer selectors and lets the author add Kliff, Damiane or Oongka. Checked,
+disabled characters are inherited; unchecking an added character removes only that
+addition. Other selectors, prefab references, scales, conditions and drop entries
+remain unchanged. Changing the template clears the additions.
+
+`new_item_wearers.py` updates the existing `behavior_settings.prefabs` contract
+(`item.behavior@1`), so DMM exports and continued `.cdmw` packages use the same
+planning and reference validation as other prefab overrides. No new package field
+or version is introduced. With no additions, the template stays inherited. Other
+behavior overrides survive adding or removing a wearer.
+
+This guided control accepts equipment with exactly one type-0 prefab entry with
+explicit wearer selectors; other entries must be type-3 drops. It refuses multiple
+wearable variants, implicit/empty selectors, unknown roles, gimmick/craft prefabs,
+and overrides that remove inherited selectors or change the entry structure. A
+character can be added only when its exact selector exists in loaded StringInfo.
+The loaded CharacterInfo records inspected on 2026-11-03 map Kliff/1 to `player_1`,
+Damian/4 to `player_2`, and Oongka/6 to `player_3`. Generic race/gender selectors and
+other player variants are deliberately not inferred from these identities.
+
+The control does not change bodies, skeletons, skin weights, model fit or conditional
+body visibility. A Character Creator appearance change does not prove that the game
+changed the character's equipment identity. Source data and owned-fixture export
+checks do not establish successful equipping or appearance in game.
+
 ### Stats and prices
 
 Tier, required level and maximum durability inherit the selected template until

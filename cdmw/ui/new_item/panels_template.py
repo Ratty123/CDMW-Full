@@ -73,6 +73,9 @@ class TemplatePanel(QGroupBox):
         self.compatibility = QLabel()
         self.compatibility.setWordWrap(True)
         selection_layout.addWidget(self.compatibility)
+        from cdmw.ui.new_item.wearer_editor import WearerEditor
+        self.wearers = WearerEditor(controller, self)
+        selection_layout.addWidget(self.wearers)
         self.matches = QTreeWidget()
         self.matches.setColumnCount(5)
         self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type", "Authoring"])
