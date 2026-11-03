@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "重生计时器（原始u64）",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "静止姿势下的关节中心退化，无法证实存在共同的模型变换。",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "静止姿势下的关节位置不符合单一刚性或均匀缩放的游戏骨架变换。",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "静止姿势下的关节位置不符合单一刚性或均匀缩放的游戏骨架变换。{value_1} 个匹配骨骼中有 {value_0} 个偏移；偏移最大的是 {value_2}，偏移 {value_3}（骨架尺寸的 {value_4}）。",
     "Restart": "重新开始",
     "Restart blend": "重新开始混合",
     "Restart from current inputs, including a stored initial weight hold": "从当前输入重新开始，包括存储的初始权重保持设置",

@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Temporizador de reaparecimento (u64 bruto)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Os centros das articulações de repouso são degenerados; não é possível comprovar uma transformação comum do modelo.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "As posições das articulações de repouso não correspondem a uma única transformação rígida ou de escala uniforme do rig do jogo.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "As posições das articulações de repouso não correspondem a uma única transformação rígida ou de escala uniforme do rig do jogo: {value_0} de {value_1} ossos correspondentes estão deslocados; o pior, {value_2}, em {value_3} ({value_4} do tamanho do rig).",
     "Restart": "Reiniciar",
     "Restart blend": "Reiniciar mistura",
     "Restart from current inputs, including a stored initial weight hold": "Reiniciar com as entradas atuais, incluindo a retenção armazenada dos pesos iniciais",

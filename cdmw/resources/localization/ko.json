@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "재생성 타이머(원시 u64)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "레스트 조인트 중심이 퇴화되어 공통 모델 변환을 입증할 수 없습니다.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "레스트 조인트 위치가 게임 리그의 단일 리지드 변환 또는 균일 스케일 변환과 일치하지 않습니다.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "레스트 조인트 위치가 게임 리그의 단일 리지드 변환 또는 균일 스케일 변환과 일치하지 않습니다. 일치하는 본 {value_1}개 중 {value_0}개가 어긋나 있습니다. 가장 큰 것은 {value_2}이며 {value_3}만큼 어긋납니다(리그 크기의 {value_4}).",
     "Restart": "처음부터 재생",
     "Restart blend": "블렌드 다시 시작",
     "Restart from current inputs, including a stored initial weight hold": "저장된 초기 가중치 유지 설정을 포함해 현재 입력에서 다시 시작",

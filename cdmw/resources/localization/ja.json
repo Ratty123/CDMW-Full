@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "リスポーンタイマー（生のu64）",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "レストポーズのジョイント中心が退化しているため、共通のモデル変換を証明できません。",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "レストポーズのジョイント位置が、単一の剛体変換または均一スケールによるゲームリグの変換と一致しません。",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "レストポーズのジョイント位置が、単一の剛体変換または均一スケールによるゲームリグの変換と一致しません。一致する {value_1} 本のボーンのうち {value_0} 本がずれています。最大は {value_2} で、{value_3}（リグサイズの {value_4}）です。",
     "Restart": "最初から再生",
     "Restart blend": "ブレンドを再開始",
     "Restart from current inputs, including a stored initial weight hold": "保存された初期ウェイトの保持を含め、現在の入力から再開始します",

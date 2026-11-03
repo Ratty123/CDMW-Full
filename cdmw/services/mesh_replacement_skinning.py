@@ -58,7 +58,7 @@ def _target_bind_frame(skin, target_skin):
     target_by_name = {}
     for index, node in enumerate(target_skin["nodes"]):
         target_by_name.setdefault(str(node.get("name", "")), []).append(index)
-    source_names, target_names, matches = {}, {}, []
+    source_names, target_names, matches, matched_names = {}, {}, [], []
     inverses = skin.get("inverse_bind_matrices", ())
     for slot, node_index in enumerate(skin["joints"]):
         name = str(skin["nodes"][node_index].get("name", ""))
@@ -72,6 +72,7 @@ def _target_bind_frame(skin, target_skin):
         source_inverse = _bind_matrix(inverses[slot]) if inverses else _identity_matrix()
         target_inverse = _bind_matrix(target_skin["inverse_bind_matrices"][target])
         matches.append((_invert_affine_matrix(source_inverse), _invert_affine_matrix(target_inverse), source_inverse))
+        matched_names.append(name)
     source_parents, target_parents = _parents(skin["nodes"]), _parents(target_skin["nodes"])
     source_parent_names = {name: _nearest_joint_parent(index, source_parents, source_names)
                            for index, name in source_names.items()}
@@ -107,8 +108,16 @@ def _target_bind_frame(skin, target_skin):
     translation = target.mean(axis=0) - scale * (rotation @ source.mean(axis=0))
     extent = float(np.max(np.linalg.norm(centered_target, axis=1)))
     error = np.linalg.norm(scale * (source @ rotation.T) + translation - target, axis=1)
-    if not math.isfinite(scale) or scale <= 0 or not np.isfinite(error).all() or float(error.max()) > max(1e-7, extent * 2e-5):
+    if not math.isfinite(scale) or scale <= 0 or not np.isfinite(error).all():
         raise ValueError("Rest-joint positions do not match one rigid or uniform-scale game-rig transform.")
+    if float(error.max()) > max(1e-7, extent * 2e-5):
+        # Name the worst bone so a different rig reads apart from a few nudged bones.
+        worst = int(np.argmax(error))
+        off = sum(value > max(1e-7, extent * 2e-5) for value in error)
+        raise ValueError(
+            f"Rest-joint positions do not match one rigid or uniform-scale game-rig transform: "
+            f"{off} of {len(error)} matching bones are off; the worst, {matched_names[worst]}, "
+            f"by {float(error[worst]):.4g} ({float(error[worst]) / max(extent, 1e-12):.2%} of the rig size).")
     return tuple(float(scale * rotation[row, column]) if column < 3 else float(translation[row])
                  for row in range(3) for column in range(4)) + (0., 0., 0., 1.)
 

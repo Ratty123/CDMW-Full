@@ -75,7 +75,16 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
             if transfer:
                 from cdmw.modding.mesh_glb_assets import skeleton_skin
                 from cdmw.modding.scene_geometry_utils import _copy_submesh_with_transform
-                part = _copy_submesh_with_transform(part, _target_bind_frame(skin, skeleton_skin(skeleton)))
+                try:
+                    frame = _target_bind_frame(skin, skeleton_skin(skeleton))
+                except ValueError as exc:
+                    # Transfer replaces the authored weights, so a foreign rig only loses
+                    # its placement proof: keep the geometry as authored, like an unrigged model.
+                    report = replace(report, transfer_details=report.transfer_details + (
+                        f"The imported rig does not match the game skeleton ({exc}); "
+                        "the model is used as authored, so check its placement.",))
+                else:
+                    part = _copy_submesh_with_transform(part, frame)
             else:
                 names = {skeleton.bones[bone].name for bone in palette}
                 missing = sorted(set(report.required_bones) - names)

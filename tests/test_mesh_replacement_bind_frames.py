@@ -108,3 +108,34 @@ def test_changed_bases_refuse_unproven_rigs_without_publishing(rig_editor, tmp_p
         prepare_import(snapshot, path)
     assert service.capture_export_snapshot(sid).mesh_revision == snapshot.mesh_revision
     assert service.capture_export_snapshot(sid).replacement_state is None
+
+
+def test_rest_pose_refusal_names_the_worst_bone(rig_editor, tmp_path):
+    service, sid, _order, points, parents = rig_editor
+    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=True)
+    with pytest.raises(ValueError, match=r"the worst, bone7, by [0-9.]+ \([0-9.]+% of the rig size\)"):
+        prepare_import(service.capture_export_snapshot(sid), path)
+
+
+def test_transfer_uses_a_foreign_rig_model_as_authored(rig_editor, tmp_path):
+    from cdmw.domain.mesh.skin_policy import SkinningChoice
+    from cdmw.services.mesh_skinning_preflight import preflight_imported_skin
+    from cdmw.ui.new_item.model_import import load_model_import_source
+
+    service, sid, _order, points, parents = rig_editor
+    snapshot = service.capture_export_snapshot(sid)
+    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=True)
+    source = load_model_import_source(path)
+    try:
+        authored = list(source.scene.mesh.submeshes[0].vertices)
+        skeleton = snapshot.mesh.interchange_skeleton
+        with pytest.raises(ValueError, match="Rest-joint positions"):
+            preflight_imported_skin(source.scene.mesh, snapshot.original_data, skeleton, snapshot.mesh.path)
+        mapped, reports = preflight_imported_skin(source.scene.mesh, snapshot.original_data, skeleton,
+                                                  snapshot.mesh.path, choices=(SkinningChoice(0, "transfer"),))
+    finally:
+        source.cleanup()
+    part = mapped.submeshes[0]
+    assert part.vertices == authored
+    assert part.bone_weights and not part.interchange_skin
+    assert "used as authored" in reports[0].summary() and "bone7" in reports[0].summary()

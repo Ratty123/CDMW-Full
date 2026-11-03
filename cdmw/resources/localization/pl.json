@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Czas odrodzenia (surowe u64)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Środki kości w pozie spoczynkowej tworzą układ zdegenerowany; nie można potwierdzić wspólnej transformacji modelu.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "Pozycje kości w pozie spoczynkowej nie odpowiadają pojedynczej transformacji szkieletu gry obejmującej ruch sztywny lub jednolite skalowanie.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "Pozycje kości w pozie spoczynkowej nie odpowiadają pojedynczej transformacji szkieletu gry obejmującej ruch sztywny lub jednolite skalowanie: {value_0} z {value_1} dopasowanych kości jest przesuniętych; najbardziej {value_2}, o {value_3} ({value_4} rozmiaru szkieletu).",
     "Restart": "Uruchom ponownie",
     "Restart blend": "Uruchom mieszanie ponownie",
     "Restart from current inputs, including a stored initial weight hold": "Uruchom ponownie z bieżącymi wejściami, z uwzględnieniem zapisanego utrzymania wag początkowych",

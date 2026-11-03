@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Yeniden doğma sayacı (ham u64)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Dinlenme pozundaki eklem merkezleri dejenere; ortak bir model dönüşümü kanıtlanamıyor.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "Dinlenme pozundaki eklem konumları, oyun rig'ine uygulanan tek bir katı dönüşümle veya tekdüze ölçeklendirmeyle eşleşmiyor.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "Dinlenme pozundaki eklem konumları, oyun rig'ine uygulanan tek bir katı dönüşümle veya tekdüze ölçeklendirmeyle eşleşmiyor: Eşleşen {value_1} kemikten {value_0} tanesi kaymış; en fazla {value_2}, {value_3} kadar (rig boyutunun {value_4} kadarı).",
     "Restart": "Yeniden başlat",
     "Restart blend": "Karışımı yeniden başlat",
     "Restart from current inputs, including a stored initial weight hold": "Kayıtlı başlangıç ağırlığı sabitlemesi dahil geçerli girdilerden yeniden başlat",

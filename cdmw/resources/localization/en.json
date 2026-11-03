@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Respawn timer (raw u64)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Rest-joint centers are degenerate; a common model transform cannot be proven.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).",
     "Restart": "Restart",
     "Restart blend": "Restart blend",
     "Restart from current inputs, including a stored initial weight hold": "Restart from current inputs, including a stored initial weight hold",

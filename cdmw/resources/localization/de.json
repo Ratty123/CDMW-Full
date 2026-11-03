@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Respawn-Timer (u64-Rohwert)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Die Gelenkmittelpunkte der Ruhepose sind degeneriert; eine gemeinsame Modelltransformation lässt sich nicht nachweisen.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "Die Gelenkpositionen der Ruhepose entsprechen keiner einzelnen starren oder gleichmäßig skalierten Transformation des Spiel-Rigs.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "Die Gelenkpositionen der Ruhepose entsprechen keiner einzelnen starren oder gleichmäßig skalierten Transformation des Spiel-Rigs: {value_0} von {value_1} übereinstimmenden Knochen weichen ab; am stärksten {value_2}, um {value_3} ({value_4} der Rig-Größe).",
     "Restart": "Neu starten",
     "Restart blend": "Mischung neu starten",
     "Restart from current inputs, including a stored initial weight hold": "Mit aktuellen Eingaben neu starten, einschließlich gespeicherter anfänglicher Gewichtshaltung",

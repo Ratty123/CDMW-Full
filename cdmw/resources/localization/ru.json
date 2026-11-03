@@ -11446,6 +11446,7 @@
     "Respawn timer (raw u64)": "Таймер возрождения (исходный u64)",
     "Rest-joint centers are degenerate; a common model transform cannot be proven.": "Центры костей в исходной позе вырождены; общее преобразование модели нельзя подтвердить.",
     "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.": "Положения костей в исходной позе не соответствуют одному жёсткому преобразованию игрового скелета или преобразованию с равномерным масштабом.",
+    "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {value_0} of {value_1} matching bones are off; the worst, {value_2}, by {value_3} ({value_4} of the rig size).": "Положения костей в исходной позе не соответствуют одному жёсткому преобразованию игрового скелета или преобразованию с равномерным масштабом: Смещены {value_0} из {value_1} совпадающих костей; сильнее всего {value_2}, на {value_3} ({value_4} размера скелета).",
     "Restart": "Перезапустить",
     "Restart blend": "Перезапустить смешивание",
     "Restart from current inputs, including a stored initial weight hold": "Перезапустить с текущими входами, включая сохранённое удержание начальных весов",
