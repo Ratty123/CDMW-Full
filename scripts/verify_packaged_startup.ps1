@@ -293,6 +293,8 @@ function Invoke-PackagedStartupVerification {
     $resolvedExecutable = (Resolve-Path -LiteralPath $Path).Path
     $runId = [Guid]::NewGuid().ToString("N")
     $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-packaged-startup-$runId"
+    $applicationRoot = Join-Path $smokeRoot "application"
+    $isolatedExecutable = Join-Path $applicationRoot ([System.IO.Path]::GetFileName($resolvedExecutable))
     $resultPath = Join-Path $smokeRoot "startup-result.json"
     $crashRoot = Join-Path $smokeRoot "crash-reports"
     New-Item -ItemType Directory -Path $smokeRoot -Force | Out-Null
@@ -311,13 +313,23 @@ function Invoke-PackagedStartupVerification {
     $previousEnvironment = @{}
     $process = $null
     try {
+        # Portable settings are resolved beside sys.executable, not from TEMP.
+        # Stage only the packaged runtime: never copy configs, legacy configs,
+        # workspace data or other files from the user's installation directory.
+        New-Item -ItemType Directory -Path $applicationRoot -Force | Out-Null
+        Copy-Item -LiteralPath $resolvedExecutable -Destination $isolatedExecutable
+        $internalRuntime = Join-Path (Split-Path -Parent $resolvedExecutable) "_internal"
+        if (Test-Path -LiteralPath $internalRuntime -PathType Container) {
+            # PyInstaller's onedir layout keeps its runtime beside the EXE.
+            Copy-Item -LiteralPath $internalRuntime -Destination (Join-Path $applicationRoot "_internal") -Recurse
+        }
         foreach ($name in $smokeEnvironment.Keys) {
             $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
             [Environment]::SetEnvironmentVariable($name, $smokeEnvironment[$name], "Process")
         }
         $startParameters = @{
-            FilePath = $resolvedExecutable
-            WorkingDirectory = (Split-Path -Parent $resolvedExecutable)
+            FilePath = $isolatedExecutable
+            WorkingDirectory = $applicationRoot
             PassThru = $true
         }
         $startParameters["WindowStyle"] = "Hidden"
@@ -342,7 +354,7 @@ function Invoke-PackagedStartupVerification {
         if ($null -ne $process) {
             $process.Dispose()
         }
-        foreach ($name in $smokeEnvironment.Keys) {
+        foreach ($name in $previousEnvironment.Keys) {
             [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], "Process")
         }
         Remove-PackagedStartupRoot -Path $smokeRoot
