@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive.
+
 ### Docs
 
 - The README download link now opens the releases page instead of a fixed alpha release, and no longer describes the published version as unpublished.

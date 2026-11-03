@@ -345,6 +345,9 @@ class ArchiveBrowserActionMixin:
         export_folder_action.triggered.connect(
             lambda _checked=False: self.extract_selected_archive_entries()
         )
+        from cdmw.ui.archive_browser.path_export_dialog import open_archive_path_export
+        paths_action = menu.addAction("Export File Paths...")
+        paths_action.triggered.connect(lambda _checked=False: open_archive_path_export(self, "folder"))
         return menu
 
     def _show_archive_folder_context_menu(self, position, item) -> None:

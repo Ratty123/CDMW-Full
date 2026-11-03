@@ -304,10 +304,14 @@ class ArchiveControlsPanelMixin:
         archive_actions_row.setVerticalSpacing(6)
         self.archive_extract_selected_button = QPushButton("Extract Selected")
         self.archive_extract_filtered_button = QPushButton("Extract Filtered")
+        self.archive_export_paths_button = QPushButton("Export File Paths...")
+        from cdmw.ui.archive_browser.path_export_dialog import open_archive_path_export
+        self.archive_export_paths_button.clicked.connect(lambda: open_archive_path_export(self))
         self.archive_resolve_in_research_button = QPushButton("Resolve In Research")
         for button in (
             self.archive_extract_selected_button,
             self.archive_extract_filtered_button,
+            self.archive_export_paths_button,
             self.archive_resolve_in_research_button,
         ):
             button.setMinimumHeight(28)
@@ -315,6 +319,7 @@ class ArchiveControlsPanelMixin:
         archive_actions_row.addWidget(self.archive_extract_selected_button, 0, 0)
         archive_actions_row.addWidget(self.archive_extract_filtered_button, 0, 1)
         archive_actions_row.addWidget(self.archive_resolve_in_research_button, 1, 0, 1, 2)
+        archive_actions_row.addWidget(self.archive_export_paths_button, 2, 0, 1, 2)
         archive_actions_group_layout.addLayout(archive_actions_row)
         archive_controls_layout.addWidget(archive_actions_group)
         archive_controls_layout.addWidget(archive_filters_group)

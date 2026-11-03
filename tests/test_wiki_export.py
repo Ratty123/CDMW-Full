@@ -62,6 +62,24 @@ def test_reverse_search_workflow_and_limits_are_translated_in_every_manual(wiki_
             assert translated.split(". ")[0] in page.replace("**", "")
 
 
+def test_path_list_export_is_translated_in_every_manual(wiki_pages):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    sources = (
+        "Choose Actions > Export File Paths... to save a TXT or CSV reference without extracting any file contents.",
+        "Choose All files, Filtered results, Selected files (up to 4,096), or Selected folder (including subfolders). Filtered and folder exports use the last applied Search and include matching rows beyond the visible page.",
+        "TXT writes one archive-relative path per line. CSV adds filename, package and source_pamt columns. Duplicate paths are retained so archive copies remain distinguishable.",
+        "All files includes only the loaded catalogue; ignored folders stay excluded. Cancel leaves an existing destination unchanged. The list does not add mod-manager installation prefixes.",
+    )
+    for language in BUILTIN_LANGUAGES:
+        translations = load_builtin_catalog(language.code)["translations"]
+        page = wiki_pages[page_slug("Archive-Browser", language.code) + ".md"].replace("**", "")
+        for source in sources:
+            translated = translations[source]
+            assert language.code == "en" or translated != source
+            assert translated.split(". ")[0] in page
+
+
 def test_settings_files_guidance_and_links_survive_export_without_local_paths(wiki_pages, wiki_manuals):
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 

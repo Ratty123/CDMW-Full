@@ -803,6 +803,22 @@ as original files; only the primary mesh is converted. The mesh, materials,
 selected companions, and manifest are staged together. A preparation failure or
 cancellation preserves the previous export, and publication rolls back on failure.
 
+### Export file paths
+
+**Actions > Export File Paths...** saves catalogue paths without extracting payloads.
+Choose **All files**, **Filtered results**, **Selected files (up to 4,096)**, or
+**Selected folder (including subfolders)**. The folder context menu opens the same
+dialog. Filtered results use the last applied **Search**, including unloaded pages;
+folder exports intersect those results with the selected folder and its descendants.
+All files uses the loaded catalogue, including duplicates, and respects scan exclusions.
+
+TXT is UTF-8 with one archive-relative path per line. CSV is UTF-8 with a BOM and
+the columns `path`, `filename`, `package`, `source_pamt`; the latter identifies the
+source archive index. Both retain duplicate rows and use `/` path separators.
+No mod-manager installation prefix is added. Export pages only catalogue metadata
+and writes in a background task. Cancellation or failure preserves an existing
+destination; a complete list replaces it atomically.
+
 ### Character bind axes
 
 Character previews and neutral exports reconcile paired PABC bind-axis reversals

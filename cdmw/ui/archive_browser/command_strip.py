@@ -103,6 +103,7 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     for source in (
         getattr(archive, "archive_extract_selected_button", None),
         getattr(archive, "archive_extract_filtered_button", None),
+        getattr(archive, "archive_export_paths_button", None),
         getattr(archive, "archive_resolve_in_research_button", None),
     ):
         if not isinstance(source, QAbstractButton):

@@ -521,6 +521,13 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Active mod</b> and <b>Active original</b> mark the row that currently wins for that virtual path. <b>Shadowed</b> rows are lower priority. <b>Mod-added</b> means the file exists only in a mod package.</li>
                   <li>Use this before extracting or replacing files so you know whether you are looking at original game data or a DMM/mod-manager replacement.</li>
                 </ul>
+                <h4>Export file paths</h4>
+                <ul>
+                  <li>Choose Actions &gt; Export File Paths... to save a TXT or CSV reference without extracting any file contents.</li>
+                  <li>Choose All files, Filtered results, Selected files (up to 4,096), or Selected folder (including subfolders). Filtered and folder exports use the last applied Search and include matching rows beyond the visible page.</li>
+                  <li>TXT writes one archive-relative path per line. CSV adds filename, package and source_pamt columns. Duplicate paths are retained so archive copies remain distinguishable.</li>
+                  <li>All files includes only the loaded catalogue; ignored folders stay excluded. Cancel leaves an existing destination unchanged. The list does not add mod-manager installation prefixes.</li>
+                </ul>
                 <h4>Extract or hand off</h4>
                 <ul>
                   <li>Select any file types with Ctrl or Shift, then right-click a selected row and choose Extract Selected. Mixed formats are supported.</li>

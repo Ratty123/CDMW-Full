@@ -7623,6 +7623,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "An archive path contains a line break. Use CSV instead.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/archive_path_export.py": 79
+    }
+  },
+  {
+    "area": "archive",
     "message": "An archive session must be published before applying a query.",
     "recovery": "write",
     "sources": {
@@ -9935,6 +9943,15 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/archive_overlay_manager.py": 448
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Choose a TXT or CSV file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/archive_path_export.py": 39,
+      "cdmw/ui/archive_browser/path_export_dialog.py": 109
     }
   },
   {
@@ -13808,6 +13825,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Path export cancelled.",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/services/archive_path_export.py": 47
+    }
+  },
+  {
+    "area": "archive",
     "message": "Placement compatibility: {compatibility_status} (target {compatibility.get('target_label')}; source {compatibility.get('donor_label')}).",
     "recovery": "internal",
     "sources": {
@@ -15510,6 +15535,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/archive_overlay_install.py": 283
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The archive path list changed or returned an incomplete page. Retry the export.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/path_export_controller.py": 84
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The archive path query returned an unexpected result.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/path_export_controller.py": 74
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The archive path query was cancelled. Retry the export.",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/ui/archive_browser/path_export_controller.py": 109
     }
   },
   {
@@ -103582,6 +103631,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/archive_overlay_install.py",
     "cdmw/services/archive_overlay_manager.py",
     "cdmw/services/archive_overlay_migration.py",
+    "cdmw/services/archive_path_export.py",
     "cdmw/services/archive_reference_cleanup.py",
     "cdmw/services/archive_reference_search.py",
     "cdmw/services/archive_verification_process.py",
@@ -103610,6 +103660,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/mesh_patch_flow.py",
     "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
     "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
+    "cdmw/ui/archive_browser/path_export_controller.py",
     "cdmw/ui/archive_browser/preview_core_prewarm.py",
     "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
     "cdmw/ui/archive_browser/preview_loading.py",
@@ -106252,6 +106303,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/archive_overlay_rebuild.py": {
     "raise": 9
   },
+  "cdmw/services/archive_path_export.py": {
+    "raise": 4
+  },
   "cdmw/services/archive_preview_service.py": {},
   "cdmw/services/archive_query_service.py": {},
   "cdmw/services/archive_read_service.py": {},
@@ -107361,6 +107415,15 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/archive_browser/patch_actions.py": {
     "dialog": 2
+  },
+  "cdmw/ui/archive_browser/path_export_controller.py": {
+    "diagnostic_field": 2,
+    "failure": 1,
+    "raise": 2,
+    "signal": 2
+  },
+  "cdmw/ui/archive_browser/path_export_dialog.py": {
+    "failure": 1
   },
   "cdmw/ui/archive_browser/prefab_inspector_actions.py": {
     "display": 1,

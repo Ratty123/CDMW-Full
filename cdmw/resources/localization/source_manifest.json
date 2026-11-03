@@ -9240,6 +9240,11 @@
           "sink": "_add_combo_choice"
         },
         {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py",
           "line": 510,
           "sink": "getOpenFileName:filter-label"
@@ -9343,6 +9348,16 @@
           "path": "tools/placement_studio/window_playback.py",
           "line": 111,
           "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "All files includes only the loaded catalogue; ignored folders stay excluded. Cancel leaves an existing destination unchanged. The list does not add mod-manager installation prefixes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -10122,6 +10137,16 @@
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
           "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An archive path contains a line break. Use CSV instead.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_path_export.py",
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -24845,6 +24870,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 113,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "cdmw/ui/archive_browser/reference_export.py",
           "line": 252,
           "sink": "QPushButton"
@@ -28797,6 +28827,16 @@
       ]
     },
     {
+      "key": "Choose Actions > Export File Paths... to save a TXT or CSV reference without extracting any file contents.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Choose Add Item Package... for a .cdmw written by an earlier version or by someone else. Continue Editing then rebuilds its settings from the package. Packages made by other tools, such as prefab or texture packages, are listed but cannot be continued.",
       "origins": [
         {
@@ -28823,6 +28863,16 @@
           "path": "cdmw/ui/new_item/shop_routes_editor.py",
           "line": 45,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Choose All files, Filtered results, Selected files (up to 4,096), or Selected folder (including subfolders). Filtered and folder exports use the last applied Search and include matching rows beyond the visible page.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -29668,6 +29718,21 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 745,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Choose a TXT or CSV file.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_path_export.py",
+          "line": 39,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 109,
+          "sink": "_failed"
         }
       ]
     },
@@ -33907,6 +33972,16 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_dialog.py",
           "line": 132,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 79,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 126,
           "sink": "translate_active_ui_text"
         },
         {
@@ -53707,6 +53782,36 @@
       ]
     },
     {
+      "key": "Export File Paths",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 41,
+          "sink": "setWindowTitle"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 94,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Export File Paths...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 349,
+          "sink": "addAction"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/controls_panel.py",
+          "line": 307,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Export File...",
       "origins": [
         {
@@ -54477,6 +54582,16 @@
       ]
     },
     {
+      "key": "Export file paths",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Export for Blender",
       "origins": [
         {
@@ -54955,6 +55070,11 @@
       "key": "Export...",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 76,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 102,
           "sink": "QPushButton"
@@ -55208,6 +55328,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 119,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Exported {count} paths to {path}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 135,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -55518,6 +55648,21 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 302,
           "sink": "python-return:material_sidecar_export_task_status"
+        }
+      ]
+    },
+    {
+      "key": "Exporting file paths...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_controller.py",
+          "line": 53,
+          "sink": "start"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 114,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -58313,6 +58458,26 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 310,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Filtered results",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 56,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Filtered results use the last applied Search, including rows not loaded on screen. Folder export keeps those filters. All files uses every archive in the loaded catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 63,
+          "sink": "QLabel"
         }
       ]
     },
@@ -108313,6 +108478,11 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 291,
           "sink": "addButton"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 104,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -111268,6 +111438,21 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 210,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Path export cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_path_export.py",
+          "line": 47,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 133,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -123992,6 +124177,11 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_dialog.py",
           "line": 53,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 66,
           "sink": "QLabel"
         },
         {
@@ -138302,6 +138492,16 @@
       ]
     },
     {
+      "key": "Save archive-relative paths without extracting files. TXT has one path per line; CSV also identifies the source archive. Duplicate paths are kept.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 51,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Save as DMM Mod...",
       "origins": [
         {
@@ -145888,6 +146088,26 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 363,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Selected files (up to 4,096)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 57,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Selected folder (including subfolders)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_dialog.py",
+          "line": 58,
+          "sink": "addItem"
         }
       ]
     },
@@ -158177,6 +158397,16 @@
       ]
     },
     {
+      "key": "TXT writes one archive-relative path per line. CSV adds filename, package and source_pamt columns. Duplicate paths are retained so archive copies remain distinguishable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 368,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Tab",
       "origins": [
         {
@@ -162138,6 +162368,36 @@
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
           "line": 91,
           "sink": "show_failure"
+        }
+      ]
+    },
+    {
+      "key": "The archive path list changed or returned an incomplete page. Retry the export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_controller.py",
+          "line": 84,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archive path query returned an unexpected result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_controller.py",
+          "line": 74,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archive path query was cancelled. Retry the export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/path_export_controller.py",
+          "line": 109,
+          "sink": "_failure"
         }
       ]
     },

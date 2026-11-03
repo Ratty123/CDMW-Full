@@ -23,6 +23,9 @@ class ArchiveBrowserActionControlsMixin:
             has_filtered_entries = bool(self.archive_filtered_entries)
         self.archive_extract_selected_button.setEnabled(bool(enabled and selected_count > 0))
         self.archive_extract_filtered_button.setEnabled(bool(enabled and has_filtered_entries))
+        path_export_button = getattr(self, "archive_export_paths_button", None)
+        if path_export_button is not None:
+            path_export_button.setEnabled(bool(enabled and bridge is not None and bridge.current_session is not None))
 
     def _update_archive_model_action_controls(self, preview_model: Optional[object]) -> None:
         current_entry = self._current_archive_entry()
