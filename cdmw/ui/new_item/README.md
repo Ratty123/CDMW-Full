@@ -1226,7 +1226,9 @@ Discovery runs on cancellable lookup lanes, on opening and every 15 seconds whil
 the picker is open and idle; **Refresh DMM** checks immediately. Files and directory witnesses detect
 replacement, deletion and addition without relying on a version-number bump.
 Imports stage a private snapshot with declared DDS dependencies and proven PAB
-joint identities, then use the existing skin-preserving import/preflight path.
+joint identities. Skinned PACs pass through a private GLB interchange before the
+existing skin-preserving preflight; the target's palette, joint hierarchy and
+bind-frame checks remain in force. Material slots retain their exact sidecar bindings.
 Exact material slots bind shared texture names without filename guessing. The
 selected template must still have a compatible rig. The original installed files
 are never edited. No author assets or ASIs are bundled with CDMW.

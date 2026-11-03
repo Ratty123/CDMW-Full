@@ -53,6 +53,20 @@ def test_loader_keeps_resolved_joint_identity_and_discovers_declared_game_textur
             assert {skin['nodes'][joint]['name'] for joint in skin['joints']} == {f'Bone{i}' for i in range(8)}
         assert (root / 'files' / texture_path).read_bytes() == pixels
         source.dmm_source_revision.validate()
+        # Loading is not acceptance: run the same rig preflight as the worker.
+        from cdmw.modding.skeleton_parser import parse_pab
+        from cdmw.services.mesh_skinning_preflight import preflight_imported_skin
+        rig = parse_pab(_pab(hashes), 'owned.pab')
+        mapped, reports = preflight_imported_skin(source.raw_import_mesh, captured.original_data, rig, model)
+        assert reports and all(report.policy == 'preserve' for report in reports)
+        for actual, expected in zip(mapped.submeshes, captured.mesh.submeshes, strict=True):
+            assert actual.bone_indices == expected.bone_indices
+            for actual_row, expected_row in zip(actual.bone_weights, expected.bone_weights, strict=True):
+                assert actual_row == pytest.approx(expected_row)
+        from dataclasses import replace
+        foreign = replace(rig, bones=[replace(bone, name='foreign_' + bone.name) for bone in rig.bones])
+        with pytest.raises(ValueError, match='Missing equipment palette bones'):
+            preflight_imported_skin(source.raw_import_mesh, captured.original_data, foreign, model)
     finally:
         source.cleanup()
     assert not root.exists()
