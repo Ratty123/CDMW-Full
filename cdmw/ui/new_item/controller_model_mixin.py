@@ -320,7 +320,7 @@ class NewItemModelControllerMixin:
         finally:
             self.model_result = saved
 
-    def start_model_import(self, path: Path, *, skin_policy="preserve", palette_extension_bones=()) -> bool:
+    def start_model_import(self, path: Path, *, skin_policy="preserve", palette_extension_bones=(), installed_model=None) -> bool:
         """Read a model file (or a zip holding one) for the studio's own placement: the
         scene import and the source's textures, off the UI thread. On success the model
         shows over the template at a first fit; a result built before is dropped."""
@@ -359,7 +359,11 @@ class NewItemModelControllerMixin:
             if needs_blender and not blender:
                 raise ValueError(fbx_needs_blender_message(needs_blender))
             report(f"Reading {chosen.name}...")
-            result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
+            if installed_model is not None:
+                from cdmw.ui.new_item.installed_model_import import load_installed_model
+                result = load_installed_model(installed_model, import_snapshot, stop_event=stop_event, on_log=report)
+            else:
+                result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
             try:
                 from cdmw.services.mesh_skinning_preflight import has_authored_skin, prepare_new_item_skin
                 authored = has_authored_skin(result.scene.mesh)

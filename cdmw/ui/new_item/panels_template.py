@@ -76,6 +76,9 @@ class TemplatePanel(QGroupBox):
         from cdmw.ui.new_item.wearer_editor import WearerEditor
         self.wearers = WearerEditor(controller, self)
         selection_layout.addWidget(self.wearers)
+        from cdmw.ui.new_item.installed_character_models import InstalledCharacterModels
+        self.installed_models = InstalledCharacterModels(controller, self)
+        selection_layout.addWidget(self.installed_models)
         self.matches = QTreeWidget()
         self.matches.setColumnCount(5)
         self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type", "Authoring"])

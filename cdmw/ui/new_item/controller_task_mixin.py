@@ -278,7 +278,10 @@ class NewItemTaskControllerMixin:
         )
 
         def run(log, progress, stop_event):
-            return task(log, stop_event, on_progress=progress)
+            from cdmw.services.dmm_character_models import retain_installed_sources, validate_installed_sources
+            validate_installed_sources(source_owners, stop_event)
+            result = task(log, stop_event, on_progress=progress)
+            return retain_installed_sources(result, source_owners, stop_event)
 
         def done(result: object) -> None:
             if revision != self._draft_revision:

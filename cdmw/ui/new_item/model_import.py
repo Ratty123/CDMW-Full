@@ -838,6 +838,8 @@ class ModelImportSource:
     #: the Skeleton Edit recipe the weights were prepared against (its bones appended to the template's rig)
     skeleton_edit: object = None
     skinning_generation: int = 0
+    #: Live installed-mod witnesses; preserved through editing and checked at export.
+    dmm_source_revision: object = None
 
     @property
     def label(self) -> str:

@@ -4347,6 +4347,16 @@
       ]
     },
     {
+      "key": "A DMM mod points outside its library.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 153,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A Full archive session must be ready before opening a Finder.",
       "origins": [
         {
@@ -9987,6 +9997,16 @@
       "manual": true
     },
     {
+      "key": "Ambiguous character-mod source: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 195,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Ambiguous jiggle vertex ownership.",
       "origins": [
         {
@@ -10323,6 +10343,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
           "line": 558,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "An installed character model requires a witnessed game snapshot.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_models.py",
+          "line": 155,
+          "sink": "ValueError"
         }
       ]
     },
@@ -27857,6 +27887,21 @@
       ]
     },
     {
+      "key": "Character-mod library exceeds the file limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 177,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 186,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Character-side attach point",
       "origins": [
         {
@@ -29252,6 +29297,21 @@
       ]
     },
     {
+      "key": "Choose DMM folder…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 44,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 92,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Choose DMM's folder (the one that contains DMM.exe)",
       "origins": [
         {
@@ -29943,6 +30003,16 @@
           "path": "cdmw/ui/mesh_editor/draft_choice.py",
           "line": 80,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Choose a PAC from the installed character-model list.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_models.py",
+          "line": 73,
+          "sink": "ValueError"
         }
       ]
     },
@@ -42577,6 +42647,16 @@
       ]
     },
     {
+      "key": "DMM selection — Equip All Armor: {armor}; CharacterCreator.asi: {creator}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 113,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "DMM texture folder",
       "origins": [
         {
@@ -42607,11 +42687,31 @@
       ]
     },
     {
+      "key": "DMM was not found. Choose the folder containing DMM.exe.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 129,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "DMM's mods folder {value_0} does not exist. Open DMM once, then send again.",
       "origins": [
         {
           "path": "cdmw/services/dmm_send.py",
           "line": 60,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "DMM's selected-mod list could not be read.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -59407,6 +59507,16 @@
       ]
     },
     {
+      "key": "Find an installed model",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 50,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Find and play animations",
       "origins": [
         {
@@ -75142,6 +75252,26 @@
       ]
     },
     {
+      "key": "Installed character models (local test)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 17,
+          "sink": "setTitle"
+        }
+      ]
+    },
+    {
+      "key": "Installed files changed. Load the model again before building or exporting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 110,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Installed item {value_0} has no previewable model.",
       "origins": [
         {
@@ -75178,6 +75308,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 309,
           "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Installed only",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 120,
+          "sink": "tr"
         }
       ]
     },
@@ -75483,6 +75623,16 @@
           "path": "cdmw/ui/localization_catalogs_v2.py",
           "line": 62,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid character-mod prefab name.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 118,
+          "sink": "ValueError"
         }
       ]
     },
@@ -76042,6 +76192,16 @@
         {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 276,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid relative character-mod path.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 37,
           "sink": "ValueError"
         }
       ]
@@ -81372,6 +81532,21 @@
       ]
     },
     {
+      "key": "Linked files in character mods are not supported.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 169,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 181,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Linked files or folders are not supported in a mod: {value_0}",
       "origins": [
         {
@@ -82233,6 +82408,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 5458,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Load selected model",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 57,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -83408,6 +83593,16 @@
           "path": "cdmw/ui/model_library/selection.py",
           "line": 220,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Local test: Installed character models on Template reads Character Creator, Female Armor Fit and Female Armor Module from DMM. Choose a collection, find a model, then Load selected model. Fit and Module stay separate. Versions and file changes are checked automatically; after an update, load the model again before rebuilding. Installed files and DMM selections do not prove a mount. Body profiles, runtime behavior and in-game fit remain unverified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 95,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -101052,6 +101247,26 @@
       ]
     },
     {
+      "key": "No supported character mods are installed in this DMM library.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 135,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "No supported female armor replacements were found.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 121,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "No supported numeric HKX differences were found; loose mod export was skipped.",
       "origins": [
         {
@@ -102298,6 +102513,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 96,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Not selected",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 112,
+          "sink": "tr"
         }
       ]
     },
@@ -124457,6 +124682,16 @@
       ]
     },
     {
+      "key": "Reading installed models…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 137,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Reading installed overlay history...",
       "origins": [
         {
@@ -125118,6 +125353,16 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 1117,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Reads installed files. Fit and Module are alternatives. Selection in DMM does not confirm a mount. Character Creator body profiles and in-game fit are not verified here.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 32,
+          "sink": "QLabel"
         }
       ]
     },
@@ -128322,6 +128567,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 473,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Refresh DMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 41,
           "sink": "QPushButton"
         }
       ]
@@ -147247,6 +147502,21 @@
       ]
     },
     {
+      "key": "Selected in DMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 112,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 120,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Selected influence",
       "origins": [
         {
@@ -149488,6 +149758,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
           "line": 245,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Several Character Creator installations were found. Keep one in the DMM library.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 91,
+          "sink": "ValueError"
         }
       ]
     },
@@ -165782,12 +166062,52 @@
       ]
     },
     {
+      "key": "The installed armor mod has no supported replacement descriptor.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 200,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The installed armor mod has unsupported replacement conditions.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 115,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The installed armor mod uses an unrecognized body-selection format.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 106,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The installed game changed since Placement & Animations last read it: {value_0} file(s) updated, {value_1} no longer in the game, {value_2} newly found.",
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
           "line": 512,
           "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
+      "key": "The installed model's bone identity could not be resolved.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_models.py",
+          "line": 83,
+          "sink": "ValueError"
         }
       ]
     },
@@ -170163,6 +170483,16 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
           "line": 265,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "This DMM configuration format is not supported.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 134,
+          "sink": "ValueError"
         }
       ]
     },
@@ -176742,6 +177072,16 @@
       ]
     },
     {
+      "key": "Unsupported character-mod XML declaration.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 101,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unsupported edited item icon source format: {value_0}",
       "origins": [
         {
@@ -176948,6 +177288,16 @@
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 21,
           "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported or oversized character-mod file: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_character_mods.py",
+          "line": 49,
+          "sink": "ValueError"
         }
       ]
     },
@@ -183382,11 +183732,11 @@
       ]
     },
     {
-      "key": "Wearable by on Template keeps the inherited wearer settings and lets you add Kliff, Damiane or Oongka. Checked, disabled characters come from the template; uncheck an added character to undo that addition. Other wearer selectors and the dropped model are preserved. The control requires one wearable model entry with explicit selectors; ambiguous variants and unsupported overrides are disabled with an explanation. Changes travel in DMM exports and .cdmw packages and reset when you change templates. This changes player selectors, not body shape, model fit or rigging. Character Creator appearance changes do not establish equipment compatibility; test equipping and fit in game.",
+      "key": "Wearable by on Template adds Kliff, Damiane or Oongka while keeping inherited wearers and the dropped model. Uncheck an added character to undo it. One wearable model entry with explicit selectors is required; unsupported variants are disabled. DMM exports and .cdmw packages carry these settings; changing templates resets them. Body fit, rigging and equipping still need an in-game check.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 94,
+          "line": 95,
           "sink": "python-return:_build_start_sections"
         }
       ]
@@ -210157,6 +210507,26 @@
       "manual": true
     },
     {
+      "key": "{count} models found. Refine the search to see more than the first 80.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 160,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{count} replacements could not be resolved against the loaded game. They are unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 162,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "{count} topics",
       "origins": [],
       "manual": true
@@ -215333,6 +215703,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 677,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} {value_1} · {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/installed_character_models.py",
+          "line": 121,
+          "sink": "addItem"
         }
       ]
     },

@@ -1072,6 +1072,19 @@ played character. Open: which side drops the Damiane look, a save whose
 look was changed at a Barber Shop, mercenary customization blocks, the
 meaning of 125, 99 and 255, and a visible comparison against the game.
 
+Reviewed 2026-11-03 (installed-file inspection and local import checks; no mount
+or game observation): Create New Item's private DMM reader sees Character Creator
+Enhanced 9.1.30, Female Armor Fit 1.0.9 and Female Armor Module 3.1 independently.
+Fit declares 1,130 female-body replacement rules and supplies 868 PACs; Module's
+491 rules resolve to 438 distinct models against the loaded game, including exact
+subpart prefab references absent from PAPPT. Creator supplies 78 PACs. These are
+file inventories, not runtime compatibility assertions. A Fit upper-body model
+was imported with declared game textures and its source PAB joint identity.
+The source guards cover installed-file updates before planning and exporting.
+The current-profile format and ASI behavior were not validated; the existing
+9.1.16 profile-reader boundary above remains unchanged. See the
+[local-test contract](../cdmw/ui/new_item/README.md#installed-character-models-local-test).
+
 Reviewed 2026-10-28 (archive inspection, source): orc, dwarf and goblin heads
 tie the human and several creature rigs on every palette bone. Every prefab
 descriptor in a `character/prefab/1_pc/<NN>_<family>` folder names one rig

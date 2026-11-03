@@ -1195,6 +1195,50 @@ body visibility. A Character Creator appearance change does not prove that the g
 changed the character's equipment identity. Source data and owned-fixture export
 checks do not establish successful equipping or appearance in game.
 
+### Installed character models (local test)
+
+Template's **Installed character models (local test)** reads DMM's existing
+`dmm/install_folder` setting or detects its usual installation location. **Choose
+DMM folder…** selects the directory containing `DMM.exe`. `config.json` owns the
+mods directory and selected modules. Metadata supplies installed versions; presence
+in `definitiveLoadOrder` alone never means selected. A selection does not prove a
+successful mount. This reader does not enable mods, mount them or execute ASIs.
+
+Choose Character Creator, Female Armor Fit or Female Armor Module, search a model
+path and **Load selected model**. Fit and Module are alternative collections;
+neither is layered over the other. Creator provides shared dependencies. All loose
+PACs in a chosen collection are listed. Module additionally resolves its declared
+female-body replacement targets through PAPPT and exact, unique prefab references
+in the loaded game. Unresolved targets are reported and unavailable. Unknown rule
+or configuration formats are refused rather than interpreted as supported versions.
+
+Discovery runs on cancellable lookup lanes, on opening and every 15 seconds while
+idle; **Refresh DMM** checks immediately. Files and directory witnesses detect
+replacement, deletion and addition without relying on a version-number bump.
+Imports stage a private snapshot with declared DDS dependencies and proven PAB
+joint identities, then use the existing skin-preserving import/preflight path.
+Exact material slots bind shared texture names without filename guessing. The
+selected template must still have a compatible rig. The original installed files
+are never edited. No author assets or ASIs are bundled with CDMW.
+
+An update refreshes the catalogue and invalidates a plan using installed models.
+It does not overwrite the author's mesh edits: load the model again to adopt the
+new revision. Source file hashes/witnesses are checked before and after planning
+and retained by the plan's existing export guards. A continued package contains
+its saved finished model; reimport from DMM to adopt later installed updates.
+
+Read-only inspection on 2026-11-03 covered Creator 9.1.30, Fit 1.0.9 and Module
+3.1: 78 Creator PACs, 868 Fit PACs and 438 distinct models referenced by Module's
+491 replacement rules. The supplied Fit descriptor has 1,130 replacement rules.
+These counts describe those installed files, not fixed compatibility limits.
+Owned fixtures cover discovery, cancellation, update refusal, texture/rig import
+and export guards. One installed Fit PAC was prepared with textures and source
+joint identity. This is source/import evidence, not visible or in-game acceptance.
+Current Character Creator profile parsing, ASI behavior, automatic body selection,
+conditional fitting and successful equipping are not established by this feature.
+The existing 9.1.16 profile-reader contract is unchanged. Keep this integration
+local pending the author's response and game testing.
+
 ### Stats and prices
 
 Tier, required level and maximum durability inherit the selected template until
