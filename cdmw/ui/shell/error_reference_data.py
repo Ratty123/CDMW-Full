@@ -33471,7 +33471,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 871
+      "cdmw/ui/new_item/controller_model_mixin.py": 874
     }
   },
   {
@@ -34781,7 +34781,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 801,
+      "cdmw/ui/new_item/controller_model_mixin.py": 804,
       "cdmw/ui/new_item/model_import.py": 978
     }
   },
@@ -35448,7 +35448,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 748
+      "cdmw/ui/new_item/controller_model_mixin.py": 751
     }
   },
   {

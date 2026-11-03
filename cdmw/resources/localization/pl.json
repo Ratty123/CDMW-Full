@@ -1386,7 +1386,7 @@
     "Armor/helmet: rotate X +90": "Pancerz/hełm: obróć o X +90",
     "Armor/helmet: rotate X -90": "Pancerz/hełm: obróć o X -90",
     "Armour": "Zbroja",
-    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "Zbroja i ubrania są umieszczane tak, jak zostały wyeksportowane, bez automatycznego obrotu ani skalowania, więc eksportuj je w pozycji stojącej w układzie ciała gry. Dopasuj do szablonu zamiast tego skaluje i obraca model do kształtu szablonu; tego obrotu nie widać w wartościach Obrót (°), a Resetuj obrót go nie cofa.",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales, turns and moves the model onto the template instead; the result shows in the placement numbers, and Reset rotation undoes the turn.": "Zbroja i ubrania są umieszczane tak, jak zostały wyeksportowane, bez automatycznego obrotu ani skalowania, więc eksportuj je w pozycji stojącej w układzie ciała gry. Dopasuj do szablonu zamiast tego skaluje, obraca i przesuwa model na szablon; wynik widać w wartościach umieszczenia, a Resetuj obrót cofa obrót.",
     "Armour indexing cancelled": "Indeksowanie opancerzenia anulowane",
     "Armour weight donor: {value_0}": "Źródło wag pancerza: {value_0}",
     "Armour weight transfer cancelled.": "Anulowano przenoszenie wag pancerza.",

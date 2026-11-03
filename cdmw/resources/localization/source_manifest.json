@@ -15677,7 +15677,7 @@
       ]
     },
     {
-      "key": "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.",
+      "key": "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales, turns and moves the model onto the template instead; the result shows in the placement numbers, and Reset rotation undoes the turn.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -22871,7 +22871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 716,
+          "line": 719,
           "sink": "log"
         }
       ]
@@ -70771,7 +70771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 697,
+          "line": 700,
           "sink": "emit"
         }
       ]
@@ -87056,12 +87056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 870,
+          "line": 873,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 871,
+          "line": 874,
           "sink": "emit"
         }
       ]
@@ -105116,7 +105116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 790,
+          "line": 793,
           "sink": "emit"
         },
         {
@@ -113236,7 +113236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 742,
+          "line": 745,
           "sink": "emit"
         }
       ]
@@ -115551,7 +115551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 761,
+          "line": 764,
           "sink": "log"
         },
         {
@@ -116411,7 +116411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 809,
+          "line": 812,
           "sink": "log"
         },
         {
@@ -161896,22 +161896,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 801,
+          "line": 804,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 803,
+          "line": 806,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 808,
+          "line": 811,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 839,
+          "line": 842,
           "sink": "RuntimeError"
         },
         {
@@ -165726,17 +165726,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 746,
+          "line": 749,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 747,
+          "line": 750,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 748,
+          "line": 751,
           "sink": "emit"
         }
       ]

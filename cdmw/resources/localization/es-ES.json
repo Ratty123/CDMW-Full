@@ -1386,7 +1386,7 @@
     "Armor/helmet: rotate X +90": "Armadura/casco: rotar X +90",
     "Armor/helmet: rotate X -90": "Armadura/casco: rotar X -90",
     "Armour": "armadura",
-    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "La armadura y la ropa se colocan tal como se exportaron, sin giro ni escala automáticos, así que expórtalas de pie en el sistema de coordenadas del cuerpo del juego. Ajustar a la plantilla escala y gira el modelo según la forma de la plantilla; ese giro no aparece en los valores de Rotación (°), y Restablecer rotación no lo deshace.",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales, turns and moves the model onto the template instead; the result shows in the placement numbers, and Reset rotation undoes the turn.": "La armadura y la ropa se colocan tal como se exportaron, sin giro ni escala automáticos, así que expórtalas de pie en el sistema de coordenadas del cuerpo del juego. Ajustar a la plantilla escala, gira y mueve el modelo sobre la plantilla; el resultado aparece en los valores de colocación, y Restablecer rotación deshace el giro.",
     "Armour indexing cancelled": "Indexación de armadura cancelada",
     "Armour weight donor: {value_0}": "Origen de los pesos de la armadura: {value_0}",
     "Armour weight transfer cancelled.": "Se ha cancelado la transferencia de pesos de la armadura.",

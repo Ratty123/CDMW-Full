@@ -606,11 +606,18 @@ class _TabOutputMixin:
         self.assertEqual(transform.alignment_mode, "manual")
         self.assertFalse(transform.scale_to_original_length)
         self.assertEqual(transform.offset_xyz, (0.1, 0.0, -0.25))
-        # the fit again: the bake is redone (a new generation), the numbers go back to zero
+        # the fit again: it lands in the numbers over the model as imported, turn included,
+        # so Rotation shows it and Reset rotation can undo it; the model sits where the bake put it
         panel.fit_button.click()
-        self.assertEqual(tab.controller.model_placement, ModelPlacement())
-        self.assertEqual(source.bake, bake)
-        self.assertGreaterEqual(source.bake_generation, 1)
+        self.assertEqual(source.bake, ModelPlacement(), "the fit is no longer hidden in the mesh")
+        self.assertEqual(tab.controller.model_placement, bake)
+        self.assertNotEqual(bake.rotation, (0.0, 0.0, 0.0), "this fit turns the box onto the template's axis")
+        for spin, value in zip(panel.rotation_spins, bake.rotation):
+            self.assertAlmostEqual(spin.value(), value, delta=0.05)
+        for placed, baked in zip(tab.controller.model_placement.matrix(origin=source.baked_origin()), bake.matrix()):
+            self.assertAlmostEqual(placed, baked, places=9)
+        panel.reset_rotation_button.click()
+        self.assertEqual(tab.controller.model_placement.rotation, (0.0, 0.0, 0.0))
         # discard: the template's model again
         panel.clear_button.click()
         self.assertIsNone(tab.controller.model_import)

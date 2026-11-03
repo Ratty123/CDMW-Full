@@ -1386,7 +1386,7 @@
     "Armor/helmet: rotate X +90": "Броня/шлем: повернуть X +90.",
     "Armor/helmet: rotate X -90": "Броня/шлем: повернуть X -90.",
     "Armour": "Броня",
-    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales and turns the model to the template's shape instead; that turn does not show in the Rotation numbers, and Reset rotation does not undo it.": "Броня и одежда размещаются как экспортированы, без автоповорота и масштабирования; экспортируйте их стоя, в системе координат тела игры. Подогнать под шаблон масштабирует и поворачивает модель по форме шаблона; этот поворот не виден в значениях Поворот (°), и Сбросить поворот его не отменяет.",
+    "Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales, turns and moves the model onto the template instead; the result shows in the placement numbers, and Reset rotation undoes the turn.": "Броня и одежда размещаются как экспортированы, без автоповорота и масштабирования; экспортируйте их стоя, в системе координат тела игры. Подогнать под шаблон масштабирует, поворачивает и сдвигает модель на шаблон; итог виден в значениях размещения, а Сбросить поворот отменяет поворот.",
     "Armour indexing cancelled": "Индексация брони отменена",
     "Armour weight donor: {value_0}": "Источник весов брони: {value_0}",
     "Armour weight transfer cancelled.": "Перенос весов брони отменён.",

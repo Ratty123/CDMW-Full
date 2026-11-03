@@ -671,17 +671,20 @@ class NewItemModelControllerMixin:
         self.model_placement_changed.emit(placement)
 
     def fit_model_placement(self) -> None:
-        """Re-fit the model to the template: the fit is baked into the mesh the viewport
-        and the build see, and the numbers go back to zero on top of it."""
+        """Re-fit the model to the template. The fit becomes the placement numbers over
+        the model as imported, so its turn shows under Rotation and Reset rotation
+        undoes it; an earlier first fit is no longer baked into the mesh."""
 
         source = self.model_import
         if source is None:
             self.set_model_placement(ModelPlacement())
             return
-        source.set_bake(self._fitted_placement(source))
+        # With no bake the anchor is the model's own origin, where the
+        # anchored placement is exactly the fitted transform.
+        source.set_bake(ModelPlacement())
         if self.model_result is not None:
             self.set_imported_model(None, None)
-        self.model_placement = ModelPlacement()
+        self.model_placement = self._fitted_placement(source)
         self.invalidate_plan()
         self.model_import_changed.emit(source)
         self.model_placement_changed.emit(self.model_placement)
