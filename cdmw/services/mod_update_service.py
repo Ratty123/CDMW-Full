@@ -336,7 +336,7 @@ def export_updated_mod(plan: ModUpdatePlan, destination, *, title="", stop_event
         metadata = [(path, data) for path, data, _ in plan.files if path == "meta/0.pathc"]
         result = export_archive_overlay_package((), additions, package_root=staging,
             game_root=plan.game_root, metadata_files=metadata, compatibility=plan.compatibility,
-            stop_event=stop_event, on_log=on_log)
+            stop_event=stop_event, on_log=on_log, for_dmm=True)
         manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod",
             "name": title, "title": title, "game": "Crimson Desert",
             "version": str(plan.package_info.get("version") or "1.0.0"),

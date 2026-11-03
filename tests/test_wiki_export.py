@@ -80,6 +80,19 @@ def test_path_list_export_is_translated_in_every_manual(wiki_pages):
             assert translated.split(". ")[0] in page
 
 
+def test_dmm_texture_registry_guidance_is_translated_in_every_manual(wiki_pages):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    source = ("DMM exports include the texture files inside the mod archive. "
+              "They omit meta/0.pathc because DMM registers the textures when mounting.")
+    for language in BUILTIN_LANGUAGES:
+        translated = load_builtin_catalog(language.code)["translations"][source]
+        assert language.code == "en" or translated != source
+        page = wiki_pages[page_slug("Create-New-Item", language.code) + ".md"].replace("**", "")
+        assert translated.split(". ")[0] in page
+        assert "meta/0.pathc" in page
+
+
 def test_settings_files_guidance_and_links_survive_export_without_local_paths(wiki_pages, wiki_manuals):
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 

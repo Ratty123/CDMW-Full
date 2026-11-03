@@ -3693,6 +3693,7 @@
     "DMM already has a mod folder named {value_0} that CDMW did not write. Give the mod another name.": "DMM'de CDMW'nin oluşturmadığı, {value_0} adlı bir mod klasörü zaten var. Moda başka bir ad verin.",
     "DMM already has a mod folder named {value_0} that CDMW did not write. Rename the mod and send it again.": "DMM'de CDMW'nin yazmadığı {value_0} adlı bir mod klasörü zaten var. Modu yeniden adlandırıp tekrar gönderin.",
     "DMM archive-group package is missing {value_0}": "DMM arşiv grubu paketinde {value_0} eksik",
+    "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.": "DMM dışa aktarımları, doku dosyalarını mod arşivine dahil eder. DMM dokuları bağlama sırasında kaydettiği için meta/0.pathc dahil edilmez.",
     "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.": "DMM alan JSON’u sıradan mod dosyaları olarak okunamaz. CDMW dışa aktarımı için bunun yerine cdmw-source/cdmw-semantic.cdmw dosyasını içe aktarın.",
     "DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount.": "Bu öğeleri DMM yükler. Onları DMM'ye gönderin, ardından DMM'de CDMW items'ı etkinleştirip Mount'a tıklayın.",
     "DMM package metadata changed archive-group payload {value_0}": "DMM paket meta verileri arşiv grubu yükü {value_0} öğesini değiştirdi",

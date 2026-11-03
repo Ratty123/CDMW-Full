@@ -409,7 +409,7 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
                 additions.append(ArchiveAddRequest(plan.game_root / "0.pamt", path, data, flags))
         result = export_archive_overlay_package((), additions, package_root=staging,
             game_root=plan.game_root, metadata_files=metadata, on_log=on_log, stop_event=stop_event,
-            compatibility=plan.compatibility)
+            compatibility=plan.compatibility, for_dmm=True)
         manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod",
             "name": title, "title": title, "game": "Crimson Desert", "version": "1.0.0",
             "description": "Combined from: " + ", ".join(folder.name for folder in plan.folders),

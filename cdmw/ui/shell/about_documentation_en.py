@@ -62,6 +62,7 @@ CREATE_NEW_ITEM_SECTION = {
     <h4>Output</h4>
     <p>Build plan is read-only. Review the planned files, warnings and errors before exporting.</p>
     <p>Mod folder · DMM writes a mod folder for DMM (Definitive Mod Manager), with an optional ZIP. Add the folder in DMM and mount it there.</p>
+    <p>DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.</p>
     <p>Send to DMM writes the same mod straight into DMM's mods folder. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it. Then enable the mod in DMM and click Mount.</p>
     <p>Add to existing mod extends a selected package. Review the included items and files before exporting.</p>
     <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game.</p>

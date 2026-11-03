@@ -3693,6 +3693,7 @@
     "DMM already has a mod folder named {value_0} that CDMW did not write. Give the mod another name.": "DMM 中已存在名為 {value_0} 的模組資料夾，且並非由 CDMW 建立。請為模組另取名稱。",
     "DMM already has a mod folder named {value_0} that CDMW did not write. Rename the mod and send it again.": "DMM 中已有一個名為 {value_0} 的模組資料夾，但不是 CDMW 寫入的。請重新命名該模組後再次傳送。",
     "DMM archive-group package is missing {value_0}": "DMM 封存群組套件缺少 {value_0}",
+    "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.": "匯出至 DMM 時，材質貼圖檔案會包含在模組封存檔中。匯出內容不包含 meta/0.pathc，因為 DMM 會在掛載時註冊材質貼圖。",
     "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.": "DMM 欄位 JSON 無法當作一般模組檔案讀取。對於 CDMW 匯出，請改為匯入 cdmw-source/cdmw-semantic.cdmw。",
     "DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount.": "這些物品由 DMM 載入。請將它們傳送到 DMM，然後在 DMM 中啟用 CDMW items 並按一下 Mount。",
     "DMM package metadata changed archive-group payload {value_0}": "DMM 套件中繼資料變更了封存群組承載內容 {value_0}",

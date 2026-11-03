@@ -159,11 +159,18 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertEqual("dds_loose_mod", result.kind)
 
     def test_dmm_texture_retrofit_writes_modinfo_zip_and_leaves_original_untouched(self) -> None:
+        from cdmw.core.mod_compatibility import compatibility_from_payloads, read_compatibility, write_compatibility
+
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "TextureOnly"
             (source / "character" / "texture").mkdir(parents=True)
             (source / "character" / "texture" / "sample.dds").write_bytes(b"DDS ")
             (source / "manifest.json").write_text(json.dumps({"title": "Texture Only", "kind": "dds_loose_mod"}), encoding="utf-8")
+            (source / "meta").mkdir()
+            (source / "meta/0.pathc").write_bytes(b"old texture registry")
+            write_compatibility(source, compatibility_from_payloads(
+                {"character/texture/sample.dds": b"DDS ", "meta/0.pathc": b"old texture registry"},
+                {"character/texture/sample.dds": None, "meta/0.pathc": b"stock registry"}))
             with zipfile.ZipFile(source / "TextureOnly.zip", "w") as archive:
                 archive.writestr("old.txt", "old")
             original_zip_bytes = (source / "TextureOnly.zip").read_bytes()
@@ -183,6 +190,11 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertIn("character/texture/sample.dds", names)
             self.assertNotIn("TextureOnly.zip", names)
             self.assertNotIn("old.txt", names)
+            self.assertNotIn("meta/0.pathc", names)
+            self.assertNotIn("meta/0.pathc", result.payload_paths)
+            self.assertFalse((result.package_root / "meta/0.pathc").exists())
+            self.assertEqual((source / "meta/0.pathc").read_bytes(), b"old texture registry")
+            self.assertEqual(read_compatibility(result.package_root).originals, {"character/texture/sample.dds": None})
 
     def test_dmm_mesh_retrofit_keeps_workbench_manifest_and_adds_modinfo(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -466,6 +478,8 @@ class ModPackageRetrofitTests(unittest.TestCase):
             (source / "character" / "texture").mkdir(parents=True)
             (source / "character" / "texture" / "sample.dds").write_bytes(b"DDS ")
             (source / "manifest.json").write_text(json.dumps({"title": "Cdumm", "kind": "dds_loose_mod"}), encoding="utf-8")
+            (source / "meta").mkdir()
+            (source / "meta/0.pathc").write_bytes(b"texture registry")
             package = scan_retrofittable_mod_packages(source)[0]
 
             result = retrofit_mod_package(
@@ -487,6 +501,7 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertEqual("custom_compact_paths", manifest["structure"])
             self.assertEqual("override", modinfo["conflict_mode"])
             self.assertEqual("ko", modinfo["target_language"])
+            self.assertEqual((result.package_root / manifest["files_dir"] / "meta/0.pathc").read_bytes(), b"texture registry")
 
     def test_cdumm_merge_combines_distinct_sword_packages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

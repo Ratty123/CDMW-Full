@@ -591,7 +591,10 @@ class NewItemService:
             # file it again for the bytes that are published.
             from cdmw.core.mod_compatibility import write_compatibility
 
-            write_compatibility(root, compatibility, stop_event=stop_event)
+            write_compatibility(root, replace(compatibility,
+                files=tuple(row for row in compatibility.files if row["path"] != "meta/0.pathc"),
+                originals={path: data for path, data in compatibility.originals.items() if path != "meta/0.pathc"}),
+                stop_event=stop_event)
         return NewItemExportResult(
             package_root=root,
             manager=str(manager or "").upper() or "custom",

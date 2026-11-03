@@ -149,16 +149,20 @@ def retrofit_mod_package(
         stop_event=stop_event,
     )
     warnings.extend(repair_summary.warnings)
+    # DMM registers the texture payloads itself, including when converting a
+    # legacy loose package that supplied its own complete game registry.
+    mappings = tuple(mapping for mapping in repair_summary.mappings
+                     if normalized_profile != "dmm" or mapping.target_path.casefold() != "meta/0.pathc")
     copied_payload_paths = _copy_payloads(
         package.root,
         package_root,
-        repair_summary.mappings,
+        mappings,
         warnings,
         stop_event=stop_event,
     )
     raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
-    new_file_paths = [mapping.target_path for mapping in repair_summary.mappings if mapping.is_new]
-    source_to_target = {mapping.source_path.casefold(): mapping.target_path for mapping in repair_summary.mappings}
+    new_file_paths = [mapping.target_path for mapping in mappings if mapping.is_new]
+    source_to_target = {mapping.source_path.casefold(): mapping.target_path for mapping in mappings}
     from cdmw.core.mod_compatibility import ModCompatibility, read_compatibility, write_compatibility
     compatibility = read_compatibility(package.root, stop_event=stop_event)
     if compatibility is not None:

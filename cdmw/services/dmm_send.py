@@ -212,7 +212,7 @@ def send_item_packages(package_paths, game_root: Path | str, mods: Path, title: 
         export_overlay_mod(composed, staged, title=title, description=description, game_root=root,
                            on_log=on_log, stop_event=stop_event)
         # DMM reads every .json in a mod folder as a mod: keep CDMW's own records in
-        # CDMW's history and ship only the archive, the texture registry and the mod info.
+        # CDMW's history and ship only the archive and the mod info.
         from cdmw.core.mod_export_history import retain_dmm_history
         retain_dmm_history(staged, stop_event=stop_event)
         (staged / "README.txt").unlink(missing_ok=True)

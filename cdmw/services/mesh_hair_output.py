@@ -405,7 +405,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}-hair-", dir=output.parent))
     try:
         shared = export_archive_overlay_package(patches, additions, package_root=stage, game_root=root,
-            metadata_files=(("meta/0.pathc", pathc),), stop_event=stop_event, on_log=on_log)
+            metadata_files=(("meta/0.pathc", pathc),), for_dmm=True, stop_event=stop_event, on_log=on_log)
         wanted = {item.path: item.data for item in (*plan.replacements, *plan.additions)}
         packaged = parse_archive_pamt(stage / shared.group / "0.pamt")
         if len(packaged) != len(wanted):
@@ -431,7 +431,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
             f"{title}\n\nAdds barber choice {plan.choice_index + 1}; existing choices are retained.\n"
             "Import this complete folder with DMM. Game acceptance is pending: test selection, save/load, "
             "head movement, running, headgear and LODs on a test save.\n"
-            "This package includes shared selection and texture registries; rebuild against the current mounted "
+            "DMM registers the included textures. This package includes shared selection tables; rebuild against the current mounted "
             "catalogue when combining hairstyle mods. Source archives were only read.\n", encoding="utf-8")
         revision.validate(stop_event)
         if (root / "meta/0.pathc").read_bytes() != pathc_bytes or (root / "meta/0.papgt").read_bytes() != mount_bytes:

@@ -2185,9 +2185,12 @@ in the mod's sub-folders, so top-level files such as `manifest.json` and `README
 can change, renaming, copying or zipping keeps it, an added file does not hide it, and
 an edited payload never reuses it. Packages that carry the records inline still work.
 The exported folder
-contains the standalone archive group `0036/`, `meta/0.pathc` when needed,
-`manifest.json`, `modinfo.json` and `README.txt`. DMM rebuilds its own `meta/0.papgt`,
-so that file is omitted too. This applies to New Item, merged and updated DMM packages.
+contains the standalone archive group `0036/`, `manifest.json`, `modinfo.json` and
+`README.txt`. The archive retains the DDS textures; DMM registers them when mounting,
+so DMM exports omit `meta/0.pathc`. New Item, merged and updated packages also omit
+the manager-owned `meta/0.papgt`. The texture-registry exclusion covers converted
+and authored hair DMM packages too, including a registry carried forward from an older export. It does not
+change the registries prepared for CDMW's other formats and direct-install plans.
 DMM recognises `0036/` inside the package and chooses its own installed archive
 directory.
 

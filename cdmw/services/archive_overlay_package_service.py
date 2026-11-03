@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
@@ -53,11 +53,12 @@ def export_archive_overlay_package(
     group: str = "",
     game_root: Optional[Path] = None,
     metadata_files: Iterable[tuple[str, bytes]] = (),
+    for_dmm: bool = False,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: threading.Event | None = None,
     compatibility=None,
 ) -> ArchiveOverlayPackageResult:
-    """Write immutable patch payloads as one manager-mountable archive group."""
+    """Write one archive group; DMM owns texture registration for its packages."""
 
     root = Path(package_root)
     metadata_files = tuple(metadata_files)
@@ -65,6 +66,10 @@ def export_archive_overlay_package(
     if compatibility is None:
         compatibility = capture_patch_compatibility(requests, additions, game_root=game_root,
             metadata_files=metadata_files, stop_event=stop_event)
+    if for_dmm:
+        compatibility = replace(compatibility,
+            files=tuple(row for row in compatibility.files if row["path"] != "meta/0.pathc"),
+            originals={path: data for path, data in compatibility.originals.items() if path != "meta/0.pathc"})
     files: dict[str, OverlayFile] = {}
     for request in requests:
         raise_if_cancelled(stop_event, "Overlay package export cancelled while composing patches.")
@@ -112,13 +117,21 @@ def export_archive_overlay_package(
     for relative, payload in metadata_files:
         raise_if_cancelled(stop_event, "Overlay package export cancelled before metadata publication.")
         target = _safe_overlay_package_output_path(root, str(relative))
-        prepared_metadata.append((target, target.relative_to(root).as_posix(), bytes(payload)))
+        normalized = target.relative_to(root).as_posix()
+        if for_dmm and normalized.casefold() == "meta/0.pathc":
+            continue
+        prepared_metadata.append((target, normalized, bytes(payload)))
 
     built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log, stop_event=stop_event)
     raise_if_cancelled(stop_event, "Overlay package export cancelled before publishing.")
     directory.mkdir(parents=True, exist_ok=True)
     atomic_write_bytes(directory / "0.paz", built.paz_bytes)
     atomic_write_bytes(directory / "0.pamt", built.pamt_bytes)
+    if for_dmm:
+        # Staging can contain a previous export. Remove its registry before filing
+        # history for the published bytes; DMM registers the archived DDS files.
+        registry = _safe_overlay_package_output_path(root, "meta/0.pathc")
+        registry.unlink(missing_ok=True)
 
     mount_written = False
     if game_root is not None:

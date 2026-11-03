@@ -421,6 +421,34 @@ class _TextureRegistryTestsMixin:
         self.assertEqual(plan.meta_files, ())
         self.assertTrue(any("meta/0.pathc" in w for w in plan.warnings), plan.warnings)
 
+    def test_dmm_folder_and_zip_keep_textures_without_the_registry(self) -> None:
+        from zipfile import ZipFile
+        from cdmw.core.mod_compatibility import read_compatibility
+
+        plan = self._plan()
+        folder = self.root / "dmm-textures"
+        for previous_group in (None, "0045"):
+            with self.subTest(previous_group=previous_group):
+                if previous_group:
+                    (folder / "0036").rename(folder / previous_group)
+                    (folder / "meta").mkdir(exist_ok=True)
+                    (folder / "meta/0.pathc").write_bytes(plan.meta_files[0].payload_data)
+                result = self.service.export_loose(plan, folder, manager="DMM", create_zip=True)
+                self.assertFalse((folder / "meta/0.pathc").exists())
+                self.assertNotIn("meta/0.pathc", result.metadata_files)
+                entries = {entry.path: entry for entry in parse_archive_pamt(folder / "0036/0.pamt")}
+                for addition in plan.additions:
+                    if addition.path.endswith(".dds"):
+                        self.assertEqual(read_archive_entry_data(entries[addition.path])[0], addition.payload_data)
+                evidence = read_compatibility(folder)
+                self.assertNotIn("meta/0.pathc", {row["path"] for row in evidence.files})
+                self.assertNotIn("meta/0.pathc", evidence.originals)
+                with ZipFile(result.zip_path) as archive:
+                    self.assertFalse(any(name.endswith("meta/0.pathc") for name in archive.namelist()))
+                    self.assertIn("0036/0.paz", archive.namelist())
+        self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before)
+        self.assertEqual([write.path for write in plan.meta_files], ["meta/0.pathc"])
+
     def test_an_overlay_install_writes_the_registry_beside_the_overlay(self) -> None:
         """An item with a texture of its own carries a rewritten `meta/0.pathc`, and the
         overlay route has to write it exactly as the patching route does: the registry is

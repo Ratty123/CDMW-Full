@@ -3693,6 +3693,7 @@
     "DMM already has a mod folder named {value_0} that CDMW did not write. Give the mod another name.": "DMM에 CDMW가 만들지 않은 {value_0} 모드 폴더가 이미 있습니다. 모드에 다른 이름을 지정하세요.",
     "DMM already has a mod folder named {value_0} that CDMW did not write. Rename the mod and send it again.": "DMM에 CDMW가 작성하지 않은 {value_0}이라는 모드 폴더가 이미 있습니다. 모드 이름을 바꾼 뒤 다시 보내세요.",
     "DMM archive-group package is missing {value_0}": "DMM 아카이브 그룹 패키지에 {value_0}이(가) 없습니다",
+    "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.": "DMM용 내보내기는 모드 아카이브 안에 텍스처 파일을 포함합니다. DMM이 마운트할 때 텍스처를 등록하므로 meta/0.pathc는 포함하지 않습니다.",
     "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.": "DMM 필드 JSON은 일반 모드 파일로 읽을 수 없습니다. CDMW 내보내기의 경우 cdmw-source/cdmw-semantic.cdmw를 가져오세요.",
     "DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount.": "이 아이템은 DMM이 불러옵니다. DMM으로 보낸 다음 DMM에서 CDMW items를 활성화하고 Mount를 클릭하세요.",
     "DMM package metadata changed archive-group payload {value_0}": "DMM 패키지 메타데이터가 아카이브 그룹 페이로드 {value_0}을(를) 변경했습니다",

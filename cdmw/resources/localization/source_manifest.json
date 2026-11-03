@@ -42152,6 +42152,16 @@
       ]
     },
     {
+      "key": "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 93,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.",
       "origins": [
         {

@@ -254,8 +254,11 @@ def test_texture_registrations_are_combined_and_sources_preserved(tmp_path):
     assert not plan.conflicts, plan.conflicts
     result = export_merged_mod(plan, tmp_path / "combined")
     files = payloads(result.package_root)
-    output_registry = parse_pathc(files["meta/0.pathc"])
+    output_registry = parse_pathc(next(data for path, data, _flags in plan.files if path == "meta/0.pathc"))
     assert all(output_registry.find(path) is not None and files[path] == _fake_dds(4, 4) for path in paths)
+    assert "meta/0.pathc" not in files and "meta/0.pathc" not in result.metadata_files
+    from cdmw.services.mod_update_service import prepare_mod_update
+    assert prepare_mod_update(result.package_root, tmp_path / "game", entries=entries).can_update
     assert all(fingerprint(folder) == before for folder, before in originals.items())
 
 

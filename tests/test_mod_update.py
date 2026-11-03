@@ -91,6 +91,30 @@ def test_opaque_overlapping_change_blocks_output(tmp_path):
     assert not (tmp_path / "blocked").exists()
 
 
+def test_updating_an_older_texture_mod_omits_only_the_dmm_registry(tmp_path):
+    from cdmw.core.pathc_format import PathcTable, encode_pathc
+    from tests.test_mod_merge import texture_mod
+
+    _service, _snapshot, entries = setup_game(tmp_path)
+    game = tmp_path / "game"
+    baseline = encode_pathc(PathcTable(0, 148, (), (), (), b""))
+    (game / "meta/0.pathc").write_bytes(baseline)
+    folder = tmp_path / "old-mod"
+    texture = "character/texture/new.dds"
+    texture_mod(folder, texture, PathcTable(0, 148, (), (), (), b""))
+    before = fingerprint(folder)
+    original = payloads(folder)
+    write_compatibility(folder, compatibility_from_payloads(original, {texture: None, "meta/0.pathc": baseline}))
+    plan = prepare_mod_update(folder, game, entries=entries)
+    assert plan.can_update, plan.conflicts
+    result = export_updated_mod(plan, tmp_path / "updated")
+    assert payloads(result.package_root) == {texture: original[texture]}
+    assert "meta/0.pathc" not in result.metadata_files
+    assert prepare_mod_update(result.package_root, game, entries=entries).can_update
+    assert fingerprint(folder) == before
+    assert (game / "meta/0.pathc").read_bytes() == baseline
+
+
 def test_unknown_old_mod_and_modified_export_are_not_certified(tmp_path, monkeypatch):
     _original, _snapshot, entries, folder = exported(tmp_path)
     # A recipient's CDMW installation does not have the author's local history.

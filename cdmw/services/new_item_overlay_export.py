@@ -6,7 +6,8 @@ Other numeric names take DMM's replacement route and lose newly added paths.
 
 The shared archive builder writes into staging. Publication retains authoring
 records in CDMW's local history and removes the supplied mount list, which DMM
-rebuilds itself. Texture registrations remain in ``meta/0.pathc``.
+rebuilds itself. DMM registers the archived DDS textures, so ``meta/0.pathc``
+is omitted as well.
 """
 
 from __future__ import annotations
@@ -64,6 +65,7 @@ def export_overlay_mod(
         metadata_files=tuple(
             (write.path, write.payload_data) for write in getattr(plan, "meta_files", ())
         ),
+        for_dmm=True,
         on_log=on_log,
         compatibility=compatibility,
         stop_event=stop_event,

@@ -3693,6 +3693,7 @@
     "DMM already has a mod folder named {value_0} that CDMW did not write. Give the mod another name.": "DMM already has a mod folder named {value_0} that CDMW did not write. Give the mod another name.",
     "DMM already has a mod folder named {value_0} that CDMW did not write. Rename the mod and send it again.": "DMM already has a mod folder named {value_0} that CDMW did not write. Rename the mod and send it again.",
     "DMM archive-group package is missing {value_0}": "DMM archive-group package is missing {value_0}",
+    "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.": "DMM exports include the texture files inside the mod archive. They omit meta/0.pathc because DMM registers the textures when mounting.",
     "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.",
     "DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount.": "DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount.",
     "DMM package metadata changed archive-group payload {value_0}": "DMM package metadata changed archive-group payload {value_0}",
