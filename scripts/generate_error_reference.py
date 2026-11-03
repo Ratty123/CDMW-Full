@@ -191,7 +191,9 @@ def recovery_kind(text: str) -> str:
         ('missing', r'\bmissing\b|not found|does not exist|no such file|unavailable|could not (?:find|locate)|required.*(?:file|path)'),
         ('format', r'header|magic|truncated|compressed|decompress|encoding|utf.8|decode|parse|malformed|corrupt|payload|unexpected end|short read|trailing bytes|incomplete|could not read'),
         ('write', r'write|writing|publish|publication|save.*fail|export.*fail|output.*fail'),
-        ('input', r'invalid|must|requires?|expected|mismatch|range|negative|finite|select|not a |not an |cannot|blocked|refus|reject'),
+        ('input', r'invalid|must|requires?|expected|mismatch|range|negative|finite|select|not a |not an |cannot|blocked|refus|reject'
+                  # an imported armature that is not the game rig: the user's file, not an app fault
+                  r'|rest.joint|game.rig transform|joint hierarchy differs|bind frames disagree'),
     )
     return next((key for key, pattern in rules if re.search(pattern, value)), 'internal')
 

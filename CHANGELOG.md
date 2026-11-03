@@ -18,6 +18,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
+- Help explains how Create New Item handles a rigged model: when to choose Keep imported weights or Transfer from template, how to weight a model to the template's rig with Export rig GLB…, and what to do when an import reports that rest-joint positions do not match the game rig.
 - The README download link now opens the releases page instead of a fixed alpha release, and no longer describes the published version as unpublished.
 
 ## [0.12.0-alpha.1] - 2026-11-02

@@ -93809,7 +93809,7 @@ MESSAGE_REFERENCE = [
   {
     "area": "placement",
     "message": "Imported joint hierarchy differs from the matching game skeleton.",
-    "recovery": "internal",
+    "recovery": "input",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 82
     }
@@ -96221,7 +96221,7 @@ MESSAGE_REFERENCE = [
   {
     "area": "placement",
     "message": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.",
-    "recovery": "internal",
+    "recovery": "input",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 112
     }
@@ -96229,7 +96229,7 @@ MESSAGE_REFERENCE = [
   {
     "area": "placement",
     "message": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {off} of {len(error)} matching bones are off; the worst, {matched_names[worst]}, by {float(error[worst])} ({float(error[worst]) / max(extent, 1e-12)} of the rig size).",
-    "recovery": "internal",
+    "recovery": "input",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 117
     }
