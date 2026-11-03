@@ -598,9 +598,11 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             # which otherwise only happened intermittently on Windows CI.
             "gc.set_threshold(1, 1, 1)" if frequent_gc else "# Default GC thresholds",
             "from pathlib import Path",
+            "from time import monotonic",
             "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
             "os.environ['CDMW_GUI_STARTUP_SMOKE'] = '1'",
             "from PySide6.QtWidgets import QApplication",
+            "from PySide6.QtTest import QTest",
             "from cdmw.app.events import AppEventBus",
             "from cdmw.services.service_container import ServiceContainer",
             "from cdmw.services.settings_service import create_settings",
@@ -631,15 +633,14 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "app.processEvents()",
             "window.main_tabs.setCurrentIndex(window.main_tabs.indexOf(window.settings_tab))",
             "app.processEvents()",
-            # The button sits behind two hidden ancestors -- the tab page and
-            # its settings section -- so opening the tab is not enough.
-            "nav = window.settings_tab.section_nav_list",
-            "for row in range(nav.count()):",
-            "    nav.setCurrentRow(row)",
-            "    app.processEvents()",
-            "    if export_button.isVisible():",
-            "        break",
-            "assert export_button.isVisible(), 'No settings section revealed the export button.'",
+            # Open the owning page, then allow its queued Show and translation
+            # events to finish. Responsive overflow wrapping can temporarily
+            # hide the whole workspace after a single processEvents() call.
+            "window.settings_tab.show_settings_section('appearance')",
+            "settings_deadline = monotonic() + 2.0",
+            "while (not export_button.isVisible() or export_button.text() != expected_export) and monotonic() < settings_deadline:",
+            "    QTest.qWait(1)",
+            "assert export_button.isVisible(), 'Appearance did not reveal the export button.'",
             # And this half is the contract the optimization must not break.
             "assert export_button.text() == expected_export, (",
             "    f'Revealed page kept {export_button.text()!r}, expected {expected_export!r}.'",
@@ -657,8 +658,6 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "app.processEvents()",
             # Responsive wrapping and deferred translation are queued after
             # Show. Require the visible counter to reach the current locale.
-            "from time import monotonic",
-            "from PySide6.QtTest import QTest",
             "expected_total = window.ui_localizer.format_number(1234)",
             "review_deadline = monotonic() + 2.0",
             "while (not window.textures.total_files_value.isVisible() or window.textures.total_files_value.text() != expected_total) and monotonic() < review_deadline:",
