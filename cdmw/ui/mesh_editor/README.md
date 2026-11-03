@@ -37,6 +37,11 @@ identity before rebuilding the original mesh. Enable **Data > Mesh > Attributes*
 in Blender's glTF export options to keep `_CDMW_VERTEX_ID` when returning GLB,
 or keep the `CDMW_VERTEX_ID` UV layer when returning FBX.
 Unproven identity, changed topology and unsupported game channels are rejected.
+Vertices Blender writes once per face (its glTF importer shades flat areas flat,
+so an edit that tilts them splits the shared vertices) are merged back into their
+source vertex: a copy that kept the source normal wins, otherwise copies within
+30 degrees average. Copies further apart are a hard edge, and a Part whose vertex
+count still differs is refused by name (`mesh_interchange_identity.py`).
 
 For GLB or separate-file glTF returns, set **Use Vertex Color > Active** and
 enable **Include All Bone Influences**. Select the model meshes and armature,

@@ -377,3 +377,93 @@ def test_blender_transformed_scene_returns_to_original_local_coordinates(tmp_pat
         imported = import_obj(str(exported)).submeshes[0]
         for vertex, expected in zip(imported.vertices, part.vertices, strict=True):
             assert vertex == pytest.approx(expected, abs=2e-6)
+
+
+def _tilted_quad_return(tmp_path, exchange_format):
+    """Export the owned quad PAC, tilt one face in Blender, and return the edited file."""
+    from cdmw.modding.mesh_obj_importer import import_obj
+    from cdmw.modding.mesh_pac_builder import _pack_pac_normal
+    from cdmw.modding.mesh_parser import parse_pac
+    from tests.test_mesh_pac_topology_serializer import _pac_fixture
+
+    raw = bytearray(_pac_fixture())
+    for offset in parse_pac(bytes(raw), "source.pac").submeshes[0].source_vertex_offsets:
+        word = struct.unpack_from("<I", raw, offset + 16)[0]
+        struct.pack_into("<I", raw, offset + 16, _pack_pac_normal((0, 0, 1), word))
+    raw = bytes(raw)
+    mesh = parse_pac(raw, "source.pac")
+    mesh._cdmw_original_data = raw
+    files = {"glb": export_glb, "obj": export_obj}[exchange_format](mesh, str(tmp_path / "out"), "mesh")
+    exported = Path(files if isinstance(files, str) else files[0])
+    returned = exported.with_name(f"edited.{exchange_format}")
+    # Blender's glTF importer shades a region flat when its normals equal the face normal
+    # (PAC packing leaves this fixture a thousandth short, so shade it here). Vertices 1 and
+    # 2 are shared by both faces; lifting the outer corners folds the quad along that edge,
+    # which writes them once per face, and neither copy keeps the source normal.
+    edit = '''
+obj = next(o for o in bpy.data.objects if o.type == "MESH")
+for polygon in obj.data.polygons:
+    polygon.use_smooth = False
+up = obj.data.polygons[0].normal.copy()
+obj.data.vertices[0].co += up * 0.1
+obj.data.vertices[3].co += up * 0.1
+'''
+    script = tmp_path / "tilt.py"
+    script.write_text(_SCRIPT.replace("facts = []", edit + "\nfacts = []"))
+    run = subprocess.run([blender_executable(), "--background", "--factory-startup", "--python-exit-code", "31",
+                          "--python", str(script), "--", str(exported), str(returned), str(tmp_path / "tilt.json")],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, check=False)
+    (tmp_path / "tilt.log").write_text(run.stdout + run.stderr, encoding="utf-8")
+    assert run.returncode == 0, (run.stdout + run.stderr)[-3000:]
+    Path(str(returned) + ".meta.json").write_bytes(Path(str(exported) + ".meta.json").read_bytes())
+    reader = import_glb_with_sidecar if exchange_format == "glb" else (lambda path: import_obj(str(path)))
+    assert len(reader(returned).submeshes[0].vertices) > 4, "Blender did not split a shared vertex"
+    return raw, mesh.submeshes[0], returned, reader
+
+
+def _assert_tilted(part, source):
+    assert len(part.vertices) == 4
+    assert part.faces == source.faces
+    lift = part.vertices[0][2] - source.vertices[0][2]
+    assert abs(lift) == pytest.approx(0.1, abs=1e-4)
+    assert part.vertices[3][2] - source.vertices[3][2] == pytest.approx(lift, abs=1e-4)
+    for index in (0, 3):
+        assert part.vertices[index][:2] == pytest.approx(source.vertices[index][:2], abs=1e-4)
+    for index in (1, 2):
+        assert part.vertices[index] == pytest.approx(source.vertices[index], abs=1e-4)
+        # The fold's two face normals lean about 8 degrees either way; their mean is straight up.
+        assert part.normals[index][:2] == pytest.approx((0.0, 0.0), abs=5e-3)
+        assert abs(part.normals[index][2]) == pytest.approx(1.0, abs=1e-3)
+
+
+@pytest.mark.parametrize("exchange_format", ["glb", "obj"])
+def test_blender_split_copies_of_a_tilted_face_rebuild_the_edited_pac(tmp_path, exchange_format):
+    from cdmw.core.archive_mesh_import_preview import build_mesh_import_preview
+    from cdmw.modding.mesh_parser import parse_pac
+    from tests.test_archive_mesh_export_fidelity import _entry
+
+    raw, source, returned, _reader = _tilted_quad_return(tmp_path, exchange_format)
+    entry = _entry(tmp_path / "archive", "object/source.pac", raw)
+    result = build_mesh_import_preview(entry, returned, import_mode="roundtrip")
+    _assert_tilted(parse_pac(result.rebuilt_data).submeshes[0], source)
+
+
+@pytest.mark.parametrize("exchange_format", ["glb", "obj"])
+def test_blender_split_copies_of_a_tilted_face_keep_the_mesh_editor_edit(tmp_path, exchange_format):
+    from cdmw.modding import mesh_native_core
+    from cdmw.modding.mesh_parser import parse_pac
+    from cdmw.services.mesh_service import MeshService
+
+    if not mesh_native_core.native_mesh_core_available():
+        pytest.skip("native mesh core is required for a Mesh Editor session")
+    raw, source, returned, reader = _tilted_quad_return(tmp_path, exchange_format)
+    session_mesh = parse_pac(raw, "source.pac")
+    session_mesh._cdmw_original_data = raw
+    service = MeshService()
+    session_id = service.open_edit_session(session_mesh, mode="edit").session_id
+    try:
+        # Before the split was merged, this Part came back as its original vertices.
+        service.replace_working_mesh(session_id, reader(returned))
+        _assert_tilted(service.working_mesh(session_id, clone=True).submeshes[0], source)
+    finally:
+        service.close_edit_session(session_id, force_without_saving=True)

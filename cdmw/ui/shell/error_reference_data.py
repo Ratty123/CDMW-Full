@@ -46605,7 +46605,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC LOD0 topology rebuild needs the original parsed mesh, and it is unavailable. Refusing to fall back to the generic rebuild, which would choose donor records.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 533
+      "cdmw/modding/mesh_importer.py": 482
     }
   },
   {
@@ -46637,7 +46637,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed an unowned byte at file offset {offset}; only record bytes 20:34 are authorized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 833
+      "cdmw/modding/mesh_importer.py": 782
     }
   },
   {
@@ -46645,7 +46645,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed the file size; byte ownership could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 761
+      "cdmw/modding/mesh_importer.py": 710
     }
   },
   {
@@ -46725,7 +46725,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement lacks the proven 40-byte source records for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 795
+      "cdmw/modding/mesh_importer.py": 744
     }
   },
   {
@@ -46733,7 +46733,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement may target only valid LOD 0 submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 769
+      "cdmw/modding/mesh_importer.py": 718
     }
   },
   {
@@ -46773,7 +46773,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement source record is outside the file for submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 803
+      "cdmw/modding/mesh_importer.py": 752
     }
   },
   {
@@ -46781,7 +46781,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement targets missing submesh {submesh_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 782
+      "cdmw/modding/mesh_importer.py": 731
     }
   },
   {
@@ -49068,7 +49068,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar because source format mismatch: %s != %s",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 742
+      "cdmw/modding/mesh_obj_importer.py": 744
     }
   },
   {
@@ -49076,7 +49076,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar because source path mismatch: %s != %s",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 733
+      "cdmw/modding/mesh_obj_importer.py": 735
     }
   },
   {
@@ -49093,7 +49093,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 1805,
-      "cdmw/modding/mesh_importer.py": 878
+      "cdmw/modding/mesh_importer.py": 827
     }
   },
   {
@@ -51929,7 +51929,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh edit operation blocked rebuild: {blockers[0].message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 890
+      "cdmw/modding/mesh_importer.py": 839
     }
   },
   {
@@ -52788,7 +52788,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh sidecar metadata drift blocked rebuild: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 1026
+      "cdmw/modding/mesh_importer.py": 975
     }
   },
   {
@@ -54204,7 +54204,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name} (reconstructed direction error {degrees} degrees). Use a source-coordinate OBJ for this normal edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 613
+      "cdmw/modding/mesh_importer.py": 562
     }
   },
   {
@@ -54212,7 +54212,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name}: the Blender input contains a zero-length normal. Restore its normal direction before reimport.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 605
+      "cdmw/modding/mesh_importer.py": 554
     }
   },
   {
@@ -54220,7 +54220,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC position precision for {part.name} (reconstructed displacement {error}). Use a source-coordinate OBJ or Mesh Replacement for this edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 597
+      "cdmw/modding/mesh_importer.py": 546
     }
   },
   {
@@ -54549,7 +54549,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ import did not contain any face/object data.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 979
+      "cdmw/modding/mesh_obj_importer.py": 981
     }
   },
   {
@@ -54573,7 +54573,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ neutral appearance reconstruction failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 412
+      "cdmw/modding/mesh_importer.py": 361
     }
   },
   {
@@ -54589,7 +54589,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 728
+      "cdmw/modding/mesh_importer.py": 677
     }
   },
   {
@@ -54597,7 +54597,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC vertex bytes for submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 733
+      "cdmw/modding/mesh_importer.py": 682
     }
   },
   {
@@ -54605,7 +54605,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed the PAC file size; protected vertex-byte preservation could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 679
+      "cdmw/modding/mesh_importer.py": 628
     }
   },
   {
@@ -54613,7 +54613,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index} vertex {vertex_index}: source record is outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 721
+      "cdmw/modding/mesh_importer.py": 670
     }
   },
   {
@@ -54621,7 +54621,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index}: source offsets or stride are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 705
+      "cdmw/modding/mesh_importer.py": 654
     }
   },
   {
@@ -54701,7 +54701,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar raw vertex record count mismatch for submesh {submesh_index}: expected {expected_count}, got {len(records)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 639
+      "cdmw/modding/mesh_obj_importer.py": 641
     }
   },
   {
@@ -54709,7 +54709,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar raw vertex records changed for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 644
+      "cdmw/modding/mesh_obj_importer.py": 646
     }
   },
   {
@@ -54794,18 +54794,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
-    "recovery": "input",
+    "message": "OBJ sidecar topology changed for part '{name}' (submesh {submesh_index}): expected {expected_vertices} source vertices, got {actual_vertices}. Blender drops vertices that no face uses; adding or deleting geometry needs a replacement import.",
+    "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 623
+      "cdmw/modding/mesh_obj_importer.py": 616
     }
   },
   {
     "area": "mesh",
-    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}.",
-    "recovery": "stale",
+    "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
+    "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 615
+      "cdmw/modding/mesh_obj_importer.py": 625
     }
   },
   {
@@ -54814,22 +54814,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 607
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "OBJ split vertex {source_index} changes {attr}; use topology replacement.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/mesh_importer.py": 371
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "OBJ split vertex {source_index} has no matching source normal; use topology replacement.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/modding/mesh_importer.py": 380
     }
   },
   {
@@ -54845,7 +54829,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ {channel} index {index + 1} exceeds the {count} defined values.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 989
+      "cdmw/modding/mesh_obj_importer.py": 991
     }
   },
   {
@@ -56464,6 +56448,38 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 1699
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Part '{name}' came back with {actual} vertices; the game mesh has {expected}, so its edits cannot be matched vertex for vertex. Blender drops vertices that no face uses, and adding, deleting or splitting geometry changes the count; use a replacement import for those.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/mesh_interchange_identity.py": 163
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Part '{name}': split vertex {source_index} changes {attr} {key}; use topology replacement.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_interchange_identity.py": 85
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Part '{name}': split vertex {source_index} changes {attr}; use topology replacement.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_interchange_identity.py": 81
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Part '{name}': split vertex {source_index} has no matching source normal, and its corners differ by more than 30 degrees, a hard edge the game mesh cannot hold. Shade it smooth in Blender, or use topology replacement.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/modding/mesh_interchange_identity.py": 110
     }
   },
   {
@@ -60304,7 +60320,7 @@ MESSAGE_REFERENCE = [
     "message": "Skinned PAC OBJ round-trip requires the matching <edited>.obj.meta.json sidecar. Keep or rename the sidecar beside the Blender-exported OBJ, then import it as Round-trip edit.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 222
+      "cdmw/modding/mesh_importer.py": 226
     }
   },
   {
@@ -62550,7 +62566,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 644
+      "cdmw/modding/mesh_importer.py": 593
     }
   },
   {
@@ -63146,7 +63162,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh format for rebuild: {fmt}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 575
+      "cdmw/modding/mesh_importer.py": 524
     }
   },
   {
@@ -66717,7 +66733,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid authored neutral appearance bone",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 409
+      "cdmw/modding/mesh_importer.py": 358
     }
   },
   {
@@ -66941,7 +66957,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid neutral appearance bone palette",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 406
+      "cdmw/modding/mesh_importer.py": 355
     }
   },
   {
@@ -66949,7 +66965,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid neutral appearance matrices",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 404
+      "cdmw/modding/mesh_importer.py": 353
     }
   },
   {
@@ -70249,7 +70265,7 @@ MESSAGE_REFERENCE = [
     "message": "neutral appearance source mapping changed",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 425
+      "cdmw/modding/mesh_importer.py": 374
     }
   },
   {
@@ -73303,7 +73319,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported neutral appearance version",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 400
+      "cdmw/modding/mesh_importer.py": 349
     }
   },
   {
@@ -93258,7 +93274,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Session cannot be committed because its result cannot fit the configured reversible history memory limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 574
+      "cdmw/services/mesh_service_replacement.py": 579
     }
   },
   {
@@ -93266,7 +93282,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Session cannot be committed because its reversible history entry would be evicted immediately.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 708
+      "cdmw/services/mesh_service_replacement.py": 713
     }
   },
   {
@@ -93274,7 +93290,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Session cannot be committed because its reversible history snapshot exceeds the configured history memory limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 502
+      "cdmw/services/mesh_service_replacement.py": 507
     }
   },
   {
@@ -94764,7 +94780,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile history requires the prior tree and expected fingerprint",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 459
+      "cdmw/services/mesh_service_replacement.py": 464
     }
   },
   {
@@ -95655,7 +95671,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared mesh replacement Morph & Refit state is stale: expected revision {int(expected_morph_session_revision)}, current revision {session.morph_session_revision}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 637
+      "cdmw/services/mesh_service_replacement.py": 642
     }
   },
   {
@@ -95663,7 +95679,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared mesh replacement could not capture the authoritative resident geometry for reversible history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 432
+      "cdmw/services/mesh_service_replacement.py": 437
     }
   },
   {
@@ -95671,7 +95687,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared mesh replacement failed and its authoritative rollback also failed.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 406
+      "cdmw/services/mesh_service_replacement.py": 411
     }
   },
   {
@@ -95679,7 +95695,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared mesh replacement geometry layers are stale: expected revision {int(expected_geometry_layer_revision)}, current revision {session.geometry_layer_revision}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 627
+      "cdmw/services/mesh_service_replacement.py": 632
     }
   },
   {
@@ -95687,7 +95703,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared mesh replacement is stale: expected revision {prepared.expected_revision}, current revision {session.revision}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 618
+      "cdmw/services/mesh_service_replacement.py": 623
     }
   },
   {
@@ -95959,7 +95975,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement cannot be combined with active Morph & Refit bindings.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 156
+      "cdmw/services/mesh_service_replacement.py": 157
     }
   },
   {
@@ -96215,7 +96231,7 @@ MESSAGE_REFERENCE = [
     "message": "Reversible Morph profile history requires the committed tree state",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 466
+      "cdmw/services/mesh_service_replacement.py": 471
     }
   },
   {
@@ -96788,7 +96804,7 @@ MESSAGE_REFERENCE = [
     "message": "The requested Mesh Editor output policy is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 249
+      "cdmw/services/mesh_service_replacement.py": 254
     }
   },
   {
@@ -97068,7 +97084,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown mesh edit session: {prepared.session_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 616
+      "cdmw/services/mesh_service_replacement.py": 621
     }
   },
   {
@@ -97076,7 +97092,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown mesh edit session: {session_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 122
+      "cdmw/services/mesh_service_replacement.py": 123
     }
   },
   {
@@ -97412,7 +97428,7 @@ MESSAGE_REFERENCE = [
     "message": "hair_state must be a validated HairAuthoringState",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 128
+      "cdmw/services/mesh_service_replacement.py": 129
     }
   },
   {
@@ -97484,7 +97500,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be a ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 124
+      "cdmw/services/mesh_service_replacement.py": 125
     }
   },
   {
@@ -97508,7 +97524,7 @@ MESSAGE_REFERENCE = [
     "message": "morph_session_state must be a captured Mesh Morph session state",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 647
+      "cdmw/services/mesh_service_replacement.py": 652
     }
   },
   {
@@ -97549,7 +97565,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor replacement preparation failed; authoritative resident state was not changed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 144
+      "cdmw/services/mesh_service_replacement.py": 145
     }
   },
   {
@@ -97629,7 +97645,7 @@ MESSAGE_REFERENCE = [
     "message": "object_transform must be MeshObjectTransformState",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 314
+      "cdmw/services/mesh_service_replacement.py": 319
     }
   },
   {
@@ -97693,7 +97709,7 @@ MESSAGE_REFERENCE = [
     "message": "prepared must be a MeshPreparedWorkingMeshReplacement",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_replacement.py": 612
+      "cdmw/services/mesh_service_replacement.py": 617
     }
   },
   {
@@ -105882,7 +105898,10 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/mesh_importer.py": {
     "diagnostic_field": 4,
-    "raise": 30
+    "raise": 28
+  },
+  "cdmw/modding/mesh_interchange_identity.py": {
+    "raise": 4
   },
   "cdmw/modding/mesh_interchange_materials.py": {
     "raise": 2

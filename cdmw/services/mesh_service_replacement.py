@@ -12,6 +12,7 @@ from cdmw.services.mesh_morph_file_data import ProfileFileData
 from cdmw.domain.mesh import MeshObjectTransformState
 from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, output_policy_state
 from cdmw.domain.mesh.replacement import MeshReplacementState
+from cdmw.modding.mesh_interchange_identity import recover_returned_vertex_splits
 from cdmw.modding.mesh_pac_paste_fold import exact_output_with_folded_copies, with_paste_fold_refusal
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service_state import (
@@ -154,6 +155,10 @@ class MeshWorkingReplacementServiceMixin:
             output_state = replacement_state if replacement_state is not None or replace_output_state else session.replacement_state
             if output_state is not None and refit_context is not None:
                 raise ValueError("Replacement cannot be combined with active Morph & Refit bindings.")
+            if refit_context is None and output_state is None and (not session.base_mesh.lod_levels or not session.lod_index):
+                # A package return Blender split is collapsed, or refused, before its same-count
+                # channels are copied onto the source; an unnamed Part would keep the original.
+                mesh = recover_returned_vertex_splits(mesh, session.base_mesh)
             working_mesh = _service_call(
                 "apply_operation_channels_to_original",
                 session.base_mesh,

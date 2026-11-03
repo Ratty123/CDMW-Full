@@ -11,6 +11,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive.
 
+### Fixed
+
+- An edited mesh returned from Blender no longer loses the edits to a Part when Blender wrote some of its vertices twice, which happens when an edit tilts the faces of a flat area. Mesh Editor's Import editable package used to rebuild that Part from the original game mesh without a word, undoing a Morph & Refit fit along with the edit; Archive Browser refused it. The copies are now merged back. A Part that comes back with a different vertex count, or with a hard edge the game mesh cannot hold, is refused with its name.
+
 ### Docs
 
 - The README download link now opens the releases page instead of a fixed alpha release, and no longer describes the published version as unpublished.

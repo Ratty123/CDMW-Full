@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 
 from cdmw.domain.mesh.operations import (
     _changed_submesh_channels,
-    MeshEditOperation,
     mesh_edit_operation_changed_channel,
     mesh_edit_operations_from_dicts,
     mesh_edit_operations_to_dicts,
@@ -21,6 +20,11 @@ from cdmw.domain.mesh.operations import (
     validate_mesh_edit_operations,
 )
 
+from .mesh_interchange_identity import (
+    collapse_split_vertices,
+    declare_recovered_operations,
+    require_returned_part_counts,
+)
 from .mesh_parser import ParsedMesh, _decode_pac_normal, parse_pac, parse_pam, parse_pamlod
 from .mesh_builder_common import (
     _align_static_vertex_sequences,
@@ -235,6 +239,7 @@ def _prepare_mesh_for_rebuild(
             # and reconstructing from the original would hand the writer the
             # unedited mesh while still calling it a rebuild.
             return fmt, mesh, original_mesh
+        require_returned_part_counts(mesh, original_mesh)
         return fmt, _apply_operation_channels_to_original(original_mesh, mesh), original_mesh
     else:
         sidecar = getattr(mesh, "_cdmw_obj_sidecar_payload", None)
@@ -276,7 +281,7 @@ def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> Pars
             if displayed is None:
                 displayed = (_load_obj_neutral_appearance(appearance_payload).to_neutral(original)
                              if appearance_payload is not None else original)
-            if _collapse_obj_normal_splits(part, donor, displayed.submeshes[part_index]):
+            if collapse_split_vertices(part, donor, displayed.submeshes[part_index]):
                 recovered_parts.append(part_index)
         source_map = list(getattr(part, "source_vertex_map", ()) or ())
         if len(part.vertices) != count or sorted(source_map) != list(range(count)):
@@ -319,16 +324,7 @@ def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> Pars
     if recovered_parts:
         # Import records operations only for parts already having the source
         # count. Add their missing declarations after proven slot recovery.
-        operations = list(mesh_edit_operations_from_dicts(getattr(restored, "_cdmw_edit_operations", ()) or ()))
-        existing = {(op.operation, op.lod_index, op.submesh_index) for op in operations}
-        for index in recovered_parts:
-            part = restored.submeshes[index]
-            for channel, attr in (("positions", "vertices"), ("normals", "normals"), ("uv0", "uvs")):
-                name = f"replace_{channel}_same_count"
-                if len(getattr(part, attr)) == len(part.vertices) and (name, 0, index) not in existing:
-                    operations.append(MeshEditOperation(name, lod_index=0, submesh_index=index,
-                                                        vertex_count=len(part.vertices), source="OBJ source-normal recovery"))
-        restored._cdmw_edit_operations = mesh_edit_operations_to_dicts(operations)
+        declare_recovered_operations(restored, recovered_parts, "OBJ source-normal recovery")
         mesh._cdmw_obj_normal_recovery_notes = tuple(
             f"Retained source normals for Blender corner-normal splits in {original.submeshes[index].name}. "
             "Separate hard-edge normals require a topology replacement."
@@ -343,53 +339,6 @@ def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> Pars
     restored.has_bones = original.has_bones
     _refresh_mesh_counts(restored)
     return restored
-
-
-def _collapse_obj_normal_splits(part, donor, reference) -> bool:
-    """Recover source slots only when OBJ split normals retain source evidence."""
-    def direction(values):
-        length = math.hypot(*values)
-        return tuple(value / length for value in values) if length > 1e-12 else values
-
-    count, actual = len(donor.vertices), len(part.vertices)
-    source_map = list(part.source_vertex_map)
-    if (len(source_map) != actual or set(source_map) != set(range(count))
-            or len(part.normals) != actual or len(reference.normals) != count):
-        return False
-    groups = [[] for _ in range(count)]
-    for index, source_index in enumerate(source_map):
-        groups[source_index].append(index)
-    order = [indices[0] for indices in groups]
-    for source_index, indices in enumerate(groups):
-        if len(indices) == 1:
-            continue
-        # New UV seams, displaced copies, or changed protected channels cannot
-        # be collapsed into the PAC's one record per vertex.
-        for attr in ("vertices", "uvs", "tangents", "bone_indices", "bone_weights", "source_vertex_offsets"):
-            values = getattr(part, attr, ()) or ()
-            if values and (len(values) != actual or any(values[i] != values[indices[0]] for i in indices)):
-                raise ValueError(f"OBJ split vertex {source_index} changes {attr}; use topology replacement.")
-        normal = reference.normals[source_index]
-        source_direction = direction(normal)
-        # PAC normal packing and Blender's custom-normal compression can round
-        # a near-zero component away. Require the source direction within that
-        # precision (about 0.1 degree), then retain its original packed normal.
-        if not any(math.dist(direction(part.normals[i]), source_direction) <= 2e-3 for i in indices):
-            reversed_direction = tuple(-value for value in source_direction)
-            if not any(math.dist(direction(part.normals[i]), reversed_direction) <= 2e-3 for i in indices):
-                raise ValueError(f"OBJ split vertex {source_index} has no matching source normal; use topology replacement.")
-            normal = tuple(-value for value in normal)
-        part.normals[indices[0]] = normal
-    for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights", "source_vertex_offsets"):
-        values = getattr(part, attr, ()) or ()
-        if len(values) == actual:
-            setattr(part, attr, [values[index] for index in order])
-    from .mesh_deformer import _remap_interchange_vertex_channels
-    _remap_interchange_vertex_channels(part, {old: new for new, old in enumerate(order)}, actual, include_uvs=False)
-    part.faces = [tuple(source_map[index] for index in face) for face in part.faces]
-    part.source_vertex_map = list(range(count))
-    part.vertex_count = count
-    return True
 
 
 def _load_obj_neutral_appearance(payload: object):

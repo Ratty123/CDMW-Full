@@ -612,9 +612,11 @@ def _validate_obj_sidecar_topology(mesh: ParsedMesh, sidecar_payload: dict[str, 
         if expected_vertices >= 0:
             actual_vertices = _effective_source_vertex_count(submesh)
             if actual_vertices != expected_vertices:
+                name = str(entry.get("name") or getattr(submesh, "name", "") or "")
                 raise ValueError(
-                    "OBJ sidecar topology changed for submesh "
-                    f"{submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}."
+                    f"OBJ sidecar topology changed for part '{name}' (submesh {submesh_index}): expected "
+                    f"{expected_vertices} source vertices, got {actual_vertices}. Blender drops vertices that no "
+                    "face uses; adding or deleting geometry needs a replacement import."
                 )
         expected_indices = _obj_sidecar_exported_index_count(entry)
         if expected_indices >= 0:
