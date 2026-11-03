@@ -20,6 +20,7 @@ class ArchivePathExportController(QObject):
     def __init__(self, archive, guard):
         super().__init__(guard)
         self._service = archive.archive_catalogue_service
+        self._generation = archive.archive_remote_bridge.controller.generation
         self._tasks = RequestTaskController(archive.shell, guard, worker_label="archive_path_export")
         self._pending = None
         self._handle = None
@@ -28,9 +29,11 @@ class ArchivePathExportController(QObject):
         self._closed = False
         self._batches = Queue(maxsize=1)
         self._page_consumed.connect(self._next_page, Qt.ConnectionType.QueuedConnection)
-        self._service.result_ready.connect(self._result)
-        self._service.request_failed.connect(self._failure)
-        self._service.request_cancelled.connect(self._cancelled)
+        # Submission can reject a request synchronously. Register its ID before
+        # delivering any result, failure or cancellation to this controller.
+        self._service.result_ready.connect(self._result, Qt.ConnectionType.QueuedConnection)
+        self._service.request_failed.connect(self._failure, Qt.ConnectionType.QueuedConnection)
+        self._service.request_cancelled.connect(self._cancelled, Qt.ConnectionType.QueuedConnection)
 
     def start(self, query, destination, folder=""):
         if self.active or self._closed:
@@ -59,7 +62,7 @@ class ArchivePathExportController(QObject):
             return
         try:
             self._pending = self._service.create_query(
-                replace(query, view_mode=ArchiveViewMode.FLAT), ui_generation=0,
+                replace(query, view_mode=ArchiveViewMode.FLAT), ui_generation=self._generation,
             )
         except Exception as exc:
             self._batches.put_nowait(exc)
@@ -95,7 +98,7 @@ class ArchivePathExportController(QObject):
                 self._batches.put_nowait(None)
             else:
                 self._pending = self._service.fetch_page(
-                    FetchPageRequest(self._handle.query_id, self._offset, 512), ui_generation=0,
+                    FetchPageRequest(self._handle.query_id, self._offset, 512), ui_generation=self._generation,
                 )
         except Exception as exc:
             self._batches.put_nowait(exc)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import sys
 import threading
 import time
 from dataclasses import replace
@@ -14,10 +15,13 @@ from PySide6.QtCore import QItemSelectionModel, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QToolButton
 
-from cdmw.domain.archives.catalogue import ArchivePage, ArchiveQueryHandle, ArchiveViewMode
+from cdmw.domain.archives.catalogue import ArchivePage, ArchiveQuery, ArchiveQueryHandle, ArchiveViewMode
+from cdmw.domain.archives.catalogue_operations import OpenArchiveRequest
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.services.archive_path_export import ArchivePathExportRequest, export_archive_paths
 from cdmw.ui.archive_browser import path_export_dialog
 from cdmw.ui.archive_browser.path_export_dialog import ArchivePathExportDialog, path_export_scopes
+from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient, ArchiveBackendClientState
 from tests.test_archive_bulk_extract_ui import app, window, _publish
 from tests.test_archive_remote_window_bridge import _remote
 
@@ -233,3 +237,58 @@ def test_backend_cancellation_message_releases_export_controls(window, app, tmp_
     assert not target.exists() and not list(tmp_path.glob(".cdmw-paths-*"))
     dialog.reject()
     dialog.deleteLater()
+
+
+@pytest.mark.parametrize("invalidate_at", [None, "query", "page"], ids=["current", "cancel-query", "cancel-page"])
+def test_export_with_resident_catalogue(window, app, tmp_path, monkeypatch, invalidate_at):
+    """Use the real service/client, including cancellation inside submit()."""
+    client = ArchiveBackendClient(
+        cache_root=tmp_path / "worker-cache", worker_program=sys.executable,
+        worker_arguments=("-u", str(Path(__file__).parent / "helpers/archive_backend_worker_stub.py")),
+        parent=window,
+    )
+    service = ArchiveCatalogueService(client, parent=window)
+    dialog = None
+    try:
+        service.invalidate_before(7)
+        service.open_archive(OpenArchiveRequest("synthetic-root"), ui_generation=7)
+        _until(app, lambda: service.current_session is not None)
+        assert client.is_ready
+        monkeypatch.setattr(window.archive, "archive_catalogue_service", service)
+        browser = window.archive.archive_remote_bridge.controller
+        browser._generation = 7
+        browser._current_session = service.current_session
+        browser._current_query = ArchiveQuery(service.current_session.session_id)
+        target = tmp_path / "paths.txt"
+        target.write_text("previous list", encoding="utf-8")
+        monkeypatch.setattr(path_export_dialog.QFileDialog, "getSaveFileName",
+                            lambda *_args: (str(target), "Text files (*.txt)"))
+        dialog = ArchivePathExportDialog(window.archive)
+        if invalidate_at == "query":
+            service.invalidate_before(8)
+        elif invalidate_at == "page":
+            service.result_ready.connect(
+                lambda _request_id, operation, _result:
+                    service.invalidate_before(8) if operation == "create_query" else None)
+        dialog.export_button.click()
+        _until(app, lambda: not dialog.controller.active and window.worker_thread is None)
+        assert dialog.export_button.isEnabled() and dialog.scope.isEnabled()
+        if invalidate_at is None:
+            assert target.read_text(encoding="utf-8").splitlines() == ["character/model/stub.pac"]
+            assert "Exported 1 paths" in dialog.status.text()
+        else:
+            assert "cancelled" in dialog.status.text()
+            assert target.read_text(encoding="utf-8") == "previous list"
+        assert not list(tmp_path.glob(".cdmw-paths-*"))
+        operations = (tmp_path / "worker-cache/stub-operations.log").read_text().splitlines()
+        assert set(operations) <= {"ping", "open_archive", "create_query", "fetch_page"}
+    finally:
+        if dialog is not None:
+            dialog.reject()
+            _until(app, lambda: window.worker_thread is None)
+            dialog.deleteLater()
+        service.request_shutdown()
+        _until(app, lambda: client.state is ArchiveBackendClientState.STOPPED)
+        service.deleteLater()
+        client.deleteLater()
+        app.processEvents()

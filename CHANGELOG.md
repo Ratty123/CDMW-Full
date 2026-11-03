@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive.
+- Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive. Exports use the current catalogue and report cancelled requests instead of waiting indefinitely.
 
 ### Fixed
 
