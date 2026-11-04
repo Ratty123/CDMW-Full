@@ -430,6 +430,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "session.redo" => (Kind::UiAction, "UiAction::Redo"),
         "output.configure_free_edit" => (Kind::ShadowCommand, "configure_output_policy"),
         "output.export_free_edit" => (Kind::ShadowCommand, "export_free_edit"),
+        "output.export_mesh" => (Kind::HostAction, "UiAction::ChooseCdmwExport"),
         "session.finish" => (Kind::HostAction, "UiAction::FinishCdmw"),
         "selection.target" => (Kind::LocalState, "selection_domain"),
         "selection.shape" => (Kind::LocalState, "selection_tool"),
@@ -592,6 +593,7 @@ session.invert|session|executable|session|false|
 session.undo|session|executable|history|false|
 session.redo|session|executable|history|false|
 output.configure_free_edit|import_output_export|executable|session|false|
+output.export_mesh|import_output_export|executable|session|true|
 output.export_free_edit|import_output_export|deliberately_disabled|free_edit_only|false|Export is enabled only after a Free Edit OBJ destination is proven.
 session.finish|session|executable|host_owned|true|
 selection.target|selection|executable|session|false|

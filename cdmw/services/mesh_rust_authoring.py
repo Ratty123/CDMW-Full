@@ -1541,6 +1541,9 @@ def _editable_package_mesh_path(path: Path) -> Path:
             candidate = path / name
             if candidate.is_file():
                 return candidate
+        candidates = [item for item in path.iterdir() if item.is_file() and item.suffix.lower() in {".glb", ".fbx", ".obj"}]
+        if len(candidates) == 1:
+            return candidates[0]
         raise RustMeshValidationError(
             "The selected editable package does not contain a GLB, FBX, or OBJ mesh."
         )
@@ -9240,6 +9243,19 @@ class RustMeshAuthoringSession:
                 str(args.get("policy", "") or ""),
                 output_destination=str(args.get("destination", "") or ""),
             )
+        elif command == "export_mesh":
+            from cdmw.services.mesh_interchange_export import export_editable_mesh
+            _require_argument_keys(args, {"path", "format"}, command)
+            format_name = str(args.get("format", "") or "").lower()
+            path = Path(str(args.get("path", "") or "")).expanduser()
+            if format_name not in {"glb", "fbx", "obj"} or path.suffix.lower() != f".{format_name}":
+                raise RustMeshValidationError("Choose a GLB, FBX or OBJ filename matching the export format.")
+            exported = export_editable_mesh(
+                self.shadow_service, self.shadow_session_id, path.parent,
+                name=path.stem, formats=(format_name,),
+                expected_mesh_revision=before_revision, stop_event=stop_event,
+            )
+            result = {key: exported[key] for key in ("mesh_path", "metadata_path", "report_path")}
         elif command == "export_free_edit":
             result = self.shadow_service.export_free_edit_output(
                 self.shadow_session_id,
@@ -9404,6 +9420,7 @@ class RustMeshAuthoringSession:
             "state",
             "configure_output_policy",
             "rig_select_bone",
+            "export_mesh",
         }:
             self._require_authoring_enabled(f"run {command or 'this command'}")
         if command in {
@@ -9417,6 +9434,10 @@ class RustMeshAuthoringSession:
         } or command.startswith("morph_") or command.startswith("refit_"):
             self._preflight_current_command_document(command)
         result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
+        if command == "export_mesh":
+            # Export reads the live shadow without changing its revision,
+            # Undo history or authoritative mesh. Publication already completed.
+            return {"result": _json_safe(result), "state": self.state_payload(include_document=False)}
         # Preview inputs publish their prepared file and state together after
         # the handler's final cancellation check. Do not interrupt that commit.
         if command not in {"cloth_collision_input", "refit_restore_shape_preview",

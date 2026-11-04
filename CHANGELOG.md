@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mesh Editor’s **Output > Export…** saves current edits as GLB, FBX or OBJ with their CDMW companion files for external editing. GLB is listed first for rigged models; OBJ remains geometry-only. Rigged editable-package exports no longer fail their own validation.
 - Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive. Exports use the current catalogue and report cancelled requests instead of waiting indefinitely.
 
 ### Fixed

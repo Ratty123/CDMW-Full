@@ -196,6 +196,10 @@ def _snapshot_metadata_value(value: object) -> object:
     return str(value)
 
 def _restored_snapshot_metadata_value(name: str, value: object) -> object:
+    if name == "uv_sets" and isinstance(value, Mapping):
+        # JSON object keys are strings; mesh exporters and UV consumers use
+        # integer set indices, including the edited primary set at index 0.
+        return {int(index): [tuple(row) for row in rows] for index, rows in value.items()}
     # Native JSON preserves the fields, but material consumers require the
     # typed records (including nested dye/layer parameters) after an edit.
     record_type = {

@@ -2807,6 +2807,18 @@ impl LabApplication {
     }
 
     fn draw_cdmw_output_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        ui.add_enabled_ui(!self.cdmw_busy() && !self.cdmw_morph_comparison_active(), |ui| {
+            ui.menu_button(crate::localization::tr("Export…"), |ui| {
+                for (format, label) in [("glb", "GLB (.glb)"), ("fbx", "FBX (.fbx)"), ("obj", "OBJ (.obj)")] {
+                    if ui.button(label).clicked() {
+                        actions.push(UiAction::ChooseCdmwExport(format));
+                        ui.close();
+                    }
+                }
+                ui.small(crate::localization::tr("Keep the companion files to import your edits back into CDMW."));
+            });
+        });
+        ui.separator();
         ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
             self.draw_cdmw_output_policy(ui, actions, false);
         });

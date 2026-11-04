@@ -105,6 +105,39 @@ def _run_blender(root, source, returned):
     return json.loads(report.read_text())
 
 
+@pytest.mark.parametrize("format_name", ["glb", "fbx", "obj"])
+def test_current_editor_export_imports_in_blender_with_its_companion(tmp_path, format_name):
+    from cdmw.services.mesh_interchange_export import export_editable_mesh
+    from cdmw.services.mesh_service import MeshService
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    blender = blender_executable()
+    mesh = authored_mesh(tmp_path / "source")
+    service = MeshService()
+    view = service.open_edit_session(mesh, session_id="blender-export", mode="edit")
+    try:
+        service.configure_output_policy(view.session_id, "free_edit_rebuild", output_destination=str(tmp_path / "free-edit"))
+        service.apply_command(view.session_id, MeshEditCommand("transform",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}),
+            params={"translate": (0.25, 0.0, 0.0)}))
+        result = export_editable_mesh(service, view.session_id, tmp_path / "export", name="outfit", formats=(format_name,))
+        returned = tmp_path / "export" / "returned.glb"
+        facts = _run_blender(tmp_path, result["mesh_path"], returned)
+        assert facts and facts[0]["vertices"]
+        if format_name != "obj":
+            assert {"Root", "Child"} <= set(facts[0]["groups"])
+        else:
+            assert facts[0]["groups"] == []
+        Path(f"{returned}.meta.json").write_bytes(result["metadata_path"].read_bytes())
+        restored = import_scene_mesh_with_report(returned, preserve_authoring=True, blender_path=blender).mesh
+        expected_vertices = [(0.25, 0.0, 0.0), *mesh.submeshes[0].vertices[1:]]
+        for actual, expected in zip(restored.submeshes[0].vertices, expected_vertices, strict=True):
+            assert actual == pytest.approx(expected, abs=1e-5)
+        assert restored.submeshes[0].bone_weights
+    finally:
+        service.close_edit_session(view.session_id)
+
+
 @pytest.mark.parametrize("source_format", ["obj", "fbx", "glb"])
 @pytest.mark.parametrize("return_format", ["obj", "fbx", "glb", "gltf"])
 def test_blender_mixed_format_return_retains_static_and_skinned_channels(tmp_path, source_format, return_format):

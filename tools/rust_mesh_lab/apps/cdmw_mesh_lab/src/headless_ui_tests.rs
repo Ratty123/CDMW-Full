@@ -1374,6 +1374,7 @@ impl HeadlessUi {
                     !matches!(
                         action,
                         UiAction::ChooseCdmwFreeEdit
+                            | UiAction::ChooseCdmwExport(_)
                             | UiAction::ChooseCdmwMorphPreset { .. }
                             | UiAction::ChooseCdmwRefitMesh { .. }
                             | UiAction::ChooseCdmwRefitRecipe { .. }

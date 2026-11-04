@@ -26,8 +26,16 @@ Viewport selection, physics and other visual overlays are unaffected.
 
 ### Editable mesh exchange
 
-Editable packages include GLB, FBX and OBJ versions, portable texture files and
-CDMW companions. Use GLB when keeping PBR materials, multiple UV sets, vertex
+In **Output**, choose **Export…**, then **GLB (.glb)** (listed first),
+**FBX (.fbx)** or **OBJ (.obj)** and a filename. Export reads the current Rust
+edit session without finishing it or changing Undo history. It writes only the
+chosen format, portable textures and CDMW companions; keep those files together.
+Use **Open Package in CDMW...** and select their folder to return an edited mesh.
+Separate `.gltf` export is not offered. OBJ has no armature or weights in the mesh
+file; its companion retains the original protected channels. The retained
+editable-package worker can still write all three formats together.
+
+Use GLB when keeping PBR materials, multiple UV sets, vertex
 colors, a resolved rig or morph targets. It embeds textures and retains existing
 animation clips; animation editing is not supported.
 

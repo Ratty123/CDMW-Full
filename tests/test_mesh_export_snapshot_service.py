@@ -574,7 +574,7 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
 
     with (
         patch(
-            "cdmw.workers.mesh_editor_workers._encode_bgra_snapshot_dds",
+            "cdmw.services.mesh_interchange_export._encode_bgra_snapshot_dds",
             side_effect=write_fixture_dds,
         ),
         patch(

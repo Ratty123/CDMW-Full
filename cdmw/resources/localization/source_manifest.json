@@ -54722,6 +54722,21 @@
       ]
     },
     {
+      "key": "Export mesh",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5361,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5369,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Export mesh file",
       "origins": [
         {
@@ -55108,6 +55123,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1074,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Exported FBX has an invalid binary header.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 220,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -55853,6 +55878,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 371,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Export…",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2811,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -56683,6 +56718,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 33,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "FBX (.fbx)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2812,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -62743,6 +62788,16 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 380,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "GLB (.glb)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2812,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -78202,6 +78257,16 @@
       ]
     },
     {
+      "key": "Keep the companion files to import your edits back into CDMW.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2818,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Keep the complete message, tool name, operation and error namespace. A Windows error, HTTP status, HRESULT, native status and process exit number are different systems. The same decimal number can mean different things in each; exit code 1 or 2 alone does not identify a CDMW failure.",
       "origins": [
         {
@@ -88350,13 +88415,13 @@
       "key": "Mesh export cancelled.",
       "origins": [
         {
-          "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 39,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 26,
           "sink": "RunCancelled"
         },
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 89,
+          "path": "cdmw/services/mesh_service_rebuild.py",
+          "line": 39,
           "sink": "RunCancelled"
         }
       ]
@@ -88378,6 +88443,26 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 628,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Mesh export requires a filename without directory components.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 292,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Mesh export supports GLB, FBX and OBJ.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 290,
+          "sink": "ValueError"
         }
       ]
     },
@@ -94730,8 +94815,8 @@
       "key": "Native DDS export failed for resident texture {value_0}.",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 153,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 90,
           "sink": "RuntimeError"
         }
       ]
@@ -94790,8 +94875,8 @@
       "key": "Native DirectXTex texture backend cd-texture-dx is missing.",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 125,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 62,
           "sink": "RuntimeError"
         }
       ]
@@ -102037,6 +102122,16 @@
       ]
     },
     {
+      "key": "OBJ (.obj)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2812,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "OBJ clone:\n{value_0}\n\nWorkspace:\n{value_1}\n\nEdit the OBJ or copied texture/material files, then import the edited clone to build a loose mod package.",
       "origins": [
         {
@@ -103638,6 +103733,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 405,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Open Output and choose Export…. Select GLB (.glb), FBX (.fbx) or OBJ (.obj), then choose a filename. GLB is listed first for rigged editing; OBJ has no armature or weights. Export saves the current edits and their CDMW companion files without finishing the edit. Keep the files together. To return an edited file with its companion, choose Open Package in CDMW... and select its folder. Separate .gltf export is not available.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 377,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -191135,7 +191240,7 @@
       "key": "draw-section lineage",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
+          "path": "cdmw/services/mesh_export_readback.py",
           "line": 61,
           "sink": "_require_contract"
         }
@@ -191635,8 +191740,8 @@
       "key": "editable package metadata readback failed: {value_0} is not an object",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 32,
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 31,
           "sink": "RuntimeError"
         }
       ]
@@ -191645,8 +191750,8 @@
       "key": "editable package metadata readback failed: {value_0}: {value_1}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 30,
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 29,
           "sink": "RuntimeError"
         }
       ]
@@ -191655,8 +191760,8 @@
       "key": "editable package reference metadata readback mismatch: source_format",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 69,
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 79,
           "sink": "RuntimeError"
         }
       ]
@@ -191665,8 +191770,8 @@
       "key": "editable package reference metadata readback mismatch: source_path",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 67,
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 77,
           "sink": "RuntimeError"
         }
       ]
@@ -191675,8 +191780,8 @@
       "key": "editable package {value_0} readback mismatch: {value_1}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 44,
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 43,
           "sink": "RuntimeError"
         }
       ]
@@ -192530,8 +192635,8 @@
       "key": "exported texture binding did not resolve in its sidecar/MTL contract: {value_0}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 284,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 232,
           "sink": "RuntimeError"
         }
       ]
@@ -195725,7 +195830,7 @@
       "key": "lods",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
+          "path": "cdmw/services/mesh_export_readback.py",
           "line": 61,
           "sink": "_require_contract"
         }
@@ -200655,8 +200760,8 @@
       "key": "portable OBJ diffuse texture is missing: {value_0}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 292,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 240,
           "sink": "RuntimeError"
         }
       ]
@@ -202240,8 +202345,13 @@
       "key": "reference metadata",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_export_readback.py",
+          "path": "cdmw/services/mesh_export_readback.py",
           "line": 64,
+          "sink": "_require_contract"
+        },
+        {
+          "path": "cdmw/services/mesh_export_readback.py",
+          "line": 73,
           "sink": "_require_contract"
         }
       ]
@@ -202620,8 +202730,8 @@
       "key": "resident texture DDS readback failed for {value_0}: {value_1}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 177,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 114,
           "sink": "RuntimeError"
         }
       ]
@@ -202790,8 +202900,8 @@
       "key": "resident texture snapshot has an invalid BGRA8 layout: {value_0}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 123,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 60,
           "sink": "ValueError"
         }
       ]
@@ -202800,8 +202910,8 @@
       "key": "resident texture snapshot is incomplete: {value_0}",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 120,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 57,
           "sink": "ValueError"
         }
       ]
@@ -202885,8 +202995,8 @@
       "key": "resident texture updates did not become idle before export",
       "origins": [
         {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 104,
+          "path": "cdmw/services/mesh_interchange_export.py",
+          "line": 41,
           "sink": "RuntimeError"
         }
       ]

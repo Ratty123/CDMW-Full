@@ -312,8 +312,8 @@ class TransactionalMeshOutputTests(unittest.TestCase):
                 return [str(obj), str(mtl), str(sidecar)]
 
             with (
-                mock.patch("cdmw.workers.mesh_editor_workers.export_glb", side_effect=fake_glb),
-                mock.patch("cdmw.workers.mesh_editor_workers.export_obj", side_effect=fake_obj),
+                mock.patch("cdmw.services.mesh_interchange_export.export_glb", side_effect=fake_glb),
+                mock.patch("cdmw.services.mesh_interchange_export.export_obj", side_effect=fake_obj),
             ):
                 worker.run()
 

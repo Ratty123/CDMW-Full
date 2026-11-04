@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn integrated_mesh_export_offers_glb_fbx_obj_and_routes_the_selected_format() -> TestResult {
+    for (label, format) in [("GLB (.glb)", "glb"), ("FBX (.fbx)", "fbx"), ("OBJ (.obj)", "obj")] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+        ui.click("Output: Exact")?;
+        ui.click("Export…")?;
+        for available in ["GLB (.glb)", "FBX (.fbx)", "OBJ (.obj)"] {
+            ui.reveal(available)?;
+        }
+        assert!(ui.label_rect("glTF (.gltf)").is_none());
+        let actions = ui.actions_from_click(label)?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::ChooseCdmwExport(selected) if *selected == format)));
+        assert!(!has_host_command(&actions, "export_free_edit"));
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_free_edit_destination_can_be_chosen_for_an_imported_mesh() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

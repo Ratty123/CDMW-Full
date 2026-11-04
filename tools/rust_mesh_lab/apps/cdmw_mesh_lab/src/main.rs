@@ -1473,6 +1473,7 @@ enum UiAction {
     CdmwHistoryCursor { cursor: usize, revision: u64 },
     ExportObj,
     ChooseCdmwImportPackage,
+    ChooseCdmwExport(&'static str),
     ChooseCdmwFreeEdit,
     ChooseCdmwMorphPreset {
         save: bool,
@@ -4869,6 +4870,7 @@ impl LabApplication {
                 }
                 UiAction::ExportObj => self.choose_export(),
                 UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
+                UiAction::ChooseCdmwExport(format) => self.choose_cdmw_export(format),
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitRecipe { save } => self.choose_cdmw_refit_recipe(save),
@@ -5352,6 +5354,20 @@ impl LabApplication {
             return;
         };
         self.handle_actions(vec![cdmw_import_editable_package_action(&path)]);
+    }
+
+    fn choose_cdmw_export(&mut self, format: &'static str) {
+        let Some(path) = self.cdmw_file_dialog()
+            .set_title(crate::localization::tr("Export mesh"))
+            .add_filter(format.to_uppercase(), &[format])
+            .set_file_name(format!("mesh.{format}"))
+            .save_file()
+        else { return; };
+        self.handle_actions(vec![UiAction::CdmwCommand {
+            command: "export_mesh",
+            arguments: json!({"path": path, "format": format}),
+            label: "Export mesh",
+        }]);
     }
 
     fn choose_cdmw_morph_preset(&mut self, save: bool) {
