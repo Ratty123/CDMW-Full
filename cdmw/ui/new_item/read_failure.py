@@ -23,7 +23,8 @@ def _failure_code(message: str) -> str:
         return "NI-MISSING-SOURCE"
     if any(part in text for part in ("not where the workbench last saw it", "archive session fingerprint changed", "archives changed", "source files changed")):
         return "NI-ARCHIVE-CHANGED"
-    if "unsupported" in text or "not supported" in text:
+    if ("unsupported" in text or "not supported" in text
+            or "iteminfo row" in text and "did not decode" in text):
         return "NI-UNSUPPORTED-FORMAT"
     if any(part in text for part in ("decryption", "decoded localization", "decompression", "lz4", "footer counts", "runs past", "truncated", "malformed", "checksum")):
         return "NI-DECODE-FAILED"
@@ -34,7 +35,7 @@ def _bounded(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + "\n[truncated]"
 
 
-def _report_text(message: str, code: str, progress: tuple[str, ...], game_root: str) -> str:
+def _report_text(message: str, code: str, progress: tuple[str, ...], game_root: str, guidance: str) -> str:
     text = "\n".join((
         "CDMW New Item archive-read report",
         f"Workbench: {APP_VERSION}",
@@ -43,6 +44,9 @@ def _report_text(message: str, code: str, progress: tuple[str, ...], game_root: 
         f"Runtime: Python {sys.version.split()[0]}; {sys.platform}; "
         f"{'packaged' if getattr(sys, 'frozen', False) else 'source'}",
         "Operation: Read archives for New Item",
+        "",
+        "What this means:",
+        guidance,
         "",
         "Exact error:",
         _bounded(message, 8000),
@@ -113,7 +117,9 @@ class ArchiveReadFailurePanel(QFrame):
     def show_failure(self, message: str, *, game_root: str = ""):
         self._collecting = False
         code = _failure_code(message)
-        if code == "NI-UNSUPPORTED-FORMAT":
+        if code == "NI-UNSUPPORTED-FORMAT" and "iteminfo" in message.casefold():
+            guidance = self.tr("CDMW cannot read this ItemInfo layout. A game patch may have changed the item format; outdated item mods or damaged files can also cause this. Check for CDMW and mod updates, then copy this report if loading still fails.")
+        elif code == "NI-UNSUPPORTED-FORMAT":
             guidance = self.tr("Check for a workbench update. Include this report if the format is still unsupported.")
         elif code == "NI-ARCHIVE-CHANGED":
             guidance = self.tr("Wait for game updates or mod changes to finish, then try again.")
@@ -126,7 +132,7 @@ class ArchiveReadFailurePanel(QFrame):
         else:
             guidance = self.tr("Try again. If the problem continues, include this report when asking for help.")
         self.guidance.setText(guidance)
-        self.report_text = _report_text(str(message), code, tuple(self._progress), game_root)
+        self.report_text = _report_text(str(message), code, tuple(self._progress), game_root, guidance)
         self.details.setPlainText(self.report_text)
         self.details_button.setChecked(False)
         self.details.hide()

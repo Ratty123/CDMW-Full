@@ -186,14 +186,15 @@ def read_item_layout(raw, *, generation=None):
         if generation not in ('legacy', 'current', 'compact'):
             raise RecordError('Unknown ItemInfo generation.')
         return _read(raw, 'iteminfo', generation)
-    candidates = []
+    candidates, errors = [], []
     for variant in ('legacy', 'current', 'compact'):
         try:
             candidates.append(_read(raw, 'iteminfo', variant))
-        except RecordError:
-            pass
+        except RecordError as exc:
+            errors.append(f"{variant}: {exc}")
     if len(candidates) != 1:
-        raise RecordError('Unknown or ambiguous complete ItemInfo layout.')
+        detail = '; '.join(errors) if not candidates else 'multiple layouts match'
+        raise RecordError(f'Unknown or ambiguous complete ItemInfo layout. {detail}')
     return candidates[0]
 
 

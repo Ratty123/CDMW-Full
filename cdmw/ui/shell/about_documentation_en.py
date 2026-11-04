@@ -68,6 +68,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Item package · .cdmw writes a portable package that keeps the item's identity. Add it on Mod Management's Mods page and choose Send to DMM; DMM loads it into the game.</p>
     <h4>Troubleshooting</h4>
     <p>The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.</p>
+    <p>An ItemInfo layout error can follow a game patch that changes item records; small patches do not always need a CDMW update. Check for CDMW and item-mod updates. Copy error report includes the source table and reader details. An unknown layout can also mean an outdated mod or damaged data.</p>
     <p>If an import reports that rest-joint positions do not match the game rig, the model's armature is not the template's skeleton. Choose Transfer from template under Weights on next import, or weight the model to the rig from Export rig GLB… and import it again. Versions before 0.11.0-alpha.25 ignored the armature, so a model that imported then can be refused now.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
                 """,

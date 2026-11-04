@@ -538,6 +538,22 @@ archive refresh remains a separate background operation.
 
 ### Catalogue and archive reads
 
+ItemInfo supports both the earlier compact records and game `1.0.0.3527`'s two
+charged-sound strings (`_soundNameOnMaxCharged` and `_soundSocketNameOnMaxCharged`).
+The socket name is serialized as text, even though the game hashes it after reading.
+Exactly one complete layout must match; unknown or ambiguous records stop loading.
+Cloning and field edits preserve both strings, including nonempty DLC socket names.
+An ItemInfo read failure reports the source table, archive, row position and reader
+details. The visible explanation identifies a possible game-format change, outdated
+item mod or damaged data without claiming the error alone distinguishes them.
+Patches that leave the item format unchanged do not require a new reader.
+
+Read-only validation on 4 November 2026 against executable `1.0.0.3527` (Steam build
+`26423880`) loaded 7,064 base and 1,552 DLC rows, producing 8,374 effective items,
+464 stores and 1,789 item groups through the snapshot service. All 8,616 item stat
+blocks rebuilt byte for byte. Owned fixtures cover both layouts, mixed base/DLC
+tables, cloning and export readback. This does not establish packaged or in-game behavior.
+
 Perk search results use a prepared list model shared with the compatibility
 selector. Refresh preserves selection by item key without clearing native list
 items, and replaced models and selection models are released safely.

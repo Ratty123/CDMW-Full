@@ -10042,6 +10042,16 @@
       ]
     },
     {
+      "key": "An ItemInfo layout error can follow a game patch that changes item records; small patches do not always need a CDMW update. Check for CDMW and item-mod updates. Copy error report includes the source table and reader details. An unknown layout can also mean an outdated mod or damaged data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 98,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "An ItemInfo {value_0} hash has no supported resource binding: {value_1}",
       "origins": [
         {
@@ -23458,6 +23468,16 @@
           "path": "cdmw/services/new_item_mod_base.py",
           "line": 287,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "CDMW cannot read this ItemInfo layout. A game patch may have changed the item format; outdated item mods or damaged files can also cause this. Check for CDMW and mod updates, then copy this report if loading still fails.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/read_failure.py",
+          "line": 121,
+          "sink": "tr"
         }
       ]
     },
@@ -182473,6 +182493,16 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 307,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "What this means:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/read_failure.py",
+          "line": 66,
+          "sink": "python-return:_report_text"
         }
       ]
     },

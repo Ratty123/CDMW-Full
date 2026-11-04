@@ -27,6 +27,7 @@ from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
 from cdmw.core.item_sources import ItemDataSources, active_item_source, resolve_item_data_sources
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
+from cdmw.core.new_item_record import RecordError
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
 from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, parse_paloc, select_paloc_entries
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
@@ -640,8 +641,12 @@ def build_snapshot(
             if parsed.key != row.row_id or row.row_id in rows:
                 raise ItemInfoRowError('ItemInfo has an inconsistent or duplicate row identity.')
             rows[row.row_id] = parsed
-        except ItemInfoRowError as exc:
-            raise NewItemSnapshotError(f"ItemInfo row {row.row_id} did not decode: {exc}") from exc
+        except (ItemInfoRowError, RecordError, struct.error, UnicodeError) as exc:
+            raise NewItemSnapshotError(
+                f"ItemInfo row {row.row_id} did not decode: {exc}\n"
+                f"Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); "
+                f"row offset 0x{start:X}, length {end - start} bytes."
+            ) from exc
     keys_by_name = {row.string_key: key for key, row in rows.items()}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
@@ -709,7 +714,14 @@ def build_snapshot(
             if name == 'iteminfo':
                 for entry,start,end in directory.row_spans(len(pair.payload)):
                     raise_if_cancelled(stop_event)
-                    parsed = parse_iteminfo_row(pair.payload[start:end],structured=True)
+                    try:
+                        parsed = parse_iteminfo_row(pair.payload[start:end],structured=True)
+                    except (ItemInfoRowError, RecordError, struct.error, UnicodeError) as exc:
+                        raise NewItemSnapshotError(
+                            f"ItemInfo row {entry.row_id} did not decode: {exc}\n"
+                            f"Source: {pair.payload_entry.path} ({pair.payload_entry.pamt_path}); "
+                            f"row offset 0x{start:X}, length {end - start} bytes."
+                        ) from exc
                     if parsed.key != entry.row_id:
                         raise NewItemSnapshotError('DLC ItemInfo identity differs from its directory.')
                     rows[entry.row_id] = parsed

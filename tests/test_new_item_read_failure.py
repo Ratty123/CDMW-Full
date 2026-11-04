@@ -94,3 +94,15 @@ class ReadFailureTests(unittest.TestCase):
         self.panel.show_failure("second attempt")
         self.assertNotIn("stage 29", self.panel.report_text)
         self.assertIn("second attempt", self.panel.report_text)
+
+    def test_item_layout_error_explains_patches_without_claiming_a_certain_cause(self):
+        for error in (
+            "ItemInfo row 2200 did not decode: string of 1868921168 bytes at 0x4 does not fit the row",
+            "ItemInfo row 2200 did not decode: Unsupported ItemInfo row layout: compact reader failed",
+        ):
+            self.panel.show_failure(error)
+            self.assertIn("NI-UNSUPPORTED-FORMAT", self.panel.report_text)
+            self.assertIn("A game patch may have changed", self.panel.guidance.text())
+            self.assertIn("outdated item mods or damaged files", self.panel.guidance.text())
+            self.assertIn(self.panel.guidance.text(), self.panel.report_text)
+            self.assertIn(error, self.panel.report_text)

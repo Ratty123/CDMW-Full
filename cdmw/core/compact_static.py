@@ -21,8 +21,37 @@ _DEFAULT_LIMITS = (65536, 200000)
 # and the deepest shipped condition needs about 300.
 _DEPTH_LIMIT = 400
 
+# 1.0.0.3527 inserts two UTF-8 strings after _filterType. The executable hashes
+# the socket name after reading its length and bytes; the wire value is text.
+# Keep the earlier grammar for old packages and require exactly one complete walk.
+# The two corrected spelling labels in that executable retain their existing API names.
+_ITEMINFO_BASE = READERS[TABLE_READERS["iteminfo"]]
+_SOUND_INSERT = next(i + 1 for i, op in enumerate(_ITEMINFO_BASE)
+                     if isinstance(op, tuple) and op[:3] == ("field", "ItemInfo", "_filterType"))
+_ITEMINFO_3527 = (
+    *_ITEMINFO_BASE[:_SOUND_INSERT],
+    ("field", "ItemInfo", "_soundNameOnMaxCharged", ("text",)),
+    ("field", "ItemInfo", "_soundSocketNameOnMaxCharged", ("text",)),
+    *_ITEMINFO_BASE[_SOUND_INSERT:],
+)
+
 
 def read_compact_layout(raw, kind="iteminfo"):
+    if kind != "iteminfo":
+        return _read_compact_layout(raw, kind)
+    candidates, errors = [], []
+    for label, program in (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527)):
+        try:
+            candidates.append(_read_compact_layout(raw, kind, program))
+        except (RecordError, UnicodeError) as exc:
+            errors.append(f"{label}: {exc}")
+    if len(candidates) != 1:
+        detail = "; ".join(errors) if not candidates else "both known layouts match"
+        raise RecordError(f"Unsupported or ambiguous compact ItemInfo layout ({detail}).")
+    return candidates[0]
+
+
+def _read_compact_layout(raw, kind, program=None):
     from cdmw.core.item_layout import ItemLayout, Member, Span
 
     size_limit, step_limit = _RECORD_LIMITS.get(kind, _DEFAULT_LIMITS)
@@ -65,7 +94,12 @@ def read_compact_layout(raw, kind="iteminfo"):
         elif code == "field":
             _, owner, name, child = op
             start = cursor.pos
-            walk(child, path + (name,), depth + 1)
+            try:
+                walk(child, path + (name,), depth + 1)
+            except (RecordError, UnicodeError) as exc:
+                if kind == "iteminfo" and not path:
+                    raise RecordError(f"ItemInfo.{name} at row offset 0x{start:X}: {exc}") from exc
+                raise
             span = Span(start, cursor.pos)
             if not path:
                 previous = fields.get(name)
@@ -86,7 +120,7 @@ def read_compact_layout(raw, kind="iteminfo"):
         else:
             raise RecordError("Unknown compact static layout operation.")
 
-    walk(READERS[TABLE_READERS[kind]])
+    walk(program if program is not None else READERS[TABLE_READERS[kind]])
     cursor.finish()
     return ItemLayout(bytes(raw), kind, "compact", MappingProxyType(fields), tuple(members), ())
 
@@ -104,6 +138,8 @@ def _field_shape(kind, field):
         return None
 
     op = find(READERS[TABLE_READERS[kind]])
+    if op is None and kind == "iteminfo":
+        op = find(_ITEMINFO_3527)
     if op is None:
         raise RecordError("This compact static generation has no such field.")
     while op[0] == "call" or op[0] == "seq" and len(op) == 2:

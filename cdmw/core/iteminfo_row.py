@@ -544,8 +544,10 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None,
     except (ItemInfoRowError, struct.error) as original:
         try:
             layout = read_item_layout(raw)
-        except RecordError:
-            raise original
+        except RecordError as exc:
+            raise ItemInfoRowError(
+                f"Unsupported ItemInfo row layout. Legacy reader: {original}. Complete readers: {exc}"
+            ) from exc
         return _parse_iteminfo_row(raw, item_keys=item_keys, layout=layout)
     if result.desc_offset is None and bytes(raw).count(DESC_TAG + struct.pack('<I', result.key)) > 1:
         try:

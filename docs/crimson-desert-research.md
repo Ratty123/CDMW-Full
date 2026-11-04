@@ -257,6 +257,18 @@ editing, planning and export readback. These source and read-only corpus checks
 do not establish archive-write compatibility, packaged behavior or game acceptance.
 The review made no game changes, installation or in-game acceptance test.
 
+**4 November 2026 ItemInfo patch compatibility:** executable `1.0.0.3527` (Steam
+build `26423880`) adds `_soundNameOnMaxCharged` and `_soundSocketNameOnMaxCharged`
+after `_filterType`. Both are length-prefixed strings; the socket text is hashed
+only after the executable reads it. The reader retains the earlier compact layout
+and accepts exactly one complete layout, preserving the new fields during edits.
+A read-only New Item snapshot loaded all 7,064 base and 1,552 DLC rows (8,374
+effective items), 464 stores and 1,789 groups. Every item stat block rebuilt byte
+for byte, including DLC records with nonempty sound socket names. Owned fixture
+checks cover compatibility, refusal, cloning and export readback. Unknown future
+layouts still refuse; this proves source/corpus reading, not packaged behavior,
+archive mutation or in-game acceptance.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct
