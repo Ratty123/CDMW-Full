@@ -36,7 +36,7 @@ class ArchiveBrowserActionControlsMixin:
         from cdmw.ui.archive_browser.mesh_batch_export_controller import has_selected_batch_models
         can_batch_export = (controls_enabled and hasattr(self, "archive_model_batch_obj_button")
                             and has_selected_batch_models(self))
-        for name in ("archive_model_batch_obj_button", "archive_model_batch_fbx_button"):
+        for name in ("archive_model_batch_glb_button", "archive_model_batch_fbx_button", "archive_model_batch_obj_button"):
             button = getattr(self, name, None)
             if button is not None:
                 self._set_action_button_state(
@@ -148,6 +148,12 @@ class ArchiveBrowserActionControlsMixin:
             controls_enabled and (can_mesh_actions or can_export_preview),
             "Export the selected archive mesh, or the currently shown model preview, as OBJ.",
             busy_reason if not controls_enabled else "select a mesh entry or open a model preview first",
+        )
+        self._set_action_button_state(
+            self.archive_model_export_glb_button,
+            controls_enabled and can_mesh_actions,
+            "Export the selected archive mesh as GLB. PAC exports also try to attach the matching PAB skeleton.",
+            mesh_reason,
         )
         self._set_action_button_state(
             self.archive_model_export_fbx_button,

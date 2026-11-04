@@ -53,7 +53,7 @@ def _request(root, entry, format="obj"):
                                          {entry.path: (entry,)}, {entry.basename: (entry,)})
 
 
-@pytest.mark.parametrize("format", ["obj", "fbx"])
+@pytest.mark.parametrize("format", ["glb", "fbx", "obj"])
 def test_actual_conversion_has_unique_folders_and_preserves_existing_output(tmp_path, format):
     entry = _entry(tmp_path)
     request = _request(tmp_path, entry, format)

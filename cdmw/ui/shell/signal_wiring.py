@@ -106,6 +106,9 @@ class ShellSignalWiringMixin:
             self.archive._export_current_archive_character_dependency_package
         )
         self.archive.archive_model_export_obj_button.clicked.connect(self.archive._export_current_archive_model)
+        self.archive.archive_model_export_glb_button.clicked.connect(
+            lambda: self._export_current_archive_mesh("glb")
+        )
         self.archive.archive_model_export_fbx_button.clicked.connect(
             lambda: self._export_current_archive_mesh("fbx")
         )

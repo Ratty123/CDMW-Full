@@ -7,9 +7,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.12.0-alpha.2] - 2026-11-04
+
 ### Added
 
 - Mesh Editor’s **Output > Export…** saves current edits as GLB, FBX or OBJ with their CDMW companion files for external editing. GLB is listed first for rigged models; OBJ remains geometry-only. Rigged editable-package exports no longer fail their own validation.
+- Archive Browser offers **Export GLB…** and **Export Selected as GLB…** first for single and batch model exports, with companion files, resolved textures and supported rigs. FBX and OBJ remain available. Missing skeletons require an explicit mesh-only export choice; review warnings when bone mapping cannot be resolved.
 - Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive. Exports use the current catalogue and report cancelled requests instead of waiting indefinitely.
 
 ### Fixed

@@ -9694,7 +9694,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot convert {entry.path}: the archive returned incomplete mesh data (PartialRaw). Export a complete mesh or select its PAMLOD companion explicitly.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 250
+      "cdmw/core/archive_mesh_export.py": 251
     }
   },
   {
@@ -11723,7 +11723,7 @@ MESSAGE_REFERENCE = [
     "message": "Matched skeleton {skeleton_entry.path} could not be parsed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 746
+      "cdmw/core/archive_mesh_export.py": 747
     }
   },
   {
@@ -12381,7 +12381,7 @@ MESSAGE_REFERENCE = [
     "message": "No geometry could be recovered from the selected mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 674
+      "cdmw/core/archive_mesh_export.py": 675
     }
   },
   {
@@ -12539,7 +12539,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "No usable skeleton was found. Mesh-only FBX export was not enabled.",
+    "message": "No usable skeleton was found. Mesh-only export was not enabled.",
     "recovery": "empty",
     "sources": {
       "cdmw/services/archive_mesh_batch_export.py": 85
@@ -12590,7 +12590,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 727
+      "cdmw/core/archive_mesh_export.py": 728
     }
   },
   {
@@ -14531,7 +14531,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Select a PAC, PAM or PAMLOD model and OBJ or FBX output.",
+    "message": "Select a PAC, PAM or PAMLOD model and GLB, FBX or OBJ output.",
     "recovery": "input",
     "sources": {
       "cdmw/services/archive_mesh_batch_export.py": 59
@@ -17098,7 +17098,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh export format: {export_format}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 668
+      "cdmw/core/archive_mesh_export.py": 669
     }
   },
   {
@@ -19633,7 +19633,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not a supported mesh entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 670
+      "cdmw/core/archive_mesh_export.py": 671
     }
   },
   {
@@ -19897,7 +19897,7 @@ MESSAGE_REFERENCE = [
     "message": "{manifest_stage} failed for {entry.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 614
+      "cdmw/core/archive_mesh_export.py": 615
     }
   },
   {

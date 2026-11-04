@@ -467,6 +467,10 @@ class ArchiveBrowserActionMixin:
 
         if entry.extension in ARCHIVE_MESH_EXTENSIONS:
             _add_menu_section("mesh", "Mesh Export")
+            export_glb_action = menu.addAction(menu_icons["mesh"], "Export GLB...")
+            export_glb_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "glb"))
+            export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
+            export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
             export_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ...")
             export_obj_action.setToolTip("Keep the mesh's original vertex positions.")
             export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
@@ -478,12 +482,12 @@ class ArchiveBrowserActionMixin:
                         current_entry, "obj", bake_neutral_appearance=True,
                     )
                 )
-            export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
-            export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
-            batch_obj_action = menu.addAction(menu_icons["mesh"], "Export Selected as OBJ...")
-            batch_obj_action.triggered.connect(lambda: self._export_selected_archive_models("obj"))
+            batch_glb_action = menu.addAction(menu_icons["mesh"], "Export Selected as GLB...")
+            batch_glb_action.triggered.connect(lambda: self._export_selected_archive_models("glb"))
             batch_fbx_action = menu.addAction(menu_icons["mesh"], "Export Selected as FBX...")
             batch_fbx_action.triggered.connect(lambda: self._export_selected_archive_models("fbx"))
+            batch_obj_action = menu.addAction(menu_icons["mesh"], "Export Selected as OBJ...")
+            batch_obj_action.triggered.connect(lambda: self._export_selected_archive_models("obj"))
             export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character Dependency Package...")
             export_character_dependencies_action.setToolTip(
                 "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."

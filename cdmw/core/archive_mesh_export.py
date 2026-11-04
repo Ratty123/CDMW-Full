@@ -17,6 +17,7 @@ from cdmw.core.archive_patching import _safe_log
 from cdmw.core.skeleton_resolver import SkeletonResolveReport, build_skin_binding_map, resolve_skeleton_for_model
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 from cdmw.modding.mesh_exporter import export_fbx, export_fbx_with_skeleton, export_obj, write_roundtrip_manifest
+from cdmw.modding.mesh_glb_interchange import export_glb
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.skeleton_parser import Skeleton, parse_pab
 
@@ -478,7 +479,7 @@ def _write_archive_export_manifest(
     manifest_target_path = next(
         (
             path for path in output_paths
-            if path.suffix.lower() in {".obj", ".fbx"}
+            if path.suffix.lower() in {".glb", ".fbx", ".obj"}
         ),
         None,
     )
@@ -640,7 +641,7 @@ def _archive_export_summary(
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
         if skeleton_resolve_report is not None:
             _append_skeleton_resolution_summary(summary_lines, skeleton_resolve_report)
-    elif export_kind == "fbx" and entry.extension == ".pac":
+    elif export_kind in {"glb", "fbx"} and entry.extension == ".pac":
         summary_lines.append("Skeleton: mesh-only export")
         if skeleton_resolution_warning:
             summary_lines.append(f"Skeleton fallback reason: {skeleton_resolution_warning}")
@@ -664,7 +665,7 @@ def _export_archive_mesh_staged(
     authored_descriptor: ArchiveEntry | None = None,
 ) -> MeshExportResult:
     export_kind = export_format.strip().lower()
-    if export_kind not in {"obj", "fbx"}:
+    if export_kind not in {"glb", "fbx", "obj"}:
         raise ValueError(f"Unsupported mesh export format: {export_format}")
     if entry.extension not in ARCHIVE_MESH_EXTENSIONS:
         raise ValueError(f"{entry.path} is not a supported mesh entry.")
@@ -687,15 +688,15 @@ def _export_archive_mesh_staged(
     obj_appearance_baked = False
     copied_related_count = 0
     should_resolve_skeleton = entry.extension == ".pac" and (
-        export_kind == "fbx" or bool(resolve_skeleton_for_obj)
+        export_kind in {"glb", "fbx"} or bool(resolve_skeleton_for_obj)
     )
     if should_resolve_skeleton:
         skeleton_entry, skeleton_resolution_warning, _attempted_paths, skeleton_resolve_report = _find_matching_skeleton_entry(
             entry, archive_entries_by_normalized_path=archive_entries_by_normalized_path,
             archive_entries_by_basename=archive_entries_by_basename, stop_event=stop_event,
         )
-    if export_kind == "fbx":
-        # Resolve before the native writer so its material nodes reference the
+    if export_kind in {"glb", "fbx"}:
+        # Resolve before the writer so its material nodes reference the
         # same copied DDS files as OBJ. Paths stay relative after staged publish.
         if build_preview_context and not model_texture_references and asset_family_graph is None:
             from cdmw.core.archive_preview_result_builder import build_archive_preview_result
@@ -749,19 +750,19 @@ def _export_archive_mesh_staged(
                     skeleton = None
             if skeleton is None and not allow_missing_skeleton:
                 confirmation_message = (
-                    f"Export {entry.path} as FBX without an armature?\n\n"
+                    f"Export {entry.path} as {export_kind.upper()} without an armature?\n\n"
                     f"{skeleton_resolution_warning or 'No matching PAB skeleton could be resolved.'}\n\n"
-                    "Choose Yes to continue with a mesh-only FBX export, or No to cancel."
+                    f"Choose Yes to continue with a mesh-only {export_kind.upper()} export, or No to cancel."
                 )
                 return MeshExportResult(
                     output_paths=[],
                     summary_lines=[
                         f"Path: {entry.path}",
                         f"Format: {parsed_mesh.format.upper()}",
-                        "FBX export is waiting for confirmation because no usable skeleton could be attached.",
+                        f"{export_kind.upper()} export is waiting for confirmation because no usable skeleton could be attached.",
                     ],
                     requires_confirmation=True,
-                    confirmation_title="Export FBX Without Skeleton?",
+                    confirmation_title=f"Export {export_kind.upper()} Without Skeleton?",
                     confirmation_message=confirmation_message,
                 )
         if skeleton is not None and skeleton.bones:
@@ -776,11 +777,15 @@ def _export_archive_mesh_staged(
                     getattr(parsed_mesh, "_cdmw_original_data", b"") or b"", skeleton
                 )
                 if not bone_palette:
-                    appearance_notes = ("FBX retains source coordinates and an unbound armature because the PAC bone palette is unresolved.",)
+                    appearance_notes = (
+                        "GLB retains source coordinates without skin weights because the PAC bone palette is unresolved."
+                        if export_kind == "glb" else
+                        "FBX retains source coordinates and an unbound armature because the PAC bone palette is unresolved.",
+                    )
                     _safe_log(
                         on_log,
                         f"{entry.path}: no bone palette resolved against {skeleton_entry.path if skeleton_entry else 'the skeleton'}; "
-                        "exporting the armature without skin binding.",
+                        "exporting without skin binding.",
                     )
             export_mesh, fbx_appearance_notes = _appearance_fbx_mesh(
                 entry,
@@ -795,10 +800,18 @@ def _export_archive_mesh_staged(
             appearance_notes += fbx_appearance_notes
             manifest_mesh = export_mesh
             export_mesh = _fbx_export_texture_mesh(export_mesh, model_texture_references or (), output_dir)
-            output_paths.insert(0, Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
+            if export_kind == "glb":
+                output_paths[0:0] = [Path(path) for path in export_glb(
+                    export_mesh, output_dir, basename, skeleton=skeleton, bone_palette=bone_palette,
+                )]
+            else:
+                output_paths.insert(0, Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
         else:
             export_mesh = _fbx_export_texture_mesh(parsed_mesh, model_texture_references or (), output_dir)
-            output_paths.insert(0, Path(export_fbx(export_mesh, str(output_dir), basename)))
+            if export_kind == "glb":
+                output_paths[0:0] = [Path(path) for path in export_glb(export_mesh, output_dir, basename)]
+            else:
+                output_paths.insert(0, Path(export_fbx(export_mesh, str(output_dir), basename)))
 
     if related_entries and export_kind == "obj":
         related_output_root = output_dir / "referenced_files"

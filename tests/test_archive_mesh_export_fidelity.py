@@ -52,7 +52,7 @@ def mesh() -> ParsedMesh:
     return result
 
 
-@pytest.mark.parametrize("export_format", ["obj", "fbx"])
+@pytest.mark.parametrize("export_format", ["glb", "fbx", "obj"])
 def test_partial_archive_mesh_is_rejected_before_parsing(tmp_path, monkeypatch, export_format):
     entry = _entry(tmp_path, "object/partial.pam")
     monkeypatch.setattr(
@@ -164,12 +164,14 @@ def test_a_chosen_appearance_prefab_supplies_the_exported_face_shape(tmp_path, m
 
 
 @pytest.mark.parametrize("failure_stage", ["companion", "manifest", "cancel"])
-def test_failed_export_preserves_previous_output(tmp_path, monkeypatch, mesh, failure_stage):
+@pytest.mark.parametrize("format_name", ["obj", "glb"])
+def test_failed_export_preserves_previous_output(tmp_path, monkeypatch, mesh, failure_stage, format_name):
     entry = _entry(tmp_path, "object/mesh.pam")
     companion = _entry(tmp_path, "object/mesh.pamlod")
     output = tmp_path / "export"
     output.mkdir()
-    for name in ("mesh.obj", "mesh.mtl", "mesh.obj.meta.json"):
+    names = (f"mesh.{format_name}", f"mesh.{format_name}.meta.json") + (("mesh.mtl",) if format_name == "obj" else ())
+    for name in names:
         (output / name).write_bytes(b"previous " + name.encode())
     before = {path.name: path.read_bytes() for path in output.iterdir()}
     stop_event = threading.Event()
@@ -192,27 +194,28 @@ def test_failed_export_preserves_previous_output(tmp_path, monkeypatch, mesh, fa
             return result
         monkeypatch.setattr(archive_mesh_export, "write_roundtrip_manifest", cancel_before_publication)
 
-    expected_error = RunCancelled if failure_stage == "cancel" else RuntimeError
+    expected_error = RunCancelled if failure_stage == "cancel" else (RuntimeError, OSError)
     with pytest.raises(expected_error):
         archive_mesh_export.export_archive_mesh(
-            entry, output, "obj", related_entries=(companion,), build_preview_context=False,
+            entry, output, format_name, related_entries=(companion,), build_preview_context=False,
             stop_event=stop_event,
         )
     assert {path.name: path.read_bytes() for path in output.iterdir()} == before
 
 
-def test_successful_export_publishes_every_selected_companion(tmp_path, monkeypatch, mesh):
+@pytest.mark.parametrize("format_name", ["obj", "glb"])
+def test_successful_export_publishes_every_selected_companion(tmp_path, monkeypatch, mesh, format_name):
     entry = _entry(tmp_path, "object/mesh.pam")
     companion = _entry(tmp_path, "object/mesh.pamlod", b"complete companion")
     monkeypatch.setattr(archive_mesh_export, "_parse_archive_mesh", lambda *args, **kwargs: mesh)
     output = tmp_path / "export"
     result = archive_mesh_export.export_archive_mesh(
-        entry, output, "obj", related_entries=(companion,), build_preview_context=False,
+        entry, output, format_name, related_entries=(companion,), build_preview_context=False,
     )
     copied = output / "referenced_files" / companion.path
     assert copied.read_bytes() == b"complete companion"
     assert copied in result.output_paths
-    manifest = json.loads((output / "mesh.obj.meta.json").read_text())
+    manifest = json.loads((output / f"mesh.{format_name}.meta.json").read_text())
     assert manifest["selected_companion_files"] == [companion.path]
     assert set(result.output_paths) == {path for path in output.rglob("*") if path.is_file()}
     assert not any(".cdmw-mesh-export-" in str(path) for path in result.output_paths)

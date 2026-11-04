@@ -639,7 +639,7 @@ class ArchiveMeshImportExportMixin:
 
         selected_related_entries: Tuple[ArchiveEntry, ...] = ()
         normalized_export_format = export_format.strip().lower()
-        if normalized_export_format in {"obj", "fbx"}:
+        if normalized_export_format in {"glb", "fbx", "obj"}:
             selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
                 entry,
                 title=f"Export Referenced Files With {normalized_export_format.upper()}",

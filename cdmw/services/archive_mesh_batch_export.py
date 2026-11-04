@@ -55,8 +55,8 @@ def export_batch_mesh_item(request: BatchMeshExportRequest, *, stop_event: objec
     target = None
     try:
         raise_if_cancelled(stop_event)
-        if request.export_format not in {"obj", "fbx"} or request.entry.extension not in ARCHIVE_MESH_EXTENSIONS:
-            raise ValueError("Select a PAC, PAM or PAMLOD model and OBJ or FBX output.")
+        if request.export_format not in {"glb", "fbx", "obj"} or request.entry.extension not in ARCHIVE_MESH_EXTENSIONS:
+            raise ValueError("Select a PAC, PAM or PAMLOD model and GLB, FBX or OBJ output.")
         preview = build_archive_preview_result(
             request.entry, (),
             texture_entries_by_normalized_path=dict(request.entries_by_path),
@@ -82,7 +82,7 @@ def export_batch_mesh_item(request: BatchMeshExportRequest, *, stop_event: objec
             stop_event=stop_event,
         )
         if result.requires_confirmation:
-            raise ValueError("No usable skeleton was found. Mesh-only FBX export was not enabled.")
+            raise ValueError("No usable skeleton was found. Mesh-only export was not enabled.")
         elif not result.output_paths:
             raise ValueError("The exporter did not produce any files.")
         else:

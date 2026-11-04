@@ -33,12 +33,23 @@ def app():
     return app
 
 
-def _make_dialog(tmp_path):
+def _make_dialog(tmp_path, export_format="fbx"):
     archive = QWidget()
     archive.shell = SimpleNamespace(settings_file_path=tmp_path / "settings.json")
     entry = ArchiveEntry("character/very_long_model_name_123456789.pac", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 1, 1, 0, 0)
-    dialog = BatchMeshExportDialog(archive, (BatchMeshSelection(entry),), "fbx")
+    dialog = BatchMeshExportDialog(archive, (BatchMeshSelection(entry),), export_format)
     return archive, dialog
+
+
+@pytest.mark.parametrize("export_format", ["glb", "fbx", "obj"])
+def test_mesh_only_choice_is_available_for_rigged_formats(app, tmp_path, export_format):
+    archive, dialog = _make_dialog(tmp_path, export_format)
+    try:
+        assert dialog.mesh_only.isHidden() == (export_format == "obj")
+        assert not dialog.mesh_only.isChecked()
+    finally:
+        dialog.close()
+        archive.close()
 
 
 CASES = [(theme, "en", 10) for theme in UI_THEME_SCHEMES]
@@ -86,7 +97,7 @@ def test_dialog_controls_fit_without_overlaps(app, tmp_path, theme, language, si
         app.setFont(original[2])
 
 
-@pytest.mark.parametrize("format", ["obj", "fbx"])
+@pytest.mark.parametrize("format", ["glb", "fbx", "obj"])
 def test_context_menu_preserves_all_selected_rows_before_batch_dispatch(app, tmp_path, monkeypatch, format):
     entry = ArchiveEntry("object/a.pam", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 1, 1, 0, 0)
     window = _ExportWindow(entry, tmp_path)
@@ -105,6 +116,8 @@ def test_context_menu_preserves_all_selected_rows_before_batch_dispatch(app, tmp
 
     class Menu(QMenu):
         def exec(self, position):
+            formats = [a.text() for a in self.actions() if a.text().startswith("Export Selected as")]
+            assert formats == ["Export Selected as GLB...", "Export Selected as FBX...", "Export Selected as OBJ..."]
             action = next(a for a in self.actions() if a.text() == f"Export Selected as {format.upper()}...")
             action.trigger()
 
@@ -134,6 +147,7 @@ def test_real_archive_export_menu_dispatches_batch_in_both_layouts(app, tmp_path
     try:
         assert window.is_compact_shell == (layout_name == "compact_rail")
         archive = window.archive
+        assert not archive.archive_model_batch_glb_button.isEnabled()
         assert not archive.archive_model_batch_obj_button.isEnabled()
         assert not archive.archive_model_batch_fbx_button.isEnabled()
         entry = ArchiveEntry("object/model.pam", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 1, 1, 0, 0)
@@ -142,13 +156,26 @@ def test_real_archive_export_menu_dispatches_batch_in_both_layouts(app, tmp_path
         monkeypatch.setattr(archive, "_export_selected_archive_models", calls.append)
         archive._update_archive_model_action_controls(None)
         menu = archive.archive_export_menu_button.menu()
-        for format in ("OBJ", "FBX"):
+        formats = [a.text() for a in menu.actions() if a.text().startswith("Export Selected as")]
+        assert formats == ["Export Selected as GLB", "Export Selected as FBX", "Export Selected as OBJ"]
+        for format in ("GLB", "FBX", "OBJ"):
             action = next(a for a in menu.actions() if a.text() == f"Export Selected as {format}")
             assert action.isEnabled()
             action.trigger()
-        assert calls == ["obj", "fbx"]
+        assert calls == ["glb", "fbx", "obj"]
+        single_calls = []
+        monkeypatch.setattr(archive, "_current_archive_entry", lambda: entry)
+        monkeypatch.setattr(archive, "_current_archive_mesh_entry", lambda: entry)
+        monkeypatch.setattr(archive, "_start_archive_mesh_export", lambda selected, format_name: single_calls.append((selected, format_name)))
+        archive._update_archive_model_action_controls(None)
+        assert archive.archive_model_export_glb_button.isEnabled()
+        single_formats = [a.text() for a in menu.actions() if a.text() in {"Export GLB", "Export FBX", "Export OBJ"}]
+        assert single_formats == ["Export GLB", "Export FBX", "Export OBJ"]
+        next(a for a in menu.actions() if a.text() == "Export GLB").trigger()
+        assert single_calls == [(entry, "glb")]
         monkeypatch.setattr(archive.archive_tree, "selectedItems", lambda: [])
         archive._update_archive_model_action_controls(None)
+        assert not archive.archive_model_batch_glb_button.isEnabled()
         assert not archive.archive_model_batch_obj_button.isEnabled()
         assert not archive.archive_model_batch_fbx_button.isEnabled()
     finally:

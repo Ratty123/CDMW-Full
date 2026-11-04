@@ -13,7 +13,7 @@ mod packages.
 · [Release history](CHANGELOG.md) · [Research reference](docs/crimson-desert-research.md)
 · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
-`0.12.0-alpha.1` is the current source version. For browsing and extraction only,
+`0.12.0-alpha.2` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
 ## Install

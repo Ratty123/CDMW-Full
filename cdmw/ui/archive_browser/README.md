@@ -859,19 +859,27 @@ mod-ready loose package target. A document that adds nothing writes nothing.
 Shipped bones cannot be renamed, removed or reordered (see the modding README),
 and added bones are untested in game.
 
-### OBJ export and round trips
+### GLB, FBX and OBJ export and round trips
+
+**Export > Export GLB...** exports one PAC, PAM or PAMLOD directly from the
+archive. GLB is listed first for rigged editing, followed by FBX and OBJ. GLB
+includes companion metadata and resolved textures; PAC weights require a resolved
+skeleton and bone mapping. Review export warnings: an unresolved palette leaves
+the mesh without usable weights, and a missing skeleton requires confirmation to export only
+the mesh. Keep the model and companion files together for **Round-trip edit**.
+OBJ remains geometry-only.
 
 OBJ, MTL and round-trip metadata support Unicode output folders and file names,
 including Chinese characters, independently of the interface language.
 
-**Export > Export Selected as OBJ... / Export Selected as FBX...** converts
+**Export > Export Selected as GLB... / FBX... / OBJ...** converts
 explicitly selected PAC, PAM and PAMLOD file rows in a sequential batch. Use Ctrl
 or Shift to select models; folder/category rows and other file types are excluded.
 The same commands appear in a model's right-click menu. Each model gets a fresh
 `model_<name>` folder under the chosen root, with numbered suffixes for collisions.
 Resolved referenced files are included; existing output folders are preserved.
-OBJ keeps source coordinates. PAC FBX exports without a usable skeleton fail
-unless **Allow FBX without a skeleton** is explicitly enabled for the batch.
+OBJ keeps source coordinates. PAC GLB and FBX exports without a usable skeleton
+fail unless **Allow export without a skeleton** is explicitly enabled for the batch.
 
 The dialog shows progress and a copyable per-model report with output folders,
 warnings, failures and cancellation results. **Cancel** stops preparation or

@@ -105,6 +105,38 @@ def _run_blender(root, source, returned):
     return json.loads(report.read_text())
 
 
+@pytest.mark.parametrize("source_format", ["pac", "pam", "pamlod"])
+def test_archive_glb_survives_blender_with_its_roundtrip_companion(tmp_path, source_format):
+    from cdmw.core.archive_mesh_export import export_archive_mesh
+    from cdmw.core.archive_mesh_import_preview import build_mesh_import_preview
+    from tests.test_archive_mesh_export_fidelity import _entry
+    from tests.test_archive_mesh_glb_export import rigged_archive
+    from tests.test_mesh_import_paired_lod import _static_payload
+
+    blender_executable()
+    if source_format == "pac":
+        entry, _skeleton, _texture, raw, options = rigged_archive(tmp_path)
+    else:
+        raw = _static_payload(lod=source_format == "pamlod")
+        entry = _entry(tmp_path, f"object/body.{source_format}", raw)
+        options = {}
+    result = export_archive_mesh(entry, tmp_path / "export", "glb", **options,
+                                 build_preview_context=False)
+    assert not result.requires_confirmation
+    source = tmp_path / "export/body.glb"
+    returned = source.with_name("returned.glb")
+    facts = _run_blender(tmp_path, source, returned)
+    assert facts and all(part["vertices"] for part in facts)
+    if source_format == "pac":
+        assert {f"Bone{i}" for i in range(8)} <= set(facts[0]["groups"])
+    else:
+        assert all(not part["groups"] for part in facts)
+    Path(f"{returned}.meta.json").write_bytes(Path(f"{source}.meta.json").read_bytes())
+    preview = build_mesh_import_preview(entry, returned, import_mode="roundtrip")
+    assert preview.rebuilt_data == raw
+    assert entry.paz_file.read_bytes() == raw
+
+
 @pytest.mark.parametrize("format_name", ["glb", "fbx", "obj"])
 def test_current_editor_export_imports_in_blender_with_its_companion(tmp_path, format_name):
     from cdmw.services.mesh_interchange_export import export_editable_mesh

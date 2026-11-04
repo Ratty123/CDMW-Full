@@ -72,6 +72,9 @@ class _ExportWindow(actions.ArchiveBrowserActionMixin, mesh_import_export.Archiv
 
 
 @pytest.mark.parametrize("extension,label,export_format,bake", [
+    (".pac", "Export GLB...", "glb", False),
+    (".pam", "Export GLB...", "glb", False),
+    (".pamlod", "Export GLB...", "glb", False),
     (".pac", "Export OBJ...", "obj", False),
     (".pac", "Export OBJ (Neutral Appearance)...", "obj", True),
     (".pac", "Export FBX...", "fbx", False),
@@ -91,6 +94,8 @@ def test_archive_context_menu_dispatches_selected_export_mode(tmp_path, monkeypa
     class ExportMenu(QMenu):
         def exec(self, _position):
             choices = {action.text(): action for action in self.actions()}
+            formats = [name for name in choices if name in {"Export GLB...", "Export FBX...", "Export OBJ..."}]
+            assert formats == ["Export GLB...", "Export FBX...", "Export OBJ..."]
             assert ("Export OBJ (Neutral Appearance)..." in choices) == (extension == ".pac")
             choices[label].trigger()
 

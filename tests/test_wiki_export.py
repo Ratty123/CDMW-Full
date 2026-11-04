@@ -80,6 +80,20 @@ def test_path_list_export_is_translated_in_every_manual(wiki_pages):
             assert translated.split(". ")[0] in page
 
 
+def test_archive_glb_export_guidance_is_translated_in_every_manual(wiki_pages):
+    from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+
+    for language in BUILTIN_LANGUAGES:
+        translations = load_builtin_catalog(language.code)["translations"]
+        source = next(key for key in translations if key.startswith("Choose Export GLB... for one PAC"))
+        translated = translations[source]
+        assert language.code == "en" or translated != source
+        page = wiki_pages[page_slug("Archive-Browser", language.code) + ".md"].replace("**", "")
+        assert translated in page
+        assert translations["Export GLB..."] in translated
+        assert translations["Allow export without a skeleton"] in page
+
+
 def test_dmm_texture_registry_guidance_is_translated_in_every_manual(wiki_pages):
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 
