@@ -216,6 +216,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             native_preview_core_cache_root=native_preview_core_cache_root,
         )
         self._syncing_numbers = False
+        #: >0 while a component selection/inclusion change runs: the viewport is not rebuilt
+        self._preview_hold = 0
+        #: the viewport shows an older component state; Refresh preview brings it up to date
+        self._preview_stale = False
         self._show_preview_timer = QTimer(self)
         self._show_preview_timer.setSingleShot(True)
         self._show_preview_timer.setInterval(0)
@@ -247,7 +251,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         from cdmw.ui.new_item.component_list import ComponentList
         self.components = ComponentList(controller, self)
         model_icon_content_layout.addWidget(self.components)
-        self.model_layout.insertWidget(self.model_layout.indexOf(self.weights_rig_group), self.body_visibility_editor)
+        self.model_layout.insertWidget(self.model_layout.indexOf(self.weights_rig_details), self.body_visibility_editor)
+        self.components.preview_out_of_date.connect(self.mark_preview_stale)
         model_icon_content_layout.addWidget(self.model_group)
         model_icon_content_layout.addWidget(self.preview_controls)
         model_icon_content_layout.addWidget(self.reference_group)
@@ -297,7 +302,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         controller.model_import_failed.connect(self._import_failed)
         controller.model_apply_failed.connect(self._apply_failed)
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(
-            not (self.show_installed_reference.isChecked() and controller.installed_reference is not None)))
+            not self._preview_stale
+            and not (self.show_installed_reference.isChecked() and controller.installed_reference is not None)))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
         # after every package (re)build: the session replays the last glow update as
@@ -460,7 +466,22 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.capture_inline_button.clicked.connect(self._capture_inline)
         self.capture_inline_button.setEnabled(False)
-        controls_layout.addWidget(self.capture_inline_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self.refresh_preview_button = QPushButton("Refresh preview")
+        self.refresh_preview_button.setObjectName("new_item_refresh_preview")
+        self.refresh_preview_button.setToolTip("Show the current components. Selecting or ticking components does not reload "
+                                               "the viewport by itself; the plan and export always use the current choices.")
+        self.refresh_preview_button.clicked.connect(lambda: self.refresh_preview(force=True))
+        self.preview_stale_label = QLabel("Preview out of date")
+        self.preview_stale_label.setObjectName("new_item_preview_stale")
+        self.preview_stale_label.setToolTip("Refresh preview before placing the model or capturing the icon.")
+        self.preview_stale_label.setVisible(False)
+        preview_actions = QHBoxLayout()
+        preview_actions.setSpacing(6)
+        preview_actions.addWidget(self.refresh_preview_button)
+        preview_actions.addWidget(self.preview_stale_label)
+        preview_actions.addStretch(1)
+        preview_actions.addWidget(self.capture_inline_button)
+        controls_layout.addLayout(preview_actions)
         self.preview_status = QLabel("")
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)
@@ -760,14 +781,23 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
     def _build_model_source_controls(self):
         model = QGroupBox("Selected component")
+        model.setTitle("")
         model.setAccessibleName("Selected component")
         model.setObjectName("new_item_selected_component")
+        model.setProperty("titlelessSection", True)
         model_layout = QVBoxLayout(model)
-        model_layout.setContentsMargins(8, 4, 8, 6)
-        model_layout.setSpacing(4)
+        model_layout.setContentsMargins(6, 4, 6, 4)
+        model_layout.setSpacing(3)
         self.model_layout = model_layout
+        self.editing_label = QLabel("")
+        self.editing_label.setObjectName("new_item_editing_label")
+        self.editing_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.editing_label.setWordWrap(True)
+        editing_font = self.editing_label.font()
+        editing_font.setBold(True)
+        self.editing_label.setFont(editing_font)
+        model_layout.addWidget(self.editing_label)
         source_label = QLabel("Exported model:")
-        source_label.setToolTip("What the selected component exports. Hide in export, in the list above, exports nothing for it.")
         self.keep_model = QRadioButton("Template model")
         self.keep_model.setToolTip("Export the game's own model for the selected component.")
         self.keep_model.setChecked(True)
@@ -780,19 +810,30 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             "Supports glTF, GLB, OBJ, DAE, FBX through Blender, and zip files containing one model."
         )
         source_choices.addWidget(self.import_model)
-        model_layout.addLayout(source_choices)
+        # The radio pair stays the model-source state; the visible actions below drive it.
+        self.source_radio_row = QWidget()
+        self.source_radio_row.setLayout(source_choices)
+        self.source_radio_row.setVisible(False)
+        model_layout.addWidget(self.source_radio_row)
         row = QHBoxLayout()
         row.setContentsMargins(0,0,0,0)
         picker_row = QHBoxLayout()
         picker_row.setContentsMargins(0, 0, 0, 0)
         self.import_button = QPushButton("Import model…")
         self.import_button.setToolTip(
-            "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model "
-            "Library reads it (its own textures too) and shown over the template below, where you place it. An FBX is read too "
-            "once the studio has been pointed at a Blender, which converts it first."
+            "Replace only the selected component with a glTF, GLB, OBJ, DAE or FBX (through Blender) model, or a zip with "
+            "one inside. Other ticked components keep their own models."
         )
         self.import_button.clicked.connect(self._pick_model_file)
         picker_row.addWidget(self.import_button)
+        self.use_template_button = QPushButton("Use template model")
+        self.use_template_button.setToolTip("Export the game's own model for the selected component. An import is kept for switching back.")
+        self.use_template_button.clicked.connect(lambda: self.keep_model.setChecked(True))
+        picker_row.addWidget(self.use_template_button)
+        self.use_import_button = QPushButton("Use imported model")
+        self.use_import_button.setToolTip("Export the model already imported for the selected component.")
+        self.use_import_button.clicked.connect(lambda: self.import_model.setChecked(True))
+        picker_row.addWidget(self.use_import_button)
         picker_row.addStretch(1)
         model_layout.addLayout(picker_row)
         from cdmw.ui.new_item.installed_character_models import InstalledCharacterModels
@@ -800,9 +841,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.installed_models.loaded.connect(self._installed_model_loaded)
         reference_group = QGroupBox("Fitting reference — preview only")
         reference_layout = QVBoxLayout(reference_group)
-        note = QLabel("Compare installed refits with your own model. The reference is never exported.")
-        note.setWordWrap(True)
-        reference_layout.addWidget(note)
+        reference_layout.setContentsMargins(6, 4, 6, 4)
+        reference_layout.setSpacing(3)
+        reference_group.setToolTip("Compare installed refits with your own model. The reference is never exported.")
         reference_row = QHBoxLayout()
         self.installed_model_button = QPushButton("Browse installed models…")
         self.installed_model_button.clicked.connect(self.installed_models.open)
@@ -837,10 +878,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         import_row = QWidget()
         import_row.setLayout(row)
         model_layout.addWidget(import_row)
-        self.weights_rig_group = QGroupBox("Weights and rig")
+        self.weights_rig_group = QWidget()
         self.weights_rig_group.setObjectName("new_item_weights_rig")
         weights_rig_layout = QVBoxLayout(self.weights_rig_group)
-        weights_rig_layout.setContentsMargins(8, 4, 8, 6)
+        weights_rig_layout.setContentsMargins(12, 0, 0, 2)
         weights_rig_layout.setSpacing(4)
         skin_row = QHBoxLayout()
         skin_row.addWidget(QLabel("Weights on next import"))
@@ -883,7 +924,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.export_rig_button.clicked.connect(self._pick_rig_export_folder)
         rig_row.addWidget(self.export_rig_button)
         weights_rig_layout.addLayout(rig_row)
-        model_layout.addWidget(self.weights_rig_group)
+        self.weights_rig_details = _foldout(self.weights_rig_group)
+        self.weights_rig_details.toggle.setText("Weights and rig")
+        self.weights_rig_details.layout().insertWidget(0, self.weights_rig_details.toggle)
+        model_layout.addWidget(self.weights_rig_details)
         self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
         # Open the dialog after the reading task has finished, not inside its callback.
         self._controller.rig_source_ready.connect(
@@ -1020,6 +1064,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._refresh_import_widgets()
         self._controller.invalidate_plan()
         self._refresh_apply_status()
+        self._refresh_source_actions()
 
     def _refresh_import_widgets(self) -> None:
         keep = self.keep_model.isChecked()
@@ -1251,7 +1296,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             translate_active_ui_text("Body underneath updated for {count} worn component(s).").format(count=count))
 
     def _refresh_body_visibility(self, *, looking=False) -> None:
-        from cdmw.domain.new_item.components import ComponentSource
         from cdmw.ui.new_item.component_list import component_name
         row = next((value for value in self._controller.component_rows() if value.selected), None)
         self.body_visibility_editor.refresh(
@@ -1261,8 +1305,27 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             component=component_name(row) if row is not None else "",
             # An unread prefab keeps the choice available; the plan then reports what it could change.
             applicable=row is None or row.cuts_body or not row.component_name,
-            hidden=row is not None and row.source is ComponentSource.HIDDEN,
+            hidden=row is not None and not row.included,
         )
+        from cdmw.services.active_ui_translation import translate_active_ui_text
+        if row is None:
+            self.editing_label.setText("")
+        elif row.included:
+            self.editing_label.setText(translate_active_ui_text("Editing: {name}").format(name=component_name(row)))
+        else:
+            self.editing_label.setText(translate_active_ui_text("Editing: {name} (left out of the export)").format(
+                name=component_name(row)))
+        self._refresh_source_actions()
+
+    def _refresh_source_actions(self) -> None:
+        controller = self._controller
+        has_import = controller.model_import is not None or (
+            controller.model_result is not None and controller.model_import is None
+            and controller.draft.model_source is ModelSource.IMPORTED)
+        keep = self.keep_model.isChecked()
+        self.use_template_button.setVisible(not keep)
+        self.use_import_button.setVisible(keep and controller.model_import is not None)
+        self.import_button.setText("Replace import…" if has_import and not keep else "Import model…")
 
     def _find_visibility_layers(self) -> None:
         from shiboken6 import isValid

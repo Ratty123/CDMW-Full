@@ -81,10 +81,22 @@ class NewItemVariantControllerMixin:
         if self._active_variant is None:
             return
         self._capture_variant(self._active_variant)
-        self.draft.variants = tuple(state.appearance for state in self._variant_states.values()
-                                    if state.appearance.custom_model or state.dyes_edited or state.appearance.dyes != ()
-                                    or state.appearance.glow_parts or state.appearance.translucency is not None or state.appearance.shader_controls
-                                    or state.appearance.template_transform or state.appearance.body_visibility.wanted)
+        for identity in self.draft.excluded_bindings:
+            self._variant_states.setdefault(identity, VariantModelState(VariantAppearance(*identity)))
+        variants = []
+        for identity, state in self._variant_states.items():
+            appearance = state.appearance
+            if identity in self.draft.excluded_bindings:
+                # Left out of the export: hidden geometry replaces whatever source the
+                # component keeps for re-including; only its body choice applies.
+                variants.append(replace(VariantAppearance(*identity), custom_model=True,
+                                        material_route=appearance.material_route,
+                                        body_visibility=appearance.body_visibility))
+            elif (appearance.custom_model or state.dyes_edited or appearance.dyes != ()
+                    or appearance.glow_parts or appearance.translucency is not None or appearance.shader_controls
+                    or appearance.template_transform or appearance.body_visibility.wanted):
+                variants.append(appearance)
+        self.draft.variants = tuple(variants)
         if not self.draft.variants and self.draft.effect_stem:
             self.draft.variants = (self._variant_states[self._active_variant].appearance,)
 
@@ -94,7 +106,7 @@ class NewItemVariantControllerMixin:
         if identity == self._active_variant:
             return
         old = self.current_variant_identity()
-        if self._lane in {"model_import","model_apply","model_part_edit","model_skinning","model_hide","authoring-index","plan","transparency_mask"}:
+        if self._lane in {"model_apply","model_part_edit","model_skinning","model_hide","authoring-index","plan","transparency_mask"}:
             self.cancel_operation(self._lane)
         self._capture_variant(old)
         self.variant_about_to_change.emit(old)
@@ -166,12 +178,28 @@ class NewItemVariantControllerMixin:
         self._component_facts[(id(self.snapshot), key)] = cached = (facts, roles)
         return cached
 
+    def _legacy_hidden(self, identity) -> bool:
+        """A binding hidden by the earlier Hide this variant / Hide in export buttons:
+        its stored model is the generated placeholder rather than an inclusion flag."""
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+        if identity == self._active_variant:
+            custom = self.draft.model_source is ModelSource.IMPORTED
+            source, result = self.model_import, self.model_result
+        else:
+            state = self._variant_states.get(identity)
+            if state is None:
+                return False
+            custom, source, result = state.appearance.custom_model, state.source, state.result
+        return bool(custom) and source is None and is_hidden_variant_result(result)
+
+    def component_included(self, identity) -> bool:
+        return identity not in self.draft.excluded_bindings and not self._legacy_hidden(identity)
+
     def component_rows(self):
         """Every template binding and what the export makes of it, in family order."""
         if self.snapshot is None or self.draft.template_key is None:
             return ()
         from cdmw.domain.new_item.components import ComponentRole, ComponentRow, ComponentSource, ROLE_BY_DATA_TYPE
-        from cdmw.services.new_item_skinning import is_hidden_variant_result
         from cdmw.services.new_item_variants import variant_bindings
         try:
             family = self.snapshot.family(self.draft.template_key)
@@ -184,74 +212,71 @@ class NewItemVariantControllerMixin:
             identity = (part.prefab_path.casefold(), path.casefold())
             if identity == active:
                 custom = self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None)
-                source, result, body = self.model_import, self.model_result, self.draft.body_visibility
+                source, body = self.model_import, self.draft.body_visibility
             else:
                 state = self._variant_states.get(identity)
                 custom = bool(state and state.appearance.custom_model)
-                source, result = (state.source, state.result) if state else (None, None)
+                source = state.source if state else None
                 body = state.appearance.body_visibility if state else BodyVisibilityChoice()
-            if custom and source is None and is_hidden_variant_result(result):
-                kind, name = ComponentSource.HIDDEN, ""
-            elif custom:
+            legacy = self._legacy_hidden(identity)
+            if custom and not legacy:
                 kind = ComponentSource.IMPORTED
-                name = str(getattr(getattr(source, "path", None), "name", "") or "")
-                if not name:
-                    stash = self._hidden_restore.get(identity)
-                    name = str(getattr(getattr(getattr(stash, "source", None), "path", None), "name", "") or "")
+                name = str(getattr(getattr(source, "chosen_path", None), "name", "") or "")
             else:
                 kind, name = ComponentSource.TEMPLATE, ""
             component, tag = facts.get(identity, ("", ""))
             role = ROLE_BY_DATA_TYPE.get(roles.get(part.stem.casefold(), -1), ComponentRole.OTHER)
             rows.append(ComponentRow(identity, part.prefab_path, path, part.stem, role, component, tag, kind, name,
-                                     body.keep_skin, body.keep_hair, identity == active))
+                                     body.keep_skin, body.keep_hair, identity == active,
+                                     included=identity not in self.draft.excluded_bindings and not legacy,
+                                     cut_rules_editable=not getattr(self, "independent_mode", False)))
         return tuple(rows)
 
-    def hide_component(self, identity=None) -> bool:
-        """Hide one binding in the export, keeping its prior state for Show in export."""
-        identity = identity or self.current_variant_identity()
-        if identity is None:
+    def set_component_included(self, identity, included: bool) -> bool:
+        """Include or leave out one binding by its stable identity, without selecting
+        it, starting work or reloading the preview. Its source stays for re-including."""
+        if identity not in {key for key, _ in self.variant_choices()}:
+            raise ValueError("Choose an exact component binding of this template.")
+        included = bool(included)
+        if included == self.component_included(identity):
             return False
-        if identity != self._active_variant:
-            self.select_variant(identity)
-        from cdmw.services.new_item_skinning import is_hidden_variant_result
-        if (self.draft.model_source is ModelSource.IMPORTED and self.model_import is None
-                and is_hidden_variant_result(self.model_result)):
-            return True
-        self._capture_variant(identity)
-        prior = self._variant_states.get(identity)
-        if prior is not None:
-            self._hidden_restore[identity] = replace(prior)
-        started = self.start_hide_model_variant()
-        if not started:
-            self._hidden_restore.pop(identity, None)
-        return started
+        excluded = [value for value in self.draft.excluded_bindings if value != identity]
+        if not included:
+            excluded.append(identity)
+        elif self._legacy_hidden(identity):
+            # The old buttons replaced the source with the placeholder: restore what
+            # was stashed at that time, else the template model.
+            self._restore_legacy_hidden(identity)
+        self.draft.excluded_bindings = tuple(sorted(excluded))
+        self.invalidate_plan()
+        return True
 
-    def show_component(self, identity=None) -> bool:
-        """Undo Hide in export: the prior import, placement and edits, or the template."""
-        identity = identity or self.current_variant_identity()
-        if identity is None:
-            return False
-        if identity != self._active_variant:
-            self.select_variant(identity)
-        if self._lane == "model_hide":
-            self.cancel_operation("model_hide")
-        from cdmw.services.new_item_skinning import is_hidden_variant_result
-        body = self.draft.body_visibility
-        hidden_result = self.model_result if is_hidden_variant_result(self.model_result) else None
+    def _restore_legacy_hidden(self, identity):
+        body = (self.draft.body_visibility if identity == self._active_variant
+                else self._variant_states.get(identity, VariantModelState(VariantAppearance(*identity))).appearance.body_visibility)
         stash = self._hidden_restore.pop(identity, None)
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
         if stash is not None and not (stash.appearance.custom_model and stash.source is None
                                       and is_hidden_variant_result(stash.result)):
-            # The user's latest skin choice wins over the one stored at hide time.
             state = replace(stash, appearance=replace(stash.appearance, body_visibility=body))
         else:
             state = VariantModelState(replace(VariantAppearance(*identity), body_visibility=body))
         self._variant_states[identity] = state
-        self._load_variant_state(state)
-        self.invalidate_plan()
-        self.model_import_changed.emit(self.model_import)
-        self.model_changed.emit(self.model_result)
-        self.model_placement_changed.emit(self.model_placement)
-        return hidden_result is not None or stash is not None
+        if identity == self._active_variant:
+            self._load_variant_state(state)
+            self.model_import_changed.emit(self.model_import)
+            self.model_changed.emit(self.model_result)
+            self.model_placement_changed.emit(self.model_placement)
+
+    def hide_component(self, identity=None) -> bool:
+        """Leave one binding out of the export (compatibility name)."""
+        identity = identity or self.current_variant_identity()
+        return identity is not None and (self.set_component_included(identity, False) or not self.component_included(identity))
+
+    def show_component(self, identity=None) -> bool:
+        """Include one binding again with its previous source and edits (compatibility name)."""
+        identity = identity or self.current_variant_identity()
+        return identity is not None and self.set_component_included(identity, True)
 
     def set_worn_body_visibility(self, choice) -> int:
         """Give every worn component the same underlying-body choice; returns how many."""
@@ -327,10 +352,19 @@ class NewItemVariantControllerMixin:
         self._sync_variant_state()
         if self._active_variant is None:
             return {},{},tuple(source for source in (self.model_import,) if source is not None)
+        from cdmw.services.new_item_skinning import HiddenVariantRequest, is_hidden_variant_result
         states = tuple(self._variant_states.items())
-        return ({key:value.result for key,value in states if value.appearance.custom_model},
-                {key:value.scene for key,value in states if value.appearance.custom_model},
-                tuple(value.source for _key,value in states if value.source is not None))
+        excluded = set(self.draft.excluded_bindings)
+        models, scenes = {}, {}
+        for key, value in states:
+            if key in excluded:
+                # Generated by the plan worker, so leaving a row out costs nothing here.
+                models[key] = value.result if is_hidden_variant_result(value.result) else HiddenVariantRequest(key[1])
+                scenes[key] = None
+            elif value.appearance.custom_model:
+                models[key], scenes[key] = value.result, value.scene
+        return (models, scenes, tuple(value.source for key, value in states
+                                      if value.source is not None and key not in excluded))
 
     def reset_variants(self):
         sources = {id(value.source):value.source for value in (*self._variant_states.values(), *self._hidden_restore.values())

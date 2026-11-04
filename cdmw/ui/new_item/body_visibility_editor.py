@@ -19,6 +19,11 @@ class BodyVisibilityEditor(QGroupBox):
         self.setTitle("Body underneath (experimental)")
         self.setObjectName("body_visibility_editor")
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(3)
+        self.setToolTip("A garment's cut rule hides the body near its geometry, even where the garment leaves skin "
+                        "uncovered. Left-out components never keep their cut rule. Test in game: the preview does not "
+                        "simulate these rules, and other equipment can still hide parts.")
         self.scope = QLabel("")
         self.scope.setObjectName("new_item_intro")
         self.scope.setWordWrap(True)
@@ -29,8 +34,12 @@ class BodyVisibilityEditor(QGroupBox):
         self.keep_hair.setObjectName("body_visibility_keep_hair")
         self.keep_skin.setToolTip("Stop this component's cut rule from hiding the body and head beneath it. Off uses the template's rule.")
         self.keep_hair.setToolTip("Ask this component to preserve character hair and beard. Helmet-owned item hair keeps its template rules.")
-        layout.addWidget(self.keep_skin)
-        layout.addWidget(self.keep_hair)
+        choices = QHBoxLayout()
+        choices.setSpacing(10)
+        choices.addWidget(self.keep_skin)
+        choices.addWidget(self.keep_hair)
+        choices.addStretch(1)
+        layout.addLayout(choices)
         self.layers_label = QLabel("Keep these layers underneath:")
         layout.addWidget(self.layers_label)
         self.layers = QListWidget()
@@ -54,14 +63,11 @@ class BodyVisibilityEditor(QGroupBox):
                                       "a component's own rule cuts them. The ground model and other items are not changed.")
         self.apply_to_worn.clicked.connect(self._apply_to_worn)
         apply_row.addWidget(self.apply_to_worn)
+        self.note = QLabel("Not shown in the preview.")
+        self.note.setObjectName("new_item_intro")
+        apply_row.addWidget(self.note)
         apply_row.addStretch(1)
         layout.addLayout(apply_row)
-        self.note = QLabel("A garment's cut rule hides the body near its geometry, even where the garment leaves skin "
-                           "uncovered. Components hidden in export never keep their cut rule. Test in game: the preview does "
-                           "not simulate these rules, and other equipment can still hide parts.")
-        self.note.setObjectName("new_item_intro")
-        self.note.setWordWrap(True)
-        layout.addWidget(self.note)
         self._loading = False
         self.keep_skin.toggled.connect(self._changed)
         self.keep_hair.toggled.connect(self._changed)
@@ -104,8 +110,8 @@ class BodyVisibilityEditor(QGroupBox):
                     "{name} has no body-cut rule in the template, so there is nothing to keep.").format(name=component))
             elif hidden:
                 self.scope.setText(translate_active_ui_text(
-                    "{name} is hidden in export and no longer hides the body. These choices apply if you show it again.").format(
-                    name=component))
+                    "{name} is left out: a DMM mod drops its body cut, an item package (.cdmw) keeps it. "
+                    "These choices apply if you tick it again.").format(name=component))
             elif component:
                 self.scope.setText(translate_active_ui_text("Applies to {name} only.").format(name=component))
             else:

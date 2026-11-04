@@ -268,6 +268,9 @@ class NewItemDraft:
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
     body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
     surface_settings: tuple[tuple[str, SurfaceEdit], ...] = ()
+    #: (prefab path, model path) bindings left out of the export, folded. Their own
+    #: source, placement and appearance stay in the variant state for re-including.
+    excluded_bindings: tuple[tuple[str, str], ...] = ()
     independent_identity: str = ""
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
@@ -301,6 +304,7 @@ class NewItemDraft:
         self.surface_settings = ()
         self.shader_controls = ()
         self.body_visibility = BodyVisibilityChoice()
+        self.excluded_bindings = ()
         self.template_transform = ()
         self.glow_parts = ()
 

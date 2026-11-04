@@ -1,5 +1,5 @@
 """Imported New Item skinning and isolation from template motion."""
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 import math
 
@@ -118,6 +118,24 @@ def is_hidden_variant_result(result) -> bool:
     if any(str(note).startswith(HIDDEN_GEOMETRY_NOTE) for note in notes):
         return True
     return hidden_geometry_payload(getattr(result, "pac_data", None) or getattr(result, "rebuilt_data", None) or b"")
+
+
+@dataclass(frozen=True, slots=True)
+class HiddenVariantRequest:
+    """Plan input for a component left out of the export: generate its hidden geometry."""
+
+    model_path: str
+
+
+def resolve_hidden_variant_models(models, snapshot, *, stop_event=None):
+    """Replace every HiddenVariantRequest with generated hidden geometry (worker side)."""
+
+    resolved = {}
+    for identity, value in dict(models or {}).items():
+        raise_if_cancelled(stop_event)
+        resolved[identity] = (hide_variant_geometry(snapshot, value.model_path, stop_event=stop_event)
+                              if isinstance(value, HiddenVariantRequest) else value)
+    return resolved
 
 
 def hide_variant_geometry(snapshot, target_path, *, stop_event=None):

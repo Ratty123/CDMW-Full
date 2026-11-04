@@ -910,7 +910,7 @@ choices are disabled with that reason. Whole-part hide conditions apply to the e
 prefab, so explicit skin/hair choices from its bindings are combined. Other equipped
 items can still hide the restored parts. Helmet-owned item hair retains its template rules.
 
-A component **Hidden in export** draws nothing, but its template cut rule used to keep
+A component left out of the export draws nothing, but its template cut rule used to keep
 cutting the body near where its geometry had been (the hidden placeholder triangle sits
 at the original part's position, and shipped prefabs use a 0.2 `_shrinkMaskDistance`).
 Planning therefore gives every hidden component an isolated profile without the skin and
@@ -2791,24 +2791,42 @@ instruction bytes matched an independent decoder. Final matrix/upload/draw and
 special-physics consumers remain unqualified; these findings do not enable the
 experimental palette control or prove in-game binding of the appended hashes.
 
-**Item components** lists every exact binding of the template, grouped by the ItemInfo
+**Components** lists every exact binding of the template, grouped by the ItemInfo
 prefab data type of its part: **Worn components** (type 0) and **Ground model (when
 dropped)** (type 3); anything else is listed under **Other models**. Rows are named by
-the prefab's SkinnedMeshComponent (Upperbody, Lowerbody, ...), with the model file and
-prefab path as secondary detail. Each row states what the export contains: **Template
-model**, **Imported: <file>** or **Hidden in export**. Selecting a row scopes the
-**Selected component** box (exported model, import, weights and rig, body underneath).
-**Hide in export** creates reversible tiny placeholders at every stored LOD, keeps the
-slot/material identity, and leaves other components' selections intact; it no longer
-requires choosing Imported model first. The component's previous state (import,
-placement, appearance edits) is kept, and **Show in export** restores it; the latest
-body-underneath choice wins. Hidden state is read from the component's model result
-(the generated note, or else a mesh whose every part is one collapsed triangle), so
-drafts and packages written by the earlier **Hide this variant** button are recognised
-without a format change. A pending hide is dropped, with a status message, only when the
-component's model inputs change while it runs; an unrelated edit no longer discards it.
-Hidden components are excluded from every preview role, so neither the output nor the
-template reference draws them. The view modes name the template as **not exported**. Five/six-influence skeletal output requires **Template cloth / physics**
+the prefab's SkinnedMeshComponent (Upperbody, Lowerbody, ...); prefab and model paths
+are in the row tooltip. Columns show the model the component keeps (**Template model**
+or **Imported: <file>**) and the body-underneath state.
+
+Inclusion and selection are separate. The row checkbox includes or leaves out that
+binding by its stable (prefab, model) identity without selecting it; the choice is
+stored in `NewItemDraft.excluded_bindings`, so drafts and Continue keep it. A left-out
+binding keeps its source, placement and appearance edits for ticking it again in the
+same session; Build plan sends a `HiddenVariantRequest`, and the planning worker writes
+the all-LOD hidden placeholder for it. A package holds only that placeholder, so after
+Continue a left-out binding comes back as the template model when ticked. Selecting a row scopes the **Editing: <component>** controls
+(import or replace, template/import switch, body underneath, weights and rig); an
+import replaces only that binding. An import that finishes after another row was
+selected is stored on the row it was started for, unapplied.
+
+Neither selecting nor ticking rebuilds the viewport: the preview is marked **Preview
+out of date**, placement editing and icon capture wait, and **Refresh preview** rebuilds
+it once. The plan and exports always use the current choices, refreshed or not.
+Item packages (.cdmw) cannot carry the shared shrink and postfix descriptors, so there a
+left-out binding keeps its template cut rule (the plan warns) and Body underneath on an
+included binding is refused with that reason; DMM mods carry both. A left-out binding's own
+Body underneath choice is ignored until it is ticked again.
+Left-out companions are excluded from every preview role; the view modes name the
+template as **not exported**. Drafts and packages written by the earlier hide buttons
+(a custom model whose mesh is the placeholder) read as left out; ticking them restores
+the stashed source, or else the template model.
+
+Lifetime contract (Rust UI): component rows are persistent items keyed by identity and
+updated in place; another template's rows are rebuilt on the next event-loop turn, and a
+row selection is applied after the dispatcher returns. An index the dispatcher holds
+(`setCurrentIndex`, then `scrollTo` and `clicked`) therefore never outlives its item;
+`tests/test_new_item_component_dispatch.py` drives this through the bridge in a child
+process. Five/six-influence skeletal output requires **Template cloth / physics**
 off. Apply checks this policy, and Build plan rechecks every LOD so re-enabling physics
 after Apply cannot bypass it. Inherited cloth/jiggle lanes, material simulation
 assignments and HKX are handled by the existing all-LOD planning policy. New topology

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt
@@ -53,10 +54,41 @@ class ModelPanelPreviewMixin:
         super().showEvent(event)
         self._show_preview_timer.start()
 
-    def refresh_preview(self) -> None:
+    @contextmanager
+    def deferred_preview(self):
+        """Component selection/inclusion edits: mark the viewport out of date instead of
+        rebuilding it for every click. Refresh preview applies them in one rebuild."""
+
+        self._preview_hold += 1
+        try:
+            yield
+        finally:
+            self._preview_hold -= 1
+
+    def mark_preview_stale(self) -> None:
+        if self._preview_stale:
+            return
+        self._preview_stale = True
+        self.preview_stale_label.setVisible(True)
+        self.capture_inline_button.setEnabled(False)
+        # The scene on screen belongs to the previous selection: no gizmo or numbers on it.
+        self.preview.set_gizmo_enabled(False)
+        self._refresh_placement_enabled()
+
+    def _clear_preview_stale(self) -> None:
+        if not self._preview_stale:
+            return
+        self._preview_stale = False
+        self.preview_stale_label.setVisible(False)
+        self._refresh_placement_enabled()
+
+    def refresh_preview(self, *, force: bool = False) -> None:
         """Show the selected item source in the inline resident viewport."""
 
         if self._controller._shutdown_requested:
+            return
+        if self._preview_hold and not force:
+            self.mark_preview_stale()
             return
         self._appearance_preview_timer.stop()
         window = self.window()
@@ -72,6 +104,7 @@ class ModelPanelPreviewMixin:
             self._preview_mesh_token=token
             self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
             return
+        self._clear_preview_stale()
         show_character = self.show_character.isChecked()
         show_reference = self.show_installed_reference.isChecked() and self._controller.installed_reference is not None
         imported = self._controller.model_import
@@ -172,7 +205,8 @@ class ModelPanelPreviewMixin:
         if isinstance(placement, ModelPlacement):
             self._apply_error = ""
             self._sync_placement_numbers(placement)
-            if self._controller.model_import is not None or getattr(self.preview, "showing_placement", False):
+            if not self._preview_stale and (self._controller.model_import is not None
+                                            or getattr(self.preview, "showing_placement", False)):
                 self.preview.set_placement(placement)
             if self._controller.model_import is None and self._controller.draft.template_key is not None:
                 self.refresh_preview()
@@ -330,7 +364,8 @@ class ModelPanelPreviewMixin:
         self._refresh_placement_enabled()
 
     def _refresh_placement_enabled(self) -> None:
-        ready = bool(getattr(self.preview, "showing_placement", False)) and not self._controller.busy
+        ready = (bool(getattr(self.preview, "showing_placement", False)) and not self._controller.busy
+                 and not getattr(self, "_preview_stale", False))
         self.placement_group.setEnabled(ready)
         self.placement_actions.setEnabled(ready)
         widgets = (

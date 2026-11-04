@@ -1,20 +1,26 @@
-"""Model & Placement: every template model binding and what the export makes of it.
+"""Model & Placement: every template model binding, its inclusion and what it exports.
 
-A thin view over ``controller.component_rows()``. Selecting a row scopes the
-component editor below it; Hide in export and Show in export act on that row.
+A thin view over ``controller.component_rows()``. Lifetime contract: rows are
+persistent items keyed by stable binding identity. Controller signals update them
+in place; a different set of bindings (another template) is rebuilt on the next
+event-loop turn. Neither happens while the view is still delivering a selection or
+check-state change, so an index held by the Rust UI dispatcher (setCurrentIndex,
+then scrollTo and clicked) never outlives its item. Selecting a row is applied
+after that dispatch returns; ticking a row changes only its inclusion.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QSignalBlocker, Qt
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QSizePolicy,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QGroupBox, QHeaderView, QLabel, QSizePolicy, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.domain.new_item.components import ComponentRole, ComponentSource
 from cdmw.services.active_ui_translation import translate_active_ui_text
 
 _IDENTITY_ROLE = Qt.ItemDataRole.UserRole
+_ROLE_ORDER = (ComponentRole.WORN, ComponentRole.DROPPED, ComponentRole.OTHER)
 
 
 def _group_label(role: ComponentRole) -> str:
@@ -29,9 +35,7 @@ def component_name(row) -> str:
     return row.component_name or row.model_file.rsplit(".", 1)[0]
 
 
-def export_state_text(row) -> str:
-    if row.source is ComponentSource.HIDDEN:
-        return translate_active_ui_text("Hidden in export")
+def source_text(row) -> str:
     if row.source is ComponentSource.IMPORTED:
         if row.source_name:
             return translate_active_ui_text("Imported: {name}").format(name=row.source_name)
@@ -43,157 +47,218 @@ def body_state_text(row) -> str:
     if not row.cuts_body:
         return translate_active_ui_text("No cut rule")
     if row.body_kept_automatically:
-        return translate_active_ui_text("Kept (hidden)")
+        return translate_active_ui_text("Kept (left out)")
     if row.body_kept:
         return translate_active_ui_text("Kept")
     return translate_active_ui_text("Cut by template rule")
 
 
-class ComponentList(QGroupBox):
-    """The visible, reversible component workflow that replaces the variant combobox."""
+def _row_tooltip(row) -> str:
+    tip = translate_active_ui_text("Prefab: {prefab}\nModel: {model}").format(prefab=row.prefab_path, model=row.model_path)
+    if not row.included:
+        tip += "\n" + translate_active_ui_text("Left out of the export. Tick to include it again with its previous model.")
+    return tip
 
-    def __init__(self, controller, parent=None):
-        super().__init__(translate_active_ui_text("Item components"), parent)
+
+class ComponentList(QGroupBox):
+    """Inclusion checkboxes and the selection that scopes the component editor."""
+
+    #: a selection or inclusion change the viewport has not been refreshed for yet
+    preview_out_of_date = Signal()
+
+    def __init__(self, controller, panel=None, parent=None):
+        super().__init__(translate_active_ui_text("Components"), parent or panel)
         self.setObjectName("new_item_component_list")
+        self.setToolTip(translate_active_ui_text(
+            "Tick the components the new item exports. A cleared box exports empty geometry for that component and drops "
+            "its body-cut rule; its model and edits are kept for ticking it again. Select a row to edit that component. "
+            "Changes reach the plan at once; use Refresh preview to see them."))
         self._controller = controller
+        self._panel = panel
         self._rows = ()
+        self._items = {}
+        self._structure = None
+        self._syncing = False
+        self._pending_selection = None
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(4)
-        intro = QLabel("Each row is one model of the template. Select a row to edit it below. The list shows what the new item exports.")
-        intro.setObjectName("new_item_intro")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(2)
         self.tree = QTreeWidget(self)
         self.tree.setObjectName("new_item_component_tree")
-        self.tree.setColumnCount(4)
-        self.tree.setHeaderLabels(["Component", "In the export", "Body underneath", "Model file"])
+        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Component", "Model", "Body underneath"])
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tree.setRootIsDecorated(False)
         self.tree.setUniformRowHeights(True)
-        self.tree.setMinimumHeight(132)
-        self.tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         header = self.tree.header()
-        header.setStretchLastSection(True)
-        for column in range(3):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-        self.tree.setToolTip("Hidden in export: the component's model is replaced by empty geometry and draws nothing. "
-                             "Its body-cut rule is removed too, so it no longer hides the body underneath.")
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.resizeSection(0, 170)
         self.tree.currentItemChanged.connect(self._current_changed)
+        self.tree.itemChanged.connect(self._item_changed)
         layout.addWidget(self.tree)
-        actions = QHBoxLayout()
-        actions.setSpacing(4)
-        self.hide_button = QPushButton("Hide in export")
-        self.hide_button.setObjectName("new_item_component_hide")
-        self.hide_button.setToolTip("Export empty geometry for the selected component at every LOD. Show in export restores "
-                                    "its previous model, placement and edits.")
-        self.hide_button.clicked.connect(self._hide)
-        actions.addWidget(self.hide_button)
-        self.show_button = QPushButton("Show in export")
-        self.show_button.setObjectName("new_item_component_show")
-        self.show_button.setToolTip("Undo Hide in export for the selected component.")
-        self.show_button.clicked.connect(self._show)
-        actions.addWidget(self.show_button)
-        actions.addStretch(1)
-        layout.addLayout(actions)
         self.note = QLabel("")
         self.note.setObjectName("new_item_component_note")
         self.note.setWordWrap(True)
+        self.note.setVisible(False)
         layout.addWidget(self.note)
+        self._selection_timer = QTimer(self)
+        self._selection_timer.setSingleShot(True)
+        self._selection_timer.setInterval(0)
+        self._selection_timer.timeout.connect(self._apply_selection)
+        self._rebuild_timer = QTimer(self)
+        self._rebuild_timer.setSingleShot(True)
+        self._rebuild_timer.setInterval(0)
+        self._rebuild_timer.timeout.connect(self._rebuild)
         for signal in (controller.template_changed, controller.plan_invalidated, controller.variant_changed,
-                       controller.model_changed, controller.model_import_changed, controller.busy_changed):
+                       controller.model_changed, controller.model_import_changed):
             signal.connect(lambda *_args: self.refresh())
-        self.refresh()
+        self._rebuild()
 
     # ------------------------------------------------------------------ view
 
     def rows(self):
         return self._rows
 
+    def item_for(self, identity):
+        return self._items.get(identity)
+
     def refresh(self) -> None:
+        """Update rows in place; a different set of bindings is rebuilt next turn."""
+
+        rows = self._controller.component_rows()
+        structure = tuple((row.role, row.identity) for row in rows)
+        if structure != self._structure:
+            self._rebuild_timer.start()
+            return
+        self._rows = rows
+        self._syncing = True
+        try:
+            with QSignalBlocker(self.tree):
+                for row in rows:
+                    self._write_row(self._items[row.identity], row)
+        finally:
+            self._syncing = False
+
+    def _rebuild(self) -> None:
         rows = self._controller.component_rows()
         self._rows = rows
-        selected = next((row.identity for row in rows if row.selected), None)
-        with QSignalBlocker(self.tree):
-            self.tree.clear()
-            current = None
-            for role in (ComponentRole.WORN, ComponentRole.DROPPED, ComponentRole.OTHER):
-                members = [row for row in rows if row.role is role]
-                if not members:
-                    continue
-                group = QTreeWidgetItem([_group_label(role)])
-                group.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                font = group.font(0)
-                font.setBold(True)
-                group.setFont(0, font)
-                group.setFirstColumnSpanned(True)
-                self.tree.addTopLevelItem(group)
-                for row in members:
-                    item = QTreeWidgetItem(["   " + component_name(row), export_state_text(row), body_state_text(row), row.model_file])
-                    item.setData(0, _IDENTITY_ROLE, row.identity)
-                    tip = translate_active_ui_text("Prefab: {prefab}\nModel: {model}").format(
-                        prefab=row.prefab_path, model=row.model_path)
-                    for column in range(4):
-                        item.setToolTip(column, tip)
-                    if row.source is ComponentSource.HIDDEN:
-                        for column in range(4):
-                            font = item.font(column)
-                            font.setItalic(True)
-                            item.setFont(column, font)
-                    self.tree.addTopLevelItem(item)
-                    if row.identity == selected:
-                        current = item
-            if current is not None:
-                self.tree.setCurrentItem(current)
-        self._refresh_actions()
+        self._structure = tuple((row.role, row.identity) for row in rows)
+        self._syncing = True
+        try:
+            with QSignalBlocker(self.tree):
+                self.tree.clear()
+                self._items = {}
+                current = None
+                for role in _ROLE_ORDER:
+                    members = [row for row in rows if row.role is role]
+                    if not members:
+                        continue
+                    group = QTreeWidgetItem([_group_label(role)])
+                    group.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                    font = group.font(0)
+                    font.setBold(True)
+                    group.setFont(0, font)
+                    group.setFirstColumnSpanned(True)
+                    self.tree.addTopLevelItem(group)
+                    for row in members:
+                        item = QTreeWidgetItem(["", "", ""])
+                        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsUserCheckable)
+                        item.setData(0, _IDENTITY_ROLE, row.identity)
+                        self._write_row(item, row)
+                        self.tree.addTopLevelItem(item)
+                        self._items[row.identity] = item
+                        if row.selected:
+                            current = item
+                if current is not None:
+                    self.tree.setCurrentItem(current)
+                rows_shown = self.tree.topLevelItemCount()
+                self.tree.setFixedHeight(min(10, max(3, rows_shown)) * 24 + 30)
+        finally:
+            self._syncing = False
 
-    def _selected_row(self):
-        item = self.tree.currentItem()
-        identity = item.data(0, _IDENTITY_ROLE) if item is not None else None
-        return next((row for row in self._rows if row.identity == identity), None)
+    def _write_row(self, item, row) -> None:
+        texts = ("  " + component_name(row), source_text(row), body_state_text(row))
+        for column, text in enumerate(texts):
+            if item.text(column) != text:
+                item.setText(column, text)
+        state = Qt.CheckState.Checked if row.included else Qt.CheckState.Unchecked
+        if item.checkState(0) != state:
+            item.setCheckState(0, state)
+        tip = _row_tooltip(row)
+        for column in range(3):
+            if item.toolTip(column) != tip:
+                item.setToolTip(column, tip)
+            font = item.font(column)
+            if font.italic() == row.included:
+                font.setItalic(not row.included)
+                item.setFont(column, font)
 
-    def _refresh_actions(self) -> None:
-        row = self._selected_row()
-        busy = bool(getattr(self._controller, "busy", False))
-        hidden = row is not None and row.source is ComponentSource.HIDDEN
-        self.hide_button.setEnabled(row is not None and not hidden and not busy)
-        self.show_button.setEnabled(row is not None and hidden and not busy)
-        if row is None:
-            self.note.setText(translate_active_ui_text("This template has no model bindings to edit."))
-        elif row.role is ComponentRole.DROPPED:
-            self.note.setText(translate_active_ui_text(
-                "The ground model is drawn when the item lies on the ground. Hiding it makes a dropped item invisible."))
-        elif hidden:
-            self.note.setText(translate_active_ui_text(
-                "{name} is hidden in export: the item draws nothing for it and it no longer hides the body.").format(
-                name=component_name(row)))
-        else:
-            self.note.setText(translate_active_ui_text("Settings below apply only to {name}.").format(name=component_name(row)))
-
-    # ------------------------------------------------------------------ actions
+    # ------------------------------------------------------------------ input
 
     def _current_changed(self, current, _previous=None) -> None:
-        identity = current.data(0, _IDENTITY_ROLE) if current is not None else None
-        if identity is None:
-            self._refresh_actions()
+        if self._syncing or current is None:
             return
-        if identity != self._controller.current_variant_identity() or self._controller._active_variant is None:
-            try:
-                self._controller.select_variant(identity)
-            except ValueError as exc:
-                self.note.setText(str(exc))
-                return
-        self._refresh_actions()
+        identity = current.data(0, _IDENTITY_ROLE)
+        if identity is None:
+            return
+        # Applied after the view (or the Rust dispatcher) has finished with its index.
+        self._pending_selection = identity
+        self._selection_timer.start()
 
-    def _hide(self) -> None:
-        row = self._selected_row()
-        if row is not None:
-            self._controller.hide_component(row.identity)
+    def _apply_selection(self) -> None:
+        identity, self._pending_selection = self._pending_selection, None
+        if identity is None or identity not in self._items:
+            return
+        controller = self._controller
+        if identity == controller.current_variant_identity() and controller._active_variant is not None:
+            return
+        try:
+            with self._deferred_preview():
+                controller.select_variant(identity)
+        except ValueError as exc:
+            self.show_note(str(exc))
+            self.refresh()
+            return
+        self.preview_out_of_date.emit()
 
-    def _show(self) -> None:
-        row = self._selected_row()
-        if row is not None:
-            self._controller.show_component(row.identity)
+    def _item_changed(self, item, column) -> None:
+        if self._syncing or column != 0:
+            return
+        identity = item.data(0, _IDENTITY_ROLE)
+        if identity is None:
+            return
+        included = item.checkState(0) == Qt.CheckState.Checked
+        try:
+            with self._deferred_preview():
+                changed = self._controller.set_component_included(identity, included)
+        except ValueError as exc:
+            self.show_note(str(exc))
+            self.refresh()
+            return
+        if changed:
+            self.preview_out_of_date.emit()
+
+    def set_included(self, identity, included: bool) -> None:
+        """Programmatic tick/untick of one row by its stable identity."""
+
+        item = self._items.get(identity)
+        if item is not None:
+            item.setCheckState(0, Qt.CheckState.Checked if included else Qt.CheckState.Unchecked)
+
+    def show_note(self, text: str) -> None:
+        self.note.setText(text)
+        self.note.setVisible(bool(text))
+
+    def _deferred_preview(self):
+        hold = getattr(self._panel, "deferred_preview", None)
+        if callable(hold):
+            return hold()
+        from contextlib import nullcontext
+        return nullcontext()
 
 
 def export_summary_text(rows) -> str:
@@ -202,16 +267,16 @@ def export_summary_text(rows) -> str:
     if not rows:
         return translate_active_ui_text("Choose a template to see its components.")
     worn = [row for row in rows if row.role is ComponentRole.WORN]
-    counts = {kind: sum(1 for row in worn if row.source is kind) for kind in ComponentSource}
+    included = [row for row in worn if row.included]
+    imported = sum(1 for row in included if row.source is ComponentSource.IMPORTED)
     kept = sum(1 for row in worn if row.body_kept)
     text = translate_active_ui_text(
-        "Worn components: {imported} imported, {template} template, {hidden} hidden in export. "
+        "Worn components: {imported} imported, {template} template, {hidden} left out. "
         "Body underneath kept for {kept} of {total}.").format(
-        imported=counts[ComponentSource.IMPORTED], template=counts[ComponentSource.TEMPLATE],
-        hidden=counts[ComponentSource.HIDDEN], kept=kept, total=len(worn))
-    dropped = [row for row in rows if row.role is ComponentRole.DROPPED]
-    if any(row.source is ComponentSource.HIDDEN for row in dropped):
-        text += " " + translate_active_ui_text("The ground model is hidden: a dropped item will be invisible.")
+        imported=imported, template=len(included) - imported, hidden=len(worn) - len(included),
+        kept=kept, total=len(worn))
+    if any(not row.included for row in rows if row.role is ComponentRole.DROPPED):
+        text += " " + translate_active_ui_text("The ground model is left out: a dropped item will be invisible.")
     return text
 
 
@@ -228,24 +293,26 @@ class ComponentSummary(QWidget):
         self.headline.setWordWrap(True)
         layout.addWidget(self.headline)
         self.table = QTreeWidget(self)
-        self.table.setColumnCount(4)
-        self.table.setHeaderLabels(["Component", "In the export", "Body underneath", "Model file"])
+        self.table.setColumnCount(3)
+        self.table.setHeaderLabels(["Component", "In the export", "Body underneath"])
         self.table.setRootIsDecorated(False)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         layout.addWidget(self.table, 1)
-        note = QLabel("Hidden components export empty geometry. Optional fitting references and the template are never exported.")
-        note.setObjectName("new_item_intro")
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        self.setToolTip(translate_active_ui_text(
+            "Left-out components export empty geometry. Optional fitting references and the template are never exported."))
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(0)
+        self._refresh_timer.timeout.connect(self.refresh)
         for signal in (controller.template_changed, controller.plan_invalidated, controller.plan_ready, controller.variant_changed):
-            signal.connect(lambda *_args: self.refresh())
+            signal.connect(lambda *_args: self._refresh_timer.start())
         self.refresh()
 
     def refresh(self) -> None:
         rows = self._controller.component_rows()
         self.headline.setText(export_summary_text(rows))
         self.table.clear()
-        for role in (ComponentRole.WORN, ComponentRole.DROPPED, ComponentRole.OTHER):
+        for role in _ROLE_ORDER:
             members = [row for row in rows if row.role is role]
             if not members:
                 continue
@@ -253,13 +320,13 @@ class ComponentSummary(QWidget):
             group.setFirstColumnSpanned(True)
             self.table.addTopLevelItem(group)
             for row in members:
-                self.table.addTopLevelItem(QTreeWidgetItem(
-                    ["   " + component_name(row), export_state_text(row), body_state_text(row), row.model_file]))
+                state = source_text(row) if row.included else translate_active_ui_text("Left out")
+                self.table.addTopLevelItem(QTreeWidgetItem(["  " + component_name(row), state, body_state_text(row)]))
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
         self.refresh()
 
 
-__all__ = ["ComponentList", "ComponentSummary", "body_state_text", "component_name", "export_state_text",
-           "export_summary_text"]
+__all__ = ["ComponentList", "ComponentSummary", "body_state_text", "component_name", "export_summary_text",
+           "source_text"]

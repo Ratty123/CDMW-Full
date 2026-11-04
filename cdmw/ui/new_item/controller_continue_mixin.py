@@ -57,9 +57,15 @@ class NewItemContinueControllerMixin:
             draft = replace(draft, grid_values=values, extra_levels=extra_levels, extra_stat_keys=list(missing))
         self.reset_variants()
         models = {_binding(key): value for key, value in dict(launch.variant_models or {}).items()}
+        excluded = {_binding(identity) for identity in draft.excluded_bindings or ()}
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
         for appearance in draft.variants or ():
             identity = _binding((appearance.prefab_path, appearance.model_path))
             result = models.get(identity) if appearance.custom_model else None
+            if identity in excluded and (result is None or is_hidden_variant_result(result)):
+                # A left-out component is written as hidden geometry, so the package holds
+                # no source for it: ticking it again brings back the template model.
+                appearance, result = replace(appearance, custom_model=False), None
             if result is not None:
                 result = baked_model_files(result, appearance.translucency, appearance.surface_settings,
                                            appearance.shader_controls, glow=appearance.glow_choice(),

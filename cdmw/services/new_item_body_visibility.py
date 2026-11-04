@@ -1,6 +1,7 @@
 """Prepare item-owned experimental visibility metadata; never writes archives."""
 from dataclasses import dataclass, field, replace
 import hashlib
+from pathlib import PurePosixPath
 
 from cdmw.core.equipment_visibility import (
     POSTFIX_PATH, SHRINK_PATH, VisibilityProfile, clone_postfix_rules,
@@ -242,6 +243,8 @@ def prepare_body_visibility(planner):
     # bindings, so a hidden companion must not change its visible siblings' rules.
     explicit = {}
     hidden = {}
+    # Item packages (.cdmw) cannot carry shared descriptor changes (audit_plan refuses them).
+    independent = bool(getattr(planner, "independent", False))
     if planner.variant_plan is not None:
         from cdmw.services.new_item_skinning import is_hidden_variant_result
 
@@ -255,8 +258,9 @@ def prepare_body_visibility(planner):
             choice = variant.body_visibility
             if is_hidden:
                 hidden.setdefault(identity[0], set()).add(identity[1])
-                choice = BodyVisibilityChoice(True, True)
-            if variant.body_visibility.wanted:
+                choice = BodyVisibilityChoice() if independent else BodyVisibilityChoice(True, True)
+            if variant.body_visibility.wanted and not is_hidden:
+                # A left-out component's own choice applies once it is included again.
                 explicit.setdefault(identity[0], {})[identity[1]] = variant.body_visibility
             if choice.wanted:
                 by_prefab.setdefault(identity[0], {})[identity[1]] = choice
@@ -265,6 +269,15 @@ def prepare_body_visibility(planner):
             if part.record is not None:
                 by_prefab[_key(part.prefab_path)] = {_key(path): planner.spec.body_visibility for path in part.pac_paths}
                 explicit[_key(part.prefab_path)] = dict(by_prefab[_key(part.prefab_path)])
+    if independent and explicit:
+        names = sorted({PurePosixPath(path).name for paths in explicit.values() for path in paths})
+        raise ValueError(f"Body underneath ({', '.join(names)}) changes shared equipment descriptors, which an item "
+                         "package (.cdmw) cannot carry. Clear it for those components, or write the item as a DMM mod.")
+    if independent and hidden:
+        planner.warnings.append(
+            f"Item package (.cdmw): {sum(len(paths) for paths in hidden.values())} left-out component(s) keep the "
+            "template's body-cut rule, because a package cannot carry shared equipment descriptors. Write the item "
+            "as a DMM mod to drop those cuts.")
     snapshot = planner.snapshot
     # Ordinary appearance copies also need their original whole-part rules:
     # variant naming drops suffixes such as _D. Otherwise the experiment's off
@@ -322,7 +335,7 @@ def prepare_body_visibility(planner):
         planner.summary.append(f"Experimental visibility: {output_stem}; "
                                f"keep skin/head {'on' if combined.keep_skin else 'off'}, hair/beard {'on' if combined.keep_hair else 'off'}{layers}")
         if automatic:
-            planner.summary.append(f"Hidden in export: {len(automatic)} component(s) of {output_stem} "
+            planner.summary.append(f"Left out of the export: {len(automatic)} component(s) of {output_stem} "
                                    "no longer cut the body, hair or clothing underneath")
 
     requested = frozenset().union(*(c.keep_receivers for choices in by_prefab.values() for c in choices.values()))

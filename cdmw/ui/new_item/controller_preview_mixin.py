@@ -872,17 +872,14 @@ class NewItemPreviewControllerMixin:
         return self.template_entries_for(self.draft.template_key)
 
     def hidden_component_paths(self, prefab_path: str = "") -> frozenset:
-        """Folded model paths of the other bindings currently hidden in export."""
-
-        from cdmw.services.new_item_skinning import is_hidden_variant_result
+        """Folded model paths of the other bindings left out of the export."""
 
         prefab = str(prefab_path or "").casefold()
         active = self._active_variant
-        return frozenset(
-            identity[1] for identity, state in self._variant_states.items()
-            if identity != active and (not prefab or identity[0] == prefab)
-            and state.appearance.custom_model and state.source is None and is_hidden_variant_result(state.result)
-        )
+        excluded = set(self.draft.excluded_bindings)
+        excluded.update(identity for identity in self._variant_states if self._legacy_hidden(identity))
+        return frozenset(identity[1] for identity in excluded
+                         if identity != active and (not prefab or identity[0] == prefab))
 
     def template_primary_entry(self, template_key: Optional[int] = None) -> Optional[ArchiveEntry]:
         """The model file whose stem owns the template family, preserving the old primary."""

@@ -379,7 +379,10 @@ class NewItemService:
         prepared_variants = {}
         if allocated.variants is not None:
             from cdmw.services.new_item_variants import prepare_variant_models
-            supplied = dict(variant_models or {})
+            from cdmw.services.new_item_skinning import resolve_hidden_variant_models
+            # Components left out of the export arrive as requests; their hidden
+            # geometry is generated here, on the planning worker.
+            supplied = resolve_hidden_variant_models(dict(variant_models or {}), snapshot, stop_event=stop_event)
             scenes = dict(variant_scenes or {})
             if model is not None and variant_models is None:
                 family = snapshot.family(allocated.template_key)

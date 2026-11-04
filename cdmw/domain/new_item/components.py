@@ -21,9 +21,10 @@ class ComponentRole(str, Enum):
 
 
 class ComponentSource(str, Enum):
+    """The model a component keeps, whether or not it is included in the export."""
+
     TEMPLATE = "template"
     IMPORTED = "imported"
-    HIDDEN = "hidden"
 
 
 #: ItemInfo `_prefabDataList` data types whose role is confirmed in shipped data.
@@ -47,6 +48,10 @@ class ComponentRow:
     keep_skin: bool = False
     keep_hair: bool = False
     selected: bool = False
+    #: False: the export writes hidden geometry for it; its source is kept for re-including
+    included: bool = True
+    #: False for item packages (.cdmw): they cannot carry the shared cut rules
+    cut_rules_editable: bool = True
 
     @property
     def cuts_body(self) -> bool:
@@ -56,11 +61,12 @@ class ComponentRow:
     @property
     def body_kept(self) -> bool:
         """Whether the export stops this component cutting the body underneath."""
-        return self.cuts_body and (self.keep_skin or self.source is ComponentSource.HIDDEN)
+        return self.body_kept_automatically if not self.included else self.cuts_body and self.keep_skin
 
     @property
     def body_kept_automatically(self) -> bool:
-        return self.cuts_body and self.source is ComponentSource.HIDDEN and not self.keep_skin
+        """A left-out component's cut is dropped whatever its own choice, where the output allows it."""
+        return self.cuts_body and not self.included and self.cut_rules_editable
 
     @property
     def model_file(self) -> str:

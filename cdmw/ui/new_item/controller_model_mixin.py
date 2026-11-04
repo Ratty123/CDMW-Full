@@ -456,8 +456,26 @@ class NewItemModelControllerMixin:
             if not isinstance(result, ModelImportSource):
                 self.status_message.emit("The model import finished with an unexpected result.", True)
                 return
-            if self.snapshot is not import_snapshot or self.draft.template_key != import_template_key or self._active_variant != import_variant:
+            if self.snapshot is not import_snapshot or self.draft.template_key != import_template_key:
                 self._cleanup_model_source(result)
+                return
+            if self._active_variant != import_variant and import_variant is not None:
+                # Another row was selected while reading: the model still belongs to
+                # the component it was imported for. Store it there, unapplied.
+                from cdmw.domain.new_item.authoring import VariantAppearance
+                from cdmw.ui.new_item.controller_variant_mixin import VariantModelState
+                state = self._variant_states.setdefault(import_variant, VariantModelState(VariantAppearance(*import_variant)))
+                previous_source = state.source
+                state.source, state.result, state.entry, state.scene = result, None, None, None
+                state.placement = ModelPlacement()
+                state.glow_parts = ()
+                state.appearance = replace(state.appearance, custom_model=True, template_transform=(), glow_parts=(),
+                                           translucency=None, shader_controls=(), surface_settings=(), dyes=())
+                self.invalidate_plan()
+                self.log_message.emit(f"{result.chosen_path.name} was imported for {import_variant[1].rsplit('/', 1)[-1]}; "
+                                      "select that component and apply its placement.")
+                if previous_source is not result:
+                    self._cleanup_model_source(previous_source)
                 return
             previous = self.model_import
             self.model_import = result

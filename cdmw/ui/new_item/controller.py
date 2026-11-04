@@ -612,14 +612,19 @@ class NewItemStudioController(
             return tuple(ValidationIssue(code="authoring.invalid",field=field,message=message)
                          for field,message in self.draft.authoring_errors.items())
         issues = tuple(self.service.validate(spec, self.snapshot))
-        if self.draft.model_source is ModelSource.IMPORTED and self.model_import is not None and self.model_result is None:
+        # A component left out of the export writes hidden geometry, so its import
+        # needs no applied placement.
+        excluded = set(self.draft.excluded_bindings)
+        if (self.draft.model_source is ModelSource.IMPORTED and self.model_import is not None and self.model_result is None
+                and self.current_variant_identity() not in excluded):
             issues += (ValidationIssue(
                 code="model_placement_not_applied",
                 field="model",
                 message=f"{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
             ),)
         for identity,state in self._variant_states.items():
-            if state.appearance.custom_model and state.result is None and identity != self.current_variant_identity():
+            if (state.appearance.custom_model and state.result is None and identity != self.current_variant_identity()
+                    and identity not in excluded):
                 issues += (ValidationIssue(code="variant_placement_not_applied",field="model",
                     message=f"Apply the imported placement for {state.appearance.model_path} in step 3."),)
         return issues
