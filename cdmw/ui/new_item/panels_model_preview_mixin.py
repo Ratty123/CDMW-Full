@@ -246,7 +246,6 @@ class ModelPanelPreviewMixin:
             self.apply_button,
             self.fit_button,
             self.import_skin_policy,
-            self.hide_variant_button,
             self.open_part_editor_button,
             self.use_part_editor_button,
             self.translucency_editor.paint_mask,

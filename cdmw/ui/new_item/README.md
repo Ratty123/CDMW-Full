@@ -899,12 +899,28 @@ export tests, not game calibration. Mesh Editor has the same controls in Parts.
 
 ### Underlying parts
 
-The Appearance page offers **Underlying parts (experimental)** beside translucency.
-**Keep underlying skin/head** and **Keep hair/beard** default off and follow the
-current equipment variant. They affect all components using that variant's mesh,
-across its materials. Whole-part hide conditions apply to the entire prefab, so
-skin/hair choices from its mesh bindings are combined. Other equipped items can
-still hide the restored parts. Helmet-owned item hair retains its template rules.
+**Body underneath (experimental)** sits in the **Selected component** box, below the
+component list, and states the component it applies to. **Keep underlying skin/head**
+and **Keep hair/beard** default off and belong to the selected component (one exact
+prefab/model binding); every prefab component using that mesh gets the choice.
+**Apply to all worn components** copies the two choices to every worn component that
+has a template cut rule; the ground model and other items are untouched. A component
+without a `_shrinkTag` (the ground model, for example) has nothing to keep, so the
+choices are disabled with that reason. Whole-part hide conditions apply to the entire
+prefab, so explicit skin/hair choices from its bindings are combined. Other equipped
+items can still hide the restored parts. Helmet-owned item hair retains its template rules.
+
+A component **Hidden in export** draws nothing, but its template cut rule used to keep
+cutting the body near where its geometry had been (the hidden placeholder triangle sits
+at the original part's position, and shipped prefabs use a 0.2 `_shrinkMaskDistance`).
+Planning therefore gives every hidden component an isolated profile without the skin and
+hair receivers, whatever its own choice says. Those automatic profiles never feed the
+prefab's whole-part postfix copy, so hiding a companion cannot change the visible
+garment's whole-part rules. A garment's cut rule also hides the body near its own
+geometry where it leaves skin uncovered, so a revealing imported outfit usually needs
+**Keep underlying skin/head** on its own component as well. The component list and the
+Output step's **Components** tab show, per component, whether the body underneath is
+kept or cut by the template rule.
 
 **Keep these layers underneath** lists the clothing layers the current variant's
 shrink rule cuts, such as `Lowerbody` (pants) under a coat. Choose **Find layers** to
@@ -2775,10 +2791,24 @@ instruction bytes matched an independent decoder. Final matrix/upload/draw and
 special-physics consumers remain unqualified; these findings do not enable the
 experimental palette control or prove in-game binding of the appended hashes.
 
-Use the exact variant selector for the other equipment PACs. **Hide this variant**
-creates reversible tiny placeholders at every stored LOD, keeps the slot/material
-identity, and leaves other companions' selections intact. **Keep template** restores
-the slot. Five/six-influence skeletal output requires **Template cloth / physics**
+**Item components** lists every exact binding of the template, grouped by the ItemInfo
+prefab data type of its part: **Worn components** (type 0) and **Ground model (when
+dropped)** (type 3); anything else is listed under **Other models**. Rows are named by
+the prefab's SkinnedMeshComponent (Upperbody, Lowerbody, ...), with the model file and
+prefab path as secondary detail. Each row states what the export contains: **Template
+model**, **Imported: <file>** or **Hidden in export**. Selecting a row scopes the
+**Selected component** box (exported model, import, weights and rig, body underneath).
+**Hide in export** creates reversible tiny placeholders at every stored LOD, keeps the
+slot/material identity, and leaves other components' selections intact; it no longer
+requires choosing Imported model first. The component's previous state (import,
+placement, appearance edits) is kept, and **Show in export** restores it; the latest
+body-underneath choice wins. Hidden state is read from the component's model result
+(the generated note, or else a mesh whose every part is one collapsed triangle), so
+drafts and packages written by the earlier **Hide this variant** button are recognised
+without a format change. A pending hide is dropped, with a status message, only when the
+component's model inputs change while it runs; an unrelated edit no longer discards it.
+Hidden components are excluded from every preview role, so neither the output nor the
+template reference draws them. The view modes name the template as **not exported**. Five/six-influence skeletal output requires **Template cloth / physics**
 off. Apply checks this policy, and Build plan rechecks every LOD so re-enabling physics
 after Apply cannot bypass it. Inherited cloth/jiggle lanes, material simulation
 assignments and HKX are handled by the existing all-LOD planning policy. New topology

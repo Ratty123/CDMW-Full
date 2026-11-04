@@ -123,7 +123,8 @@ def available_layers(snapshot, prefab_path: str, model_path: str) -> tuple[str, 
     return cut_layers(snapshot.payload(SHRINK_PATH), snapshot.payload(prefab_path), model_path)
 
 
-def retag_prefab_components(prefab_path, source, selected, known, allocate, profiles, rule_receivers=None):
+def retag_prefab_components(prefab_path, source, selected, known, allocate, profiles, rule_receivers=None,
+                            hidden=frozenset(), explicit=None):
     """Point the components that bind the selected meshes at item-owned shrink profiles.
 
     ``selected`` maps normalized mesh paths to choices; ``allocate(old_tag, choice)``
@@ -133,6 +134,11 @@ def retag_prefab_components(prefab_path, source, selected, known, allocate, prof
     With ``rule_receivers(tag)``, kept layers are matched to the spelling the rule
     uses, and a component whose rule cuts none of them, with no skin or hair
     choice, keeps its shipped tag.
+
+    ``hidden`` holds mesh paths left out of the export. They draw nothing, so their
+    rule stops cutting every clothing layer it lists as well as skin and hair.
+    ``explicit`` holds the paths the author chose for; a hidden path outside it with
+    no known rule (a ground model, for example) has nothing to neutralise.
     """
     doc = decode_prefab_binary(source)
     if not doc.walk_complete or doc.inferred_objects:
@@ -156,12 +162,21 @@ def retag_prefab_components(prefab_path, source, selected, known, allocate, prof
         if len(tags) > 1:
             raise ValueError(f"{prefab_path}: component {obj.name} has ambiguous shrink tags.")
         old = tags[0].text if tags else ""
+        is_hidden = path in hidden
+        if old not in known and is_hidden and (explicit is None or path not in explicit):
+            result.details.append({"component": obj.name, "source_tag": old, "profile": None,
+                                   "model_path": path, "hidden_in_export": True})
+            continue
         if old not in known:
             result.warnings.append(f"Experimental visibility: {prefab_path}, {obj.name} has "
                                    f"{'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; "
                                    "its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.")
             result.details.append({"component": obj.name, "source_tag": old, "profile": None, "model_path": path})
             continue
+        if is_hidden and rule_receivers is not None:
+            layers = frozenset(name for name in rule_receivers(old)
+                               if name not in SKIN_RECEIVERS | HAIR_RECEIVERS)
+            choice = replace(choice, keep_receivers=choice.keep_receivers | layers)
         if rule_receivers is not None and choice.keep_receivers:
             cut = rule_receivers(old)
             result.cut.update(name.casefold() for name in cut)
@@ -177,7 +192,8 @@ def retag_prefab_components(prefab_path, source, selected, known, allocate, prof
             result.profiles.append(profile)
         edits.append(PrefabPathEdit(tags[0].offset, old, tag))
         expected_tags[object_index] = tag
-        result.details.append({"component": obj.name, "source_tag": old, "profile": tag, "model_path": path})
+        result.details.append({"component": obj.name, "source_tag": old, "profile": tag, "model_path": path,
+                               "hidden_in_export": is_hidden})
     missing = selected.keys() - matched
     if missing:
         raise ValueError(f"{prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.")
@@ -222,14 +238,33 @@ def prepare_body_visibility(planner):
     if not planner.clones_model:
         return None
     by_prefab = {}
+    # Explicit choices only: whole-part (postfix) rules are shared by a prefab's
+    # bindings, so a hidden companion must not change its visible siblings' rules.
+    explicit = {}
+    hidden = {}
     if planner.variant_plan is not None:
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+
+        models = {(_key(prefab), _key(model)): result
+                  for (prefab, model), result in dict(getattr(planner, "variant_models", None) or {}).items()}
         for variant in planner.variant_plan.settings:
+            identity = (_key(variant.prefab_path), _key(variant.model_path))
+            # A component hidden in export draws nothing, so its geometry-cut
+            # rule must not keep cutting the body (or hair) where it used to be.
+            is_hidden = bool(variant.custom_model) and is_hidden_variant_result(models.get(identity))
+            choice = variant.body_visibility
+            if is_hidden:
+                hidden.setdefault(identity[0], set()).add(identity[1])
+                choice = BodyVisibilityChoice(True, True)
             if variant.body_visibility.wanted:
-                by_prefab.setdefault(_key(variant.prefab_path), {})[_key(variant.model_path)] = variant.body_visibility
+                explicit.setdefault(identity[0], {})[identity[1]] = variant.body_visibility
+            if choice.wanted:
+                by_prefab.setdefault(identity[0], {})[identity[1]] = choice
     elif planner.spec.body_visibility.wanted:
         for part in planner.family.owned_parts:
             if part.record is not None:
                 by_prefab[_key(part.prefab_path)] = {_key(path): planner.spec.body_visibility for path in part.pac_paths}
+                explicit[_key(part.prefab_path)] = dict(by_prefab[_key(part.prefab_path)])
     snapshot = planner.snapshot
     # Ordinary appearance copies also need their original whole-part rules:
     # variant naming drops suffixes such as _D. Otherwise the experiment's off
@@ -255,7 +290,11 @@ def prepare_body_visibility(planner):
         planner.check()
         output_stem = _isolated_stem(planner, part, output_stem, postfix, plan.stem_map)
         plan.stem_map[part.stem] = output_stem
-        combined = BodyVisibilityChoice.combine(selected.values())
+        chosen = explicit.get(_key(part.prefab_path), {})
+        automatic = hidden.get(_key(part.prefab_path), set())
+        # Whole-part (postfix) rules follow explicit choices only: a hidden companion
+        # must not change its visible siblings' rules.
+        combined = BodyVisibilityChoice.combine(chosen.values())
         requests.append((part.stem, output_stem, combined))
         if not selected:
             records.append({"source_prefab": part.prefab_path, "output_prefab": part.record.cloned(output_stem).prefab_path,
@@ -269,17 +308,22 @@ def prepare_body_visibility(planner):
             return profile_tags[key]
 
         retag = retag_prefab_components(part.prefab_path, snapshot.payload(part.prefab_path), selected, known,
-                                        allocate, profiles, rule_receivers)
+                                        allocate, profiles, rule_receivers,
+                                        hidden=frozenset(automatic), explicit=frozenset(chosen))
         cut_layers_seen |= retag.cut
         planner.warnings.extend(retag.warnings)
         plan.prefabs[_key(part.prefab_path)] = retag.data
         records.append({"source_prefab": part.prefab_path, "output_prefab": part.record.cloned(output_stem).prefab_path,
-                        "bindings": [_binding_record(path, choice) for path, choice in selected.items()],
+                        "bindings": [{**_binding_record(path, choice), "hidden_in_export": path in automatic,
+                                      "explicit": path in chosen} for path, choice in selected.items()],
                         "whole_part_keep_skin": combined.keep_skin, "whole_part_keep_hair": combined.keep_hair,
                         "components": retag.details, "inherited_postfixes": list(inherited)})
         layers = f", layers kept underneath: {', '.join(sorted(combined.keep_receivers))}" if combined.keep_receivers else ""
         planner.summary.append(f"Experimental visibility: {output_stem}; "
                                f"keep skin/head {'on' if combined.keep_skin else 'off'}, hair/beard {'on' if combined.keep_hair else 'off'}{layers}")
+        if automatic:
+            planner.summary.append(f"Hidden in export: {len(automatic)} component(s) of {output_stem} "
+                                   "no longer cut the body, hair or clothing underneath")
 
     requested = frozenset().union(*(c.keep_receivers for choices in by_prefab.values() for c in choices.values()))
     planner.warnings.extend(unlisted_layer_warnings(requested, cut_layers_seen))
@@ -289,12 +333,13 @@ def prepare_body_visibility(planner):
         planner.patch(snapshot.entry(SHRINK_PATH), changed_shrink, f"Equipment shrink rules: {len(profiles)} item-owned experimental profile(s)")
     if changed_postfix != postfix:
         planner.patch(snapshot.entry(POSTFIX_PATH), changed_postfix, "Equipment hide rules: isolated copies for this item's prefabs")
-    if by_prefab and not profiles and changed_postfix == postfix:
+    if explicit and not profiles and changed_postfix == postfix:
         raise ValueError("The selected equipment has no supported shrink or postfix rules to override.")
     if planner.variant_plan is not None:
         planner.variant_plan.stem_map.update(plan.stem_map)
     if records:
         planner.manifest["body_visibility"] = {"experimental": bool(by_prefab), "prefabs": records,
+                                              "hidden_components": sum(len(paths) for paths in hidden.values()),
                                               "profiles": [profile_record(p) for p in profiles]}
     if by_prefab:
         planner.warnings.extend((

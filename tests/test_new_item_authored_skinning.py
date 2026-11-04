@@ -226,7 +226,8 @@ def test_six_influences_require_explicit_skeletal_physics_policy(editor, tmp_pat
         build_placed_import(entry, source, ModelPlacement(), keep_template_physics=True)
 
 
-def test_hide_variant_button_changes_only_selected_slot_and_can_restore_template(studio, monkeypatch):
+def test_hide_in_export_changes_only_selected_slot_and_can_restore_template(studio, monkeypatch):
+    from cdmw.domain.new_item.components import ComponentSource
     from cdmw.domain.new_item.spec import ModelSource
     from cdmw.services.new_item_planning import ModelFiles
     app, tab = studio
@@ -234,13 +235,19 @@ def test_hide_variant_button_changes_only_selected_slot_and_can_restore_template
     controller.select_variant(controller.primary_variant_identity())
     result = ModelFiles(b"owned hidden fixture",notes=("Hidden template geometry",))
     monkeypatch.setattr("cdmw.services.new_item_skinning.hide_variant_geometry",lambda *_a,**_k:result)
-    tab.model_panel.hide_variant_button.click()
+    components = tab.model_panel.components
+    assert components.hide_button.isEnabled() and not components.show_button.isEnabled()
+    components.hide_button.click()
     _finish(app,controller)
     assert controller.model_result is result
     assert not controller.draft.keep_template_physics
     assert controller.variant_plan_inputs()[0][controller.current_variant_identity()] is result
-    tab.model_panel.keep_model.setChecked(True)
+    selected = next(row for row in controller.component_rows() if row.selected)
+    assert selected.source is ComponentSource.HIDDEN
+    assert components.show_button.isEnabled() and not components.hide_button.isEnabled()
+    components.show_button.click()
     assert controller.draft.model_source is ModelSource.TEMPLATE
+    assert next(row for row in controller.component_rows() if row.selected).source is ComponentSource.TEMPLATE
 
 
 @pytest.mark.parametrize("change", ["cancel", "variant", "failure"])

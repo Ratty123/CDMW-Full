@@ -2,6 +2,7 @@
 from dataclasses import dataclass, replace
 
 from cdmw.domain.new_item.authoring import VariantAppearance
+from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.new_item.spec import ModelSource, MaterialRoute
 from cdmw.ui.new_item.model_import import ModelPlacement
 
@@ -99,6 +100,20 @@ class NewItemVariantControllerMixin:
         self.variant_about_to_change.emit(old)
         self._active_variant = identity
         state = self._variant_states.setdefault(identity,VariantModelState(VariantAppearance(*identity)))
+        self._load_variant_state(state)
+        self.invalidate_plan()
+        self.variant_changed.emit(identity)
+        self.model_import_changed.emit(self.model_import)
+        self.model_changed.emit(self.model_result)
+        self.model_placement_changed.emit(self.model_placement)
+        source = self.model_import
+        if source is not None and source.skeleton_edit is not None and source.skeleton_edit not in self.skeleton_edits:
+            # This variant was weighted while its skeleton had other added bones.
+            if not self._reweight_for_skeleton_edits():
+                self._warn_stale_skeleton_edit()
+
+    def _load_variant_state(self, state):
+        """Make one binding's stored state the editable draft (no signals)."""
         self.model_import,self.model_result,self.model_entry,self.model_scene = state.source,state.result,state.entry,state.scene
         self.model_placement = state.placement
         self.draft.model_source = ModelSource.IMPORTED if state.appearance.custom_model else ModelSource.TEMPLATE
@@ -113,16 +128,148 @@ class NewItemVariantControllerMixin:
         self.draft.body_visibility = state.appearance.body_visibility
         self.draft.template_transform = state.appearance.template_transform
         self._held_character,self._material_parts = (),()
+
+    # ------------------------------------------------------------------ components
+
+    def _component_facts_for(self, template_key):
+        """Model path -> (prefab component name, shrink tag), and part stem -> ItemInfo
+        prefab data type, read once per template from the template's own files."""
+        key = int(template_key)
+        cached = self._component_facts.get((id(self.snapshot), key))
+        if cached is not None:
+            return cached
+        from cdmw.core.prefab_binary import decode_prefab_binary
+        facts, roles = {}, {}
+        family = self.snapshot.family(key)
+        for part in family.parts:
+            if not part.prefab_path or not self.snapshot.has_entry(part.prefab_path):
+                continue
+            try:
+                document = decode_prefab_binary(self.snapshot.payload(part.prefab_path))
+            except Exception:  # noqa: BLE001 - an unreadable prefab keeps the file names
+                continue
+            for obj in document.objects:
+                values = {name: value.text for name, value in obj.values}
+                path = str(values.get("_skinnedMeshFile") or values.get("_skinnedMeshFileName") or "")
+                if path:
+                    facts.setdefault((part.prefab_path.casefold(), path.replace("\\", "/").casefold()),
+                                     (str(obj.name or ""), str(values.get("_shrinkTag") or "")))
+        try:
+            from cdmw.core.iteminfo_behavior import read_behavior_fields
+            for entry in read_behavior_fields(self.snapshot.row(key).raw).get("prefabs") or ():
+                for string_key in entry.get("prefabs", ()) or ():
+                    stem = str(self.snapshot.stringinfo_texts.get(string_key, "") or "")
+                    if stem:
+                        roles.setdefault(stem.casefold(), int(entry.get("data_type", -1)))
+        except Exception:  # noqa: BLE001 - without ItemInfo types every binding is listed as other
+            roles = {}
+        self._component_facts[(id(self.snapshot), key)] = cached = (facts, roles)
+        return cached
+
+    def component_rows(self):
+        """Every template binding and what the export makes of it, in family order."""
+        if self.snapshot is None or self.draft.template_key is None:
+            return ()
+        from cdmw.domain.new_item.components import ComponentRole, ComponentRow, ComponentSource, ROLE_BY_DATA_TYPE
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+        from cdmw.services.new_item_variants import variant_bindings
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+            facts, roles = self._component_facts_for(self.draft.template_key)
+        except Exception:  # noqa: BLE001 - a template without a family has no components
+            return ()
+        active = self.current_variant_identity()
+        rows = []
+        for part, path in variant_bindings(family):
+            identity = (part.prefab_path.casefold(), path.casefold())
+            if identity == active:
+                custom = self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None)
+                source, result, body = self.model_import, self.model_result, self.draft.body_visibility
+            else:
+                state = self._variant_states.get(identity)
+                custom = bool(state and state.appearance.custom_model)
+                source, result = (state.source, state.result) if state else (None, None)
+                body = state.appearance.body_visibility if state else BodyVisibilityChoice()
+            if custom and source is None and is_hidden_variant_result(result):
+                kind, name = ComponentSource.HIDDEN, ""
+            elif custom:
+                kind = ComponentSource.IMPORTED
+                name = str(getattr(getattr(source, "path", None), "name", "") or "")
+                if not name:
+                    stash = self._hidden_restore.get(identity)
+                    name = str(getattr(getattr(getattr(stash, "source", None), "path", None), "name", "") or "")
+            else:
+                kind, name = ComponentSource.TEMPLATE, ""
+            component, tag = facts.get(identity, ("", ""))
+            role = ROLE_BY_DATA_TYPE.get(roles.get(part.stem.casefold(), -1), ComponentRole.OTHER)
+            rows.append(ComponentRow(identity, part.prefab_path, path, part.stem, role, component, tag, kind, name,
+                                     body.keep_skin, body.keep_hair, identity == active))
+        return tuple(rows)
+
+    def hide_component(self, identity=None) -> bool:
+        """Hide one binding in the export, keeping its prior state for Show in export."""
+        identity = identity or self.current_variant_identity()
+        if identity is None:
+            return False
+        if identity != self._active_variant:
+            self.select_variant(identity)
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+        if (self.draft.model_source is ModelSource.IMPORTED and self.model_import is None
+                and is_hidden_variant_result(self.model_result)):
+            return True
+        self._capture_variant(identity)
+        prior = self._variant_states.get(identity)
+        if prior is not None:
+            self._hidden_restore[identity] = replace(prior)
+        started = self.start_hide_model_variant()
+        if not started:
+            self._hidden_restore.pop(identity, None)
+        return started
+
+    def show_component(self, identity=None) -> bool:
+        """Undo Hide in export: the prior import, placement and edits, or the template."""
+        identity = identity or self.current_variant_identity()
+        if identity is None:
+            return False
+        if identity != self._active_variant:
+            self.select_variant(identity)
+        if self._lane == "model_hide":
+            self.cancel_operation("model_hide")
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+        body = self.draft.body_visibility
+        hidden_result = self.model_result if is_hidden_variant_result(self.model_result) else None
+        stash = self._hidden_restore.pop(identity, None)
+        if stash is not None and not (stash.appearance.custom_model and stash.source is None
+                                      and is_hidden_variant_result(stash.result)):
+            # The user's latest skin choice wins over the one stored at hide time.
+            state = replace(stash, appearance=replace(stash.appearance, body_visibility=body))
+        else:
+            state = VariantModelState(replace(VariantAppearance(*identity), body_visibility=body))
+        self._variant_states[identity] = state
+        self._load_variant_state(state)
         self.invalidate_plan()
-        self.variant_changed.emit(identity)
         self.model_import_changed.emit(self.model_import)
         self.model_changed.emit(self.model_result)
         self.model_placement_changed.emit(self.model_placement)
-        source = self.model_import
-        if source is not None and source.skeleton_edit is not None and source.skeleton_edit not in self.skeleton_edits:
-            # This variant was weighted while its skeleton had other added bones.
-            if not self._reweight_for_skeleton_edits():
-                self._warn_stale_skeleton_edit()
+        return hidden_result is not None or stash is not None
+
+    def set_worn_body_visibility(self, choice) -> int:
+        """Give every worn component the same underlying-body choice; returns how many."""
+        from cdmw.domain.new_item.components import ComponentRole
+        if self._active_variant is None and (primary := self.primary_variant_identity()) is not None:
+            self.select_variant(primary)
+        rows = [row for row in self.component_rows() if row.role is ComponentRole.WORN and row.cuts_body]
+        active = self.current_variant_identity()
+        for row in rows:
+            if row.identity == active:
+                self.draft.body_visibility = choice
+                continue
+            state = self._variant_states.setdefault(row.identity, VariantModelState(VariantAppearance(*row.identity)))
+            state.appearance = replace(state.appearance, body_visibility=choice)
+        if rows:
+            self.invalidate_plan()
+            self.variant_changed.emit(active)
+        return len(rows)
 
     def set_variant_dyes(self, assignments):
         if self._active_variant is None:
@@ -186,8 +333,10 @@ class NewItemVariantControllerMixin:
                 tuple(value.source for _key,value in states if value.source is not None))
 
     def reset_variants(self):
-        sources = {id(value.source):value.source for value in self._variant_states.values() if value.source is not None}
+        sources = {id(value.source):value.source for value in (*self._variant_states.values(), *self._hidden_restore.values())
+                   if value.source is not None}
         self._variant_states.clear()
+        self._hidden_restore.clear()
         self._active_variant = None
         for source in sources.values():
             if source is not self.model_import:
@@ -195,8 +344,10 @@ class NewItemVariantControllerMixin:
 
     def retire_variant_sources(self):
         self._capture_variant(self._active_variant)
-        sources = {id(value.source):value.source for value in self._variant_states.values() if value.source is not None}
+        sources = {id(value.source):value.source for value in (*self._variant_states.values(), *self._hidden_restore.values())
+                   if value.source is not None}
         self._variant_states.clear()
+        self._hidden_restore.clear()
         for source in sources.values():
             if source is not self.model_import:
                 self._cleanup_model_source(source)

@@ -68,6 +68,58 @@ def strip_template_material_physics(data):
     return document.apply(edits) if edits else data
 
 
+#: The note every hidden-variant result carries. Older drafts and packages may lack
+#: it; :func:`is_hidden_variant_result` then reads the geometry itself.
+HIDDEN_GEOMETRY_NOTE = "Hidden template geometry"
+_HIDDEN_PAYLOAD_LIMIT = 512 * 1024
+_hidden_payload_cache: dict = {}
+
+
+def hidden_geometry_payload(data: bytes) -> bool:
+    """Whether a PAC is the hidden-slot placeholder: every stored part is one
+    collapsed triangle. Real models, including imports with empty placeholder
+    parts beside real ones, are not."""
+
+    data = bytes(data or b"")
+    if not data or len(data) > _HIDDEN_PAYLOAD_LIMIT:
+        return False
+    import hashlib
+
+    key = hashlib.sha1(data).hexdigest()
+    cached = _hidden_payload_cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        mesh = parse_pac(data, "hidden-check.pac")
+        parts = tuple(mesh.submeshes)
+        def collapsed(part) -> bool:
+            points = [tuple(float(value) for value in vertex[:3]) for vertex in part.vertices]
+            if not 0 < len(points) <= 3:
+                return False
+            # The writer nudges the three corners apart by a fraction of a millimetre.
+            return all(max(point[axis] for point in points) - min(point[axis] for point in points) < 1e-3
+                       for axis in range(3))
+
+        hidden = bool(parts) and all(collapsed(part) for part in parts)
+    except Exception:  # noqa: BLE001 - an unreadable payload is not a recognised placeholder
+        hidden = False
+    if len(_hidden_payload_cache) > 256:
+        _hidden_payload_cache.clear()
+    _hidden_payload_cache[key] = hidden
+    return hidden
+
+
+def is_hidden_variant_result(result) -> bool:
+    """Whether a variant's model result is the generated hidden-in-export geometry."""
+
+    if result is None:
+        return False
+    notes = tuple(getattr(result, "notes", ()) or ())
+    if any(str(note).startswith(HIDDEN_GEOMETRY_NOTE) for note in notes):
+        return True
+    return hidden_geometry_payload(getattr(result, "pac_data", None) or getattr(result, "rebuilt_data", None) or b"")
+
+
 def hide_variant_geometry(snapshot, target_path, *, stop_event=None):
     """Hide one exact family slot using the retained all-LOD placeholder writer."""
     from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementPart, PART_ID_ATTRIBUTE
@@ -101,7 +153,7 @@ def hide_variant_geometry(snapshot, target_path, *, stop_event=None):
     raise_if_cancelled(stop_event)
     sidecar = xml_path(target_path)
     return ModelFiles(payload, side_files={sidecar: snapshot.payload(sidecar)} if snapshot.has_entry(sidecar) else {},
-                      material_route="template", notes=(f"Hidden template geometry: {target_path}; every stored LOD retains its slot.",))
+                      material_route="template", notes=(f"{HIDDEN_GEOMETRY_NOTE}: {target_path}; every stored LOD retains its slot.",))
 
 
 def _body_surface(mesh, body_palette, target_palette, *, report=None):

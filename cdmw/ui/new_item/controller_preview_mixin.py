@@ -863,9 +863,26 @@ class NewItemPreviewControllerMixin:
             part = next((value for value in family.parts if value.prefab_path.casefold()==prefab),None)
             if part is None:
                 return ()
-            paths = (path,*(value for value in part.pac_paths if value.casefold()!=path))
+            # Companions hidden in export are not part of the item; no preview
+            # role (output or template reference) may draw them.
+            hidden = self.hidden_component_paths(prefab)
+            paths = (path,*(value for value in part.pac_paths
+                            if value.casefold()!=path and value.casefold() not in hidden))
             return tuple(self.snapshot.entry(value) for value in paths if self.snapshot.has_entry(value))
         return self.template_entries_for(self.draft.template_key)
+
+    def hidden_component_paths(self, prefab_path: str = "") -> frozenset:
+        """Folded model paths of the other bindings currently hidden in export."""
+
+        from cdmw.services.new_item_skinning import is_hidden_variant_result
+
+        prefab = str(prefab_path or "").casefold()
+        active = self._active_variant
+        return frozenset(
+            identity[1] for identity, state in self._variant_states.items()
+            if identity != active and (not prefab or identity[0] == prefab)
+            and state.appearance.custom_model and state.source is None and is_hidden_variant_result(state.result)
+        )
 
     def template_primary_entry(self, template_key: Optional[int] = None) -> Optional[ArchiveEntry]:
         """The model file whose stem owns the template family, preserving the old primary."""

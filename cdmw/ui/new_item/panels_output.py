@@ -167,6 +167,10 @@ class OutputPanel(QGroupBox):
         self.summary.setPlaceholderText("Build the plan to see its summary, warnings and the files it changes. Nothing is written until you choose the write or install button.")
         self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
         self.review_tabs.addTab(self.summary, "Details and warnings")
+        from cdmw.ui.new_item.component_list import ComponentSummary
+        self.component_summary = ComponentSummary(self._controller, self.review_tabs)
+        self.review_tabs.insertTab(0, self.component_summary, "Components")
+        self.review_tabs.setCurrentWidget(self.component_summary)
         content.addWidget(self.review_tabs, 1)
 
 

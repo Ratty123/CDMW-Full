@@ -683,14 +683,24 @@ class NewItemModelControllerMixin:
                 return False
             self.select_variant(primary)
         snapshot, variant, source, entry = self.snapshot, self._active_variant, self.model_import, self.template_primary_entry()
-        draft_revision = self._draft_revision
+        def model_choices():
+            draft = self.draft
+            return (draft.model_source, draft.keep_template_physics, draft.material_route, tuple(draft.template_transform),
+                    tuple(draft.glow_parts), draft.translucency, tuple(draft.shader_controls), tuple(draft.surface_settings),
+                    self.model_placement, self.model_result)
+        started_with = model_choices()
         def task(log, stop_event):
             from cdmw.services.new_item_skinning import hide_variant_geometry
             log(f"Hiding geometry in {entry.basename} at every LOD.")
             return hide_variant_geometry(snapshot, entry.path, stop_event=stop_event)
         def done(result):
-            if (self.snapshot is not snapshot or self._active_variant != variant or self.model_import is not source
-                    or self._draft_revision != draft_revision):
+            # A newer model choice wins over the pending hide; an unrelated edit
+            # (a body-visibility choice, say) must not silently drop it.
+            if self.snapshot is not snapshot or self._active_variant != variant or self.model_import is not source:
+                return
+            if model_choices() != started_with:
+                self._hidden_restore.pop(variant, None)
+                self.status_message.emit("Hide in export was not applied: the component's model changed while it ran.", False)
                 return
             self.model_import = None
             self.model_placement = ModelPlacement()
@@ -701,8 +711,11 @@ class NewItemModelControllerMixin:
             self.set_imported_model(entry, result)
             self.model_import_changed.emit(None)
             self.model_placement_changed.emit(self.model_placement)
-            self._cleanup_model_source(source)
+            # Show in export restores a stashed import; only an unstashed one is released.
+            if not any(stash.source is source for stash in self._hidden_restore.values()):
+                self._cleanup_model_source(source)
         def failed(message):
+            self._hidden_restore.pop(variant, None)
             self.status_message.emit(f"The variant could not be hidden: {message}", True)
         return self._run("model_hide", task, done, failed, source_owners=(source,) if source else ())
 

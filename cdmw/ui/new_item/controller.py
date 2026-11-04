@@ -160,6 +160,10 @@ class NewItemStudioController(
         self._variant_states = {}
         #: variant identity -> (id of the snapshot read, clothing layers its shrink rule cuts)
         self._visibility_layers = {}
+        #: identity -> the component's state before Hide in export, for Show in export
+        self._hidden_restore = {}
+        #: template key -> {model path: (component name, shrink tag)} read from its prefabs
+        self._component_facts = {}
         self._task_source_leases = []
         #: a skeleton edit changed while a task ran; weight the import again once idle
         self._reweight_pending = False

@@ -244,6 +244,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         self._build_icon_controls()
 
+        from cdmw.ui.new_item.component_list import ComponentList
+        self.components = ComponentList(controller, self)
+        model_icon_content_layout.addWidget(self.components)
+        self.model_layout.insertWidget(self.model_layout.indexOf(self.weights_rig_group), self.body_visibility_editor)
         model_icon_content_layout.addWidget(self.model_group)
         model_icon_content_layout.addWidget(self.preview_controls)
         model_icon_content_layout.addWidget(self.reference_group)
@@ -267,11 +271,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         for index, factor in enumerate((1, 0)):
             self.workspace_splitter.setStretchFactor(index, factor)
         self.workspace_splitter.setSizes((800, 380))
-        from cdmw.ui.new_item.variant_selector import VariantSelector
-        self.variants = VariantSelector(controller,self)
-        self.variants.choice.setMinimumContentsLength(12)
-        self.preview_controls.layout().insertWidget(0, self.variants)
-        self.preview_controls.layout().insertWidget(1, self.show_character)
+        # The component list is the binding selector; it lives with the model, not the preview.
+        self.variants = self.components
+        self.preview_controls.layout().insertWidget(0, self.show_character)
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
@@ -512,12 +514,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("View:"))
         self.view_mode = QComboBox()
-        self.view_mode.addItem("Overlay", "overlay")
-        self.view_mode.addItem("Side by side", "side_by_side")
-        self.view_mode.addItem("Your model only", "replacement_only")
-        self.view_mode.addItem("Template only", "original_only")
+        self.view_mode.addItem("Overlay with template (not exported)", "overlay")
+        self.view_mode.addItem("Side by side with template (not exported)", "side_by_side")
+        self.view_mode.addItem("Selected component only", "replacement_only")
+        self.view_mode.addItem("Template only (not exported)", "original_only")
         self.view_mode.setToolTip(
-            "Overlay: your model over the template. Side by side: the template left, your model right. Or one of them alone."
+            "The template is drawn only for comparison and is never exported. Components hidden in export are not drawn "
+            "in any view. Selected component only shows the model the selected component exports."
         )
         self.view_mode.currentIndexChanged.connect(
             lambda _i: self.preview.set_view_mode(str(self.view_mode.currentData() or "overlay"))
@@ -723,7 +726,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._refresh_body_visibility()
         self.body_visibility_editor.changed.connect(self._body_visibility_changed)
         self.body_visibility_editor.layers_requested.connect(self._find_visibility_layers)
-        model_layout.addWidget(self.body_visibility_editor)
+        self.body_visibility_editor.apply_to_worn_requested.connect(self._body_visibility_to_worn)
         from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
         self.shader_controls_editor = ShaderControlsEditor(self)
         self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
@@ -756,18 +759,21 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.model_group = model
 
     def _build_model_source_controls(self):
-        model = QGroupBox("Model")
-        model.setTitle("")
-        model.setAccessibleName("Model")
-        model.setProperty("titlelessSection", True)
+        model = QGroupBox("Selected component")
+        model.setAccessibleName("Selected component")
+        model.setObjectName("new_item_selected_component")
         model_layout = QVBoxLayout(model)
         model_layout.setContentsMargins(8, 4, 8, 6)
         model_layout.setSpacing(4)
+        self.model_layout = model_layout
+        source_label = QLabel("Exported model:")
+        source_label.setToolTip("What the selected component exports. Hide in export, in the list above, exports nothing for it.")
         self.keep_model = QRadioButton("Template model")
-        self.keep_model.setToolTip("Retain this binding's template appearance.")
+        self.keep_model.setToolTip("Export the game's own model for the selected component.")
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
         source_choices = QHBoxLayout()
+        source_choices.addWidget(source_label)
         source_choices.addWidget(self.keep_model)
         self.import_model = QRadioButton("Imported model")
         self.import_model.setToolTip(
@@ -827,15 +833,15 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.skinning_button.clicked.connect(self._edit_skinning)
         self.skinning_button.setEnabled(False)
         row.addWidget(self.skinning_button)
-        self.hide_variant_button = QPushButton("Hide this variant")
-        self.hide_variant_button.setToolTip("Hide this exact equipment slot at every LOD. Other companion slots keep their chosen models. "
-                                           "Choose Keep template to restore it.")
-        self.hide_variant_button.clicked.connect(self._controller.start_hide_model_variant)
-        row.addWidget(self.hide_variant_button)
         row.addStretch(1)
         import_row = QWidget()
         import_row.setLayout(row)
         model_layout.addWidget(import_row)
+        self.weights_rig_group = QGroupBox("Weights and rig")
+        self.weights_rig_group.setObjectName("new_item_weights_rig")
+        weights_rig_layout = QVBoxLayout(self.weights_rig_group)
+        weights_rig_layout.setContentsMargins(8, 4, 8, 6)
+        weights_rig_layout.setSpacing(4)
         skin_row = QHBoxLayout()
         skin_row.addWidget(QLabel("Weights on next import"))
         self.import_skin_policy = QComboBox()
@@ -845,7 +851,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.import_skin_policy.setToolTip("Used when importing a rigged model. Keeping weights refuses missing bones or excess influences. "
                                          "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
         skin_row.addWidget(self.import_skin_policy, 1)
-        model_layout.addLayout(skin_row)
+        weights_rig_layout.addLayout(skin_row)
         rig_row = QHBoxLayout()
         rig_label = QLabel("Rig")
         rig_label.setToolTip(
@@ -876,7 +882,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             "Write the template mesh skinned to its skeleton, with any added bones, as GLB to weight a model against in Blender.")
         self.export_rig_button.clicked.connect(self._pick_rig_export_folder)
         rig_row.addWidget(self.export_rig_button)
-        model_layout.addLayout(rig_row)
+        weights_rig_layout.addLayout(rig_row)
+        model_layout.addWidget(self.weights_rig_group)
         self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
         # Open the dialog after the reading task has finished, not inside its callback.
         self._controller.rig_source_ready.connect(
@@ -1236,10 +1243,26 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.body_visibility = choice
         self._controller.invalidate_plan()
 
+    def _body_visibility_to_worn(self, choice) -> None:
+        from cdmw.services.active_ui_translation import translate_active_ui_text
+        count = self._controller.set_worn_body_visibility(choice)
+        self._refresh_body_visibility()
+        self.components.note.setText(
+            translate_active_ui_text("Body underneath updated for {count} worn component(s).").format(count=count))
+
     def _refresh_body_visibility(self, *, looking=False) -> None:
-        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
-                                            enabled=self._controller.current_variant_identity() is not None,
-                                            layers=self._controller.visibility_layers(), looking=looking)
+        from cdmw.domain.new_item.components import ComponentSource
+        from cdmw.ui.new_item.component_list import component_name
+        row = next((value for value in self._controller.component_rows() if value.selected), None)
+        self.body_visibility_editor.refresh(
+            self._controller.draft.body_visibility,
+            enabled=self._controller.current_variant_identity() is not None,
+            layers=self._controller.visibility_layers(), looking=looking,
+            component=component_name(row) if row is not None else "",
+            # An unread prefab keeps the choice available; the plan then reports what it could change.
+            applicable=row is None or row.cuts_body or not row.component_name,
+            hidden=row is not None and row.source is ComponentSource.HIDDEN,
+        )
 
     def _find_visibility_layers(self) -> None:
         from shiboken6 import isValid
