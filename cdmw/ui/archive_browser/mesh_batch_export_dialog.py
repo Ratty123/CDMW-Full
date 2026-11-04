@@ -18,7 +18,7 @@ from cdmw.services.active_ui_translation import translate_active_ui_text
 class BatchMeshExportDialog(QDialog):
     def __init__(self, archive, selections, export_format: str):
         super().__init__(archive)
-        self.setWindowTitle("Batch OBJ Export" if export_format == "obj" else "Batch FBX Export")
+        self.setWindowTitle(f"Batch Export Selected Models as {export_format.upper()}")
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.resize(720, 560)
         self.export_format = export_format
@@ -92,11 +92,13 @@ class BatchMeshExportDialog(QDialog):
         if not folder:
             self.status.setText(translate_active_ui_text("Choose an output folder first."))
             self.status.setProperty("_i18n_source_text", "Choose an output folder first.")
+            self.status.setProperty("_i18n_rendered_text", self.status.text())
             return
         self.options_scroll.setEnabled(False)
         self.start_button.setEnabled(False)
         self.cancel_button.setText(translate_active_ui_text("Cancel"))
         self.cancel_button.setProperty("_i18n_source_text", "Cancel")
+        self.cancel_button.setProperty("_i18n_rendered_text", self.cancel_button.text())
         self.report.clear()
         self.controller.start(Path(folder).expanduser().absolute(), self.export_format, self.mesh_only.isChecked())
 
@@ -104,6 +106,7 @@ class BatchMeshExportDialog(QDialog):
         self.progress_bar.setValue(completed)
         self.status.setText(translate_active_ui_text(stage))
         self.status.setProperty("_i18n_source_text", stage)
+        self.status.setProperty("_i18n_rendered_text", self.status.text())
         self.status.setToolTip(path)
         self.report.appendPlainText(f"{completed + 1} / {total}: {path}")
 
@@ -127,10 +130,12 @@ class BatchMeshExportDialog(QDialog):
         summary = f"Exported: {counts['exported']} | Failed: {counts['failed']} | Cancelled: {counts['cancelled']}"
         self.status.setText(translate_active_ui_text(summary))
         self.status.setProperty("_i18n_source_text", summary)
+        self.status.setProperty("_i18n_rendered_text", self.status.text())
         self.report.appendPlainText(summary)
         self.copy_button.setEnabled(True)
         self.cancel_button.setText(translate_active_ui_text("Close"))
         self.cancel_button.setProperty("_i18n_source_text", "Close")
+        self.cancel_button.setProperty("_i18n_rendered_text", self.cancel_button.text())
         self.cancel_button.setEnabled(True)
         self.cancel_button.setDefault(True)
 
@@ -138,6 +143,7 @@ class BatchMeshExportDialog(QDialog):
         if self.controller.active:
             self.status.setText(translate_active_ui_text("Cancelling... Completed exports will be kept."))
             self.status.setProperty("_i18n_source_text", "Cancelling... Completed exports will be kept.")
+            self.status.setProperty("_i18n_rendered_text", self.status.text())
             self.cancel_button.setEnabled(False)
             self.controller.cancel()
             return

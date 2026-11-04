@@ -631,7 +631,7 @@ class ArchiveMeshImportExportMixin:
         default_dir = self.shell.settings_file_path.parent / "mesh_export"
         output_dir = QFileDialog.getExistingDirectory(
             self,
-            f"Export {export_format.upper()}",
+            f"Export This Model as {export_format.upper()}",
             str(default_dir),
         )
         if not output_dir:

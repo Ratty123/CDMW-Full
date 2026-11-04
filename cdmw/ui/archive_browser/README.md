@@ -861,7 +861,7 @@ and added bones are untested in game.
 
 ### GLB, FBX and OBJ export and round trips
 
-**Export > Export GLB...** exports one PAC, PAM or PAMLOD directly from the
+**Export > Export This Model as GLB...** exports one PAC, PAM or PAMLOD directly from the
 archive. GLB is listed first for rigged editing, followed by FBX and OBJ. GLB
 includes companion metadata and resolved textures; PAC weights require a resolved
 skeleton and bone mapping. Review export warnings: an unresolved palette leaves
@@ -872,7 +872,7 @@ OBJ remains geometry-only.
 OBJ, MTL and round-trip metadata support Unicode output folders and file names,
 including Chinese characters, independently of the interface language.
 
-**Export > Export Selected as GLB... / FBX... / OBJ...** converts
+**Export > Batch Export Selected Models as GLB... / FBX... / OBJ...** converts
 explicitly selected PAC, PAM and PAMLOD file rows in a sequential batch. Use Ctrl
 or Shift to select models; folder/category rows and other file types are excluded.
 The same commands appear in a model's right-click menu. Each model gets a fresh
@@ -890,11 +890,11 @@ its own archive provider; no preview selection or global catalogue rebuild is
 required. Conversion retains the existing supported-format and round-trip limits.
 Fixture conversions and UI checks do not establish real-game acceptance.
 
-**Export > Export OBJ** exports the selected archive mesh without requiring a loaded
-preview. It and the right-click **Export OBJ...** action preserve the PAC's original
+**Export > Export This Model as OBJ** exports the selected archive mesh without requiring a loaded
+preview. It and the right-click **Export This Model as OBJ...** action preserve the PAC's original
 positions and normals, including embedded head and ear geometry. To bake the same
 neutral skeleton variation used by FBX,
-right-click a PAC and choose **Export OBJ (Neutral Appearance)...**. The matching
+right-click a PAC and choose **Export This Model as OBJ (Neutral Appearance)...**. The matching
 `.meta.json` stores the source identity and, for neutral exports, the reversible
 appearance transform. **Round-trip edit** converts neutral OBJ positions and normals
 back to PAC coordinates, retains donor skin weights and lower LODs, and restores part
@@ -950,7 +950,8 @@ source geometry without guessing an attachment bone. Other unresolved palettes a
 export source coordinates: the summary marks neutral appearance as unavailable, and FBX
 includes an unbound armature. OBJ returns still retain the original PAC skin records.
 
-Character dependency packages preserve `character/...` paths directly below the chosen
+**Export Character and Related Game Files...** collects the original character
+model and its resolved game files. These packages preserve `character/...` paths directly below the chosen
 root so the appearance manifest can find and verify every companion. The extraction
 service's `include_package_directory=False` selects this layout for both extraction and
 collision checks; ordinary extraction keeps its archive package directory by default.

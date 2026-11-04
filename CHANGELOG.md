@@ -12,11 +12,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Added
 
 - Mesh Editor’s **Output > Export…** saves current edits as GLB, FBX or OBJ with their CDMW companion files for external editing. GLB is listed first for rigged models; OBJ remains geometry-only. Rigged editable-package exports no longer fail their own validation.
-- Archive Browser offers **Export GLB…** and **Export Selected as GLB…** first for single and batch model exports, with companion files, resolved textures and supported rigs. FBX and OBJ remain available. Missing skeletons require an explicit mesh-only export choice; review warnings when bone mapping cannot be resolved.
+- Archive Browser offers **Export This Model as GLB…** and **Batch Export Selected Models as GLB…** first, with companion files, resolved textures and supported rigs. Labels distinguish single-model and batch exports across GLB, FBX and OBJ. Missing skeletons require an explicit mesh-only export choice; review warnings when bone mapping cannot be resolved.
 - Archive Browser can export file paths to TXT or CSV without extracting files. Choose all files, filtered results, selected files or a folder and its subfolders; CSV also identifies each source archive. Exports use the current catalogue and report cancelled requests instead of waiting indefinitely.
 
 ### Fixed
 
+- Archive Browser’s batch export window identifies the chosen format correctly and keeps its progress messages in sync when the interface language changes.
 - Create New Item reads the updated item tables in game 1.0.0.3527 while retaining support for earlier layouts. Unreadable item tables now explain possible patch, mod or file problems and include the source and reader details in the copied report.
 - DMM exports no longer include an unused texture registry that triggers a "loose archive files not applied" warning. This covers Create New Item, merged, updated and converted mods, and authored hair; their textures remain included.
 - An edited mesh returned from Blender no longer loses the edits to a Part when Blender wrote some of its vertices twice, which happens when an edit tilts the faces of a flat area. Mesh Editor's Import editable package used to rebuild that Part from the original game mesh without a word, undoing a Morph & Refit fit along with the edit; Archive Browser refused it. The copies are now merged back. A Part that comes back with a different vertex count, or with a hard edge the game mesh cannot hold, is refused with its name.

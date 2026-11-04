@@ -467,28 +467,30 @@ class ArchiveBrowserActionMixin:
 
         if entry.extension in ARCHIVE_MESH_EXTENSIONS:
             _add_menu_section("mesh", "Mesh Export")
-            export_glb_action = menu.addAction(menu_icons["mesh"], "Export GLB...")
+            export_glb_action = menu.addAction(menu_icons["mesh"], "Export This Model as GLB...")
             export_glb_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "glb"))
-            export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
+            export_fbx_action = menu.addAction(menu_icons["mesh"], "Export This Model as FBX...")
             export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
-            export_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ...")
+            export_obj_action = menu.addAction(menu_icons["mesh"], "Export This Model as OBJ...")
             export_obj_action.setToolTip("Keep the mesh's original vertex positions.")
             export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
             if entry.extension == ".pac":
-                export_neutral_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ (Neutral Appearance)...")
+                export_neutral_obj_action = menu.addAction(menu_icons["mesh"], "Export This Model as OBJ (Neutral Appearance)...")
                 export_neutral_obj_action.setToolTip("Bake the character's neutral appearance into the OBJ.")
                 export_neutral_obj_action.triggered.connect(
                     lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(
                         current_entry, "obj", bake_neutral_appearance=True,
                     )
                 )
-            batch_glb_action = menu.addAction(menu_icons["mesh"], "Export Selected as GLB...")
+            menu.addSeparator()
+            batch_glb_action = menu.addAction(menu_icons["mesh"], "Batch Export Selected Models as GLB...")
             batch_glb_action.triggered.connect(lambda: self._export_selected_archive_models("glb"))
-            batch_fbx_action = menu.addAction(menu_icons["mesh"], "Export Selected as FBX...")
+            batch_fbx_action = menu.addAction(menu_icons["mesh"], "Batch Export Selected Models as FBX...")
             batch_fbx_action.triggered.connect(lambda: self._export_selected_archive_models("fbx"))
-            batch_obj_action = menu.addAction(menu_icons["mesh"], "Export Selected as OBJ...")
+            batch_obj_action = menu.addAction(menu_icons["mesh"], "Batch Export Selected Models as OBJ...")
             batch_obj_action.triggered.connect(lambda: self._export_selected_archive_models("obj"))
-            export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character Dependency Package...")
+            menu.addSeparator()
+            export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character and Related Game Files...")
             export_character_dependencies_action.setToolTip(
                 "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."
             )
@@ -680,7 +682,7 @@ class ArchiveBrowserActionMixin:
         self._open_archive_source_mix_package_dialog(entry)
 
     def _export_current_archive_character_dependency_package(self) -> None:
-        entry = self._current_archive_action_entry("Export Character Dependency Package")
+        entry = self._current_archive_action_entry("Export Character and Related Game Files")
         if entry is None:
             return
         self._export_character_dependency_package_for_entry(entry)

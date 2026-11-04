@@ -45,6 +45,7 @@ def _make_dialog(tmp_path, export_format="fbx"):
 def test_mesh_only_choice_is_available_for_rigged_formats(app, tmp_path, export_format):
     archive, dialog = _make_dialog(tmp_path, export_format)
     try:
+        assert dialog.windowTitle() == f"Batch Export Selected Models as {export_format.upper()}"
         assert dialog.mesh_only.isHidden() == (export_format == "obj")
         assert not dialog.mesh_only.isChecked()
     finally:
@@ -116,9 +117,9 @@ def test_context_menu_preserves_all_selected_rows_before_batch_dispatch(app, tmp
 
     class Menu(QMenu):
         def exec(self, position):
-            formats = [a.text() for a in self.actions() if a.text().startswith("Export Selected as")]
-            assert formats == ["Export Selected as GLB...", "Export Selected as FBX...", "Export Selected as OBJ..."]
-            action = next(a for a in self.actions() if a.text() == f"Export Selected as {format.upper()}...")
+            formats = [a.text() for a in self.actions() if a.text().startswith("Batch Export Selected Models as")]
+            assert formats == ["Batch Export Selected Models as GLB...", "Batch Export Selected Models as FBX...", "Batch Export Selected Models as OBJ..."]
+            action = next(a for a in self.actions() if a.text() == f"Batch Export Selected Models as {format.upper()}...")
             action.trigger()
 
     monkeypatch.setattr(actions, "QMenu", Menu)
@@ -156,10 +157,10 @@ def test_real_archive_export_menu_dispatches_batch_in_both_layouts(app, tmp_path
         monkeypatch.setattr(archive, "_export_selected_archive_models", calls.append)
         archive._update_archive_model_action_controls(None)
         menu = archive.archive_export_menu_button.menu()
-        formats = [a.text() for a in menu.actions() if a.text().startswith("Export Selected as")]
-        assert formats == ["Export Selected as GLB", "Export Selected as FBX", "Export Selected as OBJ"]
+        formats = [a.text() for a in menu.actions() if a.text().startswith("Batch Export Selected Models as")]
+        assert formats == ["Batch Export Selected Models as GLB", "Batch Export Selected Models as FBX", "Batch Export Selected Models as OBJ"]
         for format in ("GLB", "FBX", "OBJ"):
-            action = next(a for a in menu.actions() if a.text() == f"Export Selected as {format}")
+            action = next(a for a in menu.actions() if a.text() == f"Batch Export Selected Models as {format}")
             assert action.isEnabled()
             action.trigger()
         assert calls == ["glb", "fbx", "obj"]
@@ -169,9 +170,9 @@ def test_real_archive_export_menu_dispatches_batch_in_both_layouts(app, tmp_path
         monkeypatch.setattr(archive, "_start_archive_mesh_export", lambda selected, format_name: single_calls.append((selected, format_name)))
         archive._update_archive_model_action_controls(None)
         assert archive.archive_model_export_glb_button.isEnabled()
-        single_formats = [a.text() for a in menu.actions() if a.text() in {"Export GLB", "Export FBX", "Export OBJ"}]
-        assert single_formats == ["Export GLB", "Export FBX", "Export OBJ"]
-        next(a for a in menu.actions() if a.text() == "Export GLB").trigger()
+        single_formats = [a.text() for a in menu.actions() if a.text() in {"Export This Model as GLB", "Export This Model as FBX", "Export This Model as OBJ"}]
+        assert single_formats == ["Export This Model as GLB", "Export This Model as FBX", "Export This Model as OBJ"]
+        next(a for a in menu.actions() if a.text() == "Export This Model as GLB").trigger()
         assert single_calls == [(entry, "glb")]
         monkeypatch.setattr(archive.archive_tree, "selectedItems", lambda: [])
         archive._update_archive_model_action_controls(None)
@@ -190,6 +191,10 @@ def test_progress_and_final_report_localize_immediately_and_can_switch_back(app,
     localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
     localizer.activate_runtime_tracking(dialog, application=app)
     try:
+        localizer.apply(dialog)
+        english_title = "Batch Export Selected Models as FBX"
+        assert dialog.windowTitle() == localizer.translate_rendered(english_title)
+        assert dialog.windowTitle() != english_title
         dialog._progress(0, 1, "Preparing files", "model.pac")
         assert dialog.status.text() == localizer.translate("Preparing files")
         dialog.controller.results = [BatchMeshExportResult(1, "exported", "model.pac")]
@@ -201,6 +206,7 @@ def test_progress_and_final_report_localize_immediately_and_can_switch_back(app,
         assert dialog.cancel_button.text() == localizer.translate("Close")
         localizer.load_language("en")
         localizer.apply(dialog)
+        assert dialog.windowTitle() == english_title
         assert dialog.status.text() == english_summary
         assert dialog.cancel_button.text() == "Close"
     finally:

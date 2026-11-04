@@ -200,31 +200,31 @@ class ArchivePreviewLayoutMixin:
         self.archive_action_export_family_button = QPushButton("Export Family...")
         self.archive_action_export_family_button.setToolTip("Export the resolved files in the selected asset family.")
         self.archive_action_export_family_button.setEnabled(False)
-        self.archive_action_character_dependency_button = QPushButton("Export Character Dependency Package...")
+        self.archive_action_character_dependency_button = QPushButton("Export Character and Related Game Files...")
         self.archive_action_character_dependency_button.setToolTip(
             "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."
         )
         self.archive_action_character_dependency_button.setEnabled(False)
-        self.archive_model_export_glb_button = QPushButton("Export GLB...")
+        self.archive_model_export_glb_button = QPushButton("Export This Model as GLB...")
         self.archive_model_export_glb_button.setToolTip("Export the selected archive mesh as GLB. PAC exports also try to attach the matching PAB skeleton.")
         self.archive_model_export_glb_button.setEnabled(False)
-        self.archive_model_export_obj_button = QPushButton("Export OBJ...")
+        self.archive_model_export_obj_button = QPushButton("Export This Model as OBJ...")
         self.archive_model_export_obj_button.setToolTip(
             "Export the selected archive mesh as Wavefront OBJ with MTL and resolved preview textures for Blender."
         )
         self.archive_model_export_obj_button.setEnabled(False)
-        self.archive_model_export_fbx_button = QPushButton("Export FBX...")
+        self.archive_model_export_fbx_button = QPushButton("Export This Model as FBX...")
         self.archive_model_export_fbx_button.setToolTip(
             "Export the selected archive mesh as FBX. PAC exports also try to attach the matching PAB skeleton."
         )
         self.archive_model_export_fbx_button.setEnabled(False)
-        self.archive_model_batch_glb_button = QPushButton("Export Selected as GLB")
+        self.archive_model_batch_glb_button = QPushButton("Batch Export Selected Models as GLB")
         self.archive_model_batch_glb_button.setEnabled(False)
         self.archive_model_batch_glb_button.clicked.connect(lambda: self._export_selected_archive_models("glb"))
-        self.archive_model_batch_obj_button = QPushButton("Export Selected as OBJ")
+        self.archive_model_batch_obj_button = QPushButton("Batch Export Selected Models as OBJ")
         self.archive_model_batch_obj_button.setEnabled(False)
         self.archive_model_batch_obj_button.clicked.connect(lambda: self._export_selected_archive_models("obj"))
-        self.archive_model_batch_fbx_button = QPushButton("Export Selected as FBX")
+        self.archive_model_batch_fbx_button = QPushButton("Batch Export Selected Models as FBX")
         self.archive_model_batch_fbx_button.setEnabled(False)
         self.archive_model_batch_fbx_button.clicked.connect(lambda: self._export_selected_archive_models("fbx"))
         self.archive_model_open_mesh_editor_button = QPushButton("Open in Mesh Editor")
@@ -381,14 +381,14 @@ class ArchivePreviewLayoutMixin:
             (
                 ("Export File", self.archive_action_export_file_button),
                 ("Extract File", self.archive_action_extract_file_button),
-                ("Export GLB", self.archive_model_export_glb_button),
-                ("Export FBX", self.archive_model_export_fbx_button),
-                ("Export OBJ", self.archive_model_export_obj_button),
-                ("Export Selected as GLB", self.archive_model_batch_glb_button),
-                ("Export Selected as FBX", self.archive_model_batch_fbx_button),
-                ("Export Selected as OBJ", self.archive_model_batch_obj_button),
+                ("Export This Model as GLB", self.archive_model_export_glb_button),
+                ("Export This Model as FBX", self.archive_model_export_fbx_button),
+                ("Export This Model as OBJ", self.archive_model_export_obj_button),
+                ("Batch Export Selected Models as GLB", self.archive_model_batch_glb_button),
+                ("Batch Export Selected Models as FBX", self.archive_model_batch_fbx_button),
+                ("Batch Export Selected Models as OBJ", self.archive_model_batch_obj_button),
                 ("Export Family", self.archive_action_export_family_button),
-                ("Export Character Dependency Package", self.archive_action_character_dependency_button),
+                ("Export Character and Related Game Files", self.archive_action_character_dependency_button),
                 ("Export Sidecar JSON", self.archive_sidecar_export_json_button),
                 ("Export HKX JSON", self.archive_hkx_export_json_button),
                 ("Export HKX XML", self.archive_hkx_export_xml_button),

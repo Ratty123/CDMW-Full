@@ -30,7 +30,7 @@ class ArchiveCharacterDependencyExportMixin:
         selected_appearance_path: str = "",
     ) -> None:
         if not self.archive_entries:
-            QMessageBox.warning(self, "Export Character Dependency Package", "Load Archive Browser data first.")
+            QMessageBox.warning(self, "Export Character and Related Game Files", "Load Archive Browser data first.")
             return
         archive_entries = tuple(self.archive_entries)
         selected_path = str(selected_appearance_path or "").strip()
@@ -76,14 +76,14 @@ class ArchiveCharacterDependencyExportMixin:
         if isinstance(result, dict) and result.get("error"):
             QMessageBox.warning(
                 self,
-                "Export Character Dependency Package",
+                "Export Character and Related Game Files",
                 f"Could not build dependency plan:\n{result.get('error')}",
             )
             return
         if not isinstance(result, CharacterDependencyPlan):
             QMessageBox.warning(
                 self,
-                "Export Character Dependency Package",
+                "Export Character and Related Game Files",
                 "Could not build dependency plan: unexpected worker result.",
             )
             return
@@ -92,7 +92,7 @@ class ArchiveCharacterDependencyExportMixin:
         if plan.blocking_errors and any(multiple_match_error in error for error in plan.blocking_errors):
             choices = list(plan.appearance_paths)
             if not choices:
-                QMessageBox.warning(self, "Export Character Dependency Package", "\n".join(plan.blocking_errors))
+                QMessageBox.warning(self, "Export Character and Related Game Files", "\n".join(plan.blocking_errors))
                 return
             selected, accepted = QInputDialog.getItem(
                 self,
@@ -110,13 +110,13 @@ class ArchiveCharacterDependencyExportMixin:
             )
             return
         if plan.blocking_errors:
-            QMessageBox.warning(self, "Export Character Dependency Package", "\n".join(plan.blocking_errors))
+            QMessageBox.warning(self, "Export Character and Related Game Files", "\n".join(plan.blocking_errors))
             return
         entries = list(plan.entries)
         if not entries:
             QMessageBox.warning(
                 self,
-                "Export Character Dependency Package",
+                "Export Character and Related Game Files",
                 f"No dependency entries were resolved for {entry.path}.",
             )
             return
@@ -143,7 +143,7 @@ class ArchiveCharacterDependencyExportMixin:
         if collision_mode == "rename":
             QMessageBox.warning(
                 self,
-                "Export Character Dependency Package",
+                "Export Character and Related Game Files",
                 "A reusable character package must preserve exact virtual paths. "
                 "Run the export again and choose Overwrite Existing or Clear Root.",
             )

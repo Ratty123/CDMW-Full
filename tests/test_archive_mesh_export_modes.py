@@ -72,13 +72,13 @@ class _ExportWindow(actions.ArchiveBrowserActionMixin, mesh_import_export.Archiv
 
 
 @pytest.mark.parametrize("extension,label,export_format,bake", [
-    (".pac", "Export GLB...", "glb", False),
-    (".pam", "Export GLB...", "glb", False),
-    (".pamlod", "Export GLB...", "glb", False),
-    (".pac", "Export OBJ...", "obj", False),
-    (".pac", "Export OBJ (Neutral Appearance)...", "obj", True),
-    (".pac", "Export FBX...", "fbx", False),
-    (".pam", "Export OBJ...", "obj", False),
+    (".pac", "Export This Model as GLB...", "glb", False),
+    (".pam", "Export This Model as GLB...", "glb", False),
+    (".pamlod", "Export This Model as GLB...", "glb", False),
+    (".pac", "Export This Model as OBJ...", "obj", False),
+    (".pac", "Export This Model as OBJ (Neutral Appearance)...", "obj", True),
+    (".pac", "Export This Model as FBX...", "fbx", False),
+    (".pam", "Export This Model as OBJ...", "obj", False),
 ])
 def test_archive_context_menu_dispatches_selected_export_mode(tmp_path, monkeypatch, extension, label, export_format, bake):
     global _APPLICATION
@@ -94,9 +94,9 @@ def test_archive_context_menu_dispatches_selected_export_mode(tmp_path, monkeypa
     class ExportMenu(QMenu):
         def exec(self, _position):
             choices = {action.text(): action for action in self.actions()}
-            formats = [name for name in choices if name in {"Export GLB...", "Export FBX...", "Export OBJ..."}]
-            assert formats == ["Export GLB...", "Export FBX...", "Export OBJ..."]
-            assert ("Export OBJ (Neutral Appearance)..." in choices) == (extension == ".pac")
+            formats = [name for name in choices if name in {"Export This Model as GLB...", "Export This Model as FBX...", "Export This Model as OBJ..."}]
+            assert formats == ["Export This Model as GLB...", "Export This Model as FBX...", "Export This Model as OBJ..."]
+            assert ("Export This Model as OBJ (Neutral Appearance)..." in choices) == (extension == ".pac")
             choices[label].trigger()
 
     def export(selected, output_dir, format_name, **kwargs):
@@ -148,7 +148,7 @@ def test_selected_mesh_obj_export_does_not_require_python_preview(tmp_path, monk
     monkeypatch.setattr(mesh_import_export, "export_archive_mesh", export)
     try:
         window._export_current_archive_model()
-        assert prompts == ["Export OBJ"]
+        assert prompts == ["Export This Model as OBJ"]
         assert len(calls) == 1
         selected, output_dir, format_name, kwargs = calls[0]
         assert selected is entry and output_dir == tmp_path

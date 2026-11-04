@@ -85,12 +85,12 @@ def test_archive_glb_export_guidance_is_translated_in_every_manual(wiki_pages):
 
     for language in BUILTIN_LANGUAGES:
         translations = load_builtin_catalog(language.code)["translations"]
-        source = next(key for key in translations if key.startswith("Choose Export GLB... for one PAC"))
+        source = next(key for key in translations if key.startswith("Choose Export This Model as GLB... for one PAC"))
         translated = translations[source]
         assert language.code == "en" or translated != source
         page = wiki_pages[page_slug("Archive-Browser", language.code) + ".md"].replace("**", "")
         assert translated in page
-        assert translations["Export GLB..."] in translated
+        assert translations["Export This Model as GLB..."] in translated
         assert translations["Allow export without a skeleton"] in page
 
 
