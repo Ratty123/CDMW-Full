@@ -93,7 +93,7 @@ static void merge_prefab_component_meshes(
     int component_models_added = 0;
     int component_batches_added = 0;
     int component_models_available = 0;
-    const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, index, 8);
+    const std::vector<ArchiveEntryRef> prefab_components = enabled_prefab_component_refs_for_job(job, index, 8);
     for (const ArchiveEntryRef& component : prefab_components) {
         if (lower_copy(component.path) == lower_copy(job.path)) continue;
         ++component_models_available;

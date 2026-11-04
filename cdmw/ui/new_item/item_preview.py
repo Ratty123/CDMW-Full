@@ -105,6 +105,9 @@ class _PreviewPackageTask:
     source_usage_required: bool
     source_usage_acquired: bool
     reuse_geometry: bool = False
+    #: Whether a cached native material package may be the first package for this
+    #: request. It carries no semantic camera, so it must never take a view reset.
+    cached_native_materials_allowed: bool = True
 
     @property
     def progressive(self) -> bool:
@@ -140,6 +143,13 @@ class _PreviewPackageTask:
         ):
             return None
         if self.candidate.cached_materials is not None and self.native_preview_core_cache_root is not None:
+            if not self.cached_native_materials_allowed:
+                # A Preview Core package has bounds but no grounded initial view.
+                # Loaded first with a camera reset (another template was framed),
+                # the viewport reported "Full textures loaded" over an empty view.
+                # Build the framed geometry stage; its material stage still hits
+                # the same durable cache.
+                return None
             cached = self.candidate.cached_materials(
                 stop_event,
                 output_root=self.output_root,
@@ -1051,8 +1061,18 @@ class ItemPreviewFrame(QWidget):
             source_usage_required=callable(acquire_usage),
             source_usage_acquired=source_usage is not None,
             reuse_geometry=reuse_geometry,
+            cached_native_materials_allowed=not self._load_would_reset_view(token, candidate_source),
         )
         self._launch_package_worker(task, source_usage)
+
+    def _load_would_reset_view(self, token: Hashable, source: Any) -> bool:
+        """Whether the next package for `token` frames the camera afresh, exactly as
+        `_package_ready` decides it: nothing shown yet, or another framing key."""
+
+        framing_key = self._pending_framing_key
+        if framing_key is _UNSET:
+            framing_key = self._source_geometry_token(token, source)
+        return self._package_dir is None or self._loaded_framing_key != framing_key
 
     def _launch_package_worker(self, task: Callable, source_usage: object) -> None:
         worker = UtilityWorker(task, task_accepts_progress=True, task_accepts_cancel=True)

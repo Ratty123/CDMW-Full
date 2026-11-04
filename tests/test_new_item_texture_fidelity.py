@@ -872,3 +872,41 @@ def test_repeated_mesh_editor_use_keeps_each_separated_part_name(tmp_path):
     third, _, _, _ = prepare_model_import_mesh_edit(deepcopy(session), scene=second, model_path=path)
     third_names = [part.name for part in third.mesh.submeshes]
     assert third_names[:2] == [names[0], names[2]] and len({name.casefold() for name in third_names}) == 3
+
+
+def test_preview_dropped_placeholder_part_does_not_shift_texture_bindings(tmp_path):
+    """Rosa Cassius: the preview drops zero-size placeholder parts, and a positional
+    copy back onto the scene gave later parts their neighbours' glTF inputs. The
+    parts left without their own inputs exported with base colour only (no normal)."""
+
+    from cdmw.ui.new_item.model_import import prepare_model_import_mesh_edit
+
+    Image.new("RGB", (8, 8), "gray").save(tmp_path / "base.png")
+    Image.new("RGB", (8, 8), (128, 128, 255)).save(tmp_path / "normal.png")
+    binary, document = _triangle_payload()
+    (tmp_path / "source.bin").write_bytes(binary)
+    document["buffers"][0]["uri"] = "source.bin"
+    document["images"] = [{"uri": "base.png"}, {"uri": "normal.png"}]
+    document["textures"] = [{"source": 0}, {"source": 1}]
+    names = ["Placeholder", "Vest", "Belt", "Bag"]  # one shared normal image
+    document["materials"] = [
+        {"name": name, "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}, "normalTexture": {"index": 1}}
+        for name in names
+    ]
+    primitive = document["meshes"][0]["primitives"][0]
+    document["meshes"][0]["primitives"] = [dict(deepcopy(primitive), material=index) for index in range(len(names))]
+    path = tmp_path / "source.gltf"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    scene = import_scene_mesh_with_report(path)
+    mesh = deepcopy(scene.mesh)
+    # Kept by the scene, dropped by the preview model.
+    mesh.submeshes[0].vertices = [(0.0, 0.0, 0.0)] * len(mesh.submeshes[0].vertices)
+    edited_scene, preview, _, _ = prepare_model_import_mesh_edit(mesh, scene=scene, model_path=path)
+
+    assert len(preview.meshes) == len(names) - 1
+    for part in edited_scene.mesh.submeshes:
+        owners = {item.material_name for item in part.preview_material_texture_inputs if item.material_name}
+        assert owners <= {part.material}, f"{part.material} carries the inputs of {sorted(owners)}"
+    sets = group_replacement_texture_sets(scene.discovered_texture_files, obj_mesh=edited_scene.mesh)
+    assert all("normal" in sets[name.lower()].slots for name in names)

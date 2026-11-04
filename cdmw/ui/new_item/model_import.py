@@ -1001,8 +1001,6 @@ def prepare_model_import_mesh_edit(
     preview_model = parsed_mesh_to_preview_model(mesh)
     raise_if_cancelled(stop_event)
     texture_count = int(attach_scene_preview_textures(preview_model, edited_scene, Path(model_path)) or 0)
-    from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
-
     set_dotnet_preview_texture_flip_vertical(
         preview_model,
         scene_import_normalizes_texture_v(
@@ -1010,13 +1008,28 @@ def prepare_model_import_mesh_edit(
             getattr(mesh, "path", "") or str(model_path),
         ),
     )
-    for source, target in zip(
-        tuple(getattr(preview_model, "meshes", ()) or ()),
-        tuple(mesh.submeshes or ()),
-    ):
-        copy_extra_submesh_attrs(source, target)
+    _copy_preview_attrs_to_source_submeshes(preview_model, mesh.submeshes)
     raise_if_cancelled(stop_event)
     return edited_scene, preview_model, analyze_mesh_geometry(mesh), texture_count
+
+
+def _copy_preview_attrs_to_source_submeshes(preview_model: object, submeshes) -> None:
+    """Return the preview's material attributes to the submeshes they were built from.
+
+    The preview drops parts without a renderable triangle (three-vertex placeholder
+    parts, for example), so its meshes do not line up with the scene's submeshes by
+    position. A positional copy gave later parts their neighbours' glTF texture
+    inputs, and the parts left without their own inputs exported with no normal map.
+    Each preview mesh records its source index; follow that.
+    """
+
+    from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
+
+    parts = tuple(submeshes or ())
+    for preview_mesh in tuple(getattr(preview_model, "meshes", ()) or ()):
+        index = getattr(preview_mesh, "source_submesh_index", -1)
+        if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(parts):
+            copy_extra_submesh_attrs(preview_mesh, parts[index])
 
 
 def _name_separated_parts_uniquely(mesh: object, previous: object = None) -> None:
@@ -1345,16 +1358,10 @@ def load_model_import_source(
         texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
         if converted_fbx:
             apply_fbx_sibling_texture_factors(scene, preview_model)
-        from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
-
         set_dotnet_preview_texture_flip_vertical(
             preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),
         )
-        for source, target in zip(
-            tuple(getattr(preview_model, "meshes", ()) or ()),
-            tuple(getattr(scene.mesh, "submeshes", ()) or ()),
-        ):
-            copy_extra_submesh_attrs(source, target)
+        _copy_preview_attrs_to_source_submeshes(preview_model, getattr(scene.mesh, "submeshes", ()))
         notes = tuple(str(line) for line in tuple(getattr(scene, "diagnostics", ()) or ())[:6])
         flip_v = scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path))
         analysis = analyze_mesh_geometry(scene.mesh)

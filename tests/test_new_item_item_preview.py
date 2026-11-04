@@ -181,6 +181,94 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual(moved, [(ModelPlacement(offset=(1.0, 0.0, 0.0)), True)])
         self.assertEqual(frame.placement.offset, (1.0, 0.0, 0.0))
 
+    def test_reselecting_a_cached_template_frames_it_with_a_grounded_package(self) -> None:
+        """Template A, template B, back to A: the warm cache loaded A's Preview Core
+        package first with a camera reset. It has bounds but no grounded initial
+        view, and the viewport said "Full textures loaded" over an empty scene."""
+
+        from PySide6.QtCore import QEventLoop
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        workspace = tempfile.TemporaryDirectory(prefix="cdmw-item-preview-reselect-")
+        self.addCleanup(workspace.cleanup)
+        root = Path(workspace.name)
+        native_root = root / "native"
+
+        def write_package(path: Path, *, grounded: bool) -> Path:
+            path.mkdir(parents=True, exist_ok=True)
+            framing = {"bounds": {"min": [0, 0, 0], "max": [1, 1, 1]}}
+            if grounded:
+                framing["initial_view"] = {"view_direction": [0, 0, -1], "screen_up_direction": [0, 1, 0]}
+            (path / "manifest.json").write_text(
+                json.dumps({"state": {"preview_scene": {"framing": framing}}}), encoding="utf-8")
+            return path
+
+        counter = iter(range(1000))
+
+        def fake_python_package(source, **_kwargs):
+            # Geometry packages are built by the Python writer with a grounded view.
+            return write_package(root / "output" / f"geometry_{next(counter)}" / "package", grounded=True)
+
+        geometry_calls = []
+
+        def template_source(key):
+            native = write_package(root / "output" / "rust_wgpu_v1" / "packages" / f"t{key}" / "package",
+                                   grounded=False)
+
+            def geometry(_stop):
+                geometry_calls.append(key)
+                return object()
+
+            def materials(_stop, **_context):
+                return native
+
+            def cached(_stop, **_context):
+                return native
+
+            return ProgressivePreviewSource(geometry, materials, supports_fast_material_package=True,
+                                            cached_materials=cached, geometry_token=("template-scene", key))
+
+        frame = ItemPreviewFrame(output_root=root / "output", native_preview_core_cache_root=native_root,
+                                 host_factory=self._fake_host_class())
+        frame.set_cache_mode("balanced")
+        self.assertTrue(frame._ensure_host())
+        host = frame.host
+        loads = []
+
+        def load_package(package, *_args, reset_view=False, **_kwargs):
+            # Retired transient packages are removed later; read the framing now.
+            manifest = json.loads((Path(package) / "manifest.json").read_text(encoding="utf-8"))
+            framing = manifest["state"]["preview_scene"]["framing"]
+            loads.append((Path(package), bool(reset_view), "initial_view" in framing))
+            return True
+
+        host.load_package = load_package
+
+        def settle():
+            deadline = time.monotonic() + 5
+            while (frame._thread is not None or frame._upgrade_request is not None) and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            host.controller.state_changed.emit("ready", "")
+
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", fake_python_package):
+            for key in (1, 2, 1):
+                frame.show(template_source(key), token=("template", key), framing_key=key)
+                settle()
+            loads_before_same_frame = len(geometry_calls)
+            # Same template framed already (another token for it): the cached
+            # material package may land directly, without re-reading geometry.
+            frame.show(template_source(1), token=("template", 1, "glow"), framing_key=1)
+            settle()
+
+        self.assertTrue(loads)
+        for package, reset_view, grounded in loads:
+            if reset_view:
+                self.assertTrue(grounded, f"{package} took a camera reset without a grounded view")
+        self.assertEqual(geometry_calls[:3], [1, 2, 1], "a newly framed template builds its geometry stage")
+        self.assertEqual(len(geometry_calls), loads_before_same_frame, "an already framed template reuses the cache")
+        self.assertEqual(loads[-1][0].parent.name, "t1")
+
 
 if __name__ == "__main__":
     unittest.main()

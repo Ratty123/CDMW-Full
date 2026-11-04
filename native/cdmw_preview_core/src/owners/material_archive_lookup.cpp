@@ -536,6 +536,38 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     return components;
 }
 
+// The prefab search above guesses item prefab names from the model stem
+// (`<stem>.prefab`, `_s`, `_l`, `_r`, `_v`). Item prefabs also use other
+// suffixes, such as `cd_phw_00_ub_00_0151_u.prefab`, and then none of the
+// companions were found: textured New Item previews dropped every model but
+// the primary. A caller that names its enabled components has already read
+// the item's own prefab, so those exact paths are authoritative as well.
+static std::vector<ArchiveEntryRef> enabled_prefab_component_refs_for_job(
+    const EntryJob& job,
+    const PamtIndex& index,
+    size_t max_components = 8
+) {
+    std::vector<ArchiveEntryRef> components = prefab_model_component_refs_for_job(job, index, max_components);
+    if (job.extension != ".pac" || job.enabled_prefab_component_paths.empty()) return components;
+    std::set<std::string> seen_paths;
+    for (const ArchiveEntryRef& component : components) {
+        seen_paths.insert(prefab_component_path_key(component.path));
+    }
+    const std::string primary_key = prefab_component_path_key(job.path);
+    for (const std::string& enabled_path : job.enabled_prefab_component_paths) {
+        if (components.size() >= max_components) break;
+        const std::string key = prefab_component_path_key(enabled_path);
+        if (key.empty() || key == primary_key || seen_paths.count(key)) continue;
+        std::optional<ArchiveEntryRef> resolved = resolve_archive_path_across_package(job, index, enabled_path);
+        if (!resolved.has_value()) continue;
+        if (prefab_component_path_key(resolved->path) != key) continue;
+        if (resolved->extension != ".pac" && resolved->extension != ".pam" && resolved->extension != ".pamlod") continue;
+        seen_paths.insert(key);
+        components.push_back(*resolved);
+    }
+    return components;
+}
+
 static bool direct_sibling_sidecar_variant_allowed_for_fuzzy_match(
     const std::string& model_stem_lower,
     const std::string& ref_stem_lower
@@ -581,7 +613,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
         }
     }
     if (job.extension == ".pac" && !job.enabled_prefab_component_paths.empty()) {
-        for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 12)) {
+        for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index, 12)) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
             if (!prefab_component_enabled_for_job(component, job)) continue;
             const std::string component_stem = stem_from_path(component.path);
