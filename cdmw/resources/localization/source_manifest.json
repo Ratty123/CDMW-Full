@@ -6081,7 +6081,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4927,
+          "line": 4953,
           "sink": "rust-presentation"
         }
       ]
@@ -7836,7 +7836,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4987,
+          "line": 5013,
           "sink": "rust-presentation"
         }
       ]
@@ -8046,7 +8046,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5331,
+          "line": 5357,
           "sink": "rust-presentation"
         }
       ]
@@ -8096,7 +8096,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5357,
+          "line": 5383,
           "sink": "rust-presentation"
         }
       ]
@@ -9036,7 +9036,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4596,
+          "line": 4622,
           "sink": "rust-presentation"
         }
       ]
@@ -11966,7 +11966,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4547,
+          "line": 4573,
           "sink": "rust-presentation"
         }
       ]
@@ -12311,7 +12311,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4549,
+          "line": 4575,
           "sink": "rust-presentation"
         }
       ]
@@ -12566,7 +12566,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5364,
+          "line": 5390,
           "sink": "rust-presentation"
         }
       ]
@@ -13621,17 +13621,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5010,
+          "line": 5036,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5029,
+          "line": 5055,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5058,
+          "line": 5084,
           "sink": "rust-presentation"
         }
       ]
@@ -13691,7 +13691,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4982,
+          "line": 5008,
           "sink": "rust-presentation"
         }
       ]
@@ -18961,7 +18961,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5056,
+          "line": 5082,
           "sink": "rust-presentation"
         }
       ]
@@ -18986,7 +18986,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5043,
+          "line": 5069,
           "sink": "rust-presentation"
         }
       ]
@@ -19001,7 +19001,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4936,
+          "line": 4962,
           "sink": "rust-presentation"
         }
       ]
@@ -25226,7 +25226,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4552,
+          "line": 4578,
           "sink": "rust-presentation"
         }
       ]
@@ -25296,7 +25296,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4553,
+          "line": 4579,
           "sink": "rust-presentation"
         }
       ]
@@ -25381,7 +25381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 687,
+          "line": 688,
           "sink": "set_status_message"
         }
       ]
@@ -26731,7 +26731,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4731,
+          "line": 4757,
           "sink": "rust-presentation"
         }
       ]
@@ -29331,7 +29331,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5012,
+          "line": 5038,
           "sink": "rust-presentation"
         }
       ]
@@ -29341,7 +29341,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5031,
+          "line": 5057,
           "sink": "rust-presentation"
         }
       ]
@@ -29351,7 +29351,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5060,
+          "line": 5086,
           "sink": "rust-presentation"
         }
       ]
@@ -29361,7 +29361,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4762,
+          "line": 4788,
           "sink": "rust-presentation"
         }
       ]
@@ -30471,7 +30471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 107,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -31076,7 +31076,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4970,
+          "line": 4996,
           "sink": "rust-presentation"
         }
       ]
@@ -33341,12 +33341,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5315,
+          "line": 5341,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5325,
+          "line": 5351,
           "sink": "rust-presentation"
         }
       ]
@@ -38266,7 +38266,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5005,
+          "line": 5031,
           "sink": "rust-presentation"
         }
       ]
@@ -38326,7 +38326,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5033,
+          "line": 5059,
           "sink": "rust-presentation"
         }
       ]
@@ -38371,7 +38371,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5019,
+          "line": 5045,
           "sink": "rust-presentation"
         }
       ]
@@ -41426,7 +41426,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5317,
+          "line": 5343,
           "sink": "rust-presentation"
         },
         {
@@ -41621,7 +41621,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5336,
+          "line": 5362,
           "sink": "rust-presentation"
         }
       ]
@@ -43236,12 +43236,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4622,
+          "line": 4648,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5062,
+          "line": 5088,
           "sink": "rust-presentation"
         },
         {
@@ -43566,7 +43566,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5063,
+          "line": 5089,
           "sink": "rust-presentation"
         }
       ]
@@ -43646,7 +43646,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4622,
+          "line": 4648,
           "sink": "rust-presentation"
         },
         {
@@ -43966,7 +43966,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4760,
+          "line": 4786,
           "sink": "rust-presentation"
         }
       ]
@@ -44011,7 +44011,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5327,
+          "line": 5353,
           "sink": "rust-presentation"
         }
       ]
@@ -44036,7 +44036,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5316,
+          "line": 5342,
           "sink": "rust-presentation"
         }
       ]
@@ -46466,7 +46466,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5050,
+          "line": 5076,
           "sink": "rust-presentation"
         }
       ]
@@ -47516,7 +47516,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4622,
+          "line": 4648,
           "sink": "rust-presentation"
         },
         {
@@ -47571,7 +47571,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4656,
+          "line": 4682,
           "sink": "rust-presentation"
         }
       ]
@@ -47656,7 +47656,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4622,
+          "line": 4648,
           "sink": "rust-presentation"
         }
       ]
@@ -49126,7 +49126,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5369,
+          "line": 5395,
           "sink": "rust-presentation"
         }
       ]
@@ -50916,7 +50916,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4652,
+          "line": 4678,
           "sink": "rust-presentation"
         }
       ]
@@ -51501,7 +51501,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5039,
+          "line": 5065,
           "sink": "rust-presentation"
         }
       ]
@@ -54041,7 +54041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 675,
+          "line": 676,
           "sink": "question"
         }
       ]
@@ -54356,7 +54356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 731,
+          "line": 732,
           "sink": "getSaveFileName"
         }
       ]
@@ -55446,7 +55446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 220,
+          "line": 225,
           "sink": "RuntimeError"
         }
       ]
@@ -55611,7 +55611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 747,
+          "line": 748,
           "sink": "set_status_message"
         }
       ]
@@ -55716,7 +55716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 700,
+          "line": 701,
           "sink": "set_status_message"
         }
       ]
@@ -56141,7 +56141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 702,
+          "line": 703,
           "sink": "_run_utility_task"
         }
       ]
@@ -56411,7 +56411,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5358,
+          "line": 5384,
           "sink": "rust-presentation"
         }
       ]
@@ -59696,7 +59696,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4758,
+          "line": 4784,
           "sink": "rust-presentation"
         }
       ]
@@ -59721,12 +59721,12 @@
         },
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         },
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         }
       ]
@@ -62566,7 +62566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         }
       ]
@@ -64316,22 +64316,22 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5008,
+          "line": 5034,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5027,
+          "line": 5053,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5045,
+          "line": 5071,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5054,
+          "line": 5080,
           "sink": "rust-presentation"
         }
       ]
@@ -64341,7 +64341,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4980,
+          "line": 5006,
           "sink": "rust-presentation"
         }
       ]
@@ -64351,7 +64351,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4938,
+          "line": 4964,
           "sink": "rust-presentation"
         }
       ]
@@ -64361,7 +64361,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4920,
+          "line": 4946,
           "sink": "rust-presentation"
         }
       ]
@@ -68206,7 +68206,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4897,
+          "line": 4923,
           "sink": "rust-presentation"
         }
       ]
@@ -68216,7 +68216,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4943,
+          "line": 4969,
           "sink": "rust-presentation"
         }
       ]
@@ -68251,7 +68251,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4607,
+          "line": 4633,
           "sink": "rust-presentation"
         }
       ]
@@ -68326,7 +68326,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4955,
+          "line": 4981,
           "sink": "rust-presentation"
         }
       ]
@@ -68376,7 +68376,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4803,
+          "line": 4829,
           "sink": "rust-presentation"
         }
       ]
@@ -68446,7 +68446,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4947,
+          "line": 4973,
           "sink": "rust-presentation"
         }
       ]
@@ -68571,7 +68571,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5353,
+          "line": 5379,
           "sink": "rust-presentation"
         }
       ]
@@ -68591,7 +68591,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5362,
+          "line": 5388,
           "sink": "rust-presentation"
         }
       ]
@@ -71236,7 +71236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 76,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -71721,7 +71721,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4543,
+          "line": 4550,
           "sink": "rust-presentation"
         }
       ]
@@ -72136,7 +72136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1362,
+          "line": 1402,
           "sink": "ValueError"
         }
       ]
@@ -72891,7 +72891,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4727,
+          "line": 4753,
           "sink": "rust-presentation"
         }
       ]
@@ -76326,7 +76326,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4602,
+          "line": 4628,
           "sink": "rust-presentation"
         },
         {
@@ -78356,7 +78356,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4542,
+          "line": 4547,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Keep Original Materials draws the game's textures on this model's UVs. They only line up if its UVs match the original layout.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4570,
           "sink": "rust-presentation"
         }
       ]
@@ -78396,7 +78406,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4774,
+          "line": 4800,
           "sink": "rust-presentation"
         }
       ]
@@ -78406,7 +78416,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4658,
+          "line": 4684,
           "sink": "rust-presentation"
         }
       ]
@@ -79836,7 +79846,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4893,
+          "line": 4919,
           "sink": "rust-presentation"
         },
         {
@@ -79886,7 +79896,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5067,
+          "line": 5093,
           "sink": "rust-presentation"
         }
       ]
@@ -80011,7 +80021,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4983,
+          "line": 5009,
           "sink": "rust-presentation"
         }
       ]
@@ -80676,7 +80686,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5315,
+          "line": 5341,
           "sink": "rust-presentation"
         }
       ]
@@ -83916,12 +83926,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5335,
+          "line": 5361,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5342,
+          "line": 5368,
           "sink": "rust-presentation"
         }
       ]
@@ -86326,7 +86336,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5316,
+          "line": 5342,
           "sink": "rust-presentation"
         }
       ]
@@ -88606,7 +88616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 695,
+          "line": 696,
           "sink": "information"
         }
       ]
@@ -88851,7 +88861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 672,
+          "line": 673,
           "sink": "set_status_message"
         }
       ]
@@ -88871,7 +88881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 292,
+          "line": 297,
           "sink": "ValueError"
         }
       ]
@@ -88881,7 +88891,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 290,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -90101,7 +90111,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5346,
+          "line": 5372,
           "sink": "rust-presentation"
         }
       ]
@@ -91776,7 +91786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 743,
+          "line": 744,
           "sink": "warning"
         }
       ]
@@ -92096,7 +92106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 744,
+          "line": 745,
           "sink": "set_status_message"
         }
       ]
@@ -93591,7 +93601,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5051,
+          "line": 5077,
           "sink": "rust-presentation"
         }
       ]
@@ -93601,7 +93611,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5048,
+          "line": 5074,
           "sink": "rust-presentation"
         }
       ]
@@ -95236,7 +95246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 90,
+          "line": 95,
           "sink": "RuntimeError"
         }
       ]
@@ -99271,7 +99281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 720,
+          "line": 721,
           "sink": "set_status_message"
         }
       ]
@@ -101041,7 +101051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 675,
+          "line": 676,
           "sink": "question"
         }
       ]
@@ -101371,7 +101381,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4599,
+          "line": 4625,
           "sink": "rust-presentation"
         }
       ]
@@ -104251,7 +104261,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5293,
+          "line": 5319,
           "sink": "rust-presentation"
         }
       ]
@@ -106866,7 +106876,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5114,
+          "line": 5140,
           "sink": "rust-presentation"
         },
         {
@@ -108956,7 +108966,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5350,
+          "line": 5376,
           "sink": "rust-presentation"
         }
       ]
@@ -110721,7 +110731,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4666,
+          "line": 4692,
           "sink": "rust-presentation"
         },
         {
@@ -110886,7 +110896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         },
         {
@@ -111326,7 +111336,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5024,
+          "line": 5050,
           "sink": "rust-presentation"
         }
       ]
@@ -111386,7 +111396,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5037,
+          "line": 5063,
           "sink": "rust-presentation"
         }
       ]
@@ -111431,7 +111441,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4998,
+          "line": 5024,
           "sink": "rust-presentation"
         }
       ]
@@ -112696,12 +112706,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4665,
+          "line": 4691,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4666,
+          "line": 4692,
           "sink": "rust-presentation"
         },
         {
@@ -116706,7 +116716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1355,
+          "line": 1395,
           "sink": "on_log"
         }
       ]
@@ -123131,7 +123141,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5188,
+          "line": 5214,
           "sink": "rust-presentation"
         }
       ]
@@ -125011,7 +125021,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4991,
+          "line": 5017,
           "sink": "rust-presentation"
         }
       ]
@@ -129911,7 +129921,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5039,
+          "line": 5065,
           "sink": "rust-presentation"
         }
       ]
@@ -129941,7 +129951,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5040,
+          "line": 5066,
           "sink": "rust-presentation"
         }
       ]
@@ -131356,7 +131366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         }
       ]
@@ -134906,7 +134916,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5373,
+          "line": 5399,
           "sink": "rust-presentation"
         }
       ]
@@ -134926,7 +134936,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5377,
+          "line": 5403,
           "sink": "rust-presentation"
         }
       ]
@@ -137806,7 +137816,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5346,
+          "line": 5372,
           "sink": "rust-presentation"
         }
       ]
@@ -138181,7 +138191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1360,
+          "line": 1400,
           "sink": "ValueError"
         }
       ]
@@ -145321,7 +145331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 98,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -145651,7 +145661,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4994,
+          "line": 5020,
           "sink": "rust-presentation"
         }
       ]
@@ -145676,7 +145686,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5014,
+          "line": 5040,
           "sink": "rust-presentation"
         }
       ]
@@ -145866,7 +145876,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4766,
+          "line": 4792,
           "sink": "rust-presentation"
         }
       ]
@@ -147016,7 +147026,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5299,
+          "line": 5325,
           "sink": "rust-presentation"
         }
       ]
@@ -149846,7 +149856,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4611,
+          "line": 4637,
           "sink": "rust-presentation"
         }
       ]
@@ -150511,7 +150521,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4957,
+          "line": 4983,
           "sink": "rust-presentation"
         }
       ]
@@ -150851,7 +150861,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4711,
+          "line": 4737,
           "sink": "rust-presentation"
         }
       ]
@@ -151136,7 +151146,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4694,
+          "line": 4720,
           "sink": "rust-presentation"
         }
       ]
@@ -151146,7 +151156,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4712,
+          "line": 4738,
           "sink": "rust-presentation"
         }
       ]
@@ -155151,12 +155161,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5334,
+          "line": 5360,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5339,
+          "line": 5365,
           "sink": "rust-presentation"
         }
       ]
@@ -165616,7 +165626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 111,
+          "line": 128,
           "sink": "ValueError"
         }
       ]
@@ -169301,7 +169311,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5358,
+          "line": 5384,
           "sink": "rust-presentation"
         }
       ]
@@ -170562,11 +170572,31 @@
       ]
     },
     {
+      "key": "This model has its own textures. Keep Original Materials draws the game's textures on its UVs instead, which only lines up if its UVs match the original layout. Choose Imported Materials & Textures to use its own.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4568,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "This model has no authored cloth guides. Profile edits do not add cloth or bone jiggle.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 488,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4565,
           "sink": "rust-presentation"
         }
       ]
@@ -170881,7 +170911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 109,
+          "line": 126,
           "sink": "ValueError"
         }
       ]
@@ -171101,7 +171131,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4752,
+          "line": 4778,
           "sink": "rust-presentation"
         },
         {
@@ -173261,7 +173291,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5279,
+          "line": 5305,
           "sink": "rust-presentation"
         }
       ]
@@ -173281,7 +173311,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5291,
+          "line": 5317,
           "sink": "rust-presentation"
         }
       ]
@@ -173406,7 +173436,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5282,
+          "line": 5308,
           "sink": "rust-presentation"
         }
       ]
@@ -173806,7 +173836,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4749,
+          "line": 4775,
           "sink": "rust-presentation"
         },
         {
@@ -175616,7 +175646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 72,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -176381,7 +176411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 164,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -176461,7 +176491,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4560,
+          "line": 4586,
           "sink": "rust-presentation"
         }
       ]
@@ -176601,7 +176631,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5047,
+          "line": 5073,
           "sink": "rust-presentation"
         }
       ]
@@ -176926,7 +176956,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4650,
+          "line": 4676,
           "sink": "rust-presentation"
         }
       ]
@@ -178156,7 +178186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         }
       ]
@@ -180851,7 +180881,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4559,
+          "line": 4585,
           "sink": "rust-presentation"
         }
       ]
@@ -180921,7 +180951,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4617,
+          "line": 4643,
           "sink": "rust-presentation"
         }
       ]
@@ -181021,7 +181051,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4606,
+          "line": 4632,
           "sink": "rust-presentation"
         }
       ]
@@ -181041,7 +181071,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4897,
+          "line": 4923,
           "sink": "rust-presentation"
         },
         {
@@ -181761,7 +181791,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4746,
+          "line": 4772,
           "sink": "rust-presentation"
         }
       ]
@@ -182236,7 +182266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 731,
+          "line": 732,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -182251,7 +182281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 731,
+          "line": 732,
           "sink": "getSaveFileName"
         }
       ]
@@ -193366,7 +193396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 232,
+          "line": 237,
           "sink": "RuntimeError"
         }
       ]
@@ -200141,7 +200171,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 714,
+          "line": 715,
           "sink": "_start_archive_mesh_export"
         }
       ]
@@ -201501,7 +201531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 240,
+          "line": 245,
           "sink": "RuntimeError"
         }
       ]
@@ -203471,7 +203501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_interchange_export.py",
-          "line": 114,
+          "line": 119,
           "sink": "RuntimeError"
         }
       ]
@@ -208966,7 +208996,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 5122,
+          "line": 5148,
           "sink": "rust-presentation"
         }
       ]
@@ -209471,7 +209501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 695,
+          "line": 696,
           "sink": "information"
         }
       ]
@@ -210971,7 +211001,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4589,
+          "line": 4615,
           "sink": "rust-presentation"
         }
       ]
@@ -216771,7 +216801,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4681,
+          "line": 4707,
           "sink": "rust-presentation"
         }
       ]
@@ -217111,7 +217141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 61,
+          "line": 62,
           "sink": "python-return:replacement_ui_state"
         },
         {

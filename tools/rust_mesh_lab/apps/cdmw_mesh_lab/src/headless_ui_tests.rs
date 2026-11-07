@@ -5458,6 +5458,60 @@ fn integrated_replacement_mapping_defaults_to_original_materials() -> TestResult
     Ok(())
 }
 
+const REPLACEMENT_MISSING_MATERIALS_WARNING: &str = "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.";
+const REPLACEMENT_OWN_TEXTURES_HINT: &str = "This model has its own textures. Keep Original Materials draws the game's textures on its UVs instead, which only lines up if its UVs match the original layout. Choose Imported Materials & Textures to use its own.";
+
+fn replacement_pending_with_materials(materials: serde_json::Value) -> serde_json::Value {
+    json!({
+        "available": true, "active": false, "comparison": "edit",
+        "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}],
+        "pending": {"token": "materials", "source": "helm.obj",
+            "targets": [{"id": "stable:0", "name": "Triangle"}],
+            "sources": [{"name": "Helm", "target": "stable:0"}],
+            "materials": materials}
+    })
+}
+
+#[test]
+fn integrated_replacement_mapping_warns_when_imported_materials_are_missing() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
+        "error": "Missing imported material library: C:/models/helm.mtl", "textures": 0,
+    }));
+    ui.reveal(REPLACEMENT_MISSING_MATERIALS_WARNING)?;
+    // The disabled imported choice cannot be picked; Apply stays geometry-only.
+    ui.click("Imported Materials & Textures")?;
+    assert!(ui.actions_from_click("Apply Replacement")?.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+        if arguments["materials"] == "original"
+    )));
+    assert!(ui.label_rect(REPLACEMENT_OWN_TEXTURES_HINT).is_none());
+    Ok(())
+}
+
+#[test]
+fn integrated_replacement_mapping_points_out_the_models_own_textures() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
+        "error": "", "textures": 2,
+    }));
+    ui.reveal(REPLACEMENT_OWN_TEXTURES_HINT)?;
+    assert!(ui.label_rect(REPLACEMENT_MISSING_MATERIALS_WARNING).is_none());
+    ui.click("Imported Materials & Textures")?;
+    assert!(ui.label_rect(REPLACEMENT_OWN_TEXTURES_HINT).is_none());
+    assert!(ui.actions_from_click("Apply Replacement")?.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+        if arguments["materials"] == "imported"
+    )));
+    Ok(())
+}
+
 #[test]
 fn integrated_replacement_mapping_explains_scope_and_part_destinations() -> TestResult {
     for entire_mesh in [true, false] {

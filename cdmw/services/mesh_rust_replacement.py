@@ -57,8 +57,25 @@ def replacement_ui_state(authoring):
             "targets": [part for part in parts if part["id"] in pending.target_part_ids],
             "sources": [{"name": part.name or f"Source {index}", "target": pending.suggested_targets[index]}
                         for index, part in enumerate(pending.source.mesh.submeshes)],
+            "materials": imported_material_status(pending),
         }
     return payload
+
+
+_IMAGE_SUFFIXES = {".dds", ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
+
+
+def imported_material_status(pending):
+    """What Imported Materials & Textures could use, so the mapping step can
+    say when Keep Original Materials will draw the game's textures on the
+    imported model's own UVs."""
+    files = {str(path).casefold() for path, _digest in pending.material_source_files
+             if Path(path).suffix.lower() in _IMAGE_SUFFIXES}
+    # Embedded glTF/GLB images have no file of their own; their bindings do.
+    files.update(str(texture).casefold()
+                 for binding in getattr(pending.source, "material_bindings", ()) or ()
+                 for _role, texture in getattr(binding, "texture_slots", ()) or ())
+    return {"error": pending.material_error, "textures": len(files)}
 
 
 def run_replacement_command(authoring, command, args, stop_event):

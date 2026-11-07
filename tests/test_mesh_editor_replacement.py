@@ -202,3 +202,31 @@ def test_cancelled_preparation_and_imported_material_rejection_are_inert(editor,
         compose_import(pending, (pending.target_part_ids[0],), material_choice="imported")
     assert service.session_view(session_id).undo_count == 0
     assert service._session(session_id).replacement_state is None
+
+
+def test_mapping_reports_imported_material_status(editor, tmp_path):
+    """The mapping step can only warn about a texture clash it is told about."""
+    from cdmw.services.mesh_rust_replacement import imported_material_status
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    body = "v 12 3 7\nv 16 3 7\nv 12 5 8\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl Iron\nf 1/1 2/2 3/3\n"
+
+    missing = tmp_path / "missing" / "helm.obj"
+    missing.parent.mkdir()
+    missing.write_text("mtllib helm.mtl\no helm\n" + body)
+    status = imported_material_status(prepare_import(snapshot, missing))
+    assert "helm.mtl" in status["error"]
+
+    present = tmp_path / "present" / "helm.obj"
+    present.parent.mkdir()
+    present.write_text("mtllib helm.mtl\no helm\n" + body)
+    (present.parent / "helm.mtl").write_text("newmtl Iron\nmap_Kd iron.png\n")
+    (present.parent / "iron.png").write_bytes(
+        bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+                      "0000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"))
+    status = imported_material_status(prepare_import(snapshot, present))
+    assert status == {"error": "", "textures": 1}
+
+    (tmp_path / "plain").mkdir()
+    plain = imported_material_status(prepare_import(snapshot, source_obj(tmp_path / "plain")))
+    assert plain == {"error": "", "textures": 0}

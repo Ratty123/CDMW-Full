@@ -11,6 +11,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Create New Item chooses shops in a searchable **Choose shop…** list instead of a long dropdown. Search by merchant, place, type, internal `Store_` ID or an item the shop sells. Only merchants confirmed in game are named; other names come from the shop's table key and are marked with `*`. When adding a new shop entry you can tick several shops at once; each becomes a saved route, and shops that already have one are skipped.
 - An imported model part with more than 65,535 vertices no longer stops the build with an error. A PAC draw section cannot hold more, so the part is split across extra draw sections and the build notes say so. In a complete swap the extra piece takes a template material slot that no imported part uses; without one, the error says to decimate the part. Mesh Editor's **Import Replacement…** keeps the target's draw sections, so it names such a part and asks you to decimate it before anything is built. A split part has not yet been checked in game.
+- Mesh Editor's **Import Replacement…** explains why textures can look mixed up after a replacement. **Keep Original Materials** draws the game's textures on the imported model's own UVs, and the mapping step now says so. It points to **Imported Materials & Textures** when the model brings its own textures. When the model's MTL file or textures are missing, the imported choice is disabled and a warning appears; hover over it to see which file is missing.
 
 ### Fixed
 

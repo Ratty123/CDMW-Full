@@ -973,6 +973,14 @@ preparation or Apply with a specific reason. This mode also rejects material
 dependencies that changed after import preparation and never silently uses original
 materials.
 
+Keep Original Materials draws the target's textures on the imported model's own
+UVs, so it only looks right when those UVs match the original layout. The mapping
+step says so. When the import found the model's own textures it suggests
+**Imported Materials & Textures**; when its MTL or textures are missing it
+disables that choice and shows a warning, with the exact missing file on hover.
+`replacement_ui_state()` sends this as `pending.materials`
+(`{"error", "textures"}`).
+
 Imported materials follow the selected part's exact sidecar binding, even when its
 embedded material label differs from the part name or uses different letter case.
 Separate bindings can retain the same embedded label. Repeating part bindings in

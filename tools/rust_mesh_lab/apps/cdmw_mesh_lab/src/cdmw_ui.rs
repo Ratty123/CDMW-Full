@@ -4538,11 +4538,37 @@ impl LabApplication {
                     }
                     let material_id = egui::Id::new(("replacement_materials", token));
                     let mut imported = ui.ctx().data_mut(|data| data.get_temp::<bool>(material_id)).unwrap_or(false);
+                    let material_error = pending["materials"]["error"].as_str().unwrap_or("").trim().to_owned();
+                    let imported_textures = pending["materials"]["textures"].as_u64().unwrap_or(0);
+                    if !material_error.is_empty() {
+                        imported = false;
+                    }
                     ui.horizontal_wrapped(|ui| {
                         ui.radio_value(&mut imported, false, crate::localization::tr("Keep Original Materials"));
-                        ui.radio_value(&mut imported, true, crate::localization::tr("Imported Materials & Textures"));
+                        let imported_radio = ui.add_enabled(
+                            material_error.is_empty(),
+                            egui::RadioButton::new(imported, crate::localization::tr("Imported Materials & Textures")),
+                        );
+                        if imported_radio.clicked() {
+                            imported = true;
+                        }
+                        if !material_error.is_empty() {
+                            imported_radio.on_disabled_hover_text(&material_error);
+                        }
                     });
                     ui.ctx().data_mut(|data| data.insert_temp(material_id, imported));
+                    // Keep Original Materials draws the game's textures on the
+                    // imported UVs; say so before the result looks mixed up.
+                    if !material_error.is_empty() {
+                        ui.colored_label(
+                            ui.visuals().warn_fg_color,
+                            crate::localization::tr("This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again."),
+                        ).on_hover_text(&material_error);
+                    } else if !imported && imported_textures > 0 {
+                        ui.small(crate::localization::tr("This model has its own textures. Keep Original Materials draws the game's textures on its UVs instead, which only lines up if its UVs match the original layout. Choose Imported Materials & Textures to use its own."));
+                    } else if !imported && pending.get("materials").is_some() {
+                        ui.small(crate::localization::tr("Keep Original Materials draws the game's textures on this model's UVs. They only line up if its UVs match the original layout."));
+                    }
                     ui.horizontal_wrapped(|ui| {
                         if ui.add_enabled(choices.iter().all(|value| !value.is_empty()), Button::new(crate::localization::tr("Apply Replacement"))).clicked() {
                             actions.push(UiAction::CdmwCommand {
