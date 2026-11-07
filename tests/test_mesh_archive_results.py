@@ -333,6 +333,56 @@ def test_combined_refit_keeps_each_asset_and_dependency_context(tmp_path, monkey
         service.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
 
 
+@pytest.mark.parametrize("continue_editing", [False, True])
+def test_resumed_refit_draft_adds_its_result_and_starts_the_next_pass(tmp_path, monkeypatch, continue_editing):
+    # A resumed draft restores its Refit sources from their saved bytes, without
+    # the archive context each one was first opened with.
+    from tests.test_mesh_archive_refit import _load_pair, _edit_both
+    from cdmw.services.mesh_archive_refit import load_archive_refit_context, save_archive_refit_context
+
+    app = QApplication.instance() or QApplication([])
+    source, service, editor, primary, armor, _loaded = _load_pair(tmp_path)
+    try:
+        _edit_both(editor)
+        editor.finish(_request(editor, "finish_request", 31))
+        snapshot = service.capture_export_snapshot(editor.authoritative_session_id)
+        session = service._session(snapshot.session_id)
+        project = tmp_path / "draft"
+        project.mkdir()
+        payload = save_archive_refit_context(session.archive_refit_context, project, threading.Event())
+        session.archive_refit_context = load_archive_refit_context(payload, project)
+        assert all(asset.preview_lease is None for asset in session.archive_refit_context.assets)
+        prepared = _entry(tmp_path / "prepared", primary.path, source)
+        primary_source = replace(primary, prepared_path=prepared.prepared_path,
+            prepared_sha256=prepared.prepared_sha256, prepared_size=len(source))
+        tab = MeshEditorTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat))
+        tab.standalone_controller = SimpleNamespace(mesh_service=service, active_session_id=snapshot.session_id)
+        tab.archive_session_dependencies = _context(primary_source, (primary_source,))
+        captured, messages = [], []
+        tab.status_message_requested.connect(lambda message, _error: messages.append(message))
+        monkeypatch.setattr(tab, "_mesh_output_target", lambda: primary)
+        monkeypatch.setattr(tab, "_standalone_export_validation_ok", lambda: True)
+        monkeypatch.setattr(tab, "_standalone_action_worker_active", lambda: False)
+        monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kwargs: captured.append(kwargs))
+        try:
+            tab._start_archive_browser_result_requested(continue_editing=continue_editing)
+            assert not messages and len(captured) == 1
+            assert captured[0]["continue_editing"] is continue_editing
+            result = prepare_mesh_archive_result(service, snapshot, primary,
+                captured[0]["archive_dependency_sources"], tmp_path / "results",
+                material_contexts=captured[0]["archive_material_sources"])
+        finally:
+            tab.standalone_controller = None
+            tab.deleteLater()
+            app.processEvents()
+        assert {entry.path for entry in result.assets} == {primary.path, armor.path}
+        assert [parse_pac(read_archive_entry_data(entry)[0], entry.path).submeshes[0].vertices[0][0]
+                for entry in result.assets] == pytest.approx([0.4, 0.7], abs=2e-5)
+    finally:
+        editor.cancel()
+        service.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
+
+
 @pytest.mark.parametrize("button_name", ["AddtoArchiveBrowser", "Continueeditingmodifiedmesh"])
 def test_accepted_result_button_reaches_tab_handler(tmp_path, button_name):
     app = QApplication.instance() or QApplication([])
