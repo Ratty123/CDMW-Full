@@ -31319,7 +31319,7 @@ MESSAGE_REFERENCE = [
     "message": "A combined mod from mounted items must be written to a new folder. Choose another mod name.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 445
+      "cdmw/services/new_item_service.py": 448
     }
   },
   {
@@ -31367,7 +31367,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 718
+      "cdmw/services/new_item_service.py": 721
     }
   },
   {
@@ -31535,7 +31535,7 @@ MESSAGE_REFERENCE = [
     "message": "A verified character body with compatible skin weights is required for this armour import.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 111
+      "cdmw/services/new_item_skinning.py": 181
     }
   },
   {
@@ -31543,7 +31543,7 @@ MESSAGE_REFERENCE = [
     "message": "A visibility string is shared with an unselected field; refusing to change that field.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 194
+      "cdmw/services/new_item_body_visibility.py": 211
     }
   },
   {
@@ -31737,7 +31737,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 616
+      "cdmw/ui/new_item/controller.py": 628
     }
   },
   {
@@ -31785,7 +31785,7 @@ MESSAGE_REFERENCE = [
     "message": "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.{detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 239
+      "cdmw/services/new_item_skinning.py": 309
     }
   },
   {
@@ -31827,6 +31827,14 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/services/new_item_behavior.py": 36,
       "cdmw/services/new_item_definition.py": 51
+    }
+  },
+  {
+    "area": "items",
+    "message": "Body underneath ({', '.join(names)}) changes shared equipment descriptors, which an item package (.cdmw) cannot carry. Clear it for those components, or write the item as a DMM mod.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 274
     }
   },
   {
@@ -31922,7 +31930,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot create a separate mod from source tables containing other custom items: {detail}. Unmount existing item mods and read the archives again before building the plan, or rebuild with Include mounted items in a new mod or Add to existing mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 427
+      "cdmw/services/new_item_service.py": 430
     }
   },
   {
@@ -32018,7 +32026,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a new output folder outside the game installation for the combined mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 443
+      "cdmw/services/new_item_service.py": 446
     }
   },
   {
@@ -32066,7 +32074,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/state.py": 442
+      "cdmw/ui/new_item/state.py": 446
     }
   },
   {
@@ -32075,6 +32083,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 241
+    }
+  },
+  {
+    "area": "items",
+    "message": "Choose an exact component binding of this template.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/controller_variant_mixin.py": 239
     }
   },
   {
@@ -32234,7 +32250,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1220
+      "cdmw/ui/new_item/panels_model.py": 1341
     }
   },
   {
@@ -32298,7 +32314,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_service.py": 618
+      "cdmw/services/new_item_service.py": 621
     }
   },
   {
@@ -32717,7 +32733,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental visibility: {prefab_path}, {obj.name} has {'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 160
+      "cdmw/services/new_item_body_visibility.py": 172
     }
   },
   {
@@ -32725,7 +32741,7 @@ MESSAGE_REFERENCE = [
     "message": "Fast textures remain visible; full textures failed to load: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 1293
+      "cdmw/ui/new_item/item_preview.py": 1313
     }
   },
   {
@@ -32749,7 +32765,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated variant {stem} matches an existing hide suffix; choose another item name.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 207
+      "cdmw/services/new_item_body_visibility.py": 224
     }
   },
   {
@@ -32797,7 +32813,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported weights belong to another template variant; import against this variant again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1433
+      "cdmw/ui/new_item/model_import.py": 1445
     }
   },
   {
@@ -32842,6 +32858,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Installed character models are fitting references only and cannot be exported.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/new_item/model_import.py": 1425
+    }
+  },
+  {
+    "area": "items",
     "message": "Installed item {item_key} has no previewable model.",
     "recovery": "internal",
     "sources": {
@@ -32861,7 +32885,7 @@ MESSAGE_REFERENCE = [
     "message": "Installing a new item into the game archives requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 647
+      "cdmw/services/new_item_service.py": 650
     }
   },
   {
@@ -33418,6 +33442,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Item package (.cdmw): {sum((len(paths) for paths in hidden.values()))} left-out component(s) keep the template's body-cut rule, because a package cannot carry shared equipment descriptors. Write the item as a DMM mod to drop those cuts.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 277
+    }
+  },
+  {
+    "area": "items",
     "message": "Item preview material upgrade cancelled.",
     "recovery": "cancelled",
     "sources": {
@@ -33653,7 +33685,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 711
+      "cdmw/services/new_item_service.py": 714
     }
   },
   {
@@ -33717,7 +33749,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 897
+      "cdmw/ui/new_item/controller_model_mixin.py": 959
     }
   },
   {
@@ -34119,7 +34151,7 @@ MESSAGE_REFERENCE = [
     "message": "No isolated equipment visibility identity is available for {part.prefab_path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 217
+      "cdmw/services/new_item_body_visibility.py": 234
     }
   },
   {
@@ -34172,6 +34204,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "No supported character mods are installed in this DMM library.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/ui/new_item/installed_character_models.py": 239
+    }
+  },
+  {
+    "area": "items",
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
@@ -34183,7 +34223,7 @@ MESSAGE_REFERENCE = [
     "message": "No unused {len(source_tag)}-byte visibility tag is available for {source_tag}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 31
+      "cdmw/services/new_item_body_visibility.py": 32
     }
   },
   {
@@ -34191,7 +34231,7 @@ MESSAGE_REFERENCE = [
     "message": "No verified character body is available for this target skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_skinning.py": 178
+      "cdmw/services/new_item_skinning.py": 248
     }
   },
   {
@@ -34247,8 +34287,8 @@ MESSAGE_REFERENCE = [
     "message": "Operation cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 123,
-      "cdmw/ui/new_item/model_import.py": 888
+      "cdmw/ui/new_item/item_preview.py": 126,
+      "cdmw/ui/new_item/model_import.py": 890
     }
   },
   {
@@ -34280,7 +34320,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay installation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 845
+      "cdmw/ui/new_item/panels_output.py": 849
     }
   },
   {
@@ -34602,7 +34642,7 @@ MESSAGE_REFERENCE = [
     "message": "Run imported skin preflight against the selected template before Apply placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1431
+      "cdmw/ui/new_item/model_import.py": 1443
     }
   },
   {
@@ -34626,7 +34666,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an exact variant binding from this template.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 92
+      "cdmw/ui/new_item/controller_variant_mixin.py": 105
     }
   },
   {
@@ -34666,7 +34706,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 641
+      "cdmw/ui/new_item/controller_model_mixin.py": 690
     }
   },
   {
@@ -34954,7 +34994,7 @@ MESSAGE_REFERENCE = [
     "message": "Template preview cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/new_item/controller_preview_mixin.py": 431
+      "cdmw/ui/new_item/controller_preview_mixin.py": 489
     }
   },
   {
@@ -35027,8 +35067,8 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 821,
-      "cdmw/ui/new_item/model_import.py": 978
+      "cdmw/ui/new_item/controller_model_mixin.py": 883,
+      "cdmw/ui/new_item/model_import.py": 980
     }
   },
   {
@@ -35188,7 +35228,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 655,
+      "cdmw/services/new_item_service.py": 658,
       "cdmw/ui/new_item/tab.py": 1245,
       "cdmw/workers/new_item_workers.py": 342
     }
@@ -35422,7 +35462,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited visibility components did not decode identically.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 188
+      "cdmw/services/new_item_body_visibility.py": 205
     }
   },
   {
@@ -35510,7 +35550,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon could not be made from that selection: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 368
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 422
     }
   },
   {
@@ -35614,7 +35654,7 @@ MESSAGE_REFERENCE = [
     "message": "The material preview ended without a package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 323
+      "cdmw/ui/new_item/item_preview.py": 333
     }
   },
   {
@@ -35622,7 +35662,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 833
+      "cdmw/ui/new_item/panels_output.py": 837
     }
   },
   {
@@ -35630,7 +35670,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 453
+      "cdmw/ui/new_item/controller_model_mixin.py": 502
     }
   },
   {
@@ -35686,7 +35726,7 @@ MESSAGE_REFERENCE = [
     "message": "The package is written, but Drafts & Mods could not list it: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_continue_mixin.py": 124
+      "cdmw/ui/new_item/controller_continue_mixin.py": 131
     }
   },
   {
@@ -35694,7 +35734,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 768
+      "cdmw/ui/new_item/controller_model_mixin.py": 830
     }
   },
   {
@@ -35702,7 +35742,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan changes nothing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 652
+      "cdmw/services/new_item_service.py": 655
     }
   },
   {
@@ -35710,7 +35750,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 757
+      "cdmw/ui/new_item/panels_output.py": 761
     }
   },
   {
@@ -35718,7 +35758,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 837
+      "cdmw/services/new_item_service.py": 840
     }
   },
   {
@@ -35734,7 +35774,7 @@ MESSAGE_REFERENCE = [
     "message": "The previous archive group escapes the mod package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 586
+      "cdmw/services/new_item_service.py": 589
     }
   },
   {
@@ -35766,7 +35806,7 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 683
+      "cdmw/ui/new_item/item_preview.py": 693
     }
   },
   {
@@ -35774,7 +35814,7 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here. ({self._host_error})",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 683
+      "cdmw/ui/new_item/item_preview.py": 693
     }
   },
   {
@@ -35838,7 +35878,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected equipment has no supported shrink or postfix rules to override.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 293
+      "cdmw/services/new_item_body_visibility.py": 350
     }
   },
   {
@@ -35936,7 +35976,7 @@ MESSAGE_REFERENCE = [
     "message": "The snapshot finished with an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/controller_task_mixin.py": 132
+      "cdmw/ui/new_item/controller_task_mixin.py": 133
     }
   },
   {
@@ -35985,6 +36025,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/ui/new_item/template_preview_dependencies.py": 129
+    }
+  },
+  {
+    "area": "items",
+    "message": "The template changed. Choose the fitting reference again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/controller_model_mixin.py": 342
     }
   },
   {
@@ -36208,7 +36256,7 @@ MESSAGE_REFERENCE = [
     "message": "This item changes shared equipment descriptors. To combine several custom items, use the previous exported mod as the base; independently exported copies of these descriptors can overwrite each other's rules.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 306
+      "cdmw/services/new_item_body_visibility.py": 364
     }
   },
   {
@@ -36376,7 +36424,7 @@ MESSAGE_REFERENCE = [
     "message": "This template has no model variant to dye.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 131
+      "cdmw/ui/new_item/controller_variant_mixin.py": 303
     }
   },
   {
@@ -36385,6 +36433,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_recipes.py": 36
+    }
+  },
+  {
+    "area": "items",
+    "message": "This template or its prefab overrides cannot be changed safely with this control.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/ui/new_item/wearer_editor.py": 76
     }
   },
   {
@@ -36561,7 +36617,7 @@ MESSAGE_REFERENCE = [
     "message": "Underlying parts is experimental and needs in-game A/B testing. The preview does not simulate these rules; other equipment, cut volumes or missing body geometry can still hide skin or hair.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 300
+      "cdmw/services/new_item_body_visibility.py": 358
     }
   },
   {
@@ -36617,7 +36673,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown loose-mod manager profile {manager}; one of {', '.join(LOOSE_EXPORT_PROFILES)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 438
+      "cdmw/services/new_item_service.py": 441
     }
   },
   {
@@ -36689,7 +36745,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/panels_template.py": 248
+      "cdmw/ui/new_item/panels_template.py": 251
     }
   },
   {
@@ -37242,7 +37298,7 @@ MESSAGE_REFERENCE = [
     "message": "Whole-part skin/hair hiding is shared by all mesh bindings in a prefab. Those choices are combined for that prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 300
+      "cdmw/services/new_item_body_visibility.py": 358
     }
   },
   {
@@ -37355,6 +37411,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_item_composer/src/bone_offset_table.cpp": 140
+    }
+  },
+  {
+    "area": "items",
+    "message": "ambiguous",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_wearers.py": 36
     }
   },
   {
@@ -37615,6 +37679,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "inherited",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_wearers.py": 81
+    }
+  },
+  {
+    "area": "items",
     "message": "int too big to convert",
     "recovery": "internal",
     "sources": {
@@ -37770,7 +37842,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 372
+      "cdmw/ui/new_item/controller.py": 379
     }
   },
   {
@@ -37786,7 +37858,7 @@ MESSAGE_REFERENCE = [
     "message": "new_item_direct_texture_tier_failed; continuing with full quality",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 536
+      "cdmw/ui/new_item/item_preview.py": 546
     }
   },
   {
@@ -37863,6 +37935,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "not_equipment",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_wearers.py": 49
+    }
+  },
+  {
+    "area": "items",
     "message": "original layout:",
     "recovery": "internal",
     "sources": {
@@ -37923,7 +38003,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_materials.py": 678,
-      "cdmw/ui/new_item/model_import.py": 1291,
+      "cdmw/ui/new_item/model_import.py": 1306,
       "cdmw/ui/new_item/rust_ui_tab.py": 238
     }
   },
@@ -38156,7 +38236,7 @@ MESSAGE_REFERENCE = [
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 366
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 420
     }
   },
   {
@@ -38245,7 +38325,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon; give an icon or an image to build one from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 400
+      "cdmw/services/new_item_service.py": 403
     }
   },
   {
@@ -38333,7 +38413,7 @@ MESSAGE_REFERENCE = [
     "message": "there is nothing to show",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 513
+      "cdmw/ui/new_item/item_preview.py": 523
     }
   },
   {
@@ -38358,6 +38438,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "native/cdmw_item_composer/src/overlay_merge.cpp": 222
+    }
+  },
+  {
+    "area": "items",
+    "message": "unsupported",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/new_item_wearers.py": 33
     }
   },
   {
@@ -38390,7 +38478,7 @@ MESSAGE_REFERENCE = [
     "message": "visibility requires a complete, unambiguous component decode.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 97
+      "cdmw/services/new_item_body_visibility.py": 98
     }
   },
   {
@@ -38406,7 +38494,7 @@ MESSAGE_REFERENCE = [
     "message": "{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 650
+      "cdmw/services/new_item_service.py": 653
     }
   },
   {
@@ -38415,6 +38503,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 265
+    }
+  },
+  {
+    "area": "items",
+    "message": "{detail} {count} replacements could not be resolved against the loaded game. They are unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/new_item/installed_character_models.py": 297
     }
   },
   {
@@ -38791,7 +38887,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefab_path}: component {obj.name} has ambiguous mesh bindings.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 151
+      "cdmw/services/new_item_body_visibility.py": 158
     }
   },
   {
@@ -38799,7 +38895,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefab_path}: component {obj.name} has ambiguous shrink tags.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 157
+      "cdmw/services/new_item_body_visibility.py": 164
     }
   },
   {
@@ -38807,7 +38903,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 183
+      "cdmw/services/new_item_body_visibility.py": 200
     }
   },
   {
@@ -38815,7 +38911,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefab_path}: visibility requires a complete, unambiguous component decode.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 139
+      "cdmw/services/new_item_body_visibility.py": 146
     }
   },
   {
@@ -38903,7 +38999,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 609
+      "cdmw/ui/new_item/controller.py": 620
     }
   },
   {
@@ -45182,6 +45278,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Choose a PAC from the installed character-model list.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_models.py": 73
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Choose a body/head PABV or weapon PAC, or clear the preview inputs.",
     "recovery": "internal",
     "sources": {
@@ -49480,6 +49584,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Installed character models are fitting references only and cannot be exported.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_character_models.py": 142
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Interpolated source skin weights are empty or invalid.",
     "recovery": "empty",
     "sources": {
@@ -53411,6 +53523,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_hair_output.py": 228
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Missing required texture: {texture}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/dmm_character_models.py": 106
     }
   },
   {
@@ -61989,6 +62109,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6941
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The installed model's bone identity could not be resolved.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_models.py": 83
     }
   },
   {
@@ -74768,6 +74896,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A DMM mod points outside its library.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 153
+    }
+  },
+  {
+    "area": "other",
     "message": "A PAC without a guide section cannot supply a guide count.",
     "recovery": "input",
     "sources": {
@@ -75148,6 +75284,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 704
+    }
+  },
+  {
+    "area": "other",
+    "message": "Ambiguous character-mod source: {key}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 195
     }
   },
   {
@@ -76238,6 +76382,14 @@ MESSAGE_REFERENCE = [
     "recovery": "timeout",
     "sources": {
       "cdmw/workers/character_finder_workers.py": 401
+    }
+  },
+  {
+    "area": "other",
+    "message": "Character-mod library exceeds the file limit.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 177
     }
   },
   {
@@ -77726,7 +77878,23 @@ MESSAGE_REFERENCE = [
     "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_send.py": 123
+      "cdmw/services/dmm_send.py": 127
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM item exports can add parts, but cannot replace existing parts or private heads.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_part_table.py": 26
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM was not found. Choose the folder containing DMM.exe.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 129
     }
   },
   {
@@ -77735,6 +77903,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/dmm_send.py": 60
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's selected-mod list could not be read.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 142
     }
   },
   {
@@ -77919,6 +78095,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/core/mod_compatibility.py": 503
+    }
+  },
+  {
+    "area": "other",
+    "message": "Duplicate part names cannot be exported to DMM.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/dmm_part_table.py": 22
     }
   },
   {
@@ -79481,6 +79665,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Invalid character-mod prefab name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 118
+    }
+  },
+  {
+    "area": "other",
     "message": "Invalid collection {key}.",
     "recovery": "input",
     "sources": {
@@ -79982,6 +80174,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_windows.py": 145
+    }
+  },
+  {
+    "area": "other",
+    "message": "Invalid relative character-mod path.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 37
     }
   },
   {
@@ -80647,6 +80847,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/lazy_tool_tab.py": 107
+    }
+  },
+  {
+    "area": "other",
+    "message": "Linked files in character mods are not supported.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 169
     }
   },
   {
@@ -81424,6 +81632,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/recolor_variants.py": 357
+    }
+  },
+  {
+    "area": "other",
+    "message": "No supported female armor replacements were found.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 121
     }
   },
   {
@@ -82348,6 +82564,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Part {name} has no prefab in this item export; refusing to copy another mod's registration.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_part_table.py": 33
+    }
+  },
+  {
+    "area": "other",
     "message": "Part-hide helper is context-only; exact body clipping is not simulated.",
     "recovery": "internal",
     "sources": {
@@ -82848,7 +83072,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 179,
+      "cdmw/services/dmm_send.py": 183,
       "cdmw/services/dmm_send_process.py": 71
     }
   },
@@ -83154,6 +83378,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_installation.py": 48
+    }
+  },
+  {
+    "area": "other",
+    "message": "Several Character Creator installations were found. Keep one in the DMM library.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 91
     }
   },
   {
@@ -83675,6 +83907,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 281
+    }
+  },
+  {
+    "area": "other",
+    "message": "The DMM library changed while it was being read. Refresh it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 52
     }
   },
   {
@@ -84290,7 +84530,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no complete base and DLC copy of {name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 143
+      "cdmw/services/dmm_dlc_tables.py": 145
     }
   },
   {
@@ -84331,6 +84571,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/cditem_device_windows.py": 201
+    }
+  },
+  {
+    "area": "other",
+    "message": "The game's part table is required to export new parts to DMM.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_part_table.py": 18
     }
   },
   {
@@ -84491,6 +84739,30 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/cditem_device_review.py": 91
+    }
+  },
+  {
+    "area": "other",
+    "message": "The installed armor mod has no supported replacement descriptor.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 200
+    }
+  },
+  {
+    "area": "other",
+    "message": "The installed armor mod has unsupported replacement conditions.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 115
+    }
+  },
+  {
+    "area": "other",
+    "message": "The installed armor mod uses an unrecognized body-selection format.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 106
     }
   },
   {
@@ -85314,7 +85586,7 @@ MESSAGE_REFERENCE = [
     "message": "The shop and item group tables could not all become DMM operations: {detail}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 214
+      "cdmw/services/dmm_dlc_tables.py": 220
     }
   },
   {
@@ -85524,6 +85796,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/services/game_table_edits.py": 350
+    }
+  },
+  {
+    "area": "other",
+    "message": "This DMM configuration format is not supported.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 134
     }
   },
   {
@@ -86272,6 +86552,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Unsupported character-mod XML declaration.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 101
+    }
+  },
+  {
+    "area": "other",
     "message": "Unsupported compact BuffInfo level map: {result.name}",
     "recovery": "unsupported",
     "sources": {
@@ -86550,6 +86838,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/compact_static.py": 50
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unsupported or oversized character-mod file: {path.name}",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/dmm_character_mods.py": 49
     }
   },
   {
@@ -90211,7 +90507,7 @@ MESSAGE_REFERENCE = [
     "message": "{'Shop' if name == 'storeinfo' else 'Item group'} {row.name} exists only in the DLC, and DMM does not take a mod's copy of a DLC table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 152
+      "cdmw/services/dmm_dlc_tables.py": 154
     }
   },
   {
@@ -104302,6 +104598,8 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/new_item/effect_item_source.py",
     "cdmw/ui/new_item/effect_recipe_panel.py",
     "cdmw/ui/new_item/effect_workspace_controller.py",
+    "cdmw/ui/new_item/installed_character_models.py",
+    "cdmw/ui/new_item/installed_model_import.py",
     "cdmw/ui/new_item/item_preview.py",
     "cdmw/ui/new_item/mod_update_dialog.py",
     "cdmw/ui/new_item/model_import.py",
@@ -106135,6 +106433,7 @@ SOURCE_COVERAGE = {
   "cdmw/domain/new_item/compilation_storage.py": {
     "raise": 1
   },
+  "cdmw/domain/new_item/components.py": {},
   "cdmw/domain/new_item/effect_authoring.py": {
     "raise": 14
   },
@@ -106144,6 +106443,7 @@ SOURCE_COVERAGE = {
     "raise": 3
   },
   "cdmw/domain/new_item/independent_wire_v1.py": {},
+  "cdmw/domain/new_item/installed_model_category.py": {},
   "cdmw/domain/new_item/item_behavior.py": {
     "raise": 16
   },
@@ -106853,12 +107153,21 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 8,
     "validation": 1
   },
+  "cdmw/services/dmm_character_models.py": {
+    "raise": 4
+  },
+  "cdmw/services/dmm_character_mods.py": {
+    "raise": 19
+  },
   "cdmw/services/dmm_dlc_tables.py": {
     "diagnostic_field": 1,
     "raise": 11
   },
   "cdmw/services/dmm_item_export.py": {
     "raise": 30
+  },
+  "cdmw/services/dmm_part_table.py": {
+    "raise": 4
   },
   "cdmw/services/dmm_send.py": {
     "raise": 5
@@ -107313,8 +107622,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/new_item_body_visibility.py": {
     "diagnostic_field": 1,
-    "finding": 6,
-    "raise": 12
+    "finding": 7,
+    "raise": 13
   },
   "cdmw/services/new_item_definition.py": {
     "finding": 1,
@@ -107445,6 +107754,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_variants.py": {
     "finding": 1,
     "raise": 17
+  },
+  "cdmw/services/new_item_wearers.py": {
+    "raise": 8
   },
   "cdmw/services/orphan_helper_reaper.py": {},
   "cdmw/services/overlay_inventory_details.py": {
@@ -108899,6 +109211,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/body_visibility_editor.py": {},
   "cdmw/ui/new_item/bonus_editor.py": {},
   "cdmw/ui/new_item/choice_model.py": {},
+  "cdmw/ui/new_item/component_list.py": {},
   "cdmw/ui/new_item/continue_launch.py": {
     "raise": 1
   },
@@ -108914,10 +109227,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/controller_model_mixin.py": {
     "failure": 1,
     "raise": 11,
-    "signal": 5
+    "signal": 6
   },
   "cdmw/ui/new_item/controller_preview_mixin.py": {
-    "raise": 3
+    "raise": 4
   },
   "cdmw/ui/new_item/controller_task_mixin.py": {
     "failure": 3,
@@ -108925,7 +109238,7 @@ SOURCE_COVERAGE = {
     "signal": 4
   },
   "cdmw/ui/new_item/controller_variant_mixin.py": {
-    "raise": 2
+    "raise": 3
   },
   "cdmw/ui/new_item/dmm_send_ui.py": {
     "dialog": 1
@@ -108980,6 +109293,13 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 2,
     "dialog": 2
   },
+  "cdmw/ui/new_item/installed_character_models.py": {
+    "display": 2,
+    "failure": 2
+  },
+  "cdmw/ui/new_item/installed_model_import.py": {
+    "raise": 1
+  },
   "cdmw/ui/new_item/item_behavior_editor.py": {
     "display": 1
   },
@@ -109016,7 +109336,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/model_import.py": {
     "assertion": 1,
     "diagnostic_field": 1,
-    "raise": 7
+    "raise": 8
   },
   "cdmw/ui/new_item/overlay_manager_dialog.py": {
     "display": 3,
@@ -109118,8 +109438,10 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/ui/new_item/ui_kit.py": {},
-  "cdmw/ui/new_item/variant_selector.py": {},
   "cdmw/ui/new_item/virtual_loader_page.py": {
+    "display": 1
+  },
+  "cdmw/ui/new_item/wearer_editor.py": {
     "display": 1
   },
   "cdmw/ui/new_item/workflow_header.py": {
