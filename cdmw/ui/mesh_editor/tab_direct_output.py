@@ -151,6 +151,7 @@ class MeshEditorDirectOutputMixin:
             create_zip = dialog.create_zip.isChecked()
             open_folder = dialog.open_folder.isChecked()
             include_body = dialog.include_body.isChecked()
+            keep_layers = dialog.kept_layers()
         finally:
             dialog.deleteLater()
         current_target = self._current_target_entry()
@@ -182,6 +183,7 @@ class MeshEditorDirectOutputMixin:
             open_folder=open_folder,
             saved_work_root=self.mesh_editor_draft_root,
             include_refit_body=include_body,
+            keep_layers=keep_layers,
         )
 
     def _mesh_mod_body_entries(self, controller, entry) -> tuple[tuple, object]:
@@ -250,6 +252,7 @@ class MeshEditorDirectOutputMixin:
         continue_editing: bool = False,
         saved_work_root: Path | None = None,
         include_refit_body: bool = False,
+        keep_layers: tuple[str, ...] = (),
     ) -> bool:
         if kind == "overlay_prepare" and not constants.ARCHIVE_OVERLAYS_ENABLED:
             return False
@@ -284,6 +287,7 @@ class MeshEditorDirectOutputMixin:
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
             saved_work_root=saved_work_root,
             include_refit_body=include_refit_body,
+            keep_layers=keep_layers,
             **extra,
         )
         thread = QThread(self)
@@ -408,6 +412,8 @@ class MeshEditorDirectOutputMixin:
             self.status_message_requested.emit(
                 f"The mod was built, but its editing state was not saved: {result.saved_work_error}", True,
             )
+        for note in getattr(result, "notes", ()):
+            self.status_message_requested.emit(note, True)
         if result.zip_path is not None:
             self.status_message_requested.emit(f"ZIP written to {result.zip_path}", False)
         if open_folder and result.output_path is not None:

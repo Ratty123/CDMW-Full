@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -22,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 from cdmw.models import ModPackageInfo
+from cdmw.services.mesh_layer_visibility import CLOTHING_LAYERS
 
 
 class MeshModExportDialog(QDialog):
@@ -84,6 +88,32 @@ class MeshModExportDialog(QDialog):
         layout.addWidget(self.include_body_hint)
         self.include_body.setVisible(bool(body_files))
         self.include_body_hint.setVisible(bool(body_files))
+        # Off by default: changing shrink rules also ships the shared descriptor.
+        self.keep_layers = QCheckBox("Keep layers underneath (experimental)", self)
+        self.keep_layers.setObjectName("mesh_mod_keep_layers")
+        self.keep_layers.setToolTip(
+            "Stop this garment cutting the layers you tick where it used to cover them, for example "
+            "Lowerbody to show pants under a shortened coat. Test in game: the preview does not simulate this.")
+        self.layers = QListWidget(self)
+        self.layers.setObjectName("mesh_mod_layers")
+        self.layers.setMaximumHeight(140)
+        for name in CLOTHING_LAYERS:
+            item = QListWidgetItem(name, self.layers)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+        self.layers_hint = QLabel(self.tr(
+            "Changes every prefab that uses this mesh and ships the game's partshrinkdesc.xml, "
+            "so another mod that ships that file conflicts with this one. Lowerbody is pants; "
+            "layers this garment never cut are reported and change nothing."), self)
+        self.layers_hint.setWordWrap(True)
+        layout.addWidget(self.keep_layers)
+        layout.addWidget(self.layers)
+        layout.addWidget(self.layers_hint)
+        self.keep_layers.toggled.connect(self._refresh_layers)
+        self.layers.itemChanged.connect(self._refresh_destination)
+        self.layers.setEnabled(False)
+        self.layers_hint.setVisible(False)
         self.create_zip = QCheckBox("Create ZIP beside the mod folder", self)
         self.open_folder = QCheckBox("Open folder after creation", self)
         layout.addWidget(self.create_zip)
@@ -115,6 +145,18 @@ class MeshModExportDialog(QDialog):
         folder = sanitize_mod_package_folder_name(self.mod_name.text().strip())
         return Path(self.output_parent.text().strip()) / f"{folder}-{suffix}"
 
+    def kept_layers(self) -> tuple[str, ...]:
+        if not self.keep_layers.isChecked():
+            return ()
+        return tuple(self.layers.item(row).data(Qt.ItemDataRole.UserRole) for row in range(self.layers.count())
+                     if self.layers.item(row).checkState() == Qt.CheckState.Checked)
+
+    def _refresh_layers(self, *_args) -> None:
+        enabled = self.keep_layers.isChecked()
+        self.layers.setEnabled(enabled)
+        self.layers_hint.setVisible(enabled)
+        self._refresh_destination()
+
     def _browse(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Choose Build Mod Output Folder", self.output_parent.text())
         if folder:
@@ -122,6 +164,8 @@ class MeshModExportDialog(QDialog):
 
     def _refresh_destination(self) -> None:
         folder = self.output_parent.text().strip()
-        valid = bool(self.mod_name.text().strip() and folder and Path(folder).is_absolute())
+        layers = getattr(self, "keep_layers", None)
+        valid = bool(self.mod_name.text().strip() and folder and Path(folder).is_absolute()
+                     and (layers is None or not layers.isChecked() or self.kept_layers()))
         self.build_button.setEnabled(valid)
         self.destination.setText(str(self.output_path()) if valid else "")

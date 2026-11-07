@@ -1,15 +1,15 @@
 """Prepare item-owned experimental visibility metadata; never writes archives."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import hashlib
 
 from cdmw.core.equipment_visibility import (
     POSTFIX_PATH, SHRINK_PATH, VisibilityProfile, clone_postfix_rules,
-    clone_shrink_rules, matching_postfixes, shrink_rule_names,
+    clone_shrink_rules, matching_postfixes, shrink_rule_names, shrink_rule_receivers,
 )
 from cdmw.core.prefab_binary import decode_prefab_binary
 from cdmw.core.prefab_binary_edit import PrefabPathEdit, rewrite_prefab_paths_same_length
 from cdmw.core.stringinfo_table import stringinfo_key
-from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
+from cdmw.domain.new_item.body_visibility import HAIR_RECEIVERS, SKIN_RECEIVERS, BodyVisibilityChoice
 
 
 @dataclass
@@ -35,8 +35,167 @@ def _candidate_tag(output_stem, source_tag, choice, attempt):
     # Preserve string lengths: some fully decoded shipped prefabs still have
     # ambiguous enclosing pointer lengths. An in-place tag edit moves no bytes.
     size = len(source_tag.encode("utf-8"))
-    digest = hashlib.shake_256(f"{output_stem}|{source_tag}|{choice.keep_skin}|{choice.keep_hair}|{attempt}".encode())
+    # Skin/hair-only choices keep the identities earlier exports already produced.
+    layers = f"|{','.join(sorted(choice.keep_receivers))}" if choice.keep_receivers else ""
+    digest = hashlib.shake_256(f"{output_stem}|{source_tag}|{choice.keep_skin}|{choice.keep_hair}{layers}|{attempt}".encode())
     return "V" + digest.hexdigest(size)[:size - 1]
+
+
+def _binding_record(path, choice):
+    record = {"model_path": path, "keep_skin": choice.keep_skin, "keep_hair": choice.keep_hair}
+    if choice.keep_receivers:
+        record["keep_layers"] = sorted(choice.keep_receivers)
+    return record
+
+
+def profile_record(profile):
+    record = {"source_tag": profile.source_tag, "tag": profile.tag,
+              "keep_skin": profile.choice.keep_skin, "keep_hair": profile.choice.keep_hair}
+    if profile.choice.keep_receivers:
+        record["keep_layers"] = sorted(profile.choice.keep_receivers)
+    return record
+
+
+def unlisted_layer_warnings(requested, cut):
+    """Kept layers no examined rule cuts change nothing; say so instead of implying a fix.
+
+    ``cut`` holds the casefolded receivers of every rule the selected components use.
+    """
+    unlisted = sorted(name for name in requested if name.casefold() not in cut)
+    if not unlisted:
+        return []
+    return [f"Experimental visibility: none of this equipment's shrink rules cut {', '.join(unlisted)}; "
+            f"keeping {'it' if len(unlisted) == 1 else 'them'} changes nothing."]
+
+
+def rule_receivers_reader(shrink):
+    """Cached receiver lookup for one descriptor."""
+    cache = {}
+
+    def receivers(tag):
+        if tag not in cache:
+            cache[tag] = shrink_rule_receivers(shrink, tag)
+        return cache[tag]
+
+    return receivers
+
+
+@dataclass
+class PrefabRetag:
+    data: bytes
+    details: list = field(default_factory=list)
+    profiles: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
+    #: casefolded receivers of every rule a selected component uses
+    cut: set = field(default_factory=set)
+
+
+def component_shrink_tags(source: bytes, model_paths) -> dict[str, tuple[str, ...]]:
+    """Map each wanted mesh path to the shrink tags of the components that bind it."""
+    doc = decode_prefab_binary(source)
+    if not doc.walk_complete or doc.inferred_objects:
+        raise ValueError("visibility requires a complete, unambiguous component decode.")
+    wanted = {_key(path) for path in model_paths}
+    found = {}
+    for obj in doc.objects:
+        if obj.component_type != "SkinnedMeshComponent":
+            continue
+        paths = {_key(value.text) for name, value in obj.values if name in {"_skinnedMeshFile", "_skinnedMeshFileName"}}
+        for path in paths & wanted:
+            found.setdefault(path, []).extend(value.text for name, value in obj.values if name == "_shrinkTag")
+    return {path: tuple(dict.fromkeys(tags)) for path, tags in found.items()}
+
+
+def cut_layers(shrink: bytes, prefab: bytes, model_path: str) -> tuple[str, ...]:
+    """Clothing receivers the components binding ``model_path`` cut, minus skin and hair.
+
+    Skin and hair have their own choices. An unknown tag cuts nothing CDMW can change.
+    """
+    tags = component_shrink_tags(prefab, (model_path,)).get(_key(model_path), ())
+    receivers = (name for tag in tags if tag for name in shrink_rule_receivers(shrink, tag))
+    return tuple(name for name in dict.fromkeys(receivers) if name not in SKIN_RECEIVERS | HAIR_RECEIVERS)
+
+
+def available_layers(snapshot, prefab_path: str, model_path: str) -> tuple[str, ...]:
+    """Read-only lookup for the New Item layer list; run it off the UI thread."""
+    if not snapshot.has_entry(SHRINK_PATH):
+        return ()
+    return cut_layers(snapshot.payload(SHRINK_PATH), snapshot.payload(prefab_path), model_path)
+
+
+def retag_prefab_components(prefab_path, source, selected, known, allocate, profiles, rule_receivers=None):
+    """Point the components that bind the selected meshes at item-owned shrink profiles.
+
+    ``selected`` maps normalized mesh paths to choices; ``allocate(old_tag, choice)``
+    returns the same-length replacement tag. Tags keep their byte length, so no
+    pointer in the prefab moves. ``profiles`` is the caller's list and grows in
+    place, so an allocator that consults it sees tags chosen earlier in this prefab.
+    With ``rule_receivers(tag)``, kept layers are matched to the spelling the rule
+    uses, and a component whose rule cuts none of them, with no skin or hair
+    choice, keeps its shipped tag.
+    """
+    doc = decode_prefab_binary(source)
+    if not doc.walk_complete or doc.inferred_objects:
+        raise ValueError(f"{prefab_path}: visibility requires a complete, unambiguous component decode.")
+    result = PrefabRetag(source, profiles=profiles)
+    edits, matched, expected_tags = [], set(), {}
+    for object_index, obj in enumerate(doc.objects):
+        if obj.component_type != "SkinnedMeshComponent":
+            continue
+        paths = [value.text for name, value in obj.values if name in {"_skinnedMeshFile", "_skinnedMeshFileName"}]
+        paths = {_key(path) for path in paths}
+        targets = paths & selected.keys()
+        if not targets:
+            continue
+        if len(paths) != 1:
+            raise ValueError(f"{prefab_path}: component {obj.name} has ambiguous mesh bindings.")
+        path = next(iter(targets))
+        matched.add(path)
+        choice = selected[path]
+        tags = [value for name, value in obj.values if name == "_shrinkTag"]
+        if len(tags) > 1:
+            raise ValueError(f"{prefab_path}: component {obj.name} has ambiguous shrink tags.")
+        old = tags[0].text if tags else ""
+        if old not in known:
+            result.warnings.append(f"Experimental visibility: {prefab_path}, {obj.name} has "
+                                   f"{'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; "
+                                   "its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.")
+            result.details.append({"component": obj.name, "source_tag": old, "profile": None, "model_path": path})
+            continue
+        if rule_receivers is not None and choice.keep_receivers:
+            cut = rule_receivers(old)
+            result.cut.update(name.casefold() for name in cut)
+            wanted = {name.casefold() for name in choice.keep_receivers}
+            choice = replace(choice, keep_receivers=frozenset(name for name in cut if name.casefold() in wanted))
+            if not choice.wanted:
+                result.details.append({"component": obj.name, "source_tag": old, "profile": None,
+                                       "model_path": path, "unchanged": True})
+                continue
+        tag = allocate(old, choice)
+        profile = VisibilityProfile(old, tag, choice)
+        if profile not in result.profiles:
+            result.profiles.append(profile)
+        edits.append(PrefabPathEdit(tags[0].offset, old, tag))
+        expected_tags[object_index] = tag
+        result.details.append({"component": obj.name, "source_tag": old, "profile": tag, "model_path": path})
+    missing = selected.keys() - matched
+    if missing:
+        raise ValueError(f"{prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.")
+    try:
+        rewritten = rewrite_prefab_paths_same_length(source, tuple(dict.fromkeys(edits))).data if edits else source
+        after = decode_prefab_binary(rewritten)
+        if not after.walk_complete or after.inferred_objects or len(after.objects) != len(doc.objects):
+            raise ValueError("The edited visibility components did not decode identically.")
+        for index, (before_obj, after_obj) in enumerate(zip(doc.objects, after.objects)):
+            expected = [(name, expected_tags[index] if name == "_shrinkTag" and index in expected_tags else value.text)
+                        for name, value in before_obj.values]
+            if (expected != [(name, value.text) for name, value in after_obj.values]
+                    or (before_obj.component_type, before_obj.name) != (after_obj.component_type, after_obj.name)):
+                raise ValueError("A visibility string is shared with an unselected field; refusing to change that field.")
+    except ValueError as exc:
+        raise ValueError(f"{prefab_path}: {exc}") from exc
+    result.data = rewritten
+    return result
 
 
 def _isolated_stem(planner, part, stem, postfix, mapping):
@@ -83,6 +242,8 @@ def prepare_body_visibility(planner):
     plan = BodyVisibilityPlan(stem_map=dict(planner.owned_stem_map()))
     profiles, requests, records = [], [], []
     profile_tags = {}
+    rule_receivers = rule_receivers_reader(shrink)
+    cut_layers_seen = set()
     for part in planner.family.parts:
         if part.stem not in plan.stem_map:
             continue
@@ -94,76 +255,34 @@ def prepare_body_visibility(planner):
         planner.check()
         output_stem = _isolated_stem(planner, part, output_stem, postfix, plan.stem_map)
         plan.stem_map[part.stem] = output_stem
-        combined = BodyVisibilityChoice(any(c.keep_skin for c in selected.values()), any(c.keep_hair for c in selected.values()))
+        combined = BodyVisibilityChoice.combine(selected.values())
         requests.append((part.stem, output_stem, combined))
         if not selected:
             records.append({"source_prefab": part.prefab_path, "output_prefab": part.record.cloned(output_stem).prefab_path,
                             "bindings": [], "whole_part_keep_skin": False, "whole_part_keep_hair": False,
                             "components": [], "inherited_postfixes": list(inherited)})
             continue
-        source = snapshot.payload(part.prefab_path)
-        doc = decode_prefab_binary(source)
-        if not doc.walk_complete or doc.inferred_objects:
-            raise ValueError(f"{part.prefab_path}: visibility requires a complete, unambiguous component decode.")
-        edits, matched, details, expected_tags = [], set(), [], {}
-        for object_index, obj in enumerate(doc.objects):
-            if obj.component_type != "SkinnedMeshComponent":
-                continue
-            paths = [value.text for name, value in obj.values if name in {"_skinnedMeshFile", "_skinnedMeshFileName"}]
-            paths = {_key(path) for path in paths}
-            targets = paths & selected.keys()
-            if not targets:
-                continue
-            if len(paths) != 1:
-                raise ValueError(f"{part.prefab_path}: component {obj.name} has ambiguous mesh bindings.")
-            path = next(iter(targets))
-            matched.add(path)
-            choice = selected[path]
-            tags = [value for name, value in obj.values if name == "_shrinkTag"]
-            if len(tags) > 1:
-                raise ValueError(f"{part.prefab_path}: component {obj.name} has ambiguous shrink tags.")
-            old = tags[0].text if tags else ""
-            if old not in known:
-                planner.warnings.append(f"Experimental visibility: {part.prefab_path}, {obj.name} has "
-                                        f"{'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; "
-                                        "its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.")
-                details.append({"component": obj.name, "source_tag": old, "profile": None, "model_path": path})
-                continue
+        def allocate(old, choice, output_stem=output_stem):
             key = (output_stem, old, choice)
             if key not in profile_tags:
                 profile_tags[key] = _profile_tag(output_stem, old, choice, known, profiles)
-            tag = profile_tags[key]
-            profile = VisibilityProfile(old, tag, choice)
-            if profile not in profiles:
-                profiles.append(profile)
-            edits.append(PrefabPathEdit(tags[0].offset, old, tag))
-            expected_tags[object_index] = tag
-            details.append({"component": obj.name, "source_tag": old, "profile": tag, "model_path": path})
-        missing = selected.keys() - matched
-        if missing:
-            raise ValueError(f"{part.prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.")
-        try:
-            rewritten = rewrite_prefab_paths_same_length(source, tuple(dict.fromkeys(edits))).data if edits else source
-            after = decode_prefab_binary(rewritten)
-            if not after.walk_complete or after.inferred_objects or len(after.objects) != len(doc.objects):
-                raise ValueError("The edited visibility components did not decode identically.")
-            for index, (before_obj, after_obj) in enumerate(zip(doc.objects, after.objects)):
-                expected = [(name, expected_tags[index] if name == "_shrinkTag" and index in expected_tags else value.text)
-                            for name, value in before_obj.values]
-                if (expected != [(name, value.text) for name, value in after_obj.values]
-                        or (before_obj.component_type, before_obj.name) != (after_obj.component_type, after_obj.name)):
-                    raise ValueError("A visibility string is shared with an unselected field; refusing to change that field.")
-            plan.prefabs[_key(part.prefab_path)] = rewritten
-        except ValueError as exc:
-            raise ValueError(f"{part.prefab_path}: {exc}") from exc
-        records.append({"source_prefab": part.prefab_path, "output_prefab": part.record.cloned(output_stem).prefab_path,
-                        "bindings": [{"model_path": path, "keep_skin": choice.keep_skin, "keep_hair": choice.keep_hair}
-                                     for path, choice in selected.items()],
-                        "whole_part_keep_skin": combined.keep_skin, "whole_part_keep_hair": combined.keep_hair,
-                        "components": details, "inherited_postfixes": list(inherited)})
-        planner.summary.append(f"Experimental visibility: {output_stem}; "
-                               f"keep skin/head {'on' if combined.keep_skin else 'off'}, hair/beard {'on' if combined.keep_hair else 'off'}")
+            return profile_tags[key]
 
+        retag = retag_prefab_components(part.prefab_path, snapshot.payload(part.prefab_path), selected, known,
+                                        allocate, profiles, rule_receivers)
+        cut_layers_seen |= retag.cut
+        planner.warnings.extend(retag.warnings)
+        plan.prefabs[_key(part.prefab_path)] = retag.data
+        records.append({"source_prefab": part.prefab_path, "output_prefab": part.record.cloned(output_stem).prefab_path,
+                        "bindings": [_binding_record(path, choice) for path, choice in selected.items()],
+                        "whole_part_keep_skin": combined.keep_skin, "whole_part_keep_hair": combined.keep_hair,
+                        "components": retag.details, "inherited_postfixes": list(inherited)})
+        layers = f", layers kept underneath: {', '.join(sorted(combined.keep_receivers))}" if combined.keep_receivers else ""
+        planner.summary.append(f"Experimental visibility: {output_stem}; "
+                               f"keep skin/head {'on' if combined.keep_skin else 'off'}, hair/beard {'on' if combined.keep_hair else 'off'}{layers}")
+
+    requested = frozenset().union(*(c.keep_receivers for choices in by_prefab.values() for c in choices.values()))
+    planner.warnings.extend(unlisted_layer_warnings(requested, cut_layers_seen))
     changed_shrink = clone_shrink_rules(shrink, tuple(profiles))
     changed_postfix = clone_postfix_rules(postfix, tuple(requests))
     if changed_shrink != shrink:
@@ -176,8 +295,7 @@ def prepare_body_visibility(planner):
         planner.variant_plan.stem_map.update(plan.stem_map)
     if records:
         planner.manifest["body_visibility"] = {"experimental": bool(by_prefab), "prefabs": records,
-                                              "profiles": [{"source_tag": p.source_tag, "tag": p.tag,
-                                                            "keep_skin": p.choice.keep_skin, "keep_hair": p.choice.keep_hair} for p in profiles]}
+                                              "profiles": [profile_record(p) for p in profiles]}
     if by_prefab:
         planner.warnings.extend((
             "Underlying parts is experimental and needs in-game A/B testing. The preview does not simulate these rules; "

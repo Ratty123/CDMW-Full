@@ -407,6 +407,8 @@ class MeshDirectOutputResult:
     # The Drafts & Mods record for a built mod, or why it failed.
     saved_work_record: Mapping[str, object] | None = None
     saved_work_error: str = ""
+    # Warnings the user needs beside the built mod, such as experimental options.
+    notes: tuple[str, ...] = ()
 
 
 class MeshDirectOutputWorker(QObject):
@@ -437,6 +439,7 @@ class MeshDirectOutputWorker(QObject):
         inherited_archive_outputs: tuple = (),
         saved_work_root: Path | str | None = None,
         include_refit_body: bool = False,
+        keep_layers: tuple[str, ...] = (),
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -460,6 +463,9 @@ class MeshDirectOutputWorker(QObject):
         self.archive_material_sources = archive_material_sources
         self.inherited_archive_outputs = inherited_archive_outputs
         self.include_refit_body = bool(include_refit_body)
+        self.keep_layers = tuple(str(name) for name in keep_layers)
+        if self.keep_layers and self.kind not in {"loose_mod", "overlay_package"}:
+            raise ValueError("Layers underneath apply only to Build Mod outputs.")
         self.saved_work_root = (
             Path(saved_work_root)
             if saved_work_root is not None and self.kind in {"loose_mod", "overlay_package"}
@@ -595,9 +601,14 @@ class MeshDirectOutputWorker(QObject):
                     included.add(normalize(inherited.path))
             if not requests and not additions:
                 raise ValueError("Only the body is left to write. Turn on Include the body to build it.")
+            layers = self._layer_visibility(requests, additions) if self.keep_layers else None
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
             metadata = self._metadata(snapshot, report)
+            if layers is not None:
+                payload = json.loads(metadata)
+                payload["layer_visibility"] = layers.record
+                metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
             if len(written) > 1 or omitted_paths:
                 payload = json.loads(metadata)
                 payload["assets"] = [
@@ -628,6 +639,8 @@ class MeshDirectOutputWorker(QObject):
                 )
             else:
                 raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
+            if layers is not None:
+                result = replace(result, notes=layers.notes)
             result = self._register_saved_work(snapshot, result)
             self.progress_changed.emit(self.request_id, 100, "Mesh-only output is ready.")
             self.completed.emit(self.request_id, result)
@@ -643,6 +656,27 @@ class MeshDirectOutputWorker(QObject):
                 replacement_baselines.cleanup()
             self.archive_material_sources = ()
             self.finished.emit()
+
+    def _layer_visibility(self, requests: list, additions: list):
+        """Append the experimental prefab and shrink-rule patches for the edited PAC."""
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.services.mesh_layer_visibility import mounted_entries, prepare_layer_visibility, wanted_for_layers
+
+        self.progress_changed.emit(self.request_id, 60, "Reading the game's prefabs and shrink rules...")
+        entries = mounted_entries(archive_entry_game_root(self.entry), wanted_for_layers, stop_event=self.stop_event)
+        layers = prepare_layer_visibility(
+            self.entry.path, self.keep_layers, entries,
+            lambda item: read_archive_entry_data(item, self.stop_event)[0],
+            stop_event=self.stop_event,
+            on_log=lambda message: self.progress_changed.emit(self.request_id, 70, message),
+        )
+        normalize = lambda path: str(path).replace("\\", "/").casefold()
+        taken = {normalize(request.entry.path) for request in requests} | {normalize(item.path) for item in additions}
+        for entry, data in layers.patches:
+            if normalize(entry.path) in taken:
+                raise ValueError(f"{entry.path} is already part of this mod; Layers underneath cannot change it as well.")
+            requests.append(ArchivePatchRequest(entry, data))
+        return layers
 
     def _fit_body_flags(self, snapshot: MeshExportSnapshot, components: tuple) -> tuple[bool, ...]:
         """Mark the components that are the body a Fit follows.

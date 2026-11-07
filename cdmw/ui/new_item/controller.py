@@ -153,6 +153,8 @@ class NewItemStudioController(
         self.model_placement: ModelPlacement = ModelPlacement()
         self._active_variant = None
         self._variant_states = {}
+        #: variant identity -> (id of the snapshot read, clothing layers its shrink rule cuts)
+        self._visibility_layers = {}
         self._task_source_leases = []
         #: a skeleton edit changed while a task ran; weight the import again once idle
         self._reweight_pending = False

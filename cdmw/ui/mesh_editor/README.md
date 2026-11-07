@@ -3347,6 +3347,25 @@ successful publication. Both options are independent and off by default. Existin
 folders and ZIPs are never overwritten; folder names containing dots keep their full
 name in the sibling ZIP.
 
+**Keep layers underneath (experimental)** stops an edited garment cutting the
+clothing layers you tick where it used to cover them, for example `Lowerbody` to show
+pants under a shortened coat. It is off by default. The build reads the mounted
+prefabs and `character/descriptors/partshrinkdesc.xml` on the output worker
+(read-only), finds every prefab component that binds the edited PAC, and gives those
+components an output-owned shrink tag of the same byte length. The descriptor gains
+a copy of each original rule without the kept layers. A replacement keeps its item
+identity, so whole-part hide conditions, which match prefab name suffixes shared with
+other items, stay unchanged; skin and hair are therefore not offered. Layers match
+the rule's spelling regardless of case. A ticked layer the garment's rules never cut
+is reported after the build and changes nothing; if none of the ticked layers is cut,
+the build refuses instead of shipping an unchanged descriptor. It also refuses when a
+prefab that mentions the mesh cannot be decoded exactly, rather than leaving that
+item cutting.
+`mesh-editor-session.json` records the prefabs, tags and kept layers under
+`layer_visibility`. The mod ships the whole descriptor, so another mod that ships it
+replaces these rules, or loses its own. The preview does not simulate shrink rules;
+test in game.
+
 The chosen mod name remains independent of the generated folder name. Cancelling the
 form writes nothing, and changing the mesh or target while it is open requires
 validation again. Output stages in an owned sibling directory and publishes once; stale

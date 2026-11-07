@@ -137,6 +137,45 @@ class NewItemVariantControllerMixin:
         self.invalidate_plan()
         self.variant_changed.emit(self._active_variant)
 
+    def visibility_layers(self):
+        """Layers the current variant cuts, or None before a lookup for this snapshot."""
+        identity = self.current_variant_identity()
+        if identity is None or self.snapshot is None:
+            return None
+        source, layers = self._visibility_layers.get(identity, (None, None))
+        return layers if source == id(self.snapshot) else None
+
+    def start_visibility_layer_lookup(self, on_done, on_error, on_cancel=None) -> bool:
+        """Read the current variant's cut layers off the UI thread."""
+        identity = self.current_variant_identity()
+        if identity is None or self.snapshot is None:
+            return False
+        from cdmw.services.new_item_variants import variant_bindings
+        from cdmw.services.new_item_body_visibility import available_layers
+        snapshot = self.snapshot
+        family = snapshot.family(self.draft.template_key)
+        binding = next(((part.prefab_path, path) for part, path in variant_bindings(family)
+                        if (part.prefab_path.casefold(), path.casefold()) == identity), None)
+        if binding is None:
+            return False
+        def done(layers):
+            # Answers belong to the tables they were read from; holding an id, not
+            # the snapshot, lets a replaced snapshot be freed. Planning re-checks the
+            # kept names against the live rule either way.
+            current = id(snapshot)
+            self._visibility_layers = {key: value for key, value in self._visibility_layers.items() if value[0] == current}
+            self._visibility_layers[identity] = (current, tuple(layers))
+            on_done(identity)
+
+        def cancelled():
+            # _task_cancelled calls this; it must not call back into it.
+            self.status_message.emit("Operation cancelled.", False)
+            if on_cancel is not None:
+                on_cancel()
+
+        return self._run("visibility_layers", lambda _log, _stop: available_layers(snapshot, *binding), done, on_error,
+                         on_cancel=cancelled)
+
     def variant_plan_inputs(self):
         self._sync_variant_state()
         if self._active_variant is None:

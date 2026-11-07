@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental **keep layers underneath** for shortened or trimmed garments. Shrink rules make clothing cut the layers beneath it, so pants could show gaps where a removed coat panel used to be. In Create New Item, **Underlying parts** now has **Find layers**, which lists the layers the variant cuts (such as `Lowerbody` for pants), and you can tick the ones to keep. Mesh Editor **Build Mod** has a matching **Keep layers underneath** option for in-place replacements. It changes the geometry cut only; whole-part hide rules stay as they are. Both ship the game's `partshrinkdesc.xml`, so another mod that ships that file conflicts, and `.cdmw` item packages cannot carry the change. Not yet checked in game.
+
 ### Changed
 
 - Create New Item chooses shops in a searchable **Choose shop…** list instead of a long dropdown. Search by merchant, place, type, internal `Store_` ID or an item the shop sells. Only merchants confirmed in game are named; other names come from the shop's table key and are marked with `*`. When adding a new shop entry you can tick several shops at once; each becomes a saved route, and shops that already have one are skipped.
