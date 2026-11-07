@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.12.0-alpha.3] - 2026-11-07
+
 ### Added
 
 - Placement & Animations' **Fine-tune** has **Position** boxes for the exact offset of the selected attach point, and **Turn** arrows that swing, tip or spin the item the way it looks in the view, by the **Turn by** angle. The **Angle** boxes now turn the item as soon as their arrows or the mouse wheel change them.
