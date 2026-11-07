@@ -1033,3 +1033,18 @@ def test_rust_relaunch_requested_during_dispose_is_queued_once(
     assert harness.mesh_editor_tab.queued == [controller]
     assert harness.mesh_editor_tab.launched == []
     assert harness.statuses[-1] == "Launching Mesh Editor..."
+
+
+def test_a_right_clicked_model_never_opens_with_the_previewed_models_materials(tmp_path: Path) -> None:
+    # A right-click moves the selection without a preview, so the shown preview and its
+    # material model still belong to the model previewed before it.
+    previewed, clicked = _entry(tmp_path, "previewed.pac"), _entry(tmp_path, "clicked.pac", offset=64)
+    harness = _LaunchHarness(clicked, _package(tmp_path / "previewed", previewed, textured=True))
+    harness.archive_preview_request_entry = previewed
+    harness._request_archive_preview_textures = lambda **_kwargs: False  # no textured preview starts
+    harness._launch_archive_mesh_editor_for_entry(clicked)
+    ((opened, arguments),) = harness.opened
+    assert opened is clicked
+    assert arguments["material_preview_model"] is None and arguments["material_source_identity"] is None
+    assert arguments["material_package_path"] == "" and arguments["material_package_lease"] is None
+    assert not arguments["material_context_verified_for_rust"]

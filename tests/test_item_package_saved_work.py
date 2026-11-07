@@ -272,10 +272,47 @@ def test_a_baked_package_model_is_never_given_its_settings_twice():
     from cdmw.domain.new_item.surface import SurfaceEdit
     from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError, baked_model_files, require_baked_appearance
 
-    files = baked_model_files(ModelFiles(b'pac'), None, (), ())
-    require_baked_appearance(files, None, (), (), 'Blade')
+    files = baked_model_files(ModelFiles(b'pac'), None, (), (), glow=None, material_route=MaterialRoute.PLAIN_PBR)
+    require_baked_appearance(files, None, (), (), 'Blade', glow=None, material_route='plain_pbr')
     with pytest.raises(NewItemPlanError, match='Import the source model again'):
-        require_baked_appearance(files, None, (('blade', SurfaceEdit()),), (), 'Blade')
+        require_baked_appearance(files, None, (('blade', SurfaceEdit()),), (), 'Blade', glow=None,
+                                 material_route=MaterialRoute.PLAIN_PBR)
+
+
+def test_a_continued_finished_model_refuses_glow_and_route_edits(game, tmp_path):
+    """Glow and the material route are written into a package's finished model like the rest.
+
+    Continue used to plan these edits without applying them: Update kept the old glow and route.
+    """
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.ui.new_item.continue_launch import ItemPackageLaunch
+
+    app, studio, spec = game
+    controller = studio()
+    draft = replace(draft_from_spec(spec), model_source=ModelSource.IMPORTED, material_route=MaterialRoute.PLAIN_PBR,
+                    glow_parts=('blade',), glow_color=(0.2, 0.4, 1.0), glow_intensity=6.0)
+    launch = ItemPackageLaunch(tmp_path / 'Blade.cdmw', 'g' * 32, 'Blade', draft,
+                               model=ModelFiles(b'pac', material_route='plain_pbr'))
+    failures = []
+    controller.plan_failed.connect(lambda message, _issues: failures.append(message))
+
+    def plan_after(edit):
+        failures.clear()
+        _continue(app, controller, launch)
+        edit(controller.draft)
+        controller.invalidate_plan()
+        controller.start_plan()
+        _pump(app, lambda: not controller.busy)
+        return failures[-1] if failures else ''
+
+    assert 'Import the source model again' not in plan_after(lambda draft: None)
+    for edit in (lambda draft: setattr(draft, 'glow_color', (1.0, 0.0, 0.0)),
+                 lambda draft: setattr(draft, 'glow_intensity', 9.0),
+                 lambda draft: setattr(draft, 'glow_parts', ()),
+                 lambda draft: setattr(draft, 'material_route', MaterialRoute.BUILDER)):
+        message = plan_after(edit)
+        assert 'Import the source model again' in message and 'glow' in message, message
 
 
 def test_drafts_and_mods_page_shows_a_package_row_and_routes_continue(tmp_path):

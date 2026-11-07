@@ -603,12 +603,48 @@ class ArchiveMeshImportExportMixin:
         )
 
     def _export_selected_archive_models(self, export_format: str) -> None:
-        from cdmw.ui.archive_browser.mesh_batch_export_controller import selected_batch_models
+        from cdmw.ui.archive_browser import mesh_batch_export_controller as batch
+
+        if self.shell._background_task_active() or getattr(self, "_archive_batch_selection_reader", None) is not None:
+            return
+        nodes = tuple(self.archive_tree.selectedItems())
+        if not batch.batch_selection_has_unloaded_rows(self, nodes):
+            self._open_batch_mesh_export(batch.selected_batch_models(self, nodes), export_format)
+            return
+        limit = batch.MAX_BATCH_SELECTED_ROWS
+        if batch.selected_batch_row_count(self) > limit:
+            QMessageBox.information(
+                self, "Batch Mesh Export",
+                f"Select at most {limit:,} rows for a batch export. Narrow the filter to the models you want.",
+            )
+            return
+        # The flat view never loaded some selected rows; read them from the worker first.
+        reader = batch.BatchSelectionPageReader(self, nodes, self)
+        self._archive_batch_selection_reader = reader
+
+        def finish(selections: object = (), *, changed: bool = False, failure: object = None) -> None:
+            if getattr(self, "_archive_batch_selection_reader", None) is reader:
+                self._archive_batch_selection_reader = None
+            reader.deleteLater()
+            if changed:
+                QMessageBox.warning(
+                    self, "Batch Mesh Export",
+                    "The archive list changed while the selected rows were read. Select the models again.",
+                )
+            elif failure is not None:
+                QMessageBox.warning(self, "Batch Mesh Export", f"The archives could not be read: {failure}")
+            else:
+                self._open_batch_mesh_export(selections, export_format)
+
+        reader.resolved.connect(lambda selections: finish(selections))
+        reader.list_changed.connect(lambda: finish(changed=True))
+        reader.failed.connect(lambda message: finish(failure=message))
+        self.shell.set_status_message("Reading the selected rows from the archive list...")
+        reader.start()
+
+    def _open_batch_mesh_export(self, selections, export_format: str) -> None:
         from cdmw.ui.archive_browser.mesh_batch_export_dialog import BatchMeshExportDialog
 
-        if self.shell._background_task_active():
-            return
-        selections = selected_batch_models(self)
         if not selections:
             QMessageBox.information(self, "Batch Mesh Export", "Select PAC, PAM or PAMLOD file rows first. Folders and other file types are not included.")
             return
@@ -623,9 +659,20 @@ class ArchiveMeshImportExportMixin:
         self, entry: ArchiveEntry, export_format: str, *, bake_neutral_appearance: bool = False,
     ) -> None:
         try:
-            dependencies = archive_workflow_dependency_context(self, entry)
+            dependencies = archive_workflow_dependency_context(self, entry, owned=True)
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.shell.set_status_message(f"Mesh export is unavailable: {exc}", error=True)
+            current_entry = self._current_archive_entry()
+            if (isinstance(current_entry, ArchiveEntry) and current_entry.identity == entry.identity
+                    and getattr(getattr(self, "archive_remote_bridge", None), "displays_v2", False)):
+                # A right-click moves the selection without a preview, so nothing has
+                # prepared this model yet: start that, as Asset Family does.
+                self._render_archive_preview(current_entry)
+                action = f"Export This Model as {export_format.upper()}"
+                self.shell.set_status_message(
+                    f"Preparing {entry.basename} and its related files. Open {action} again when its preview finishes."
+                )
+            else:
+                self.shell.set_status_message(f"Mesh export is unavailable: {exc}", error=True)
             return
         entry = dependencies.selected_entry
         default_dir = self.shell.settings_file_path.parent / "mesh_export"

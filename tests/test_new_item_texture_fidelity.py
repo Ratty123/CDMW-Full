@@ -842,3 +842,33 @@ def test_obj_illumination_model_does_not_add_a_glow_role(tmp_path, illumination,
     assert ("glow" in texture_set.source_role_tags) == active
     glow = _complete_swap_accent_emissive_slot(texture_set, "Sword", get_complete_swap_material_profile("arm_standard"))
     assert (glow is not None) == active
+
+
+def test_repeated_mesh_editor_use_keeps_each_separated_part_name(tmp_path):
+    # The editor session stays open after Use Mesh Editor changes and keeps the inherited
+    # names; only the captured copy is renamed. A second Use used to rename by position,
+    # so a deleted separation's name (and its Glow) passed to the next one.
+    from cdmw.modding.mesh_edit_ops import _delete_submeshes
+    from cdmw.ui.new_item.model_import import prepare_model_import_mesh_edit
+
+    path = write_gltf(tmp_path, [{"name": "Blade", "pbrMetallicRoughness": {"baseColorFactor": [1, 1, 1, 1]}}], [])
+    scene = import_scene_mesh_with_report(path)
+    session = deepcopy(scene.mesh)
+    source = session.submeshes[0]
+    for offset in (1.0, 2.0):
+        # A separation as the editor makes it: the source's name, appended, tagged.
+        part = deepcopy(source)
+        part.vertices = [(x + offset, y, z) for x, y, z in source.vertices]
+        part.cdmw_mesh_edit_topology_source_submesh_index = 0
+        session.submeshes.append(part)
+    first, _, _, _ = prepare_model_import_mesh_edit(deepcopy(session), scene=scene, model_path=path)
+    names = [part.name for part in first.mesh.submeshes]
+    assert len({name.casefold() for name in names}) == 3
+    _delete_submeshes(session, [1])
+    second, _, _, _ = prepare_model_import_mesh_edit(deepcopy(session), scene=first, model_path=path)
+    assert [part.name for part in second.mesh.submeshes] == [names[0], names[2]]
+    session.submeshes.append(deepcopy(session.submeshes[1]))
+    session.submeshes[-1].vertices = [(x, y + 3.0, z) for x, y, z in source.vertices]
+    third, _, _, _ = prepare_model_import_mesh_edit(deepcopy(session), scene=second, model_path=path)
+    third_names = [part.name for part in third.mesh.submeshes]
+    assert third_names[:2] == [names[0], names[2]] and len({name.casefold() for name in third_names}) == 3

@@ -126,3 +126,33 @@ def test_exclusion_retains_tiny_placeholder_in_lower_lods(tmp_path, extension):
                 assert max(max(v[axis] for v in part.vertices) - min(v[axis] for v in part.vertices) for axis in range(3)) < .002
     finally:
         service.close_edit_session(view.session_id)
+
+
+def test_pamlod_replacement_carries_the_new_shape_into_lower_lods(tmp_path):
+    # Import Replacement used to rewrite LOD0 only: at a distance the game drew the
+    # replaced part's original lower-LOD geometry again.
+    original = static_fixture("pamlod", levels=2)
+    source = parse_mesh(original, "object/two.pamlod")
+    mesh = parse_mesh(original, "object/two.pamlod")
+    mesh._cdmw_original_data = original
+    mesh.lod_levels = []
+    service = MeshService()
+    view = service.open_edit_session(mesh)
+    try:
+        snapshot = service.capture_export_snapshot(view.session_id)
+        key = initial_replacement_state(snapshot).parts[0].part_id
+        pending = prepare_import(snapshot, source_obj(tmp_path), target_part_ids=(key,))
+        candidate, state = compose_import(pending, (key,))
+        result = parse_mesh(prepare_replacement_output(replace(snapshot, mesh=candidate, replacement_state=state)).data,
+                            mesh.path)
+        assert [len(level) for level in result.lod_levels] == [2, 2]
+        new_shape = candidate.submeshes[0].vertices
+        replaced, untouched = result.lod_levels[1]
+        assert len(replaced.vertices) == len(source.lod_levels[1][0].vertices), "lower LOD records are kept"
+        for after in replaced.vertices:
+            # Each record moves onto the new shape (here, onto one of its vertices).
+            assert any(after == pytest.approx(vertex, abs=.01) for vertex in new_shape), after
+        for before, after in zip(source.lod_levels[1][1].vertices, untouched.vertices, strict=True):
+            assert after == pytest.approx(before, abs=.01)
+    finally:
+        service.close_edit_session(view.session_id)

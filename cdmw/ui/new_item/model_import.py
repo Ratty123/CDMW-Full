@@ -979,7 +979,7 @@ def prepare_model_import_mesh_edit(
     if not tuple(mesh.submeshes or ()):
         raise ValueError("The Mesh Editor revision could not be captured safely.")
     raise_if_cancelled(stop_event)
-    _name_separated_parts_uniquely(mesh)
+    _name_separated_parts_uniquely(mesh, previous=getattr(scene, "mesh", None))
     edited_scene = copy.copy(scene)
     setattr(edited_scene, "mesh", mesh)
     # The editor can delete, reorder or split parts. Bindings from the imported
@@ -1017,31 +1017,62 @@ def prepare_model_import_mesh_edit(
     return edited_scene, preview_model, analyze_mesh_geometry(mesh), texture_count
 
 
-def _name_separated_parts_uniquely(mesh: object) -> None:
+def _name_separated_parts_uniquely(mesh: object, previous: object = None) -> None:
     """Give repeated face separations stable, independently addressable names.
 
     The generic Mesh Editor correctly inherits the source part's name for every
     separation. New Item needs distinct names because Glow and material routing are
     selected by part name; rename only topology-created parts, never source-authored
     duplicates.
+
+    The editor session stays open across Use Mesh Editor changes and keeps the
+    inherited names, so a separation that ``previous`` (the last revision used)
+    already named keeps that name: same geometry first, then same topology after a
+    sculpt or move. Naming by position would hand a deleted separation's name, and
+    the settings chosen for it, to the next one.
     """
 
-    seen: set[str] = set()
-    for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+    def separated(part: object) -> bool:
+        return hasattr(part, "cdmw_mesh_edit_topology_source_submesh_index")
+
+    def topology(part: object) -> tuple:
+        return (str(getattr(part, "material", "") or "").casefold(), len(tuple(getattr(part, "vertices", ()) or ())),
+                tuple(tuple(face) for face in tuple(getattr(part, "faces", ()) or ())))
+
+    def geometry(part: object) -> tuple:
+        return (*topology(part), tuple(tuple(vertex) for vertex in tuple(getattr(part, "vertices", ()) or ())))
+
+    parts = tuple(getattr(mesh, "submeshes", ()) or ())
+    seen = {name.casefold() for part in parts if not separated(part)
+            for name in (str(getattr(part, "name", "") or "").strip(),) if name}
+    earlier = [part for part in tuple(getattr(previous, "submeshes", ()) or ()) if separated(part)
+               and str(getattr(part, "name", "") or "").strip()]
+    named: dict[int, str] = {}
+    for signature in (geometry, topology):
+        for index, part in enumerate(parts):
+            if index in named or not separated(part):
+                continue
+            match = next((old for old in earlier if signature(old) == signature(part)
+                          and str(old.name).strip().casefold() not in seen), None)
+            if match is not None:
+                earlier.remove(match)
+                named[index] = str(match.name).strip()
+                seen.add(named[index].casefold())
+    for index, submesh in enumerate(parts):
+        if not separated(submesh):
+            continue
         name = str(getattr(submesh, "name", "") or "").strip()
-        separated = hasattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index")
-        if separated:
+        candidate = named.get(index)
+        if candidate is None:
             base = name or str(getattr(submesh, "material", "") or "").strip() or f"part {index}"
             candidate = base
             suffix = 2
             while candidate.casefold() in seen:
                 candidate = f"{base} {suffix}"
                 suffix += 1
-            if candidate != name:
-                submesh.name = candidate
-            name = candidate
-        if name:
-            seen.add(name.casefold())
+            seen.add(candidate.casefold())
+        if candidate != name:
+            submesh.name = candidate
 
 
 #: What a model file might be that the studio cannot read, and what to do about it. FBX is

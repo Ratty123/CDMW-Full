@@ -227,6 +227,7 @@ class NewItemModelControllerMixin:
         self._template_request = None
         self.log_message.emit(message)
         self.status_message.emit(message, True)
+        self.template_failed.emit(str(message))
 
     def _commit_template(self, template_key) -> None:
         self.reset_variants()

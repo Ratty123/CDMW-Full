@@ -165,6 +165,34 @@ def _build_replacement_pamlod(mesh, original_data, state, original_target):
     return result
 
 
+def _replacement_lower_lods(original_target, prepared, state):
+    """The target's LOD levels with each replaced part's lower levels on its new shape.
+
+    A PAMLOD's lower levels keep their records, so the new LOD0 geometry reaches them
+    as a displacement of their positions; their UVs stay the original's. Unchanged and
+    removed parts keep their levels here (the writer collapses removed ones).
+    """
+    from cdmw.modding.mesh_pamlod_builder import transfer_edit_to_lower_parts
+
+    levels = copy.deepcopy(list(original_target.lod_levels))
+    if len(levels) < 2 or len(prepared.submeshes) != len(original_target.submeshes):
+        return []
+    owners: dict[str, list] = {}
+    for binding in state.parts:
+        owners.setdefault(original_target.submeshes[binding.target_index].material, []).append(binding)
+    for binding in state.parts:
+        before = original_target.submeshes[binding.target_index]
+        after = prepared.submeshes[binding.target_index]
+        if not binding.included or len(owners[before.material]) != 1 or list(after.vertices) == list(before.vertices):
+            continue
+        same_topology = len(after.vertices) == len(before.vertices) and list(after.faces) == list(before.faces)
+        for level in levels[1:]:
+            transfer_edit_to_lower_parts(before.vertices, after.vertices,
+                                         [part for part in level if part.material == before.material],
+                                         one_to_one=same_topology)
+    return levels
+
+
 def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     state = snapshot.replacement_state
     if state is None:
@@ -200,7 +228,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if original.format.lower() == "pamlod":
         from cdmw.modding.static_mesh_runtime_builder import _build_mapped_replacement_mesh
         prepared = _build_mapped_replacement_mesh(original, snapshot.mesh, mappings, options)
-        prepared.lod_levels = []  # The editor owns LOD0; the writer retains other levels.
+        # The editor owns LOD0; the writer keeps the other levels' records, moved
+        # onto each replaced part's new shape.
+        prepared.lod_levels = _replacement_lower_lods(original, prepared, state)
         data = _build_replacement_pamlod(prepared, snapshot.original_data, state, original)
     else:
         preserved = ()

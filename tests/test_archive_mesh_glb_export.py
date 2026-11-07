@@ -161,3 +161,34 @@ def test_a_texture_left_out_of_the_export_is_named_in_its_summary(tmp_path):
     assert any(line.startswith("Textures not included: ") for line in left_out.summary_lines)
     assert [line for line in left_out.summary_lines if line.startswith("Missing texture: ")] == [
         f"Missing texture: {row}" for row in report["missing_textures"]]
+
+
+@pytest.mark.parametrize("export_format", ["glb", "obj"])
+def test_protected_texture_maps_resolve_to_the_package_copies_after_a_move(tmp_path, export_format):
+    # The manifest records the source mesh's own texture strings; the writer named its
+    # portable copies by the resolved paths. A return from a moved package must still
+    # find the textures/ copies, not the archive-relative names.
+    import shutil
+
+    from cdmw.modding.mesh_interchange_materials import resolve_companion_material_paths
+
+    model, _skeleton, texture, _raw, options = rigged_archive(tmp_path)
+    reference = ArchiveModelTextureReference(
+        reference_name="guide0.dds", material_name="guide0", part_name="guide0",
+        resolved_archive_path=texture.path, resolved_entry=texture,
+        resolution_status="resolved", semantic_label="Base color",
+    )
+    result = export_archive_mesh(model, tmp_path / "out", export_format, **options, related_entries=(texture,),
+                                 model_texture_references=(reference,), build_preview_context=False)
+    assert not [line for line in result.summary_lines if line.startswith(("Missing texture", "Textures not included"))]
+    moved = tmp_path / "moved"
+    (tmp_path / "out").rename(moved)
+    shutil.rmtree(moved / "referenced_files")
+    payload = json.loads((moved / f"body.{export_format}.meta.json").read_text())
+    resolve_companion_material_paths(payload, moved)
+    parts = [*payload.get("submeshes", []), *(part for lod in payload.get("lods", []) for part in lod.get("submeshes", []))]
+    bindings = [info for part in parts for info in part.get("interchange_material", {}).get("textures", {}).values()]
+    assert bindings
+    for info in bindings:
+        path = Path(info["path"])
+        assert path.is_file() and path.is_relative_to(moved / "textures"), info

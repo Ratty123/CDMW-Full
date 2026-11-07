@@ -8,7 +8,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from cdmw.domain.archives.catalogue import ArchiveEntryDto
+from cdmw.domain.archives.catalogue import ArchiveEntryDto, ArchivePage
+from cdmw.domain.archives.catalogue_operations import FetchPageRequest
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
@@ -22,14 +23,19 @@ from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_depen
 from cdmw.ui.shell.request_task_controller import RequestTaskController
 
 
+#: Selected rows a batch export reads from the worker when the flat view has not
+#: loaded their pages: about 200 pages of the live catalogue's query.
+MAX_BATCH_SELECTED_ROWS = 50_000
+
+
 @dataclass(frozen=True)
 class BatchMeshSelection:
     entry: ArchiveEntry
     dto: ArchiveEntryDto | None = None
 
 
-def _selected_batch_entries(archive: object):
-    for node in archive.archive_tree.selectedItems():
+def _selected_batch_entries(archive: object, nodes=None):
+    for node in archive.archive_tree.selectedItems() if nodes is None else nodes:
         if node.kind != "file":
             continue
         dto = getattr(node, "entry", None)
@@ -45,16 +51,163 @@ def _selected_batch_entries(archive: object):
             yield entry, dto
 
 
+def _selected_flat_ranges(archive: object) -> tuple[tuple[int, int], ...]:
+    """The live flat view's selected row ranges, loaded or not.
+
+    A row whose page the view has not loaded (or has evicted from its bounded cache)
+    is not selectable, so the selected items leave it out while a Ctrl+A or Shift
+    range still spans it. Only the ranges say which rows the user selected.
+    """
+    tree = archive.archive_tree
+    if not getattr(tree, "remote_flat_view_active", False):
+        return ()
+    selection_model = tree.selectionModel()
+    if selection_model is None:
+        return ()
+    ranges = sorted((int(r.top()), int(r.bottom())) for r in selection_model.selection()
+                    if not r.parent().isValid() and r.bottom() >= r.top() >= 0)
+    merged: list[tuple[int, int]] = []
+    for top, bottom in ranges:
+        if merged and top <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], bottom))
+        else:
+            merged.append((top, bottom))
+    return tuple(merged)
+
+
+def selected_batch_row_count(archive: object) -> int:
+    """Rows the live flat view's selection spans; 0 in the tree and legacy views."""
+    return sum(bottom - top + 1 for top, bottom in _selected_flat_ranges(archive))
+
+
+def batch_selection_has_unloaded_rows(archive: object, nodes=None) -> bool:
+    """Whether the flat selection spans rows the view holds no entry for."""
+    count = selected_batch_row_count(archive)
+    if not count:
+        return False
+    nodes = archive.archive_tree.selectedItems() if nodes is None else nodes
+    return count > sum(1 for node in nodes if node.kind == "file")
+
+
 def has_selected_batch_models(archive: object) -> bool:
-    return next(_selected_batch_entries(archive), None) is not None
+    nodes = archive.archive_tree.selectedItems()
+    return next(_selected_batch_entries(archive, nodes), None) is not None or batch_selection_has_unloaded_rows(archive, nodes)
 
 
-def selected_batch_models(archive: object) -> tuple[BatchMeshSelection, ...]:
-    """Capture explicit file rows in both flat and tree views, without a 512-row cap."""
+def _batch_selections(pairs) -> tuple[BatchMeshSelection, ...]:
     models = {}
-    for entry, dto in _selected_batch_entries(archive):
+    for entry, dto in pairs:
         models.setdefault(entry.identity, BatchMeshSelection(copy.deepcopy(entry), dto))
     return tuple(models.values())
+
+
+def selected_batch_models(archive: object, nodes=None) -> tuple[BatchMeshSelection, ...]:
+    """Capture explicit file rows in both flat and tree views, without a 512-row cap."""
+    return _batch_selections(_selected_batch_entries(archive, nodes))
+
+
+class BatchSelectionPageReader(QObject):
+    """Read the selected flat-view rows the view has no page for, through the worker.
+
+    The pages come from the query the view shows, one at a time. A page from another
+    query or generation, or a view that published another query meanwhile, ends the
+    whole read with ``list_changed``; a worker failure gives ``failed(message)``.
+    ``resolved`` carries the selections in row order. Every outcome is delivered from
+    the event loop rather than inside the worker's result signal.
+    """
+
+    resolved = Signal(object)
+    list_changed = Signal()
+    failed = Signal(str)
+
+    def __init__(self, archive: object, nodes, parent: QObject | None = None):
+        super().__init__(parent)
+        bridge = archive.archive_remote_bridge
+        self._model = bridge.model
+        self._service = archive.archive_catalogue_service
+        self._ui_generation = int(bridge.controller.generation)
+        self._handle = self._model.query_handle
+        self._page_size = int(self._model.page_size)
+        self._rows = tuple(row for top, bottom in _selected_flat_ranges(archive) for row in range(top, bottom + 1))
+        self._known = {int(node.row_number): node.entry for node in nodes
+                       if node.kind == "file" and isinstance(getattr(node, "entry", None), ArchiveEntryDto)}
+        self._read: dict[int, ArchiveEntryDto] = {}
+        self._starts = sorted({row // self._page_size * self._page_size for row in self._rows if row not in self._known})
+        self._request_id: str | None = None
+        self.active = False
+        self._service.result_ready.connect(self._handle_result)
+        self._service.request_failed.connect(self._handle_failure)
+        self._service.request_cancelled.connect(self._handle_cancelled)
+
+    def start(self) -> None:
+        if self.active:
+            return
+        self.active = True
+        if self._handle is None:
+            self._end(self.list_changed)
+            return
+        self._next()
+
+    def cancel(self) -> None:
+        request_id, self._request_id = self._request_id, None
+        self.active = False
+        if request_id is not None:
+            try:
+                self._service.cancel(request_id)
+            except (AttributeError, RuntimeError):
+                pass
+
+    def _next(self) -> None:
+        if not self._starts:
+            self._finish()
+            return
+        try:
+            self._request_id = str(self._service.fetch_page(
+                FetchPageRequest(self._handle.query_id, self._starts[0], self._page_size),
+                ui_generation=self._ui_generation,
+            ))
+        except Exception as exc:  # noqa: BLE001 - the service refuses a stale query by raising
+            self._end(self.failed, str(exc))
+
+    def _handle_result(self, request_id: str, _operation: str, payload: object) -> None:
+        if not self.active or request_id != self._request_id:
+            return
+        self._request_id = None
+        handle, start = self._handle, self._starts[0]
+        if (not isinstance(payload, ArchivePage) or payload.page_start != start or len(payload.rows) > self._page_size
+                or (payload.session_id, payload.query_id, payload.generation, payload.total_matches)
+                != (handle.session_id, handle.query_id, handle.generation, handle.total_matches)):
+            self._end(self.list_changed)
+            return
+        for offset, dto in enumerate(payload.rows):
+            self._read[start + offset] = dto
+        self._starts.pop(0)
+        self._next()
+
+    def _handle_failure(self, request_id: str, error: object) -> None:
+        if self.active and request_id == self._request_id:
+            self._request_id = None
+            self._end(self.failed, str(getattr(error, "message", "") or error))
+
+    def _handle_cancelled(self, request_id: str) -> None:
+        if self.active and request_id == self._request_id:
+            self._request_id = None
+            self._end(self.list_changed)
+
+    def _finish(self) -> None:
+        dtos = [self._known.get(row) or self._read.get(row) for row in self._rows]
+        if self._model.query_handle != self._handle or any(dto is None for dto in dtos):
+            self._end(self.list_changed)
+            return
+        selections = _batch_selections(
+            (entry, dto) for dto in dtos
+            for entry in (ArchiveCatalogueService.compatibility_entry(dto),)
+            if entry.extension in ARCHIVE_MESH_EXTENSIONS)
+        self._end(self.resolved, selections)
+
+    def _end(self, signal, *arguments) -> None:
+        self.active = False
+        QTimer.singleShot(0, self, lambda: signal.emit(*arguments))
 
 
 class BatchMeshExportController(QObject):

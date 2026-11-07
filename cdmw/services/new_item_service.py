@@ -349,7 +349,8 @@ class NewItemService:
         elif isinstance(model, ModelFiles) and model.baked_appearance is not None:
             from cdmw.services.new_item_planning import require_baked_appearance
             require_baked_appearance(model, allocated.translucency, allocated.surface_settings,
-                                     allocated.shader_controls, "The item")
+                                     allocated.shader_controls, "The item", glow=allocated.glow,
+                                     material_route=allocated.material_route)
             files = model
         elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency

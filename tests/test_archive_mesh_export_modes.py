@@ -233,3 +233,54 @@ def test_format_explorer_structured_route_dispatches_selected_sidecar(tmp_path, 
     finally:
         window.close()
         window.deleteLater()
+
+
+@pytest.mark.parametrize("snapshot_owner", ["none", "another-model", "itself"])
+def test_right_click_export_prepares_a_model_without_its_own_dependency_set(tmp_path, monkeypatch, snapshot_owner):
+    """Export used to stop at "still preparing", or export with another model's prepared files."""
+    from dataclasses import replace
+
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+
+    global _APPLICATION
+    _APPLICATION = QApplication.instance() or QApplication([])
+
+    def archive_entry(path, offset):
+        return ArchiveEntry(path=path, pamt_path=tmp_path / "0.pamt", paz_file=tmp_path / "0.paz",
+                            offset=offset, comp_size=64, orig_size=64, flags=0, paz_index=0)
+
+    entry, other = archive_entry("character/model/mesh.pac", 0), archive_entry("character/model/other.pac", 64)
+    prepared = {item.path: replace(item, prepared_path=tmp_path / item.basename) for item in (entry, other)}
+    members = {"none": (), "another-model": (other, entry), "itself": (entry, other)}[snapshot_owner]
+    snapshot = ArchivePreviewDependencySet(
+        "session-a", 1, tuple(prepared[item.path] for item in members),
+        {item.path: (prepared[item.path],) for item in members},
+        {item.basename: (prepared[item.path],) for item in members}, len(members), False,
+    ) if members else None
+    window = _ExportWindow(entry, tmp_path)
+    window.archive_remote_bridge = SimpleNamespace(displays_v2=True, prepared_dependencies_for=lambda _entry: snapshot)
+    previews, prompts, calls = [], [], []
+    window._render_archive_preview = previews.append
+
+    class ExportMenu(QMenu):
+        def exec(self, _position):
+            next(action for action in self.actions() if action.text() == "Export This Model as GLB...").trigger()
+
+    def export(selected, output_dir, format_name, **kwargs):
+        calls.append((selected, kwargs["archive_entries_by_normalized_path"]))
+        return MeshExportResult(output_paths=[], summary_lines=())
+
+    monkeypatch.setattr(actions, "QMenu", ExportMenu)
+    monkeypatch.setattr(mesh_import_export.QFileDialog, "getExistingDirectory", lambda *args: prompts.append(args) or str(tmp_path))
+    monkeypatch.setattr(mesh_import_export, "export_archive_mesh", export)
+    try:
+        window._show_archive_tree_context_menu(QPoint())
+        if snapshot_owner == "itself":
+            assert not previews and len(prompts) == 1
+            assert calls == [(prepared[entry.path], snapshot.entries_by_normalized_path)]
+        else:
+            assert previews == [entry] and not prompts and not calls
+            assert window.status_messages[-1] == (
+                "Preparing mesh.pac and its related files. Open Export This Model as GLB again when its preview finishes.", {})
+    finally:
+        window.close()

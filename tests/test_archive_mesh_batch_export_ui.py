@@ -10,7 +10,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem, QWidget
 
@@ -213,3 +213,139 @@ def test_progress_and_final_report_localize_immediately_and_can_switch_back(app,
         localizer.shutdown()
         dialog.close()
         archive.close()
+
+
+class _PageService(QObject):
+    result_ready = Signal(str, str, object)
+    request_failed = Signal(str, object)
+    request_cancelled = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.fetches = []
+        self.cancelled = []
+
+    def fetch_page(self, request, *, ui_generation):
+        self.fetches.append((request, ui_generation))
+        return f"page-{len(self.fetches)}"
+
+    def cancel(self, request_id):
+        self.cancelled.append(request_id)
+        return True
+
+
+def _flat_window(app, tmp_path, monkeypatch, rows, *, loaded=4):
+    """An Archive Browser whose flat view holds only its first page of `rows`."""
+    from cdmw.domain.archives.catalogue import ArchivePage, ArchiveQueryHandle, ArchiveViewMode
+    from cdmw.ui.archive_browser import mesh_batch_export_dialog, mesh_import_export
+    from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+    from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
+
+    window = _ExportWindow(ArchiveEntry("object/a.pam", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 1, 1, 0, 0), tmp_path)
+    view = ArchiveBrowserTreeView(window)
+    model = RemoteArchiveBrowserModel(page_size=4, parent=view)
+    model.publish_query(ArchiveQueryHandle("session-a", "query-a", 3, len(rows)), view_mode=ArchiveViewMode.FLAT, prime=False)
+    assert model.accept_page(ArchivePage("session-a", "query-a", 3, len(rows), 0, rows[:loaded]))
+    view.use_remote_model(model)
+    view.selectionModel().select(
+        QItemSelection(model.index(0, 0), model.index(len(rows) - 1, model.columnCount() - 1)),
+        QItemSelectionModel.Select | QItemSelectionModel.Rows)
+    window.archive_tree = view
+    window.archive_catalogue_service = _PageService()
+    window.archive_remote_bridge = SimpleNamespace(model=model, controller=SimpleNamespace(generation=7))
+    opened, warnings = [], []
+
+    class Dialog:
+        def __init__(self, _archive, selections, export_format):
+            opened.append((export_format, [selection.entry.path for selection in selections]))
+            self.controller = SimpleNamespace(close=lambda: None)
+
+        def exec(self):
+            return 0
+
+        def deleteLater(self):
+            pass
+
+    monkeypatch.setattr(mesh_batch_export_dialog, "BatchMeshExportDialog", Dialog)
+    monkeypatch.setattr(mesh_import_export.QMessageBox, "warning", lambda _parent, _title, text: warnings.append(text))
+    monkeypatch.setattr(mesh_import_export.QMessageBox, "information", lambda _parent, _title, text: warnings.append(text))
+    return window, model, opened, warnings
+
+
+def _page(rows, start, *, generation=3):
+    from cdmw.domain.archives.catalogue import ArchivePage
+
+    return ArchivePage("session-a", "query-a", generation, len(rows), start, rows[start:start + 4])
+
+
+def test_batch_export_reads_selected_rows_the_flat_view_never_loaded(app, tmp_path, monkeypatch):
+    """Ctrl+A over a long filtered list used to export only the pages scrolled through."""
+    from tests.test_archive_remote_preview_dependencies import _dto
+
+    rows = tuple(_dto(n, f"texture/{n}.dds" if n % 5 == 0 else f"object/{n}.pam") for n in range(10))
+    window, model, opened, warnings = _flat_window(app, tmp_path, monkeypatch, rows)
+    service = window.archive_catalogue_service
+    try:
+        # Rows without a loaded page are not selectable, so the selected items name only the
+        # loaded page while the selection itself still spans every row.
+        assert len(window.archive_tree.selectedItems()) == 4
+        assert [(r.top(), r.bottom()) for r in window.archive_tree.selectionModel().selection()] == [(0, 9)]
+        window._export_selected_archive_models("obj")
+        assert not opened and [(r.query_id, r.page_start, r.page_size, g) for r, g in service.fetches] == [("query-a", 4, 4, 7)]
+        assert window.status_messages[-1][0] == "Reading the selected rows from the archive list..."
+        window._export_selected_archive_models("obj")
+        assert len(service.fetches) == 1, "a second request waits for the first read"
+        service.result_ready.emit("page-1", "fetch_page", _page(rows, 4))
+        assert [r.page_start for r, _g in service.fetches] == [4, 8]
+        service.result_ready.emit("page-2", "fetch_page", _page(rows, 8))
+        _drain(app, lambda: opened)
+        assert opened == [("obj", [f"object/{n}.pam" for n in range(10) if n % 5])]
+        assert not warnings
+    finally:
+        window.close()
+
+
+def test_batch_export_refuses_rows_read_from_a_changed_list(app, tmp_path, monkeypatch):
+    from tests.test_archive_remote_preview_dependencies import _dto
+
+    rows = tuple(_dto(n, f"object/{n}.pam") for n in range(10))
+    window, _model, opened, warnings = _flat_window(app, tmp_path, monkeypatch, rows)
+    service = window.archive_catalogue_service
+    try:
+        window._export_selected_archive_models("glb")
+        service.result_ready.emit("page-1", "fetch_page", _page(rows, 4, generation=4))
+        _drain(app, lambda: warnings)
+        assert warnings == ["The archive list changed while the selected rows were read. Select the models again."]
+        assert not opened and len(service.fetches) == 1
+        window._export_selected_archive_models("glb")
+        service.request_failed.emit("page-2", RuntimeError("worker stopped"))
+        _drain(app, lambda: len(warnings) == 2)
+        assert warnings[-1] == "The archives could not be read: worker stopped"
+        assert not opened
+    finally:
+        window.close()
+
+
+def test_batch_export_bounds_the_rows_it_reads(app, tmp_path, monkeypatch):
+    from cdmw.ui.archive_browser import mesh_batch_export_controller
+    from tests.test_archive_remote_preview_dependencies import _dto
+
+    rows = tuple(_dto(n, f"object/{n}.pam") for n in range(10))
+    window, _model, opened, warnings = _flat_window(app, tmp_path, monkeypatch, rows)
+    monkeypatch.setattr(mesh_batch_export_controller, "MAX_BATCH_SELECTED_ROWS", 9)
+    try:
+        window._export_selected_archive_models("fbx")
+        assert warnings == ["Select at most 9 rows for a batch export. Narrow the filter to the models you want."]
+        assert not opened and not window.archive_catalogue_service.fetches
+    finally:
+        window.close()
+
+
+def _drain(app, predicate, timeout=5.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while not predicate() and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.001)
+    assert predicate()

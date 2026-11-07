@@ -161,6 +161,8 @@ class NewItemStudioTab(QWidget):
         self._pending_model_import: Optional[Path] = None
         #: an item package from Drafts & Mods, opened once its template is committed
         self._pending_package = None
+        #: whether that package's own template request was issued (not just queued)
+        self._pending_package_requested = False
         self._panels_built = False
         self._panel_mount_steps = None
         self._panel_mount_timer = QTimer(self)
@@ -230,6 +232,7 @@ class NewItemStudioTab(QWidget):
         self.controller.template_changed.connect(self._log_template_selected)
         self.controller.template_changed.connect(self._resume_pending_model_import)
         self.controller.template_changed.connect(self._resume_pending_package)
+        self.controller.template_failed.connect(self._drop_failed_pending_package)
         self.controller.effect_catalogue_failed.connect(self._log_effect_failure)
         self._append_log("Create New Item opened. Read the archives to begin.")
 
@@ -993,21 +996,38 @@ class NewItemStudioTab(QWidget):
         """
 
         if not self.controller.ready or not self._panels_built:
-            self._pending_package = launch
+            self._pending_package, self._pending_package_requested = launch, False
             if not self.controller.ready:
                 self.start_snapshot()
             return
         if self.controller.busy:
             self._append_log("Create New Item is busy. Choose Continue Editing again when it finishes.")
             return
-        self._pending_package = launch
+        self._pending_package, self._pending_package_requested = launch, True
         self.output_panel.show_continued_package()
         self.template_panel.prefill(int(launch.draft.template_key))
 
     def _resume_pending_package(self, key) -> None:
         launch = self._pending_package
-        if launch is not None and key is not None and int(key) == int(launch.draft.template_key):
+        if launch is None or key is None:
+            return
+        if int(key) == int(launch.draft.template_key):
             QTimer.singleShot(0, self, self._restore_pending_package)
+        elif self._pending_package_requested:
+            # Another template replaced the package's own request: the user moved on.
+            self._pending_package = None
+
+    def _drop_failed_pending_package(self, message: str) -> None:
+        """A failed template commit ends the Continue that asked for it.
+
+        Kept, the launch would restore itself the next time anyone commits that
+        template, over an unrelated item, and write back into the package.
+        """
+        launch = self._pending_package
+        if launch is None or not self._pending_package_requested:
+            return
+        self._pending_package = None
+        self._append_log(f"{launch.title} could not be continued: {message}")
 
     def _restore_pending_package(self) -> None:
         launch = self._pending_package
