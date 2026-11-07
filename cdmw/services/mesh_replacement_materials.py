@@ -201,6 +201,10 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
     options.rebuild_material_sidecar = True
     options.material_mapping_mode = "source_driven_materials"
     options.auto_brightness_balance = 0.0
+    # The target's detail, grime, colour-blend and tint layers are painted for
+    # the original UV layout. Left in, they draw over the imported texture on
+    # the import's own UVs; Archive Browser's material replacements drop them too.
+    options.neutralize_inherited_material_layers = True
     # A failed original-material lookup must never become a geometry-only success.
     with TemporaryDirectory(prefix="cdmw-replacement-materials-") as temporary:
         directory = Path(temporary)

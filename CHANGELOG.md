@@ -15,6 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor's **Import Replacement…** with **Imported Materials & Textures** no longer keeps the original model's detail, grime, colour-blend and tint layers. Those layers were made for the original UV layout and showed through the imported texture as a mixed-up second pattern. Not yet checked in game.
 - Archive Browser's **Import Loose Mod Folder…** matches edited game files to their archive targets again, so checked rows can be written to a loose package. It reports whether the archive catalogue is still loading or not loaded instead of listing every file as an extra. A filename shared by several archive files is never matched to one of them by guesswork. FBX, OBJ, glTF/GLB and DAE models in the folder are listed as extras with a note pointing to Mesh Editor's **Import Replacement…**, which takes OBJ, glTF/GLB and DAE.
 - Mesh Editor's **Show Target In Archive** reveals the original file in the loaded Archive Browser, even when filters or paging hide it, instead of saying the archives are not loaded.
 - **Import Mesh** and the Mesh Replacement Builder find the original model's material sidecar and textures in the loaded Archive Browser again, so the original materials, texture routing and texture previews are available. The PAC XML Editor's connection view resolves the files a sidecar points to in the same way.

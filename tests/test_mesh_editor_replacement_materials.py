@@ -29,18 +29,22 @@ def entry(root, path, data):
     return ArchiveEntry(path, root / "0009/0.pamt", source, 0, len(data), len(data), 0, 0)
 
 
-def material_fixture(root, snapshot):
+def material_fixture(root, snapshot, *, layered=False):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
     Image.new("RGBA", (4, 4), (20, 190, 90, 255)).save(original)
+    # A layered target paints its own detail mask on the original UV layout.
+    layer = (lambda i: f'<MaterialParameterTexture _name="_detailMaskTexture" Index="1"><ResourceReferencePath_ITexture '
+             f'_path="character/texture/detail{i}.dds"/></MaterialParameterTexture>') if layered else (lambda i: "")
     xml = ('<Root>' + ''.join(
         f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}"><Material><Vector Name="_parameters">'
         f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original{i}.dds"/>'
-        '</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
+        f'</MaterialParameterTexture>{layer(i)}</Vector></Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
     target = entry(root, snapshot.mesh.path, snapshot.original_data)
     entries = [target, entry(root, str(Path(target.path).with_suffix(".pac_xml")), xml.encode()),
-               *(entry(root, f"character/texture/original{i}.dds", original.read_bytes()) for i in range(2))]
+               *(entry(root, f"character/texture/original{i}.dds", original.read_bytes()) for i in range(2)),
+               *((entry(root, f"character/texture/detail{i}.dds", original.read_bytes()) for i in range(2)) if layered else ())]
     context = SimpleNamespace(entries_by_basename={Path(item.path).name.casefold(): [item] for item in entries},
                               entries_by_normalized_path={item.path.casefold(): [item] for item in entries})
     model = root / "import.obj"
@@ -65,6 +69,22 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     mesh, state = compose_import(pending, (key,), material_choice="imported", companion_files=files)
     assert mesh.submeshes[1].material == snapshot.mesh.submeshes[1].material
     assert state.parts[0].material_choice == "imported"
+
+
+def test_imported_materials_drop_the_targets_inherited_detail_layers(editor, tmp_path):
+    """The target's detail mask follows the original UVs; on the imported
+    model's UVs it shows through as a mixed-up second texture."""
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, layered=True)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    assert "detail0.dds" not in replaced and "original0.dds" not in replaced
+    assert "detail1.dds" in untouched and "original1.dds" in untouched
 
 
 def _snapshot_with_material_labels(snapshot, labels):
