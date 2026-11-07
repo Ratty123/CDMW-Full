@@ -34,6 +34,71 @@ $vgmstreamVersion = "r1980"
 $vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
 $vgmstreamArchiveSha256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f2641"
 $vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/$vgmstreamBuildCommit/bin/vgmstream-$vgmstreamVersion-test-u.zip"
+$packagePrivacyChecker = Join-Path $scriptDir "scripts\check_package_privacy.py"
+
+function Get-SourceCheckoutRoots {
+    # The folder being built, plus the main checkout when this is a git worktree or a
+    # `subst` drive, so neither can be recorded in what ships.
+    $roots = @($scriptDir.TrimEnd('\'))
+    # Outside a git checkout (a source download) git writes to stderr, which Windows
+    # PowerShell turns into a terminating error under ErrorActionPreference Stop.
+    $commonDir = $null
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $commonDir = (& git -C $scriptDir rev-parse --path-format=absolute --git-common-dir 2>$null |
+            Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0) { $commonDir = $null }
+    } catch {
+        $commonDir = $null
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($commonDir) {
+        $mainRoot = Split-Path -Parent ([IO.Path]::GetFullPath($commonDir))
+        if ($mainRoot -and ($roots -notcontains $mainRoot)) { $roots += $mainRoot }
+    }
+    return $roots
+}
+
+function Set-PathNeutralBuildEnvironment {
+    # Compilers record where files were on disk: Rust names the cargo registry under the
+    # user profile in its panic messages, MSVC writes __FILE__ into assert messages, and
+    # .NET writes the PDB path into every assembly. A release built on a developer's PC
+    # would publish that PC's user name and folders, so every local root is mapped to a
+    # neutral name for each compiler this build starts. `check_package_privacy.py` then
+    # refuses the package if anything got through.
+    $userProfile = [Environment]::GetFolderPath("UserProfile")
+    $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $userProfile ".cargo" }
+    $rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $userProfile ".rustup" }
+    # rustc applies the last matching remap, so the broad prefix comes first.
+    $rustMaps = @(@($userProfile, "/user"), @($cargoHome, "/cargo"), @($rustupHome, "/rustup"))
+    foreach ($root in (Get-SourceCheckoutRoots)) { $rustMaps += ,@($root, "/cdmw") }
+    if ($env:CARGO_TARGET_DIR) { $rustMaps += ,@($env:CARGO_TARGET_DIR, "/target") }
+    $flags = @()
+    if ($env:CARGO_ENCODED_RUSTFLAGS) {
+        $flags += $env:CARGO_ENCODED_RUSTFLAGS -split [char]0x1f
+    } elseif ($env:RUSTFLAGS) {
+        $flags += $env:RUSTFLAGS -split '\s+' | Where-Object { $_ }
+    }
+    foreach ($map in $rustMaps) {
+        $from = ([IO.Path]::GetFullPath($map[0])).TrimEnd('\')
+        $flags += "--remap-path-prefix=$from=$($map[1])"
+    }
+    # The encoded form keeps a path with spaces (D:\...\CDMW Full) as one argument.
+    $env:CARGO_ENCODED_RUSTFLAGS = ($flags -join [char]0x1f)
+
+    # cl.exe and link.exe read these themselves, whichever generator or script runs them.
+    # Quoted for roots with spaces; the doubled backslash before the quote is one literal
+    # backslash to cl.exe's argument parser, not an escaped quote.
+    $trims = @(Get-SourceCheckoutRoots) + @($userProfile) |
+        ForEach-Object { "`"/d1trimfile:$(([IO.Path]::GetFullPath($_)).TrimEnd('\'))\\`"" }
+    $env:CL = (@($env:CL) + $trims | Where-Object { $_ }) -join " "
+    $env:_LINK_ = (@($env:_LINK_) + @("/PDBALTPATH:%_PDB%") | Where-Object { $_ }) -join " "
+    Write-Host "Path-neutral build: remapping $($rustMaps.Count) local roots for Rust, MSVC and .NET."
+}
+
+Set-PathNeutralBuildEnvironment
 
 function Get-Sha256Hex {
     param(
@@ -1231,6 +1296,20 @@ if ($BuildProfile -eq "release") {
     }
     & $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable
     & $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable -Target mesh_builder
+
+    # The last gate before anything reaches dist/: no path from this machine may ship.
+    Write-BuildProgress -Percent 96 -Stage "Checking the package for local build paths"
+    $privacyTarget = if ($Mode -eq "onefile") {
+        Join-Path $pyInstallerDistDir "$appName.exe"
+    } else {
+        Join-Path $pyInstallerDistDir $appName
+    }
+    $privacyArguments = @($packagePrivacyChecker, $privacyTarget)
+    foreach ($root in (Get-SourceCheckoutRoots)) { $privacyArguments += @("--root", $root) }
+    & $pythonExe @privacyArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "The package contains paths from this machine (listed above); nothing was published to dist. Map the source in Set-PathNeutralBuildEnvironment or remove the path, then rebuild."
+    }
 }
 
 Write-BuildProgress -Percent 97 -Stage "Publishing build output"
