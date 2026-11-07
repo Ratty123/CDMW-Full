@@ -390,12 +390,18 @@ def export_archive_mesh(
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
     authored_descriptor: ArchiveEntry | None = None,
+    keep_changed_files: bool = False,
 ) -> MeshExportResult:
     """Publish a complete export; OBJ keeps source coordinates unless appearance is requested.
 
     ``authored_descriptor`` is the prefab descriptor a character appearance binds
     to this PAC. Its skeleton variation and morph set replace the PAC's own, so a
     head that reuses another head's mesh exports with its own face shape.
+
+    ``keep_changed_files`` refuses to replace a file in ``output_dir`` whose bytes
+    differ from the new export: an earlier export of a same-named model, or the
+    edit saved over it. Identical files, such as a texture two exports share, are
+    published as before.
     """
     raise_if_cancelled(stop_event)
     output_dir = Path(output_dir)
@@ -417,6 +423,14 @@ def export_archive_mesh(
         )
         raise_if_cancelled(stop_event)
         publication = {path: output_dir / path.relative_to(staging) for path in result.output_paths}
+        if keep_changed_files:
+            changed = sorted(target for source, target in publication.items()
+                             if target.exists() and (not target.is_file() or target.read_bytes() != source.read_bytes()))
+            if changed:
+                raise ValueError(
+                    f"{changed[0].relative_to(output_dir).as_posix()} already exists in {output_dir} with different "
+                    "contents. Choose an empty folder, so the earlier export, or an edit saved over it, is kept."
+                )
         # Cancellation is checked before the indivisible, rollback-capable publish.
         atomic_publish_files(publication)
         return dataclasses.replace(result, output_paths=list(publication.values()))
@@ -838,4 +852,24 @@ def _export_archive_mesh_staged(
         entry, export_mesh, export_kind, copied_related_count, appearance_notes, obj_appearance_baked,
         skeleton_entry, skeleton, skeleton_resolve_report, skeleton_resolution_warning,
     )
+    summary_lines.extend(_missing_texture_summary(output_paths))
     return MeshExportResult(output_paths=output_paths, summary_lines=summary_lines)
+
+
+def _missing_texture_summary(output_paths: Sequence[Path], limit: int = 12) -> List[str]:
+    """A texture left out of the exported model belongs in the result, not only the log."""
+    mesh = next((Path(path) for path in output_paths if Path(path).suffix.lower() in {".glb", ".fbx", ".obj"}), None)
+    if mesh is None:
+        return []
+    try:
+        report = json.loads(Path(f"{mesh}.meta.json").read_text(encoding="utf-8")).get("interchange_report", {})
+    except (OSError, ValueError, AttributeError):
+        return []
+    missing = [str(row) for row in (report.get("missing_textures") or ()) if str(row).strip()] if isinstance(report, dict) else []
+    if not missing:
+        return []
+    lines = [f"Textures not included: {len(missing):,} (the model shows untextured where they apply)"]
+    lines.extend(f"Missing texture: {row}" for row in missing[:limit])
+    if len(missing) > limit:
+        lines.append(f"... {len(missing) - limit:,} more missing texture(s)")
+    return lines

@@ -405,9 +405,17 @@ def _prepared_spec(spec):
     # ModelFiles. Keep the choices that control family ownership, not local inputs.
     def translucency(value):
         return replace(value, masks=()) if value is not None else None
-    variants = None if spec.variants is None else tuple(replace(v, translucency=translucency(v.translucency)) for v in spec.variants)
+    def shader_controls(values):
+        # Painted cutout, blending and eye-cover masks are baked into the model's
+        # textures like translucency masks, and v1 has no wire type for them.
+        return tuple((name, replace(controls, transparency_mask=None, surface_response_mask=None, cutout_mask=None))
+                     for name, controls in values or ())
+    variants = None if spec.variants is None else tuple(
+        replace(v, translucency=translucency(v.translucency), shader_controls=shader_controls(v.shader_controls))
+        for v in spec.variants)
     return replace(spec, item_key=None, stem=None, name_key=None, desc_key=None,
-                   internal_name="IndependentItem", translucency=translucency(spec.translucency), variants=variants)
+                   internal_name="IndependentItem", translucency=translucency(spec.translucency),
+                   shader_controls=shader_controls(spec.shader_controls), variants=variants)
 
 
 def from_plan(plan, identity, *, title=None, stop_event=None):

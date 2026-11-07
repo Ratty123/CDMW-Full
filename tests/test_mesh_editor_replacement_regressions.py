@@ -323,3 +323,29 @@ def test_invalid_saved_normal_frames_are_rejected(tmp_path, normals, reason):
     payload = save_replacement_state(state, tmp_path, tmp_path)
     with pytest.raises(ValueError, match=reason):
         load_replacement_state(payload, tmp_path)
+
+
+def test_oversized_replacement_part_is_refused_by_name_before_the_writer(editor, tmp_path):
+    # The Mesh Editor writers keep the target's draw sections, so the Archive
+    # Browser split across extra sections does not apply here.
+    import copy
+
+    from cdmw.services.mesh_replacement_output import validate_replacement_geometry
+
+    service, sid = editor
+    snapshot = _import(service, sid, source_obj(tmp_path))
+    state = snapshot.replacement_state
+    mesh = copy.deepcopy(snapshot.mesh)
+    from cdmw.domain.mesh.replacement import bound_part_indices
+    dense = mesh.submeshes[bound_part_indices(mesh, state)[state.parts[0].part_id]]
+    count = 65_538
+    dense.vertices = [(float(index), float(index % 2), 0.0) for index in range(count)]
+    dense.faces = [(index, index + 1, index + 2) for index in range(count - 2)]
+    report = validate_replacement_geometry(mesh, state, snapshot.original_data)
+    blockers = [issue for issue in report.blockers if issue.code == "replacement_vertex_limit"]
+    assert len(blockers) == 1
+    assert f"{dense.name} has 65,538 vertices" in blockers[0].message
+    excluded = replace(state, parts=tuple(replace(part, included=False) if part.part_id == state.parts[0].part_id
+                                          else part for part in state.parts))
+    report = validate_replacement_geometry(mesh, excluded, snapshot.original_data)
+    assert not [issue for issue in report.blockers if issue.code == "replacement_vertex_limit"]

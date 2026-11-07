@@ -314,7 +314,9 @@ def _resolve_obj_material_library_paths(obj_path: Path, *, include_fallback: boo
     candidates: list[Path] = []
     seen: set[str] = set()
     try:
-        with obj_path.open("r", encoding="utf-8-sig") as handle:
+        # Exporters still write ANSI (cp1252) names; decode as the texture
+        # discovery does, so the material names on both sides agree.
+        with obj_path.open("r", encoding="utf-8-sig", errors="ignore") as handle:
             for raw_line in handle:
                 parts = raw_line.strip().split(maxsplit=1)
                 if len(parts) != 2 or parts[0].lower() != "mtllib":
@@ -355,7 +357,7 @@ def _load_obj_material_texture_map(obj_path: str) -> dict[str, str]:
             continue
         current_material = ""
         try:
-            with candidate.open("r", encoding="utf-8") as handle:
+            with candidate.open("r", encoding="utf-8", errors="ignore") as handle:
                 for raw_line in handle:
                     line = raw_line.strip()
                     if not line or line.startswith("#"):
@@ -887,7 +889,7 @@ def import_obj(
     object_ranges = []
     object_index = -1
 
-    with open(obj_path, "r", encoding="utf-8") as f:
+    with open(obj_path, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
 

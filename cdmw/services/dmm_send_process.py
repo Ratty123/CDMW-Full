@@ -50,8 +50,8 @@ def _write_record(path: Path, value: object) -> None:
 
 
 def _staging_folders(mods: Path) -> set[Path]:
-    # dmm_send stages beside DMM's folder, never inside its mods folder.
-    parent = Path(mods).parent.parent
+    # dmm_send stages beside DMM's mods folder (in its parent), never inside it.
+    parent = Path(mods).parent
     try:
         return {path for path in parent.iterdir() if path.is_dir() and path.name.startswith(_STAGING_PREFIX)}
     except OSError:

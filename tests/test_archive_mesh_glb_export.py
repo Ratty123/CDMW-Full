@@ -122,3 +122,42 @@ def test_batch_glb_resolves_rig_and_preserves_missing_rig_policy(tmp_path):
     assert permitted.status == "exported", permitted.details
     assert not glb_document(permitted.output_directory / "body.glb").get("skins")
     assert model.paz_file.read_bytes() == raw
+
+
+def test_single_export_keeps_an_edit_saved_over_an_earlier_export(tmp_path):
+    # The user edits body.glb in place, then exports the same-named model again
+    # into the same folder: the edit must not be replaced without a word.
+    model, _skeleton, texture, _raw, options = rigged_archive(tmp_path)
+    out = tmp_path / "out"
+    first = export_archive_mesh(model, out, "glb", **options, related_entries=(texture,),
+                                build_preview_context=False, keep_changed_files=True)
+    again = export_archive_mesh(model, out, "glb", **options, related_entries=(texture,),
+                                build_preview_context=False, keep_changed_files=True)
+    assert sorted(again.output_paths) == sorted(first.output_paths), "an identical export is published again"
+    edited = out / "body.glb"
+    edited.write_bytes(edited.read_bytes() + b"\0")
+    with pytest.raises(ValueError, match="body.glb already exists"):
+        export_archive_mesh(model, out, "glb", **options, related_entries=(texture,),
+                            build_preview_context=False, keep_changed_files=True)
+    assert edited.read_bytes().endswith(b"\0")
+    assert not [path for path in out.iterdir() if path.name.startswith(".cdmw-mesh-export-")]
+
+
+def test_a_texture_left_out_of_the_export_is_named_in_its_summary(tmp_path):
+    # Unchecking a texture in the referenced-files prompt leaves the GLB untextured.
+    model, _skeleton, texture, _raw, options = rigged_archive(tmp_path)
+    reference = ArchiveModelTextureReference(
+        reference_name="guide0.dds", material_name="guide0", part_name="guide0",
+        resolved_archive_path=texture.path, resolved_entry=texture,
+        resolution_status="resolved", semantic_label="Base color",
+    )
+    kept = export_archive_mesh(model, tmp_path / "kept", "glb", **options, related_entries=(texture,),
+                               model_texture_references=(reference,), build_preview_context=False)
+    assert not [line for line in kept.summary_lines if "texture" in line.casefold()]
+    left_out = export_archive_mesh(model, tmp_path / "left-out", "glb", **options,
+                                   model_texture_references=(reference,), build_preview_context=False)
+    report = json.loads((tmp_path / "left-out/body.glb.meta.json").read_text())["interchange_report"]
+    assert report["missing_textures"]
+    assert any(line.startswith("Textures not included: ") for line in left_out.summary_lines)
+    assert [line for line in left_out.summary_lines if line.startswith("Missing texture: ")] == [
+        f"Missing texture: {row}" for row in report["missing_textures"]]

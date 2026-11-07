@@ -2665,6 +2665,28 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertFalse(any(section.atlas_rects for section in sections))
         self.assertTrue(all(section.vertex_count <= 65_535 for section in sections))
 
+    def test_complete_swap_split_uses_a_slot_the_ui_mapped_to_no_sources(self) -> None:
+        # The complete-swap dialog maps every target, an unused one to no sources,
+        # and the mapping check refuses a target with no mapping at all.
+        target = SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])
+        spare = SubMesh(name="spare", material="spare", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])
+        original = _mesh("target.pac", [target, spare])
+        replacement = _mesh("dense.gltf", [_strip_part("too_big", 93_252)])
+        mappings = [StaticSubmeshMapping(0, "target", [0], 0), StaticSubmeshMapping(1, "spare", [], 1)]
+
+        sections, _warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            mappings,
+            StaticMeshReplacementOptions(submesh_mappings=mappings, complete_external_swap=True),
+        )
+
+        self.assertFalse(errors)
+        self.assertEqual([[0], [0]], [section.source_submesh_indices for section in sections])
+        self.assertEqual([0, 1], [section.target_submesh_index for section in sections])
+        self.assertEqual(sections[0].source_face_ranges[0][1], sections[1].source_face_ranges[0][0])
+        self.assertTrue(all(0 < section.vertex_count <= 65_535 for section in sections))
+
     def test_pac_rebuild_splits_oversized_source_into_cloned_sections(self) -> None:
         original_data, original = _minimal_pac_original()
         source = _strip_part("too_big", 93_252)

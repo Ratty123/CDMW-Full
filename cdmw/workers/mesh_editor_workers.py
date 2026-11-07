@@ -71,10 +71,10 @@ _BASE_TEXTURE_CHANNELS = frozenset({"base", "base_color", "albedo", "diffuse"})
 
 def _editable_package_mesh_path(path: Path) -> Path:
     if path.is_dir():
-        for name in ("mesh.glb", "edited_mesh.glb", "edited.glb", "mesh.obj", "edited_mesh.obj", "edited.obj", "mesh.fbx", "edited_mesh.fbx", "edited.fbx"):
-            candidate = path / name
-            if candidate.is_file():
-                return candidate
+        from cdmw.services.mesh_export_support import editable_package_mesh_in_folder
+        candidate = editable_package_mesh_in_folder(path)
+        if candidate is not None:
+            return candidate
     return path
 
 

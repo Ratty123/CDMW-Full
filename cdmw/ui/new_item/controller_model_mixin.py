@@ -64,6 +64,22 @@ def blender_for_fbx(*args, **kwargs):
     return _controller_override("blender_for_fbx", _BLENDER_FOR_FBX)(*args, **kwargs)
 
 
+def _translucency_for_parts(choice, remaining_parts):
+    """`choice` limited to the parts that still exist, or None when none do."""
+    if choice is None:
+        return None
+    parts = tuple(name for name in choice.parts if name.casefold() in remaining_parts)
+    if not parts:
+        return None
+    if parts == tuple(choice.parts):
+        return choice
+    return replace(
+        choice, parts=parts,
+        part_settings=tuple(row for row in choice.part_settings if row[0].casefold() in remaining_parts),
+        surface_settings=tuple(row for row in choice.surface_settings if row[0].casefold() in remaining_parts),
+        masks=tuple(row for row in choice.masks if row[0].casefold() in remaining_parts))
+
+
 def load_model_import_source(*args, **kwargs):
     return _controller_override("load_model_import_source", _LOAD_MODEL_IMPORT_SOURCE)(*args, **kwargs)
 
@@ -860,6 +876,12 @@ class NewItemModelControllerMixin:
                                for name in appearance_preview_part_names(part)}
             self.draft.surface_settings = tuple((name, choice) for name, choice in self.draft.surface_settings
                                                 if name.casefold() in remaining_parts)
+            # A part the edit removed cannot keep its settings: planning refuses a
+            # glow, glass or shader choice that names no material.
+            self.draft.shader_controls = tuple((name, controls) for name, controls in self.draft.shader_controls
+                                               if name.casefold() in remaining_parts)
+            self.draft.glow_parts = tuple(name for name in self.draft.glow_parts if name.casefold() in remaining_parts)
+            self.draft.translucency = _translucency_for_parts(self.draft.translucency, remaining_parts)
             self._material_parts = ()
             if self.model_result is not None:
                 self.set_imported_model(None, None)

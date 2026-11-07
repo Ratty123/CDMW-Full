@@ -79,6 +79,35 @@ def test_mesh_editor_acceptance_prepares_both_caches_on_worker(studio, monkeypat
     assert tab.controller.draft.surface_settings == (retained_surface,)
 
 
+def test_mesh_editor_acceptance_drops_settings_of_removed_parts(studio):
+    # Planning refuses a glow, glass or shader choice that names no material,
+    # and the step no longer lists the removed part to clear it.
+    from cdmw.domain.mesh.shader_controls import ShaderControls
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.domain.textures.transparency_mask import TransparencyMask
+    app, tab = studio
+    source = _import(tab)
+    kept, removed = ShaderControls("SkinnedMeshWing"), ShaderControls("SkinnedMeshWing", values=(("_wingFlowProgress", (.2,)),))
+    mask = TransparencyMask(1, 1, bytes([128]))
+    draft = tab.controller.draft
+    draft.shader_controls = (("steel", kept), ("removed_gem", removed))
+    draft.glow_parts = ("steel", "removed_gem")
+    draft.translucency = TranslucencyChoice(("steel", "removed_gem"), part_settings=(("removed_gem", .2, .3),),
+                                            masks=(("removed_gem", mask),))
+    editor = SimpleNamespace(active_session_id="owned-review", session_view=lambda: SimpleNamespace(session_id="owned-review", revision=1),
+                             working_mesh=lambda **kw: source.scene.mesh)
+    assert tab.controller.start_model_part_edit_apply(source, editor, expected_session_id="owned-review")
+    pump(app, lambda: not tab.controller.busy)
+    draft = tab.controller.draft
+    assert draft.shader_controls == (("steel", kept),)
+    assert draft.glow_parts == ("steel",)
+    assert draft.translucency == TranslucencyChoice(("steel",))
+    draft.translucency = TranslucencyChoice(("removed_gem",))
+    assert tab.controller.start_model_part_edit_apply(source, editor, expected_session_id="owned-review")
+    pump(app, lambda: not tab.controller.busy)
+    assert tab.controller.draft.translucency is None
+
+
 def test_mesh_editor_changes_require_rust_finish_before_acceptance(studio, tmp_path):
     from cdmw.ui.mesh_editor.controller import MeshEditorController
     from tests.test_mesh_rust_authoring import RustMeshAuthoringTests, _request, _candidate_reference

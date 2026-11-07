@@ -394,13 +394,20 @@ def plan_static_output_draw_sections(
             for index in range(len(original_mesh.submeshes))
             if index not in assigned_groups and index not in mapped_empty_targets
         ]
+        # The complete-swap UI maps every target, unused ones to no sources, and the
+        # mapping check requires that. Those slots hold no geometry either, so the
+        # extra piece of a split part may take one when no unmapped slot is left.
+        spare_target_indices = sorted(mapped_empty_targets - set(assigned_groups))
         for source_target_index, group, source_label in extra_groups:
+            split_sources = sorted(
+                index
+                for index in (getattr(group, "face_ranges", None) or {})
+                if len(_vertex_limit_chunks(replacement_mesh.submeshes[index])) > 1
+            )
+            if not free_target_indices and split_sources and spare_target_indices:
+                assigned_groups[spare_target_indices.pop(0)] = [(group, source_label)]
+                continue
             if not free_target_indices:
-                split_sources = sorted(
-                    index
-                    for index in (getattr(group, "face_ranges", None) or {})
-                    if len(_vertex_limit_chunks(replacement_mesh.submeshes[index])) > 1
-                )
                 if split_sources:
                     # Atlasing a split piece back into its slot would exceed the limit again.
                     source_index = split_sources[0]

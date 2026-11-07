@@ -494,3 +494,100 @@ def test_glb_companion_restores_bounds_with_local_coordinates(tmp_path):
     _attach_glb_sidecar(incoming, _load_glb_roundtrip_sidecar(Path(path)), "returned.glb")
     assert incoming.bbox_min == pytest.approx((0, 0, 0))
     assert incoming.bbox_max == pytest.approx((1, 1, 0))
+
+
+def test_separate_obj_material_maps_reach_the_exchange_material(tmp_path):
+    # An MTL with map_Pr, map_Pm and map_d: the preview's single material map is
+    # the roughness map, which must not stand in for glTF's packed map.
+    from cdmw.modding.mesh_interchange_materials import prepare_interchange_material
+    from cdmw.modding.scene_material_audit import _apply_scene_material_slots_to_submesh, _scene_material_slot
+
+    source = tmp_path / "source"
+    source.mkdir()
+    colours = {"base": (200, 100, 50, 255), "rough": (60, 60, 60, 255), "metal": (240, 240, 240, 255),
+               "alpha": (128, 128, 128, 255)}
+    for name, colour in colours.items():
+        Image.new("RGBA", (2, 2), colour).save(source / f"{name}.png")
+    part = SubMesh(name="blade", material="Blade", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])
+    _apply_scene_material_slots_to_submesh(part, tuple(
+        _scene_material_slot(kind, (source / f"{name}.png").as_posix(), source="obj_mtl")
+        for kind, name in (("base", "base"), ("roughness", "rough"), ("metalness", "metal"), ("opacity", "alpha"))))
+    assert part.preview_material_texture_path.endswith("rough.png")
+
+    out = tmp_path / "out"
+    material, _files, missing = prepare_interchange_material(part, out)
+
+    assert not missing
+    textures = material["textures"]
+    assert "opacityTexture" not in textures, "packed into the base alpha"
+    with Image.open(out / textures["metallicRoughnessTexture"]["path"]) as packed:
+        assert packed.convert("RGB").getpixel((0, 0)) == (255, 60, 240)
+    with Image.open(out / textures["baseColorTexture"]["path"]) as base:
+        assert base.convert("RGBA").getpixel((0, 0)) == (200, 100, 50, 128)
+    assert material["pbrMetallicRoughness"]["metallicFactor"] == 1.0
+    assert material["pbrMetallicRoughness"]["roughnessFactor"] == 1.0
+
+
+def test_bc5_normal_map_exports_with_its_z_rebuilt(tmp_path):
+    # BC5 stores X and Y only; Pillow decodes Z as 0, a normal lying in the surface.
+    from cdmw.modding.mesh_interchange_materials import prepare_interchange_material
+
+    source = tmp_path / "source"
+    source.mkdir()
+    Image.new("RGB", (4, 4), (128, 128, 0)).save(source / "flat_n.dds", format="DDS", pixel_format="BC5")
+    Image.new("RGB", (4, 4), (128, 128, 0)).save(source / "colour.dds", format="DDS", pixel_format="BC5")
+    part = SubMesh(name="blade", material="Blade", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])
+    part.preview_normal_texture_path = (source / "flat_n.dds").as_posix()
+    part.preview_texture_path = (source / "colour.dds").as_posix()
+
+    material, _files, missing = prepare_interchange_material(part, tmp_path / "out")
+
+    assert not missing
+    with Image.open(tmp_path / "out" / material["textures"]["normalTexture"]["path"]) as normal:
+        red, green, blue, alpha = normal.convert("RGBA").getpixel((0, 0))
+    assert abs(red - 128) <= 2 and abs(green - 128) <= 2 and blue >= 253 and alpha == 255
+    with Image.open(tmp_path / "out" / material["textures"]["baseColorTexture"]["path"]) as colour:
+        assert colour.convert("RGB").getpixel((0, 0))[2] == 0, "only the normal slot is a unit vector"
+
+
+def test_untouched_obj_return_of_a_textured_part_reports_no_texture_change(tmp_path):
+    # The MTL names the portable copy (textures/<stem>-<hash>...png), not the
+    # source texture the companion records for the part.
+    mesh = authored_mesh(tmp_path / "source")
+    mesh.has_bones = False
+    part = mesh.submeshes[0]
+    part.bone_indices, part.bone_weights, part.interchange_skin = [], [], None
+    part.texture = "cd_body_0001"
+    files = export_obj(mesh, str(tmp_path / "out"), "mesh")
+    mtl = (tmp_path / "out" / "mesh.mtl").read_text()
+    written = next(line.split()[-1] for line in mtl.splitlines() if line.startswith("map_Kd "))
+    payload = json.loads(Path(files[0] + ".meta.json").read_text())
+    assert payload["exported_material_textures"] == {"BodyMat": written}
+
+    restored = import_obj(files[0])
+
+    codes = [warning["code"] for warning in getattr(restored, "_cdmw_sidecar_warnings", ())]
+    assert "sidecar_texture_path_changed" not in codes
+
+
+def test_a_game_material_map_still_exports_as_the_packed_map(tmp_path):
+    # A game _sp map can be classified "specular"; its sidecar inputs are not
+    # separate maps, so the resolved material map remains glTF's packed map.
+    from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
+    from cdmw.modding.mesh_interchange_materials import prepare_interchange_material
+
+    sp = tmp_path / "cd_weapon_sp.png"
+    Image.new("RGB", (2, 2), (255, 90, 30)).save(sp)
+    part = SubMesh(name="blade", material="Blade", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])
+    part.preview_material_texture_path = sp.as_posix()
+    part.preview_material_texture_subtype = "specular"
+    part.preview_material_texture_inputs = (PreviewMaterialTextureInput(
+        slot_kind="material", parameter_name="_specularTexture", source_texture_path=sp.as_posix(),
+        semantic_type="mask", semantic_subtype="roughness", sidecar_kind="pac_xml", sidecar_path="blade.pac_xml"),)
+
+    material, _files, missing = prepare_interchange_material(part, tmp_path / "out")
+
+    assert not missing
+    textures = material["textures"]
+    assert textures["metallicRoughnessTexture"]["path"].startswith("textures/cd_weapon_sp-")
+    assert "roughnessTexture" in textures and textures["roughnessTexture"].get("derived")

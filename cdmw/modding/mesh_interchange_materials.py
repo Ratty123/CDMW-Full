@@ -14,6 +14,7 @@ from cdmw.core.atomic_file import atomic_write_bytes
 
 _SLOT_KEYS = {
     "base": "baseColorTexture", "diffuse": "baseColorTexture", "basecolor": "baseColorTexture",
+    "albedo": "baseColorTexture", "metalness": "metallicTexture",
     "normal": "normalTexture", "material": "metallicRoughnessTexture",
     "metallicroughness": "metallicRoughnessTexture", "orm": "metallicRoughnessTexture",
     "occlusion": "occlusionTexture", "ao": "occlusionTexture",
@@ -29,6 +30,33 @@ def _number(value, default):
     except (TypeError, ValueError, OverflowError):
         return default
     return result if math.isfinite(result) else default
+
+
+def _is_two_channel_dds(path: Path) -> bool:
+    """BC5 (ATI2), legacy or DX10 header, including the typeless DXGI code."""
+    try:
+        with path.open("rb") as stream:
+            header = stream.read(148)
+    except OSError:
+        return False
+    if len(header) < 128 or header[:4] != b"DDS ":
+        return False
+    four_cc = header[84:88]
+    if four_cc in {b"ATI2", b"BC5U", b"BC5S"}:
+        return True
+    return four_cc == b"DX10" and len(header) >= 132 and int.from_bytes(header[128:132], "little") in {82, 83, 84}
+
+
+def _with_reconstructed_normal_z(image):
+    """BC5 stores only X and Y; Pillow decodes Z as 0, which reads as a flat-out normal."""
+    import numpy as np
+    from PIL import Image
+    pixels = np.asarray(image, dtype=np.float64).copy()
+    xy = pixels[:, :, :2] / 127.5 - 1.0
+    z = np.sqrt(np.maximum(0.0, 1.0 - np.square(xy).sum(axis=2)))
+    pixels[:, :, 2] = np.clip(np.rint((z + 1.0) * 127.5), 0, 255)
+    pixels[:, :, 3] = 255
+    return Image.fromarray(pixels.astype(np.uint8), "RGBA")
 
 
 def interchange_material(submesh) -> dict:
@@ -80,18 +108,33 @@ def interchange_material(submesh) -> dict:
             if key and path:
                 slots[key] = {"path": path, "texCoord": 0}
     for row in getattr(submesh, "preview_material_texture_inputs", ()) or ():
+        if str(getattr(row, "sidecar_kind", "") or getattr(row, "sidecar_path", "") or ""):
+            # Game sidecar inputs (detail normals, masks, layers) are carried by the
+            # resolved preview maps below and the companion's protected channels.
+            continue
         kind = str(getattr(row, "semantic_subtype", "") or getattr(row, "semantic_type", "") or "")
         parameter = str(getattr(row, "parameter_name", ""))
         key = _SLOT_KEYS.get(kind.replace("_", "").casefold())
-        if key is None:
+        if key is None and not kind:
+            # Only an unclassified input falls back to its name: a clearcoat or
+            # sheen roughness map is not the surface roughness.
             token = parameter.casefold()
             key = next((value for kind, value in _SLOT_KEYS.items() if kind in token), None)
-        path = str(getattr(row, "source_path", "") or getattr(row, "texture_path", "") or "")
-        if key and path:
-            slots[key] = {"path": path, "texCoord": int(getattr(row, "texcoord", 0) or 0)}
+        path = str(getattr(row, "source_texture_path", "") or getattr(row, "source_dds_path", "")
+                   or getattr(row, "preview_texture_path", "") or "")
+        texcoord = next((flag.partition(":")[2] for flag in getattr(row, "blend_flags", ()) or ()
+                         if str(flag).startswith("texcoord:")), "0")
+        if key and path and key not in slots:
+            slots[key] = {"path": path, "texCoord": int(texcoord) if texcoord.isdigit() else 0}
+    # The preview's one material map is the strongest of an imported model's
+    # separate roughness or metallic maps, not glTF's packed map: when those were
+    # found above, _pack_standard_textures builds the packed map from them. A game
+    # material's packed map has no such separate inputs and is kept.
     for key, attr in (("baseColorTexture", "preview_texture_path"), ("normalTexture", "preview_normal_texture_path"),
                       ("metallicRoughnessTexture", "preview_material_texture_path")):
         value = str(getattr(submesh, attr, "") or "")
+        if key == "metallicRoughnessTexture" and {"roughnessTexture", "metallicTexture"} & slots.keys():
+            continue
         if value and key not in slots:
             slots[key] = {"path": value, "texCoord": 0}
     emission_path = str(getattr(submesh, "preview_emissive_texture_path", "") or "")
@@ -102,6 +145,13 @@ def interchange_material(submesh) -> dict:
     if "normalTexture" in slots and "scale" not in slots["normalTexture"]:
         strength = float(getattr(submesh, "preview_normal_texture_strength", 0.0) or 0.0)
         slots["normalTexture"]["scale"] = scalar(("normalScale", "normalStrength", "gltfNormalScale"), strength if strength else 1.0)
+    # glTF multiplies a map by its factor. A separate scalar map with no stated
+    # factor (an MTL map_Pm/map_Pr without Pm/Pr) must not be scaled away.
+    pbr = result["pbrMetallicRoughness"]
+    for key, names, factor in (("metallicTexture", ("metallicFactor", "metallic", "metalness"), "metallicFactor"),
+                               ("roughnessTexture", ("roughnessFactor", "roughness"), "roughnessFactor")):
+        if key in slots and not any(name.casefold() in parameters for name in names):
+            pbr[factor] = 1.0
     return result
 
 
@@ -136,7 +186,10 @@ def prepare_interchange_material(submesh, output_dir: Path, source_dir: Path | N
             from PIL import Image
             with Image.open(io.BytesIO(raw)) as image:
                 converted = io.BytesIO()
-                image.convert("RGBA").save(converted, format="PNG")
+                decoded = image.convert("RGBA")
+                if key == "normalTexture" and _is_two_channel_dds(source):
+                    decoded = _with_reconstructed_normal_z(decoded)
+                decoded.save(converted, format="PNG")
             target = target.with_suffix(".png")
             atomic_write_bytes(target, converted.getvalue())
             companions.append(str(target))

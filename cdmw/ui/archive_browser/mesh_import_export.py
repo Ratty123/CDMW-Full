@@ -665,6 +665,7 @@ class ArchiveMeshImportExportMixin:
                     allow_missing_skeleton=allow_missing_skeleton,
                     resolve_skeleton_for_obj=bake_neutral_appearance,
                     on_log=log,
+                    keep_changed_files=True,
                 )
 
             def _handle_complete(result: object) -> None:

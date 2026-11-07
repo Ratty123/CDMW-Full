@@ -55,8 +55,8 @@ class SourceMaterialTextures:
     #: 1.00 at the median (27 of the 32 that state one round to 1), so this carries across
     #: as it stands rather than through a scale nobody measured.
     emissive_intensity: float = 1.0
-    #: glTF `roughnessFactor` / `metallicFactor` (1.0 when the source says nothing);
-    #: without a metallic/roughness map they become a solid `_sp`
+    #: glTF `roughnessFactor` / `metallicFactor` (1.0 when a glTF says nothing; an
+    #: OBJ/DAE without Pr/Pm is rough 0.5, non-metal); without a map they become a solid `_sp`
     roughness_factor: float = 1.0
     metallic_factor: float = 1.0
     #: Separate scalar maps (OBJ/MTL and other scene formats), sampled from R.
@@ -107,6 +107,7 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
     covered = {getattr(binding, "submesh_index", -1) for binding in material_bindings}
     # OBJ/DAE attach the same authored slots and parameters to their submeshes.
     # They must reach the route even without the glTF-specific binding collection.
+    scene_bindings = set()
     for index, submesh in enumerate(submeshes):
         if index not in covered and getattr(submesh, "material", ""):
             texture_slots = list(getattr(submesh, "texture_slots", ()) or ())
@@ -118,6 +119,7 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                 )
                 if source_path:
                     texture_slots.append((texture_input.slot_kind, Path(source_path)))
+            scene_bindings.add(index)
             material_bindings.append(ImportedMaterialBinding(
                 material_name=submesh.material, submesh_index=index,
                 texture_slots=tuple(texture_slots),
@@ -181,6 +183,14 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                 slots.setdefault("roughness", candidate)
             elif kind in {"metallic", "metalness"} and candidate.is_file():
                 slots.setdefault("metallic", candidate)
+        if int(getattr(binding, "submesh_index", -1)) in scene_bindings:
+            # glTF's factors default to 1.0 and scale their maps. An MTL or DAE
+            # material that states no Pr/Pm is a plain dielectric (as the preview
+            # draws it), while a map it does give is used as authored.
+            from cdmw.rendering.crimson_shader_registry import PREVIEW_DEFAULT_METALNESS, PREVIEW_DEFAULT_ROUGHNESS
+            packed = "material" in slots
+            slots.setdefault("roughness_factor", 1.0 if packed or "roughness" in slots else PREVIEW_DEFAULT_ROUGHNESS)
+            slots.setdefault("metallic_factor", 1.0 if packed or "metallic" in slots else PREVIEW_DEFAULT_METALNESS)
         if name:
             bindings.setdefault(name.casefold(), SourceMaterialTextures(name=name, **slots))
     out: Dict[str, SourceMaterialTextures] = {}

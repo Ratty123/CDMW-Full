@@ -43,3 +43,18 @@ def test_obj_and_roundtrip_manifest_export_to_unicode_paths(tmp_path, monkeypatc
     assert manifest["unicode_marker"] == name
     assert manifest["export_path"] == obj.name
     assert not list(folder.glob(".*.tmp"))
+
+
+def test_obj_and_mtl_written_as_ansi_import_without_a_decode_error(tmp_path):
+    # Older exporters write cp1252 names; the importer must not stop on them.
+    from cdmw.modding.mesh_obj_importer import import_obj
+
+    (tmp_path / "diffuse.png").write_bytes(b"")
+    (tmp_path / "blade.mtl").write_bytes("newmtl Métal\nmap_Kd diffuse.png\n".encode("cp1252"))
+    obj = tmp_path / "blade.obj"
+    obj.write_bytes("mtllib blade.mtl\no Länge\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl Métal\nf 1 2 3\n".encode("cp1252"))
+
+    mesh = import_obj(str(obj))
+
+    assert len(mesh.submeshes) == 1 and mesh.submeshes[0].faces == [(0, 1, 2)]
+    assert mesh.submeshes[0].texture == "diffuse.png"

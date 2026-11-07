@@ -69,7 +69,20 @@ def validate_replacement_geometry(mesh, state: MeshReplacementState, original_da
     )
     issues = list(report.issues)
     try:
-        bound_part_indices(mesh, state)
+        indices = bound_part_indices(mesh, state)
+        from cdmw.modding.static_mesh_output_plan import _STATIC_REPLACEMENT_VERTEX_LIMIT
+        for part in state.parts:
+            submesh = mesh.submeshes[indices[part.part_id]]
+            count = len(getattr(submesh, "vertices", ()) or ())
+            if part.included and count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+                # The Mesh Editor writers keep the target's draw-section layout, so a
+                # part cannot be split across extra sections the way a complete
+                # Archive Browser swap can.
+                issues.append(MeshExportValidationIssue(
+                    "blocker", "replacement_vertex_limit",
+                    f"{submesh.name or part.part_id} has {count:,} vertices; a PAC/PAM draw section holds at most "
+                    f"{_STATIC_REPLACEMENT_VERTEX_LIMIT:,}. Decimate it, or split it into parts imported over "
+                    "separate target parts."))
         if hashlib.sha256(original_data).hexdigest() != state.target_sha256:
             raise ValueError("Replacement target bytes no longer match the captured archive asset.")
         if str(mesh.path).replace("\\", "/").casefold() != state.target_path.replace("\\", "/").casefold():

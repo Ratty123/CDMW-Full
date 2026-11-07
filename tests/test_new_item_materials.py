@@ -406,6 +406,25 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(source_materials_from_import(None, None), {})
         self.assertEqual(source_materials_from_import(result, None), {})
 
+    def test_obj_and_dae_materials_without_factors_are_not_metal(self) -> None:
+        # glTF factors default to 1.0; an MTL that states no Pr/Pm is a dielectric,
+        # as the preview draws it, and a map it gives is used as authored.
+        from types import SimpleNamespace
+
+        from PIL import Image
+
+        rough = self.folder / "rough.png"
+        Image.new("L", (2, 2), 90).save(rough)
+        plain = SimpleNamespace(material="Plain", texture_slots=(), preview_material_parameters=())
+        mapped = SimpleNamespace(material="Mapped", texture_slots=(("roughness", str(rough)),), preview_material_parameters=())
+        stated = SimpleNamespace(material="Stated", texture_slots=(),
+                                 preview_material_parameters=(Parameter("_metallicFactor", "0.400000"),))
+        result = Result((Section("a", "Plain"), Section("b", "Mapped"), Section("c", "Stated")))
+        sources = source_materials_from_import(result, Scene((), mesh=Mesh((plain, mapped, stated))))
+        self.assertEqual((sources["a"].roughness_factor, sources["a"].metallic_factor), (0.5, 0.0))
+        self.assertEqual((sources["b"].roughness, sources["b"].roughness_factor, sources["b"].metallic_factor), (rough, 1.0, 0.0))
+        self.assertEqual((sources["c"].roughness_factor, sources["c"].metallic_factor), (0.5, 0.4))
+
     def test_route_model_files_keeps_the_builder_sidecar_when_asked(self) -> None:
         files = builder_files()
         kept = route_model_files(files, MaterialRoute.BUILDER)

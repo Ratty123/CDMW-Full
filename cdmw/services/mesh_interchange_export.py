@@ -70,8 +70,12 @@ def _encode_bgra_snapshot_dds(
             "raw",
             "BGRA",
         ).save(png_path, format="PNG")
+        # A painted normal or mask is data, not colour: encode it with its own
+        # channel's preset, and read the pixels as the material role says.
+        from cdmw.services.material_authority_resource_service import _channel_preset_key
+        channel = str(resource.channel or "").strip().lower()
         preset = resolve_texture_editor_dds_preset(
-            "base_color",
+            "base_color" if not channel or channel in _BASE_TEXTURE_CHANNELS else _channel_preset_key(channel),
             width=int(resource.width),
             height=int(resource.height),
         )
@@ -83,6 +87,7 @@ def _encode_bgra_snapshot_dds(
             height=int(resource.height),
             mip_count=preset.mip_count,
             overwrite=True,
+            source_color_policy="assume_srgb" if preset.dds_format.endswith("_SRGB") else "ignore_srgb_metadata",
             timeout_seconds=60.0,
             stop_event=stop_event,
         )

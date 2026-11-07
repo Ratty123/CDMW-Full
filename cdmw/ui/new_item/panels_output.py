@@ -771,6 +771,19 @@ class OutputPanel(QGroupBox):
         mods = self._dmm_mods_folder()
         if mods is None:
             return
+        # The DMM folder is named after the mod alone, so another item sent under
+        # the same name would be replaced without a word.
+        from cdmw.services.dmm_send import destination
+        title = self._controller.export_title
+        try:
+            _folder, replaced = destination(mods, title)
+        except ValueError:
+            replaced = False  # The send itself reports a folder CDMW did not write.
+        if replaced and QMessageBox.question(
+                self, self.tr("Send to DMM"),
+                self.tr("Replace the mod named {value_0} that CDMW wrote earlier?").format(value_0=title),
+        ) != QMessageBox.StandardButton.Yes:
+            return
         self._export_error = ""
         self._export_requested = True
         try:

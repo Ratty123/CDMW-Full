@@ -521,10 +521,16 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
 
     # Write MTL
     portable_sources = {}
-    companions, missing = _write_mtl(mtl_path, mesh.submeshes, source_dir=Path(mesh.path).parent if mesh.path else None, portable_sources=portable_sources)
+    exported_textures = {}
+    companions, missing = _write_mtl(mtl_path, mesh.submeshes, source_dir=Path(mesh.path).parent if mesh.path else None,
+                                     portable_sources=portable_sources, exported_textures=exported_textures)
     from .mesh_interchange_materials import interchange_report
     extra_payload = dict(extra_payload or {}, interchange_report=interchange_report(mesh, "obj", missing=missing))
     extra_payload["interchange_texture_sources"] = portable_sources
+    # The MTL names the portable copy, not the source texture the companion records;
+    # the OBJ return compares against both so an untouched map_Kd is not a change.
+    extra_payload["exported_material_textures"] = {
+        **dict(extra_payload.get("exported_material_textures") or {}), **exported_textures}
 
     sidecar_path = _obj_roundtrip_sidecar_path(obj_path)
     native_kwargs = {} if extra_payload is None else {"extra_payload": extra_payload}
@@ -640,8 +646,11 @@ def _format_mtl_texture_reference(texture_name: str) -> str:
     return f"{normalized}.dds"
 
 
-def _write_mtl(path, submeshes, *, source_dir=None, portable_sources=None):
-    """Write a Wavefront MTL material file."""
+def _write_mtl(path, submeshes, *, source_dir=None, portable_sources=None, exported_textures=None):
+    """Write a Wavefront MTL material file.
+
+    ``exported_textures`` receives material name -> the map_Kd reference written.
+    """
     from .mesh_interchange_materials import prepare_interchange_material
     seen = set()
     companions, missing = [], []
@@ -684,6 +693,8 @@ def _write_mtl(path, submeshes, *, source_dir=None, portable_sources=None):
             if reference and not info.get("missing"):
                 option = f"-bm {float(info.get('scale', 1.0)):.9g} " if key == "normalTexture" else ""
                 lines.append(f"{command} {option}{reference}")
+                if command == "map_Kd" and exported_textures is not None:
+                    exported_textures[n] = reference
         lines.append("")
 
     atomic_write_text(path, "\n".join(lines))

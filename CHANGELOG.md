@@ -10,7 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - Create New Item chooses shops in a searchable **Choose shop…** list instead of a long dropdown. Search by merchant, place, type, internal `Store_` ID or an item the shop sells. Only merchants confirmed in game are named; other names come from the shop's table key and are marked with `*`. When adding a new shop entry you can tick several shops at once; each becomes a saved route, and shops that already have one are skipped.
-- An imported model part with more than 65,535 vertices no longer stops the build with an error. A PAC draw section cannot hold more, so the part is split across extra draw sections and the build notes say so. In a complete swap the extra piece needs a free material slot in the template; without one, the error now says to decimate the part instead. A split part has not yet been checked in game.
+- An imported model part with more than 65,535 vertices no longer stops the build with an error. A PAC draw section cannot hold more, so the part is split across extra draw sections and the build notes say so. In a complete swap the extra piece takes a template material slot that no imported part uses; without one, the error says to decimate the part. Mesh Editor's **Import Replacement…** keeps the target's draw sections, so it names such a part and asks you to decimate it before anything is built. A split part has not yet been checked in game.
 
 ### Fixed
 
@@ -20,6 +20,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Export Character and Related Game Files…** works with the loaded Archive Browser instead of asking you to load it first. Models no character appearance uses, such as armor, get a message saying the export does not apply to them.
 - **Show Only This File** and **Filter to Family** now narrow the list that is shown, and **Extract Filtered** exports exactly that scope. Files that cannot be matched are reported instead of the scope claiming them.
 - Right-clicking a different model no longer makes **Asset Family…** or the referenced-file choice of **Export This Model as GLB / FBX / OBJ** use the previously previewed model's files. The action prepares the clicked model first.
+- Mesh Editor's **Export…** to GLB, FBX or OBJ keeps an imported model's separate roughness, metalness and opacity maps instead of exporting the roughness map as all three. BC5 normal maps export with their depth channel rebuilt instead of looking flat, and painted normal or mask textures are saved as data rather than as colour.
+- **Open Package in CDMW…** opens the mesh you saved after exporting, instead of the unedited export file left in the same folder. Returning an unchanged OBJ of a textured part no longer reports a changed texture that blocks **Finish Edit Mesh**.
+- OBJ and MTL files saved in an ANSI encoding, as older exporters write accented names, import instead of failing with a decoding error.
+- Archive Browser's **Export This Model as GLB / FBX / OBJ…** no longer silently replaces a different file of the same name in the chosen folder, such as an edit saved over an earlier export; choose an empty folder instead. The export summary lists textures that were left out, instead of reporting a clean success for an untextured model.
+- Create New Item exports OBJ and DAE materials that state no metalness or roughness as non-metallic, as the preview shows them, instead of fully metallic. An FBX model finds the loose texture maps in its own folder, both for a file opened directly and for one in a ZIP subfolder.
+- Create New Item's **Use Mesh Editor changes** clears the Glow, translucency and shader settings of parts the edit removed, so **Build plan** no longer fails on a part that no longer exists.
+- Create New Item's **Write item package** works for items with a painted cutout, blending or eye-cover mask; the masks are already in the item's textures. **Send to DMM** asks before replacing a DMM mod of the same name that CDMW sent earlier, and a cancelled send no longer leaves its staging folder beside DMM's mods folder.
 - Create New Item handles fast shop changes while moving between steps more safely: the dropdown linked to the reported crash is gone, open lists close when the step changes, each shop change is applied once, and a shop missing from the current game tables clears its stock lines instead of failing.
 
 ## [0.12.0-alpha.2] - 2026-11-04

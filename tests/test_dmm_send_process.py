@@ -30,7 +30,7 @@ def test_a_send_in_the_child_process_writes_the_same_mod_as_one_in_process(tmp_p
     assert again.replaced
     # Identities are kept between sends, so both ways write the same mod byte for byte.
     assert _files(again.folder) == child
-    assert not [p for p in mods.parent.parent.iterdir() if p.name.startswith(".cdmw-send-")]
+    assert not [p for p in mods.parent.iterdir() if p.name.startswith(".cdmw-send-")]
 
 
 def test_cancel_stops_the_child_and_removes_its_staging_folder(tmp_path, monkeypatch):
@@ -38,7 +38,7 @@ def test_cancel_stops_the_child_and_removes_its_staging_folder(tmp_path, monkeyp
     started = tmp_path / "started"
     script = (
         "import pathlib, sys, time\n"
-        f"pathlib.Path({str(mods.parent.parent / '.cdmw-send-child')!r}).mkdir()\n"
+        f"pathlib.Path({str(mods.parent / '.cdmw-send-child')!r}).mkdir()\n"
         f"pathlib.Path({str(started)!r}).write_text('yes')\n"
         "time.sleep(60)\n"
     )
@@ -56,7 +56,7 @@ def test_cancel_stops_the_child_and_removes_its_staging_folder(tmp_path, monkeyp
     with pytest.raises(RunCancelled):
         owner.send_item_packages_in_subprocess([tmp_path / "item.cdmw"], tmp_path / "game", mods, "Items",
                                                stop_event=stop)
-    assert not (mods.parent.parent / ".cdmw-send-child").exists()
+    assert not (mods.parent / ".cdmw-send-child").exists()
 
 
 def test_a_failure_in_the_child_shows_its_message(tmp_path, monkeypatch):

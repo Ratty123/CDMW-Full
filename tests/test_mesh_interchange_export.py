@@ -129,3 +129,63 @@ def test_export_rejects_unsupported_format_before_writing(source, tmp_path):
     with pytest.raises(ValueError, match="GLB, FBX and OBJ"):
         export_editable_mesh(service, session_id, tmp_path / "out", formats=("gltf",))
     assert not (tmp_path / "out").exists()
+
+
+def test_open_package_folder_takes_the_mesh_saved_after_the_export(tmp_path):
+    # Export writes mesh.glb; Blender's result saved beside it is the return.
+    import os
+
+    from cdmw.services.mesh_export_support import editable_package_mesh_in_folder
+    from cdmw.services.mesh_rust_authoring import RustMeshValidationError, _editable_package_mesh_path
+
+    exported = tmp_path / "mesh.glb"
+    exported.write_bytes(b"export")
+    (tmp_path / "mesh.glb.meta.json").write_text("{}", encoding="utf-8")
+    edited = tmp_path / "sword_edit.glb"
+    edited.write_bytes(b"blender")
+    os.utime(exported, ns=(1_000_000_000_000, 1_000_000_000_000))
+    os.utime(edited, ns=(1_100_000_000_000, 1_100_000_000_000))
+    assert _editable_package_mesh_path(tmp_path) == edited
+
+    # The formats of one export are written together: the documented order decides.
+    for name in ("mesh.fbx", "mesh.obj"):
+        (tmp_path / name).write_bytes(b"export")
+    edited.unlink()
+    for name in ("mesh.glb", "mesh.fbx", "mesh.obj"):
+        os.utime(tmp_path / name, ns=(1_000_000_000_000, 1_000_000_000_000))
+    assert editable_package_mesh_in_folder(tmp_path) == exported
+    os.utime(tmp_path / "mesh.fbx", ns=(1_200_000_000_000, 1_200_000_000_000))
+    assert editable_package_mesh_in_folder(tmp_path) == tmp_path / "mesh.fbx"
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(RustMeshValidationError, match="does not contain"):
+        _editable_package_mesh_path(empty)
+
+
+@pytest.mark.parametrize("channel,expected", [
+    ("base_color", ("BC7_UNORM_SRGB", "assume_srgb")),
+    ("base", ("BC7_UNORM_SRGB", "assume_srgb")),
+    ("normal", ("BC5_UNORM", "ignore_srgb_metadata")),
+    ("roughness", ("R8_UNORM", "ignore_srgb_metadata")),
+])
+def test_painted_texture_snapshot_is_encoded_for_its_channel(tmp_path, monkeypatch, channel, expected):
+    # A painted normal or mask is data: one BC7 sRGB preset for every channel
+    # gamma-shifted it and threw away its two-channel layout.
+    from cdmw.core import texture_native
+    from cdmw.services.mesh_interchange_export import _encode_bgra_snapshot_dds
+    from cdmw.services.mesh_service_state import MeshExportTextureSnapshot
+
+    calls = []
+
+    def encode(png_path, target, **kwargs):
+        calls.append((kwargs["dds_format"], kwargs["source_color_policy"]))
+        Path(target).write_bytes(b"DDS ")
+        return {"ok": True}
+
+    monkeypatch.setattr(texture_native, "find_directxtex_texture_binary", lambda: Path("cd-texture-dx.exe"))
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", encode)
+    resource = MeshExportTextureSnapshot("painted", channel, (0,), 1, width=2, height=2, row_pitch=8,
+                                         bgra_data=bytes(range(16)))
+    _encode_bgra_snapshot_dds(resource, tmp_path / "painted.dds", threading.Event())
+    assert calls == [expected]

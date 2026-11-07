@@ -735,18 +735,6 @@ _SKELETON_STATE_MAX_PARTS = 4096
 _SKELETON_STATE_MAX_SELECTED_WEIGHTS = 256
 _SKELETON_STATE_MAX_TEXT = 1024
 
-_EDITABLE_PACKAGE_MESH_NAMES = (
-    "mesh.glb",
-    "edited_mesh.glb",
-    "edited.glb",
-    "mesh.obj",
-    "edited_mesh.obj",
-    "edited.obj",
-    "mesh.fbx",
-    "edited_mesh.fbx",
-    "edited.fbx",
-)
-
 
 class RustMeshAuthoringError(RuntimeError):
     """Base error returned to the managed Rust process."""
@@ -1537,13 +1525,11 @@ def _sha256_bytes(data: bytes) -> str:
 
 def _editable_package_mesh_path(path: Path) -> Path:
     if path.is_dir():
-        for name in _EDITABLE_PACKAGE_MESH_NAMES:
-            candidate = path / name
-            if candidate.is_file():
-                return candidate
-        candidates = [item for item in path.iterdir() if item.is_file() and item.suffix.lower() in {".glb", ".fbx", ".obj"}]
-        if len(candidates) == 1:
-            return candidates[0]
+        from cdmw.services.mesh_export_support import editable_package_mesh_in_folder
+        # The unedited export must not win over the file Blender saved beside it.
+        candidate = editable_package_mesh_in_folder(path)
+        if candidate is not None:
+            return candidate
         raise RustMeshValidationError(
             "The selected editable package does not contain a GLB, FBX, or OBJ mesh."
         )

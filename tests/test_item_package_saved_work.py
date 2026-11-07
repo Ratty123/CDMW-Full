@@ -305,3 +305,24 @@ def test_drafts_and_mods_page_shows_a_package_row_and_routes_continue(tmp_path):
     finally:
         page.close()
         page.deleteLater()
+
+
+def test_a_painted_shader_mask_does_not_stop_the_package_recipe():
+    # Painted cutout, blending and eye-cover masks are already in the model's
+    # textures; v1 has no wire type for them, as for translucency masks.
+    from cdmw.domain.mesh.shader_controls import EYE_COVER, ShaderControls
+    from cdmw.domain.new_item.authoring import VariantAppearance
+    from cdmw.services.independent_item_codec import decode, encode
+
+    mask = TransparencyMask(2, 1, b'\x00\xff')
+    cutout = ShaderControls('SkinnedMeshWing', cutout_mask=mask)
+    cover = ShaderControls(EYE_COVER.shader, transparency_mask=mask, surface_response_mask=mask)
+    spec = replace(shop_spec('Masked'), shader_controls=(('blade', cutout), ('gem', cover)))
+    spec = replace(spec, variants=(VariantAppearance('a.prefab', 'a.pac', shader_controls=(('blade', cutout),)),))
+    with pytest.raises(Exception, match='ShaderControls'):
+        encode(spec)
+    prepared = packages._prepared_spec(spec)
+    decoded = decode(encode(prepared))
+    assert dict(decoded.shader_controls) == {
+        'blade': ShaderControls('SkinnedMeshWing'), 'gem': ShaderControls(EYE_COVER.shader)}
+    assert decoded.variants[0].shader_controls == (('blade', ShaderControls('SkinnedMeshWing')),)

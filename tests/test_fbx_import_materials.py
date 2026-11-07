@@ -52,7 +52,7 @@ def _converted_glb(declared_channels: tuple[str, ...]) -> bytes:
     )
 
 
-def _import_source(tmp_path, monkeypatch, *, fbx=True, declared=(), metallic=True, packed=False):
+def _import_source(tmp_path, monkeypatch, *, fbx=True, declared=(), metallic=True, packed=False, layout="zip"):
     payload = _converted_glb(declared)
     names = ["lambert1_Base_Color.png", "lambert1_Normal_DirectX.png", "lambert1_Roughness.png"]
     if packed:
@@ -64,10 +64,20 @@ def _import_source(tmp_path, monkeypatch, *, fbx=True, declared=(), metallic=Tru
     output = tmp_path / "import"
     if fbx:
         archive = tmp_path / "sword.zip"
-        with zipfile.ZipFile(archive, "w") as package:
-            package.writestr("source/sword.fbx", b"FBX conversion fixture")
+        if layout == "direct":
+            # A loose FBX with its maps beside it, outside any archive.
+            archive = tmp_path / "user" / "sword.fbx"
+            archive.parent.mkdir()
+            archive.write_bytes(b"FBX conversion fixture")
             for name in names:
-                package.writestr(f"textures/{name}", valid_image_bytes())
+                (archive.parent / name).write_bytes(valid_image_bytes())
+        else:
+            with zipfile.ZipFile(archive, "w") as package:
+                fbx_name, texture_folder = (("Sword/sword.fbx", "Sword") if layout == "nested"
+                                            else ("source/sword.fbx", "textures"))
+                package.writestr(fbx_name, b"FBX conversion fixture")
+                for name in names:
+                    package.writestr(f"{texture_folder}/{name}", valid_image_bytes())
         before = hashlib.sha256(archive.read_bytes()).digest()
 
         cancellation = threading.Event()
@@ -123,6 +133,19 @@ def test_fbx_zip_recovers_surface_maps_and_keeps_yellow_gem(tmp_path, monkeypatc
     assert exported.metallic.name == "lambert1_Metallic.png"
     assert exported.roughness_factor == exported.metallic_factor == 1.0
     assert exported.base_slot.base_color_factor in ((), (1.0, 1.0, 1.0))
+
+
+@pytest.mark.parametrize("layout", ["nested", "direct"])
+def test_fbx_maps_beside_the_fbx_are_recovered(tmp_path, monkeypatch, layout):
+    # Blender carries over only the images an FBX links; its loose maps are found by
+    # name beside the converted GLB, which therefore has to sit where they are.
+    source = _import_source(tmp_path, monkeypatch, layout=layout)
+    blade, _gem = _material_rows(source)
+    assert {"base", "normal", "roughness", "metallic"} <= blade["channels"].keys()
+    if layout == "direct":
+        assert sorted(path.name for path in (tmp_path / "user").iterdir()) == sorted(
+            ["sword.fbx", "lambert1_Base_Color.png", "lambert1_Normal_DirectX.png",
+             "lambert1_Roughness.png", "lambert1_Metallic.png"]), "nothing is written beside the user's file"
 
 
 def test_fbx_packed_map_retains_channel_layout_in_output(tmp_path, monkeypatch):
