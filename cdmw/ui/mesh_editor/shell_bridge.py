@@ -860,7 +860,7 @@ class MeshEditorShellBridgeMixin:
     def _mesh_editor_show_archive_target_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
             return
-        self.textures._show_archive_browser_from_texture_editor(entry.path)
+        self.textures._show_archive_browser_from_texture_editor(entry.path, entry)
 
     def _mesh_editor_route_active_builder_action(self, action: object) -> Optional[bool]:
         active_builder = self._mesh_editor_active_builder()

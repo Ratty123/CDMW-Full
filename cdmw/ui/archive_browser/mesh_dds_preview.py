@@ -296,15 +296,32 @@ class ArchiveMeshDdsPreviewMixin:
             show_archive_progress=True,
         )
 
+    def _archive_related_references_for_entry(
+        self,
+        entry: ArchiveEntry,
+    ) -> Optional[Tuple[ArchiveModelTextureReference, ...]]:
+        """``entry``'s own resolved references; None while they cannot be built yet.
+
+        The cached panel references are used only when they were built for this exact
+        archive entry. A right-click moves the selection without a preview, so the
+        cache can still hold the previously previewed model's references.
+        """
+
+        from cdmw.domain.archives.filters import archive_entry_identity_key
+        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependenciesUnavailable
+
+        if not isinstance(entry, ArchiveEntry):
+            return ()
+        if getattr(self, "current_archive_references_source_identity", None) == archive_entry_identity_key(entry):
+            return tuple(self.current_archive_model_texture_references)
+        try:
+            _graph, references = self._archive_asset_family_graph_for_entry(entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        return tuple(references)
+
     def _current_archive_related_references_for_entry(
         self,
         entry: ArchiveEntry,
     ) -> Tuple[ArchiveModelTextureReference, ...]:
-        current_entry = self._current_archive_entry()
-        if current_entry is None:
-            return ()
-        current_path = current_entry.path.replace("\\", "/").strip().lower()
-        target_path = entry.path.replace("\\", "/").strip().lower()
-        if current_path != target_path:
-            return ()
-        return tuple(self.current_archive_model_texture_references)
+        return self._archive_related_references_for_entry(entry) or ()

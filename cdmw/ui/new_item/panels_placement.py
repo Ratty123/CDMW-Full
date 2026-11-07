@@ -22,7 +22,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from dataclasses import replace
+
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
+from cdmw.services.new_item_snapshot import NewItemSnapshotError
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel
 
@@ -50,13 +53,27 @@ class PlacementPanel(QGroupBox):
             shop_layout.addWidget(radio)
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        self.store = QComboBox()
+        # The combo holds the chosen shop by its StoreInfo key, but is never shown:
+        # its popup, scrolled and clicked while the wizard changed pages, was where
+        # the reported crashes happened. Shops are chosen in a modal picker instead.
+        self.store = QComboBox(self)
         self.store.setEditable(False)
-        self.store.setMaxVisibleItems(24)
-        self.store.setToolTip("Every shop in the game's tables: your camp's shops first (Store_Camp_Equipment is the camp's equipment merchant), then the rest by name, each with its kind and how many lines it sells. Type to jump.")
+        self.store.setVisible(False)
         self.store.currentIndexChanged.connect(self._store_index_changed)
         self.store_label = QLabel("Shop:")
-        form.addRow(self.store_label, self.store)
+        store_row = QHBoxLayout()
+        self.store_summary = QLabel("")
+        self.store_summary.setWordWrap(True)
+        self.store_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        store_row.addWidget(self.store_summary, 1)
+        self.choose_store_button = QPushButton("Choose shop...")
+        self.choose_store_button.setToolTip(
+            "Search every shop by merchant, place, type, internal Store_ ID or an item it sells. "
+            "When adding a new shop entry you can tick several shops at once."
+        )
+        self.choose_store_button.clicked.connect(self._open_shop_picker)
+        store_row.addWidget(self.choose_store_button)
+        form.addRow(self.store_label, store_row)
         self.old_item = QComboBox()
         self.old_item.setToolTip("The line of that shop the new item takes over; the old item leaves the shop.")
         self.old_item.currentIndexChanged.connect(self._old_item_changed)
@@ -185,6 +202,99 @@ class PlacementPanel(QGroupBox):
             self.store.blockSignals(False)
         self._store_index_changed(self.store.currentIndex())
 
+    def close_popups(self) -> None:
+        """Close the stock-line list before the wizard leaves this page."""
+
+        for combo in (self.store, self.old_item):
+            try:
+                combo.hidePopup()
+            except RuntimeError:
+                pass
+
+    def _open_shop_picker(self) -> None:
+        from cdmw.ui.new_item.shop_picker import ShopPickerDialog
+
+        draft = self._controller.draft
+        multi = draft.placement_kind is PlacementKind.INSERT
+        routed = tuple(
+            route.store_name
+            for route in (draft.shop_placements or ())
+            if route.kind is PlacementKind.INSERT
+        )
+        dialog = ShopPickerDialog(
+            self._controller.shop_choices(),
+            multi=multi,
+            selected=(draft.store_name,) if draft.store_name else (),
+            already_routed=routed,
+            parent=self,
+        )
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            chosen = dialog.selected_keys()
+        finally:
+            dialog.deleteLater()
+        self.apply_shop_selection(chosen)
+
+    def apply_shop_selection(self, store_names) -> str:
+        """Use the picked shops: one sets the shop; several become saved INSERT routes.
+
+        Returns a short message describing what changed (also shown in the note).
+        """
+
+        names = [name for name in dict.fromkeys(str(name) for name in store_names) if self._controller.has_store(name)]
+        if not names:
+            return ""
+        if not self.choose_store(names[0]):
+            return ""
+        draft = self._controller.draft
+        if len(names) == 1 or draft.placement_kind is not PlacementKind.INSERT:
+            self.shop_routes.refresh()
+            return f"Shop: {names[0]}."
+        template = self._controller.current_spec().placement
+        existing = tuple(draft.shop_placements or ())
+        taken = {(route.kind, route.store_name) for route in existing}
+        added, skipped = [], []
+        for name in names:
+            if (PlacementKind.INSERT, name) in taken:
+                skipped.append(name)
+                continue
+            added.append(replace(template, kind=PlacementKind.INSERT, store_name=name, old_item_name="", stock_index=None))
+            taken.add((PlacementKind.INSERT, name))
+        if added:
+            draft.shop_placements = (*existing, *added)
+            self._controller.invalidate_plan()
+        self.shop_routes.refresh()
+        message = f"Added {len(added)} shop route(s)."
+        if skipped:
+            message += f" Skipped {len(skipped)} already saved: {', '.join(skipped[:4])}."
+        self.shop_routes.state.setText(message + " " + self.shop_routes.state.text())
+        return message
+
+    def _refresh_store_summary(self) -> None:
+        name = str(self.store.currentData() or "")
+        if not name:
+            self.store_summary.setText("No shop chosen.")
+            self.store_summary.setToolTip("")
+            return
+        from cdmw.ui.new_item.shop_picker import describe_shop
+
+        count = 0
+        snapshot = self._controller.snapshot
+        if snapshot is not None:
+            try:
+                count = len(snapshot.store(name).buyable_entries)
+            except NewItemSnapshotError:
+                count = 0
+        shop = describe_shop(name, count)
+        marker = "" if shop.verified_name else " *"
+        place = f", {shop.location}" if shop.location else ""
+        self.store_summary.setText(f"{shop.display_name}{marker} ({shop.kind}{place}, {count} line(s)) · {name}")
+        self.store_summary.setToolTip(
+            "Merchant confirmed in game." if shop.verified_name
+            else "* Name derived from the internal StoreInfo key; the in-game merchant is not confirmed."
+        )
+
     def show_draft(self) -> None:
         """Show the draft's shop and group choices after it was replaced."""
 
@@ -244,7 +354,10 @@ class PlacementPanel(QGroupBox):
         enabled = draft.placement_kind is not PlacementKind.NONE
         swapping = draft.placement_kind is PlacementKind.SWAP
         self.store.setEnabled(enabled)
-        self.store.setVisible(enabled)
+        self.store_summary.setVisible(enabled)
+        self.choose_store_button.setEnabled(enabled)
+        self.choose_store_button.setVisible(enabled)
+        self.choose_store_button.setText("Choose shops..." if draft.placement_kind is PlacementKind.INSERT else "Choose shop...")
         self.store_label.setEnabled(enabled)
         self.store_label.setVisible(enabled)
         self.old_item.setEnabled(swapping)
@@ -261,13 +374,20 @@ class PlacementPanel(QGroupBox):
         self.refresh_price_state()
 
     def _store_changed(self, name: str) -> None:
-        self._controller.draft.store_name = str(name or "").strip()
+        name = str(name or "").strip()
+        self._controller.draft.store_name = name
+        self.old_item.hidePopup()
         self.old_item.blockSignals(True)
         try:
             self.old_item.clear()
             snapshot = self._controller.snapshot
-            entries = snapshot.store(name).buyable_entries if snapshot and name else ()
-            for entry,(key,item_name,requirement) in zip(entries,self._controller.store_stock(self._controller.draft.store_name)):
+            try:
+                entries = snapshot.store(name).buyable_entries if snapshot and name else ()
+            except NewItemSnapshotError:
+                # A stale shop (a restored draft against another snapshot): no lines,
+                # and nothing of the previous shop's stock is left selectable.
+                entries = ()
+            for entry,(key,item_name,requirement) in zip(entries,self._controller.store_stock(name)):
                 label = f"{item_name} ({key}) · entry {entry.stock_index}" + (f", unlocked by {requirement}" if requirement else "")
                 self.old_item.addItem(label, item_name)
                 at = self.old_item.count()-1
@@ -275,13 +395,17 @@ class PlacementPanel(QGroupBox):
                 self.old_item.setItemData(at,f"Quantity: {entry.count}; order: {entry.order_index}; preserved conditions: {entry.condition_data.hex() or 'none'}",Qt.ToolTipRole)
         finally:
             self.old_item.blockSignals(False)
-        self._old_item_changed(self.old_item.currentIndex())
+        # One shop change is one draft change: the stock line follows it in the same
+        # step, and the plan is invalidated once, not once per dependent control.
+        self._old_item_changed(self.old_item.currentIndex(), invalidate=False)
+        self._refresh_store_summary()
         self._controller.invalidate_plan()
 
-    def _old_item_changed(self, _index: int) -> None:
+    def _old_item_changed(self, _index: int, *, invalidate: bool = True) -> None:
         self._controller.draft.old_item_name = str(self.old_item.currentData() or "")
         self._controller.draft.stock_index = self.old_item.currentData(Qt.UserRole+1)
-        self._controller.invalidate_plan()
+        if invalidate:
+            self._controller.invalidate_plan()
         self._refresh_requirement_note()
 
     def _keep_requirement_changed(self, checked: bool) -> None:
@@ -303,7 +427,11 @@ class PlacementPanel(QGroupBox):
         self.requirement_note.setToolTip("")
         requirement = self._controller.line_requirement(draft.store_name, draft.old_item_name)
         if self._controller.snapshot and draft.store_name and draft.stock_index is not None:
-            entry = next((e for e in self._controller.snapshot.store(draft.store_name).entries if e.stock_index == draft.stock_index),None)
+            try:
+                store_entries = self._controller.snapshot.store(draft.store_name).entries
+            except NewItemSnapshotError:
+                store_entries = ()
+            entry = next((e for e in store_entries if e.stock_index == draft.stock_index),None)
             key = entry.requirement_item_key if entry else None
             row = self._controller.snapshot.rows.get(key)
             requirement = row.string_key if row else str(key or "")

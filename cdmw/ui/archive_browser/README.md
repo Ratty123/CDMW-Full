@@ -103,6 +103,29 @@ matches them to archive entries; it does not convert OBJ models. Source scans
 and replacement source imports use the main window's background utility worker,
 with the requesting workspace/dialog retained as their result-lifetime guard.
 
+### Workflows on the live catalogue
+
+The standalone catalogue never fills the legacy `archive_entries` list or its path
+indexes. Workflows that used to search those collections resolve only what they
+need through `remote_entry_lookup.py`, in bounded `resolve_entries` batches (256
+values, 4,096 results per request), and report a loading catalogue separately from
+an unloaded one:
+
+- Loose-folder import scans the folder first, then resolves its virtual paths and
+  basenames and matches them with the unchanged rules (exact path, then one
+  unambiguous same-extension filename).
+- **Show Target In Archive** and other reveal requests find the file by exact path,
+  keep the match whose package/archive/offset identity equals the opened entry, and
+  show it as a one-file entry-id scope, so filters and paging cannot hide it.
+- **Show Only This File**, **Filter to Family** and file-set scopes become backend
+  entry-id queries (`apply_entry_id_scope`). Extract Filtered and the totals then
+  use exactly that scope. Members are matched by full identity; unmatched members
+  are reported, and a scope with no match leaves the view unchanged.
+- Asset Family graphs and the panel's referenced files carry the identity of the
+  entry they were built for (`current_archive_references_source_identity`). A
+  right-click that moves the selection without a preview cannot reuse the previous
+  model's graph or related files; the action prepares the new model instead.
+
 ### HKX Physics Editor
 
 **Tools > Physics / HKX > Edit HKX Physics** and the `.hkx` context menu open
@@ -951,7 +974,12 @@ export source coordinates: the summary marks neutral appearance as unavailable, 
 includes an unbound armature. OBJ returns still retain the original PAC skin records.
 
 **Export Character and Related Game Files...** collects the original character
-model and its resolved game files. These packages preserve `character/...` paths directly below the chosen
+model and its resolved game files. With the live catalogue, `character_dependency_live.py`
+starts from the worker character catalogue's related files for `asset:<path>`, runs the
+planner over that bounded set with recording indexes, and resolves what it looked for and
+missed, for at most four passes and 24,000 files. A model without a catalogue row (armor
+and other equipment) gets an eligibility message, not a loading warning. Animation
+token matching is limited to the resolved set, and the plan says so. These packages preserve `character/...` paths directly below the chosen
 root so the appearance manifest can find and verify every companion. The extraction
 service's `include_package_directory=False` selects this layout for both extraction and
 collision checks; ordinary extraction keeps its archive package directory by default.

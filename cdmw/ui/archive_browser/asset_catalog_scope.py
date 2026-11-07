@@ -283,6 +283,21 @@ class ArchiveAssetCatalogScopeMixin:
             scoped_entries.append(entry)
         if not scoped_entries:
             return False
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if (
+            remote_bridge is not None
+            and bool(getattr(remote_bridge, "displays_v2", False))
+            and not getattr(self, "archive_entries", ())
+        ):
+            # The tree shows the live catalogue model, so a scope must be a backend
+            # query; writing archive_filtered_entries would change nothing on screen
+            # while Extract Filtered kept exporting the earlier, unscoped query.
+            return self._apply_archive_direct_scope_live(
+                scoped_entries,
+                scope_label=scope_label,
+                hint_text=hint_text,
+                log_text=log_text,
+            )
         scoped_entries = order_archive_entries_by_active_overrides(scoped_entries)
         if self._archive_tree_sort_active():
             scoped_entries = sort_archive_entries_for_browser(
@@ -323,6 +338,95 @@ class ArchiveAssetCatalogScopeMixin:
         if not selected_path and self.archive_filtered_entries:
             selected_path = self.archive_filtered_entries[0].path
         self._populate_archive_tree(selected_path, rebuild_index=False)
+        return True
+
+    def _apply_archive_direct_scope_live(
+        self,
+        entries: Sequence[ArchiveEntry],
+        *,
+        scope_label: str,
+        hint_text: str,
+        log_text: str,
+    ) -> bool:
+        """Scope the live catalogue to exactly ``entries``, matched by full archive identity."""
+
+        from cdmw.domain.archives.catalogue import ArchiveLookupKind
+        from cdmw.ui.archive_browser.remote_entry_lookup import (
+            RemoteLookupOutcome,
+            live_catalogue_unavailable_message,
+            lookup_requests,
+            start_live_catalogue_lookup,
+        )
+        from cdmw.ui.archive_browser.remote_window_bridge import MAX_REMOTE_EXPORT_ENTRY_IDS
+        from cdmw.ui.archive_browser.remote_window_identity import dto_identity_key, legacy_identity_key
+
+        bridge = self.archive_remote_bridge
+        session = bridge.current_session
+        if session is None:
+            self.shell.set_status_message(live_catalogue_unavailable_message(self, "the scope"), error=True)
+            return False
+        if len(entries) > MAX_REMOTE_EXPORT_ENTRY_IDS:
+            self.shell.set_status_message(
+                f"{scope_label} has {len(entries):,} files; a scope can show at most "
+                f"{MAX_REMOTE_EXPORT_ENTRY_IDS:,}. Narrow the selection first.",
+                error=True,
+            )
+            return False
+        wanted = {legacy_identity_key(entry): entry for entry in entries}
+
+        def publish(entry_ids: Sequence[int], missing: int) -> None:
+            if not entry_ids:
+                self.shell.set_status_message(
+                    f"None of the files for {scope_label} were found in the loaded archive catalogue; "
+                    "the view was left unchanged.",
+                    error=True,
+                )
+                return
+            if not bridge.apply_entry_id_scope(entry_ids, label=scope_label):
+                self.shell.set_status_message(
+                    "The archive catalogue session changed; the scope was not applied.",
+                    error=True,
+                )
+                return
+            note = (
+                f" {missing:,} file(s) could not be matched in the loaded catalogue and are not shown."
+                if missing
+                else ""
+            )
+            self.archive_package_filter_hint_label.setText(hint_text + note)
+            self.shell.append_archive_log(log_text + note)
+
+        current_dto = bridge.model.entry_for_index(self.archive_tree.currentIndex())
+        if current_dto is not None and set(wanted) == {dto_identity_key(current_dto)}:
+            publish((current_dto.entry_id,), 0)
+            return True
+
+        def found(outcome: RemoteLookupOutcome) -> None:
+            if outcome.session_id != session.session_id:
+                self.shell.set_status_message("The archive catalogue session changed; retry the scope.", error=True)
+                return
+            matched: dict[tuple, int] = {}
+            for dto in outcome.entries:
+                key = dto_identity_key(dto)
+                if key in wanted and key not in matched:
+                    matched[key] = dto.entry_id
+            ordered = [matched[key] for key in wanted if key in matched]
+            publish(ordered, len(wanted) - len(ordered))
+
+        def failed(message: str) -> None:
+            self.shell.set_status_message(f"The scope could not be applied: {message}", error=True)
+
+        start_live_catalogue_lookup(
+            self,
+            "_archive_scope_lookup",
+            lookup_requests(
+                session.session_id,
+                ArchiveLookupKind.EXACT_PATHS,
+                (entry.path for entry in entries),
+            ),
+            on_done=found,
+            on_error=failed,
+        )
         return True
 
     def _apply_archive_asset_catalog_scope(self, row: Mapping[str, object], *, include_related: bool = True) -> None:

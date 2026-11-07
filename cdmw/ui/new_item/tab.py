@@ -16,6 +16,7 @@ from typing import Callable, Iterable, Optional
 
 from PySide6.QtCore import QEvent, Qt, Signal, QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -683,10 +684,9 @@ class NewItemStudioTab(QWidget):
             panel.mount_recipes(stats.recipes)
             panel.recipes_requested.connect(self._show_recipes)
             stats.price_state_changed.connect(panel.refresh_price_state)
-            for radio in (panel.no_store, panel.swap, panel.insert):
-                radio.toggled.connect(self._refresh_summary)
-            panel.store.currentIndexChanged.connect(self._refresh_summary)
-            panel.old_item.currentIndexChanged.connect(self._refresh_summary)
+            # Shop, stock-line and placement changes each invalidate the plan once,
+            # and plan_invalidated already refreshes the rail; wiring the controls
+            # here too ran the full validation two or three times per click.
             panel._refresh_stores()
         else:
             raise ValueError(f"No deferred page {index}")
@@ -737,6 +737,14 @@ class NewItemStudioTab(QWidget):
                     self._syncing_step = False
                 self._refresh_summary()
                 return
+        # A list popup left open on the page being hidden keeps delivering events to
+        # a widget that is no longer shown; close it before the page changes.
+        placement = self._panels[5] if self._panels_built and len(self._panels) > 5 else None
+        if placement is not None:
+            placement.close_popups()
+        popup = QApplication.activePopupWidget()
+        if popup is not None:
+            popup.close()
         # the template list takes a row once the reader settles on it; leaving the step
         # is settling on it, and the steps after read the template
         if self._panels_built:

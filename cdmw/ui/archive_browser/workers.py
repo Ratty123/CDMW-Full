@@ -144,6 +144,9 @@ class ArchivePreviewWorkerMixin:
             if callable(sync_texture_action):
                 sync_texture_action()
         self.archive_preview_request_id = request_id
+        # The entry this request previews; its results are tagged with it, not with
+        # whatever the selection is when they arrive.
+        self.archive_preview_request_entry = entry
         self.shell.append_archive_log(
             f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",
             verbose=True,

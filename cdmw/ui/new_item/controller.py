@@ -448,6 +448,24 @@ class NewItemStudioController(
             out.append((name, label, count, camp))
         return tuple(sorted(out, key=lambda item: (not item[3], item[0].casefold())))
 
+    def shop_choices(self) -> Tuple[object, ...]:
+        """Every store as a :class:`~cdmw.ui.new_item.shop_picker.ShopChoice` for the picker."""
+
+        from cdmw.ui.new_item.shop_picker import describe_shop
+
+        if self.snapshot is None:
+            return ()
+        choices = []
+        for store in self.snapshot.stores:
+            names = tuple(name for _key, name, _requirement in self.store_stock(str(store.name)))
+            choices.append(describe_shop(str(store.name), len(store.buyable_entries), names))
+        return tuple(choices)
+
+    def has_store(self, store_name: str) -> bool:
+        if self.snapshot is None or not store_name:
+            return False
+        return any(store.name == store_name for store in self.snapshot.stores)
+
     def store_stock(self, store_name: str) -> Tuple[Tuple[int, str, str], ...]:
         """(item key, internal name, unlock requirement item name or "") per buyable line."""
 

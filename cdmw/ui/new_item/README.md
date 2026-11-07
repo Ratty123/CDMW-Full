@@ -554,6 +554,18 @@ Read-only validation on 4 November 2026 against executable `1.0.0.3527` (Steam b
 blocks rebuilt byte for byte. Owned fixtures cover both layouts, mixed base/DLC
 tables, cloning and export readback. This does not establish packaged or in-game behavior.
 
+Shops are chosen in `shop_picker.py`, a modal, searchable table (merchant, place,
+type, line count, internal `Store_` ID and the items a shop sells). Checks are kept by
+StoreInfo key, so filtering and sorting never change the choice. Only names confirmed
+in game (`VERIFIED_SHOP_NAMES`) are shown as merchants; every other name is derived
+from the key and marked with `*`. In **Add a new shop entry** several shops become one
+INSERT route each in `shop_placements`, skipping shops already routed; **Replace one
+shop entry** picks one shop and still needs its stock line chosen. The panel's
+`store` combo stays as a hidden data holder; its popup, used while the wizard changed
+pages, was where the crash in issue 30 was reported. One shop change invalidates the
+plan once, an unknown shop name clears the stock lines instead of raising, and
+leaving the step closes any open list popup.
+
 Perk search results use a prepared list model shared with the compatibility
 selector. Refresh preserves selection by item key without clearing native list
 items, and replaced models and selection models are released safely.

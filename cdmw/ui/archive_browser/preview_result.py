@@ -17,7 +17,7 @@ from cdmw.ui.archive_browser.preview_state import (
     archive_model_packages_share_source,
 )
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
-from cdmw.models import ArchivePreviewResult
+from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.services.mesh_rust_preview_cache import (
     validate_rust_preview_cache_package as validate_dotnet_preview_package,
 )
@@ -91,6 +91,11 @@ class ArchivePreviewResultMixin:
                 result.model_texture_references,
                 result.asset_family_graph,
                 request_id=request_id,
+                source_entry=(
+                    getattr(self, "archive_preview_request_entry", None)
+                    if isinstance(getattr(self, "archive_preview_request_entry", None), ArchiveEntry)
+                    else selected_entry if isinstance(selected_entry, ArchiveEntry) else None
+                ),
             )
         else:
             self._clear_archive_texture_reference_views()

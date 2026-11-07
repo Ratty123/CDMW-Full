@@ -15,12 +15,265 @@ from cdmw.services.archive_workflow_service import (
     export_archive_mesh,
     write_character_appearance_bundle_manifest,
 )
+from cdmw.domain.archives.catalogue import ArchiveLookupKind
+from cdmw.domain.archives.character_catalogue import CharacterCatalogScopeRequest, CharacterCatalogScopeResult
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.character_dependency_live import (
+    CHARACTER_KEY_MISSING_TEXT,
+    MAX_LOOKUPS_PER_ROUND,
+    MAX_PLANNING_ENTRIES,
+    MAX_PLANNING_ROUNDS,
+    CatalogueCall,
+    CharacterPlanningRound,
+    character_catalogue_asset_key,
+    plan_character_dependencies_round,
+    planner_indexes,
+    with_live_scope_warning,
+)
+from cdmw.ui.archive_browser.remote_entry_lookup import (
+    LiveCatalogueState,
+    RemoteLookupOutcome,
+    compatibility_entries,
+    live_catalogue_state,
+    live_catalogue_unavailable_message,
+    lookup_requests,
+    start_live_catalogue_lookup,
+)
+from cdmw.ui.archive_browser.remote_window_identity import legacy_identity_key
+
+
+_TITLE = "Export Character and Related Game Files"
+
+
+def _not_eligible_message(path: str) -> str:
+    return (
+        f"No matching appearance descriptor was found for body/model {path}.\n\n"
+        "Export Character and Related Game Files is for bodies, faces and other models that a character "
+        "appearance uses. The character catalogue has no entry for this file; equipment such as armor is "
+        "exported with Export This Model or Asset Family instead."
+    )
 
 
 class ArchiveCharacterDependencyExportMixin:
     """Build and export character dependency file sets from archive selections."""
 
+    def _export_character_dependency_package_live(
+        self,
+        entry: ArchiveEntry,
+        *,
+        selected_appearance_path: str = "",
+    ) -> None:
+        """Plan from the files the worker relates to ``entry``, then export as usual."""
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        service = getattr(self, "archive_catalogue_service", None)
+        if session is None or service is None:
+            QMessageBox.warning(self, _TITLE, live_catalogue_unavailable_message(self, _TITLE))
+            return
+        if not bool(getattr(service, "character_catalog_available", False)):
+            QMessageBox.warning(
+                self,
+                _TITLE,
+                "This export needs the character catalogue, which the installed archive helper does not provide. "
+                "Install a current CDMW build, then reopen the archives.",
+            )
+            return
+        previous = getattr(self, "_character_dependency_live_call", None)
+        if isinstance(previous, CatalogueCall):
+            previous.cancel()
+        selected_path = str(selected_appearance_path or "").strip()
+        generation = int(getattr(getattr(bridge, "controller", None), "generation", 0) or 0)
+        key = character_catalogue_asset_key(entry.path)
+        self.shell.set_status_message(f"Finding the character files related to {entry.basename}...")
+
+        def scoped(payload: object) -> None:
+            self._character_dependency_live_call = None
+            if not isinstance(payload, CharacterCatalogScopeResult) or payload.session_id != session.session_id:
+                QMessageBox.warning(self, _TITLE, "The archive worker returned an invalid character catalogue result.")
+                return
+            if payload.truncated:
+                QMessageBox.warning(
+                    self,
+                    _TITLE,
+                    f"{entry.path} relates to more than {len(payload.entry_ids):,} archive files, "
+                    "more than this export plans at once. Export its appearance from Body & Face Finder instead.",
+                )
+                return
+            self._start_character_dependency_live_lookup(
+                entry,
+                session.session_id,
+                ArchiveLookupKind.ENTRY_IDS,
+                payload.entry_ids,
+                entries={},
+                looked_up_paths=set(),
+                looked_up_basenames=set(),
+                selected_path=selected_path,
+                planning_round=0,
+                last_round=None,
+            )
+
+        def failed(message: str) -> None:
+            self._character_dependency_live_call = None
+            if CHARACTER_KEY_MISSING_TEXT.casefold() in message.casefold():
+                QMessageBox.information(self, _TITLE, _not_eligible_message(entry.path))
+                self.shell.set_status_message(f"No appearance descriptor uses {entry.basename}.")
+                return
+            QMessageBox.warning(self, _TITLE, f"Could not read the character catalogue:\n{message}")
+
+        call = CatalogueCall(
+            service,
+            lambda: service.scope_character_catalog(
+                CharacterCatalogScopeRequest(session.session_id, key, include_related=True, maximum_results=4096),
+                ui_generation=generation,
+            ),
+            on_result=scoped,
+            on_error=failed,
+            parent=self,
+        )
+        self._character_dependency_live_call = call
+        call.start()
+
+    def _start_character_dependency_live_lookup(
+        self,
+        entry: ArchiveEntry,
+        session_id: str,
+        kind: ArchiveLookupKind,
+        values: object,
+        *,
+        entries: dict,
+        looked_up_paths: set,
+        looked_up_basenames: set,
+        selected_path: str,
+        planning_round: int,
+        last_round: CharacterPlanningRound | None,
+        extra_requests: tuple = (),
+    ) -> None:
+        requests = (*lookup_requests(session_id, kind, values), *extra_requests)
+
+        def resolved(outcome: RemoteLookupOutcome) -> None:
+            before = len(entries)
+            for candidate in compatibility_entries(self, outcome.entries):
+                entries.setdefault(legacy_identity_key(candidate), candidate)
+            entries.setdefault(legacy_identity_key(entry), entry)
+            if last_round is not None and len(entries) == before:
+                # Nothing new was found for what the planner asked; its plan stands.
+                self._finish_character_dependency_live_plan(entry, last_round, entries)
+                return
+            if len(entries) > MAX_PLANNING_ENTRIES:
+                QMessageBox.warning(
+                    self,
+                    _TITLE,
+                    f"The dependency graph for {entry.path} grew past {MAX_PLANNING_ENTRIES:,} archive files; "
+                    "the export was stopped instead of writing a partial set.",
+                )
+                return
+            self._run_character_dependency_live_round(
+                entry,
+                session_id,
+                entries=entries,
+                looked_up_paths=looked_up_paths,
+                looked_up_basenames=looked_up_basenames,
+                selected_path=selected_path,
+                planning_round=planning_round,
+            )
+
+        def failed(message: str) -> None:
+            QMessageBox.warning(self, _TITLE, f"Could not resolve the character's archive files:\n{message}")
+            self.shell.set_status_message(f"Character dependency lookup failed: {message}", error=True)
+
+        if not requests:
+            resolved(RemoteLookupOutcome(session_id, (), False))
+            return
+        start_live_catalogue_lookup(
+            self,
+            "_character_dependency_live_lookup",
+            requests,
+            on_done=resolved,
+            on_error=failed,
+        )
+
+    def _run_character_dependency_live_round(
+        self,
+        entry: ArchiveEntry,
+        session_id: str,
+        *,
+        entries: dict,
+        looked_up_paths: set,
+        looked_up_basenames: set,
+        selected_path: str,
+        planning_round: int,
+    ) -> None:
+        bounded_entries = tuple(entries.values())
+        body_entry = entries.get(legacy_identity_key(entry), entry)
+
+        def task(on_log: Callable[[str], None], stop_event: object) -> object:
+            try:
+                on_log(
+                    f"Planning character dependencies for {entry.path} "
+                    f"(pass {planning_round + 1}, {len(bounded_entries):,} resolved files)..."
+                )
+                return plan_character_dependencies_round(
+                    body_entry,
+                    bounded_entries,
+                    selected_appearance_path=selected_path,
+                    stop_event=stop_event,
+                )
+            except Exception as exc:
+                return {"error": str(exc)}
+
+        def on_complete(result: object) -> None:
+            QTimer.singleShot(0, lambda task_result=result: planned(task_result))
+
+        def planned(result: object) -> None:
+            if not isinstance(result, CharacterPlanningRound):
+                self._handle_character_dependency_package_plan(entry, result)
+                return
+            new_paths = sorted(result.missing_paths - looked_up_paths)[:MAX_LOOKUPS_PER_ROUND]
+            new_basenames = sorted(result.missing_basenames - looked_up_basenames)[:MAX_LOOKUPS_PER_ROUND]
+            if planning_round + 1 >= MAX_PLANNING_ROUNDS or not (new_paths or new_basenames):
+                self._finish_character_dependency_live_plan(entry, result, entries)
+                return
+            looked_up_paths.update(new_paths)
+            looked_up_basenames.update(new_basenames)
+            self._start_character_dependency_live_lookup(
+                entry,
+                session_id,
+                ArchiveLookupKind.EXACT_PATHS,
+                new_paths,
+                entries=entries,
+                looked_up_paths=looked_up_paths,
+                looked_up_basenames=looked_up_basenames,
+                selected_path=selected_path,
+                planning_round=planning_round + 1,
+                last_round=result,
+                extra_requests=lookup_requests(session_id, ArchiveLookupKind.BASENAMES, new_basenames),
+            )
+
+        self.shell._run_utility_task(
+            status_message=f"Building character dependency plan for {entry.basename}...",
+            task=task,
+            on_complete=on_complete,
+            show_archive_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    def _finish_character_dependency_live_plan(
+        self,
+        entry: ArchiveEntry,
+        planning_round: CharacterPlanningRound,
+        entries: dict,
+    ) -> None:
+        path_index, basename_index = planner_indexes(entries.values())
+        self._character_dependency_live_indexes = (
+            {key: tuple(value) for key, value in path_index.items()},
+            {key: tuple(value) for key, value in basename_index.items()},
+        )
+        self._handle_character_dependency_package_plan(
+            entry,
+            with_live_scope_warning(planning_round.plan),
+            live_catalogue=True,
+        )
 
 
     def _export_character_dependency_package_for_entry(
@@ -30,7 +283,19 @@ class ArchiveCharacterDependencyExportMixin:
         selected_appearance_path: str = "",
     ) -> None:
         if not self.archive_entries:
-            QMessageBox.warning(self, "Export Character and Related Game Files", "Load Archive Browser data first.")
+            # The live catalogue never fills the legacy list; plan from a bounded,
+            # worker-resolved set instead of refusing.
+            if live_catalogue_state(self) == LiveCatalogueState.READY:
+                self._export_character_dependency_package_live(
+                    entry,
+                    selected_appearance_path=selected_appearance_path,
+                )
+                return
+            QMessageBox.warning(
+                self,
+                _TITLE,
+                live_catalogue_unavailable_message(self, "Export Character and Related Game Files"),
+            )
             return
         archive_entries = tuple(self.archive_entries)
         selected_path = str(selected_appearance_path or "").strip()
@@ -72,7 +337,13 @@ class ArchiveCharacterDependencyExportMixin:
             task_accepts_cancel=True,
         )
 
-    def _handle_character_dependency_package_plan(self, entry: ArchiveEntry, result: object) -> None:
+    def _handle_character_dependency_package_plan(
+        self,
+        entry: ArchiveEntry,
+        result: object,
+        *,
+        live_catalogue: bool = False,
+    ) -> None:
         if isinstance(result, dict) and result.get("error"):
             QMessageBox.warning(
                 self,
@@ -110,8 +381,15 @@ class ArchiveCharacterDependencyExportMixin:
             )
             return
         if plan.blocking_errors:
+            if live_catalogue and any(
+                error.startswith("No matching appearance descriptor") for error in plan.blocking_errors
+            ):
+                QMessageBox.information(self, _TITLE, _not_eligible_message(entry.path))
+                return
             QMessageBox.warning(self, "Export Character and Related Game Files", "\n".join(plan.blocking_errors))
             return
+        for warning in plan.warnings:
+            self.shell.append_log(f"Character dependency plan: {warning}")
         entries = list(plan.entries)
         if not entries:
             QMessageBox.warning(
@@ -124,12 +402,24 @@ class ArchiveCharacterDependencyExportMixin:
             f"Character dependency package for {entry.path}: "
             f"{len(entries):,} file(s), appearance={plan.selected_appearance_path or '-'}."
         )
-        self._run_character_dependency_package_export(entry, plan)
+        live_indexes = getattr(self, "_character_dependency_live_indexes", None) if live_catalogue else None
+        if live_indexes is not None:
+            self._run_character_dependency_package_export(
+                entry,
+                plan,
+                path_index=live_indexes[0],
+                basename_index=live_indexes[1],
+            )
+        else:
+            self._run_character_dependency_package_export(entry, plan)
 
     def _run_character_dependency_package_export(
         self,
         entry: ArchiveEntry,
         plan: CharacterDependencyPlan,
+        *,
+        path_index: dict | None = None,
+        basename_index: dict | None = None,
     ) -> None:
         entries = tuple(plan.entries)
         output_root = self.shell._suggest_archive_extract_root().resolve()
@@ -148,14 +438,16 @@ class ArchiveCharacterDependencyExportMixin:
                 "Run the export again and choose Overwrite Existing or Clear Root.",
             )
             return
-        path_index = {
-            str(key): tuple(value or ())
-            for key, value in dict(getattr(self, "archive_entries_by_normalized_path", {}) or {}).items()
-        }
-        basename_index = {
-            str(key): tuple(value or ())
-            for key, value in dict(getattr(self, "archive_entries_by_basename", {}) or {}).items()
-        }
+        if path_index is None:
+            path_index = {
+                str(key): tuple(value or ())
+                for key, value in dict(getattr(self, "archive_entries_by_normalized_path", {}) or {}).items()
+            }
+        if basename_index is None:
+            basename_index = {
+                str(key): tuple(value or ())
+                for key, value in dict(getattr(self, "archive_entries_by_basename", {}) or {}).items()
+            }
 
         def task(
             on_log: Callable[[str], None],

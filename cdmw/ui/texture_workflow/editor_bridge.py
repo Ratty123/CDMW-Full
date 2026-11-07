@@ -165,10 +165,36 @@ class TextureWorkflowEditorBridgeMixin:
             preserve_luminance=tool_settings.recolor_preserve_luminance,
         )
 
-    def _show_archive_browser_from_texture_editor(self, archive_relative_path: str = "") -> None:
+    def _show_archive_browser_from_texture_editor(
+        self,
+        archive_relative_path: str = "",
+        entry: ArchiveEntry | None = None,
+    ) -> None:
         self.shell._activate_tool_widget(self.shell.archive_browser_tab)
         normalized_path = PurePosixPath(str(archive_relative_path or "").replace("\\", "/")).as_posix().strip()
         if not self.archive.archive_entries:
+            # The live catalogue never fills the legacy entry list; it answers lookups.
+            from cdmw.ui.archive_browser.remote_entry_lookup import (
+                LiveCatalogueState,
+                live_catalogue_state,
+            )
+
+            state = live_catalogue_state(self.archive)
+            if state == LiveCatalogueState.READY:
+                if not normalized_path:
+                    self.shell.set_status_message("Archive Browser is open. Select a DDS file and use 'Open in Texture Editor'.")
+                    return
+                reveal = getattr(self.archive, "_reveal_archive_path_in_live_catalogue", None)
+                if callable(reveal) and reveal(normalized_path, entry):
+                    return
+            if state == LiveCatalogueState.LOADING:
+                QMessageBox.information(
+                    self,
+                    "Archive Browser",
+                    "The archive catalogue is still loading. Try again when the Archive Browser shows its results.",
+                )
+                self.shell.set_status_message("Archive Browser is open; the archive catalogue is still loading.")
+                return
             QMessageBox.information(
                 self,
                 "Archive Browser",

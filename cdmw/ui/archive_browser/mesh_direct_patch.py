@@ -384,7 +384,14 @@ class ArchiveMeshDirectPatchMixin:
         default_checked: bool = True,
         parent: Optional[QWidget] = None,
         ) -> Optional[Tuple[ArchiveEntry, ...]]:
-        references = self._current_archive_related_references_for_entry(entry)
+        references = self._archive_related_references_for_entry(entry)
+        if references is None:
+            self.shell.set_status_message(
+                f"The referenced files of {entry.basename} are still being prepared. "
+                "Preview it, then export again.",
+                error=True,
+            )
+            return None
         return self._prompt_archive_reference_selection(
             title=title,
             intro_text=intro_text,

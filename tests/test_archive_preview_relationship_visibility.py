@@ -81,6 +81,7 @@ def test_failed_native_pam_keeps_relationships_and_cancellation_suppresses_publi
 class _FamilyControls(ArchiveAssetFamilyPanelMixin, ArchiveAssetFamilyDialogMixin, ArchiveReferencePreviewMixin):
     _set_action_button_state = staticmethod(ArchiveBrowserActionMixin._set_action_button_state)
     _current_archive_related_references_for_entry = ArchiveMeshDdsPreviewMixin._current_archive_related_references_for_entry
+    _archive_related_references_for_entry = ArchiveMeshDdsPreviewMixin._archive_related_references_for_entry
     _prompt_archive_mesh_related_file_selection = ArchiveMeshDirectPatchMixin._prompt_archive_mesh_related_file_selection
 
     def __init__(self, entry: ArchiveEntry, parent: QWidget) -> None:
