@@ -481,6 +481,46 @@ def test_generated_companions_remain_additions_in_later_output(edited, tmp_path,
     assert (captured[0].path, captured[0].payload_data, captured[0].flags) == (extra.path, b"retained generated DDS", 0x20)
 
 
+@pytest.mark.parametrize("kind", ["loose_mod", "overlay_package"])
+def test_later_pass_records_the_game_file_as_the_original_of_inherited_outputs(edited, tmp_path, monkeypatch, kind):
+    # A second pass reads its inherited outputs from the earlier result. Recorded
+    # as their own original, Update Mod would see no change and drop them.
+    import cdmw.core.mod_compatibility as compatibility_module
+    from cdmw.domain.archives.overlay_merge import merge_overlay_files
+    service, snapshot, entry, _dependencies = edited
+    game = tmp_path / "game-archive"
+    game.mkdir()
+    shipped, earlier = b"shipped physics bytes", b"earlier pass physics edit"
+    (game / "0.pamt").write_bytes(b"owned index")
+    (game / "0.paz").write_bytes(shipped)
+    earlier_path = tmp_path / "earlier.hkx"
+    earlier_path.write_bytes(earlier)
+    inherited = ArchiveEntry("character/physics/inherited.hkx", game / "0.pamt", game / "0.paz", 0,
+        len(shipped), len(shipped), 0, 0, prepared_path=earlier_path,
+        prepared_sha256=hashlib.sha256(earlier).hexdigest(), prepared_size=len(earlier),
+        prepared_note=EDITED_RESULT_NOTE)
+    captured = []
+    real_capture = compatibility_module.capture_patch_compatibility
+    def capture(*args, **kwargs):
+        captured.append(real_capture(*args, **kwargs))
+        return captured[-1]
+    monkeypatch.setattr(compatibility_module, "capture_patch_compatibility", capture)
+    monkeypatch.setattr("cdmw.workers.mesh_editor_workers.archive_entry_game_root", lambda _entry: tmp_path / "no-game")
+    worker = MeshDirectOutputWorker(1, service, snapshot.session_id, entry, kind=kind,
+        output_path=tmp_path / "mod", manager_profile="dmm", inherited_archive_outputs=(inherited,))
+    errors = []
+    worker.error.connect(lambda _id, message: errors.append(message))
+    worker.run()
+    assert not errors
+    originals = captured[-1].originals
+    assert originals["character/physics/inherited.hkx"] == shipped
+    # Update Mod over an unchanged game keeps the inherited edit.
+    path = "character/physics/inherited.hkx"
+    assert merge_overlay_files({path: originals[path]}, {path: earlier}, {path: shipped})[path] == earlier
+    # The first pass's own source is still its prepared game copy.
+    assert originals[entry.path.casefold()] == read_archive_entry_data(entry)[0]
+
+
 def test_add_result_request_captures_source_context_before_worker_start(edited, tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     service, snapshot, entry, entries = edited
