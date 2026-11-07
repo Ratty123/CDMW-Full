@@ -13,6 +13,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.ui.archive_browser import static_replacement_prompt_preflight as preflight
 from cdmw.ui.archive_browser import static_replacement_dialog_prompt as prompt_module
+from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 
 
 def _entry() -> ArchiveEntry:
@@ -239,6 +240,106 @@ def test_static_prompt_preflight_cancel_does_not_publish_or_warn() -> None:
 
     assert completed == []
     assert owner.statuses == []
+
+
+class _LiveOwner(_Owner):
+    """Live catalogue: empty legacy indexes, one prepared dependency set per model."""
+
+    def __init__(self, dependency_set: object | None) -> None:
+        super().__init__()
+        dependency_set_value = dependency_set
+
+        class _Bridge:
+            displays_v2 = True
+
+            @staticmethod
+            def prepared_dependencies_for(_entry: ArchiveEntry) -> object | None:
+                return dependency_set_value
+
+        self.archive_remote_bridge = _Bridge()
+
+
+def _prepared(path: str, offset: int) -> ArchiveEntry:
+    entry = ArchiveEntry(path, Path("0.pamt"), Path("0.paz"), offset, 8, 8, 0, 0)
+    entry.prepared_path = Path(f"prepared/{offset}.bin")
+    return entry
+
+
+def _live_dependency_set():
+    model = _prepared("character/test.pac", 4)
+    sidecar = _prepared("character/test.pac_xml", 16)
+    texture = _prepared("character/texture/test_d.dds", 32)
+    entries = (model, sidecar, texture)
+    return model, ArchivePreviewDependencySet(
+        session_id="live",
+        entry_id=1,
+        entries=entries,
+        entries_by_normalized_path={entry.path.casefold(): (entry,) for entry in entries},
+        entries_by_basename={entry.basename.casefold(): (entry,) for entry in entries},
+        total_candidates=len(entries),
+        truncated=False,
+    )
+
+
+def _dispatched_request(owner: _Owner, entry: ArchiveEntry) -> preflight.StaticReplacementPromptPreflightRequest:
+    captured: list[preflight.StaticReplacementPromptPreflightRequest] = []
+
+    def capture(request: preflight.StaticReplacementPromptPreflightRequest, **_kwargs: object):
+        captured.append(request)
+        return _result(request.request_id)
+
+    with patch.object(preflight, "prepare_static_replacement_prompt_preflight", side_effect=capture):
+        preflight.dispatch_static_replacement_prompt_preflight(
+            owner,
+            entry,
+            Path("source.obj"),
+            supplemental_files=(),
+            scene_import_result=None,
+            original_mesh=None,
+            on_complete=lambda _result: None,
+        )
+        _wait(owner.threads[0])
+    return captured[0]
+
+
+def test_live_catalogue_preflight_searches_the_prepared_dependency_set() -> None:
+    model, dependency_set = _live_dependency_set()
+    owner = _LiveOwner(dependency_set)
+    request = _dispatched_request(owner, model)
+
+    assert request.index_scope == "prepared_dependencies"
+    assert "character/test.pac_xml" in request.archive_entries_by_normalized_path
+    assert [entry.path for entry in request.archive_entries_by_extension[".dds"]] == ["character/texture/test_d.dds"]
+    path_index, basename_index, source, *_counts = preflight.texture_lookup_indexes(request, threading.Event())
+    assert source == "prepared_dependencies"
+    assert "test_d.dds" in basename_index and "character/test.pac" in path_index
+
+    searched: list[object] = []
+
+    def record_sidecar_search(_entry: ArchiveEntry, *, archive_entries_by_basename, **_kwargs: object):
+        searched.append(archive_entries_by_basename)
+        return (), (), {}, {}
+
+    with patch.object(preflight, "_extract_archive_model_sidecar_texture_references", side_effect=record_sidecar_search):
+        preflight._sidecar_context(request, basename_index, threading.Event())
+    assert "test.pac_xml" in searched[0], "the model's own material sidecar is searchable"
+
+
+def test_live_catalogue_preflight_without_a_prepared_set_keeps_the_empty_indexes() -> None:
+    model, _dependency_set = _live_dependency_set()
+    request = _dispatched_request(_LiveOwner(None), model)
+    assert request.index_scope == "global_indexes"
+    assert dict(request.archive_entries_by_normalized_path) == {}
+
+
+def test_legacy_catalogue_preflight_keeps_its_global_indexes() -> None:
+    owner = _Owner()
+    entry = _entry()
+    owner.archive_entries_by_normalized_path = {entry.path.casefold(): (entry,)}
+    owner.archive_entries_by_basename = {"test.pac": (entry,)}
+    request = _dispatched_request(owner, entry)
+    assert request.index_scope == "global_indexes"
+    assert request.archive_entries_by_basename is owner.archive_entries_by_basename
 
 
 def test_static_prompt_preflight_honors_pre_cancel() -> None:

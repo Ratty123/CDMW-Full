@@ -386,8 +386,10 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 root_path=entry.path,
                 model_path=preview_model_entry.path if isinstance(preview_model_entry, ArchiveEntry) else "",
                 model_entry=preview_model_entry,
-                normalized_path_index=getattr(self, "archive_entries_by_normalized_path", None),
-                basename_index=getattr(self, "archive_entries_by_basename", None),
+                # The workflow context holds the legacy global indexes, or the live
+                # catalogue's prepared dependencies, which never fill those indexes.
+                normalized_path_index=dependencies.entries_by_normalized_path,
+                basename_index=dependencies.entries_by_basename,
                 family_graph=getattr(self, "current_archive_asset_family_graph", None),
                 index_warming=bool(getattr(self, "archive_sidecar_scan_in_progress", False)),
                 include_connections=is_pac_xml,

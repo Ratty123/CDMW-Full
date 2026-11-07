@@ -27,6 +27,56 @@ if TYPE_CHECKING:  # the request type lives in the module this was split from
     )
 
 
+PREPARED_DEPENDENCY_SCOPE = "prepared_dependencies"
+
+
+def preflight_archive_indexes(
+    owner: object,
+    entry: ArchiveEntry,
+) -> tuple[
+    Mapping[str, Sequence[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
+    str,
+]:
+    """Return the path, basename and extension indexes the preflight searches.
+
+    The legacy catalogue publishes global indexes. The live catalogue never fills
+    them; it prepares each selected model with its bounded dependency set (the
+    material sidecar and its textures among them), so the preflight searches that
+    set instead of empty maps that would hide the model's own ``.pac_xml``.
+    """
+
+    archive = getattr(owner, "archive", owner)
+    path_index = getattr(archive, "archive_entries_by_normalized_path", {}) or {}
+    basename_index = getattr(archive, "archive_entries_by_basename", {}) or {}
+    extension_index = getattr(archive, "archive_entries_by_extension", {}) or {}
+    if path_index and basename_index:
+        return path_index, basename_index, extension_index, "global_indexes"
+    from cdmw.ui.archive_browser.workflow_dependencies import (
+        ArchiveWorkflowDependenciesUnavailable,
+        archive_workflow_dependency_context,
+    )
+
+    try:
+        dependencies = archive_workflow_dependency_context(owner, entry)
+    except ArchiveWorkflowDependenciesUnavailable:
+        return path_index, basename_index, extension_index, "global_indexes"
+    if not dependencies.remote or not dependencies.entries_by_normalized_path:
+        return path_index, basename_index, extension_index, "global_indexes"
+    by_extension: dict[str, list[ArchiveEntry]] = {}
+    for dependency in dependencies.entries:
+        extension = str(getattr(dependency, "extension", "") or "").lower()
+        if extension:
+            by_extension.setdefault(extension, []).append(dependency)
+    return (
+        dependencies.entries_by_normalized_path,
+        dependencies.entries_by_basename,
+        {key: tuple(value) for key, value in by_extension.items()},
+        PREPARED_DEPENDENCY_SCOPE,
+    )
+
+
 def texture_lookup_indexes(
     request: "StaticReplacementPromptPreflightRequest",
     stop_event: threading.Event,
@@ -42,7 +92,7 @@ def texture_lookup_indexes(
         return (
             request.archive_entries_by_normalized_path,
             request.archive_entries_by_basename,
-            "global_indexes",
+            request.index_scope,
             len(tuple(request.archive_entries_by_extension.get(".dds", ()) or ())),
             0,
             0,

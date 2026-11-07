@@ -15,7 +15,10 @@ from cdmw.services.archive_query_service import (
     build_archive_relationship_references,
 )
 from cdmw.services.archive_read_service import read_archive_entry_data
-from cdmw.ui.archive_browser.static_replacement_prompt_preflight_indexes import texture_lookup_indexes
+from cdmw.ui.archive_browser.static_replacement_prompt_preflight_indexes import (
+    preflight_archive_indexes,
+    texture_lookup_indexes,
+)
 from cdmw.services.preview_workflow_service import (
     attach_scene_preview_textures,
     parsed_mesh_to_preview_model,
@@ -66,6 +69,9 @@ class StaticReplacementPromptPreflightRequest:
     archive_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]]
     archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]]
     archive_entries_by_extension: Mapping[str, Sequence[ArchiveEntry]]
+    #: Where the indexes came from: the legacy global indexes, or the selected
+    #: model's prepared live-catalogue dependency set.
+    index_scope: str = "global_indexes"
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,6 +411,7 @@ def dispatch_static_replacement_prompt_preflight(
 ) -> int:
     request_id = int(getattr(owner, "_static_replacement_prompt_preflight_request_id", 0) or 0) + 1
     setattr(owner, "_static_replacement_prompt_preflight_request_id", request_id)
+    path_index, basename_index, extension_index, index_scope = preflight_archive_indexes(owner, entry)
     request = StaticReplacementPromptPreflightRequest(
         request_id=request_id,
         entry=entry,
@@ -412,9 +419,10 @@ def dispatch_static_replacement_prompt_preflight(
         supplemental_files=tuple(Path(path) for path in supplemental_files),
         scene_import_result=scene_import_result,
         original_mesh=original_mesh,
-        archive_entries_by_normalized_path=getattr(owner.archive, "archive_entries_by_normalized_path", {}) or {},
-        archive_entries_by_basename=getattr(owner.archive, "archive_entries_by_basename", {}) or {},
-        archive_entries_by_extension=getattr(owner.archive, "archive_entries_by_extension", {}) or {},
+        archive_entries_by_normalized_path=path_index,
+        archive_entries_by_basename=basename_index,
+        archive_entries_by_extension=extension_index,
+        index_scope=index_scope,
     )
     recorder = getattr(owner.shell, "_record_runtime_event", None)
     if callable(recorder):

@@ -141,10 +141,17 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             "_build_static_options_from_dialog",
         ),
     )
+    # The live catalogue leaves the global indexes empty; its preflight searched the
+    # model's prepared dependency set, which holds the textures this preview needs.
+    prompt_preflight = context.get("prompt_preflight")
     _archive_dds_preview_source_for_path, _archive_dds_preview_sources_for_basename = (
         _archive_dds_preview_resolver_pair_helper(
-            self.archive_entries_by_normalized_path,
-            self.archive_entries_by_basename,
+            self.archive_entries_by_normalized_path
+            or getattr(prompt_preflight, "texture_entries_by_normalized_path", None)
+            or {},
+            self.archive_entries_by_basename
+            or getattr(prompt_preflight, "texture_entries_by_basename", None)
+            or {},
             ensure_preview_source=ensure_archive_preview_source,
         )
     )
