@@ -76,7 +76,8 @@ class EditPanelMixin:
         self._angle_box = QComboBox()
         for degrees in (1.0, 5.0, 15.0, 45.0):
             self._angle_box.addItem(f"{degrees:.0f}°", degrees)
-        self._angle_box.setToolTip("How far each turn moves it when you drag to rotate or tilt.")
+        self._angle_box.setToolTip(
+            "How far each Turn button turns it, and each step of a Rotate or Tilt drag.")
         self._angle_box.setCurrentIndex(1)  # 5° — fine enough to aim, coarse enough to feel
         self._angle_box.currentIndexChanged.connect(
             lambda _i: self._viewport.set_angle_snap(float(self._angle_box.currentData() or 5.0))
@@ -123,7 +124,9 @@ class EditPanelMixin:
         self._euler: List[QDoubleSpinBox] = []
         for name in ("roll", "pitch", "yaw"):
             box = QDoubleSpinBox()
-            box.setRange(-180.0, 180.0)
+            # Shown in (-180, 180], but an arrow may step past either end: a point turned a
+            # half turn, as most back points are, otherwise had a dead arrow in one direction.
+            box.setRange(-360.0, 360.0)
             box.setSingleStep(1.0)
             box.setDecimals(1)
             box.setPrefix(f"{name} ")
@@ -133,9 +136,51 @@ class EditPanelMixin:
                 "with Rotate or Tilt to aim it by eye."
             )
             # Wide enough for the longest thing it can hold, measured rather than guessed.
-            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -180.0°") + 34)
-            box.editingFinished.connect(self._apply_euler)
+            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -360.0°") + 34)
+            # Applied as the value changes: arrows and the wheel used to change the number
+            # without turning anything, and the next refresh put the old number back. Typing
+            # still waits for Enter, or every keystroke would be an edit.
+            box.setKeyboardTracking(False)
+            box.valueChanged.connect(lambda _value: self._apply_euler())
             self._euler.append(box)
+
+        # The exact offset, in the same directions as the Move buttons. Each box writes only
+        # its own axis, so the others keep the file's full precision.
+        self._position: List[QDoubleSpinBox] = []
+        for index, name in enumerate(("X", "Y", "Z")):
+            box = QDoubleSpinBox()
+            box.setRange(-500.0, 500.0)
+            box.setSingleStep(0.5)
+            box.setDecimals(1)
+            box.setPrefix(f"{name} ")
+            box.setSuffix(" cm")
+            box.setToolTip(
+                "The exact offset in centimetres, along the same directions as the Move "
+                "buttons. Type a value and press Enter, or use the arrows or the mouse wheel."
+            )
+            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -500.0 cm") + 34)
+            box.setKeyboardTracking(False)
+            box.valueChanged.connect(lambda _value, i=index: self._apply_position(i))
+            self._position.append(box)
+
+        # Turns that follow the view, so "left" is left on screen whatever bone or item frame
+        # the point is stored in. Each turns by the Turn by angle about the point it hangs from.
+        self._turn_buttons: List[QPushButton] = []
+        for glyph, spoken, axis, sign, hint in (
+            ("◀", "Swing left", 1, 1.0, "Swing it left or right as seen in the view."),
+            ("▶", "Swing right", 1, -1.0, "Swing it left or right as seen in the view."),
+            ("▲", "Tip up", 0, 1.0, "Tip it up or down as seen in the view."),
+            ("▼", "Tip down", 0, -1.0, "Tip it up or down as seen in the view."),
+            ("↺", "Spin anticlockwise", 2, 1.0, "Spin it in the plane of the screen."),
+            ("↻", "Spin clockwise", 2, -1.0, "Spin it in the plane of the screen."),
+        ):
+            button = QPushButton(glyph)
+            button.setAccessibleName(spoken)
+            button.setToolTip(hint)
+            button.setFixedWidth(34)
+            button.clicked.connect(
+                lambda _checked=False, a=axis, s=sign: self._turn_in_view(a, s))
+            self._turn_buttons.append(button)
 
         self._revert_button = QPushButton("Reset this point")
         self._revert_button.setToolTip(
@@ -218,9 +263,78 @@ class EditPanelMixin:
         self._after_edit()
 
     def _on_socket_dragged(self, socket_name: str, dx: float, dy: float, dz: float) -> None:
+        """A move drag: the view sends a world-space delta along the camera plane.
+
+        The translation it changes is in the parent bone's space, or for the item's own point
+        the item's, so it is converted first; applied as it came, the point did not follow
+        the pointer once its bone was turned away from the world axes.
+        """
+
         if socket_name != self._selected_socket:
             self._select_socket(socket_name)
-        self._nudge(dx, dy, dz)
+        delta = Vec3(dx, dy, dz)
+        if self._session is not None:
+            delta = self._session.world_delta_for_socket(
+                self._selected_socket, delta,
+                attached_to=self._attached_body_socket(self._selected_socket),
+            )
+        self._nudge(delta.x, delta.y, delta.z)
+
+    def _attached_body_socket(self, socket_name: str) -> str:
+        """The body spot an item's own point is mated with, for the way it is shown.
+
+        Empty for a body spot, and for a point nothing hangs from. The selected slot and the
+        Show it setting win, so a point used both in hand and put away turns in the frame
+        that is on screen.
+        """
+
+        session = self._session
+        if session is None or not socket_name or session.placed(socket_name) is not None:
+            return ""
+        held = (self._mesh_role_box.currentData() or "held") == "held"
+        bindings = list(session.bindings())
+        current = self._current_binding()
+        if current is not None:
+            bindings.insert(0, current)
+        for binding in bindings:
+            part = binding.part
+            pairs = [(part.in_child_socket, part.in_socket), (part.out_child_socket, part.out_socket)]
+            if held:
+                pairs.reverse()
+            for child, body in pairs:
+                if child == socket_name and body and session.placed(body) is not None:
+                    return body
+        return ""
+
+    def _turn_in_view(self, axis_index: int, sign: float) -> None:
+        """One Turn button: turn by the Turn by angle about a view direction."""
+
+        if not self._selected_socket:
+            return
+        axis = self._viewport.view_axes()[axis_index]
+        degrees = sign * float(self._angle_box.currentData() or 5.0)
+        self._on_socket_rotated(self._selected_socket, axis.x, axis.y, axis.z, degrees)
+
+    def _apply_position(self, index: int) -> None:
+        """One Position box: set that axis of the offset, keeping the other two exact."""
+
+        if self._edits is None or not self._selected_socket:
+            return
+        path = self._socket_file_of(self._selected_socket)
+        current = self._edits.socket(path, self._selected_socket) if path else None
+        if current is None:
+            return
+        values = [current.translation.x, current.translation.y, current.translation.z]
+        wanted = self._position[index].value() / 100.0
+        if abs(values[index] - wanted) < 5e-5:
+            return  # the box only rounded what the file holds
+        values[index] = wanted
+        try:
+            self._edits.set_translation(path, self._selected_socket, Vec3(*values))
+        except EditError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        self._after_edit()
 
     def _bindable_chart_sockets(self, socket_name: str):
         """Chart sockets this new socket could stand in for.
@@ -338,9 +452,7 @@ class EditPanelMixin:
     def _on_mode_changed(self, _index: int) -> None:
         mode = str(self._mode_box.currentData() or "off")
         self._viewport.set_edit_mode(mode)
-        # Rotation snap only means anything while dragging to rotate or tilt. The step box
-        # stays live in every mode: it was disabled outside Move, yet the Move buttons use it.
-        self._angle_box.setEnabled(mode in ("rotate", "tilt"))
+        # Both step boxes stay live in every mode: the Move and Turn buttons use them too.
         sync = getattr(self, "_sync_mode_buttons", None)
         if sync is not None:
             sync(mode)
@@ -794,6 +906,16 @@ class EditPanelMixin:
         if binding is None:
             return
         role = self._mesh_role_box.currentData() or "stowed"
+        if binding.part_name == self._selected_part:
+            # The point Fine-tune picks: the item's own unless several slots share it, where a
+            # change could never be saved, or Adjust says otherwise.
+            self._auto_select_attach_point(force=True)
+            if self._selected_socket:
+                self.statusBar().showMessage(
+                    f"Selected {self._selected_socket} — the {role} offset for "
+                    f"{binding.part_name}"
+                )
+                return
         child = (
             binding.part.in_child_socket if role == "stowed" else binding.part.out_child_socket
         )
@@ -845,11 +967,15 @@ class EditPanelMixin:
         if not path:
             self.statusBar().showMessage(f"No file defines {self._selected_socket}")
             return
-        # A socket's rotation is stored in its parent bone's space, so a world axis would
-        # otherwise twist about the wrong direction entirely.
-        axis = self._session.world_axis_for_socket(self._selected_socket, Vec3(ax, ay, az))
+        # A socket's rotation is stored in its parent bone's space, or for the item's own point
+        # in the frame of the body spot it mates with, so a world axis would otherwise twist
+        # about the wrong direction entirely.
+        body = self._attached_body_socket(self._selected_socket)
+        axis = self._session.world_axis_for_socket(
+            self._selected_socket, Vec3(ax, ay, az), attached_to=body)
         try:
-            self._edits.rotate_by(path, self._selected_socket, axis, degrees)
+            self._edits.rotate_by(path, self._selected_socket, axis, degrees,
+                                  item_side=bool(body))
         except EditError as exc:
             self.statusBar().showMessage(str(exc))
             return
@@ -958,8 +1084,8 @@ class EditPanelMixin:
         editable = bool(self._selected_socket) and bool(self._socket_file_of(self._selected_socket))
         for button in self._nudge_buttons:
             button.setEnabled(editable)
-        for box in self._euler:
-            box.setEnabled(editable)
+        for widget in (*self._euler, *self._position, *self._turn_buttons):
+            widget.setEnabled(editable)
         self._revert_button.setEnabled(editable)
         self._undo_button.setEnabled(self._edits is not None and self._edits.can_undo)
         self._redo_button.setEnabled(self._edits is not None and self._edits.can_redo)
@@ -1017,9 +1143,18 @@ class EditPanelMixin:
         if refresh_share is not None:
             refresh_share()
 
-        if state is not None:
-            roll, pitch, yaw = state.current.rotation.to_euler_degrees()
-            for box, value in zip(self._euler, (roll, pitch, yaw)):
+        # A point a move created has no vanilla original, so no edit state; its live values
+        # still belong in the boxes. Leaving the previous point's numbers there made the first
+        # arrow click write those angles onto the new point, a half turn on a back move.
+        current = state.current if state is not None else (
+            self._edits.socket(path, self._selected_socket) if (self._edits and path) else None
+        )
+        if current is not None:
+            roll, pitch, yaw = current.rotation.to_euler_degrees()
+            offset = current.translation
+            for box, value in (*zip(self._euler, (roll, pitch, yaw)),
+                               *zip(self._position, (offset.x * 100, offset.y * 100,
+                                                     offset.z * 100))):
                 box.blockSignals(True)
                 box.setValue(value)
                 box.blockSignals(False)

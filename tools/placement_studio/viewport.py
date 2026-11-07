@@ -184,6 +184,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._grabbed_axis = ""
         self._hovered_axis = ""
         self._angle_residual = 0.0
+        # The free trackball's unspent degrees about camera up and right, kept between events.
+        self._trackball_residual = [0.0, 0.0]
         self._grab_angle: Optional[float] = None
         self._solid = False
         # Camera frame cache. `_project` used to recompute the basis and eye for *every* point,
@@ -389,6 +391,14 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
     def set_angle_snap(self, degrees: float) -> None:
         self._angle_snap = max(0.0, float(degrees))
+
+    def view_axes(self) -> Tuple[Vec3, Vec3, Vec3]:
+        """The camera's right, up and forward (into the scene) directions, in world space.
+
+        For controls that turn the selected item the way it looks on screen.
+        """
+
+        return self._camera.basis()
 
     def set_blade_axis(self, axis: Optional[Vec3]) -> None:
         """The item's long axis in world space, for tilt (roll along the blade)."""
@@ -1213,6 +1223,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
             # falls back to free trackball, so the gizmo never blocks a coarse adjustment.
             self._grabbed_axis = self._ring_at(self._last_mouse)
             self._angle_residual = 0.0
+            self._trackball_residual = [0.0, 0.0]
             self._grab_angle = None
 
         # Marker picking belongs to the *selection* modes only. In an edit mode it stole the
@@ -1325,19 +1336,21 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         right, up, _forward = self._camera.basis()
         # Screen-space drag distance maps to degrees; sign chosen so the surface follows the
-        # cursor rather than moving against it.
-        yaw = -dx * 0.5
-        pitch = -dy * 0.5
-
-        for axis, degrees in ((up, yaw), (right, pitch)):
-            if abs(degrees) < 1e-9:
-                continue
-            step = self._angle_snap
+        # cursor rather than moving against it. What a snap step leaves over is carried to the
+        # next event: snapping each event alone dropped every move under half a step, so a
+        # slow drag (a few pixels per event, at the default 5 degrees) never turned anything.
+        turns = ((up, -dx * 0.5), (right, -dy * 0.5))
+        step = self._angle_snap
+        for index, (axis, degrees) in enumerate(turns):
+            degrees += self._trackball_residual[index]
             if step > 0.0:
                 snapped = round(degrees / step) * step
-                if abs(snapped) < 1e-9:
-                    continue
+                self._trackball_residual[index] = degrees - snapped
                 degrees = snapped
+            else:
+                self._trackball_residual[index] = 0.0
+            if abs(degrees) < 1e-9:
+                continue
             self.socket_rotated.emit(self._dragging_socket, axis.x, axis.y, axis.z, degrees)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt virtual
@@ -1353,6 +1366,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._drag_residual = Vec3()
         self._grabbed_axis = ""
         self._angle_residual = 0.0
+        self._trackball_residual = [0.0, 0.0]
         self._grab_angle = None
 
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt virtual

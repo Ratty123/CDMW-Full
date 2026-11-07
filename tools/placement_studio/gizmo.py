@@ -286,6 +286,7 @@ class GizmoMixin:
             return
 
         degrees: Optional[float] = None
+        edge_on = False
         hit = self._ring_plane_hit(self._grabbed_axis, current)
         if hit is not None:
             angle = self._angle_in_plane(self._grabbed_axis, hit)
@@ -306,10 +307,16 @@ class GizmoMixin:
             _right, _up, forward = self._camera.basis()
             if axis.x * forward.x + axis.y * forward.y + axis.z * forward.z < 0:
                 degrees = -degrees
+            # Per-event deltas here, unlike the in-plane angle above, so what a snap step
+            # leaves over has to be carried or a slow drag never turns.
+            edge_on = True
+            degrees += self._angle_residual
 
         step = self._angle_snap
         if step > 0.0:
             snapped = round(degrees / step) * step
+            if edge_on:
+                self._angle_residual = degrees - snapped
             if abs(snapped) < 1e-9:
                 return
             degrees = snapped

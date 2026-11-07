@@ -37,6 +37,7 @@ from .skeleton import (
     invert_rigid,
     matrix_from,
     multiply,
+    transform_point,
     translation_of,
     world_axis_to_local,
 )
@@ -652,17 +653,49 @@ class PlacementSession:
 
         self._usage_cache = None
 
-    def world_axis_for_socket(self, socket_name: str, world_axis: Vec3) -> Vec3:
+    def world_axis_for_socket(self, socket_name: str, world_axis: Vec3, *,
+                              attached_to: str = "") -> Vec3:
         """Convert a world-space drag axis into the space a socket's rotation is stored in.
 
-        Body sockets are parented to a bone, so the axis must be taken into that bone's space.
-        A child socket is item-local with no bone, so the axis passes through unchanged.
+        Body sockets are parented to a bone, so the axis is taken into that bone's space. A
+        child socket is a frame on the item that `attachment_matrix` applies inverted, after
+        the body socket it mates with (`attached_to`), so its axis is taken into that body
+        socket's frame; the caller then turns it item-side (`EditSession.rotate_by`). Passing
+        the world axis through unchanged turned the item about its own model axes, which on
+        the back are nowhere near the ring the user grabbed.
         """
 
         placed = self._placed.get(socket_name)
-        if placed is None or placed.bone is None:
+        if placed is not None:
+            if placed.bone is None:
+                return world_axis
+            return world_axis_to_local(world_axis, placed.bone.bind_matrix)
+        frame = self._placed.get(attached_to) if attached_to else None
+        if frame is None:
             return world_axis
-        return world_axis_to_local(world_axis, placed.bone.bind_matrix)
+        return world_axis_to_local(world_axis, frame.world_matrix)
+
+    def world_delta_for_socket(self, socket_name: str, world_delta: Vec3, *,
+                               attached_to: str = "") -> Vec3:
+        """The translation change that moves what a socket holds by `world_delta`.
+
+        A body socket's translation is in its parent bone's space. A child socket's is the
+        grip point on the item, applied inverted (`attachment_matrix`): moving the item by `d`
+        means moving that point by `-d` in the item's own frame.
+        """
+
+        placed = self._placed.get(socket_name)
+        if placed is not None:
+            if placed.bone is None:
+                return world_delta
+            return world_axis_to_local(world_delta, placed.bone.bind_matrix)
+        frame = self._placed.get(attached_to) if attached_to else None
+        child = self._weapon.sockets.get(socket_name) if self._weapon is not None else None
+        if frame is None or child is None:
+            return world_delta
+        local = world_axis_to_local(world_delta, frame.world_matrix)
+        moved = transform_point(local, matrix_from(child.rotation, Vec3()))
+        return Vec3(-moved.x, -moved.y, -moved.z)
 
     def bone_chain(self, socket_name: str) -> List[str]:
         placed = self._placed.get(socket_name)

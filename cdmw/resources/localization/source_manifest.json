@@ -181,7 +181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1077,
+          "line": 1069,
           "sink": "setToolTip"
         }
       ]
@@ -231,12 +231,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 760,
+          "line": 766,
           "sink": "setDetailedText"
         },
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 760,
+          "line": 766,
           "sink": "setDetailedText"
         }
       ]
@@ -246,7 +246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 615,
+          "line": 727,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -881,7 +881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 732,
+          "line": 844,
           "sink": "python-return:_warn_if_angle_is_wrong"
         }
       ]
@@ -891,7 +891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 614,
+          "line": 726,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -901,7 +901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 604,
+          "line": 716,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -911,7 +911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 666,
+          "line": 778,
           "sink": "python-return:_orientation_diagnostic"
         }
       ]
@@ -1143,6 +1143,11 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 356,
           "sink": "_spin"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 156,
+          "sink": "setSuffix"
         }
       ]
     },
@@ -1656,7 +1661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 792,
+          "line": 798,
           "sink": "addItem"
         }
       ]
@@ -1671,7 +1676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1135,
+          "line": 1145,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -1681,7 +1686,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1139,
+          "line": 1131,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -1876,7 +1881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 775,
+          "line": 887,
           "sink": "python-return:_borrow_child_socket"
         }
       ]
@@ -1953,16 +1958,6 @@
     },
     {
       "key": ", or borrow a body part such as the arms from the animation selected on",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 692,
-          "sink": "python-return:_build_placement_texture_sections"
-        }
-      ]
-    },
-    {
-      "key": ", or choose",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -2057,7 +2052,7 @@
       ]
     },
     {
-      "key": ", try armour on the",
+      "key": ", type an",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -2067,7 +2062,7 @@
       ]
     },
     {
-      "key": ", type an",
+      "key": ", use the",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -2523,6 +2518,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 373,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": ". Try armour on the",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 692,
+          "sink": "python-return:_build_placement_texture_sections"
         }
       ]
     },
@@ -5931,7 +5936,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 355,
+          "line": 367,
           "sink": "addTab"
         }
       ]
@@ -8896,7 +8901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 155,
+          "line": 200,
           "sink": "setToolTip"
         }
       ]
@@ -10206,7 +10211,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 489,
+          "line": 510,
           "sink": "ValueError"
         }
       ]
@@ -10636,7 +10641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 196,
+          "line": 211,
           "sink": "addRow"
         }
       ]
@@ -10866,7 +10871,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 760,
+          "line": 766,
           "sink": "setDetailedText"
         }
       ]
@@ -11041,7 +11046,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 905,
+          "line": 911,
           "sink": "setWindowTitle"
         }
       ]
@@ -11051,7 +11056,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -11716,7 +11721,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 256,
+          "line": 277,
           "sink": "emit"
         }
       ]
@@ -12771,7 +12776,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 227,
+          "line": 248,
           "sink": "emit"
         }
       ]
@@ -13591,7 +13596,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 779,
+          "line": 800,
           "sink": "ValueError"
         }
       ]
@@ -13601,7 +13606,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 518,
+          "line": 539,
           "sink": "RuntimeError"
         }
       ]
@@ -13661,7 +13666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1417,
+          "line": 1424,
           "sink": "ValueError"
         }
       ]
@@ -14001,12 +14006,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 226,
+          "line": 243,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 580,
+          "line": 597,
           "sink": "emit"
         }
       ]
@@ -14631,7 +14636,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 529,
+          "line": 534,
           "sink": "ValueError"
         }
       ]
@@ -14641,12 +14646,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 542,
+          "line": 547,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 546,
+          "line": 551,
           "sink": "ValueError"
         }
       ]
@@ -14656,7 +14661,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 777,
+          "line": 798,
           "sink": "ValueError"
         }
       ]
@@ -15521,7 +15526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 133,
+          "line": 136,
           "sink": "ValueError"
         }
       ]
@@ -16571,7 +16576,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 342,
+          "line": 354,
           "sink": "addTab"
         }
       ]
@@ -18956,7 +18961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1025,
+          "line": 1032,
           "sink": "ValueError"
         },
         {
@@ -18971,7 +18976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 950,
+          "line": 957,
           "sink": "ValueError"
         }
       ]
@@ -18981,7 +18986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1007,
+          "line": 1014,
           "sink": "ValueError"
         },
         {
@@ -18996,7 +19001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 978,
+          "line": 985,
           "sink": "ValueError"
         },
         {
@@ -19461,7 +19466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -19476,7 +19481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -20286,7 +20291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1046,
+          "line": 1038,
           "sink": "setText"
         }
       ]
@@ -20626,7 +20631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 347,
+          "line": 359,
           "sink": "setTabToolTip"
         }
       ]
@@ -21811,7 +21816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 114,
+          "line": 131,
           "sink": "getExistingDirectory"
         }
       ]
@@ -21906,7 +21911,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 100,
+          "line": 117,
           "sink": "warning"
         },
         {
@@ -25141,7 +25146,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 290,
+          "line": 307,
           "sink": "QProgressDialog"
         },
         {
@@ -25406,42 +25411,42 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 225,
+          "line": 246,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 254,
+          "line": 275,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 259,
+          "line": 280,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 264,
+          "line": 285,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 308,
+          "line": 329,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 323,
+          "line": 344,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 328,
+          "line": 349,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 333,
+          "line": 354,
           "sink": "emit"
         }
       ]
@@ -26001,7 +26006,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 479,
+          "line": 500,
           "sink": "emit"
         }
       ]
@@ -26061,7 +26066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -26071,7 +26076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -26091,7 +26096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 985,
+          "line": 991,
           "sink": "showMessage"
         }
       ]
@@ -28796,7 +28801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7773,
+          "line": 7775,
           "sink": "report"
         }
       ]
@@ -30876,7 +30881,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 179,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -32291,7 +32296,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1070,
+          "line": 1062,
           "sink": "showMessage"
         }
       ]
@@ -33793,6 +33798,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -33813,6 +33823,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -33851,7 +33866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 350,
+          "line": 462,
           "sink": "showMessage"
         }
       ]
@@ -34451,7 +34466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 229,
+          "line": 246,
           "sink": "emit"
         }
       ]
@@ -38901,7 +38916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 463,
+          "line": 575,
           "sink": "warning"
         }
       ]
@@ -40371,7 +40386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 472,
+          "line": 584,
           "sink": "showMessage"
         }
       ]
@@ -40381,7 +40396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 274,
+          "line": 388,
           "sink": "showMessage"
         }
       ]
@@ -40391,7 +40406,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 256,
+          "line": 370,
           "sink": "showMessage"
         }
       ]
@@ -42386,7 +42401,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 846,
+          "line": 868,
           "sink": "ValueError"
         }
       ]
@@ -42441,7 +42456,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 866,
+          "line": 894,
           "sink": "RuntimeError"
         }
       ]
@@ -42481,7 +42496,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 893,
+          "line": 921,
           "sink": "RuntimeError"
         }
       ]
@@ -44261,7 +44276,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 760,
+          "line": 766,
           "sink": "setDetailedText"
         }
       ]
@@ -46926,7 +46941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 215,
+          "line": 227,
           "sink": "addRow"
         }
       ]
@@ -46978,6 +46993,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -47028,6 +47048,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -47038,6 +47063,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -47048,6 +47078,11 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 71,
           "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -47091,7 +47126,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1042,
+          "line": 1048,
           "sink": "setText"
         }
       ]
@@ -47231,7 +47266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -47266,7 +47301,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 346,
+          "line": 358,
           "sink": "addTab"
         }
       ]
@@ -48696,7 +48731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10360,
+          "line": 10362,
           "sink": "RuntimeError"
         }
       ]
@@ -48786,7 +48821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 579,
+          "line": 673,
           "sink": "RuntimeError"
         }
       ]
@@ -48796,7 +48831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 713,
+          "line": 807,
           "sink": "RuntimeError"
         }
       ]
@@ -48806,7 +48841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 507,
+          "line": 601,
           "sink": "RuntimeError"
         }
       ]
@@ -49696,7 +49731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 362,
+          "line": 379,
           "sink": "emit"
         }
       ]
@@ -49706,7 +49741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 165,
+          "line": 168,
           "sink": "ValueError"
         }
       ]
@@ -49776,7 +49811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 368,
+          "line": 385,
           "sink": "emit"
         }
       ]
@@ -52106,7 +52141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 343,
+          "line": 355,
           "sink": "setTabToolTip"
         }
       ]
@@ -52126,7 +52161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 359,
+          "line": 371,
           "sink": "setTabToolTip"
         }
       ]
@@ -52566,7 +52601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1435,
+          "line": 1442,
           "sink": "ValueError"
         }
       ]
@@ -54351,7 +54386,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 362,
+          "line": 383,
           "sink": "RuntimeError"
         }
       ]
@@ -54851,7 +54886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 184,
+          "line": 229,
           "sink": "QPushButton"
         }
       ]
@@ -54871,7 +54906,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1070,
+          "line": 1205,
           "sink": "getExistingDirectory"
         }
       ]
@@ -55451,7 +55486,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1074,
+          "line": 1209,
           "sink": "information"
         }
       ]
@@ -57086,7 +57121,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 174,
+          "line": 195,
           "sink": "ValueError"
         }
       ]
@@ -57736,7 +57771,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 767,
+          "line": 788,
           "sink": "ValueError"
         }
       ]
@@ -57906,7 +57941,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 358,
+          "line": 370,
           "sink": "addTab"
         }
       ]
@@ -57916,7 +57951,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 953,
+          "line": 1079,
           "sink": "setTabText"
         }
       ]
@@ -58156,7 +58191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 757,
+          "line": 763,
           "sink": "setWindowTitle"
         }
       ]
@@ -59791,7 +59826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 115,
+          "line": 118,
           "sink": "ValueError"
         }
       ]
@@ -59981,7 +60016,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 325,
+          "line": 346,
           "sink": "emit"
         }
       ]
@@ -60741,7 +60776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 167,
+          "line": 212,
           "sink": "QPushButton"
         }
       ]
@@ -62646,7 +62681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1463,
+          "line": 1470,
           "sink": "ValueError"
         }
       ]
@@ -62656,7 +62691,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1329,
+          "line": 1336,
           "sink": "RuntimeError"
         }
       ]
@@ -62671,7 +62706,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1459,
+          "line": 1466,
           "sink": "ValueError"
         }
       ]
@@ -62691,7 +62726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1461,
+          "line": 1468,
           "sink": "ValueError"
         }
       ]
@@ -62711,7 +62746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1450,
+          "line": 1457,
           "sink": "ValueError"
         }
       ]
@@ -64181,7 +64216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 281,
+          "line": 285,
           "sink": "ValueError"
         }
       ]
@@ -67191,7 +67226,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 498,
+          "line": 519,
           "sink": "ValueError"
         }
       ]
@@ -69071,7 +69106,7 @@
         },
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 780,
+          "line": 786,
           "sink": "setWindowTitle"
         },
         {
@@ -69346,7 +69381,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 93,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "How far each Turn button turns it, and each step of a Rotate or Tilt drag.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 79,
           "sink": "setToolTip"
         }
       ]
@@ -69358,16 +69403,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 757,
           "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
-      "key": "How far each turn moves it when you drag to rotate or tilt.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_editing.py",
-          "line": 79,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -71261,7 +71296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1421,
+          "line": 1428,
           "sink": "ValueError"
         }
       ]
@@ -71831,7 +71866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 251,
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -71851,7 +71886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 258,
+          "line": 262,
           "sink": "ValueError"
         }
       ]
@@ -71861,7 +71896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 291,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -71871,7 +71906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 253,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -71881,7 +71916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 219,
+          "line": 223,
           "sink": "ValueError"
         }
       ]
@@ -71901,7 +71936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 238,
+          "line": 242,
           "sink": "ValueError"
         }
       ]
@@ -73726,7 +73761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 707,
+          "line": 713,
           "sink": "setText"
         }
       ]
@@ -74736,7 +74771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 376,
+          "line": 393,
           "sink": "question"
         },
         {
@@ -74851,7 +74886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 376,
+          "line": 393,
           "sink": "question"
         }
       ]
@@ -74871,12 +74906,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1035,
+          "line": 1041,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1043,
+          "line": 1049,
           "sink": "setToolTip"
         }
       ]
@@ -76736,7 +76771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 597,
+          "line": 603,
           "sink": "setText"
         }
       ]
@@ -79921,7 +79956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 941,
+          "line": 948,
           "sink": "ValueError"
         }
       ]
@@ -82956,7 +82991,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 286,
+          "line": 400,
           "sink": "showMessage"
         },
         {
@@ -83426,7 +83461,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -83616,7 +83651,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 765,
+          "line": 786,
           "sink": "ValueError"
         }
       ]
@@ -84106,7 +84141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1133,
+          "line": 1143,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -86961,7 +86996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2339,
+          "line": 2346,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -86986,7 +87021,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 291,
+          "line": 308,
           "sink": "setWindowTitle"
         },
         {
@@ -87281,7 +87316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 911,
+          "line": 915,
           "sink": "set_status_message"
         }
       ]
@@ -87341,7 +87376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 909,
+          "line": 913,
           "sink": "set_status_message"
         }
       ]
@@ -87601,7 +87636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 883,
+          "line": 890,
           "sink": "RuntimeError"
         }
       ]
@@ -87841,32 +87876,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 800,
+          "line": 804,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 820,
+          "line": 824,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 827,
+          "line": 831,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 847,
+          "line": 851,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 856,
+          "line": 860,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 870,
+          "line": 874,
           "sink": "set_status_message"
         }
       ]
@@ -87876,7 +87911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1378,
+          "line": 1385,
           "sink": "RuntimeError"
         }
       ]
@@ -88116,7 +88151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 901,
+          "line": 908,
           "sink": "RuntimeError"
         }
       ]
@@ -88446,7 +88481,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 795,
+          "line": 800,
           "sink": "emit"
         }
       ]
@@ -88476,7 +88511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 913,
+          "line": 917,
           "sink": "set_status_message"
         }
       ]
@@ -88611,7 +88646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 399,
+          "line": 416,
           "sink": "emit"
         }
       ]
@@ -88751,7 +88786,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 453,
+          "line": 474,
           "sink": "ValueError"
         }
       ]
@@ -88771,7 +88806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1931,
+          "line": 1933,
           "sink": "ValueError"
         }
       ]
@@ -89631,12 +89666,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 478,
+          "line": 499,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 599,
+          "line": 620,
           "sink": "RunCancelled"
         }
       ]
@@ -89646,12 +89681,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 635,
+          "line": 656,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 638,
+          "line": 659,
           "sink": "emit"
         }
       ]
@@ -89661,7 +89696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 504,
+          "line": 521,
           "sink": "emit"
         }
       ]
@@ -89671,7 +89706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 348,
+          "line": 365,
           "sink": "_handle_mesh_direct_output_error"
         }
       ]
@@ -89681,7 +89716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 396,
+          "line": 413,
           "sink": "emit"
         }
       ]
@@ -89691,7 +89726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 490,
+          "line": 507,
           "sink": "emit"
         }
       ]
@@ -89701,7 +89736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 495,
+          "line": 512,
           "sink": "emit"
         }
       ]
@@ -89711,7 +89746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1929,
+          "line": 1931,
           "sink": "ValueError"
         }
       ]
@@ -89876,7 +89911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1975,
+          "line": 1977,
           "sink": "ValueError"
         }
       ]
@@ -89886,7 +89921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1972,
+          "line": 1974,
           "sink": "ValueError"
         }
       ]
@@ -89936,7 +89971,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 632,
+          "line": 653,
           "sink": "emit"
         }
       ]
@@ -89946,7 +89981,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 508,
+          "line": 529,
           "sink": "RuntimeError"
         }
       ]
@@ -90801,7 +90836,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 242,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -90901,7 +90936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 263,
+          "line": 267,
           "sink": "ValueError"
         }
       ]
@@ -93186,7 +93221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 464,
+          "line": 558,
           "sink": "ValueError"
         }
       ]
@@ -93196,7 +93231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9547,
+          "line": 9549,
           "sink": "RuntimeError"
         }
       ]
@@ -93206,7 +93241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9543,
+          "line": 9545,
           "sink": "RuntimeError"
         }
       ]
@@ -93216,7 +93251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9518,
+          "line": 9520,
           "sink": "RuntimeError"
         }
       ]
@@ -93461,7 +93496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2338,
+          "line": 2345,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -93511,7 +93546,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         },
         {
@@ -93696,7 +93731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 112,
+          "line": 113,
           "sink": "setToolTip"
         }
       ]
@@ -93896,7 +93931,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 595,
+          "line": 601,
           "sink": "setWindowTitle"
         }
       ]
@@ -96256,7 +96291,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -96281,7 +96316,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 147,
+          "line": 192,
           "sink": "QPushButton"
         }
       ]
@@ -96586,7 +96621,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 823,
+          "line": 829,
           "sink": "QLabel"
         }
       ]
@@ -96981,7 +97016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 575,
+          "line": 592,
           "sink": "emit"
         }
       ]
@@ -97506,7 +97541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 326,
+          "line": 440,
           "sink": "showMessage"
         }
       ]
@@ -97756,7 +97791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 873,
+          "line": 880,
           "sink": "RuntimeError"
         }
       ]
@@ -97936,7 +97971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 399,
+          "line": 511,
           "sink": "python-return:_retarget_length_target"
         }
       ]
@@ -97956,7 +97991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 546,
+          "line": 658,
           "sink": "showMessage"
         }
       ]
@@ -98016,7 +98051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1009,
+          "line": 1015,
           "sink": "showMessage"
         }
       ]
@@ -98311,12 +98346,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 211,
+          "line": 256,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 846,
+          "line": 968,
           "sink": "showMessage"
         }
       ]
@@ -100601,7 +100636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 530,
+          "line": 540,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -100646,7 +100681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 412,
+          "line": 524,
           "sink": "showMessage"
         }
       ]
@@ -100691,7 +100726,7 @@
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 866,
+          "line": 871,
           "sink": "EditError"
         }
       ]
@@ -101831,7 +101866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 948,
+          "line": 956,
           "sink": "EditError"
         }
       ]
@@ -101841,7 +101876,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 931,
+          "line": 939,
           "sink": "EditError"
         }
       ]
@@ -102416,12 +102451,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 102,
+          "line": 103,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 986,
+          "line": 1112,
           "sink": "setText"
         }
       ]
@@ -103501,7 +103536,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 597,
+          "line": 618,
           "sink": "ValueError"
         }
       ]
@@ -104806,7 +104841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 84,
+          "line": 101,
           "sink": "emit"
         }
       ]
@@ -106206,7 +106241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 687,
+          "line": 691,
           "sink": "set_status_message"
         }
       ]
@@ -106336,7 +106371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 789,
+          "line": 793,
           "sink": "set_status_message"
         }
       ]
@@ -108311,7 +108346,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 954,
+          "line": 982,
           "sink": "emit"
         }
       ]
@@ -108636,7 +108671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 585,
+          "line": 602,
           "sink": "emit"
         }
       ]
@@ -109211,7 +109246,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 278,
+          "line": 283,
           "sink": "ValueError"
         }
       ]
@@ -109626,7 +109661,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 858,
+          "line": 862,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -113316,7 +113351,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 328,
+          "line": 442,
           "sink": "showMessage"
         }
       ]
@@ -113861,12 +113896,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1035,
+          "line": 1041,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1043,
+          "line": 1049,
           "sink": "setToolTip"
         }
       ]
@@ -115047,6 +115082,16 @@
       ]
     },
     {
+      "key": "Position:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_tasks.py",
+          "line": 196,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Positive distance along the selected faces' vertex normals",
       "origins": [
         {
@@ -115861,7 +115906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 642,
+          "line": 736,
           "sink": "RuntimeError"
         }
       ]
@@ -115871,7 +115916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 437,
+          "line": 531,
           "sink": "RuntimeError"
         }
       ]
@@ -115881,7 +115926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 411,
+          "line": 505,
           "sink": "RuntimeError"
         }
       ]
@@ -115891,7 +115936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 632,
+          "line": 726,
           "sink": "RuntimeError"
         }
       ]
@@ -115901,7 +115946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 623,
+          "line": 717,
           "sink": "RuntimeError"
         }
       ]
@@ -116141,7 +116186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7771,
+          "line": 7773,
           "sink": "report"
         }
       ]
@@ -116601,7 +116646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8383,
+          "line": 8385,
           "sink": "progress"
         }
       ]
@@ -116611,7 +116656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7636,
+          "line": 7638,
           "sink": "report"
         }
       ]
@@ -116621,7 +116666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7660,
+          "line": 7662,
           "sink": "report"
         }
       ]
@@ -116631,7 +116676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 290,
+          "line": 307,
           "sink": "QProgressDialog"
         }
       ]
@@ -117216,7 +117261,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 706,
+          "line": 710,
           "sink": "set_status_message"
         }
       ]
@@ -117686,7 +117731,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 849,
+          "line": 853,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -122766,7 +122811,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 141,
+          "line": 186,
           "sink": "setToolTip"
         }
       ]
@@ -125826,7 +125871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 837,
+          "line": 841,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -125881,7 +125926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 835,
+          "line": 839,
           "sink": "set_status_message"
         }
       ]
@@ -127086,7 +127131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 816,
+          "line": 822,
           "sink": "_after"
         }
       ]
@@ -127121,12 +127166,12 @@
         },
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 800,
+          "line": 806,
           "sink": "addButton"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 180,
+          "line": 225,
           "sink": "QPushButton"
         },
         {
@@ -127186,7 +127231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 182,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -128246,7 +128291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 877,
+          "line": 885,
           "sink": "EditError"
         }
       ]
@@ -130126,12 +130171,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 127,
+          "line": 130,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 50,
+          "line": 63,
           "sink": "emit"
         }
       ]
@@ -130171,7 +130216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 38,
+          "line": 50,
           "sink": "emit"
         }
       ]
@@ -131021,7 +131066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 157,
+          "line": 245,
           "sink": "ValueError"
         }
       ]
@@ -131041,7 +131086,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 798,
+          "line": 819,
           "sink": "ValueError"
         }
       ]
@@ -131051,7 +131096,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 558,
+          "line": 579,
           "sink": "ValueError"
         }
       ]
@@ -131091,7 +131136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1232,
+          "line": 1239,
           "sink": "RuntimeError"
         }
       ]
@@ -131196,7 +131241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1236,
+          "line": 1243,
           "sink": "RuntimeError"
         }
       ]
@@ -131346,7 +131391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_materials.py",
-          "line": 249,
+          "line": 253,
           "sink": "raise_if_cancelled"
         },
         {
@@ -131381,7 +131426,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 542,
+          "line": 563,
           "sink": "RuntimeError"
         }
       ]
@@ -132956,7 +133001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 140,
+          "line": 185,
           "sink": "QPushButton"
         }
       ]
@@ -134531,7 +134576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 588,
+          "line": 605,
           "sink": "question"
         },
         {
@@ -134591,7 +134636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 588,
+          "line": 605,
           "sink": "question"
         }
       ]
@@ -136221,7 +136266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 471,
+          "line": 565,
           "sink": "ValueError"
         }
       ]
@@ -136881,7 +136926,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 351,
+          "line": 363,
           "sink": "addTab"
         }
       ]
@@ -137566,7 +137611,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         },
         {
@@ -137976,7 +138021,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 519,
+          "line": 631,
           "sink": "python-return:_route_hint"
         }
       ]
@@ -138006,7 +138051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 567,
+          "line": 679,
           "sink": "showMessage"
         }
       ]
@@ -138271,7 +138316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 31,
+          "line": 43,
           "sink": "emit"
         }
       ]
@@ -138281,12 +138326,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 99,
+          "line": 116,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 100,
+          "line": 117,
           "sink": "warning"
         }
       ]
@@ -138296,7 +138341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 221,
+          "line": 238,
           "sink": "emit"
         }
       ]
@@ -138391,7 +138436,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 310,
+          "line": 331,
           "sink": "emit"
         }
       ]
@@ -143341,7 +143386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 485,
+          "line": 597,
           "sink": "showMessage"
         }
       ]
@@ -143841,7 +143886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 542,
+          "line": 654,
           "sink": "showMessage"
         }
       ]
@@ -143851,7 +143896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 493,
+          "line": 605,
           "sink": "showMessage"
         }
       ]
@@ -144246,7 +144291,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 794,
+          "line": 798,
           "sink": "set_status_message"
         }
       ]
@@ -144311,7 +144356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 918,
+          "line": 922,
           "sink": "set_status_message"
         }
       ]
@@ -144441,7 +144486,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 826,
+          "line": 948,
           "sink": "showMessage"
         }
       ]
@@ -144821,7 +144866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 367,
+          "line": 379,
           "sink": "_hint"
         }
       ]
@@ -146176,7 +146221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 684,
+          "line": 796,
           "sink": "showMessage"
         }
       ]
@@ -147291,7 +147336,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 806,
+          "line": 914,
+          "sink": "showMessage"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 928,
           "sink": "showMessage"
         }
       ]
@@ -148136,7 +148186,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -148388,11 +148438,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 234,
           "sink": "python-return:_build_workflow_planning_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 692,
-          "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
@@ -149076,7 +149121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 352,
+          "line": 364,
           "sink": "setTabToolTip"
         }
       ]
@@ -149446,7 +149491,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 313,
+          "line": 325,
           "sink": "setText"
         }
       ]
@@ -150628,16 +150673,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 517,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Show it",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 692,
-          "sink": "python-return:_build_placement_texture_sections"
         }
       ]
     },
@@ -152276,7 +152311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1046,
+          "line": 1038,
           "sink": "setText"
         }
       ]
@@ -153876,7 +153911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 760,
+          "line": 766,
           "sink": "setDetailedText"
         }
       ]
@@ -153956,7 +153991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 936,
+          "line": 944,
           "sink": "EditError"
         }
       ]
@@ -153976,7 +154011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 950,
+          "line": 958,
           "sink": "EditError"
         }
       ]
@@ -155713,6 +155748,51 @@
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
           "line": 113,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Spin anticlockwise",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Spin clockwise",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Spin it in the plane of the screen.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -158932,6 +159012,51 @@
       ]
     },
     {
+      "key": "Swing it left or right as seen in the view.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Swing left",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Swing right",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
       "key": "Switch",
       "origins": [
         {
@@ -159336,7 +159461,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 798,
+          "line": 804,
           "sink": "setToolTip"
         }
       ]
@@ -162511,7 +162636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -164256,7 +164381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 146,
+          "line": 149,
           "sink": "ValueError"
         }
       ]
@@ -164511,7 +164636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 124,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -164531,12 +164656,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 186,
+          "line": 189,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 190,
+          "line": 193,
           "sink": "ValueError"
         }
       ]
@@ -164546,12 +164671,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 136,
+          "line": 139,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 169,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -164701,7 +164826,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 131,
+          "line": 134,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The exact offset in centimetres, along the same directions as the Move buttons. Type a value and press Enter, or use the arrows or the mouse wheel.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 157,
           "sink": "setToolTip"
         }
       ]
@@ -165156,7 +165291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 126,
+          "line": 143,
           "sink": "emit"
         }
       ]
@@ -165696,7 +165831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 428,
+          "line": 445,
           "sink": "emit"
         }
       ]
@@ -165716,7 +165851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 206,
+          "line": 209,
           "sink": "RuntimeError"
         }
       ]
@@ -165751,7 +165886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 404,
+          "line": 421,
           "sink": "emit"
         }
       ]
@@ -165811,7 +165946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 408,
+          "line": 425,
           "sink": "emit"
         }
       ]
@@ -166591,7 +166726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 907,
+          "line": 913,
           "sink": "setText"
         }
       ]
@@ -167036,7 +167171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 254,
+          "line": 348,
           "sink": "RuntimeError"
         }
       ]
@@ -167126,7 +167261,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 584,
+          "line": 589,
           "sink": "RuntimeError"
         }
       ]
@@ -167136,7 +167271,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 588,
+          "line": 593,
           "sink": "RuntimeError"
         }
       ]
@@ -167146,7 +167281,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 597,
+          "line": 602,
           "sink": "RuntimeError"
         }
       ]
@@ -168241,7 +168376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_results.py",
-          "line": 143,
+          "line": 146,
           "sink": "ValueError"
         }
       ]
@@ -168773,6 +168908,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 234,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "The view switches to",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 692,
+          "sink": "python-return:_build_placement_texture_sections"
         }
       ]
     },
@@ -170456,7 +170601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 675,
+          "line": 681,
           "sink": "warning"
         }
       ]
@@ -170991,7 +171136,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 356,
+          "line": 377,
           "sink": "RuntimeError"
         }
       ]
@@ -171746,7 +171891,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -171953,6 +172098,51 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 243,
           "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
+      "key": "Tip down",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Tip it up or down as seen in the view.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 71,
+          "sink": "setItemData"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 179,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Tip up",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 178,
+          "sink": "setAccessibleName"
         }
       ]
     },
@@ -172656,7 +172846,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 337,
+          "line": 349,
           "sink": "_hint"
         }
       ]
@@ -173771,7 +173961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 212,
+          "line": 202,
           "sink": "QLabel"
         }
       ]
@@ -173781,7 +173971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 168,
+          "line": 213,
           "sink": "setAccessibleName"
         }
       ]
@@ -173851,7 +174041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1638,
+          "line": 1645,
           "sink": "RuntimeError"
         }
       ]
@@ -173921,7 +174111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 169,
+          "line": 214,
           "sink": "setToolTip"
         }
       ]
@@ -173963,6 +174153,11 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 298,
           "sink": "addRow"
+        },
+        {
+          "path": "tools/placement_studio/window_tasks.py",
+          "line": 205,
+          "sink": "addRow"
         }
       ]
     },
@@ -173981,7 +174176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 704,
+          "line": 816,
           "sink": "showMessage"
         }
       ]
@@ -175011,7 +175206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 812,
+          "line": 818,
           "sink": "_after"
         }
       ]
@@ -175051,7 +175246,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 176,
+          "line": 221,
           "sink": "QPushButton"
         },
         {
@@ -175161,7 +175356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 797,
+          "line": 803,
           "sink": "addButton"
         }
       ]
@@ -175196,7 +175391,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -175206,7 +175401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1419,
+          "line": 1426,
           "sink": "ValueError"
         }
       ]
@@ -176041,7 +176236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 837,
+          "line": 844,
           "sink": "ValueError"
         }
       ]
@@ -176061,7 +176256,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 630,
+          "line": 651,
           "sink": "ValueError"
         }
       ]
@@ -176071,7 +176266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1415,
+          "line": 1422,
           "sink": "ValueError"
         }
       ]
@@ -176276,7 +176471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1642,
+          "line": 1649,
           "sink": "ValueError"
         }
       ]
@@ -176311,7 +176506,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 451,
+          "line": 472,
           "sink": "ValueError"
         }
       ]
@@ -177976,7 +178171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 741,
+          "line": 747,
           "sink": "showMessage"
         }
       ]
@@ -179081,7 +179276,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 262,
+          "line": 376,
           "sink": "question"
         }
       ]
@@ -179876,7 +180071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 165,
+          "line": 182,
           "sink": "emit"
         },
         {
@@ -181576,7 +181771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 603,
+          "line": 620,
           "sink": "emit"
         }
       ]
@@ -181611,17 +181806,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 34,
+          "line": 46,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 104,
+          "line": 121,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 260,
+          "line": 277,
           "sink": "emit"
         },
         {
@@ -183701,7 +183896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 356,
+          "line": 368,
           "sink": "setTabToolTip"
         }
       ]
@@ -185201,7 +185396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 185,
+          "line": 230,
           "sink": "setToolTip"
         }
       ]
@@ -186191,7 +186386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1074,
+          "line": 1209,
           "sink": "information"
         }
       ]
@@ -186861,7 +187056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 412,
+          "line": 429,
           "sink": "emit"
         },
         {
@@ -188302,6 +188497,16 @@
       ]
     },
     {
+      "key": "arrows, or choose",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 692,
+          "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
       "key": "asc",
       "origins": [
         {
@@ -188376,7 +188581,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1105,
+          "line": 1115,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -188681,7 +188886,7 @@
         },
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1137,
+          "line": 1147,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -190516,7 +190721,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1114,
+          "line": 1106,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -190526,7 +190731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 105,
+          "line": 106,
           "sink": "python-return:roles"
         }
       ]
@@ -192041,7 +192246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1134,
+          "line": 1144,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -192051,7 +192256,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1144,
+          "line": 1154,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -192276,7 +192481,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7959,
+          "line": 7961,
           "sink": "open_edit_session"
         },
         {
@@ -192716,12 +192921,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3361,
+          "line": 3363,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3377,
+          "line": 3379,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -192871,32 +193076,32 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1719,
+          "line": 1726,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1727,
+          "line": 1734,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1738,
+          "line": 1745,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1757,
+          "line": 1764,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1781,
+          "line": 1788,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1815,
+          "line": 1822,
           "sink": "_result"
         },
         {
@@ -194291,7 +194496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3383,
+          "line": 3385,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -194796,7 +195001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3375,
+          "line": 3377,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -194986,7 +195191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 4099,
+          "line": 4101,
           "sink": "ValueError"
         }
       ]
@@ -195031,7 +195236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 129,
+          "line": 217,
           "sink": "TypeError"
         }
       ]
@@ -195236,12 +195441,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3348,
+          "line": 3350,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3381,
+          "line": 3383,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -195306,7 +195511,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1114,
+          "line": 1106,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -195316,7 +195521,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 105,
+          "line": 106,
           "sink": "python-return:roles"
         }
       ]
@@ -195886,7 +196091,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1111,
+          "line": 1121,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -196936,12 +197141,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3359,
+          "line": 3361,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3387,
+          "line": 3389,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -197091,7 +197296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3740,
+          "line": 3742,
           "sink": "ValueError"
         }
       ]
@@ -197101,7 +197306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3729,
+          "line": 3731,
           "sink": "ValueError"
         }
       ]
@@ -197111,7 +197316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3712,
+          "line": 3714,
           "sink": "ValueError"
         }
       ]
@@ -197621,7 +197826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1013,
+          "line": 1019,
           "sink": "setText"
         }
       ]
@@ -197631,7 +197836,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1035,
+          "line": 1041,
           "sink": "setText"
         }
       ]
@@ -197641,7 +197846,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 1024,
+          "line": 1030,
           "sink": "setText"
         }
       ]
@@ -197806,7 +198011,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 125,
+          "line": 213,
           "sink": "TypeError"
         }
       ]
@@ -197841,7 +198046,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 360,
+          "line": 381,
           "sink": "RuntimeError"
         }
       ]
@@ -198301,7 +198506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3369,
+          "line": 3371,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -198311,7 +198516,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1143,
+          "line": 1153,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -198736,12 +198941,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7216,
+          "line": 7218,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7314,
+          "line": 7316,
           "sink": "RuntimeError"
         }
       ]
@@ -198761,7 +198966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 652,
+          "line": 746,
           "sink": "TypeError"
         }
       ]
@@ -198811,7 +199016,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -198911,7 +199116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 839,
+          "line": 846,
           "sink": "RuntimeError"
         }
       ]
@@ -198921,7 +199126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 863,
+          "line": 870,
           "sink": "RuntimeError"
         }
       ]
@@ -198931,7 +199136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 849,
+          "line": 856,
           "sink": "RuntimeError"
         }
       ]
@@ -198941,7 +199146,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 874,
+          "line": 881,
           "sink": "RuntimeError"
         }
       ]
@@ -199046,7 +199251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2181,
+          "line": 2188,
           "sink": "RuntimeError"
         }
       ]
@@ -199121,7 +199326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2470,
+          "line": 2477,
           "sink": "RuntimeError"
         }
       ]
@@ -199131,7 +199336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1592,
+          "line": 1599,
           "sink": "RuntimeError"
         }
       ]
@@ -199141,12 +199346,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1569,
+          "line": 1576,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1603,
+          "line": 1610,
           "sink": "RuntimeError"
         }
       ]
@@ -199156,7 +199361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1581,
+          "line": 1588,
           "sink": "RuntimeError"
         }
       ]
@@ -199176,7 +199381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 145,
+          "line": 233,
           "sink": "RuntimeError"
         }
       ]
@@ -199196,12 +199401,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1440,
+          "line": 1447,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1556,
+          "line": 1563,
           "sink": "RuntimeError"
         },
         {
@@ -199216,7 +199421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2060,
+          "line": 2067,
           "sink": "RuntimeError"
         }
       ]
@@ -199226,7 +199431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1488,
+          "line": 1495,
           "sink": "RuntimeError"
         }
       ]
@@ -199321,7 +199526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1857,
+          "line": 1864,
           "sink": "RuntimeError"
         }
       ]
@@ -199351,7 +199556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2517,
+          "line": 2524,
           "sink": "RuntimeError"
         }
       ]
@@ -199361,7 +199566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2496,
+          "line": 2503,
           "sink": "RuntimeError"
         }
       ]
@@ -199381,7 +199586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2371,
+          "line": 2378,
           "sink": "RuntimeError"
         }
       ]
@@ -199391,7 +199596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2652,
+          "line": 2659,
           "sink": "RuntimeError"
         }
       ]
@@ -199661,7 +199866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1129,
+          "line": 1139,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -199806,12 +200011,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1690,
+          "line": 1697,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1745,
+          "line": 1752,
           "sink": "_result"
         },
         {
@@ -199881,12 +200086,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3346,
+          "line": 3348,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3365,
+          "line": 3367,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -200291,7 +200496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 319,
+          "line": 413,
           "sink": "TypeError"
         }
       ]
@@ -200301,7 +200506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3371,
+          "line": 3373,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -200331,7 +200536,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -200531,7 +200736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3379,
+          "line": 3381,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -201246,7 +201451,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -201641,7 +201846,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 617,
+          "line": 711,
           "sink": "TypeError"
         }
       ]
@@ -204146,7 +204351,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -204166,7 +204371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3367,
+          "line": 3369,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -204211,7 +204416,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -204841,7 +205046,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -205561,12 +205766,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1124,
+          "line": 1134,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1126,
+          "line": 1136,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -205821,7 +206026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1106,
+          "line": 1116,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -205901,12 +206106,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3358,
+          "line": 3360,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3373,
+          "line": 3375,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -206151,7 +206356,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1114,
+          "line": 1106,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206161,7 +206366,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 105,
+          "line": 106,
           "sink": "python-return:roles"
         }
       ]
@@ -206467,7 +206672,7 @@
       ]
     },
     {
-      "key": "tab, and press",
+      "key": "tab and press",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -207241,7 +207446,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -207268,11 +207473,6 @@
           "path": "cdmw/ui/new_item/reward_editor.py",
           "line": 47,
           "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 692,
-          "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
@@ -208101,12 +208301,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2025,
+          "line": 2032,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2064,
+          "line": 2071,
           "sink": "RuntimeError"
         }
       ]
@@ -208126,7 +208326,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 105,
+          "line": 106,
           "sink": "python-return:roles"
         }
       ]
@@ -208991,7 +209191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1110,
+          "line": 1120,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -209076,7 +209276,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1108,
+          "line": 1118,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -209086,7 +209286,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1109,
+          "line": 1119,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -209391,7 +209591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1141,
+          "line": 1151,
           "sink": "drawText"
         }
       ]
@@ -210006,7 +210206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1077,
+          "line": 1069,
           "sink": "setToolTip"
         }
       ]
@@ -210306,7 +210506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/edited_results.py",
-          "line": 52,
+          "line": 63,
           "sink": "QListWidgetItem"
         }
       ]
@@ -210636,7 +210836,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 512,
+          "line": 624,
           "sink": "showMessage"
         }
       ]
@@ -211321,7 +211521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2023,
+          "line": 2030,
           "sink": "RuntimeError"
         },
         {
@@ -211406,7 +211606,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 690,
+          "line": 802,
           "sink": "showMessage"
         }
       ]
@@ -211416,12 +211616,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 503,
+          "line": 615,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 553,
+          "line": 665,
           "sink": "showMessage"
         }
       ]
@@ -211461,7 +211661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 634,
+          "line": 640,
           "sink": "showMessage"
         }
       ]
@@ -211471,7 +211671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 641,
+          "line": 647,
           "sink": "showMessage"
         }
       ]
@@ -211481,7 +211681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 759,
+          "line": 765,
           "sink": "setText"
         }
       ]
@@ -211721,7 +211921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1671,
+          "line": 1678,
           "sink": "RuntimeError"
         }
       ]
@@ -211731,7 +211931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1474,
+          "line": 1481,
           "sink": "ValueError"
         }
       ]
@@ -211876,7 +212076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1124,
+          "line": 1116,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -211921,7 +212121,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -211936,7 +212136,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 91,
+          "line": 92,
           "sink": "addItem"
         }
       ]
@@ -212721,7 +212921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 323,
+          "line": 335,
           "sink": "setText"
         }
       ]
@@ -212821,7 +213021,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 232,
+          "line": 253,
           "sink": "RuntimeError"
         }
       ]
@@ -212831,7 +213031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1665,
+          "line": 1672,
           "sink": "RuntimeError"
         }
       ]
@@ -212966,7 +213166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 262,
+          "line": 376,
           "sink": "question"
         }
       ]
@@ -213141,7 +213341,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 787,
+          "line": 793,
           "sink": "addItem"
         }
       ]
@@ -213376,7 +213576,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 299,
+          "line": 413,
           "sink": "showMessage"
         }
       ]
@@ -213776,7 +213976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 837,
+          "line": 841,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -213936,7 +214136,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1139,
+          "line": 1131,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -214211,7 +214411,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1095,
+          "line": 1087,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -214336,7 +214536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 837,
+          "line": 841,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -214666,7 +214866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1131,
+          "line": 1141,
           "sink": "drawText"
         }
       ]
@@ -216726,77 +216926,77 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 333,
+          "line": 338,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 694,
+          "line": 699,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 744,
+          "line": 749,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 798,
+          "line": 803,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 830,
+          "line": 835,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 934,
+          "line": 939,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_aux_workers.py",
-          "line": 1001,
+          "line": 1006,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 132,
+          "line": 152,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 189,
+          "line": 210,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 262,
+          "line": 283,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 331,
+          "line": 352,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 640,
+          "line": 661,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 956,
+          "line": 984,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 983,
+          "line": 1011,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1042,
+          "line": 1070,
           "sink": "emit"
         },
         {
@@ -216831,7 +217031,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1046,
+          "line": 1038,
           "sink": "setText"
         },
         {
@@ -216971,7 +217171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 688,
+          "line": 721,
           "sink": "python-return:summary"
         }
       ]
@@ -217631,7 +217831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 575,
+          "line": 581,
           "sink": "showMessage"
         }
       ]

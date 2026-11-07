@@ -188,6 +188,21 @@ class TaskPanelMixin:
         moves.addWidget(self._step_box)
         moves.addStretch(1)
         grid.addRow("Move:", moves)
+        position = QHBoxLayout()
+        position.setSpacing(4)
+        for spin in self._position:
+            position.addWidget(spin)
+        position.addStretch(1)
+        grid.addRow("Position:", position)
+        turns = QHBoxLayout()
+        turns.setSpacing(4)
+        for button in self._turn_buttons:
+            turns.addWidget(button)
+        turns.addSpacing(8)
+        turns.addWidget(QLabel("Turn by:"))
+        turns.addWidget(self._angle_box)
+        turns.addStretch(1)
+        grid.addRow("Turn:", turns)
         angles = QHBoxLayout()
         angles.setSpacing(4)
         for spin in self._euler:
@@ -208,9 +223,6 @@ class TaskPanelMixin:
             self._mode_group.addButton(button)
             self._mode_buttons[value] = button
             drag.addWidget(button)
-        drag.addSpacing(8)
-        drag.addWidget(QLabel("Turn by:"))
-        drag.addWidget(self._angle_box)
         drag.addStretch(1)
         grid.addRow("Drag in view:", drag)
         layout.addLayout(grid)

@@ -853,12 +853,17 @@ class EditSession:
             )
         )
 
-    def rotate_by(self, game_path: str, name: str, axis: Vec3, degrees: float) -> None:
+    def rotate_by(self, game_path: str, name: str, axis: Vec3, degrees: float, *,
+                  item_side: bool = False) -> None:
         """Twist a socket about `axis` (in the socket's own space) by `degrees`.
 
         Composed in quaternion space and recorded as the resulting absolute rotation, so drags
         coalesce like translation does and gimbal lock cannot corrupt the result — which a
         euler-based gizmo would, since several weapon child sockets sit at pitch +/-90.
+
+        `item_side` is for a child socket turned about an axis in the frame of the body socket
+        it mates with: the item is placed by the socket's inverse, so turning the item by
+        `degrees` means turning the socket by `-degrees`, applied before its own rotation.
         """
 
         current = self.socket(game_path, name)
@@ -867,7 +872,10 @@ class EditSession:
         if abs(degrees) < 1e-9:
             return
         self._check_scope_socket_file(game_path)
-        turned = current.rotation.then(Quat.from_axis_angle(axis, degrees))
+        if item_side:
+            turned = Quat.from_axis_angle(axis, -degrees).then(current.rotation)
+        else:
+            turned = current.rotation.then(Quat.from_axis_angle(axis, degrees))
         self._record(Command("rotate", game_path, name, "Rotation", rotation=turned))
 
     def set_rotation_quaternion(self, game_path: str, name: str, value: Quat) -> None:

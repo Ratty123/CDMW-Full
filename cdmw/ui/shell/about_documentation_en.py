@@ -701,12 +701,12 @@ class AboutDocumentationEnglishMixin:
                 <ol>
                   <li>Choose the <b>Character</b> and <b>Weapon</b> at the top. The matching slot is picked for you.</li>
                   <li>On <b>Position</b>, pick a spot in <b>Carried at</b>. The weapon moves there when put away, and gets an attach point of its own so nothing else moves with it.</li>
-                  <li>Set <b>Show it</b> to <b>Put away</b>, try armour on the <b>Armour</b> tab, and press <b>Check for clipping</b>.</li>
+                  <li>The view switches to <b>Put away</b>. Try armour on the <b>Armour</b> tab and press <b>Check for clipping</b>.</li>
                   <li>Optional: on <b>Animations</b>, choose <b>Use another weapon's animations…</b> to give it a draw that reaches the new spot. You see every file it would change, and can watch the result, before anything changes.</li>
                 </ol>
                 <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b>, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
+                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b> or <b>Position</b>, use the <b>Turn</b> arrows, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
                   <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
                 </ul>
                 <p><b>Change an animation, or make a new one</b></p>

@@ -563,6 +563,12 @@ class CarryPickerMixin:
         self._after_edit()
         self._populate_parts()
         self._populate_carry_box()
+        role_box = getattr(self, "_mesh_role_box", None)
+        if plan.placement_changes and role_box is not None and role_box.currentData() != "stowed":
+            # A move changes where the item hangs when put away. Show it there, so the view
+            # shows the result and Fine-tune acts on the point that now holds it; left in hand,
+            # Rotate turned the shared hand grip instead, which can never be saved.
+            role_box.setCurrentIndex(role_box.findData("stowed"))
 
         requested = len(plan.request.replacements)
         applied = len(operation.replaced_clips())

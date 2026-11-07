@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Placement & Animations' **Fine-tune** has **Position** boxes for the exact offset of the selected attach point, and **Turn** arrows that swing, tip or spin the item the way it looks in the view, by the **Turn by** angle. The **Angle** boxes now turn the item as soon as their arrows or the mouse wheel change them.
+
 ### Changed
 
 - Create New Item chooses shops in a searchable **Choose shop…** list instead of a long dropdown. Search by merchant, place, type, internal `Store_` ID or an item the shop sells. Only merchants confirmed in game are named; other names come from the shop's table key and are marked with `*`. When adding a new shop entry you can tick several shops at once; each becomes a saved route, and shops that already have one are skipped.
@@ -15,6 +19,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Placement & Animations can rotate a weapon again after **Carried at** moves it, for example a one-handed sword to the back. Rotate and Move drags in the view now turn and move the item about the axis and in the direction shown on screen, instead of about the item's own model axes; slow Rotate drags turn instead of doing nothing; and the **Angle** boxes show the new attach point's own angles instead of the previous point's. After a move the view switches to **Put away**, so Fine-tune works on the point that now holds the item rather than the hand grip all held items share. Clicking the item selects that same point.
 - Mesh Editor's **Import Replacement…** with **Imported Materials & Textures** no longer keeps the original model's detail, grime, colour-blend and tint layers. Those layers were made for the original UV layout and showed through the imported texture as a mixed-up second pattern. Not yet checked in game.
 - Archive Browser's **Import Loose Mod Folder…** matches edited game files to their archive targets again, so checked rows can be written to a loose package. It reports whether the archive catalogue is still loading or not loaded instead of listing every file as an extra. A filename shared by several archive files is never matched to one of them by guesswork. FBX, OBJ, glTF/GLB and DAE models in the folder are listed as extras with a note pointing to Mesh Editor's **Import Replacement…**, which takes OBJ, glTF/GLB and DAE.
 - Mesh Editor's **Show Target In Archive** reveals the original file in the loaded Archive Browser, even when filters or paging hide it, instead of saying the archives are not loaded.

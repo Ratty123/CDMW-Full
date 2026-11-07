@@ -233,8 +233,9 @@ TASKS: Tuple[Tuple[str, Tuple[Tuple[str, str], ...]], ...] = (
              "The slot that fits it is picked for you on the Position tab."),
             ("On <b>Position</b>, pick a spot in <b>Carried at</b>",
              "The weapon moves there when put away, and its angle follows."),
-            ("Set <b>Show it</b> to <b>Put away</b> and look",
-             "Turn the view, try armour on the Armour tab, and press <b>Check for clipping</b>."),
+            ("Look at it put away",
+             "<b>Show it</b> switches to <b>Put away</b>. Turn the view, try armour on the "
+             "Armour tab, and press <b>Check for clipping</b>."),
             ("Optional: on <b>Animations</b>, <b>Use another weapon's animations…</b>",
              "Gives it a draw that reaches the new spot. You see every file first."),
             ("On <b>Your mod</b>, press <b>Save as mod</b>",
@@ -246,8 +247,10 @@ TASKS: Tuple[Tuple[str, Tuple[Tuple[str, str], ...]], ...] = (
         (
             ("On <b>Position</b>, look at <b>3. Fine-tune</b>",
              "It already shows the point that holds the item the way it is on screen."),
-            ("Use the <b>Move</b> buttons, or type an <b>Angle</b>",
-             "Or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view."),
+            ("Use the <b>Move</b> and <b>Turn</b> buttons, or type a <b>Position</b> or "
+             "<b>Angle</b>",
+             "The Turn arrows follow the view: left is left on screen. Or choose <b>Move</b>, "
+             "<b>Rotate</b> or <b>Tilt</b> and drag in the view."),
             ("Read the note under the point's name",
              "It says what else moves with it, and whether the change can be saved."),
             ("Save from <b>Your mod</b>",

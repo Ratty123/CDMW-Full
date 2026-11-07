@@ -1013,20 +1013,12 @@ class PlacementStudioWindow(
         if placed is not None:
             self._viewport.set_gizmo_anchor(placed.world_position)
             return
-        # Child socket: draw where the item actually ends up.
-        for binding in session.bindings():
-            part = binding.part
-            if part.in_child_socket == self._selected_socket:
-                self._viewport.set_gizmo_anchor(
-                    session.attachment_point(part.in_socket, self._selected_socket)
-                )
-                return
-            if part.out_child_socket == self._selected_socket:
-                self._viewport.set_gizmo_anchor(
-                    session.attachment_point(part.out_socket, self._selected_socket)
-                )
-                return
-        self._viewport.set_gizmo_anchor(None)
+        # The item's own point: draw where the item actually ends up, for the slot and the way
+        # it is shown, which is also the frame a turn of it is applied in.
+        body = self._attached_body_socket(self._selected_socket)
+        self._viewport.set_gizmo_anchor(
+            session.attachment_point(body, self._selected_socket) if body else None
+        )
 
     def _update_clipping_label(self) -> None:
         # A broken proxy outranks the clipping number, because the number is derived from it and
