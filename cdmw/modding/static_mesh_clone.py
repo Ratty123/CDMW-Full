@@ -87,6 +87,72 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
     return cloned
 
 
+_PER_VERTEX_LIST_ATTRS = (
+    "vertices",
+    "uvs",
+    "normals",
+    "tangents",
+    "bone_indices",
+    "bone_weights",
+    "source_vertex_map",
+    "source_vertex_offsets",
+    "shader_masks",
+    "vertex_colors",
+)
+_PER_VERTEX_DICT_ATTRS = ("uv_sets", "morph_targets", "morph_normals", "morph_tangents")
+
+
+def _slice_submesh_face_range(
+    submesh: SubMesh,
+    start: int,
+    end: int,
+    planned_face_count: int = 0,
+) -> SubMesh:
+    """Keep only faces ``[start, end)`` and the vertices they use, in place.
+
+    The range was planned against ``planned_face_count`` faces; when preview
+    decimation changed the count it is scaled to the same share of the faces.
+    Vertices keep their relative order, so every per-vertex channel stays aligned.
+    """
+    faces = list(submesh.faces or [])
+    face_total = len(faces)
+    if planned_face_count > 0 and face_total != planned_face_count:
+        start = round(start * face_total / planned_face_count)
+        end = round(end * face_total / planned_face_count)
+    start = max(0, min(int(start), face_total))
+    end = max(start, min(int(end), face_total))
+    if start == 0 and end == face_total:
+        selected = faces
+    else:
+        selected = faces[start:end]
+    vertex_total = len(submesh.vertices or [])
+    used = sorted({int(vertex) for face in selected for vertex in face if 0 <= int(vertex) < vertex_total})
+    remap = {old: new for new, old in enumerate(used)}
+    submesh.faces = [
+        tuple(remap[int(vertex)] for vertex in face)
+        for face in selected
+        if all(int(vertex) in remap for vertex in face)
+    ]
+    for attr_name in _PER_VERTEX_LIST_ATTRS:
+        values = getattr(submesh, attr_name, None)
+        if isinstance(values, list) and len(values) == vertex_total:
+            setattr(submesh, attr_name, [values[index] for index in used])
+    for attr_name in _PER_VERTEX_DICT_ATTRS:
+        channels = getattr(submesh, attr_name, None)
+        if isinstance(channels, dict):
+            setattr(
+                submesh,
+                attr_name,
+                {
+                    key: [values[index] for index in used] if len(values) == vertex_total else values
+                    for key, values in channels.items()
+                },
+            )
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    return submesh
+
+
 def _clone_parsed_mesh_fast(mesh: ParsedMesh) -> ParsedMesh:
     return ParsedMesh(
         path=str(mesh.path or ""),

@@ -87,8 +87,9 @@ def source_part_assignment_dialog_text() -> dict[str, str]:
             "No texture files were discovered. Route textures in Materials & Textures before final output."
         ),
         "dense_warning": (
-            "Dense source: final static output supports about 65,535 vertices per draw section. "
-            "PAC builds can split under-limit parts into cloned draw sections; reduce any single part above the limit."
+            "Dense source: a PAC draw section holds at most 65,535 vertices. "
+            "PAC builds split larger parts across extra draw sections; in a complete swap each extra piece "
+            "needs a free material slot in the template."
         ),
         "preview_only_combo": "Preview only",
         "attach_to_target_prefix": "Attach to ",

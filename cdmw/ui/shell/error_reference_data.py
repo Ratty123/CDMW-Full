@@ -43132,7 +43132,7 @@ MESSAGE_REFERENCE = [
     "message": "Atlas/bake target {runtime_target_name} would contain {vertex_count} vertices; PAC draw sections support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 362
+      "cdmw/modding/static_mesh_output_plan.py": 482
     }
   },
   {
@@ -44569,7 +44569,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot atlas/bake {source_material_name} into {target_name}: source UV ({u}, {v}) is outside 0..1; tiled UVs are not supported for automatic complete-swap atlases.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/static_mesh_runtime_builder.py": 1215
+      "cdmw/modding/static_mesh_runtime_builder.py": 1218
     }
   },
   {
@@ -44577,7 +44577,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot atlas/bake {source_material_name} into {target_name}: source submesh {source_index} has no complete UV set.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/static_mesh_runtime_builder.py": 1200
+      "cdmw/modding/static_mesh_runtime_builder.py": 1203
     }
   },
   {
@@ -44745,7 +44745,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot preserve tiled material groups in {len(assigned_groups)} runtime material slot(s) within the PAC vertex limit. Choose a template with more material slots or reduce the source materials.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 170
+      "cdmw/modding/static_mesh_output_plan.py": 270
     }
   },
   {
@@ -45491,7 +45491,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete source-owned swap found no replacement source material groups to export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 406
+      "cdmw/modding/static_mesh_output_plan.py": 524
     }
   },
   {
@@ -45499,7 +45499,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete source-owned swap will atlas/bake {', '.join(section.atlas_source_material_names)} into runtime slot {section.target_submesh_name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 401
+      "cdmw/modding/static_mesh_output_plan.py": 519
     }
   },
   {
@@ -45507,7 +45507,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete source-owned swap will preserve source material groups by cloning PAC draw section(s): {len(cloned_sections)} cloned section(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 481
+      "cdmw/modding/static_mesh_output_plan.py": 596
     }
   },
   {
@@ -45515,7 +45515,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete source-owned swap will preserve the original PAC runtime draw ABI and route source material groups into existing slots: {sum((1 for section in planned if section.source_submesh_indices))} source-owned section(s); {sum((1 for section in planned if not section.source_submesh_indices))} original runtime slot placeholder(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 394
+      "cdmw/modding/static_mesh_output_plan.py": 512
     }
   },
   {
@@ -46139,7 +46139,7 @@ MESSAGE_REFERENCE = [
     "message": "Dense replacement will preserve source parts by cloning PAC draw section(s): {len(cloned_sections)} cloned section(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 486
+      "cdmw/modding/static_mesh_output_plan.py": 601
     }
   },
   {
@@ -49165,7 +49165,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent replacement part {source_index} has {len(independent_submesh.vertices)} vertices; current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT} vertices per draw section.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_runtime_builder.py": 330
+      "cdmw/modding/static_mesh_runtime_builder.py": 333
     }
   },
   {
@@ -55670,7 +55670,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC runtime ABI has only {len(original_mesh.submeshes)} safe draw slot(s); atlas or explicit slot mapping required because {runtime_name} receives additional source material group {source_label}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 306
+      "cdmw/modding/static_mesh_output_plan.py": 423
     }
   },
   {
@@ -58589,10 +58589,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Replacement source {source_index} has {vertex_count} vertices; 16-bit PAC/PAM draw sections support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT}.",
+    "message": "Replacement source {source_index} has {vertex_count} vertices and must be split across more than one draw section, but this template has no free material slot for the extra piece. Decimate it below {_STATIC_REPLACEMENT_VERTEX_LIMIT} vertices, or choose a template with more material slots.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 87
+      "cdmw/modding/static_mesh_output_plan.py": 408
     }
   },
   {
@@ -60881,7 +60881,7 @@ MESSAGE_REFERENCE = [
     "message": "Static replacement target {target_index} has {len(merged.vertices)} vertices; current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT} vertices per draw section.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_runtime_builder.py": 305
+      "cdmw/modding/static_mesh_runtime_builder.py": 308
     }
   },
   {
@@ -74251,7 +74251,7 @@ MESSAGE_REFERENCE = [
     "message": "{target_name} receives {oversized_groups[0]} vertices; legacy merge mode exceeds the {_STATIC_REPLACEMENT_VERTEX_LIMIT}-vertex draw-section limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/static_mesh_output_plan.py": 429
+      "cdmw/modding/static_mesh_output_plan.py": 547
     }
   },
   {
@@ -92766,7 +92766,7 @@ MESSAGE_REFERENCE = [
     "message": "Added mesh parts must be attached to an original target before final PAC/PAM export. Preview-only parts are shown in Live Alignment Preview only. {displayed_sources} Select the added part in Geometry, choose a target, then use Add To Target.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/static_replacement_source_part_assignment_state.py": 505
+      "cdmw/ui/archive_browser/static_replacement_source_part_assignment_state.py": 506
     }
   },
   {
@@ -95895,7 +95895,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-only parts are visible in this session but are blocked from final PAC/PAM export.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/static_replacement_source_part_assignment_state.py": 419
+      "cdmw/ui/archive_browser/static_replacement_source_part_assignment_state.py": 420
     }
   },
   {
@@ -106265,7 +106265,8 @@ SOURCE_COVERAGE = {
     "finding": 1
   },
   "cdmw/modding/static_mesh_output_plan.py": {
-    "finding": 12,
+    "diagnostic_field": 2,
+    "finding": 13,
     "validation": 1
   },
   "cdmw/modding/static_mesh_preview_decimation.py": {},

@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- An imported model part with more than 65,535 vertices no longer stops the build with an error. A PAC draw section cannot hold more, so the part is split across extra draw sections and the build notes say so. In a complete swap the extra piece needs a free material slot in the template; without one, the error now says to decimate the part instead. A split part has not yet been checked in game.
+
 ## [0.12.0-alpha.2] - 2026-11-04
 
 ### Added

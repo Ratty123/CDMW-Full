@@ -66,15 +66,102 @@ def _source_vertex_count(
     return len(getattr(source, "vertices", ()) or ())
 
 
+class _SourceGroup(list):
+    """Source indices for one draw section, plus face ranges for split sources."""
+
+    def __init__(self, indices: Iterable[int] = ()) -> None:
+        super().__init__(indices)
+        self.face_ranges: dict[int, tuple[int, int, int]] = {}
+        self.vertex_count = 0
+
+
+def _vertex_limit_chunks(
+    source: object,
+    limit: int = _STATIC_REPLACEMENT_VERTEX_LIMIT,
+) -> list[tuple[int, int, int]]:
+    """Split a source's faces into contiguous runs of at most ``limit`` vertices.
+
+    Returns ``(first face, end face, distinct vertex count)`` per run. Vertices
+    on a run boundary are counted in both runs, as the builder copies them.
+    """
+    faces = list(getattr(source, "faces", ()) or ())
+    vertex_total = len(getattr(source, "vertices", ()) or ())
+    cache_key = (len(faces), vertex_total, int(limit))
+    cached = getattr(source, "_cdmw_vertex_limit_chunks", None)
+    if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == cache_key:
+        return list(cached[1])
+    chunks: list[tuple[int, int, int]] = []
+    marks = [-1] * vertex_total
+    start = 0
+    used = 0
+    for face_index, face in enumerate(faces):
+        fresh = [vertex for vertex in dict.fromkeys(face) if 0 <= vertex < vertex_total and marks[vertex] != start]
+        if used and used + len(fresh) > limit:
+            chunks.append((start, face_index, used))
+            start = face_index
+            used = 0
+            fresh = [vertex for vertex in dict.fromkeys(face) if 0 <= vertex < vertex_total]
+        for vertex in fresh:
+            marks[vertex] = start
+        used += len(fresh)
+    if used or not chunks:
+        chunks.append((start, len(faces), used))
+    try:
+        setattr(source, "_cdmw_vertex_limit_chunks", (cache_key, tuple(chunks)))
+    except (AttributeError, TypeError):
+        pass
+    return chunks
+
+
+def _group_vertex_count(
+    replacement_mesh: ParsedMesh,
+    group: Sequence[int],
+    options: StaticMeshReplacementOptions,
+) -> int:
+    ranges = getattr(group, "face_ranges", None) or {}
+    total = 0
+    for source_index in group:
+        if int(source_index) in ranges:
+            source = replacement_mesh.submeshes[int(source_index)]
+            start, end, _faces = ranges[int(source_index)]
+            total += next(
+                (count for first, last, count in _vertex_limit_chunks(source) if (first, last) == (start, end)),
+                _source_vertex_count(replacement_mesh, int(source_index), options),
+            )
+        else:
+            total += _source_vertex_count(replacement_mesh, int(source_index), options)
+    return total
+
+
+def _source_split_warning(source_index: int, vertex_count: int, piece_count: int) -> str:
+    return (
+        f"Replacement source {source_index} has {vertex_count:,} vertices, more than the "
+        f"{_STATIC_REPLACEMENT_VERTEX_LIMIT:,} a PAC draw section can hold; it will be split into "
+        f"{piece_count} draw sections."
+    )
+
+
 def _partition_source_indices_for_vertex_limit(
     replacement_mesh: ParsedMesh,
     source_indices: Iterable[int],
     options: StaticMeshReplacementOptions,
+    warnings: list[str] | None = None,
 ) -> tuple[list[list[int]], list[str]]:
+    """Pack sources into draw-section groups under the 16-bit vertex limit.
+
+    A source that is too large on its own is split into contiguous face runs,
+    each emitted as its own group with ``face_ranges`` set for that source.
+    """
     groups: list[list[int]] = []
     errors: list[str] = []
-    current_group: list[int] = []
-    current_vertices = 0
+    current_group = _SourceGroup()
+
+    def flush() -> None:
+        nonlocal current_group
+        if current_group:
+            groups.append(current_group)
+        current_group = _SourceGroup()
+
     for raw_source_index in source_indices:
         try:
             source_index = int(raw_source_index)
@@ -84,22 +171,35 @@ def _partition_source_indices_for_vertex_limit(
         if vertex_count <= 0:
             continue
         if vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
-            errors.append(
-                f"Replacement source {source_index} has {vertex_count:,} vertices; "
-                f"16-bit PAC/PAM draw sections support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,}."
-            )
+            source = replacement_mesh.submeshes[source_index]
+            face_total = len(getattr(source, "faces", ()) or ())
+            chunks = _vertex_limit_chunks(source)
+            if len(chunks) > 1 and warnings is not None:
+                warnings.append(_source_split_warning(source_index, vertex_count, len(chunks)))
+            for start, end, chunk_vertices in chunks:
+                if source_index in current_group or (
+                    current_group and current_group.vertex_count + chunk_vertices > _STATIC_REPLACEMENT_VERTEX_LIMIT
+                ):
+                    flush()
+                current_group.append(source_index)
+                current_group.face_ranges[source_index] = (start, end, face_total)
+                current_group.vertex_count += chunk_vertices
             continue
-        if current_group and current_vertices + vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
-            groups.append(current_group)
-            current_group = []
-            current_vertices = 0
+        if current_group and current_group.vertex_count + vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
+            flush()
         current_group.append(source_index)
-        current_vertices += vertex_count
-    if current_group:
-        groups.append(current_group)
+        current_group.vertex_count += vertex_count
+    flush()
     if not groups:
         groups.append([])
     return groups, errors
+
+
+def _face_ranges_for_groups(groups: Iterable[Sequence[int]]) -> dict[int, tuple[int, int, int]]:
+    ranges: dict[int, tuple[int, int, int]] = {}
+    for group in groups:
+        ranges.update(getattr(group, "face_ranges", None) or {})
+    return ranges
 
 
 def _complete_swap_atlas_mode(options: StaticMeshReplacementOptions) -> str:
@@ -160,7 +260,7 @@ def _reserve_tiled_material_slots(
     for preferred, group in groups:
         indices, _label = group
         tiled = bool(tiled_sources.intersection(indices))
-        count = sum(_source_vertex_count(replacement_mesh, index, options) for index in indices)
+        count = _group_vertex_count(replacement_mesh, indices, options)
         candidates = [preferred, *(target for target in assigned_groups if target != preferred)]
         candidates.sort(key=lambda target: target in routed)
         target = next((target for target in candidates
@@ -277,6 +377,7 @@ def plan_static_output_draw_sections(
                     replacement_mesh,
                     source_group,
                     normalized_options,
+                    warnings,
                 )
                 errors.extend(group_errors)
                 source_group_batches.extend(group for group in groups if group)
@@ -295,6 +396,22 @@ def plan_static_output_draw_sections(
         ]
         for source_target_index, group, source_label in extra_groups:
             if not free_target_indices:
+                split_sources = sorted(
+                    index
+                    for index in (getattr(group, "face_ranges", None) or {})
+                    if len(_vertex_limit_chunks(replacement_mesh.submeshes[index])) > 1
+                )
+                if split_sources:
+                    # Atlasing a split piece back into its slot would exceed the limit again.
+                    source_index = split_sources[0]
+                    vertex_count = _source_vertex_count(replacement_mesh, source_index, normalized_options)
+                    errors.append(
+                        f"Replacement source {source_index} has {vertex_count:,} vertices and "
+                        f"must be split across more than one draw section, but this template has no free material "
+                        f"slot for the extra piece. Decimate it below {_STATIC_REPLACEMENT_VERTEX_LIMIT:,} vertices, "
+                        "or choose a template with more material slots."
+                    )
+                    continue
                 if atlas_mode == "auto_when_needed":
                     assigned_groups.setdefault(source_target_index, []).append((group, source_label))
                     continue
@@ -341,6 +458,12 @@ def plan_static_output_draw_sections(
                     )
                 )
                 continue
+            merged_face_ranges = _face_ranges_for_groups(group for group, _source_label in assigned if group)
+            merged_vertex_count = sum(
+                _group_vertex_count(replacement_mesh, group, normalized_options)
+                for group, _source_label in assigned
+                if group
+            )
             merged_groups = [(list(group), str(source_label or "").strip()) for group, source_label in assigned if group]
             merged_source_indices = [
                 source_index
@@ -354,10 +477,7 @@ def plan_static_output_draw_sections(
                 else (merged_groups[0][1] if merged_groups else "")
             )
             if atlas_rects:
-                vertex_count = sum(
-                    _source_vertex_count(replacement_mesh, source_index, normalized_options)
-                    for source_index in merged_source_indices
-                )
+                vertex_count = merged_vertex_count
                 if vertex_count > _STATIC_REPLACEMENT_VERTEX_LIMIT:
                     errors.append(
                         f"Atlas/bake target {runtime_target_name} would contain {vertex_count:,} vertices; "
@@ -372,10 +492,7 @@ def plan_static_output_draw_sections(
                     target_material_slot_index=target_index,
                     clone_source_target_index=target_index,
                     donor_material_name=runtime_target_name,
-                    vertex_count=sum(
-                        _source_vertex_count(replacement_mesh, source_index, normalized_options)
-                        for source_index in merged_source_indices
-                    ),
+                    vertex_count=merged_vertex_count,
                     is_cloned_section=False,
                     runtime_slot_name=target.name or target_name,
                     runtime_material_name=runtime_material_name,
@@ -385,6 +502,7 @@ def plan_static_output_draw_sections(
                     atlas_source_material_names=tuple(rect.source_material_name for rect in atlas_rects),
                     atlas_rects=atlas_rects,
                     atlas_material_name=f"{runtime_target_name}_baked_atlas" if atlas_rects else "",
+                    source_face_ranges=merged_face_ranges,
                 )
             )
         planned = original_sections
@@ -435,6 +553,7 @@ def plan_static_output_draw_sections(
                 replacement_mesh,
                 source_indices,
                 normalized_options,
+                warnings,
             )
             errors.extend(group_errors)
 
@@ -448,11 +567,9 @@ def plan_static_output_draw_sections(
                     target_material_slot_index=material_slot_index,
                     clone_source_target_index=-1,
                     donor_material_name=target.material or target.name or target_name,
-                    vertex_count=sum(
-                    _source_vertex_count(replacement_mesh, source_index, normalized_options)
-                    for source_index in first_group
-                ),
+                    vertex_count=_group_vertex_count(replacement_mesh, first_group, normalized_options),
                 is_cloned_section=False,
+                source_face_ranges=_face_ranges_for_groups([first_group]),
             )
         )
         for group in groups[1:]:
@@ -465,11 +582,9 @@ def plan_static_output_draw_sections(
                     target_material_slot_index=material_slot_index,
                     clone_source_target_index=target_index,
                     donor_material_name=target.material or target.name or target_name,
-                    vertex_count=sum(
-                        _source_vertex_count(replacement_mesh, source_index, normalized_options)
-                        for source_index in group
-                    ),
+                    vertex_count=_group_vertex_count(replacement_mesh, group, normalized_options),
                     is_cloned_section=True,
+                    source_face_ranges=_face_ranges_for_groups([group]),
                 )
             )
 

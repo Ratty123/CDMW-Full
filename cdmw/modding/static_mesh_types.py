@@ -182,6 +182,9 @@ class StaticOutputDrawSection:
     atlas_padding: int = 8
     atlas_size: tuple[int, int] = (0, 0)
     atlas_material_name: str = ""
+    # Sources split to fit the 16-bit vertex limit: source index ->
+    # (first face, end face, face count the range was planned against).
+    source_face_ranges: dict[int, tuple[int, int, int]] = field(default_factory=dict)
 
 
 @dataclass

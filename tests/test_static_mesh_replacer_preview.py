@@ -53,6 +53,18 @@ def _large_part(name: str, vertex_count: int) -> SubMesh:
     )
 
 
+def _strip_part(name: str, vertex_count: int) -> SubMesh:
+    """A triangle strip that references every vertex, with per-vertex channels."""
+    return SubMesh(
+        name=name,
+        material=name,
+        vertices=[(float(index), float(index % 2), 0.0) for index in range(vertex_count)],
+        uvs=[(float(index % 2), float(index) / vertex_count) for index in range(vertex_count)],
+        normals=[(0.0, 0.0, 1.0)] * vertex_count,
+        faces=[(index, index + 1, index + 2) for index in range(vertex_count - 2)],
+    )
+
+
 def _write_f64_values(path: object, values: list[float]) -> None:
     data = array("d", values)
     with Path(str(path)).open("wb") as handle:
@@ -2471,7 +2483,7 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         displayed_y = affine[4] * source[0] + affine[5] * source[1] + affine[6] * source[2] + affine[7]
         self.assertAlmostEqual(0.0, displayed_y, places=6)
 
-    def test_preview_allows_large_mapped_target_that_export_rejects(self) -> None:
+    def test_preview_keeps_large_mapped_target_that_export_fits_to_limit(self) -> None:
         original = _mesh(
             "helmet.pac",
             [
@@ -2513,8 +2525,9 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
 
         self.assertEqual(len(preview.submeshes[0].vertices), 70_000)
         self.assertEqual(preview.submeshes[0].vertices[0], (1.0, 2.0, 3.0))
-        with self.assertRaisesRegex(ValueError, "65,535"):
-            _build_mapped_replacement_mesh(original, replacement, [mapping], options)
+        # Export keeps only the vertices the faces use once a part is over the limit.
+        exported = _build_mapped_replacement_mesh(original, replacement, [mapping], options)
+        self.assertEqual([3], [len(submesh.vertices) for submesh in exported.submeshes])
 
     def test_dense_output_plan_preserves_under_limit_parts_as_cloned_sections(self) -> None:
         original = _mesh(
@@ -2552,7 +2565,7 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertLessEqual(sections[0].vertex_count, 65_535)
         self.assertLessEqual(sections[1].vertex_count, 65_535)
 
-    def test_dense_output_plan_blocks_single_oversized_source_part(self) -> None:
+    def test_dense_output_plan_splits_single_oversized_source_part(self) -> None:
         original = _mesh(
             "target.pac",
             [
@@ -2564,7 +2577,8 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
                 )
             ],
         )
-        replacement = _mesh("dense.gltf", [_large_part("too_big", 65_536)])
+        source = _strip_part("too_big", 93_252)
+        replacement = _mesh("dense.gltf", [source])
         mapping = StaticSubmeshMapping(
             target_submesh_index=0,
             target_submesh_name="target",
@@ -2572,16 +2586,131 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
             target_material_slot_index=0,
         )
 
-        _sections, _warnings, errors = plan_static_output_draw_sections(
+        sections, warnings, errors = plan_static_output_draw_sections(
             original,
             replacement,
             [mapping],
             StaticMeshReplacementOptions(submesh_mappings=[mapping]),
         )
 
+        self.assertFalse(errors)
+        self.assertEqual(2, len(sections))
+        self.assertEqual([False, True], [section.is_cloned_section for section in sections])
+        self.assertTrue(any("Replacement source 0 has 93,252 vertices" in warning and "split into 2" in warning
+                            for warning in warnings))
+        ranges = [section.source_face_ranges[0] for section in sections]
+        face_total = len(source.faces)
+        self.assertEqual(0, ranges[0][0])
+        self.assertEqual(ranges[0][1], ranges[1][0])
+        self.assertEqual(face_total, ranges[1][1])
+        self.assertTrue(all(planned == face_total for _start, _end, planned in ranges))
+        self.assertTrue(all(0 < section.vertex_count <= 65_535 for section in sections))
+        # The strip shares two vertices across the cut; both pieces carry them.
+        self.assertEqual(93_252 + 2, sum(section.vertex_count for section in sections))
+
+    def test_dense_output_plan_packs_split_tail_with_following_sources(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])],
+        )
+        replacement = _mesh("dense.gltf", [_strip_part("big", 70_000), _strip_part("small", 1_000)])
+        mapping = StaticSubmeshMapping(0, "target", [0, 1], 0)
+
+        sections, _warnings, errors = plan_static_output_draw_sections(
+            original, replacement, [mapping], StaticMeshReplacementOptions(submesh_mappings=[mapping])
+        )
+
+        self.assertFalse(errors)
+        self.assertEqual([[0], [0, 1]], [section.source_submesh_indices for section in sections])
+        self.assertNotIn(1, sections[1].source_face_ranges)
+        self.assertTrue(all(section.vertex_count <= 65_535 for section in sections))
+
+    def test_complete_swap_split_without_free_slot_names_the_part_and_decimation(self) -> None:
+        original = _mesh(
+            "target.pac",
+            [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])],
+        )
+        replacement = _mesh("dense.gltf", [_strip_part("too_big", 93_252)])
+        mapping = StaticSubmeshMapping(0, "target", [0], 0)
+
+        _sections, _warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            [mapping],
+            StaticMeshReplacementOptions(submesh_mappings=[mapping], complete_external_swap=True),
+        )
+
         self.assertEqual(1, len(errors))
-        self.assertIn("65,536 vertices", errors[0])
-        self.assertIn("65,535", errors[0])
+        self.assertIn("Replacement source 0 has 93,252 vertices", errors[0])
+        self.assertIn("no free material slot", errors[0])
+        self.assertIn("Decimate it below 65,535 vertices", errors[0])
+
+    def test_complete_swap_split_uses_free_runtime_slot(self) -> None:
+        target = SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])
+        spare = SubMesh(name="spare", material="spare", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])
+        original = _mesh("target.pac", [target, spare])
+        replacement = _mesh("dense.gltf", [_strip_part("too_big", 93_252)])
+        mapping = StaticSubmeshMapping(0, "target", [0], 0)
+
+        sections, _warnings, errors = plan_static_output_draw_sections(
+            original,
+            replacement,
+            [mapping],
+            StaticMeshReplacementOptions(submesh_mappings=[mapping], complete_external_swap=True),
+        )
+
+        self.assertFalse(errors)
+        self.assertEqual([[0], [0]], [section.source_submesh_indices for section in sections])
+        self.assertEqual(sections[0].source_face_ranges[0][1], sections[1].source_face_ranges[0][0])
+        self.assertFalse(any(section.atlas_rects for section in sections))
+        self.assertTrue(all(section.vertex_count <= 65_535 for section in sections))
+
+    def test_pac_rebuild_splits_oversized_source_into_cloned_sections(self) -> None:
+        original_data, original = _minimal_pac_original()
+        source = _strip_part("too_big", 93_252)
+        replacement = _mesh("dense.gltf", [source])
+        mapping = StaticSubmeshMapping(0, "target", [0], 0)
+        options = StaticMeshReplacementOptions(
+            transform=StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            submesh_mappings=[mapping],
+        )
+
+        rebuilt, report = build_static_mesh_replacement(original_data, original, replacement, options)
+        parsed = parse_pac(rebuilt, "rebuilt.pac")
+
+        self.assertFalse(report.errors)
+        self.assertEqual(2, len(parsed.submeshes))
+        self.assertTrue(all(0 < len(submesh.vertices) <= 65_535 for submesh in parsed.submeshes))
+        self.assertEqual(len(source.faces), sum(len(submesh.faces) for submesh in parsed.submeshes))
+        self.assertEqual(93_252 + 2, sum(len(submesh.vertices) for submesh in parsed.submeshes))
+
+    def test_face_range_slice_keeps_per_vertex_channels_aligned(self) -> None:
+        from cdmw.modding.static_mesh_clone import _slice_submesh_face_range
+
+        part = _strip_part("strip", 10)
+        part.bone_indices = [(index,) for index in range(10)]
+        part.bone_weights = [(1.0,)] * 10
+        part.source_vertex_map = list(range(100, 110))
+        part.uv_sets = {1: [(float(index), 0.0) for index in range(10)]}
+
+        _slice_submesh_face_range(part, 4, 8, 8)
+
+        self.assertEqual([(0, 1, 2), (1, 2, 3), (2, 3, 4), (3, 4, 5)], part.faces)
+        self.assertEqual([float(index) for index in range(4, 10)], [vertex[0] for vertex in part.vertices])
+        self.assertEqual([(index,) for index in range(4, 10)], part.bone_indices)
+        self.assertEqual(list(range(104, 110)), part.source_vertex_map)
+        self.assertEqual([float(index) for index in range(4, 10)], [uv[0] for uv in part.uv_sets[1]])
+        self.assertEqual((6, 4), (part.vertex_count, part.face_count))
+
+    def test_face_range_slice_scales_to_preview_decimated_faces(self) -> None:
+        from cdmw.modding.static_mesh_clone import _slice_submesh_face_range
+
+        part = _strip_part("strip", 10)  # 8 faces, planned against 16
+
+        _slice_submesh_face_range(part, 8, 16, 16)
+
+        self.assertEqual(4, len(part.faces))
+        self.assertEqual(6, len(part.vertices))
 
     def test_pac_dense_rebuild_clones_draw_section_descriptors(self) -> None:
         original_data, original = _minimal_pac_original()

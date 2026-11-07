@@ -15,7 +15,7 @@ from .mesh_skinning import (
     has_valid_target_skin_weights,
     source_vertex_map_is_target_donor_lineage,
 )
-from .static_mesh_clone import _clone_parsed_mesh_fast, _clone_submesh_fast
+from .static_mesh_clone import _clone_parsed_mesh_fast, _clone_submesh_fast, _slice_submesh_face_range
 from .static_mesh_geometry import (
     _apply_alignment_roll,
     _apply_transform,
@@ -250,6 +250,9 @@ def _build_mapped_replacement_mesh(
             ):
                 continue
             source_part = _clone_submesh_fast(transformed_sources[source_index])
+            face_range = (getattr(section, "source_face_ranges", None) or {}).get(int(source_index))
+            if face_range is not None:
+                _slice_submesh_face_range(source_part, *face_range)
             atlas_rect = atlas_rect_by_source.get(int(source_index))
             if atlas_rect is not None:
                 _rewrite_submesh_uvs_for_material_atlas(
