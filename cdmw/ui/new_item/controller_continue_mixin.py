@@ -6,7 +6,7 @@ from cdmw.domain.new_item.spec import MaterialRoute, ModelSource
 from cdmw.services.new_item_planning import baked_model_files
 from cdmw.ui.new_item.controller_variant_mixin import VariantModelState
 from cdmw.ui.new_item.model_import import ModelPlacement
-from cdmw.ui.new_item.state import NewItemDraft, grid_values_from_edits
+from cdmw.ui.new_item.state import NewItemDraft, glow_choice, grid_values_from_edits
 
 
 def _binding(identity):
@@ -62,7 +62,8 @@ class NewItemContinueControllerMixin:
             result = models.get(identity) if appearance.custom_model else None
             if result is not None:
                 result = baked_model_files(result, appearance.translucency, appearance.surface_settings,
-                                           appearance.shader_controls)
+                                           appearance.shader_controls, glow=appearance.glow_choice(),
+                                           material_route=appearance.material_route)
             self._variant_states[identity] = VariantModelState(
                 appearance, None, result, None, None, ModelPlacement(), tuple(appearance.glow_parts),
                 tuple(appearance.glow_color), appearance.glow_intensity, None, appearance.dyes != ())
@@ -72,7 +73,8 @@ class NewItemContinueControllerMixin:
         self.model_result = None
         if launch.model is not None and draft.model_source is ModelSource.IMPORTED:
             self.model_result = baked_model_files(launch.model, draft.translucency, draft.surface_settings,
-                                                  draft.shader_controls)
+                                                  draft.shader_controls, glow=glow_choice(draft),
+                                                  material_route=draft.material_route)
         if self._variant_states:
             primary = self.primary_variant_identity()
             active = primary if primary in self._variant_states else next(iter(self._variant_states))

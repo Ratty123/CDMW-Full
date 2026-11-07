@@ -55,12 +55,56 @@ def transfer_pam_edit_to_pamlod_mesh(
     if not source_orig or not source_new:
         raise ValueError("PAM to PAMLOD transfer requires non-empty source geometry.")
 
-    if len(source_orig) == len(source_new):
+    changed_points, changed_displacements = _edit_displacements(
+        source_orig, source_new, one_to_one=len(source_orig) == len(source_new))
+
+    pamlod_mesh = parse_pamlod(original_pamlod_data, pamlod_path)
+    if not changed_points:
+        return pamlod_mesh
+
+    cell_size, grid = _build_spatial_hash(changed_points)
+    transferred = copy.deepcopy(pamlod_mesh)
+
+    for lod_level in transferred.lod_levels:
+        _displace_level(lod_level, changed_points, changed_displacements, cell_size, grid)
+
+    if transferred.lod_levels:
+        for lod_level in transferred.lod_levels:
+            if lod_level:
+                transferred.submeshes = lod_level
+                break
+
+    transferred.total_vertices = sum(len(sm.vertices) for sm in transferred.submeshes)
+    transferred.total_faces = sum(len(sm.faces) for sm in transferred.submeshes)
+    transferred.has_uvs = any(sm.uvs for sm in transferred.submeshes)
+    return transferred
+
+
+def transfer_edit_to_lower_parts(original_vertices, edited_vertices, lower_parts, *, one_to_one: bool) -> None:
+    """Move ``lower_parts`` (in place) by the edit from ``original_vertices`` to ``edited_vertices``.
+
+    A lower LOD keeps its records, so only its positions can follow an edit. The edit
+    becomes a displacement field over the original vertices: one-to-one for a
+    same-topology edit, else each original vertex is paired with its nearest edited
+    vertex, as a paired PAM edit is carried onto its PAMLOD.
+    """
+    if not original_vertices or not edited_vertices or not lower_parts:
+        return
+    changed_points, changed_displacements = _edit_displacements(
+        list(original_vertices), list(edited_vertices), one_to_one=one_to_one)
+    if not changed_points:
+        return
+    cell_size, grid = _build_spatial_hash(changed_points)
+    _displace_level(list(lower_parts), changed_points, changed_displacements, cell_size, grid)
+
+
+def _edit_displacements(source_orig, source_new, *, one_to_one: bool):
+    if one_to_one:
         paired_points = zip(source_orig, source_new)
     else:
         # Topology edits cannot be transferred one-to-one, so approximate the
-        # deformation field by matching each original PAM vertex to its nearest
-        # edited-space vertex. This keeps paired PAMLOD patching alive for
+        # deformation field by matching each original vertex to its nearest
+        # edited-space vertex. This keeps lower-LOD patching alive for
         # sculpt/retopo-style edits instead of failing outright.
         edit_cell_size, edit_grid = _build_spatial_hash(source_new)
         nearest_points = [
@@ -76,86 +120,70 @@ def transfer_pam_edit_to_pamlod_mesh(
         if math.sqrt(disp[0] ** 2 + disp[1] ** 2 + disp[2] ** 2) > 1e-6:
             changed_points.append(orig_v)
             changed_displacements.append(disp)
+    return changed_points, changed_displacements
 
-    pamlod_mesh = parse_pamlod(original_pamlod_data, pamlod_path)
-    if not changed_points:
-        return pamlod_mesh
 
-    cell_size, grid = _build_spatial_hash(changed_points)
-    transferred = copy.deepcopy(pamlod_mesh)
+def _displace_level(lod_level, changed_points, changed_displacements, cell_size, grid) -> None:
+    lod_vertices = [vertex for sm in lod_level for vertex in sm.vertices]
+    if not lod_vertices:
+        return
 
-    for lod_level in transferred.lod_levels:
-        lod_vertices = [vertex for sm in lod_level for vertex in sm.vertices]
-        if not lod_vertices:
-            continue
-
-        target_cell_size, target_grid = _build_spatial_hash(lod_vertices)
-        sample_step = max(1, len(changed_points) // 512)
-        target_distances = []
-        for idx in range(0, len(changed_points), sample_step):
-            source_vertex = changed_points[idx]
-            nearest_idx = _nearest_point_index(
-                source_vertex, lod_vertices, target_cell_size, target_grid
-            )
-            target_distances.append(math.dist(source_vertex, lod_vertices[nearest_idx]))
-
-        influence_radius = max(
-            _percentile(target_distances, 0.75) * 1.25,
-            1e-4,
+    target_cell_size, target_grid = _build_spatial_hash(lod_vertices)
+    sample_step = max(1, len(changed_points) // 512)
+    target_distances = []
+    for idx in range(0, len(changed_points), sample_step):
+        source_vertex = changed_points[idx]
+        nearest_idx = _nearest_point_index(
+            source_vertex, lod_vertices, target_cell_size, target_grid
         )
+        target_distances.append(math.dist(source_vertex, lod_vertices[nearest_idx]))
 
-        for sm in lod_level:
-            new_vertices = []
-            for vertex in sm.vertices:
-                nearby = _nearby_point_indices(
-                    vertex, changed_points, cell_size, grid, influence_radius
-                )
-                if not nearby:
-                    new_vertices.append(vertex)
+    influence_radius = max(
+        _percentile(target_distances, 0.75) * 1.25,
+        1e-4,
+    )
+
+    for sm in lod_level:
+        new_vertices = []
+        for vertex in sm.vertices:
+            nearby = _nearby_point_indices(
+                vertex, changed_points, cell_size, grid, influence_radius
+            )
+            if not nearby:
+                new_vertices.append(vertex)
+                continue
+
+            exact_disp = None
+            acc_x = acc_y = acc_z = 0.0
+            weight_sum = 0.0
+            for idx in nearby:
+                src = changed_points[idx]
+                disp = changed_displacements[idx]
+                dist = math.dist(vertex, src)
+                if dist <= 1e-8:
+                    exact_disp = disp
+                    break
+                weight = (1.0 - min(dist / influence_radius, 1.0)) ** 2
+                if weight <= 0.0:
                     continue
+                acc_x += disp[0] * weight
+                acc_y += disp[1] * weight
+                acc_z += disp[2] * weight
+                weight_sum += weight
 
-                exact_disp = None
-                acc_x = acc_y = acc_z = 0.0
-                weight_sum = 0.0
-                for idx in nearby:
-                    src = changed_points[idx]
-                    disp = changed_displacements[idx]
-                    dist = math.dist(vertex, src)
-                    if dist <= 1e-8:
-                        exact_disp = disp
-                        break
-                    weight = (1.0 - min(dist / influence_radius, 1.0)) ** 2
-                    if weight <= 0.0:
-                        continue
-                    acc_x += disp[0] * weight
-                    acc_y += disp[1] * weight
-                    acc_z += disp[2] * weight
-                    weight_sum += weight
+            if exact_disp is not None:
+                dx, dy, dz = exact_disp
+            elif weight_sum > 0.0:
+                dx = acc_x / weight_sum
+                dy = acc_y / weight_sum
+                dz = acc_z / weight_sum
+            else:
+                dx = dy = dz = 0.0
 
-                if exact_disp is not None:
-                    dx, dy, dz = exact_disp
-                elif weight_sum > 0.0:
-                    dx = acc_x / weight_sum
-                    dy = acc_y / weight_sum
-                    dz = acc_z / weight_sum
-                else:
-                    dx = dy = dz = 0.0
-
-                new_vertices.append((vertex[0] + dx, vertex[1] + dy, vertex[2] + dz))
-            sm.vertices = new_vertices
-            sm.vertex_count = len(new_vertices)
-            sm.normals = _compute_smooth_normals(sm.vertices, sm.faces)
-
-    if transferred.lod_levels:
-        for lod_level in transferred.lod_levels:
-            if lod_level:
-                transferred.submeshes = lod_level
-                break
-
-    transferred.total_vertices = sum(len(sm.vertices) for sm in transferred.submeshes)
-    transferred.total_faces = sum(len(sm.faces) for sm in transferred.submeshes)
-    transferred.has_uvs = any(sm.uvs for sm in transferred.submeshes)
-    return transferred
+            new_vertices.append((vertex[0] + dx, vertex[1] + dy, vertex[2] + dz))
+        sm.vertices = new_vertices
+        sm.vertex_count = len(new_vertices)
+        sm.normals = _compute_smooth_normals(sm.vertices, sm.faces)
 
 def _pamlod_needs_full_rebuild(
     original_lod_levels: list[list[SubMesh]],

@@ -93,7 +93,8 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
         if baked:
             from cdmw.services.new_item_planning import require_baked_appearance
             require_baked_appearance(model, appearance.translucency, appearance.surface_settings,
-                                     appearance.shader_controls, appearance.model_path)
+                                     appearance.shader_controls, appearance.model_path,
+                                     glow=appearance.glow_choice(), material_route=appearance.material_route)
             files = model
         elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency

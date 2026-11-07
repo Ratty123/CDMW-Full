@@ -74,6 +74,8 @@ class NewItemStudioController(
     snapshot_ready = Signal()
     snapshot_failed = Signal(str)
     template_changed = Signal(object)
+    #: the latest template request could not be prepared (the message says why)
+    template_failed = Signal(str)
     template_search_ready = Signal(object)
     plan_ready = Signal(object)
     plan_failed = Signal(str, object)

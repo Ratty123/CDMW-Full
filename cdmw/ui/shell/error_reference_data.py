@@ -7431,7 +7431,7 @@ MESSAGE_REFERENCE = [
     "message": "... {len(missing) - limit} more missing texture(s)",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 874
+      "cdmw/core/archive_mesh_export.py": 891
     }
   },
   {
@@ -9708,7 +9708,7 @@ MESSAGE_REFERENCE = [
     "message": "Cancelled {export_format.upper()} export for {entry.basename}.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/mesh_import_export.py": 688
+      "cdmw/ui/archive_browser/mesh_import_export.py": 735
     }
   },
   {
@@ -11785,7 +11785,7 @@ MESSAGE_REFERENCE = [
     "message": "Matched skeleton {skeleton_entry.path} could not be parsed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 761
+      "cdmw/core/archive_mesh_export.py": 789
     }
   },
   {
@@ -12009,7 +12009,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh export is unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/mesh_import_export.py": 628
+      "cdmw/ui/archive_browser/mesh_import_export.py": 675
     }
   },
   {
@@ -12170,7 +12170,7 @@ MESSAGE_REFERENCE = [
     "message": "Model export failed: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/mesh_import_export.py": 745
+      "cdmw/ui/archive_browser/mesh_import_export.py": 792
     }
   },
   {
@@ -12443,7 +12443,7 @@ MESSAGE_REFERENCE = [
     "message": "No geometry could be recovered from the selected mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 689
+      "cdmw/core/archive_mesh_export.py": 714
     }
   },
   {
@@ -12660,7 +12660,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 742
+      "cdmw/core/archive_mesh_export.py": 769
     }
   },
   {
@@ -12796,7 +12796,7 @@ MESSAGE_REFERENCE = [
     "message": "Only prepared standalone-worker dependency contexts may be merged.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 133
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 142
     }
   },
   {
@@ -15412,7 +15412,7 @@ MESSAGE_REFERENCE = [
     "message": "Textures not included: {len(missing)} (the model shows untextured where they apply)",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 871
+      "cdmw/core/archive_mesh_export.py": 888
     }
   },
   {
@@ -15532,7 +15532,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive dependency set exceeded the 4,096-entry safety bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 90
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 99
     }
   },
   {
@@ -15581,6 +15581,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/archive_reference_cleanup.py": 38
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The archive list changed while the selected rows were read. Select the models again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/mesh_import_export.py": 630
     }
   },
   {
@@ -15692,7 +15700,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker did not materialize every bounded workflow dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 102
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 111
     }
   },
   {
@@ -15716,7 +15724,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker is still preparing the selected file and its dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 86
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 95
     }
   },
   {
@@ -15764,7 +15772,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive workflow has no dependency contexts to merge.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 129
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 138
     }
   },
   {
@@ -15772,7 +15780,15 @@ MESSAGE_REFERENCE = [
     "message": "The archive workflow has no valid selected entry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 76
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 83
+    }
+  },
+  {
+    "area": "archive",
+    "message": "The archives could not be read: {failure}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/mesh_import_export.py": 635
     }
   },
   {
@@ -16341,7 +16357,7 @@ MESSAGE_REFERENCE = [
     "message": "The merged archive dependency set does not contain the selected file.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 154
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 163
     }
   },
   {
@@ -16349,7 +16365,7 @@ MESSAGE_REFERENCE = [
     "message": "The merged archive dependency set exceeded the 8,192-entry safety bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 144
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 153
     }
   },
   {
@@ -16373,7 +16389,7 @@ MESSAGE_REFERENCE = [
     "message": "The model dependencies are incomplete or no longer match the selection.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/mesh_batch_export_controller.py": 152
+      "cdmw/ui/archive_browser/mesh_batch_export_controller.py": 305
     }
   },
   {
@@ -16573,7 +16589,7 @@ MESSAGE_REFERENCE = [
     "message": "The prepared archive dependency set does not contain the requested file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workflow_dependencies.py": 98
+      "cdmw/ui/archive_browser/workflow_dependencies.py": 107
     }
   },
   {
@@ -17248,7 +17264,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh export format: {export_format}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 683
+      "cdmw/core/archive_mesh_export.py": 708
     }
   },
   {
@@ -19807,7 +19823,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not a supported mesh entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 685
+      "cdmw/core/archive_mesh_export.py": 710
     }
   },
   {
@@ -20079,7 +20095,7 @@ MESSAGE_REFERENCE = [
     "message": "{manifest_stage} failed for {entry.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_mesh_export.py": 629
+      "cdmw/core/archive_mesh_export.py": 654
     }
   },
   {
@@ -31303,7 +31319,7 @@ MESSAGE_REFERENCE = [
     "message": "A combined mod from mounted items must be written to a new folder. Choose another mod name.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 444
+      "cdmw/services/new_item_service.py": 445
     }
   },
   {
@@ -31351,7 +31367,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 717
+      "cdmw/services/new_item_service.py": 718
     }
   },
   {
@@ -31479,7 +31495,7 @@ MESSAGE_REFERENCE = [
     "message": "A socket unlock material is not an item in the active tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 500
+      "cdmw/services/new_item_planning.py": 521
     }
   },
   {
@@ -31511,7 +31527,7 @@ MESSAGE_REFERENCE = [
     "message": "A variant binding can be selected only once.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 274
+      "cdmw/services/new_item_variants.py": 275
     }
   },
   {
@@ -31705,7 +31721,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1126
+      "cdmw/ui/new_item/tab.py": 1146
     }
   },
   {
@@ -31721,7 +31737,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 612
+      "cdmw/ui/new_item/controller.py": 614
     }
   },
   {
@@ -31761,7 +31777,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 428
+      "cdmw/ui/new_item/tab.py": 431
     }
   },
   {
@@ -31866,7 +31882,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 774
+      "cdmw/services/new_item_planning.py": 795
     }
   },
   {
@@ -31874,7 +31890,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 770
+      "cdmw/services/new_item_planning.py": 791
     }
   },
   {
@@ -31882,7 +31898,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 725
+      "cdmw/services/new_item_planning.py": 746
     }
   },
   {
@@ -31890,7 +31906,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 848
+      "cdmw/services/new_item_planning.py": 869
     }
   },
   {
@@ -31898,7 +31914,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 403
+      "cdmw/services/new_item_variants.py": 404
     }
   },
   {
@@ -31906,7 +31922,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot create a separate mod from source tables containing other custom items: {detail}. Unmount existing item mods and read the archives again before building the plan, or rebuild with Include mounted items in a new mod or Add to existing mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 426
+      "cdmw/services/new_item_service.py": 427
     }
   },
   {
@@ -31922,7 +31938,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1053
+      "cdmw/services/new_item_planning.py": 1074
     }
   },
   {
@@ -32002,7 +32018,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a new output folder outside the game installation for the combined mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 442
+      "cdmw/services/new_item_service.py": 443
     }
   },
   {
@@ -32274,7 +32290,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_service.py": 617
+      "cdmw/services/new_item_service.py": 618
     }
   },
   {
@@ -32410,7 +32426,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 382
+      "cdmw/services/new_item_variants.py": 383
     }
   },
   {
@@ -32482,7 +32498,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 288
+      "cdmw/ui/new_item/tab.py": 291
     }
   },
   {
@@ -32596,7 +32612,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1219
+      "cdmw/ui/new_item/tab.py": 1239
     }
   },
   {
@@ -32773,7 +32789,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported weights belong to another template variant; import against this variant again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1402
+      "cdmw/ui/new_item/model_import.py": 1433
     }
   },
   {
@@ -32837,7 +32853,7 @@ MESSAGE_REFERENCE = [
     "message": "Installing a new item into the game archives requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 646
+      "cdmw/services/new_item_service.py": 647
     }
   },
   {
@@ -33621,7 +33637,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 710
+      "cdmw/services/new_item_service.py": 711
     }
   },
   {
@@ -33685,7 +33701,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 896
+      "cdmw/ui/new_item/controller_model_mixin.py": 897
     }
   },
   {
@@ -34047,7 +34063,7 @@ MESSAGE_REFERENCE = [
     "message": "No applied model for {old}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 338
+      "cdmw/services/new_item_variants.py": 339
     }
   },
   {
@@ -34055,7 +34071,7 @@ MESSAGE_REFERENCE = [
     "message": "No collision-free identity is available for the selected variant.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 265
+      "cdmw/services/new_item_variants.py": 266
     }
   },
   {
@@ -34063,7 +34079,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 692
+      "cdmw/ui/new_item/tab.py": 695
     }
   },
   {
@@ -34071,7 +34087,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 939
+      "cdmw/services/new_item_planning.py": 960
     }
   },
   {
@@ -34143,7 +34159,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 969
+      "cdmw/services/new_item_planning.py": 990
     }
   },
   {
@@ -34570,7 +34586,7 @@ MESSAGE_REFERENCE = [
     "message": "Run imported skin preflight against the selected template before Apply placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1400
+      "cdmw/ui/new_item/model_import.py": 1431
     }
   },
   {
@@ -34634,7 +34650,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 640
+      "cdmw/ui/new_item/controller_model_mixin.py": 641
     }
   },
   {
@@ -34995,7 +35011,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 820,
+      "cdmw/ui/new_item/controller_model_mixin.py": 821,
       "cdmw/ui/new_item/model_import.py": 978
     }
   },
@@ -35132,7 +35148,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 391
+      "cdmw/ui/new_item/tab.py": 394
     }
   },
   {
@@ -35156,8 +35172,8 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 654,
-      "cdmw/ui/new_item/tab.py": 1225,
+      "cdmw/services/new_item_service.py": 655,
+      "cdmw/ui/new_item/tab.py": 1245,
       "cdmw/workers/new_item_workers.py": 342
     }
   },
@@ -35174,7 +35190,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 440
+      "cdmw/ui/new_item/tab.py": 443
     }
   },
   {
@@ -35502,7 +35518,7 @@ MESSAGE_REFERENCE = [
     "message": "The import's skin palette differs from the selected variant's target rig and the bones the item adds to it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 200
+      "cdmw/services/new_item_variants.py": 201
     }
   },
   {
@@ -35510,7 +35526,7 @@ MESSAGE_REFERENCE = [
     "message": "The import's skin palette differs from the selected variant's target rig.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 203
+      "cdmw/services/new_item_variants.py": 204
     }
   },
   {
@@ -35518,7 +35534,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported skin weights reference bones outside the target palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 209
+      "cdmw/services/new_item_variants.py": 210
     }
   },
   {
@@ -35558,7 +35574,7 @@ MESSAGE_REFERENCE = [
     "message": "The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 392
+      "cdmw/services/new_item_planning.py": 413
     }
   },
   {
@@ -35598,7 +35614,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 452
+      "cdmw/ui/new_item/controller_model_mixin.py": 453
     }
   },
   {
@@ -35654,7 +35670,7 @@ MESSAGE_REFERENCE = [
     "message": "The package is written, but Drafts & Mods could not list it: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_continue_mixin.py": 122
+      "cdmw/ui/new_item/controller_continue_mixin.py": 124
     }
   },
   {
@@ -35662,7 +35678,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 767
+      "cdmw/ui/new_item/controller_model_mixin.py": 768
     }
   },
   {
@@ -35670,7 +35686,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan changes nothing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 651
+      "cdmw/services/new_item_service.py": 652
     }
   },
   {
@@ -35686,7 +35702,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 836
+      "cdmw/services/new_item_service.py": 837
     }
   },
   {
@@ -35702,7 +35718,7 @@ MESSAGE_REFERENCE = [
     "message": "The previous archive group escapes the mod package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 585
+      "cdmw/services/new_item_service.py": 586
     }
   },
   {
@@ -35750,7 +35766,7 @@ MESSAGE_REFERENCE = [
     "message": "The rigid target requires its single attachment slot; this import changes the skin binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 170
+      "cdmw/services/new_item_variants.py": 171
     }
   },
   {
@@ -35758,7 +35774,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block as a list, so it should take them, but a rebuilt list is unproven in game until the first check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 477
+      "cdmw/services/new_item_planning.py": 498
     }
   },
   {
@@ -35766,7 +35782,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; a rebuilt ladder is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 519
+      "cdmw/services/new_item_planning.py": 540
     }
   },
   {
@@ -35774,7 +35790,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, so a list that long is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 514
+      "cdmw/services/new_item_planning.py": 535
     }
   },
   {
@@ -35782,7 +35798,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 528
+      "cdmw/services/new_item_planning.py": 549
     }
   },
   {
@@ -35824,7 +35840,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 34,
       "cdmw/domain/new_item/rules.py": 511,
-      "cdmw/services/new_item_planning.py": 498
+      "cdmw/services/new_item_planning.py": 519
     }
   },
   {
@@ -35856,7 +35872,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 405
+      "cdmw/services/new_item_variants.py": 406
     }
   },
   {
@@ -35864,7 +35880,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant's skeleton is missing or ambiguous.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_variants.py": 185
+      "cdmw/services/new_item_variants.py": 186
     }
   },
   {
@@ -35912,7 +35928,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1106
+      "cdmw/services/new_item_planning.py": 1127
     }
   },
   {
@@ -35992,7 +36008,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 823
+      "cdmw/services/new_item_planning.py": 844
     }
   },
   {
@@ -36040,7 +36056,7 @@ MESSAGE_REFERENCE = [
     "message": "The variant import contains no supported mesh geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_variants.py": 156
+      "cdmw/services/new_item_variants.py": 157
     }
   },
   {
@@ -36080,7 +36096,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 686
+      "cdmw/services/new_item_planning.py": 707
     }
   },
   {
@@ -36497,7 +36513,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn off Template cloth / physics to transfer this armour's weights from the character body.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_variants.py": 127
+      "cdmw/services/new_item_variants.py": 128
     }
   },
   {
@@ -36585,7 +36601,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown loose-mod manager profile {manager}; one of {', '.join(LOOSE_EXPORT_PROFILES)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 437
+      "cdmw/services/new_item_service.py": 438
     }
   },
   {
@@ -37258,7 +37274,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 993
+      "cdmw/services/new_item_planning.py": 1014
     }
   },
   {
@@ -37498,7 +37514,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1000
+      "cdmw/services/new_item_planning.py": 1021
     }
   },
   {
@@ -37506,7 +37522,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1002
+      "cdmw/services/new_item_planning.py": 1023
     }
   },
   {
@@ -37578,7 +37594,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 945
+      "cdmw/services/new_item_planning.py": 966
     }
   },
   {
@@ -37738,7 +37754,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 368
+      "cdmw/ui/new_item/controller.py": 370
     }
   },
   {
@@ -37891,7 +37907,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_materials.py": 678,
-      "cdmw/ui/new_item/model_import.py": 1260,
+      "cdmw/ui/new_item/model_import.py": 1291,
       "cdmw/ui/new_item/rust_ui_tab.py": 238
     }
   },
@@ -37964,7 +37980,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 982
+      "cdmw/services/new_item_planning.py": 1003
     }
   },
   {
@@ -37972,7 +37988,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 968
+      "cdmw/services/new_item_planning.py": 989
     }
   },
   {
@@ -38028,7 +38044,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 380
+      "cdmw/services/new_item_planning.py": 401
     }
   },
   {
@@ -38052,7 +38068,7 @@ MESSAGE_REFERENCE = [
     "message": "the built icon is named {self.icon.icon_string}, the plan needs {self.icon_string}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 332
+      "cdmw/services/new_item_planning.py": 353
     }
   },
   {
@@ -38149,7 +38165,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1149
+      "cdmw/services/new_item_planning.py": 1170
     }
   },
   {
@@ -38189,7 +38205,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 507
+      "cdmw/services/new_item_planning.py": 528
     }
   },
   {
@@ -38205,7 +38221,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 930
+      "cdmw/services/new_item_planning.py": 951
     }
   },
   {
@@ -38213,7 +38229,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon; give an icon or an image to build one from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 399
+      "cdmw/services/new_item_service.py": 400
     }
   },
   {
@@ -38221,7 +38237,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 802
+      "cdmw/services/new_item_planning.py": 823
     }
   },
   {
@@ -38229,7 +38245,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1031
+      "cdmw/services/new_item_planning.py": 1052
     }
   },
   {
@@ -38237,7 +38253,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1028
+      "cdmw/services/new_item_planning.py": 1049
     }
   },
   {
@@ -38245,7 +38261,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1005
+      "cdmw/services/new_item_planning.py": 1026
     }
   },
   {
@@ -38261,7 +38277,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.desc_key} for the template's description",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 669
+      "cdmw/services/new_item_planning.py": 690
     }
   },
   {
@@ -38269,7 +38285,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.name_key} for the template's name",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 663
+      "cdmw/services/new_item_planning.py": 684
     }
   },
   {
@@ -38366,7 +38382,7 @@ MESSAGE_REFERENCE = [
     "message": "{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 649
+      "cdmw/services/new_item_service.py": 650
     }
   },
   {
@@ -38446,7 +38462,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 850
+      "cdmw/services/new_item_planning.py": 871
     }
   },
   {
@@ -38475,10 +38491,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "{label} uses the finished model from the item package, which already has its translucency, surface and shader settings written in. Import the source model again in step 3 to change them.",
+    "message": "{label} uses the finished model from the item package, which already has its material route, glow, translucency, surface and shader settings written in. Import the source model again in step 3 to change them.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/new_item_planning.py": 151
+      "cdmw/services/new_item_planning.py": 171
     }
   },
   {
@@ -38486,7 +38502,15 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1020
+      "cdmw/ui/new_item/tab.py": 1040
+    }
+  },
+  {
+    "area": "items",
+    "message": "{launch.title} could not be continued: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/tab.py": 1030
     }
   },
   {
@@ -38494,7 +38518,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 533
+      "cdmw/services/new_item_planning.py": 554
     }
   },
   {
@@ -38543,7 +38567,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is written as {value}; shipped equipment carries it between {low} and {high}. A value that far outside the game's own range has crashed the game on purchase (an item carrying AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables read fine either way, so nothing shows until the item is bought.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_planning.py": 594
+      "cdmw/services/new_item_planning.py": 615
     }
   },
   {
@@ -38663,7 +38687,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 892
+      "cdmw/services/new_item_planning.py": 913
     }
   },
   {
@@ -38735,7 +38759,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists in the archives; a new item must not overwrite it",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_planning.py": 251
+      "cdmw/services/new_item_planning.py": 272
     }
   },
   {
@@ -38751,7 +38775,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is added twice",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 253
+      "cdmw/services/new_item_planning.py": 274
     }
   },
   {
@@ -38759,7 +38783,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 777
+      "cdmw/services/new_item_planning.py": 798
     }
   },
   {
@@ -38855,7 +38879,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 605
+      "cdmw/ui/new_item/controller.py": 607
     }
   },
   {
@@ -38863,7 +38887,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 463
+      "cdmw/services/new_item_planning.py": 484
     }
   },
   {
@@ -38871,7 +38895,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 384
+      "cdmw/services/new_item_planning.py": 405
     }
   },
   {
@@ -38879,7 +38903,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 934
+      "cdmw/services/new_item_planning.py": 955
     }
   },
   {
@@ -38887,7 +38911,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} owns no part-prefab records to clone",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 352
+      "cdmw/services/new_item_planning.py": 373
     }
   },
   {
@@ -38895,7 +38919,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 796
+      "cdmw/services/new_item_planning.py": 817
     }
   },
   {
@@ -39031,7 +39055,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 654
+      "cdmw/services/new_item_planning.py": 675
     }
   },
   {
@@ -51192,7 +51216,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 897
+      "cdmw/ui/mesh_editor/shell_bridge.py": 902
     }
   },
   {
@@ -51396,7 +51420,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 786
+      "cdmw/ui/mesh_editor/shell_bridge.py": 791
     }
   },
   {
@@ -54506,7 +54530,7 @@ MESSAGE_REFERENCE = [
     "message": "No PAB-ordered skeleton bones were available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 92
+      "cdmw/core/skeleton_resolver.py": 93
     }
   },
   {
@@ -55180,7 +55204,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAMLOD data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 536
+      "cdmw/modding/mesh_pamlod_builder.py": 564
     }
   },
   {
@@ -55300,7 +55324,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB contains no parsed bones: {entry.path}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 1010
+      "cdmw/core/skeleton_resolver.py": 1017
     }
   },
   {
@@ -55332,7 +55356,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB-to-slot mapping contains duplicate raw vertex-byte slots.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 100
+      "cdmw/core/skeleton_resolver.py": 101
     }
   },
   {
@@ -55340,7 +55364,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB-to-slot mapping contains unresolved negative slot indexes.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 98
+      "cdmw/core/skeleton_resolver.py": 99
     }
   },
   {
@@ -55348,7 +55372,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB-to-slot mapping length {len(slots)} does not match skeleton bone count {len(bones)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 94
+      "cdmw/core/skeleton_resolver.py": 95
     }
   },
   {
@@ -56245,7 +56269,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 entry rebuild supports at most 65535 vertices per entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 439
+      "cdmw/modding/mesh_pamlod_builder.py": 467
     }
   },
   {
@@ -56253,7 +56277,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 original entry mapping is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 319
+      "cdmw/modding/mesh_pamlod_builder.py": 347
     }
   },
   {
@@ -56261,7 +56285,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 rebuild requires either one flattened submesh or one submesh per LOD0 entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 330
+      "cdmw/modding/mesh_pamlod_builder.py": 358
     }
   },
   {
@@ -56277,7 +56301,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD face references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 422
+      "cdmw/modding/mesh_pamlod_builder.py": 450
     }
   },
   {
@@ -56413,7 +56437,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD topology-changing rebuild is currently supported for LOD0 only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 563
+      "cdmw/modding/mesh_pamlod_builder.py": 591
     }
   },
   {
@@ -58325,7 +58349,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 821
+      "cdmw/ui/mesh_editor/shell_bridge.py": 826
     }
   },
   {
@@ -62443,7 +62467,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD layout currently supports position-only patching. Topology/UV edits are not supported for it yet ({layout.get('reason', 'unknown layout')}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 466
+      "cdmw/modding/mesh_pamlod_builder.py": 494
     }
   },
   {
@@ -64825,7 +64849,7 @@ MESSAGE_REFERENCE = [
     "message": "could not locate PAMLOD LOD0 geometry layout",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 248
+      "cdmw/modding/mesh_pamlod_builder.py": 276
     }
   },
   {
@@ -66972,7 +66996,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid PAMLOD geometry header",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 187
+      "cdmw/modding/mesh_pamlod_builder.py": 215
     }
   },
   {
@@ -68378,7 +68402,7 @@ MESSAGE_REFERENCE = [
     "message": "missing PAMLOD header",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 183
+      "cdmw/modding/mesh_pamlod_builder.py": 211
     }
   },
   {
@@ -73865,7 +73889,7 @@ MESSAGE_REFERENCE = [
     "message": "{descriptor_entry.path}: linked skeleton does not resolve the PAC bone palette",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 756
+      "cdmw/core/skeleton_resolver.py": 757
     }
   },
   {
@@ -73873,7 +73897,7 @@ MESSAGE_REFERENCE = [
     "message": "{descriptor_entry.path}: unresolved {attr} reference {raw_value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 740
+      "cdmw/core/skeleton_resolver.py": 741
     }
   },
   {
@@ -93312,7 +93336,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence editing is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 353
+      "cdmw/services/mesh_replacement_output.py": 383
     }
   },
   {
@@ -93545,7 +93569,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate replacement companion: {file.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 438
+      "cdmw/services/mesh_replacement_output.py": 468
     }
   },
   {
@@ -93697,7 +93721,7 @@ MESSAGE_REFERENCE = [
     "message": "Existing hair lost its original vertex record provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 308
+      "cdmw/services/mesh_replacement_output.py": 338
     }
   },
   {
@@ -93906,7 +93930,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 281
+      "cdmw/services/mesh_replacement_materials.py": 285
     }
   },
   {
@@ -94042,7 +94066,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 346
+      "cdmw/services/mesh_replacement_output.py": 376
     }
   },
   {
@@ -94122,7 +94146,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: no representable source material textures",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 251
+      "cdmw/services/mesh_replacement_materials.py": 255
     }
   },
   {
@@ -94130,7 +94154,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 251
+      "cdmw/services/mesh_replacement_materials.py": 255
     }
   },
   {
@@ -94146,7 +94170,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material {part.material or part.name} has no proven target binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 258
+      "cdmw/services/mesh_replacement_materials.py": 262
     }
   },
   {
@@ -94154,7 +94178,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 291
+      "cdmw/services/mesh_replacement_materials.py": 295
     }
   },
   {
@@ -94162,7 +94186,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 253
+      "cdmw/services/mesh_replacement_materials.py": 257
     }
   },
   {
@@ -94170,7 +94194,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 219
+      "cdmw/services/mesh_replacement_materials.py": 223
     }
   },
   {
@@ -94186,7 +94210,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 238
+      "cdmw/services/mesh_replacement_materials.py": 242
     }
   },
   {
@@ -94587,7 +94611,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement companion: {file.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 436
+      "cdmw/services/mesh_replacement_output.py": 466
     }
   },
   {
@@ -94707,7 +94731,7 @@ MESSAGE_REFERENCE = [
     "message": "Jiggle editing is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 360
+      "cdmw/services/mesh_replacement_output.py": 390
     }
   },
   {
@@ -95011,7 +95035,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 242
+      "cdmw/services/mesh_replacement_materials.py": 246
     }
   },
   {
@@ -95051,7 +95075,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 263
+      "cdmw/services/mesh_replacement_materials.py": 267
     }
   },
   {
@@ -95788,7 +95812,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material has no target mapping: {lod_part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 416
+      "cdmw/services/mesh_replacement_output.py": 446
     }
   },
   {
@@ -95796,7 +95820,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 410
+      "cdmw/services/mesh_replacement_output.py": 440
     }
   },
   {
@@ -95804,7 +95828,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD writer changed the required section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 428
+      "cdmw/services/mesh_replacement_output.py": 458
     }
   },
   {
@@ -96174,7 +96198,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt replacement is invalid: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 384
+      "cdmw/services/mesh_replacement_output.py": 414
     }
   },
   {
@@ -96278,7 +96302,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement changed an authored vertex-channel part's mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 328
+      "cdmw/services/mesh_replacement_output.py": 358
     }
   },
   {
@@ -96366,7 +96390,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement mappings do not cover the original target sections.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 180
+      "cdmw/services/mesh_replacement_output.py": 208
     }
   },
   {
@@ -96470,7 +96494,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement writer changed the required target section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 381
+      "cdmw/services/mesh_replacement_output.py": 411
     }
   },
   {
@@ -96478,7 +96502,7 @@ MESSAGE_REFERENCE = [
     "message": "Required companion {paired.path} could not be rebuilt: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 430
+      "cdmw/services/mesh_replacement_output.py": 460
     }
   },
   {
@@ -96542,7 +96566,7 @@ MESSAGE_REFERENCE = [
     "message": "Reversible island exclusion requires an original PAC mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 370
+      "cdmw/services/mesh_replacement_output.py": 400
     }
   },
   {
@@ -97211,7 +97235,7 @@ MESSAGE_REFERENCE = [
     "message": "This session has no replacement output state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 171
+      "cdmw/services/mesh_replacement_output.py": 199
     }
   },
   {
@@ -107703,7 +107727,7 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/ui/archive_browser/mesh_import_export.py": {
-    "dialog": 1,
+    "dialog": 3,
     "display": 4
   },
   "cdmw/ui/archive_browser/mesh_import_preflight_controller.py": {
@@ -108779,7 +108803,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/controller_model_mixin.py": {
     "failure": 1,
     "raise": 11,
-    "signal": 4
+    "signal": 5
   },
   "cdmw/ui/new_item/controller_preview_mixin.py": {
     "raise": 3
@@ -108961,10 +108985,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/tab.py": {
     "diagnostic_text": 1,
     "dialog": 2,
-    "display": 5,
+    "display": 6,
     "failure": 4,
     "raise": 1,
-    "report": 3
+    "report": 4
   },
   "cdmw/ui/new_item/template_preview_cache.py": {
     "raise": 2

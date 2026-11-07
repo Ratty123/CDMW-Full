@@ -140,6 +140,30 @@ class _TabOutputMixin:
         self.assertIsNone(tab.controller.continued_package_path)
         self.assertTrue(output.continued_package_button.isHidden())
 
+    def test_a_continue_whose_template_fails_is_not_restored_later(self) -> None:
+        # The pending launch used to wait for that template, so choosing it again
+        # for another item, at any later time, restored the package over it.
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.new_item.continue_launch import ItemPackageLaunch
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        saved = replace(tab.controller.draft, internal_name="Continued_OneHandSword")
+        lane = tab.controller._template_selection_lane
+        with patch.object(lane, "request", lambda *_args: lane.failed.emit("The template could not be read.")):
+            tab.continue_item_package(ItemPackageLaunch(self.root / "Continued.cdmw", "c" * 32, "Continued", saved,
+                                                        from_saved_draft=True))
+        for _ in range(5):
+            QApplication.processEvents()
+        self.assertIn("Continued could not be continued: The template could not be read.", tab.log.toPlainText())
+        tab.identity_panel.internal_name.setText("Another_Item")
+        tab.prefill_template(TEMPLATE)
+        for _ in range(5):
+            QApplication.processEvents()
+        self.assertIsNone(tab.controller.continued_package_path)
+        self.assertEqual(tab.controller.draft.internal_name, "Another_Item")
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 

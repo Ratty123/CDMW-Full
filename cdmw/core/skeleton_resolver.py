@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import ArchiveEntry
+from cdmw.domain.archives.filters import archive_entry_load_priority
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_parser import pac_bone_palette_candidates
 from cdmw.modding.skeleton_parser import Skeleton, iter_pab_candidate_basenames, parse_pab
@@ -939,7 +940,7 @@ def resolve_skeleton_for_model(
     attempted: list[str] = []
     seen_attempted: set[str] = set()
     candidates: list[ArchiveEntry] = []
-    seen_candidates: set[str] = set()
+    seen_candidates: dict[str, int] = {}
 
     def remember(raw_path: object) -> None:
         normalized = _normalize_virtual_path(raw_path)
@@ -949,10 +950,16 @@ def resolve_skeleton_for_model(
 
     def add_candidate(entry: ArchiveEntry) -> None:
         normalized = _normalize_virtual_path(getattr(entry, "path", ""))
-        if not normalized or normalized in seen_candidates or not normalized.endswith(".pab"):
+        if not normalized or not normalized.endswith(".pab"):
             return
-        seen_candidates.add(normalized)
-        candidates.append(entry)
+        index = seen_candidates.get(normalized)
+        if index is None:
+            seen_candidates[normalized] = len(candidates)
+            candidates.append(entry)
+        elif archive_entry_load_priority(entry) > archive_entry_load_priority(candidates[index]):
+            # A DLC or mod copy shares the base file's path and replaces it in game;
+            # a basename group can list the base copy first.
+            candidates[index] = entry
 
     remember(expected_path)
     if archive_entries_by_normalized_path is not None:

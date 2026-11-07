@@ -69,8 +69,15 @@ def archive_result_dependency_context(result: MeshArchiveResult) -> ArchiveWorkf
 def archive_workflow_dependency_context(
     owner: object,
     entry: ArchiveEntry,
+    *,
+    owned: bool = False,
 ) -> ArchiveWorkflowDependencyContext:
-    """Return legacy indexes or the bounded prepared v2 snapshot for ``entry``."""
+    """Return legacy indexes or the bounded prepared v2 snapshot for ``entry``.
+
+    A prepared set lists the files its model's preview needed, so another model can
+    appear in it as a candidate. ``owned`` asks for the set prepared for ``entry``
+    itself, as an export of that model needs its own sidecar, textures and rig.
+    """
 
     if not isinstance(entry, ArchiveEntry):
         raise ArchiveWorkflowDependenciesUnavailable("The archive workflow has no valid selected entry.")
@@ -82,7 +89,9 @@ def archive_workflow_dependency_context(
     if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
         resolver = getattr(remote_bridge, "prepared_dependencies_for", None)
         snapshot = resolver(entry) if callable(resolver) else None
-        if not isinstance(snapshot, ArchivePreviewDependencySet):
+        if not isinstance(snapshot, ArchivePreviewDependencySet) or (
+            owned and (not snapshot.entries or snapshot.selected_entry.identity != entry.identity)
+        ):
             raise ArchiveWorkflowDependenciesUnavailable(
                 "The archive worker is still preparing the selected file and its dependencies."
             )

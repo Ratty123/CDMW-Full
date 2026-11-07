@@ -4301,7 +4301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -4511,7 +4511,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 444,
+          "line": 445,
           "sink": "ValueError"
         }
       ]
@@ -5376,7 +5376,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 274,
+          "line": 275,
           "sink": "ValueError"
         }
       ]
@@ -11261,7 +11261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1089,
+          "line": 1109,
           "sink": "set_part_editor_state"
         },
         {
@@ -11296,7 +11296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1126,
+          "line": 1146,
           "sink": "failed"
         }
       ]
@@ -11871,7 +11871,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 780,
+          "line": 783,
           "sink": "addButton"
         },
         {
@@ -12281,7 +12281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 778,
+          "line": 781,
           "sink": "setWindowTitle"
         }
       ]
@@ -15286,7 +15286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 428,
+          "line": 431,
           "sink": "_append_log"
         }
       ]
@@ -18201,7 +18201,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 601,
+          "line": 604,
           "sink": "QPushButton"
         },
         {
@@ -19141,7 +19141,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 613,
+          "line": 616,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 630,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 635,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 649,
           "sink": "information"
         }
       ]
@@ -19161,7 +19176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_controller.py",
-          "line": 167,
+          "line": 320,
           "sink": "start"
         }
       ]
@@ -21646,7 +21661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1140,
+          "line": 1160,
           "sink": "set_part_editor_state"
         }
       ]
@@ -23021,7 +23036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 735,
+          "line": 736,
           "sink": "log"
         }
       ]
@@ -25381,7 +25396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 688,
+          "line": 735,
           "sink": "set_status_message"
         }
       ]
@@ -25611,7 +25626,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 403,
+          "line": 404,
           "sink": "ValueError"
         }
       ]
@@ -25621,7 +25636,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 426,
+          "line": 427,
           "sink": "ValueError"
         }
       ]
@@ -28206,7 +28221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 202,
+          "line": 204,
           "sink": "QPushButton"
         }
       ]
@@ -28566,7 +28581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 602,
+          "line": 603,
           "sink": "progress"
         }
       ]
@@ -29296,7 +29311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1159,
+          "line": 1179,
           "sink": "set_part_editor_state"
         }
       ]
@@ -30356,7 +30371,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 442,
+          "line": 443,
           "sink": "ValueError"
         }
       ]
@@ -30636,7 +30651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 464,
+          "line": 465,
           "sink": "emit"
         }
       ]
@@ -30646,7 +30661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 556,
+          "line": 557,
           "sink": "emit"
         }
       ]
@@ -30656,7 +30671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 329,
+          "line": 330,
           "sink": "emit"
         }
       ]
@@ -34611,7 +34626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 353,
+          "line": 383,
           "sink": "ValueError"
         }
       ]
@@ -36336,7 +36351,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 402,
+          "line": 403,
           "sink": "report"
         }
       ]
@@ -37361,7 +37376,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 603,
+          "line": 606,
           "sink": "QPushButton"
         },
         {
@@ -37526,7 +37541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1032,
+          "line": 1052,
           "sink": "_append_log"
         }
       ]
@@ -37536,7 +37551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1029,
+          "line": 1049,
           "sink": "_append_log"
         }
       ]
@@ -39906,7 +39921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1001,
+          "line": 1004,
           "sink": "_append_log"
         }
       ]
@@ -39926,7 +39941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 234,
+          "line": 237,
           "sink": "_append_log"
         }
       ]
@@ -39936,7 +39951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 192,
+          "line": 194,
           "sink": "QLabel"
         }
       ]
@@ -45601,7 +45616,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 781,
+          "line": 784,
           "sink": "addButton"
         },
         {
@@ -45916,7 +45931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -45926,7 +45941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -47671,7 +47686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 438,
+          "line": 468,
           "sink": "ValueError"
         }
       ]
@@ -47751,7 +47766,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 382,
+          "line": 383,
           "sink": "ValueError"
         }
       ]
@@ -50166,7 +50181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 288,
+          "line": 291,
           "sink": "_append_log"
         }
       ]
@@ -51596,7 +51611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1219,
+          "line": 1239,
           "sink": "warning"
         }
       ]
@@ -52871,7 +52886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 308,
+          "line": 338,
           "sink": "ValueError"
         }
       ]
@@ -54041,7 +54056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 676,
+          "line": 723,
           "sink": "question"
         }
       ]
@@ -54356,7 +54371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 732,
+          "line": 779,
           "sink": "getSaveFileName"
         }
       ]
@@ -54496,7 +54511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 643,
+          "line": 690,
           "sink": "_prompt_archive_mesh_related_file_selection"
         }
       ]
@@ -54671,7 +54686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 632,
+          "line": 679,
           "sink": "getExistingDirectory"
         }
       ]
@@ -55391,7 +55406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 643,
+          "line": 690,
           "sink": "_prompt_archive_mesh_related_file_selection"
         }
       ]
@@ -55611,7 +55626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 748,
+          "line": 795,
           "sink": "set_status_message"
         }
       ]
@@ -55716,7 +55731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 701,
+          "line": 748,
           "sink": "set_status_message"
         }
       ]
@@ -55876,7 +55891,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_controller.py",
-          "line": 163,
+          "line": 316,
           "sink": "emit"
         }
       ]
@@ -56106,7 +56121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 562,
+          "line": 563,
           "sink": "progress"
         }
       ]
@@ -56141,7 +56156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 703,
+          "line": 750,
           "sink": "_run_utility_task"
         }
       ]
@@ -63711,7 +63726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 355,
+          "line": 358,
           "sink": "tr"
         }
       ]
@@ -65551,7 +65566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 346,
+          "line": 376,
           "sink": "ValueError"
         }
       ]
@@ -68456,7 +68471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 657,
+          "line": 658,
           "sink": "log"
         }
       ]
@@ -71186,7 +71201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1086,
+          "line": 1106,
           "sink": "set_part_editor_state"
         }
       ]
@@ -71206,7 +71221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 716,
+          "line": 717,
           "sink": "emit"
         }
       ]
@@ -72136,7 +72151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1402,
+          "line": 1433,
           "sink": "ValueError"
         }
       ]
@@ -74626,7 +74641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 355,
+          "line": 356,
           "sink": "report"
         }
       ]
@@ -74751,7 +74766,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1225,
+          "line": 1245,
           "sink": "warning"
         }
       ]
@@ -74771,7 +74786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1229,
+          "line": 1249,
           "sink": "question"
         }
       ]
@@ -74846,7 +74861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1229,
+          "line": 1249,
           "sink": "question"
         }
       ]
@@ -75896,7 +75911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 436,
+          "line": 466,
           "sink": "ValueError"
         }
       ]
@@ -78106,7 +78121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 360,
+          "line": 390,
           "sink": "ValueError"
         }
       ]
@@ -81291,7 +81306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 402,
+          "line": 405,
           "sink": "setText"
         }
       ]
@@ -83776,12 +83791,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 710,
+          "line": 711,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 712,
+          "line": 713,
           "sink": "ValueError"
         },
         {
@@ -87266,7 +87281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 893,
+          "line": 898,
           "sink": "set_status_message"
         }
       ]
@@ -87326,7 +87341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 891,
+          "line": 896,
           "sink": "set_status_message"
         }
       ]
@@ -87381,7 +87396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1115,
+          "line": 1135,
           "sink": "set_part_editor_state"
         }
       ]
@@ -87561,12 +87576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 895,
+          "line": 896,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 896,
+          "line": 897,
           "sink": "emit"
         }
       ]
@@ -87656,12 +87671,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1108,
+          "line": 1128,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1122,
+          "line": 1142,
           "sink": "set_part_editor_state"
         }
       ]
@@ -87826,32 +87841,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 782,
+          "line": 787,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 802,
+          "line": 807,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 809,
+          "line": 814,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 829,
+          "line": 834,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 838,
+          "line": 843,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 852,
+          "line": 857,
           "sink": "set_status_message"
         }
       ]
@@ -87911,12 +87926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1078,
+          "line": 1098,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1111,
+          "line": 1131,
           "sink": "set_part_editor_state"
         }
       ]
@@ -88461,7 +88476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 895,
+          "line": 900,
           "sink": "set_status_message"
         }
       ]
@@ -88616,7 +88631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 696,
+          "line": 743,
           "sink": "information"
         }
       ]
@@ -88861,7 +88876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 673,
+          "line": 720,
           "sink": "set_status_message"
         }
       ]
@@ -88871,7 +88886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 628,
+          "line": 675,
           "sink": "set_status_message"
         }
       ]
@@ -91786,7 +91801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 744,
+          "line": 791,
           "sink": "warning"
         }
       ]
@@ -92106,7 +92121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 745,
+          "line": 792,
           "sink": "set_status_message"
         }
       ]
@@ -92156,7 +92171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 384,
+          "line": 385,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -92346,7 +92361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 417,
+          "line": 418,
           "sink": "progress"
         }
       ]
@@ -92396,7 +92411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -92406,7 +92421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 852,
+          "line": 855,
           "sink": "note"
         }
       ]
@@ -92426,7 +92441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 850,
+          "line": 853,
           "sink": "note"
         }
       ]
@@ -92436,7 +92451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 848,
+          "line": 851,
           "sink": "note"
         }
       ]
@@ -92446,7 +92461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -92456,7 +92471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -95116,7 +95131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 841,
+          "line": 844,
           "sink": "note"
         }
       ]
@@ -95126,7 +95141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -95136,7 +95151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 839,
+          "line": 842,
           "sink": "note"
         }
       ]
@@ -95146,7 +95161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 839,
+          "line": 842,
           "sink": "note"
         }
       ]
@@ -96166,7 +96181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 469,
+          "line": 472,
           "sink": "_append_log"
         }
       ]
@@ -96331,42 +96346,42 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 471,
+          "line": 472,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 560,
+          "line": 561,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 721,
+          "line": 722,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 727,
+          "line": 728,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 729,
+          "line": 730,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 738,
+          "line": 739,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 745,
+          "line": 746,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 807,
+          "line": 808,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -96416,7 +96431,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 213,
+          "line": 234,
           "sink": "raise_if_cancelled"
         },
         {
@@ -96426,7 +96441,7 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 360,
+          "line": 361,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -97226,7 +97241,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 338,
+          "line": 339,
           "sink": "ValueError"
         }
       ]
@@ -97681,7 +97696,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 265,
+          "line": 266,
           "sink": "ValueError"
         }
       ]
@@ -97911,7 +97926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 692,
+          "line": 695,
           "sink": "ValueError"
         }
       ]
@@ -99281,7 +99296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 721,
+          "line": 768,
           "sink": "set_status_message"
         }
       ]
@@ -101051,7 +101066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 676,
+          "line": 723,
           "sink": "question"
         }
       ]
@@ -103456,7 +103471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 133,
+          "line": 142,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -105701,17 +105716,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 809,
+          "line": 810,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1151,
+          "line": 1171,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1155,
+          "line": 1175,
           "sink": "set_part_editor_state"
         }
       ]
@@ -105991,7 +106006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 773,
+          "line": 776,
           "sink": "_append_log"
         }
       ]
@@ -106321,7 +106336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 771,
+          "line": 776,
           "sink": "set_status_message"
         }
       ]
@@ -107911,7 +107926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -107921,7 +107936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -108181,7 +108196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1219,
+          "line": 1239,
           "sink": "warning"
         }
       ]
@@ -109611,7 +109626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 840,
+          "line": 845,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -110366,7 +110381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 416,
+          "line": 446,
           "sink": "ValueError"
         }
       ]
@@ -110376,7 +110391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 410,
+          "line": 440,
           "sink": "ValueError"
         }
       ]
@@ -110386,7 +110401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 428,
+          "line": 458,
           "sink": "ValueError"
         }
       ]
@@ -112576,7 +112591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 861,
+          "line": 864,
           "sink": "note"
         }
       ]
@@ -112586,7 +112601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 861,
+          "line": 864,
           "sink": "note"
         }
       ]
@@ -113821,7 +113836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 761,
+          "line": 762,
           "sink": "emit"
         }
       ]
@@ -114211,7 +114226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 874,
+          "line": 877,
           "sink": "note"
         }
       ]
@@ -114221,7 +114236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 872,
+          "line": 875,
           "sink": "note"
         }
       ]
@@ -114476,7 +114491,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1064,
+          "line": 1085,
           "sink": "log"
         }
       ]
@@ -116146,12 +116161,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 780,
+          "line": 781,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1120,
+          "line": 1140,
           "sink": "set_part_editor_state"
         }
       ]
@@ -116346,7 +116361,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 675,
+          "line": 676,
           "sink": "on_log"
         }
       ]
@@ -116456,7 +116471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_controller.py",
-          "line": 133,
+          "line": 286,
           "sink": "emit"
         }
       ]
@@ -116716,7 +116731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1395,
+          "line": 1426,
           "sink": "on_log"
         }
       ]
@@ -117006,7 +117021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 828,
+          "line": 829,
           "sink": "log"
         },
         {
@@ -117016,7 +117031,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1176,
+          "line": 1196,
           "sink": "set_part_editor_state"
         }
       ]
@@ -117026,7 +117041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 446,
+          "line": 449,
           "sink": "_append_log"
         }
       ]
@@ -117076,7 +117091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 400,
+          "line": 401,
           "sink": "report"
         }
       ]
@@ -117193,6 +117208,11 @@
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
           "line": 153,
           "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 671,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -117296,7 +117316,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1083,
+          "line": 1104,
           "sink": "add"
         }
       ]
@@ -117661,7 +117681,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 831,
+          "line": 836,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -120886,7 +120906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 292,
+          "line": 295,
           "sink": "_append_log"
         }
       ]
@@ -123441,7 +123461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 579,
+          "line": 580,
           "sink": "emit"
         }
       ]
@@ -123576,7 +123596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 199,
+          "line": 201,
           "sink": "QPushButton"
         }
       ]
@@ -124071,7 +124091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 382,
+          "line": 385,
           "sink": "emit"
         }
       ]
@@ -124446,7 +124466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 395,
+          "line": 398,
           "sink": "append_log"
         }
       ]
@@ -124607,6 +124627,16 @@
       ]
     },
     {
+      "key": "Reading the selected rows from the archive list...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 642,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Reading the selected texture package...",
       "origins": [
         {
@@ -124661,7 +124691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 400,
+          "line": 403,
           "sink": "setText"
         }
       ]
@@ -124671,7 +124701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 470,
+          "line": 471,
           "sink": "progress"
         }
       ]
@@ -124756,7 +124786,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 360,
+          "line": 361,
           "sink": "report"
         }
       ]
@@ -125791,7 +125821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 819,
+          "line": 824,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -125846,7 +125876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 817,
+          "line": 822,
           "sink": "set_status_message"
         }
       ]
@@ -125886,7 +125916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 384,
+          "line": 414,
           "sink": "ValueError"
         }
       ]
@@ -130996,7 +131026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 328,
+          "line": 358,
           "sink": "ValueError"
         }
       ]
@@ -131271,7 +131301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 180,
+          "line": 208,
           "sink": "ValueError"
         }
       ]
@@ -131501,7 +131531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 381,
+          "line": 411,
           "sink": "ValueError"
         }
       ]
@@ -131956,7 +131986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 430,
+          "line": 460,
           "sink": "ValueError"
         }
       ]
@@ -136196,7 +136226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 370,
+          "line": 400,
           "sink": "ValueError"
         }
       ]
@@ -136896,7 +136926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 566,
+          "line": 567,
           "sink": "emit"
         }
       ]
@@ -138191,7 +138221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1400,
+          "line": 1431,
           "sink": "ValueError"
         }
       ]
@@ -142826,7 +142856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 613,
+          "line": 649,
           "sink": "information"
         }
       ]
@@ -144211,7 +144241,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 776,
+          "line": 781,
           "sink": "set_status_message"
         }
       ]
@@ -144276,7 +144306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 900,
+          "line": 905,
           "sink": "set_status_message"
         }
       ]
@@ -145367,6 +145397,16 @@
       ]
     },
     {
+      "key": "Select at most {value_0} rows for a batch export. Narrow the filter to the models you want.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 616,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "Select between one and 128 existing texture replacements.",
       "origins": [],
       "manual": true
@@ -146341,7 +146381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 643,
+          "line": 690,
           "sink": "_prompt_archive_mesh_related_file_selection"
         }
       ]
@@ -147191,7 +147231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 285,
+          "line": 288,
           "sink": "_append_log"
         }
       ]
@@ -149741,7 +149781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 870,
+          "line": 873,
           "sink": "note"
         }
       ]
@@ -149751,7 +149791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 868,
+          "line": 871,
           "sink": "note"
         }
       ]
@@ -152651,7 +152691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 510,
+          "line": 511,
           "sink": "emit"
         }
       ]
@@ -152661,7 +152701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 508,
+          "line": 509,
           "sink": "emit"
         }
       ]
@@ -152801,12 +152841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 639,
+          "line": 640,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 640,
+          "line": 641,
           "sink": "emit"
         }
       ]
@@ -157426,7 +157466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 782,
+          "line": 785,
           "sink": "addButton"
         }
       ]
@@ -157451,7 +157491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 770,
+          "line": 773,
           "sink": "setText"
         }
       ]
@@ -157471,7 +157511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 959,
+          "line": 962,
           "sink": "setAccessibleText"
         }
       ]
@@ -160536,7 +160576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 836,
+          "line": 839,
           "sink": "note"
         }
       ]
@@ -160561,12 +160601,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 836,
+          "line": 839,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -162496,7 +162536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 779,
+          "line": 782,
           "sink": "setText"
         }
       ]
@@ -162581,22 +162621,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 820,
+          "line": 821,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 822,
+          "line": 823,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 827,
+          "line": 828,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 858,
+          "line": 859,
           "sink": "RuntimeError"
         },
         {
@@ -162976,7 +163016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 90,
+          "line": 99,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -163022,6 +163062,16 @@
       ]
     },
     {
+      "key": "The archive list changed while the selected rows were read. Select the models again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 630,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "The archive list changed. Refresh and prepare cleanup again.",
       "origins": [
         {
@@ -163036,7 +163086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 391,
+          "line": 394,
           "sink": "_snapshot_failed"
         }
       ]
@@ -163116,7 +163166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1225,
+          "line": 1245,
           "sink": "warning"
         },
         {
@@ -163271,7 +163321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 102,
+          "line": 111,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -163301,7 +163351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 86,
+          "line": 95,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -163416,7 +163466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 129,
+          "line": 138,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -163426,7 +163476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 76,
+          "line": 83,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -163466,12 +163516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 434,
+          "line": 437,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 440,
+          "line": 443,
           "sink": "setText"
         }
       ]
@@ -163479,6 +163529,11 @@
     {
       "key": "The archives could not be read: {value_0}",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 635,
+          "sink": "warning"
+        },
         {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 392,
@@ -165231,7 +165286,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 200,
+          "line": 201,
           "sink": "ValueError"
         }
       ]
@@ -165241,7 +165296,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 203,
+          "line": 204,
           "sink": "ValueError"
         }
       ]
@@ -165261,7 +165316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 525,
+          "line": 526,
           "sink": "emit"
         }
       ]
@@ -165606,7 +165661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 154,
+          "line": 163,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -165616,7 +165671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 144,
+          "line": 153,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -165791,12 +165846,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 451,
+          "line": 452,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 452,
+          "line": 453,
           "sink": "emit"
         }
       ]
@@ -165826,7 +165881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_batch_export_controller.py",
-          "line": 152,
+          "line": 305,
           "sink": "_preparation_failed"
         }
       ]
@@ -165836,7 +165891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 425,
+          "line": 426,
           "sink": "emit"
         }
       ]
@@ -166476,7 +166531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_continue_mixin.py",
-          "line": 122,
+          "line": 124,
           "sink": "log"
         }
       ]
@@ -166511,17 +166566,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 765,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 766,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 767,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 768,
           "sink": "emit"
         }
       ]
@@ -166621,7 +166676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workflow_dependencies.py",
-          "line": 98,
+          "line": 107,
           "sink": "ArchiveWorkflowDependenciesUnavailable"
         }
       ]
@@ -167246,7 +167301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 569,
+          "line": 570,
           "sink": "emit"
         }
       ]
@@ -167256,7 +167311,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 170,
+          "line": 171,
           "sink": "ValueError"
         }
       ]
@@ -167706,7 +167761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 405,
+          "line": 406,
           "sink": "ValueError"
         }
       ]
@@ -167716,12 +167771,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 185,
+          "line": 186,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 191,
+          "line": 192,
           "sink": "ValueError"
         }
       ]
@@ -168486,7 +168541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 482,
+          "line": 483,
           "sink": "emit"
         }
       ]
@@ -168681,7 +168736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 674,
+          "line": 675,
           "sink": "emit"
         }
       ]
@@ -168691,7 +168746,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 156,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -171121,7 +171176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 171,
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -173651,7 +173706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 439,
+          "line": 442,
           "sink": "setText"
         },
         {
@@ -173741,7 +173796,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 127,
+          "line": 128,
           "sink": "ValueError"
         }
       ]
@@ -175566,7 +175621,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 437,
+          "line": 438,
           "sink": "ValueError"
         }
       ]
@@ -179491,7 +179546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1183,
+          "line": 1203,
           "sink": "set_part_editor_state"
         }
       ]
@@ -180171,7 +180226,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 379,
+          "line": 380,
           "sink": "add"
         }
       ]
@@ -180181,7 +180236,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 347,
+          "line": 348,
           "sink": "add"
         }
       ]
@@ -180191,7 +180246,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 394,
+          "line": 395,
           "sink": "add"
         }
       ]
@@ -180201,7 +180256,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 407,
+          "line": 408,
           "sink": "add"
         }
       ]
@@ -180221,7 +180276,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 361,
+          "line": 362,
           "sink": "add"
         }
       ]
@@ -181191,7 +181246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 866,
+          "line": 869,
           "sink": "note"
         }
       ]
@@ -181201,7 +181256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 866,
+          "line": 869,
           "sink": "note"
         }
       ]
@@ -181566,7 +181621,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1167,
+          "line": 1187,
           "sink": "set_part_editor_state"
         }
       ]
@@ -182266,7 +182321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 732,
+          "line": 779,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -182281,7 +182336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 732,
+          "line": 779,
           "sink": "getSaveFileName"
         }
       ]
@@ -184401,7 +184456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 580,
+          "line": 583,
           "sink": "QGroupBox"
         }
       ]
@@ -186936,7 +186991,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 275,
+          "line": 278,
           "sink": "appendPlainText"
         },
         {
@@ -187671,7 +187726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 586,
+          "line": 589,
           "sink": "tinted"
         }
       ]
@@ -192461,7 +192516,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1129,
+          "line": 1149,
           "sink": "open_mesh_session"
         },
         {
@@ -195461,7 +195516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 935,
+          "line": 956,
           "sink": "add"
         }
       ]
@@ -200171,7 +200226,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 715,
+          "line": 762,
           "sink": "_start_archive_mesh_export"
         }
       ]
@@ -205231,7 +205286,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 896,
+          "line": 917,
           "sink": "add"
         }
       ]
@@ -206846,7 +206901,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 884,
+          "line": 905,
           "sink": "add"
         }
       ]
@@ -209501,7 +209556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 696,
+          "line": 743,
           "sink": "information"
         }
       ]
@@ -212016,7 +212071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1020,
+          "line": 1030,
+          "sink": "_append_log"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1040,
           "sink": "_append_log"
         }
       ]
@@ -212531,7 +212591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1098,
+          "line": 1129,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -212541,7 +212601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1094,
+          "line": 1125,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -212706,7 +212766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1104,
+          "line": 1135,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]
@@ -213711,7 +213771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 819,
+          "line": 824,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -214086,7 +214146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 587,
+          "line": 590,
           "sink": "setToolTip"
         }
       ]
@@ -214271,7 +214331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 819,
+          "line": 824,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -214291,7 +214351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 844,
+          "line": 847,
           "sink": "note"
         }
       ]
@@ -215541,7 +215601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 577,
+          "line": 579,
           "sink": "python-return:perk_details"
         }
       ]
@@ -215606,12 +215666,12 @@
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 388,
+          "line": 389,
           "sink": "template_collision_copy"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 392,
+          "line": 393,
           "sink": "payload"
         }
       ]
@@ -216486,7 +216546,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 868,
+          "line": 889,
           "sink": "add"
         },
         {
@@ -217216,7 +217276,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 961,
           "sink": "setToolTip"
         }
       ]
@@ -217381,7 +217441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 323,
+          "line": 325,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -217391,7 +217451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 323,
+          "line": 325,
           "sink": "python-return:suggest_internal_name"
         }
       ]

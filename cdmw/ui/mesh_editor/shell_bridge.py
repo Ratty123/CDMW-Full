@@ -725,10 +725,15 @@ class MeshEditorShellBridgeMixin:
         current_preview_entry = (
             current_entry_getter() if callable(current_entry_getter) else entry
         )
+        # A right-click selects a row without previewing it, so the selection alone
+        # does not say whose preview is shown: the entry it was requested for does.
+        requested_entry = getattr(self.archive, "archive_preview_request_entry", None)
         preview_matches_entry = bool(
             isinstance(current_preview_entry, ArchiveEntry)
             and archive_entry_identity_key(current_preview_entry)
             == archive_entry_identity_key(entry)
+            and (not isinstance(requested_entry, ArchiveEntry)
+                 or archive_entry_identity_key(requested_entry) == archive_entry_identity_key(entry))
         )
         if not preview_matches_entry:
             material_preview_model = None

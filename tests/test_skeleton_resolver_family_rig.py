@@ -84,3 +84,21 @@ def test_creature_families_keep_their_tie_for_refit_to_settle(tied_rigs):
     selected, report, _reads = _resolve(CREATURE_HEAD, {CREATURE_NUDE: _nude("1_pc/1_phm/phm_01.pab")})
 
     assert selected is None and report.confidence == "ambiguous_palette"
+
+
+@pytest.mark.parametrize("dlc_first", [False, True])
+def test_a_dlc_copy_of_a_rig_wins_over_the_base_copy_it_shadows(dlc_first):
+    # dlc_01 ships its own copy of a base group folder, whose files replace the base
+    # files at the same path. Candidates were deduplicated by path in arrival order,
+    # and a basename group may list the base copy first.
+    def at(path, pamt, offset=0):
+        return ArchiveEntry(path, Path(pamt), Path(pamt).with_name("0.paz"), offset, 1, 1, 0, 0)
+
+    model = at("character/model/owned/body.pac", "game/0009/0.pamt")
+    base = at("character/model/owned/body.pab", "game/0009/0.pamt", 64)
+    dlc = at("character/model/owned/body.pab", "game/dlc/dlc_01/0009/0.pamt")
+    group = (dlc, base) if dlc_first else (base, dlc)
+    selected, report = skeleton_resolver.resolve_skeleton_for_model(
+        model, (), archive_entries_by_normalized_path={}, archive_entries_by_basename={"body.pab": group})
+    assert selected is dlc, report
+    assert len(report.candidates) == 1

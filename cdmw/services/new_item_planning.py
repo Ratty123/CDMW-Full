@@ -133,24 +133,45 @@ class ModelFiles:
     palette_extension: object = None
     #: bones the mesh's palette uses that are appended to its rig (SkeletonEditRecipe); the plan patches that PAB
     skeleton_edit: object = None
-    #: A finished model from an item package: the (translucency, surface settings, shader
-    #: controls) already written into its files, which planning never applies again.
+    #: A finished model from an item package: the appearance already written into its
+    #: files (see `_baked_key`), which planning never applies again.
     baked_appearance: object = None
 
 
-def baked_model_files(files: "ModelFiles", translucency, surface_settings, shader_controls) -> "ModelFiles":
+def _baked_key(translucency, surface_settings, shader_controls, glow, material_route) -> tuple:
+    """What a finished model has written in: translucency, surfaces, shader controls, glow, route.
+
+    Glow and the material route are written into the sidecar and textures by the
+    import's routing, so a package's finished model carries them as fixed as the rest.
+    """
+
+    parts = tuple(getattr(glow, "parts", ()) or ()) if glow is not None else ()
+    glow_key = None if not parts else (
+        tuple(str(part).casefold() for part in parts),
+        tuple(float(channel) for channel in tuple(glow.color)),
+        float(glow.intensity), glow.animation, glow.rgb,
+    )
+    route = str(getattr(material_route, "value", material_route) or "")
+    return translucency, tuple(surface_settings or ()), tuple(shader_controls or ()), glow_key, route
+
+
+def baked_model_files(files: "ModelFiles", translucency, surface_settings, shader_controls, *,
+                      glow, material_route) -> "ModelFiles":
     """`files` marked as already carrying these appearance settings."""
 
-    return replace(files, baked_appearance=(translucency, tuple(surface_settings or ()), tuple(shader_controls or ())))
+    return replace(files, baked_appearance=_baked_key(
+        translucency, surface_settings, shader_controls, glow, material_route))
 
 
-def require_baked_appearance(files: "ModelFiles", translucency, surface_settings, shader_controls, label: str) -> None:
+def require_baked_appearance(files: "ModelFiles", translucency, surface_settings, shader_controls, label: str, *,
+                             glow, material_route) -> None:
     """Refuse appearance edits a finished package model cannot take without its source."""
 
-    if files.baked_appearance != (translucency, tuple(surface_settings or ()), tuple(shader_controls or ())):
+    if files.baked_appearance != _baked_key(translucency, surface_settings, shader_controls, glow, material_route):
         raise NewItemPlanError(
-            f"{label} uses the finished model from the item package, which already has its translucency, "
-            "surface and shader settings written in. Import the source model again in step 3 to change them."
+            f"{label} uses the finished model from the item package, which already has its material route, "
+            "glow, translucency, surface and shader settings written in. Import the source model again in "
+            "step 3 to change them."
         )
 
 

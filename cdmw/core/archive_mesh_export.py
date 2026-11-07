@@ -471,6 +471,30 @@ def _merge_interchange_export_metadata(manifest_target_path, extra_payload):
                 extra_payload[key] = exporter_metadata[key]
 
 
+def _key_texture_sources_by_manifest_references(extra_payload, manifest_mesh, texture_references, output_dir):
+    """Name each portable texture copy by the texture string the manifest records too.
+
+    The writer keyed its ``textures/`` copies by the paths of the mesh it wrote, which
+    carries the resolved archive textures; the manifest is written from the source mesh
+    and records its own texture strings. The same part's same slot names the same
+    texture in both, so a return from a moved package finds the copy either way.
+    """
+    sources = dict(extra_payload.get("interchange_texture_sources") or {})
+    if not sources:
+        return
+    from cdmw.modding.mesh_interchange_materials import interchange_material
+
+    written = _fbx_export_texture_mesh(manifest_mesh, texture_references or (), output_dir)
+    for source_part, written_part in zip(manifest_mesh.submeshes, written.submeshes):
+        written_textures = interchange_material(written_part).get("textures", {})
+        for slot, info in interchange_material(source_part).get("textures", {}).items():
+            reference = str(info.get("path", "") or "")
+            portable = sources.get(str(written_textures.get(slot, {}).get("path", "") or ""))
+            if reference and portable:
+                sources.setdefault(reference, portable)
+    extra_payload["interchange_texture_sources"] = sources
+
+
 def _append_interchange_export_companions(output_dir, output_paths, extra_payload, on_log):
     texture_dir = output_dir / "textures"
     if texture_dir.is_dir():
@@ -594,6 +618,7 @@ def _write_archive_export_manifest(
                 "sidecar_hashes": sidecar_hashes,
             }
             _merge_interchange_export_metadata(manifest_target_path, extra_payload)
+            _key_texture_sources_by_manifest_references(extra_payload, manifest_mesh, model_texture_references, output_dir)
             if family_graph_payload:
                 extra_payload["family_graph"] = family_graph_payload
             if paired_lod_target:
@@ -722,10 +747,12 @@ def _export_archive_mesh_staged(
             )
             model_texture_references = tuple(getattr(preview, "model_texture_references", ()) or ())
             asset_family_graph = getattr(preview, "asset_family_graph", None)
-        if related_entries:
-            copied_paths = _export_related_archive_entries(related_entries, output_dir / "referenced_files", on_log=on_log, stop_event=stop_event)
-            output_paths.extend(copied_paths)
-            copied_related_count = len(copied_paths)
+    if related_entries:
+        # Before every writer: a material can only take a portable copy of a texture
+        # that is already in referenced_files/.
+        copied_paths = _export_related_archive_entries(related_entries, output_dir / "referenced_files", on_log=on_log, stop_event=stop_event)
+        output_paths.extend(copied_paths)
+        copied_related_count = len(copied_paths)
     if export_kind == "obj":
         if should_resolve_skeleton:
             from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance, UnresolvedPacBonePaletteError
@@ -742,7 +769,8 @@ def _export_archive_mesh_staged(
                 appearance_notes = ("OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",)
             obj_appearance_baked = export_mesh is not parsed_mesh
         manifest_mesh = export_mesh
-        output_paths.extend(Path(path) for path in export_obj(_fbx_export_texture_mesh(export_mesh, model_texture_references or (), output_dir), str(output_dir), basename))
+        output_paths[0:0] = [Path(path) for path in export_obj(
+            _fbx_export_texture_mesh(export_mesh, model_texture_references or (), output_dir), str(output_dir), basename)]
     else:
         if entry.extension == ".pac":
             if skeleton_entry is not None:
@@ -826,17 +854,6 @@ def _export_archive_mesh_staged(
                 output_paths[0:0] = [Path(path) for path in export_glb(export_mesh, output_dir, basename)]
             else:
                 output_paths.insert(0, Path(export_fbx(export_mesh, str(output_dir), basename)))
-
-    if related_entries and export_kind == "obj":
-        related_output_root = output_dir / "referenced_files"
-        copied_paths = _export_related_archive_entries(
-            related_entries,
-            related_output_root,
-            on_log=on_log,
-            stop_event=stop_event,
-        )
-        output_paths.extend(copied_paths)
-        copied_related_count = len(copied_paths)
 
     _write_archive_export_manifest(
         entry, parsed_mesh, manifest_mesh,
