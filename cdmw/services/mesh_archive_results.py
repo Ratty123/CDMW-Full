@@ -102,6 +102,9 @@ class MeshArchiveResult:
     assets: tuple[ArchiveEntry, ...]
     entries: tuple[ArchiveEntry, ...]
     material_contexts: tuple[MeshArchiveMaterialContext, ...] = ()
+    # The draft the result was made from (pass, name, project, game file), so a
+    # later open of the result continues it instead of starting a new lineage.
+    draft_lineage: Mapping[str, object] = field(default_factory=dict)
 
 
 def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, output_root, *,

@@ -682,7 +682,11 @@ class MeshEditorShellBridgeMixin:
                 if lease is not None:
                     lease.release()
                 return
-            self.mesh_editor_tab.open_archive_session(entry, archive_dependencies=edited_context, **material_arguments)
+            # The result continues the draft it was made from, as Start next edit pass does.
+            request_resolver = getattr(self.archive, "edited_result_draft_request", None)
+            draft_request = request_resolver(entry) if callable(request_resolver) else None
+            self.mesh_editor_tab.open_archive_session(entry, archive_dependencies=edited_context,
+                                                      draft_request=draft_request, **material_arguments)
             self._activate_tool_widget(self.mesh_editor_tab)
             self.set_status_message(f"Opening edited {entry.basename} with its source dependencies.")
             return

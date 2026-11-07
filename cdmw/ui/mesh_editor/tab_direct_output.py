@@ -381,7 +381,7 @@ class MeshEditorDirectOutputMixin:
             if continue_editing:
                 self._continue_from_prepared_archive_result(request_id, prepared)
                 return
-            self.archive_result_ready.emit(prepared)
+            self.archive_result_ready.emit(replace(prepared, draft_lineage=dict(self.mesh_editor_draft_lineage or {})))
             self.status_message_requested.emit("Edited meshes added to Archive Browser with their source dependencies.", False)
             return
         if result.kind == "overlay_prepare" and result.overlay_preparation is not None:

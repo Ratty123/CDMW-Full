@@ -401,6 +401,55 @@ def test_accepted_result_button_reaches_tab_handler(tmp_path, button_name):
         app.processEvents()
 
 
+def test_opening_an_edited_result_continues_the_draft_it_was_made_from(edited, tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    service, snapshot, entry, entries = edited
+    lineage = {"edit_pass": 3, "display_name": "Longcoat fit", "project_id": "p-1",
+               "game_source_sha256": "a" * 64}
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat))
+    tab.standalone_controller = SimpleNamespace(mesh_service=service, active_session_id=snapshot.session_id)
+    tab.mesh_editor_draft_lineage = dict(lineage)
+    added = []
+    tab.archive_result_ready.connect(added.append)
+    result = _prepare(edited, tmp_path / "results")
+    try:
+        tab._handle_mesh_direct_output_completed(
+            tab.standalone_output_request_id,
+            MeshDirectOutputResult(kind="archive_result", output_path=result.root, archive_result=result))
+        assert len(added) == 1
+    finally:
+        tab.standalone_controller = None
+        tab.deleteLater()
+        app.processEvents()
+
+    class Browser(ArchiveEditedResultsMixin, QWidget):
+        pass
+    browser = Browser()
+    browser.shell = SimpleNamespace(_activate_tool_widget=lambda widget: None)
+    browser.archive = browser
+    browser._build_archive_edited_results()
+    opened = []
+    class Shell(MeshEditorShellBridgeMixin):
+        def _prepare_mesh_editor_archive_launch(self, entry):
+            return True
+        def _activate_tool_widget(self, tab):
+            pass
+        def set_status_message(self, *args, **kwargs):
+            pass
+    shell = Shell()
+    shell.archive = browser
+    shell.mesh_editor_tab = SimpleNamespace(open_archive_session=lambda entry, **kw: opened.append((entry, kw)))
+    try:
+        browser.add_mesh_editor_result(added[0])
+        shell._launch_archive_mesh_editor_for_entry(added[0].assets[0])
+        request = opened[0][1]["draft_request"]
+        assert (request.edit_pass, request.display_name, request.project_id, request.game_source_sha256) == (
+            4, "Longcoat fit", "p-1", "a" * 64)
+    finally:
+        browser.deleteLater()
+        app.processEvents()
+
+
 @pytest.mark.parametrize("with_materials", [False, True])
 def test_browser_results_keep_original_catalogue_and_open_with_explicit_context(edited, tmp_path, with_materials):
     app = QApplication.instance() or QApplication([])
@@ -473,7 +522,8 @@ def test_browser_results_keep_original_catalogue_and_open_with_explicit_context(
                 shell._launch_archive_mesh_editor_for_entry(context.selected_entry)
             opened[-1][1]["material_package_lease"].release()
         else:
-            assert opened == [(context.selected_entry, {"archive_dependencies": context})]
+            # A result made outside a saved draft starts a new one when opened.
+            assert opened == [(context.selected_entry, {"archive_dependencies": context, "draft_request": None})]
     finally:
         browser.archive_edited_results_group.deleteLater()
         browser.deleteLater()
