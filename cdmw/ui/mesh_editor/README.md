@@ -54,10 +54,18 @@ count still differs is refused by name (`mesh_interchange_identity.py`).
 For GLB or separate-file glTF returns, set **Use Vertex Color > Active** and
 enable **Include All Bone Influences**. Select the model meshes and armature,
 then export selected objects only; exclude the rig's bone-display shapes. Disable
-modifiers that change topology. Keep the matching companion when switching
-formats: it recovers omitted UV sets, texture bindings and protected channels,
+modifiers that change topology. A mesh saved back in another format under the
+export's name (`edited.fbx` beside `edited.glb.meta.json`) uses that export's
+companion; when exports of one name in several formats lie beside it, nothing is
+guessed and the return asks you to rename the right companion to
+`<file>.meta.json` (`roundtrip_companion_path` in `mesh_obj_importer.py`). The
+companion recovers omitted UV sets, texture bindings and protected channels,
 and restores static OBJ geometry to the original local coordinates. Imported
-UVs, existing texture bindings and material values retain their edits.
+UVs, existing texture bindings and material values retain their edits. Vertex
+IDs travel only in the exported format (GLB's attribute, FBX's UV layer), so a
+GLB or FBX return of another format's export proves identity from unchanged
+positions alone and is refused, naming both formats, once vertices moved.
+Return moved vertices in the format they were exported in.
 
 FBX import uses the Blender executable selected on Create New Item's Model step.
 Conversion runs in the background, supports cancellation and publishes only a

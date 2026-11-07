@@ -43,11 +43,37 @@ def default_session_draft_request(
     )
 
 
-def next_pass_draft_request(lineage: Mapping[str, object], prepared: object) -> MeshDraftRequest:
+def edited_result_draft_request(prepared: object, entry: ArchiveEntry) -> MeshDraftRequest | None:
+    """Opening an edited result later continues its draft, as Start next edit pass does.
+
+    Only the result's own mesh carries the draft's name and game file. Another
+    Refit source in the result has a game file of its own, so it keeps only the
+    pass count. None when the result records no draft.
+    """
+
+    lineage = dict(getattr(prepared, "draft_lineage", None) or {})
+    assets = tuple(getattr(prepared, "assets", ()) or ())
+    if not lineage or not assets:
+        return None
+    if entry.identity == assets[0].identity:
+        return next_pass_draft_request(lineage, prepared)
+    return MeshDraftRequest(
+        edit_pass=max(1, int(lineage.get("edit_pass") or 1)) + 1,
+        baseline_entries=next_pass_draft_request(lineage, prepared, selected=entry).baseline_entries,
+    )
+
+
+def next_pass_draft_request(
+    lineage: Mapping[str, object],
+    prepared: object,
+    *,
+    selected: ArchiveEntry | None = None,
+) -> MeshDraftRequest:
     """Start next edit pass: the new draft inherits its name and game file."""
 
     assets = tuple(getattr(prepared, "assets", ()) or ())
-    selected = assets[0] if assets else None
+    if selected is None:
+        selected = assets[0] if assets else None
     entries = tuple(getattr(prepared, "entries", ()) or ())
     return MeshDraftRequest(
         edit_pass=max(1, int(lineage.get("edit_pass") or 1)) + 1,
@@ -99,6 +125,7 @@ def overlay_dependency_context(
 __all__ = [
     "default_session_draft_request",
     "edited_companions",
+    "edited_result_draft_request",
     "next_pass_draft_request",
     "overlay_dependency_context",
 ]

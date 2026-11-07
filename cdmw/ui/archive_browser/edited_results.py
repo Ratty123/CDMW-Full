@@ -31,6 +31,7 @@ class ArchiveEditedResultsMixin:
         layout.addWidget(button)
         self.archive_edited_results_group = group
         self._archive_edited_contexts = {}
+        self._archive_edited_draft_requests = {}
         self._archive_edited_result_number = 0
         group.hide()
         return group
@@ -41,14 +42,24 @@ class ArchiveEditedResultsMixin:
         return getattr(self, "_archive_edited_contexts", {}).get(
             (entry.identity, entry.prepared_sha256, str(entry.prepared_path)))
 
+    def edited_result_draft_request(self, entry):
+        """The draft an edited result continues when it is opened again, if it has one."""
+        if not isinstance(entry, ArchiveEntry) or not entry.prepared_sha256:
+            return None
+        return getattr(self, "_archive_edited_draft_requests", {}).get(
+            (entry.identity, entry.prepared_sha256, str(entry.prepared_path)))
+
     def add_mesh_editor_result(self, result):
         if not isinstance(result, MeshArchiveResult):
             return
+        from cdmw.ui.mesh_editor.saved_work_launch import edited_result_draft_request
         context = archive_result_dependency_context(result)
         self._archive_edited_result_number += 1
+        requests = self._archive_edited_draft_requests
         for entry in result.assets:
             key = (entry.identity, entry.prepared_sha256, str(entry.prepared_path))
             self._archive_edited_contexts[key] = replace(context, selected_entry=entry)
+            requests[key] = edited_result_draft_request(result, entry)
             item = QListWidgetItem(f"{entry.basename} (edit {self._archive_edited_result_number})")
             item.setToolTip(entry.path)
             item.setData(Qt.ItemDataRole.UserRole, key)

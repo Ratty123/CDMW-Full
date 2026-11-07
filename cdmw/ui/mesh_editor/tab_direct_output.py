@@ -19,6 +19,18 @@ from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
+def _restored_refit_source(asset):
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+
+    entry = asset.entry
+    return ArchiveWorkflowDependencyContext(
+        entry, (entry,),
+        {entry.path.replace("\\", "/").strip("/").casefold(): (entry,)},
+        {entry.basename.casefold(): (entry,)},
+        remote=False,
+    )
+
+
 class MeshEditorDirectOutputMixin:
     def _continue_editing_modified_mesh_requested(self) -> None:
         self._start_archive_browser_result_requested(continue_editing=True)
@@ -47,8 +59,13 @@ class MeshEditorDirectOutputMixin:
                 continue
             source = getattr(asset.preview_lease, "archive_dependencies", None)
             if source is None:
-                self.status_message_requested.emit("Reopen every Refit source from Archive Browser to retain its dependencies.", True)
-                return
+                if asset.preview_lease is not None:
+                    self.status_message_requested.emit("Reopen every Refit source from Archive Browser to retain its dependencies.", True)
+                    return
+                # A resumed draft restores each source from its saved bytes, without the
+                # archive context it was opened with. Its edited mesh is all the result
+                # needs of it; shared files come from the target's own context.
+                source = _restored_refit_source(asset)
             sources[asset.entry.identity] = source
         captured = tuple((identity, tuple(replace(candidate) for candidate in source.entries))
                          for identity, source in sources.items())
@@ -364,7 +381,7 @@ class MeshEditorDirectOutputMixin:
             if continue_editing:
                 self._continue_from_prepared_archive_result(request_id, prepared)
                 return
-            self.archive_result_ready.emit(prepared)
+            self.archive_result_ready.emit(replace(prepared, draft_lineage=dict(self.mesh_editor_draft_lineage or {})))
             self.status_message_requested.emit("Edited meshes added to Archive Browser with their source dependencies.", False)
             return
         if result.kind == "overlay_prepare" and result.overlay_preparation is not None:

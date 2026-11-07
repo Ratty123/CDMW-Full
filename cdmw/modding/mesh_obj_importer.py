@@ -37,8 +37,45 @@ def _resolve_obj_index(raw_index: str, item_count: int) -> int:
     raise ValueError("OBJ indices are 1-based and cannot be zero")
 
 
+_COMPANION_EXPORT_SUFFIXES = (".glb", ".fbx", ".obj")
+
+
+def roundtrip_companion_path(mesh_path: str | Path, *, package_companion: bool = True) -> Path | None:
+    """The CDMW companion beside a returned mesh, or None.
+
+    An export writes ``<name>.<format>.meta.json`` for one format and, for a
+    package of all three, ``mesh.cdmeta.json``. A mesh returned in another
+    format than it was exported in keeps its export's companion, such as
+    ``edited.glb.meta.json`` beside a returned ``edited.fbx``. Between several
+    exports of one name nothing is guessed.
+    """
+
+    path = Path(mesh_path)
+    own = Path(f"{path}.meta.json")
+    if own.is_file():
+        return own
+    package = path.parent / "mesh.cdmeta.json"
+    if package_companion and package.is_file():
+        return package
+    found = [
+        candidate
+        for suffix in _COMPANION_EXPORT_SUFFIXES
+        if suffix != path.suffix.lower()
+        for candidate in (path.with_name(f"{path.stem}{suffix}.meta.json"),)
+        if candidate.is_file()
+    ]
+    if len(found) > 1:
+        raise ValueError(
+            f"{path.name} has no companion of its own, and CDMW cannot choose between the companions "
+            f"of {path.stem} exports in {len(found)} formats ({', '.join(item.name for item in found)}). "
+            f"Rename the companion of the export you edited to {path.name}.meta.json."
+        )
+    return found[0] if found else None
+
+
 def _obj_roundtrip_sidecar_candidates(obj_path: Path) -> tuple[Path, ...]:
-    return (Path(f"{obj_path}.meta.json"),)
+    companion = roundtrip_companion_path(obj_path, package_companion=False)
+    return (companion if companion is not None else Path(f"{obj_path}.meta.json"),)
 
 
 def _load_obj_roundtrip_sidecar(

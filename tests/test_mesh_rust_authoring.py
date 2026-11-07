@@ -98,6 +98,37 @@ def _request(session: RustMeshAuthoringSession, event: str, request_id: int) -> 
     }
 
 
+def _move_exported_vertex(path: Path, format_name: str, delta: float = 0.25) -> None:
+    """Stand in for a Blender edit: move the first vertex of the first Part."""
+
+    if format_name == "obj":
+        lines = path.read_text(encoding="utf-8").splitlines()
+        index = next(i for i, line in enumerate(lines) if line.startswith("v "))
+        values = lines[index].split()
+        values[1] = f"{float(values[1]) + delta:.6f}"
+        lines[index] = " ".join(values)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
+    data = bytearray(path.read_bytes())
+    json_length = struct.unpack_from("<I", data, 12)[0]
+    document = json.loads(bytes(data[20:20 + json_length]).decode("utf-8"))
+    binary_offset = 20 + json_length + 8
+    accessor = document["accessors"][document["meshes"][0]["primitives"][0]["attributes"]["POSITION"]]
+    view = document["bufferViews"][accessor["bufferView"]]
+    offset = binary_offset + int(view.get("byteOffset", 0)) + int(accessor.get("byteOffset", 0))
+    struct.pack_into("<f", data, offset, struct.unpack_from("<f", data, offset)[0] + delta)
+    accessor["max"][0] = max(float(accessor["max"][0]), struct.unpack_from("<f", data, offset)[0])
+    encoded = json.dumps(document, separators=(",", ":")).encode("utf-8")
+    encoded += b" " * (-len(encoded) % 4)
+    if len(encoded) != json_length:
+        rest = bytes(data[20 + json_length:])
+        data = bytearray(data[:12]) + struct.pack("<I", len(encoded)) + b"JSON" + encoded + rest
+        struct.pack_into("<I", data, 8, len(data))
+    else:
+        data[20:20 + json_length] = encoded
+    path.write_bytes(bytes(data))
+
+
 def _acknowledge_test_profile_tree(session: RustMeshAuthoringSession) -> None:
     session.acknowledged_morph_profile_fingerprint = (
         rust_authoring_module._directory_fingerprint(
@@ -8026,6 +8057,72 @@ class RustMeshAuthoringTests(unittest.TestCase):
             self.assertGreater(result["state"]["base_revision"], 0)
             self.assertFalse(adjacent_alias.exists())
             session.cancel()
+
+    def test_package_return_keeps_cdmw_edits_the_return_did_not_change(self) -> None:
+        # Adjust Weight, Export..., move a vertex outside CDMW, Open Package:
+        # the return names only the channels it changed against its companion,
+        # so the weight edit made before export must survive the rebuild.
+        for format_name in ("glb", "obj"):
+            with self.subTest(format=format_name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                skeleton = Skeleton(
+                    path="character/model/owned-rig.pab",
+                    bones=[
+                        Bone(index=index, name=f"Bone {index}",
+                             name_hash=0xA1000000 + index, parent_index=-1)
+                        for index in range(8)
+                    ],
+                    bone_count=8,
+                )
+                _authoritative, session = self._create(root / "session", skeleton=skeleton)
+                try:
+                    select_bone = _request(session, "command_request", 1)
+                    select_bone.update(command="rig_select_bone", arguments={"bone_index": 7})
+                    session.run_command(select_bone)
+                    adjust = _request(session, "command_request", 2)
+                    adjust.update(command="rig_adjust_weight", arguments={
+                        "selection": {"vertices_by_submesh": {"0": [0]}, "edges_by_submesh": {},
+                                      "faces_by_submesh": {}, "source_indices": []},
+                        "delta": 0.1,
+                    })
+                    session.run_command(adjust)
+                    shadow = session.shadow_service
+                    edited = shadow.working_mesh(session.shadow_session_id, clone=True).submeshes[0]
+                    original = parse_pac(session.shadow_service._session(
+                        session.shadow_session_id).original_data, "original.pac").submeshes[0]
+                    self.assertNotEqual(original.bone_weights[0], edited.bone_weights[0])
+                    export = _request(session, "command_request", 3)
+                    target = root / "export" / f"edited.{format_name}"
+                    export.update(command="export_mesh",
+                                  arguments={"path": str(target), "format": format_name})
+                    session.run_command(export)
+                    _move_exported_vertex(target, format_name)
+
+                    command = _request(session, "command_request", 4)
+                    command.update(command="import_editable_package", arguments={"path": str(target)})
+                    session.run_command(command)
+
+                    returned = shadow.working_mesh(session.shadow_session_id, clone=True).submeshes[0]
+                    self.assertNotEqual(edited.vertices[0], returned.vertices[0])
+                    self.assertEqual(edited.bone_indices, returned.bone_indices)
+                    for actual, expected in zip(returned.bone_weights, edited.bone_weights, strict=True):
+                        self.assertEqual(len(expected), len(actual))
+                        for actual_weight, expected_weight in zip(actual, expected):
+                            self.assertAlmostEqual(expected_weight, actual_weight, places=6)
+                    self.assertIn(
+                        ("replace_skin_weights_same_count", 0),
+                        {(operation["operation"], operation["submesh_index"])
+                         for operation in shadow._session(session.shadow_session_id).edit_operations},
+                    )
+                    snapshot = shadow.capture_export_snapshot(session.shadow_session_id)
+                    self.assertTrue(shadow.validate_export_snapshot(snapshot).ok)
+                    rebuilt, report = shadow.rebuild_result_from_snapshot(snapshot)
+                    self.assertIn("skin_weights", report.changed_channels)
+                    built = parse_pac(rebuilt.data, "rebuilt.pac").submeshes[0]
+                    for actual_weight, expected_weight in zip(built.bone_weights[0], edited.bone_weights[0]):
+                        self.assertAlmostEqual(expected_weight, actual_weight, places=2)
+                finally:
+                    session.cancel()
 
     def test_finish_morph_profile_publication_is_reversible_with_session_history(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

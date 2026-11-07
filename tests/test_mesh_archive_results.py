@@ -333,6 +333,56 @@ def test_combined_refit_keeps_each_asset_and_dependency_context(tmp_path, monkey
         service.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
 
 
+@pytest.mark.parametrize("continue_editing", [False, True])
+def test_resumed_refit_draft_adds_its_result_and_starts_the_next_pass(tmp_path, monkeypatch, continue_editing):
+    # A resumed draft restores its Refit sources from their saved bytes, without
+    # the archive context each one was first opened with.
+    from tests.test_mesh_archive_refit import _load_pair, _edit_both
+    from cdmw.services.mesh_archive_refit import load_archive_refit_context, save_archive_refit_context
+
+    app = QApplication.instance() or QApplication([])
+    source, service, editor, primary, armor, _loaded = _load_pair(tmp_path)
+    try:
+        _edit_both(editor)
+        editor.finish(_request(editor, "finish_request", 31))
+        snapshot = service.capture_export_snapshot(editor.authoritative_session_id)
+        session = service._session(snapshot.session_id)
+        project = tmp_path / "draft"
+        project.mkdir()
+        payload = save_archive_refit_context(session.archive_refit_context, project, threading.Event())
+        session.archive_refit_context = load_archive_refit_context(payload, project)
+        assert all(asset.preview_lease is None for asset in session.archive_refit_context.assets)
+        prepared = _entry(tmp_path / "prepared", primary.path, source)
+        primary_source = replace(primary, prepared_path=prepared.prepared_path,
+            prepared_sha256=prepared.prepared_sha256, prepared_size=len(source))
+        tab = MeshEditorTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat))
+        tab.standalone_controller = SimpleNamespace(mesh_service=service, active_session_id=snapshot.session_id)
+        tab.archive_session_dependencies = _context(primary_source, (primary_source,))
+        captured, messages = [], []
+        tab.status_message_requested.connect(lambda message, _error: messages.append(message))
+        monkeypatch.setattr(tab, "_mesh_output_target", lambda: primary)
+        monkeypatch.setattr(tab, "_standalone_export_validation_ok", lambda: True)
+        monkeypatch.setattr(tab, "_standalone_action_worker_active", lambda: False)
+        monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kwargs: captured.append(kwargs))
+        try:
+            tab._start_archive_browser_result_requested(continue_editing=continue_editing)
+            assert not messages and len(captured) == 1
+            assert captured[0]["continue_editing"] is continue_editing
+            result = prepare_mesh_archive_result(service, snapshot, primary,
+                captured[0]["archive_dependency_sources"], tmp_path / "results",
+                material_contexts=captured[0]["archive_material_sources"])
+        finally:
+            tab.standalone_controller = None
+            tab.deleteLater()
+            app.processEvents()
+        assert {entry.path for entry in result.assets} == {primary.path, armor.path}
+        assert [parse_pac(read_archive_entry_data(entry)[0], entry.path).submeshes[0].vertices[0][0]
+                for entry in result.assets] == pytest.approx([0.4, 0.7], abs=2e-5)
+    finally:
+        editor.cancel()
+        service.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
+
+
 @pytest.mark.parametrize("button_name", ["AddtoArchiveBrowser", "Continueeditingmodifiedmesh"])
 def test_accepted_result_button_reaches_tab_handler(tmp_path, button_name):
     app = QApplication.instance() or QApplication([])
@@ -348,6 +398,55 @@ def test_accepted_result_button_reaches_tab_handler(tmp_path, button_name):
         assert messages == ["Open an archive mesh before creating a Mesh Editor output."]
     finally:
         tab.deleteLater()
+        app.processEvents()
+
+
+def test_opening_an_edited_result_continues_the_draft_it_was_made_from(edited, tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    service, snapshot, entry, entries = edited
+    lineage = {"edit_pass": 3, "display_name": "Longcoat fit", "project_id": "p-1",
+               "game_source_sha256": "a" * 64}
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat))
+    tab.standalone_controller = SimpleNamespace(mesh_service=service, active_session_id=snapshot.session_id)
+    tab.mesh_editor_draft_lineage = dict(lineage)
+    added = []
+    tab.archive_result_ready.connect(added.append)
+    result = _prepare(edited, tmp_path / "results")
+    try:
+        tab._handle_mesh_direct_output_completed(
+            tab.standalone_output_request_id,
+            MeshDirectOutputResult(kind="archive_result", output_path=result.root, archive_result=result))
+        assert len(added) == 1
+    finally:
+        tab.standalone_controller = None
+        tab.deleteLater()
+        app.processEvents()
+
+    class Browser(ArchiveEditedResultsMixin, QWidget):
+        pass
+    browser = Browser()
+    browser.shell = SimpleNamespace(_activate_tool_widget=lambda widget: None)
+    browser.archive = browser
+    browser._build_archive_edited_results()
+    opened = []
+    class Shell(MeshEditorShellBridgeMixin):
+        def _prepare_mesh_editor_archive_launch(self, entry):
+            return True
+        def _activate_tool_widget(self, tab):
+            pass
+        def set_status_message(self, *args, **kwargs):
+            pass
+    shell = Shell()
+    shell.archive = browser
+    shell.mesh_editor_tab = SimpleNamespace(open_archive_session=lambda entry, **kw: opened.append((entry, kw)))
+    try:
+        browser.add_mesh_editor_result(added[0])
+        shell._launch_archive_mesh_editor_for_entry(added[0].assets[0])
+        request = opened[0][1]["draft_request"]
+        assert (request.edit_pass, request.display_name, request.project_id, request.game_source_sha256) == (
+            4, "Longcoat fit", "p-1", "a" * 64)
+    finally:
+        browser.deleteLater()
         app.processEvents()
 
 
@@ -423,7 +522,8 @@ def test_browser_results_keep_original_catalogue_and_open_with_explicit_context(
                 shell._launch_archive_mesh_editor_for_entry(context.selected_entry)
             opened[-1][1]["material_package_lease"].release()
         else:
-            assert opened == [(context.selected_entry, {"archive_dependencies": context})]
+            # A result made outside a saved draft starts a new one when opened.
+            assert opened == [(context.selected_entry, {"archive_dependencies": context, "draft_request": None})]
     finally:
         browser.archive_edited_results_group.deleteLater()
         browser.deleteLater()
@@ -479,6 +579,46 @@ def test_generated_companions_remain_additions_in_later_output(edited, tmp_path,
     assert not errors
     assert len(captured) == 1
     assert (captured[0].path, captured[0].payload_data, captured[0].flags) == (extra.path, b"retained generated DDS", 0x20)
+
+
+@pytest.mark.parametrize("kind", ["loose_mod", "overlay_package"])
+def test_later_pass_records_the_game_file_as_the_original_of_inherited_outputs(edited, tmp_path, monkeypatch, kind):
+    # A second pass reads its inherited outputs from the earlier result. Recorded
+    # as their own original, Update Mod would see no change and drop them.
+    import cdmw.core.mod_compatibility as compatibility_module
+    from cdmw.domain.archives.overlay_merge import merge_overlay_files
+    service, snapshot, entry, _dependencies = edited
+    game = tmp_path / "game-archive"
+    game.mkdir()
+    shipped, earlier = b"shipped physics bytes", b"earlier pass physics edit"
+    (game / "0.pamt").write_bytes(b"owned index")
+    (game / "0.paz").write_bytes(shipped)
+    earlier_path = tmp_path / "earlier.hkx"
+    earlier_path.write_bytes(earlier)
+    inherited = ArchiveEntry("character/physics/inherited.hkx", game / "0.pamt", game / "0.paz", 0,
+        len(shipped), len(shipped), 0, 0, prepared_path=earlier_path,
+        prepared_sha256=hashlib.sha256(earlier).hexdigest(), prepared_size=len(earlier),
+        prepared_note=EDITED_RESULT_NOTE)
+    captured = []
+    real_capture = compatibility_module.capture_patch_compatibility
+    def capture(*args, **kwargs):
+        captured.append(real_capture(*args, **kwargs))
+        return captured[-1]
+    monkeypatch.setattr(compatibility_module, "capture_patch_compatibility", capture)
+    monkeypatch.setattr("cdmw.workers.mesh_editor_workers.archive_entry_game_root", lambda _entry: tmp_path / "no-game")
+    worker = MeshDirectOutputWorker(1, service, snapshot.session_id, entry, kind=kind,
+        output_path=tmp_path / "mod", manager_profile="dmm", inherited_archive_outputs=(inherited,))
+    errors = []
+    worker.error.connect(lambda _id, message: errors.append(message))
+    worker.run()
+    assert not errors
+    originals = captured[-1].originals
+    assert originals["character/physics/inherited.hkx"] == shipped
+    # Update Mod over an unchanged game keeps the inherited edit.
+    path = "character/physics/inherited.hkx"
+    assert merge_overlay_files({path: originals[path]}, {path: earlier}, {path: shipped})[path] == earlier
+    # The first pass's own source is still its prepared game copy.
+    assert originals[entry.path.casefold()] == read_archive_entry_data(entry)[0]
 
 
 def test_add_result_request_captures_source_context_before_worker_start(edited, tmp_path, monkeypatch):

@@ -78,6 +78,26 @@ def _editable_package_mesh_path(path: Path) -> Path:
     return path
 
 
+def _game_original_reader(stop_event: threading.Event | None) -> Callable[[object], bytes]:
+    """Read what a Build Mod output replaces in the game, never an earlier pass's result.
+
+    A later edit pass reads its source and inherited outputs from the prepared
+    copy of the previous result. Recorded as their own original, Update Mod sees
+    no change in them and puts the game file back. The entry still names its
+    game location, which is read instead; an unreadable one stays unknown.
+    """
+
+    from cdmw.services.archive_read_service import read_archive_entry_data
+    from cdmw.services.mesh_archive_results import RESULT_NOTES
+
+    def read(entry) -> bytes:
+        if getattr(entry, "prepared_path", None) is not None and entry.prepared_note in RESULT_NOTES:
+            entry = replace(entry, prepared_path=None, prepared_sha256="", prepared_size=None, prepared_note="")
+        return read_archive_entry_data(entry, stop_event=stop_event)[0]
+
+    return read
+
+
 def _ensure_editable_package_sidecar_alias(mesh_path: Path) -> None:
     sidecar_path = Path(f"{mesh_path}.meta.json")
     if sidecar_path.is_file():
@@ -170,7 +190,8 @@ class MeshEditablePackageImportWorker(QObject):
                 mesh = import_glb_with_sidecar(mesh_path)
             elif mesh_path.suffix.lower() == ".fbx":
                 from cdmw.modding.scene_importer import import_fbx
-                if not Path(f"{mesh_path}.meta.json").is_file():
+                from cdmw.modding.mesh_obj_importer import roundtrip_companion_path
+                if roundtrip_companion_path(mesh_path) is None:
                     raise ValueError("FBX sidecar is required for editable mesh package import.")
                 mesh = import_fbx(mesh_path, blender_path=self.blender_path, stop_event=self.stop_event)
             elif mesh_path.suffix.lower() == ".obj":
@@ -810,7 +831,8 @@ class MeshDirectOutputWorker(QObject):
             options = mod_package_export_options_for_manager(self.manager_profile)
             from cdmw.core.mod_compatibility import capture_patch_compatibility
             compatibility = capture_patch_compatibility(requests, additions,
-                game_root=archive_entry_game_root(self.entry), stop_event=self.stop_event)
+                game_root=archive_entry_game_root(self.entry), stop_event=self.stop_event,
+                read_entry=_game_original_reader(self.stop_event))
             write_mesh_loose_mod_package_metadata(
                 staging,
                 self._package_info(root),
@@ -851,13 +873,19 @@ class MeshDirectOutputWorker(QObject):
         root.parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
         try:
+            from cdmw.core.mod_compatibility import capture_patch_compatibility
+            metadata_files = (("mesh-editor-session.json", metadata),)
             exported = export_archive_overlay_package(
                 requests,
                 additions=additions,
                 package_root=staging,
                 game_root=game_root,
-                metadata_files=(("mesh-editor-session.json", metadata),),
+                metadata_files=metadata_files,
                 stop_event=self.stop_event,
+                compatibility=capture_patch_compatibility(
+                    requests, additions, game_root=game_root, metadata_files=metadata_files,
+                    read_entry=_game_original_reader(self.stop_event), stop_event=self.stop_event,
+                ),
             )
             group = str(exported.group or "").strip()
             archive_files = (f"{group}/0.pamt", f"{group}/0.paz")

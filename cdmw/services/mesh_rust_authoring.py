@@ -1539,11 +1539,13 @@ def _editable_package_mesh_path(path: Path) -> Path:
 
 
 def _editable_package_sidecar_path(mesh_path: Path) -> Path | None:
-    sidecar_path = Path(f"{mesh_path}.meta.json")
-    if sidecar_path.is_file():
-        return sidecar_path
-    cdmeta_path = mesh_path.parent / "mesh.cdmeta.json"
-    return cdmeta_path if cdmeta_path.is_file() else None
+    # A mesh returned in another format still has the companion of its export.
+    from cdmw.modding.mesh_obj_importer import roundtrip_companion_path
+
+    try:
+        return roundtrip_companion_path(mesh_path)
+    except ValueError as exc:
+        raise RustMeshValidationError(str(exc)) from exc
 
 
 def _is_reparse_point(path: Path) -> bool:

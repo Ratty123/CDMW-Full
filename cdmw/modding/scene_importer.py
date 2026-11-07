@@ -397,8 +397,8 @@ def _import_zip_result(source_path, *, selected_member, include_external_audit, 
 
 def _import_gltf_result(source_path, *, preserve_authoring, preserve_skinning, include_external_audit, tolerate_missing_texture_files, stop_event):
     from .mesh_glb_interchange import _load_glb_roundtrip_sidecar
-    sidecar = _load_glb_roundtrip_sidecar(source_path) if (
-        Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
+    from .mesh_obj_importer import roundtrip_companion_path
+    sidecar = _load_glb_roundtrip_sidecar(source_path) if roundtrip_companion_path(source_path) is not None else None
     result = import_gltf(
         source_path,
         include_external_audit=include_external_audit,
@@ -442,8 +442,8 @@ def _import_fbx_result(source_path, *, blender_path, preserve_authoring, include
     import tempfile
     from cdmw.services.fbx_blender_conversion import configured_blender, convert_fbx_to_glb
     from .mesh_glb_interchange import _load_glb_roundtrip_sidecar
-    sidecar = _load_glb_roundtrip_sidecar(source_path) if (
-        Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
+    from .mesh_obj_importer import roundtrip_companion_path
+    sidecar = _load_glb_roundtrip_sidecar(source_path) if roundtrip_companion_path(source_path) is not None else None
     cache = Path(tempfile.gettempdir()) / "cdmw_fbx_import" / hashlib.sha256(source_path.read_bytes()).hexdigest()
     conversion = convert_fbx_to_glb(source_path, blender_path or configured_blender(), output_dir=cache, stop_event=stop_event)
     result = import_gltf(conversion.glb, include_external_audit=include_external_audit,

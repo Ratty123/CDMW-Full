@@ -727,6 +727,7 @@ class _MeshServiceSessionLayerCore(
         else:
             working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
         loaded_layer_project: Mapping[str, object] | None = None
+        base_mesh_is_original_parse = _native_source_parse_eligible(mesh, original_data)
         if load_project_path is not None and load_project_path.is_file():
             loaded_layer_project = load_mesh_layer_project(
                 working_mesh,
@@ -735,7 +736,13 @@ class _MeshServiceSessionLayerCore(
             )
             if loaded_layer_project is not None:
                 from cdmw.services.mesh_layer_project_service import draft_retains_original_channel_base
-                if not draft_retains_original_channel_base(loaded_layer_project, base_mesh, working_mesh):
+                # A draft over a game file keeps that file's parse as its base, as the
+                # session had before it closed. Exact output folds pasted copies and
+                # finds an unchanged Build against it; with the restored mesh as the
+                # base, an unchanged Build matched it and wrote the game file as is.
+                if not base_mesh_is_original_parse and not draft_retains_original_channel_base(
+                    loaded_layer_project, base_mesh, working_mesh,
+                ):
                     base_mesh = _clone_mesh_for_service_native_snapshot(
                         working_mesh,
                         "session.layer_project_base_clone",
@@ -764,7 +771,7 @@ class _MeshServiceSessionLayerCore(
                 bool(getattr(mesh, "_cdmw_imported_from_obj", False))
                 and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False))
             ),
-            base_mesh_is_original_parse=_native_source_parse_eligible(mesh, original_data),
+            base_mesh_is_original_parse=base_mesh_is_original_parse,
             mesh_format=mesh_format,
             lod_index=lod_index,
             output_policy=initial_output_policy.policy.value,
