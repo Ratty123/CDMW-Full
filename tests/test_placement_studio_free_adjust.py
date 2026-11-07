@@ -324,3 +324,107 @@ def test_a_slow_drag_across_an_edge_on_ring_still_turns(monkeypatch) -> None:
         view._rotate_about_axis(point, following)
         point = following
     assert abs(sum(turned)) == pytest.approx(10.0)
+
+
+# ── the view: which way a drag turns it, and what a drag refreshes ──
+
+def _orbit_drag(view, dx: int, dy: int) -> None:
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    start, end = QPointF(400, 300), QPointF(400 + dx, 300 + dy)
+    view.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, start, start,
+                                     Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    view.mouseMoveEvent(QMouseEvent(QMouseEvent.Type.MouseMove, end, end,
+                                    Qt.NoButton, Qt.LeftButton, Qt.NoModifier))
+    view.mouseReleaseEvent(QMouseEvent(QMouseEvent.Type.MouseButtonRelease, end, end,
+                                       Qt.LeftButton, Qt.NoButton, Qt.NoModifier))
+
+
+def _near_side_moves(view, dx: int, dy: int) -> tuple:
+    """How far, on screen, a point on the near side of the target moves for one drag."""
+
+    camera = view._camera
+    camera.target, camera.distance, camera.yaw, camera.pitch = Vec3(0, 1, 0), 3.0, 30.0, -12.0
+    _right, _up, forward = camera.basis()
+    near = Vec3(-forward.x * 0.3, 1 - forward.y * 0.3, -forward.z * 0.3)
+    view._frame_key = None
+    before = view._project(near)
+    _orbit_drag(view, dx, dy)
+    view._frame_key = None
+    after = view._project(near)
+    return after.x() - before.x(), after.y() - before.y()
+
+
+def test_by_default_the_character_turns_the_way_the_pointer_moves() -> None:
+    view, _turned = _viewport()
+    view.set_edit_mode("off")
+    across, _ = _near_side_moves(view, 10, 0)
+    _, down = _near_side_moves(view, 0, 10)
+    assert across > 0 and down > 0
+
+
+def test_reverse_view_drag_moves_the_camera_with_the_pointer_instead() -> None:
+    view, _turned = _viewport()
+    view.set_edit_mode("off")
+    view.set_orbit_follows_pointer(False)
+    across, _ = _near_side_moves(view, 10, 0)
+    _, down = _near_side_moves(view, 0, 10)
+    assert across < 0 and down < 0
+
+
+def test_the_reverse_view_drag_choice_is_remembered(window) -> None:
+    assert not window._reverse_orbit.isChecked()
+    assert window._viewport._orbit_follows_pointer
+    window._reverse_orbit.setChecked(True)
+    assert not window._viewport._orbit_follows_pointer
+    assert window._mod_settings().value("placement_studio/reverse_view_drag", False, type=bool)
+
+
+def test_a_drag_refreshes_the_view_at_once_and_the_panels_when_it_ends(window, monkeypatch) -> None:
+    _move_to_back(window, monkeypatch)
+    _with_rig(window)
+    changes = window._mod_summary_button.text()
+    before = translation_of(window._session.attachment_matrix(BACK, GRIP))
+    window._on_socket_dragged(GRIP, 0.02, 0.0, 0.0)
+    # The view and Fine-tune follow the drag straight away...
+    after = translation_of(window._session.attachment_matrix(BACK, GRIP))
+    assert after.x == pytest.approx(before.x + 0.02, abs=1e-6)
+    assert window._position[0].value() == pytest.approx(
+        window._edits.socket(W1H, GRIP).translation.x * 100, abs=0.05)
+    # ...the list of changes waits for the drag to end.
+    assert window._drag_settle_pending
+    assert window._mod_summary_button.text() == changes
+    window._viewport.drag_finished.emit()
+    assert not window._drag_settle_pending
+    assert window._mod_summary_button.text() != changes
+
+
+def test_a_button_edit_still_refreshes_everything_at_once(window, monkeypatch) -> None:
+    _move_to_back(window, monkeypatch)
+    changes = window._mod_summary_button.text()
+    window._nudge_buttons[1].click()
+    assert not getattr(window, "_drag_settle_pending", False)
+    assert window._mod_summary_button.text() != changes
+
+
+def test_parsed_files_are_reused_without_sharing_what_callers_change() -> None:
+    from tools.placement_studio import resolver as resolver_module
+
+    files = _files()
+    first, second = PlacementResolver(), PlacementResolver()
+    first.add_files(files)
+    hits = len(resolver_module._PARSED)
+    second.add_files(files)
+    assert len(resolver_module._PARSED) == hits  # nothing parsed twice
+    weapon = next(w for w in first.weapons() if w.game_path == W1H)
+    weapon.sockets.pop(GRIP)
+    again = next(w for w in second.weapons() if w.game_path == W1H)
+    assert GRIP in again.sockets
+    # Different bytes are parsed afresh.
+    changed = dict(files)
+    changed[W1H] = files[W1H].replace(b"0.030000 -0.250000", b"0.040000 -0.250000")
+    third = PlacementResolver()
+    third.add_files(changed)
+    moved = next(w for w in third.weapons() if w.game_path == W1H).sockets[GRIP]
+    assert moved.translation.x == pytest.approx(0.04)

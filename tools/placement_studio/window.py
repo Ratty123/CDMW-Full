@@ -98,6 +98,9 @@ class PosedMesh:
         return (Vec3(*(float(c) for c in low)), Vec3(*(float(c) for c in high)))
 
 
+#: Whether a drag in the view moves the camera with the pointer; off turns the character.
+_REVERSE_ORBIT = "placement_studio/reverse_view_drag"
+
 _ROLE_SOCKET = Qt.UserRole + 1
 _ROLE_PART = Qt.UserRole + 2
 
@@ -223,6 +226,11 @@ class PlacementStudioWindow(
         self._solid_body.setToolTip(
             "Fill the body in instead of leaving it see-through, so you can tell what is in "
             "front of what."
+        )
+        self._reverse_orbit = QCheckBox("Reverse view drag")
+        self._reverse_orbit.setToolTip(
+            "Off: dragging turns the character the way the pointer moves. On: dragging moves "
+            "the camera with the pointer instead, so the character turns the other way."
         )
 
         self._mesh_role_box = QComboBox()
@@ -356,6 +364,11 @@ class PlacementStudioWindow(
         # Solid without Meshes draws nothing, which reads as "the armour did not load".
         # Turning one on implies the other.
         self._solid_body.toggled.connect(self._on_solid_toggled)
+        reverse = self._mod_settings().value(_REVERSE_ORBIT, False, type=bool)
+        self._reverse_orbit.setChecked(bool(reverse))
+        self._viewport.set_orbit_follows_pointer(not reverse)
+        self._reverse_orbit.toggled.connect(self._on_reverse_orbit_toggled)
+        self._viewport.drag_finished.connect(self._settle_after_drag)
 
         reset = QAction("Reset view", self)
         reset.setShortcut("R")
@@ -964,6 +977,10 @@ class PlacementStudioWindow(
     def _request_clipping(self) -> None:
         self._clipping_requested = True
         self._refresh_meshes()
+
+    def _on_reverse_orbit_toggled(self, checked: bool) -> None:
+        self._viewport.set_orbit_follows_pointer(not checked)
+        self._mod_settings().setValue(_REVERSE_ORBIT, bool(checked))
 
     def _on_solid_toggled(self, checked: bool) -> None:
         self._viewport.set_solid(bool(checked))

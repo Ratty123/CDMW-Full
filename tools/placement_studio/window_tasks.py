@@ -103,6 +103,7 @@ class TaskPanelMixin:
                     self._show_meshes, self._solid_body):
             row.addWidget(box)
         row.addStretch(1)
+        row.addWidget(self._reverse_orbit)
         return strip
 
     # ── Position ────────────────────────────────────────────────────

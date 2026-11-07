@@ -142,9 +142,14 @@ class SkeletonViewport(GizmoMixin, QWidget):
     frame_painted = Signal(float)
     #: A bone was clicked while the animation editor picks bones.
     bone_clicked = Signal(str)
+    #: A Move, Rotate or Tilt drag on the selected point ended (the button was released).
+    drag_finished = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        #: Orbit direction. True: the near side of the character follows the pointer on both
+        #: axes, as in the Mesh Editor. False: the camera follows the pointer instead.
+        self._orbit_follows_pointer = True
         self.setMinimumSize(420, 420)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -1289,8 +1294,12 @@ class SkeletonViewport(GizmoMixin, QWidget):
             else:
                 self._drag_socket(dx, dy)
         elif self._drag_button == Qt.LeftButton:
-            self._camera.yaw -= dx * 0.4
-            self._camera.pitch -= dy * 0.4
+            # Turning left-right used to move the camera with the pointer, so the character
+            # turned against it, while up-down followed it: the mixed reading that felt
+            # inverted. Both axes now agree, either way round (`set_orbit_follows_pointer`).
+            sign = 1.0 if self._orbit_follows_pointer else -1.0
+            self._camera.yaw += sign * dx * 0.4
+            self._camera.pitch -= sign * dy * 0.4
         elif self._drag_button == Qt.MiddleButton:
             right, up, _forward = self._camera.basis()
             scale = self._camera.distance * 0.0022
@@ -1361,6 +1370,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # Full detail comes back as soon as the drag ends.
         self._dragging_view = False
         self.update()
+        edited = bool(self._dragging_socket)
         self._drag_button = Qt.NoButton
         self._dragging_socket = ""
         self._drag_residual = Vec3()
@@ -1368,6 +1378,13 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._angle_residual = 0.0
         self._trackball_residual = [0.0, 0.0]
         self._grab_angle = None
+        if edited:
+            self.drag_finished.emit()
+
+    def set_orbit_follows_pointer(self, follows: bool) -> None:
+        """Which way a drag in the view turns it: the character with the pointer, or the camera."""
+
+        self._orbit_follows_pointer = bool(follows)
 
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         self._camera.distance *= 0.88 if event.angleDelta().y() > 0 else 1.14

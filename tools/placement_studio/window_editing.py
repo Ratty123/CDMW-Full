@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import List, Sequence
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -248,7 +248,7 @@ class EditPanelMixin:
         deltas[axis] = step
         self._nudge(*deltas)
 
-    def _nudge(self, dx: float, dy: float, dz: float) -> None:
+    def _nudge(self, dx: float, dy: float, dz: float, *, dragging: bool = False) -> None:
         if self._edits is None or not self._selected_socket:
             return
         path = self._socket_file_of(self._selected_socket)
@@ -260,7 +260,7 @@ class EditPanelMixin:
         except EditError as exc:
             self.statusBar().showMessage(str(exc))
             return
-        self._after_edit()
+        self._after_drag_edit() if dragging else self._after_edit()
 
     def _on_socket_dragged(self, socket_name: str, dx: float, dy: float, dz: float) -> None:
         """A move drag: the view sends a world-space delta along the camera plane.
@@ -278,7 +278,7 @@ class EditPanelMixin:
                 self._selected_socket, delta,
                 attached_to=self._attached_body_socket(self._selected_socket),
             )
-        self._nudge(delta.x, delta.y, delta.z)
+        self._nudge(delta.x, delta.y, delta.z, dragging=True)
 
     def _attached_body_socket(self, socket_name: str) -> str:
         """The body spot an item's own point is mated with, for the way it is shown.
@@ -313,7 +313,7 @@ class EditPanelMixin:
             return
         axis = self._viewport.view_axes()[axis_index]
         degrees = sign * float(self._angle_box.currentData() or 5.0)
-        self._on_socket_rotated(self._selected_socket, axis.x, axis.y, axis.z, degrees)
+        self._turn_socket(self._selected_socket, axis.x, axis.y, axis.z, degrees)
 
     def _apply_position(self, index: int) -> None:
         """One Position box: set that axis of the offset, keeping the other two exact."""
@@ -952,12 +952,20 @@ class EditPanelMixin:
         except EditError as exc:
             self.statusBar().showMessage(str(exc))
             return
-        self._after_edit()
+        self._after_drag_edit()
 
     def _on_socket_rotated(
         self, socket_name: str, ax: float, ay: float, az: float, degrees: float
     ) -> None:
-        """Apply a gizmo twist. The axis arrives in world space and must be converted."""
+        """A Rotate drag in the view: the light refresh until the drag ends."""
+
+        self._turn_socket(socket_name, ax, ay, az, degrees, dragging=True)
+
+    def _turn_socket(
+        self, socket_name: str, ax: float, ay: float, az: float, degrees: float, *,
+        dragging: bool = False,
+    ) -> None:
+        """Apply a twist. The axis arrives in world space and must be converted."""
 
         if self._edits is None or self._session is None:
             return
@@ -979,7 +987,7 @@ class EditPanelMixin:
         except EditError as exc:
             self.statusBar().showMessage(str(exc))
             return
-        self._after_edit()
+        self._after_drag_edit() if dragging else self._after_edit()
 
     def _apply_euler(self) -> None:
         if self._edits is None or not self._selected_socket:
@@ -1022,9 +1030,42 @@ class EditPanelMixin:
         if self._edits is not None and self._edits.redo():
             self._after_edit()
 
+    def _after_drag_edit(self) -> None:
+        """One step of a drag in the view: only what the view and Fine-tune show.
+
+        Every step used to run the whole of `_after_edit`, rebuilding the file changes, the
+        attach point list, the action chart lists and the status for each mouse movement:
+        about two thirds of a step, for panels nobody reads while dragging. Those wait for the
+        drag to end (`_settle_after_drag`), or for the pointer to rest, then refresh once.
+        """
+
+        self._rebuild_session_from_edits()
+        self._refresh_scene()
+        self._refresh_edit_panel()
+        self._update_gizmo_anchor()
+        self._drag_settle_pending = True
+        timer = getattr(self, "_drag_settle_timer", None)
+        if timer is None:
+            timer = self._drag_settle_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(400)
+            timer.timeout.connect(self._settle_after_drag)
+        timer.start()
+
+    def _settle_after_drag(self) -> None:
+        """Bring every panel up to date with the edits a drag made, once."""
+
+        if getattr(self, "_drag_settle_pending", False):
+            self._after_edit()
+
     def _after_edit(self) -> None:
         """Re-resolve, re-render, and refresh every dependent pane after an edit."""
 
+        # Whatever a drag left for later is covered by this full refresh.
+        self._drag_settle_pending = False
+        timer = getattr(self, "_drag_settle_timer", None)
+        if timer is not None:
+            timer.stop()
         self._rebuild_session_from_edits()
         self._refresh_scene()
         self._refresh_diff()

@@ -17,6 +17,8 @@ explicit input, never inferred from the character name.
 
 from __future__ import annotations
 
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -170,6 +172,37 @@ class ResolutionReport:
         )
 
 
+#: Parsed placement files, keyed by path and exact bytes. Every edit rebuilds the session from
+#: all pending files (`PlacementSession.with_edited_files`), and re-parsing the twenty-odd
+#: unchanged ones was half the cost of each step of a drag. Only immutable results are kept:
+#: frozen `Socket` maps (copied out per use) and descriptor documents the resolver only reads.
+_PARSED: OrderedDict[tuple, tuple] = OrderedDict()
+_PARSED_LIMIT = 512
+_PARSED_LOCK = threading.Lock()
+
+
+def _parsed(kind: str, game_path: str, data: bytes, load):
+    key = (kind, game_path, bytes(data))
+    with _PARSED_LOCK:
+        hit = _PARSED.get(key)
+        if hit is not None:
+            _PARSED.move_to_end(key)
+            return hit
+    value = load()
+    with _PARSED_LOCK:
+        _PARSED[key] = value
+        while len(_PARSED) > _PARSED_LIMIT:
+            _PARSED.popitem(last=False)
+    return value
+
+
+def _load_socket_file(data: bytes, game_path: str) -> tuple:
+    document = SocketDocument.load(data, game_path)
+    sockets = document.socket_map()
+    return (sockets, tuple(document.warnings), document.count_matches_contents(),
+            document.declared_count)
+
+
 class PlacementResolver:
     """Builds `PlacementBinding` objects from a character's active files."""
 
@@ -182,12 +215,13 @@ class PlacementResolver:
     # ── inputs ──────────────────────────────────────────────────────
 
     def add_socket_file(self, game_path: str, data: bytes, *, priority: int = 0) -> None:
-        document = SocketDocument.load(data, game_path)
-        sockets = document.socket_map()
-        self._warnings.extend(f"{game_path}: {item}" for item in document.warnings)
-        if not document.count_matches_contents():
+        parsed, warnings, count_ok, declared = _parsed(
+            "sockets", game_path, data, lambda: _load_socket_file(data, game_path))
+        sockets = dict(parsed)
+        self._warnings.extend(f"{game_path}: {item}" for item in warnings)
+        if not count_ok:
             self._warnings.append(
-                f"{game_path}: SocketList Count={document.declared_count} "
+                f"{game_path}: SocketList Count={declared} "
                 f"but {len(sockets)} sockets defined"
             )
         model = model_of(game_path)
@@ -205,7 +239,8 @@ class PlacementResolver:
             )
 
     def add_descriptor_file(self, game_path: str, data: bytes) -> None:
-        self._descriptors.append(DescriptorDocument.load(data, game_path))
+        self._descriptors.append(_parsed(
+            "descriptor", game_path, data, lambda: DescriptorDocument.load(data, game_path)))
 
     def add_files(self, files: Mapping[str, bytes], *, priority: int = 0) -> None:
         for game_path, data in files.items():

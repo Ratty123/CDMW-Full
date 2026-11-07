@@ -96778,7 +96778,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Carried at, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 325
+      "tools/placement_studio/window_tasks.py": 326
     }
   },
   {
@@ -98415,10 +98415,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "{game_path}: SocketList Count={document.declared_count} but {len(sockets)} sockets defined",
+    "message": "{game_path}: SocketList Count={declared} but {len(sockets)} sockets defined",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/resolver.py": 189
+      "tools/placement_studio/resolver.py": 223
     }
   },
   {
@@ -98482,7 +98482,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self.bindings)} rows, {self.resolved_count} fully resolved, {len(self.missing_body_sockets)} missing body socket, {len(self.missing_child_sockets)} missing child socket",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/resolver.py": 166
+      "tools/placement_studio/resolver.py": 168
     }
   },
   {

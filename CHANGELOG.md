@@ -7,6 +7,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- Dragging in Placement & Animations' view now turns the character the way the pointer moves, left-right as well as up-down, as in the Mesh Editor; before, left-right turned it the other way. **Reverse view drag**, next to the **Show** options, moves the camera with the pointer instead and is remembered.
+
+### Fixed
+
+- Moving, rotating or tilting a weapon by dragging in Placement & Animations' view is much smoother. The view and Fine-tune follow the drag, and the other panels update once it ends; on a 1.5x-scaled screen a drag went from about 12-14 to about 40-48 updates a second.
+
 ## [0.12.0-alpha.3] - 2026-11-07
 
 ### Added
