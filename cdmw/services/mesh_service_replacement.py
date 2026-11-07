@@ -27,6 +27,94 @@ def _service_call(name: str, *args: object, **kwargs: object) -> object:
     return getattr(sys.modules["cdmw.services.mesh_service"], name)(*args, **kwargs)
 
 
+def _session_return_base(
+    base_mesh: ParsedMesh,
+    current_mesh: ParsedMesh,
+    returned_mesh: ParsedMesh,
+    session_operations: Sequence[object],
+) -> tuple[ParsedMesh, ParsedMesh] | None:
+    """Rebuild a package return onto the session's edits, not the open-time parse.
+
+    A companion return names every same-count channel it carries except skin
+    weights, which it names only when they differ from the exported rows. The
+    session's own edits for channels it does not name (Adjust Weight, tangents,
+    visibility, material assignments) are copied from the current working mesh
+    into a copy of the source, and their operations are kept beside the
+    returned ones. Returns None when the session has no same-count edits to
+    carry, so the return rebuilds onto the source as before.
+    """
+
+    from cdmw.domain.mesh.operations import (
+        TOPOLOGY_MESH_EDIT_OPERATIONS,
+        mesh_edit_operation_changed_channel,
+        mesh_edit_operations_from_dicts,
+    )
+    from cdmw.modding.mesh_edit_ops import _MATERIAL_ROUTE_ATTRS
+    from cdmw.modding.mesh_importer import _copy_operation_channel, _has_topology_contract
+    from cdmw.modding.mesh_interchange_identity import is_companion_return
+
+    returned_operations = mesh_edit_operations_from_dicts(
+        getattr(returned_mesh, "_cdmw_edit_operations", ()) or ()
+    )
+    if (not is_companion_return(returned_mesh) or not returned_operations
+            or _has_topology_contract(returned_mesh) or _has_topology_contract(current_mesh)):
+        return None
+    base_parts = tuple(base_mesh.submeshes or ())
+    current_parts = tuple(current_mesh.submeshes or ())
+    returned_parts = tuple(returned_mesh.submeshes or ())
+    if not base_parts or not len(base_parts) == len(current_parts) == len(returned_parts):
+        return None
+    same_count = {
+        index
+        for index, (base, current, returned) in enumerate(zip(base_parts, current_parts, returned_parts))
+        if len(base.vertices or ()) == len(current.vertices or ()) == len(returned.vertices or ())
+    }
+    declared = {
+        (operation.lod_index, operation.submesh_index, mesh_edit_operation_changed_channel(operation.operation))
+        for operation in returned_operations
+    }
+    carried: list[object] = []
+    carried_channels: set[tuple[int, str]] = set()
+    for raw, operation in zip(tuple(session_operations or ()), mesh_edit_operations_from_dicts(session_operations or ())):
+        channel = mesh_edit_operation_changed_channel(operation.operation)
+        if (not channel or operation.operation in TOPOLOGY_MESH_EDIT_OPERATIONS
+                or operation.lod_index != 0 or operation.submesh_index not in same_count
+                or (operation.lod_index, operation.submesh_index, channel) in declared):
+            continue
+        carried.append(copy.deepcopy(raw))
+        carried_channels.add((operation.submesh_index, channel))
+    material_attrs = ("material", "texture", *_MATERIAL_ROUTE_ATTRS, "preview_native_material_overrides")
+    material_parts = {
+        index for index in same_count
+        if any(getattr(current_parts[index], name, None) != getattr(base_parts[index], name, None)
+               for name in material_attrs)
+    }
+    if not carried and not material_parts:
+        return None
+    session_base = copy.deepcopy(base_mesh)
+    for index in material_parts:
+        for name in material_attrs:
+            if hasattr(current_parts[index], name):
+                setattr(session_base.submeshes[index], name, copy.deepcopy(getattr(current_parts[index], name)))
+    for index, channel in carried_channels:
+        _copy_operation_channel(current_parts[index], session_base.submeshes[index], channel)
+    merged = copy.copy(returned_mesh)
+    merged._cdmw_edit_operations = (
+        *carried,
+        *(dict(operation) if isinstance(operation, dict) else operation.to_dict()
+          for operation in getattr(returned_mesh, "_cdmw_edit_operations", ()) or ()),
+    )
+    allowed = getattr(returned_mesh, "_cdmw_sidecar_allowed_edit_operations", None)
+    if allowed is not None:
+        # The companion bounds what the returned file may declare; the carried
+        # operations are the session's own, already accepted when recorded.
+        merged._cdmw_sidecar_allowed_edit_operations = tuple(dict.fromkeys((
+            *tuple(allowed),
+            *(operation.operation for operation in mesh_edit_operations_from_dicts(carried)),
+        )))
+    return session_base, merged
+
+
 def _publish_prepared_replacement(
     session: _MeshEditSession,
     prepared: MeshPreparedWorkingMeshReplacement,
@@ -155,13 +243,19 @@ class MeshWorkingReplacementServiceMixin:
             output_state = replacement_state if replacement_state is not None or replace_output_state else session.replacement_state
             if output_state is not None and refit_context is not None:
                 raise ValueError("Replacement cannot be combined with active Morph & Refit bindings.")
+            rebuild_base = session.base_mesh
             if refit_context is None and output_state is None and (not session.base_mesh.lod_levels or not session.lod_index):
                 # A package return Blender split is collapsed, or refused, before its same-count
                 # channels are copied onto the source; an unnamed Part would keep the original.
                 mesh = recover_returned_vertex_splits(mesh, session.base_mesh)
+                carried = _session_return_base(
+                    session.base_mesh, previous_working_mesh, mesh, session.edit_operations,
+                )
+                if carried is not None:
+                    rebuild_base, mesh = carried
             working_mesh = _service_call(
                 "apply_operation_channels_to_original",
-                session.base_mesh,
+                rebuild_base,
                 mesh,
                 active_lod_index=session.lod_index,
             ) if refit_context is None and output_state is None else _service_call(
