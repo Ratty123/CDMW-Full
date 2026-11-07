@@ -15001,7 +15001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 297,
+          "line": 313,
           "sink": "set_status_message"
         }
       ]
@@ -15951,7 +15951,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 301,
+          "line": 317,
           "sink": "_archive_asset_family_graph_or_prepare"
         },
         {
@@ -16011,7 +16011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 311,
+          "line": 327,
           "sink": "setWindowTitle"
         }
       ]
@@ -16141,7 +16141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 108,
+          "line": 121,
           "sink": "append_archive_log"
         }
       ]
@@ -16151,7 +16151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 113,
+          "line": 126,
           "sink": "append_archive_log"
         }
       ]
@@ -16161,7 +16161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 370,
+          "line": 386,
           "sink": "_scope_archive_reference_entries"
         }
       ]
@@ -16651,7 +16651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 420,
+          "line": 436,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -27711,12 +27711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -27876,12 +27876,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -34186,7 +34186,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 343,
+          "line": 359,
           "sink": "QPushButton"
         },
         {
@@ -42721,12 +42721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -52281,7 +52281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 322,
+          "line": 338,
           "sink": "setHeaderLabels"
         },
         {
@@ -53726,7 +53726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 377,
+          "line": 393,
           "sink": "_export_archive_reference_entries_to_folder"
         },
         {
@@ -54096,7 +54096,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 342,
+          "line": 358,
           "sink": "QPushButton"
         },
         {
@@ -57496,12 +57496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -57801,7 +57801,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 322,
+          "line": 338,
           "sink": "setHeaderLabels"
         },
         {
@@ -58316,7 +58316,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 341,
+          "line": 357,
           "sink": "setToolTip"
         },
         {
@@ -58741,7 +58741,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 340,
+          "line": 356,
           "sink": "QPushButton"
         },
         {
@@ -66171,7 +66171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 399,
+          "line": 415,
           "sink": "setToolTip"
         }
       ]
@@ -87281,7 +87281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 898,
+          "line": 911,
           "sink": "set_status_message"
         }
       ]
@@ -87341,7 +87341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 896,
+          "line": 909,
           "sink": "set_status_message"
         }
       ]
@@ -87841,32 +87841,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 787,
+          "line": 800,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 807,
+          "line": 820,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 814,
+          "line": 827,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 834,
+          "line": 847,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 843,
+          "line": 856,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 857,
+          "line": 870,
           "sink": "set_status_message"
         }
       ]
@@ -88476,7 +88476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 900,
+          "line": 913,
           "sink": "set_status_message"
         }
       ]
@@ -97441,7 +97441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 306,
+          "line": 322,
           "sink": "set_status_message"
         }
       ]
@@ -99661,7 +99661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 397,
+          "line": 413,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -99741,7 +99741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 397,
+          "line": 413,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -100136,7 +100136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 375,
+          "line": 391,
           "sink": "set_status_message"
         },
         {
@@ -100151,7 +100151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 368,
+          "line": 384,
           "sink": "set_status_message"
         },
         {
@@ -106336,7 +106336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 776,
+          "line": 789,
           "sink": "set_status_message"
         }
       ]
@@ -109626,7 +109626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 845,
+          "line": 858,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -110591,22 +110591,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -115121,22 +115121,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -115396,12 +115396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -115411,12 +115411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -117206,12 +117206,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 153,
+          "line": 169,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 671,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 706,
           "sink": "set_status_message"
         }
       ]
@@ -117681,7 +117686,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 836,
+          "line": 849,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -118291,7 +118296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 339,
+          "line": 355,
           "sink": "QPushButton"
         }
       ]
@@ -123681,7 +123686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 397,
+          "line": 413,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -123871,7 +123876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 420,
+          "line": 436,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -125821,7 +125826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 824,
+          "line": 837,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -125876,7 +125881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 822,
+          "line": 835,
           "sink": "set_status_message"
         }
       ]
@@ -137296,7 +137301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 322,
+          "line": 338,
           "sink": "setHeaderLabels"
         },
         {
@@ -144006,7 +144011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 361,
+          "line": 377,
           "sink": "set_status_message"
         }
       ]
@@ -144241,7 +144246,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 781,
+          "line": 794,
           "sink": "set_status_message"
         }
       ]
@@ -144306,7 +144311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 905,
+          "line": 918,
           "sink": "set_status_message"
         }
       ]
@@ -144716,7 +144721,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 294,
+          "line": 310,
           "sink": "set_status_message"
         },
         {
@@ -152486,32 +152491,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -152756,12 +152761,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -153641,42 +153646,42 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -153856,12 +153861,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -157276,7 +157281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 322,
+          "line": 338,
           "sink": "setHeaderLabels"
         },
         {
@@ -159671,12 +159676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -173121,12 +173126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -181166,12 +181171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -182541,12 +182546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         },
         {
@@ -182726,12 +182731,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 469,
+          "line": 485,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 470,
+          "line": 486,
           "sink": "setToolTip"
         }
       ]
@@ -183871,7 +183876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 322,
+          "line": 338,
           "sink": "setHeaderLabels"
         },
         {
@@ -210476,7 +210481,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 207,
+          "line": 223,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -212971,7 +212976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
-          "line": 157,
+          "line": 173,
           "sink": "set_status_message"
         }
       ]
@@ -213771,7 +213776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 824,
+          "line": 837,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -214331,7 +214336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 824,
+          "line": 837,
           "sink": "MeshImportSetupSelection"
         }
       ]

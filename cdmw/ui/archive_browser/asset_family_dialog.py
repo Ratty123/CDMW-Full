@@ -73,12 +73,16 @@ class ArchiveAssetFamilyDialogMixin:
         entry: ArchiveEntry,
         graph: AssetFamilyGraph,
         references: Sequence[ArchiveModelTextureReference],
+        *,
+        owned: bool = True,
     ) -> None:
         cache = getattr(self, "archive_asset_family_cache", None)
         if not isinstance(cache, OrderedDict):
             return
         key = self._archive_asset_family_cache_key(entry)
-        cache[key] = (graph, tuple(references))
+        # ``owned``: built from the set prepared for ``entry`` itself, not from another
+        # model's set that only lists it.
+        cache[key] = (graph, tuple(references), bool(owned))
         cache.move_to_end(key)
         limit = max(1, int(getattr(self, "archive_asset_family_cache_limit", 512) or 512))
         while len(cache) > limit:
@@ -87,7 +91,15 @@ class ArchiveAssetFamilyDialogMixin:
     def _archive_asset_family_graph_for_entry(
         self,
         entry: ArchiveEntry,
+        *,
+        owned: bool = False,
     ) -> Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]]:
+        """``entry``'s family graph and references.
+
+        Workflows that walk many candidates of one prepared set build their graphs
+        from that set. ``owned`` asks for the set prepared for ``entry`` itself, as
+        the Asset Family actions a user picks for one file do.
+        """
         current_entry = self._current_archive_entry()
         current_graph = getattr(self, "current_archive_asset_family_graph", None)
         # The panel's graph belongs to whichever file was last previewed; a right-click
@@ -102,8 +114,9 @@ class ArchiveAssetFamilyDialogMixin:
             return current_graph, tuple(self.current_archive_model_texture_references)
         cache = getattr(self, "archive_asset_family_cache", None)
         cache_key = self._archive_asset_family_cache_key(entry)
-        if isinstance(cache, OrderedDict) and cache_key in cache:
-            graph, cached_references = cache[cache_key]
+        cached = cache.get(cache_key) if isinstance(cache, OrderedDict) else None
+        if cached is not None and (not owned or (cached[2] if len(cached) > 2 else True)):
+            graph, cached_references = cached[0], cached[1]
             cache.move_to_end(cache_key)
             self.shell.append_archive_log(
                 f"Asset family cache hit: {entry.path}",
@@ -114,7 +127,10 @@ class ArchiveAssetFamilyDialogMixin:
             f"Asset family cache miss; rebuilding: {entry.path}",
             verbose=True,
         )
-        dependencies = archive_workflow_dependency_context(self, entry)
+        dependencies = archive_workflow_dependency_context(self, entry, owned=owned)
+        # A prepared set leads with the file it was prepared for.
+        built_from_own_set = owned or not dependencies.remote or bool(
+            dependencies.entries and dependencies.entries[0].identity == entry.identity)
         entry = dependencies.selected_entry
         references = build_archive_relationship_references(
             entry,
@@ -134,7 +150,7 @@ class ArchiveAssetFamilyDialogMixin:
         if item_icon_references:
             combined_references = list(merge_archive_reference_rows(combined_references, item_icon_references))
         graph = build_archive_asset_family_graph(entry, tuple(combined_references))
-        self._remember_archive_asset_family_graph(entry, graph, combined_references)
+        self._remember_archive_asset_family_graph(entry, graph, combined_references, owned=built_from_own_set)
         return graph, tuple(combined_references)
 
     def _archive_asset_family_graph_or_prepare(
@@ -145,7 +161,7 @@ class ArchiveAssetFamilyDialogMixin:
         """Return ``entry``'s family, or start preparing it and say so."""
 
         try:
-            return self._archive_asset_family_graph_for_entry(entry)
+            return self._archive_asset_family_graph_for_entry(entry, owned=True)
         except ArchiveWorkflowDependenciesUnavailable as exc:
             current_entry = self._current_archive_entry()
             if isinstance(current_entry, ArchiveEntry) and self._same_archive_entry(current_entry, entry):

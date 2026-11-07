@@ -137,7 +137,8 @@ class ArchiveRuntimeStateMixin:
         self.archive_preview_cache_last_miss_detail = ""
         self.archive_asset_family_cache: OrderedDict[
             Tuple[str, str, int, int, int],
-            Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]],
+            # graph, references, whether built from the entry's own prepared set
+            Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...], bool],
         ] = OrderedDict()
         self.archive_asset_family_cache_limit = 512
         self.archive_preview_request_started_at: Dict[int, float] = {}

@@ -1048,3 +1048,26 @@ def test_a_right_clicked_model_never_opens_with_the_previewed_models_materials(t
     assert arguments["material_preview_model"] is None and arguments["material_source_identity"] is None
     assert arguments["material_package_path"] == "" and arguments["material_package_lease"] is None
     assert not arguments["material_context_verified_for_rust"]
+
+
+def test_open_in_mesh_editor_prepares_a_model_that_only_has_a_borrowed_set(tmp_path: Path) -> None:
+    # The previewed model's prepared set can list the right-clicked model; opening it with
+    # that set gave Mesh Editor the other model's sidecar, textures and rig.
+    from dataclasses import replace
+
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+
+    previewed, clicked = _entry(tmp_path, "previewed.pac"), _entry(tmp_path, "clicked.pac", offset=64)
+    members = tuple(replace(entry, prepared_path=tmp_path / entry.basename) for entry in (previewed, clicked))
+    borrowed = ArchivePreviewDependencySet(
+        "session-a", 1, members, {entry.path: (entry,) for entry in members},
+        {entry.basename: (entry,) for entry in members}, 2, False)
+    harness = _LaunchHarness(clicked, _package(tmp_path / "previewed", previewed, textured=False))
+    harness.archive_remote_bridge = SimpleNamespace(displays_v2=True, prepared_dependencies_for=lambda _entry: borrowed)
+    harness._request_archive_preview_textures = lambda **_kwargs: False
+    previews: list[ArchiveEntry] = []
+    harness._render_archive_preview = previews.append
+    harness._launch_archive_mesh_editor_for_entry(clicked)
+    assert not harness.opened and previews == [clicked]
+    assert harness.statuses[-1] == (
+        "Preparing clicked.pac and its related files. Open Open in Mesh Editor again when its preview finishes.", False)

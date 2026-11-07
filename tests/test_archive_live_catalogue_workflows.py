@@ -680,7 +680,7 @@ def test_right_clicked_model_never_reuses_the_previewed_models_family() -> None:
     owner.current_archive_asset_family_graph = AssetFamilyGraph(root_path=model_a.path, summary="A")
     owner.current_archive_references_source_identity = archive_entry_identity_key(model_a)
 
-    def unavailable(_owner, _entry):
+    def unavailable(_owner, _entry, **_options):
         raise ArchiveWorkflowDependenciesUnavailable("The archive worker is still preparing the selected file.")
 
     from cdmw.ui.archive_browser import asset_family_dialog
@@ -706,3 +706,38 @@ def test_references_built_for_the_right_clicked_model_are_used() -> None:
     graph, _cached = owner._archive_asset_family_graph_for_entry(model_b)
     assert graph.summary == "B"
     assert owner._current_archive_related_references_for_entry(model_b) == tuple(references)
+
+
+def _prepared_set(owner_entry: ArchiveEntry, *members: ArchiveEntry, root: Path):
+    from dataclasses import replace
+
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+
+    prepared = []
+    for member in (owner_entry, *members):
+        path = root / f"{member.offset}_{Path(member.path).name}"
+        path.write_bytes(b"\0" * 8)
+        prepared.append(replace(member, prepared_path=path))
+    return ArchivePreviewDependencySet(
+        "session-a", owner_entry.offset, tuple(prepared),
+        {entry.path.casefold(): (entry,) for entry in prepared},
+        {Path(entry.path).name.casefold(): (entry,) for entry in prepared}, len(prepared), False,
+    )
+
+
+def test_asset_family_never_builds_from_another_models_prepared_set(tmp_path) -> None:
+    # A prepared set lists every file its model's preview needed, so a right-clicked
+    # model can appear in the previewed model's set. Its family was built from that
+    # borrowed set, and a graph built that way was then served from the cache.
+    model_a, model_b = _entry("character/model/a.pac", 1), _entry("character/model/b.pac", 2)
+    owner = _FamilyOwner(model_b)
+    borrowed = _prepared_set(model_a, model_b, root=tmp_path)
+    owner.archive_remote_bridge = SimpleNamespace(displays_v2=True, prepared_dependencies_for=lambda _entry: borrowed)
+    owner._archive_asset_family_graph_for_entry(model_b)  # an internal caller may still borrow it
+    assert owner._archive_asset_family_graph_or_prepare(model_b, "Asset Family") is None
+    assert owner.previewed == [model_b]
+    assert owner.shell.messages[-1][0].startswith("Preparing b.pac and its related files.")
+    own = _prepared_set(model_b, root=tmp_path)
+    owner.archive_remote_bridge.prepared_dependencies_for = lambda _entry: own
+    graph, _references = owner._archive_asset_family_graph_or_prepare(model_b, "Asset Family")
+    assert graph.root_path == model_b.path

@@ -696,9 +696,22 @@ class MeshEditorShellBridgeMixin:
         remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
         if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
             try:
-                archive_dependencies = archive_workflow_dependency_context(self, entry)
+                # The model's own set: another model's prepared set can list this one
+                # without its sidecar, textures or rig.
+                archive_dependencies = archive_workflow_dependency_context(self, entry, owned=True)
             except ArchiveWorkflowDependenciesUnavailable as exc:
-                self.set_status_message(str(exc), error=True)
+                current_entry = getattr(self.archive, "_current_archive_entry", lambda: None)()
+                render_preview = getattr(self.archive, "_render_archive_preview", None)
+                if (isinstance(current_entry, ArchiveEntry) and current_entry.identity == entry.identity
+                        and callable(render_preview)):
+                    # A right-click selects without previewing; prepare it, as Asset Family does.
+                    render_preview(current_entry)
+                    action = "Open in Mesh Editor"
+                    self.set_status_message(
+                        f"Preparing {entry.basename} and its related files. Open {action} again when its preview finishes."
+                    )
+                else:
+                    self.set_status_message(str(exc), error=True)
                 return
             entry = archive_dependencies.selected_entry
         self._open_archive_mesh_editor_with_dependencies(entry, archive_dependencies)

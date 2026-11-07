@@ -19703,7 +19703,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is unavailable for {entry.basename}: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/asset_family_dialog.py": 157
+      "cdmw/ui/archive_browser/asset_family_dialog.py": 173
     }
   },
   {
@@ -51216,7 +51216,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 902
+      "cdmw/ui/mesh_editor/shell_bridge.py": 915
     }
   },
   {
@@ -51420,7 +51420,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 791
+      "cdmw/ui/mesh_editor/shell_bridge.py": 804
     }
   },
   {
@@ -58349,7 +58349,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 826
+      "cdmw/ui/mesh_editor/shell_bridge.py": 839
     }
   },
   {
