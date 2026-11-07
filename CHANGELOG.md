@@ -7,6 +7,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Create New Item has experimental **Wearable by** choices and a separate **Fitting reference — preview only** section for models installed through DMM. Browse current Character Creator, Female Armor Fit and Female Armor Module files by equipment part and linked item name; their models and textures stay out of exports. Wearer choices travel with the new item, and unrestricted templates show all characters as allowed. New parts use additive registrations in DMM 4.4.0 or newer. Automatic fitting and in-game compatibility remain unverified; this integration is a local test.
+- Create New Item's Model & Placement step lists the item's worn components and ground model. Untick a component to leave it out of the export without losing its import; a left-out component no longer cuts the body, hair or clothing layers underneath. Set **Body underneath** per component, including which clothing layers to keep, or copy it with **Apply to all worn components**. The Output step's **Components** tab summarises the export. Item packages (.cdmw) keep the template's body cuts; send a DMM mod folder to keep what is underneath.
+
 ### Changed
 
 - Dragging in Placement & Animations' view now turns the character the way the pointer moves, left-right as well as up-down, as in the Mesh Editor; before, left-right turned it the other way. **Reverse view drag**, next to the **Show** options, moves the camera with the pointer instead and is remembered.

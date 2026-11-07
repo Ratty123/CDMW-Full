@@ -914,7 +914,7 @@ A component left out of the export draws nothing, but its template cut rule used
 cutting the body near where its geometry had been (the hidden placeholder triangle sits
 at the original part's position, and shipped prefabs use a 0.2 `_shrinkMaskDistance`).
 Planning therefore gives every hidden component an isolated profile without the skin and
-hair receivers, whatever its own choice says. Those automatic profiles never feed the
+hair receivers, or any clothing layer its rule lists, whatever its own choice says. Those automatic profiles never feed the
 prefab's whole-part postfix copy, so hiding a companion cannot change the visible
 garment's whole-part rules. A garment's cut rule also hides the body near its own
 geometry where it leaves skin uncovered, so a revealing imported outfit usually needs
