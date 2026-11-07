@@ -196,6 +196,10 @@ class MeshArchiveSessionLoadWorker(QObject):
                 session_id=self.session_id or f"mesh-editor-archive:{self.entry.path}",
                 mode=self.mode,
             )
+            # A draft continued after a game update opens its saved copy over
+            # the file's new location; its saved target follows the file.
+            from cdmw.services.mesh_draft_relocation import rebase_restored_archive_locations
+            rebase_restored_archive_locations(service, view.session_id, self.entry)
             appearance_warning = ""
             source_geometry_notice = (
                 "Loaded source geometry. Character appearance and named weight editing "

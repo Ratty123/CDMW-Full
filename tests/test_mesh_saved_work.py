@@ -1125,3 +1125,90 @@ def test_game_update_continues_from_the_saved_copy(game, tmp_path):
     assert read_archive_entry_data(launch.selected_entry)[0] == game.source
     assert launch.selected_entry.identity == updated.identity
     assert launch.selected_entry.prepared_note == ""
+
+
+def _replacement_source() -> bytes:
+    from cdmw.modding.mesh_parser import parse_mesh
+    from tests.test_static_mesh_replacer_preview import _minimal_two_part_pac_original
+
+    data, _ = _minimal_two_part_pac_original()
+    raw = bytearray(data)
+    # Rigid donor weights, as tests/test_mesh_editor_replacement.py gives this fixture.
+    for part in parse_mesh(data, "replacement.pac").submeshes:
+        for offset in part.source_vertex_offsets:
+            raw[offset + 28] = 255
+    return bytes(raw)
+
+
+def test_replacement_draft_builds_after_a_game_update_moves_its_target(tmp_path):
+    from dataclasses import replace
+    from cdmw.services.mesh_replacement_import import (
+        archive_location, commit_replacement, compose_import, initial_replacement_state, prepare_import,
+    )
+
+    path = "character/model/replacement.pac"
+    source = _replacement_source()
+    root = tmp_path / "game" / "0009"
+    root.mkdir(parents=True)
+    (root / "0.pamt").write_bytes(b"owned source index")
+    (root / "0.paz").write_bytes(b"owned source payload")
+    entry = _prepared(tmp_path / "prepared", path, source, game=root)
+    drafts = tmp_path / "workspace" / "drafts"
+    first = _load(entry, _context(entry, (entry,)), drafts, draft_request=MeshDraftRequest())
+    snapshot = first.service.capture_export_snapshot(first.view.session_id)
+    key = initial_replacement_state(snapshot, entry).parts[0].part_id
+    obj = tmp_path / "asymmetric.obj"
+    obj.write_text("o asymmetric\nv 12 3 7\nv 16 3 7\nv 12 5 8\nf 1 2 3\n")
+    mesh, state = compose_import(prepare_import(snapshot, obj, target_part_ids=(key,)), (key,))
+    commit_replacement(first.service, snapshot, mesh, replace(state, target_location=archive_location(entry)),
+                       label="Import replacement")
+    _wait_for_autosave(first)
+    _close(first)
+
+    # The game update moves the file inside its package and changes its bytes.
+    updated = replace(_prepared(tmp_path / "updated", path, source + b"\0", game=root), offset=4096)
+    row = list_saved_work(drafts)[0]
+    launch = prepare_saved_work_launch(drafts, row, updated, edited_note=EDITED_RESULT_NOTE)
+    assert launch.game_updated
+    resumed = _load(launch.selected_entry, _context(launch.selected_entry, launch.replacements), drafts,
+                    draft_request=launch.draft_request)
+    try:
+        restored = resumed.service._session(resumed.view.session_id).replacement_state
+        assert restored is not None and restored.target_location == archive_location(updated)
+        revision = resumed.service.session_view(resumed.view.session_id).revision
+        built = _build_mod(resumed, launch.selected_entry, revision, tmp_path / "mod", drafts)
+        assert (built.output_path / path).is_file()
+    finally:
+        resumed.service.close_edit_session(resumed.view.session_id, force_without_saving=True)
+
+
+def test_resumed_refit_primary_follows_the_moved_game_file_only_for_its_own_bytes(game, tmp_path):
+    from dataclasses import replace
+    from cdmw.services.mesh_archive_refit import ArchiveRefitAsset, ArchiveRefitContext
+    from cdmw.services.mesh_draft_relocation import rebase_restored_archive_locations
+
+    loaded = _load(game.entry, game.context, game.drafts)
+    try:
+        service, session_id = loaded.service, loaded.view.session_id
+        source = service.capture_export_snapshot(session_id)
+        saved = replace(game.entry, prepared_path=None, prepared_sha256="", prepared_size=None)
+        armor = replace(saved, path="character/model/armor.pac", offset=128)
+        session = service._session(session_id)
+        session.archive_refit_context = ArchiveRefitContext((
+            ArchiveRefitAsset(saved, source, (0,), "primary"),
+            ArchiveRefitAsset(armor, source, (1,), "armor"),
+        ))
+        moved = replace(game.entry, offset=4096, comp_size=len(game.source) + 1)
+        other = replace(moved, path="character/model/other.pac")
+        assert not rebase_restored_archive_locations(service, session_id, other)
+        assert rebase_restored_archive_locations(service, session_id, moved)
+        assets = session.archive_refit_context.assets
+        assert assets[0].entry.identity == moved.identity
+        assert assets[0].entry.prepared_path is None
+        assert assets[1].entry == armor
+        session.archive_refit_context = ArchiveRefitContext((
+            ArchiveRefitAsset(saved, replace(source, original_data=game.source + b"\0"), (0,), "primary"),))
+        # Different source bytes are a different file, not a moved one.
+        assert not rebase_restored_archive_locations(service, session_id, moved)
+    finally:
+        loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)
