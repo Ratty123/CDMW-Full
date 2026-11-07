@@ -25,7 +25,10 @@ from cdmw.models import (
     AttachmentPlacementEvidence,
 )
 from cdmw.services.archive_reference_search import REVERSE_TARGET_EXTENSIONS, reference_evidence_group
-from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveAssetFamilyDialogMixin:
@@ -87,10 +90,14 @@ class ArchiveAssetFamilyDialogMixin:
     ) -> Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]]:
         current_entry = self._current_archive_entry()
         current_graph = getattr(self, "current_archive_asset_family_graph", None)
+        # The panel's graph belongs to whichever file was last previewed; a right-click
+        # moves the selection without a preview, so the graph's own source decides.
         if (
             isinstance(current_entry, ArchiveEntry)
             and self._same_archive_entry(current_entry, entry)
             and isinstance(current_graph, AssetFamilyGraph)
+            and getattr(self, "current_archive_references_source_identity", None)
+            == self._archive_entry_identity_key(entry)
         ):
             return current_graph, tuple(self.current_archive_model_texture_references)
         cache = getattr(self, "archive_asset_family_cache", None)
@@ -129,6 +136,26 @@ class ArchiveAssetFamilyDialogMixin:
         graph = build_archive_asset_family_graph(entry, tuple(combined_references))
         self._remember_archive_asset_family_graph(entry, graph, combined_references)
         return graph, tuple(combined_references)
+
+    def _archive_asset_family_graph_or_prepare(
+        self,
+        entry: ArchiveEntry,
+        action: str,
+    ) -> Optional[Tuple[AssetFamilyGraph, Tuple[ArchiveModelTextureReference, ...]]]:
+        """Return ``entry``'s family, or start preparing it and say so."""
+
+        try:
+            return self._archive_asset_family_graph_for_entry(entry)
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            current_entry = self._current_archive_entry()
+            if isinstance(current_entry, ArchiveEntry) and self._same_archive_entry(current_entry, entry):
+                self._render_archive_preview(current_entry)
+                self.shell.set_status_message(
+                    f"Preparing {entry.basename} and its related files. Open {action} again when its preview finishes."
+                )
+            else:
+                self.shell.set_status_message(f"{action} is unavailable for {entry.basename}: {exc}", error=True)
+            return None
 
     @staticmethod
     def _archive_entries_from_asset_family_graph(
@@ -271,7 +298,10 @@ class ArchiveAssetFamilyDialogMixin:
                 "Archive path lookup is warming; retry Asset Family when indexing finishes."
             )
             return
-        graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
+        family = self._archive_asset_family_graph_or_prepare(source_entry, "Asset Family")
+        if family is None:
+            return
+        graph, _references = family
         if not tuple(getattr(graph, "member_rows", ()) or ()):
             self.shell.set_status_message("No asset family evidence is available for this file yet.", error=True)
             return

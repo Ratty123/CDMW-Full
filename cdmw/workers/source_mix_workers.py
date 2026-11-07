@@ -63,6 +63,16 @@ class SourceMixScanResult:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceMixTargetResolveRequest:
+    """Match already scanned candidates against indexes built after the scan."""
+
+    source_path: Path
+    candidates: tuple[SourceMixCandidate, ...]
+    index_snapshot: SourceMixIndexSnapshot
+    request_id: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class SceneImportRequest:
     source_path: Path
     request_id: int = 0
@@ -184,6 +194,23 @@ def run_source_mix_scan(
     )
 
 
+def run_source_mix_target_resolution(
+    request: SourceMixTargetResolveRequest,
+    *,
+    stop_event: threading.Event | None = None,
+) -> SourceMixScanResult:
+    candidates = resolve_source_mix_candidate_targets(
+        request.candidates,
+        request.index_snapshot,
+        stop_event=stop_event,
+    )
+    return SourceMixScanResult(
+        request_id=int(request.request_id),
+        source_path=Path(request.source_path),
+        candidates=tuple(candidates),
+    )
+
+
 def run_scene_import(
     request: SceneImportRequest,
     *,
@@ -210,7 +237,9 @@ __all__ = [
     "SourceMixIndexSnapshot",
     "SourceMixScanRequest",
     "SourceMixScanResult",
+    "SourceMixTargetResolveRequest",
     "resolve_source_mix_candidate_targets",
     "run_scene_import",
     "run_source_mix_scan",
+    "run_source_mix_target_resolution",
 ]

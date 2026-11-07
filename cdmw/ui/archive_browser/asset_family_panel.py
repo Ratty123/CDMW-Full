@@ -23,6 +23,11 @@ from cdmw.models import (
 )
 from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
 from cdmw.ui.archive_browser.asset_family_references import _asset_family_dependency_maps
+from cdmw.domain.archives.filters import archive_entry_identity_key
+
+
+def _entry_identity(entry: object):
+    return archive_entry_identity_key(entry) if isinstance(entry, ArchiveEntry) else None
 from cdmw.services.archive_reference_search import (
     NOTE_NO_PATH_SOURCES, NOTE_RUNTIME_NAMED_SOUND, ArchiveReferenceSearchController, REVERSE_TARGET_EXTENSIONS,
     reference_evidence_group,
@@ -117,7 +122,10 @@ class ArchiveAssetFamilyPanelMixin:
         same_search = previous is not None and previous.target.identity == state.target.identity and previous.generation == state.generation
         if not same_search or len(previous.references) != len(state.references) or state.finished:
             self._populate_archive_texture_reference_list(
-                self.current_archive_model_texture_references, self.current_archive_asset_family_graph, enrich=False,
+                self.current_archive_model_texture_references,
+                self.current_archive_asset_family_graph,
+                enrich=False,
+                source_identity=getattr(self, "current_archive_references_source_identity", None),
             )
 
     def _archive_incoming_references(self, entry):
@@ -549,8 +557,19 @@ class ArchiveAssetFamilyPanelMixin:
         asset_family_graph: Optional[AssetFamilyGraph] = None,
         *,
         enrich: bool = True,
+        source_identity: object = None,
     ) -> None:
         current_entry, entries_by_normalized_path, entries_by_basename = _asset_family_panel_dependencies(self)
+        current_identity = _entry_identity(current_entry)
+        if source_identity is None:
+            source_identity = current_identity
+        # References built for another file (a right-click moved the selection
+        # without a preview) are shown as they are, never enriched, cached or
+        # tagged as the newly selected file's.
+        if source_identity != current_identity:
+            current_entry = None
+            enrich = False
+        self.current_archive_references_source_identity = source_identity
         base_references = list(references)
         self.current_archive_used_by_references = self._archive_incoming_references(current_entry)
         item_icon_references: Tuple[ArchiveModelTextureReference, ...] = ()
@@ -735,6 +754,7 @@ class ArchiveAssetFamilyPanelMixin:
         self.current_archive_model_texture_references = []
         self.current_archive_family_member_rows = []
         self.current_archive_asset_family_graph = None
+        self.current_archive_references_source_identity = None
         for tree_name in (
             "archive_texture_refs_tree",
             "archive_asset_map_tree",
@@ -769,17 +789,19 @@ class ArchiveAssetFamilyPanelMixin:
         asset_family_graph: Optional[AssetFamilyGraph],
         *,
         request_id: Optional[int] = None,
+        source_entry: Optional[ArchiveEntry] = None,
     ) -> None:
         scheduled_request_id = self.archive_preview_request_id if request_id is None else int(request_id)
         if int(scheduled_request_id) != int(self.archive_preview_request_id):
             return
         resolved_references = tuple(references or ())
+        current_entry = source_entry if isinstance(source_entry, ArchiveEntry) else self._current_archive_entry()
         self.current_archive_model_texture_references = list(resolved_references)
         self.current_archive_asset_family_graph = asset_family_graph
+        self.current_archive_references_source_identity = _entry_identity(current_entry)
         self.current_archive_family_member_rows = list(
             tuple(getattr(asset_family_graph, "member_rows", ()) or ())
         )
-        current_entry = self._current_archive_entry()
         if isinstance(current_entry, ArchiveEntry) and isinstance(
             asset_family_graph,
             AssetFamilyGraph,
@@ -794,6 +816,7 @@ class ArchiveAssetFamilyPanelMixin:
             resolved_references,
             asset_family_graph,
         )
+        self.pending_archive_texture_reference_source_identity = self.current_archive_references_source_identity
         self.archive_texture_reference_update_timer.stop()
         self._update_archive_texture_reference_action_controls()
         if bool(getattr(self, "archive_asset_family_panel_requested", False)):
@@ -804,6 +827,7 @@ class ArchiveAssetFamilyPanelMixin:
         if pending is None:
             return
         request_id, references, asset_family_graph = pending
+        source_identity = getattr(self, "pending_archive_texture_reference_source_identity", None)
         if int(request_id) != int(self.archive_preview_request_id):
             self.pending_archive_texture_reference_update = None
             return
@@ -814,6 +838,7 @@ class ArchiveAssetFamilyPanelMixin:
             references,
             asset_family_graph,
             enrich=False,
+            source_identity=source_identity,
         )
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
 

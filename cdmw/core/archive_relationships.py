@@ -1250,8 +1250,20 @@ def build_character_dependency_plan(
     *,
     selected_appearance_path: str = "",
     stop_event: object = None,
+    path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
 ) -> CharacterDependencyPlan:
+    """Plan a character export from ``archive_entries``.
+
+    ``path_index`` and ``basename_index`` replace the indexes built from
+    ``archive_entries`` when a caller supplies a bounded, worker-resolved set.
+    """
+
     raise_if_cancelled(stop_event)
+    if path_index is None:
+        path_index = _build_path_index(archive_entries)
+    if basename_index is None:
+        basename_index = _build_basename_index(archive_entries)
     body_path = body_entry.path.replace("\\", "/")
     app_entries = tuple(entry for entry in archive_entries if str(entry.extension or "").lower() == ".app_xml")
     matched_apps: List[ArchiveEntry] = []
@@ -1260,7 +1272,13 @@ def build_character_dependency_plan(
     for app_entry in app_entries:
         raise_if_cancelled(stop_event)
         try:
-            plan = build_archive_relationship_plan(app_entry, archive_entries, mode="character_dependency_scan")
+            plan = build_archive_relationship_plan(
+                app_entry,
+                archive_entries,
+                mode="character_dependency_scan",
+                path_index=path_index,
+                basename_index=basename_index,
+            )
         except Exception as exc:
             warnings.append(f"Skipped {app_entry.path}: {exc}")
             continue
@@ -1280,7 +1298,13 @@ def build_character_dependency_plan(
     )
     selected_plan = plans_by_app.get(_normalized_archive_path(selected_app.path))
     if selected_plan is None:
-        selected_plan = build_archive_relationship_plan(selected_app, archive_entries, mode="character_dependency")
+        selected_plan = build_archive_relationship_plan(
+            selected_app,
+            archive_entries,
+            mode="character_dependency",
+            path_index=path_index,
+            basename_index=basename_index,
+        )
     edges: List[ArchiveRelationEdge] = [
         ArchiveRelationEdge(
             source_path=body_path,
@@ -1294,7 +1318,14 @@ def build_character_dependency_plan(
         )
     ]
     edges.extend(selected_plan.edges)
-    edges.extend(resolve_material_texture_graph(body_entry, archive_entries).edges)
+    edges.extend(
+        resolve_material_texture_graph(
+            body_entry,
+            archive_entries,
+            path_index=path_index,
+            basename_index=basename_index,
+        ).edges
+    )
     for candidate in archive_entries:
         raise_if_cancelled(stop_event)
         if str(candidate.extension or "").lower() not in _ANIMATION_EXTENSIONS:

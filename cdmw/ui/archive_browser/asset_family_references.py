@@ -268,7 +268,10 @@ class ArchiveAssetFamilyReferenceMixin:
                 "Archive path lookup is warming; retry family filtering when indexing finishes."
             )
             return
-        graph, _references = self._archive_asset_family_graph_for_entry(entry)
+        family = self._archive_asset_family_graph_or_prepare(entry, "Filter to Family")
+        if family is None:
+            return
+        graph, _references = family
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:
             self.shell.set_status_message("No resolved family entries are available to scope.", error=True)
@@ -303,7 +306,10 @@ class ArchiveAssetFamilyReferenceMixin:
                 "Archive path lookup is warming; retry family export when indexing finishes."
             )
             return
-        graph, _references = self._archive_asset_family_graph_for_entry(entry)
+        family = self._archive_asset_family_graph_or_prepare(entry, "Export Asset Family")
+        if family is None:
+            return
+        graph, _references = family
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:
             self.shell.set_status_message("No resolved family entries are available to export.", error=True)

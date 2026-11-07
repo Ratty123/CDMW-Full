@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
@@ -35,25 +35,166 @@ from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.source_mix_task_controller import (
     source_mix_task_controller_for_guard,
 )
+from cdmw.domain.archives.catalogue import ArchiveLookupKind
+from cdmw.ui.archive_browser.remote_entry_lookup import (
+    LiveCatalogueState,
+    RemoteLookupOutcome,
+    compatibility_entries,
+    entry_indexes,
+    legacy_indexes_available,
+    live_catalogue_state,
+    live_catalogue_unavailable_message,
+    lookup_basename,
+    lookup_requests,
+    start_live_catalogue_lookup,
+)
 from cdmw.workers.source_mix_workers import (
     SourceMixIndexSnapshot,
     SourceMixScanRequest,
     SourceMixScanResult,
+    SourceMixTargetResolveRequest,
     run_source_mix_scan,
+    run_source_mix_target_resolution,
 )
 
 
-def _source_mix_index_snapshot(owner) -> Optional[SourceMixIndexSnapshot]:
-    lookup_indexes = owner.archive._archive_lookup_indexes_snapshot()
-    if lookup_indexes is None:
-        owner.shell.set_status_message(
-            "Archive path lookup is warming; retry Import Loose Mod Folder when indexing finishes."
-        )
-        return None
-    return SourceMixIndexSnapshot.capture(lookup_indexes[0], lookup_indexes[1])
+#: The scan matches against the live archive catalogue instead of a prebuilt
+#: in-memory index; targets are resolved after the folder has been read.
+LIVE_CATALOGUE_TARGETS = "live_catalogue"
+
+_ACTION_TITLE = "Import Loose Mod Folder"
+
+#: Interchange models a loose package cannot carry; Mesh Editor imports them.
+_SCENE_MODEL_EXTENSIONS = frozenset({".fbx", ".obj", ".gltf", ".glb", ".dae", ".blend"})
+
+
+def _source_mix_index_snapshot(owner) -> Optional[SourceMixIndexSnapshot | str]:
+    if legacy_indexes_available(owner):
+        lookup_indexes = owner.archive._archive_lookup_indexes_snapshot()
+        if lookup_indexes is not None:
+            return SourceMixIndexSnapshot.capture(lookup_indexes[0], lookup_indexes[1])
+    if live_catalogue_state(owner) == LiveCatalogueState.READY:
+        return LIVE_CATALOGUE_TARGETS
+    message = live_catalogue_unavailable_message(owner, _ACTION_TITLE)
+    QMessageBox.information(owner, _ACTION_TITLE, message)
+    owner.shell.set_status_message(message, error=True)
+    return None
+
+
+def _live_lookup_values(candidates) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    paths: Dict[str, None] = {}
+    basenames: Dict[str, None] = {}
+    for candidate in candidates:
+        normalized = str(getattr(candidate, "normalized_virtual_path", "") or "").strip()
+        if normalized:
+            paths[normalized] = None
+        name = lookup_basename(str(getattr(candidate, "display_path", "") or ""))
+        if name:
+            basenames[name] = None
+    return tuple(paths), tuple(basenames)
 
 
 class ArchiveSourceMixOverlayMixin:
+    def _resolve_loose_mod_targets_from_live_catalogue(self, scan_result: object, selected_dir: str) -> None:
+        """Find archive targets for the scanned files through the live catalogue, then review them."""
+
+        if not isinstance(scan_result, SourceMixScanResult):
+            return
+        if not scan_result.candidates:
+            self._open_archive_loose_mod_overlay_dialog(_scan_result=scan_result, _selected_dir=selected_dir)
+            return
+        session = getattr(getattr(getattr(self, "archive", self), "archive_remote_bridge", None), "current_session", None)
+        if session is None:
+            message = live_catalogue_unavailable_message(self, _ACTION_TITLE)
+            QMessageBox.information(self, _ACTION_TITLE, message)
+            self.shell.set_status_message(message, error=True)
+            return
+        paths, basenames = _live_lookup_values(scan_result.candidates)
+        requests = (
+            *lookup_requests(session.session_id, ArchiveLookupKind.EXACT_PATHS, paths),
+            *lookup_requests(session.session_id, ArchiveLookupKind.BASENAMES, basenames),
+        )
+        self.shell.set_status_message(
+            f"Matching {len(scan_result.candidates):,} loose file(s) against the archive catalogue..."
+        )
+
+        def matched(outcome: RemoteLookupOutcome) -> None:
+            # A cut answer keeps the lowest entry ids across every value of its request,
+            # so one of two same-named files can be missing and the other would look
+            # unique. Ask again one value at a time before trusting any filename match.
+            retry = tuple(
+                single
+                for request in outcome.truncated_requests
+                if len(request.values) > 1
+                for single in lookup_requests(session.session_id, request.kind, request.values, chunk_size=1)
+            )
+            if not retry:
+                resolve_targets(outcome.entries, outcome.truncated_requests)
+                return
+            start_live_catalogue_lookup(
+                self,
+                "_source_mix_live_target_lookup",
+                retry,
+                on_done=lambda second: resolve_targets(
+                    (*outcome.entries, *second.entries),
+                    (
+                        *(request for request in outcome.truncated_requests if len(request.values) <= 1),
+                        *second.truncated_requests,
+                    ),
+                ),
+                on_error=failed,
+            )
+
+        def resolve_targets(entries, truncated_requests) -> None:
+            unique = {int(entry.entry_id): entry for entry in entries}
+            path_index, basename_index = entry_indexes(compatibility_entries(self, unique.values()))
+            incomplete_names = {
+                lookup_basename(value)
+                for request in truncated_requests
+                if request.kind is ArchiveLookupKind.BASENAMES
+                for value in request.values
+            }
+            # Still cut when asked alone: the filename has too many archive copies to
+            # judge, so it may match only by exact path, never by filename.
+            for name in incomplete_names:
+                basename_index.pop(name, None)
+            if incomplete_names:
+                self.shell.append_archive_log(
+                    "Loose mod matching: a filename matched more archive entries than one lookup returns; "
+                    "such files stay unmatched instead of being guessed."
+                )
+            controller = source_mix_task_controller_for_guard(
+                self.shell,
+                self,
+                attribute="_source_mix_overlay_scan_controller",
+            )
+            controller.start(
+                SourceMixTargetResolveRequest(
+                    source_path=Path(scan_result.source_path),
+                    candidates=tuple(scan_result.candidates),
+                    index_snapshot=SourceMixIndexSnapshot.capture(path_index, basename_index),
+                ),
+                run_source_mix_target_resolution,
+                status_message="Matching loose mod files to archive targets...",
+                on_complete=lambda result: self._open_archive_loose_mod_overlay_dialog(
+                    _scan_result=result,
+                    _selected_dir=selected_dir,
+                ),
+                on_error=lambda message: QMessageBox.warning(self, _ACTION_TITLE, message),
+            )
+
+        def failed(message: str) -> None:
+            QMessageBox.warning(self, _ACTION_TITLE, f"Archive targets could not be matched:\n{message}")
+            self.shell.set_status_message(f"Loose mod archive matching failed: {message}", error=True)
+
+        start_live_catalogue_lookup(
+            self,
+            "_source_mix_live_target_lookup",
+            requests,
+            on_done=matched,
+            on_error=failed,
+        )
+
     def _open_archive_loose_mod_overlay_dialog(
         self,
         _checked: bool = False,
@@ -78,18 +219,23 @@ class ArchiveSourceMixOverlayMixin:
                 self,
                 attribute="_source_mix_overlay_scan_controller",
             )
+            live_targets = index_snapshot == LIVE_CATALOGUE_TARGETS
             request = SourceMixScanRequest(
                 source_path=scan_root,
                 source_kind="loose",
-                index_snapshot=index_snapshot,
+                index_snapshot=None if live_targets else index_snapshot,
             )
             controller.start(
                 request,
                 run_source_mix_scan,
                 status_message=f"Scanning loose mod folder: {scan_root.name}...",
-                on_complete=lambda result: self._open_archive_loose_mod_overlay_dialog(
-                    _scan_result=result,
-                    _selected_dir=str(scan_root),
+                on_complete=lambda result: (
+                    self._resolve_loose_mod_targets_from_live_catalogue(result, str(scan_root))
+                    if live_targets
+                    else self._open_archive_loose_mod_overlay_dialog(
+                        _scan_result=result,
+                        _selected_dir=str(scan_root),
+                    )
                 ),
                 on_error=lambda message: QMessageBox.warning(
                     self,
@@ -125,6 +271,18 @@ class ArchiveSourceMixOverlayMixin:
         summary.setObjectName("HintLabel")
         summary.setWordWrap(True)
         layout.addWidget(summary)
+        if any(
+            PurePosixPath(str(candidate.display_path or "").replace("\\", "/")).suffix.lower() in _SCENE_MODEL_EXTENSIONS
+            for candidate in extras
+        ):
+            scene_hint = QLabel(
+                "FBX, OBJ, glTF/GLB and DAE models are not game files, so this import lists them as extras. "
+                "To put an edited model in the game, open the original in Mesh Editor and choose Import Replacement…. "
+                "It accepts OBJ, glTF/GLB and DAE; export an FBX from Blender as GLB first."
+            )
+            scene_hint.setObjectName("layout_cdmw_ui_archive_browser_source_mix_overlay_scene_model_hint")
+            scene_hint.setWordWrap(True)
+            layout.addWidget(scene_hint)
         tabs = QTabWidget()
         layout.addWidget(tabs, 1)
         all_tree = QTreeWidget()

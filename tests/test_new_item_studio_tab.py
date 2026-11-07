@@ -39,6 +39,7 @@ from test_new_item_service import LOC, OTHER, TEMPLATE, _read, build_package, sy
 from tests.new_item_studio_tab_authoring_tests import _TabAuthoringMixin  # noqa: E402
 from tests.new_item_studio_tab_lifecycle_tests import InstallReportTests, _TabLifecycleMixin  # noqa: E402
 from tests.new_item_studio_tab_output_tests import _TabOutputMixin  # noqa: E402
+from tests.new_item_studio_tab_shop_tests import _TabShopPickerMixin  # noqa: E402
 
 
 class StateTests(unittest.TestCase):
@@ -77,7 +78,7 @@ class StateTests(unittest.TestCase):
             spec_from_draft(NewItemDraft(), None)
 
 
-class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest.TestCase):
+class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShopPickerMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         from PySide6.QtWidgets import QApplication
@@ -478,10 +479,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.app.processEvents()
         self.assertEqual(tab.pages.currentWidget().horizontalScrollBar().maximum(), 0, "expanded raw-stat controls fit at 1280")
         self.assertFalse(groups.group_list.isVisibleTo(groups), "the item groups wait to be chosen by hand")
-        self.assertFalse(groups.store.isVisibleTo(groups), "no shop, no shop picker")
+        self.assertFalse(groups.choose_store_button.isVisibleTo(groups), "no shop, no shop picker")
+        self.assertFalse(groups.store.isVisibleTo(groups), "the shop combo is data-only; the picker dialog chooses")
         groups.explicit.setChecked(True)
         groups.swap.setChecked(True)
-        self.assertTrue(groups.store.isVisibleTo(groups))
+        self.assertTrue(groups.choose_store_button.isVisibleTo(groups))
         groups.routes_view.setCurrentWidget(groups.groups_page)
         self.assertTrue(groups.group_list.isVisibleTo(groups))
         groups.routes_view.setCurrentIndex(0)
@@ -948,7 +950,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 )
                 self.assertEqual(placement.group_list.minimumHeight(), 96)
                 self.assertFalse(placement.group_list.isVisibleTo(placement))
-                self.assertTrue(placement.store.isVisibleTo(placement))
+                self.assertTrue(placement.choose_store_button.isVisibleTo(placement))
                 placement.routes_view.setCurrentWidget(placement.groups_page)
                 self.app.processEvents()
                 self.assertTrue(placement.group_list.isVisibleTo(placement))

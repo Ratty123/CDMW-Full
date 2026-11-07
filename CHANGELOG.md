@@ -9,7 +9,17 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Create New Item chooses shops in a searchable **Choose shop…** list instead of a long dropdown. Search by merchant, place, type, internal `Store_` ID or an item the shop sells. Only merchants confirmed in game are named; other names come from the shop's table key and are marked with `*`. When adding a new shop entry you can tick several shops at once; each becomes a saved route, and shops that already have one are skipped.
 - An imported model part with more than 65,535 vertices no longer stops the build with an error. A PAC draw section cannot hold more, so the part is split across extra draw sections and the build notes say so. In a complete swap the extra piece needs a free material slot in the template; without one, the error now says to decimate the part instead. A split part has not yet been checked in game.
+
+### Fixed
+
+- Archive Browser's **Import Loose Mod Folder…** matches edited game files to their archive targets again, so checked rows can be written to a loose package. It reports whether the archive catalogue is still loading or not loaded instead of listing every file as an extra. A filename shared by several archive files is never matched to one of them by guesswork. FBX, OBJ, glTF/GLB and DAE models in the folder are listed as extras with a note pointing to Mesh Editor's **Import Replacement…**, which takes OBJ, glTF/GLB and DAE.
+- Mesh Editor's **Show Target In Archive** reveals the original file in the loaded Archive Browser, even when filters or paging hide it, instead of saying the archives are not loaded.
+- **Export Character and Related Game Files…** works with the loaded Archive Browser instead of asking you to load it first. Models no character appearance uses, such as armor, get a message saying the export does not apply to them.
+- **Show Only This File** and **Filter to Family** now narrow the list that is shown, and **Extract Filtered** exports exactly that scope. Files that cannot be matched are reported instead of the scope claiming them.
+- Right-clicking a different model no longer makes **Asset Family…** or the referenced-file choice of **Export This Model as GLB / FBX / OBJ** use the previously previewed model's files. The action prepares the clicked model first.
+- Create New Item handles fast shop changes while moving between steps more safely: the dropdown linked to the reported crash is gone, open lists close when the step changes, each shop change is applied once, and a shop missing from the current game tables clears its stock lines instead of failing.
 
 ## [0.12.0-alpha.2] - 2026-11-04
 
