@@ -190,7 +190,8 @@ class MeshEditablePackageImportWorker(QObject):
                 mesh = import_glb_with_sidecar(mesh_path)
             elif mesh_path.suffix.lower() == ".fbx":
                 from cdmw.modding.scene_importer import import_fbx
-                if not Path(f"{mesh_path}.meta.json").is_file():
+                from cdmw.modding.mesh_obj_importer import roundtrip_companion_path
+                if roundtrip_companion_path(mesh_path) is None:
                     raise ValueError("FBX sidecar is required for editable mesh package import.")
                 mesh = import_fbx(mesh_path, blender_path=self.blender_path, stop_event=self.stop_event)
             elif mesh_path.suffix.lower() == ".obj":

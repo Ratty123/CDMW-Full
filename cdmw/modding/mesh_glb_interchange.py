@@ -35,6 +35,7 @@ from .mesh_obj_importer import (
     _validate_obj_sidecar_skinning_metadata,
     _validate_obj_sidecar_source_index_maps,
     _validate_obj_sidecar_stable_ids,
+    roundtrip_companion_path,
 )
 from .mesh_parser import ParsedMesh, SubMesh
 from .scene_geometry_utils import _bbox, _restore_interchange_coordinates
@@ -92,9 +93,8 @@ def _editable_glb_path(path: Path) -> Path:
 
 
 def _load_glb_roundtrip_sidecar(glb_path: Path) -> dict[str, object]:
-    for candidate in (Path(f"{glb_path}.meta.json"), glb_path.parent / "mesh.cdmeta.json"):
-        if not candidate.is_file():
-            continue
+    companion = roundtrip_companion_path(glb_path)
+    for candidate in (companion,) if companion is not None else ():
         payload = json.loads(candidate.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"GLB sidecar is not a JSON object: {candidate}")
@@ -128,14 +128,28 @@ def _attach_glb_sidecar(mesh: ParsedMesh, sidecar: dict[str, object], source_nam
     _attach_obj_sidecar_warnings(mesh, matched_entries, {})
     joint_slots = sidecar.get("interchange_joint_slots", [])
     source_skins = sidecar.get("interchange_source_skins", [])
+    report = sidecar.get("interchange_report", {})
+    exported = str(report.get("format", "") if isinstance(report, dict) else "").strip().lower()
+    returned = {"gltf": "glb"}.get(Path(source_name).suffix.lstrip(".").lower(), Path(source_name).suffix.lstrip(".").lower())
     for submesh, entry in zip(mesh.submeshes, matched_entries):
         has_incoming_weights = bool(submesh.bone_indices)
         if has_incoming_weights and not submesh.interchange_skin:
             raise ValueError("Edited mesh joint attributes have no skin binding.")
         entry_index = int(entry.get("submesh_index", -1)) if isinstance(entry, dict) else -1
         source_skin = source_skins[entry_index] if 0 <= entry_index < len(source_skins) else None
-        _attach_glb_submesh_sidecar(submesh, entry, source_skin=source_skin,
-                                   legacy_bind_coordinates=sidecar.get("interchange_report", {}).get("format") in {"obj", "fbx"})
+        try:
+            _attach_glb_submesh_sidecar(submesh, entry, source_skin=source_skin,
+                                       legacy_bind_coordinates=exported in {"obj", "fbx"})
+        except _UnprovenVertexIdentity as exc:
+            if exported and returned and exported != returned:
+                # GLB carries ids as an attribute, FBX as a UV layer and OBJ as its
+                # vertex order; Blender writes none of them into another format.
+                raise ValueError(
+                    f"Cannot prove edited vertex identity: the companion is from the {exported.upper()} export, "
+                    f"and Blender does not carry its vertex IDs into {returned.upper()}. Return the edited mesh "
+                    f"as {exported.upper()}, or move no vertices when switching formats."
+                ) from exc
+            raise
         if isinstance(entry, dict):
             entry_index = int(entry.get("submesh_index", -1))
             slots = joint_slots[entry_index] if 0 <= entry_index < len(joint_slots) else {}
@@ -173,6 +187,10 @@ def _attach_glb_submesh_sidecar(submesh: SubMesh, entry: object, *, source_skin=
     _attach_obj_sidecar_unknown_fields(submesh, entry)
 
 
+class _UnprovenVertexIdentity(ValueError):
+    """A returned Part carries no CDMW vertex ids and its vertices moved from their source."""
+
+
 def _recover_vertex_ids(submesh, entry):
     vertices = entry.get("interchange_vertices", [])
     if not vertices:
@@ -190,7 +208,7 @@ def _recover_vertex_ids(submesh, entry):
     for vertex in submesh.vertices:
         candidates = lookup.get(tuple(round(float(v), 5) for v in vertex), [])
         if len(candidates) != 1:
-            raise ValueError("Cannot prove edited vertex identity; retain the CDMW vertex attribute in GLB, or use the OBJ package.")
+            raise _UnprovenVertexIdentity("Cannot prove edited vertex identity; retain the CDMW vertex attribute in GLB, or use the OBJ package.")
         ids.append(candidates[0])
     return ids
 

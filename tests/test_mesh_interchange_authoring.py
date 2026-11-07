@@ -378,6 +378,63 @@ def test_obj_return_restores_static_coordinates_from_other_format_companion(tmp_
     assert restored.interchange_transform == part.interchange_transform
 
 
+def _static_authored_mesh(root):
+    mesh = authored_mesh(root)
+    part = mesh.submeshes[0]
+    part.bone_indices, part.bone_weights, part.interchange_skin = [], [], {}
+    part.interchange_transform = (1.5, 0, 0, 2, 0, 2, 0, 3, 0, 0, 0.75, 4, 0, 0, 0, 1)
+    return mesh
+
+
+def _returned_as(mesh, export_dir, name, writer, scratch):
+    """A mesh saved under the export's name in another format, with no companion of its own."""
+    files = writer(mesh, str(scratch), name)
+    written = Path(files if isinstance(files, str) else files[0])
+    returned = export_dir / written.name
+    returned.write_bytes(written.read_bytes())
+    return returned
+
+
+@pytest.mark.parametrize("source_format", ["fbx", "glb"])
+def test_obj_return_finds_the_companion_its_export_wrote(tmp_path, source_format):
+    # Export... writes edited.<format>.meta.json; an OBJ saved back as edited.obj
+    # used to find no companion and lost the export's coordinate frame.
+    mesh = _static_authored_mesh(tmp_path / "source")
+    exported = {"fbx": export_fbx, "glb": export_glb}[source_format](mesh, str(tmp_path / "out"), "edited")
+    original = Path(exported if isinstance(exported, str) else exported[0])
+    returned = _returned_as(mesh, original.parent, "edited", export_obj, tmp_path / "blender")
+    assert not Path(f"{returned}.meta.json").exists()
+    restored = import_obj(str(returned)).submeshes[0]
+    for actual, expected in zip(restored.vertices, mesh.submeshes[0].vertices, strict=True):
+        assert actual == pytest.approx(expected)
+    assert restored.interchange_transform == mesh.submeshes[0].interchange_transform
+
+
+def test_glb_return_of_an_obj_export_keeps_identity_and_names_a_lost_carrier(tmp_path):
+    mesh = _static_authored_mesh(tmp_path / "source")
+    original = Path(export_obj(mesh, str(tmp_path / "out"), "edited")[0])
+    returned = _returned_as(mesh, original.parent, "edited", export_glb, tmp_path / "blender")
+    assert _load_glb_roundtrip_sidecar(returned)["interchange_report"]["format"] == "obj"
+    assert import_glb_with_sidecar(returned).submeshes[0].source_vertex_map == [0, 1, 2]
+    # Blender's GLB export of an OBJ has no CDMW vertex attribute; a moved vertex
+    # cannot be matched, and the refusal says why.
+    edited = import_gltf(returned, preserve_authoring=True).mesh
+    del edited.submeshes[0].interchange_vertex_ids
+    edited.submeshes[0].vertices[0] = (0.4, 0, 0)
+    with pytest.raises(ValueError, match="companion is from the OBJ export.*Return the edited mesh as OBJ"):
+        _attach_glb_sidecar(edited, _load_glb_roundtrip_sidecar(returned), returned.name)
+
+
+def test_return_with_companions_from_several_exports_is_not_guessed(tmp_path):
+    mesh = _static_authored_mesh(tmp_path / "source")
+    folder = tmp_path / "out"
+    export_glb(mesh, folder, "edited")
+    export_fbx(mesh, str(folder), "edited")
+    returned = _returned_as(mesh, folder, "edited", export_obj, tmp_path / "blender")
+    with pytest.raises(ValueError, match=r"Rename the companion of the export you edited to edited\.obj\.meta\.json"):
+        import_obj(str(returned))
+
+
 def test_split_obj_keeps_scene_clips_source_and_selected_part_metadata(tmp_path):
     mesh = authored_mesh(tmp_path / "source")
     second = copy.deepcopy(mesh.submeshes[0])
