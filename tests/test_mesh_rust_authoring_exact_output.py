@@ -211,6 +211,50 @@ def test_reopened_deleted_geometry_can_finish_without_losing_original_topology_b
         service.close_edit_session(first.authoritative_session_id, force_without_saving=True)
 
 
+def _exact_seed(source: bytes, project: Path | None = None):
+    mesh = parse_pac(source, "owned-rust-exact.pac")
+    mesh._cdmw_original_data = source
+    mesh._cdmw_mesh_asset_inferred_bone_count = 8
+    mesh._cdmw_no_op_roundtrip_report = {"result": "PASS", "byte_identical": True, "unexpected_differences": 0}
+    if project is not None:
+        mesh._cdmw_mesh_layer_project_path = str(project)
+    return mesh
+
+
+def test_resumed_pasted_layer_draft_builds_its_copies_without_further_edits(tmp_path):
+    # A resumed layer draft used its restored mesh as the source base while still
+    # calling it the game file's parse. An unchanged Build then matched that base
+    # and wrote the game PAC as is, dropping the pasted copy.
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+
+    source = _pac_fixture(skinned=True)
+    service, reopened = MeshService(), MeshService()
+    session_id = service.open_edit_session(_exact_seed(source), mode="edit").session_id
+    resumed_id = None
+    try:
+        service.apply_command(session_id, MeshEditCommand(
+            "select", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+            params={"operation": "replace"}))
+        service.copy_selection(session_id, target="face")
+        service.paste_selection(session_id)
+        expected, _report = service.rebuild_result_from_snapshot(service.capture_export_snapshot(session_id))
+        assert expected.data != source
+        project = tmp_path / "draft" / "mesh_layers.json"
+        service._session(session_id).mesh_layer_project_path = project
+        service.retry_mesh_layer_autosave(session_id)
+        assert project.is_file()
+
+        resumed_id = reopened.open_edit_session(_exact_seed(source, project), mode="edit").session_id
+        assert len(reopened.working_mesh(resumed_id, clone=False).submeshes) == 2
+        actual, report = reopened.rebuild_result_from_snapshot(reopened.capture_export_snapshot(resumed_id))
+        assert actual.data == expected.data
+        assert not report.byte_identical
+    finally:
+        if resumed_id is not None:
+            reopened.close_edit_session(resumed_id, force_without_saving=True)
+        service.close_edit_session(session_id, force_without_saving=True)
+
+
 def test_baked_morph_can_delete_a_face_and_finish_with_its_new_topology(tmp_path):
     from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
     from tests.test_mesh_morph_service import _author_command
