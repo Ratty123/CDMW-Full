@@ -43282,7 +43282,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive material manifest contains too many mesh parts.",
     "recovery": "limits",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 533
+      "cdmw/workers/mesh_editor_aux_workers.py": 534
     }
   },
   {
@@ -43290,7 +43290,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive material manifest has an invalid mesh part identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 550
+      "cdmw/workers/mesh_editor_aux_workers.py": 551
     }
   },
   {
@@ -51791,7 +51791,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor texture source could not be resolved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 799
+      "cdmw/workers/mesh_editor_aux_workers.py": 800
     }
   },
   {
@@ -55308,7 +55308,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB contains no parsed bones: {skeleton_source_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 282
+      "cdmw/workers/mesh_editor_aux_workers.py": 283
     }
   },
   {
@@ -61507,7 +61507,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive material resolver returned no resolved texture bindings.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 682
+      "cdmw/workers/mesh_editor_aux_workers.py": 683
     }
   },
   {
@@ -62099,7 +62099,7 @@ MESSAGE_REFERENCE = [
     "message": "The resolved Archive Browser material model belongs to a different archive entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 588
+      "cdmw/workers/mesh_editor_aux_workers.py": 589
     }
   },
   {
@@ -62107,7 +62107,7 @@ MESSAGE_REFERENCE = [
     "message": "The resolved Archive Browser texture package belongs to a different archive entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 592
+      "cdmw/workers/mesh_editor_aux_workers.py": 593
     }
   },
   {
@@ -62115,7 +62115,7 @@ MESSAGE_REFERENCE = [
     "message": "The resolved Archive Browser texture package could not be leased.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_aux_workers.py": 601
+      "cdmw/workers/mesh_editor_aux_workers.py": 602
     }
   },
   {
