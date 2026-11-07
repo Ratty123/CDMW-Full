@@ -42,7 +42,8 @@ _RECORDS = {
     'EffectLook': RecordAdapter(effect_authoring.EffectLook),
     'EffectLayer': RecordAdapter(effect_authoring.EffectLayer),
     'TranslucencyChoice': RecordAdapter(translucency.TranslucencyChoice),
-    'BodyVisibilityChoice': RecordAdapter(body_visibility.BodyVisibilityChoice),
+    # Kept clothing layers change shared shrink rules, which item packages never carry.
+    'BodyVisibilityChoice': RecordAdapter(body_visibility.BodyVisibilityChoice, defaults={'keep_receivers': frozenset()}),
     'SurfaceEdit': RecordAdapter(surface.SurfaceEdit),
     'GlowAnimation': RecordAdapter(emission.GlowAnimation),
     'RgbGlow': RecordAdapter(emission.RgbGlow),

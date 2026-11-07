@@ -718,9 +718,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_layout.addWidget(self.surface_editor)
         from cdmw.ui.new_item.body_visibility_editor import BodyVisibilityEditor
         self.body_visibility_editor = BodyVisibilityEditor(self)
-        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
-                                            enabled=self._controller.current_variant_identity() is not None)
+        self._refresh_body_visibility()
         self.body_visibility_editor.changed.connect(self._body_visibility_changed)
+        self.body_visibility_editor.layers_requested.connect(self._find_visibility_layers)
         model_layout.addWidget(self.body_visibility_editor)
         from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
         self.shader_controls_editor = ShaderControlsEditor(self)
@@ -1074,8 +1074,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         mesh = getattr(getattr(source, "scene", None), "mesh", None)
         self.surface_editor.refresh(parts, self._controller.draft.surface_settings,
             enabled=source is not None, mesh=mesh, glow=glow_choice(self._controller.draft))
-        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
-                                            enabled=self._controller.current_variant_identity() is not None)
+        self._refresh_body_visibility()
         self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls,
                                             self._controller.material_shader_options())
         self.glow_parts.blockSignals(True)
@@ -1201,6 +1200,34 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _body_visibility_changed(self, choice) -> None:
         self._controller.draft.body_visibility = choice
         self._controller.invalidate_plan()
+
+    def _refresh_body_visibility(self, *, looking=False) -> None:
+        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
+                                            enabled=self._controller.current_variant_identity() is not None,
+                                            layers=self._controller.visibility_layers(), looking=looking)
+
+    def _find_visibility_layers(self) -> None:
+        from shiboken6 import isValid
+
+        def done(identity):
+            if isValid(self.body_visibility_editor) and identity == self._controller.current_variant_identity():
+                self._refresh_body_visibility()
+
+        def failed(message):
+            if not isValid(self.body_visibility_editor):
+                return
+            self._refresh_body_visibility()
+            self.body_visibility_editor.layers_status.setText(f"Could not read the layers: {message}")
+            self.body_visibility_editor.layers_status.setVisible(True)
+
+        # Show the wait first: a synchronous controller finishes inside the call.
+        self._refresh_body_visibility(looking=True)
+        def cancelled():
+            if isValid(self.body_visibility_editor):
+                self._refresh_body_visibility()
+
+        if not self._controller.start_visibility_layer_lookup(done, failed, cancelled):
+            self._refresh_body_visibility()
 
     def _shader_controls_changed(self, choices) -> None:
         previous = self._controller.draft.shader_controls

@@ -564,6 +564,12 @@ remains open.
 Equipment can also hide underlying skin, head, hair or beard through shrink
 profiles and conditional prefab rules. CDMW's experimental controls create
 isolated prefab/profile changes and preserve matching suffix-based conditions.
+Shrink rules cut underlying clothing the same way: in the game 2.04 descriptor the
+`Upperbody`, `Vest` and `Jacket` rules all list `Lowerbody`, which is why trimmed
+coats leave gaps in the pants beneath (descriptor read 2026-11-07). New Item and
+Mesh Editor Build Mod can clone a rule without chosen clothing layers; Mesh
+Editor changes only the geometry cut, since its in-place replacement cannot
+isolate suffix-based hide conditions. In-game effect is not yet confirmed.
 They do not simulate every game cut rule in preview, create absent body
 geometry, or override every other equipped item's hide condition. The separate
 live-process helmet visibility-bit approach reported by community tools is not

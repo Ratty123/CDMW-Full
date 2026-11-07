@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Added
 
 - Placement & Animations' **Fine-tune** has **Position** boxes for the exact offset of the selected attach point, and **Turn** arrows that swing, tip or spin the item the way it looks in the view, by the **Turn by** angle. The **Angle** boxes now turn the item as soon as their arrows or the mouse wheel change them.
+- Experimental **keep layers underneath** for shortened or trimmed garments. Shrink rules make clothing cut the layers beneath it, so pants could show gaps where a removed coat panel used to be. In Create New Item, **Underlying parts** now has **Find layers**, which lists the layers the variant cuts (such as `Lowerbody` for pants), and you can tick the ones to keep. Mesh Editor **Build Mod** has a matching **Keep layers underneath** option for in-place replacements. It changes the geometry cut only; whole-part hide rules stay as they are. Both ship the game's `partshrinkdesc.xml`, so another mod that ships that file conflicts, and `.cdmw` item packages cannot carry the change. Not yet checked in game.
 
 ### Changed
 

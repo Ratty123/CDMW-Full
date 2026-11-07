@@ -146,6 +146,15 @@ def shrink_rule_names(data: bytes) -> frozenset[str]:
     return frozenset(_rules(_nodes(data))[1])
 
 
+def shrink_rule_receivers(data: bytes, tag: str) -> tuple[str, ...]:
+    """Receiver tags the named rule cuts, in descriptor order, without duplicates."""
+    node = _rules(_nodes(data))[1].get(tag)
+    if node is None:
+        return ()
+    names = (receiver.text.strip() for receiver in _walk(node.children) if receiver.name == "Shrink")
+    return tuple(dict.fromkeys(name for name in names if _IDENTIFIER.fullmatch(name)))
+
+
 @dataclass(frozen=True)
 class VisibilityProfile:
     source_tag: str

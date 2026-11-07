@@ -27937,7 +27937,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item recipe text.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 106
+      "cdmw/services/independent_item_codec.py": 107
     }
   },
   {
@@ -28185,7 +28185,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid v1 {name} setting: {exc}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 182
+      "cdmw/services/independent_item_codec.py": 183
     }
   },
   {
@@ -28193,7 +28193,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid value type in {name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 128
+      "cdmw/services/independent_item_codec.py": 129
     }
   },
   {
@@ -28361,7 +28361,7 @@ MESSAGE_REFERENCE = [
     "message": "Item recipe contains too many values.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 133
+      "cdmw/services/independent_item_codec.py": 134
     }
   },
   {
@@ -28369,7 +28369,7 @@ MESSAGE_REFERENCE = [
     "message": "Item recipe is nested too deeply.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 112
+      "cdmw/services/independent_item_codec.py": 113
     }
   },
   {
@@ -29435,7 +29435,7 @@ MESSAGE_REFERENCE = [
     "message": "The item contains a setting that cannot be shared safely.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 145
+      "cdmw/services/independent_item_codec.py": 146
     }
   },
   {
@@ -30211,7 +30211,7 @@ MESSAGE_REFERENCE = [
     "message": "The v1 runtime adapter for {name} needs an explicit compatibility translation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 73
+      "cdmw/services/independent_item_codec.py": 74
     }
   },
   {
@@ -30291,7 +30291,7 @@ MESSAGE_REFERENCE = [
     "message": "The {name} setting cannot be represented by v1.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 125
+      "cdmw/services/independent_item_codec.py": 126
     }
   },
   {
@@ -30419,7 +30419,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown item recipe type.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 183
+      "cdmw/services/independent_item_codec.py": 184
     }
   },
   {
@@ -30443,7 +30443,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown or missing item recipe fields.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 171
+      "cdmw/services/independent_item_codec.py": 172
     }
   },
   {
@@ -30451,7 +30451,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown v1 enum value for {name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 166
+      "cdmw/services/independent_item_codec.py": 167
     }
   },
   {
@@ -30621,7 +30621,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported portable enum setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 118
+      "cdmw/services/independent_item_codec.py": 119
     }
   },
   {
@@ -30629,7 +30629,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported portable setting: {type(value).__name__}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/independent_item_codec.py": 130
+      "cdmw/services/independent_item_codec.py": 131
     }
   },
   {
@@ -31543,7 +31543,7 @@ MESSAGE_REFERENCE = [
     "message": "A visibility string is shared with an unselected field; refusing to change that field.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 155
+      "cdmw/services/new_item_body_visibility.py": 194
     }
   },
   {
@@ -31737,7 +31737,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 614
+      "cdmw/ui/new_item/controller.py": 616
     }
   },
   {
@@ -32231,6 +32231,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Could not read the layers: {message}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/new_item/panels_model.py": 1220
+    }
+  },
+  {
+    "area": "items",
     "message": "Curves require 2 to 128 finite samples in range.",
     "recovery": "input",
     "sources": {
@@ -32706,10 +32714,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Experimental visibility: {part.prefab_path}, {obj.name} has {'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.",
+    "message": "Experimental visibility: {prefab_path}, {obj.name} has {'an unknown shrink tag ' + repr(old) if old else 'no explicit shrink tag'}; its geometry-cut rule is unchanged. Only applicable whole-part hide rules can be adjusted.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 127
+      "cdmw/services/new_item_body_visibility.py": 160
     }
   },
   {
@@ -32741,7 +32749,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated variant {stem} matches an existing hide suffix; choose another item name.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 48
+      "cdmw/services/new_item_body_visibility.py": 207
     }
   },
   {
@@ -33570,6 +33578,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Kept underlying layers must be shrink receiver names.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/new_item/body_visibility.py": 35
+    }
+  },
+  {
+    "area": "items",
     "message": "LZ4 block is invalid: {detail}",
     "recovery": "input",
     "sources": {
@@ -34103,7 +34119,7 @@ MESSAGE_REFERENCE = [
     "message": "No isolated equipment visibility identity is available for {part.prefab_path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 58
+      "cdmw/services/new_item_body_visibility.py": 217
     }
   },
   {
@@ -35406,7 +35422,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited visibility components did not decode identically.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 149
+      "cdmw/services/new_item_body_visibility.py": 188
     }
   },
   {
@@ -35822,7 +35838,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected equipment has no supported shrink or postfix rules to override.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 174
+      "cdmw/services/new_item_body_visibility.py": 293
     }
   },
   {
@@ -36192,7 +36208,7 @@ MESSAGE_REFERENCE = [
     "message": "This item changes shared equipment descriptors. To combine several custom items, use the previous exported mod as the base; independently exported copies of these descriptors can overwrite each other's rules.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 188
+      "cdmw/services/new_item_body_visibility.py": 306
     }
   },
   {
@@ -36545,7 +36561,7 @@ MESSAGE_REFERENCE = [
     "message": "Underlying parts is experimental and needs in-game A/B testing. The preview does not simulate these rules; other equipment, cut volumes or missing body geometry can still hide skin or hair.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 182
+      "cdmw/services/new_item_body_visibility.py": 300
     }
   },
   {
@@ -36553,7 +36569,7 @@ MESSAGE_REFERENCE = [
     "message": "Underlying skin and hair choices must be booleans.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/body_visibility.py": 16
+      "cdmw/domain/new_item/body_visibility.py": 32
     }
   },
   {
@@ -37226,7 +37242,7 @@ MESSAGE_REFERENCE = [
     "message": "Whole-part skin/hair hiding is shared by all mesh bindings in a prefab. Those choices are combined for that prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_body_visibility.py": 182
+      "cdmw/services/new_item_body_visibility.py": 300
     }
   },
   {
@@ -37754,7 +37770,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 370
+      "cdmw/ui/new_item/controller.py": 372
     }
   },
   {
@@ -38371,6 +38387,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "visibility requires a complete, unambiguous component decode.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 97
+    }
+  },
+  {
+    "area": "items",
     "message": "warning",
     "recovery": "internal",
     "sources": {
@@ -38692,38 +38716,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "{part.prefab_path}: component {obj.name} has ambiguous mesh bindings.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_body_visibility.py": 118
-    }
-  },
-  {
-    "area": "items",
-    "message": "{part.prefab_path}: component {obj.name} has ambiguous shrink tags.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_body_visibility.py": 124
-    }
-  },
-  {
-    "area": "items",
-    "message": "{part.prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_body_visibility.py": 144
-    }
-  },
-  {
-    "area": "items",
-    "message": "{part.prefab_path}: visibility requires a complete, unambiguous component decode.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/new_item_body_visibility.py": 107
-    }
-  },
-  {
-    "area": "items",
     "message": "{part_name}: cannot decode the EyeCover source texture.",
     "recovery": "format",
     "sources": {
@@ -38792,6 +38784,38 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/package_links.py": 133
+    }
+  },
+  {
+    "area": "items",
+    "message": "{prefab_path}: component {obj.name} has ambiguous mesh bindings.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 151
+    }
+  },
+  {
+    "area": "items",
+    "message": "{prefab_path}: component {obj.name} has ambiguous shrink tags.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 157
+    }
+  },
+  {
+    "area": "items",
+    "message": "{prefab_path}: no exact SkinnedMeshComponent for visibility selection: {', '.join(sorted(missing))}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 183
+    }
+  },
+  {
+    "area": "items",
+    "message": "{prefab_path}: visibility requires a complete, unambiguous component decode.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/new_item_body_visibility.py": 139
     }
   },
   {
@@ -38879,7 +38903,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 607
+      "cdmw/ui/new_item/controller.py": 609
     }
   },
   {
@@ -43022,6 +43046,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A valid game mount catalogue is required.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 172
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A valid unambiguous game mount catalogue is required.",
     "recovery": "input",
     "sources": {
@@ -43137,7 +43169,7 @@ MESSAGE_REFERENCE = [
     "message": "An archive result needs a workspace output folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 510
+      "cdmw/workers/mesh_editor_workers.py": 516
     }
   },
   {
@@ -43250,7 +43282,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 800
+      "cdmw/workers/mesh_editor_workers.py": 834
     }
   },
   {
@@ -43258,7 +43290,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 539
+      "cdmw/workers/mesh_editor_workers.py": 545
     }
   },
   {
@@ -43322,7 +43354,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 798
+      "cdmw/workers/mesh_editor_workers.py": 832
     }
   },
   {
@@ -45350,6 +45382,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Choose at least one layer to keep underneath.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 100
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Choose imported weights, template transfer, or explicit reduction.",
     "recovery": "internal",
     "sources": {
@@ -46153,7 +46193,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 868
+      "cdmw/workers/mesh_editor_workers.py": 902
     }
   },
   {
@@ -46161,7 +46201,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 894
+      "cdmw/workers/mesh_editor_workers.py": 928
     }
   },
   {
@@ -46169,7 +46209,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 921
+      "cdmw/workers/mesh_editor_workers.py": 955
     }
   },
   {
@@ -47500,7 +47540,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 788
+      "cdmw/workers/mesh_editor_workers.py": 822
     }
   },
   {
@@ -49249,7 +49289,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 519
+      "cdmw/workers/mesh_editor_workers.py": 525
     }
   },
   {
@@ -50724,6 +50764,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Layers underneath apply only to Build Mod outputs.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/workers/mesh_editor_workers.py": 489
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Link sides must be a boolean.",
     "recovery": "input",
     "sources": {
@@ -50783,7 +50831,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 786
+      "cdmw/workers/mesh_editor_workers.py": 820
     }
   },
   {
@@ -51863,7 +51911,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh archive-group packages are supported only for the DMM manager profile",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 474
+      "cdmw/workers/mesh_editor_workers.py": 477
     }
   },
   {
@@ -52464,7 +52512,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 791
+      "cdmw/workers/mesh_editor_workers.py": 825
     }
   },
   {
@@ -52721,7 +52769,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 499
+      "cdmw/workers/mesh_editor_workers.py": 505
     }
   },
   {
@@ -52729,7 +52777,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 365
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 369
     }
   },
   {
@@ -53226,7 +53274,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 529
+      "cdmw/workers/mesh_editor_workers.py": 535
     }
   },
   {
@@ -54648,6 +54696,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "No prefab binds {pac_path}; there is no shrink rule to change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 138
+    }
+  },
+  {
+    "area": "mesh",
     "message": "No procedural morph profile is active.",
     "recovery": "internal",
     "sources": {
@@ -54668,6 +54724,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 882
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "No unused {size}-byte visibility tag is available for {old}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 78
     }
   },
   {
@@ -55139,7 +55203,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 618
+      "cdmw/workers/mesh_editor_workers.py": 624
     }
   },
   {
@@ -58750,7 +58814,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 819
+      "cdmw/workers/mesh_editor_workers.py": 853
     }
   },
   {
@@ -58758,7 +58822,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 579
+      "cdmw/workers/mesh_editor_workers.py": 585
     }
   },
   {
@@ -58814,7 +58878,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 563
+      "cdmw/workers/mesh_editor_workers.py": 569
     }
   },
   {
@@ -61867,7 +61931,8 @@ MESSAGE_REFERENCE = [
     "message": "The game mount catalogue contains an unsafe directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 345
+      "cdmw/services/mesh_hair_output.py": 345,
+      "cdmw/services/mesh_layer_visibility.py": 177
     }
   },
   {
@@ -62024,6 +62089,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The mounted game has no {SHRINK_PATH}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 103
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The mounted reference has an invalid component scale.",
     "recovery": "input",
     "sources": {
@@ -62068,6 +62141,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_history.py": 725
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The prefabs that use this mesh have no shrink tag CDMW can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 143
     }
   },
   {
@@ -62276,6 +62357,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_shader_controls_preview.py": 96
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The shrink rules this mesh uses do not cut {', '.join(unlisted)}; there is nothing to change.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 142
     }
   },
   {
@@ -63272,7 +63361,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 651
+      "cdmw/workers/mesh_editor_workers.py": 662
     }
   },
   {
@@ -63456,7 +63545,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh mod manager profile: {manager_profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 472
+      "cdmw/workers/mesh_editor_workers.py": 475
     }
   },
   {
@@ -73926,6 +74015,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/workers/mesh_editor_workers.py": 698
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{entry.path} mentions this mesh but cannot be read exactly: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_layer_visibility.py": 128
+    }
+  },
+  {
+    "area": "mesh",
     "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to this variant's skeleton with Add bones… in the Rig row.",
     "recovery": "internal",
     "sources": {
@@ -77037,7 +77142,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting generated equipment visibility profiles.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 163
+      "cdmw/core/equipment_visibility.py": 172
     }
   },
   {
@@ -77797,7 +77902,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate depth setting for {profile.source_tag}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 210
+      "cdmw/core/equipment_visibility.py": 219
     }
   },
   {
@@ -80885,7 +80990,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing source or occupied visibility profile: {profile.source_tag} -> {profile.tag}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 168
+      "cdmw/core/equipment_visibility.py": 177
     }
   },
   {
@@ -81598,7 +81703,7 @@ MESSAGE_REFERENCE = [
     "message": "Output prefab {output_stem} still matches an existing postfix rule.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 241
+      "cdmw/core/equipment_visibility.py": 250
     }
   },
   {
@@ -85618,7 +85723,7 @@ MESSAGE_REFERENCE = [
     "message": "This shrink descriptor uses cut/pump overrides whose visibility inheritance is not supported yet.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 173
+      "cdmw/core/equipment_visibility.py": 182
     }
   },
   {
@@ -86484,7 +86589,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported receiver in shrink rule {node.attrs.get('Name')}: {value}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/equipment_visibility.py": 184
+      "cdmw/core/equipment_visibility.py": 193
     }
   },
   {
@@ -104315,6 +104420,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/mesh_editor_error_codes.py",
     "cdmw/services/mesh_emission.py",
     "cdmw/services/mesh_layer_project_service.py",
+    "cdmw/services/mesh_layer_visibility.py",
     "cdmw/services/mesh_morph_file_data.py",
     "cdmw/services/mesh_physics_profiles.py",
     "cdmw/services/mesh_rust_authoring.py",
@@ -106021,7 +106127,7 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/domain/new_item/body_visibility.py": {
-    "raise": 1
+    "raise": 2
   },
   "cdmw/domain/new_item/compilation.py": {
     "raise": 2
@@ -106963,6 +107069,10 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 33
   },
+  "cdmw/services/mesh_layer_visibility.py": {
+    "finding": 1,
+    "raise": 9
+  },
   "cdmw/services/mesh_material_publication.py": {
     "diagnostic_text": 1
   },
@@ -107202,8 +107312,9 @@ SOURCE_COVERAGE = {
     "raise": 9
   },
   "cdmw/services/new_item_body_visibility.py": {
-    "finding": 4,
-    "raise": 11
+    "diagnostic_field": 1,
+    "finding": 6,
+    "raise": 12
   },
   "cdmw/services/new_item_definition.py": {
     "finding": 1,
@@ -108912,7 +109023,9 @@ SOURCE_COVERAGE = {
     "failure": 1
   },
   "cdmw/ui/new_item/panels_identity.py": {},
-  "cdmw/ui/new_item/panels_model.py": {},
+  "cdmw/ui/new_item/panels_model.py": {
+    "display": 1
+  },
   "cdmw/ui/new_item/panels_model_preview_mixin.py": {
     "display": 1,
     "raise": 1
@@ -109516,7 +109629,7 @@ SOURCE_COVERAGE = {
   "cdmw/workers/mesh_editor_export_support.py": {},
   "cdmw/workers/mesh_editor_workers.py": {
     "diagnostic_field": 8,
-    "raise": 28,
+    "raise": 30,
     "signal": 8
   },
   "cdmw/workers/mesh_export_readback.py": {},

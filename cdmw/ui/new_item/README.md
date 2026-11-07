@@ -906,6 +906,17 @@ across its materials. Whole-part hide conditions apply to the entire prefab, so
 skin/hair choices from its mesh bindings are combined. Other equipped items can
 still hide the restored parts. Helmet-owned item hair retains its template rules.
 
+**Keep these layers underneath** lists the clothing layers the current variant's
+shrink rule cuts, such as `Lowerbody` (pants) under a coat. Choose **Find layers** to
+read them; the lookup runs off the UI thread. Ticked layers are left out of the
+item's cloned shrink rule, so this equipment stops cutting them where it covers them.
+Clothing layers have no whole-part hide conditions; only the geometry cut changes.
+When the choice covers several components, those whose rule cuts none of the kept
+layers (and that keep no skin or hair) retain their shipped tag. A ticked layer no
+rule cuts is reported in the plan and changes nothing. Item
+packages (`.cdmw`) cannot carry kept layers, as with every shared descriptor change;
+use DMM output.
+
 Build plan gives the item owned prefab copies and named shrink profiles in
 `character/descriptors/partshrinkdesc.xml`. Profiles omit the requested receivers,
 retain incoming relationships and copy relevant depth settings. Matching conditions from

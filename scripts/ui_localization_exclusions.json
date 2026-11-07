@@ -60,6 +60,36 @@
     "reason": "Exact archive dependency path passed to the physics document reader, not a user-facing message."
   },
   {
+    "path": "cdmw/services/new_item_effect_planning.py",
+    "symbol": "allocate",
+    "source": "effect",
+    "reason": "Identity-binding namespace key passed to the allocator, not a user-facing message."
+  },
+  {
+    "path": "cdmw/services/independent_item_install.py",
+    "symbol": "allocate",
+    "source": "iteminfo",
+    "reason": "Identity-binding namespace key passed to the allocator, not a user-facing message."
+  },
+  {
+    "path": "cdmw/services/new_item_planning.py",
+    "symbol": "allocate",
+    "source": "iteminfo",
+    "reason": "Identity-binding namespace key passed to the allocator, not a user-facing message."
+  },
+  {
+    "path": "cdmw/services/new_item_body_visibility.py",
+    "symbol": "_candidate_tag",
+    "source": "V{value_0}",
+    "reason": "Generated shrink-tag identifier written into game descriptors; must never be translated."
+  },
+  {
+    "path": "cdmw/services/mesh_layer_visibility.py",
+    "symbol": "_candidate_tag",
+    "source": "V{value_0}",
+    "reason": "Generated shrink-tag identifier written into game descriptors; must never be translated."
+  },
+  {
     "path": "cdmw/ui/texture_workflow/job.py",
     "symbol": "_revision",
     "source": "removed",
