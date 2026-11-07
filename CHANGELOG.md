@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Dragging in Placement & Animations' view now turns the character the way the pointer moves, left-right as well as up-down, as in the Mesh Editor; before, left-right turned it the other way. **Reverse view drag**, next to the **Show** options, moves the camera with the pointer instead and is remembered.
+- Dragging in Placement & Animations' view now turns the character the way the pointer moves, left-right as well as up-down, as in the Mesh Editor; before, left-right turned it the other way. **Reverse view drag**, next to the **Show** options, moves the camera with the pointer instead and is remembered. With **Move**, **Rotate** or **Tilt** on, hold Alt while dragging, or drag with the right mouse button, to turn the view without moving the item; let go of Alt to carry on with the item.
 
 ### Fixed
 

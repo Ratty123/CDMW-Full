@@ -250,7 +250,8 @@ TASKS: Tuple[Tuple[str, Tuple[Tuple[str, str], ...]], ...] = (
             ("Use the <b>Move</b> and <b>Turn</b> buttons, or type a <b>Position</b> or "
              "<b>Angle</b>",
              "The Turn arrows follow the view: left is left on screen. Or choose <b>Move</b>, "
-             "<b>Rotate</b> or <b>Tilt</b> and drag in the view."),
+             "<b>Rotate</b> or <b>Tilt</b> and drag in the view; hold Alt, or drag with the "
+             "right button, to turn the view instead."),
             ("Read the note under the point's name",
              "It says what else moves with it, and whether the change can be saved."),
             ("Save from <b>Your mod</b>",

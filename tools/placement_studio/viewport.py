@@ -1155,7 +1155,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
         painter.setPen(QPen(_TEXT))
         painter.drawText(
             QPointF(14, self.height() - 10),
-            (translate_active_ui_text("middle-drag: pan   wheel: zoom   ") if self._edit_mode != "off"
+            (translate_active_ui_text(
+                "Alt+drag or right-drag: turn view   middle-drag: pan   wheel: zoom   ")
+             if self._edit_mode != "off"
              else translate_active_ui_text("drag: orbit   middle-drag: pan   wheel: zoom   "))
             + f"yaw {self._camera.yaw:.0f}  pitch {self._camera.pitch:.0f}",
         )
@@ -1205,8 +1207,16 @@ class SkeletonViewport(GizmoMixin, QWidget):
             return Vec3(float(x), float(y), float(z))
         return vertices[best]
 
+    @staticmethod
+    def _turns_view(event) -> bool:
+        """Alt held: the drag turns the view whatever the mode, so the item can be judged
+        from another side without leaving Move, Rotate or Tilt."""
+
+        return bool(event.modifiers() & Qt.AltModifier)
+
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt virtual
-        if self._edit_mode == "pick" and event.button() == Qt.LeftButton:
+        if (self._edit_mode == "pick" and event.button() == Qt.LeftButton
+                and not self._turns_view(event)):
             point = self.pick_surface(event.position().toPoint())
             if point is not None:
                 self.surface_picked.emit(point.x, point.y, point.z)
@@ -1220,7 +1230,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._drag_button = event.button()
         self._drag_residual = Vec3()
         self._dragging_socket = ""
-        if event.button() != Qt.LeftButton:
+        self._pending_bone = None
+        if event.button() != Qt.LeftButton or self._turns_view(event):
             return
 
         if self._edit_mode == "rotate" and self._selected:
@@ -1284,7 +1295,16 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         dx = current.x() - self._last_mouse.x()
         dy = current.y() - self._last_mouse.y()
-        if self._drag_button == Qt.LeftButton and self._dragging_socket:
+        turning = self._drag_button == Qt.RightButton or (
+            self._drag_button == Qt.LeftButton and self._turns_view(event))
+        if turning and self._dragging_socket:
+            # Alt pressed during an edit drag: turn the view, and re-anchor what the edit
+            # measures from so letting go of Alt carries on from here rather than jumping.
+            self._grab_angle = None
+            self._drag_residual = Vec3()
+            self._angle_residual = 0.0
+            self._trackball_residual = [0.0, 0.0]
+        if self._drag_button == Qt.LeftButton and self._dragging_socket and not turning:
             if self._edit_mode == "tilt":
                 self._tilt_socket(dx, dy)
             elif self._edit_mode == "rotate" and self._grabbed_axis:
@@ -1293,7 +1313,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 self._rotate_socket(dx, dy)
             else:
                 self._drag_socket(dx, dy)
-        elif self._drag_button == Qt.LeftButton:
+        elif self._drag_button == Qt.LeftButton or turning:
             # Turning left-right used to move the camera with the pointer, so the character
             # turned against it, while up-down followed it: the mixed reading that felt
             # inverted. Both axes now agree, either way round (`set_orbit_follows_pointer`).
