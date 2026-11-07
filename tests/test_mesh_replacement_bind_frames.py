@@ -46,8 +46,9 @@ def changed_basis_glb(tmp_path, points, parents, *, single_used=False, altered_r
     view = document["bufferViews"][accessor["bufferView"]]
     for index, point in enumerate(points):
         source_point = (transform_inverse @ np.array((*point, 1.)))[:3]
-        if altered_rest and index == 7:
-            source_point[1] += .1  # Unused known bone must still be checked.
+        if altered_rest is not False and index == 7:
+            # Unused known bone must still be checked. A number is the offset itself.
+            source_point[1] += .1 if altered_rest is True else float(altered_rest)
         if degenerate:
             source_point = np.array((float(index), 0., 0.))
         angle = .2 + index * .31
@@ -114,6 +115,25 @@ def test_rest_pose_refusal_names_the_worst_bone(rig_editor, tmp_path):
     service, sid, _order, points, parents = rig_editor
     path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=True)
     with pytest.raises(ValueError, match=r"the worst, bone7, by [0-9.]+ \([0-9.]+% of the rig size\)"):
+        prepare_import(service.capture_export_snapshot(sid), path)
+
+
+def test_export_rounding_on_a_far_bone_still_reads_as_the_game_rig(rig_editor, tmp_path):
+    # A tester's Blender export left two toe bones 0.01% of the rig size off.
+    # 1e-4 here is 2e-4 in game units on a rig about 1.8 across: the same share.
+    service, sid, _order, points, parents = rig_editor
+    snapshot = service.capture_export_snapshot(sid)
+    path, transform = changed_basis_glb(tmp_path, points, parents, altered_rest=1e-4)
+    pending = prepare_import(snapshot, path)
+    mesh, _state = compose_import(pending, (pending.target_part_ids[0],))
+    expected = (transform @ np.array((0., 0., 0., 1.)))[:3]
+    assert mesh.submeshes[0].vertices[0] == pytest.approx(expected, abs=.002)
+
+
+def test_a_one_percent_rest_offset_is_still_a_different_rig(rig_editor, tmp_path):
+    service, sid, _order, points, parents = rig_editor
+    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.01)
+    with pytest.raises(ValueError, match=r"matching bones are off; the worst, bone7, by [0-9.]+ \(0\.[0-9]+% of the rig size\)"):
         prepare_import(service.capture_export_snapshot(sid), path)
 
 

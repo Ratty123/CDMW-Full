@@ -94523,7 +94523,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported joint bind frames disagree in {part.name}: {exc} Rig retargeting is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 175
+      "cdmw/services/mesh_replacement_skinning.py": 182
     }
   },
   {
@@ -94531,7 +94531,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported joint hierarchy differs from the matching game skeleton.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 82
+      "cdmw/services/mesh_replacement_skinning.py": 88
     }
   },
   {
@@ -94539,7 +94539,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported joint {name or '<unnamed>'} has no unique match in the target PAC bone palette. Use the matching game armature and target item.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 166
+      "cdmw/services/mesh_replacement_skinning.py": 173
     }
   },
   {
@@ -94643,7 +94643,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported rig has ambiguous matching joint names.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 69
+      "cdmw/services/mesh_replacement_skinning.py": 75
     }
   },
   {
@@ -94651,7 +94651,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported rig has invalid or ambiguous joint parents.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 33
+      "cdmw/services/mesh_replacement_skinning.py": 39
     }
   },
   {
@@ -94659,7 +94659,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported rig has no matching bind joints.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 85
+      "cdmw/services/mesh_replacement_skinning.py": 91
     }
   },
   {
@@ -94667,7 +94667,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported rig has non-finite rest-joint centers.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 94
+      "cdmw/services/mesh_replacement_skinning.py": 100
     }
   },
   {
@@ -94675,7 +94675,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported rig hierarchy contains a cycle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 43
+      "cdmw/services/mesh_replacement_skinning.py": 49
     }
   },
   {
@@ -94683,7 +94683,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin has an incomplete inverse bind matrix.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 18
+      "cdmw/services/mesh_replacement_skinning.py": 24
     }
   },
   {
@@ -94691,7 +94691,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin has an invalid or singular inverse bind matrix.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 24
+      "cdmw/services/mesh_replacement_skinning.py": 30
     }
   },
   {
@@ -94699,7 +94699,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin has incomplete influence rows in {part.name}.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 179
+      "cdmw/services/mesh_replacement_skinning.py": 186
     }
   },
   {
@@ -94707,7 +94707,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin has invalid weights in {part.name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 183
+      "cdmw/services/mesh_replacement_skinning.py": 190
     }
   },
   {
@@ -94715,7 +94715,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin has no non-zero influences in {part.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 171
+      "cdmw/services/mesh_replacement_skinning.py": 178
     }
   },
   {
@@ -94723,7 +94723,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin references an invalid joint in {part.name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 162
+      "cdmw/services/mesh_replacement_skinning.py": 169
     }
   },
   {
@@ -94731,7 +94731,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin requires complete joint weights in {part.name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 156
+      "cdmw/services/mesh_replacement_skinning.py": 163
     }
   },
   {
@@ -94739,7 +94739,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin requires normalized non-zero weights with at most six influences per vertex in {part.name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 187
+      "cdmw/services/mesh_replacement_skinning.py": 194
     }
   },
   {
@@ -94747,7 +94747,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin weights need the target's matching skeleton and resolved PAC bone palette. Open the target with its skeleton before importing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 144
+      "cdmw/services/mesh_replacement_skinning.py": 151
     }
   },
   {
@@ -94755,7 +94755,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported skin weights require a PAC target with a resolved bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 139
+      "cdmw/services/mesh_replacement_skinning.py": 146
     }
   },
   {
@@ -96935,7 +96935,7 @@ MESSAGE_REFERENCE = [
     "message": "Rest-joint centers are degenerate; a common model transform cannot be proven.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 101
+      "cdmw/services/mesh_replacement_skinning.py": 107
     }
   },
   {
@@ -96943,7 +96943,7 @@ MESSAGE_REFERENCE = [
     "message": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 112
+      "cdmw/services/mesh_replacement_skinning.py": 118
     }
   },
   {
@@ -96951,7 +96951,7 @@ MESSAGE_REFERENCE = [
     "message": "Rest-joint positions do not match one rigid or uniform-scale game-rig transform: {off} of {len(error)} matching bones are off; the worst, {matched_names[worst]}, by {float(error[worst])} ({float(error[worst]) / max(extent, 1e-12)} of the rig size).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 117
+      "cdmw/services/mesh_replacement_skinning.py": 124
     }
   },
   {
@@ -97114,7 +97114,7 @@ MESSAGE_REFERENCE = [
     "message": "Skinned replacement requires a GLB/glTF exported from the matching game armature; use editable-package import for round-trip packages.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 137
+      "cdmw/services/mesh_replacement_skinning.py": 144
     }
   },
   {
@@ -97276,7 +97276,7 @@ MESSAGE_REFERENCE = [
     "message": "Target PAC bone palette is ambiguous or exceeds the supported influence slots.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 146
+      "cdmw/services/mesh_replacement_skinning.py": 153
     }
   },
   {
@@ -97388,7 +97388,7 @@ MESSAGE_REFERENCE = [
     "message": "The displayed target rig does not match its resolved PAC palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_skinning.py": 199
+      "cdmw/services/mesh_replacement_skinning.py": 206
     }
   },
   {

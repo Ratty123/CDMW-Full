@@ -12,6 +12,12 @@ from cdmw.modding.scene_geometry_utils import (
     _copy_submesh_with_transform, _identity_matrix, _invert_affine_matrix, _multiply_matrix,
 )
 
+#: Largest rest-joint offset, as a share of the rig's size, still read as the same
+#: rig. Blender rebuilds each bone from head, tail and roll on export, which moves
+#: small far-out bones such as toes by about 0.01%; a different rig is off by whole
+#: percents. 0.1% is about a millimetre on a character rig.
+REST_JOINT_TOLERANCE = 1e-3
+
 
 def _bind_matrix(values):
     if len(values) != 16:
@@ -110,10 +116,11 @@ def _target_bind_frame(skin, target_skin):
     error = np.linalg.norm(scale * (source @ rotation.T) + translation - target, axis=1)
     if not math.isfinite(scale) or scale <= 0 or not np.isfinite(error).all():
         raise ValueError("Rest-joint positions do not match one rigid or uniform-scale game-rig transform.")
-    if float(error.max()) > max(1e-7, extent * 2e-5):
+    limit = max(1e-7, extent * REST_JOINT_TOLERANCE)
+    if float(error.max()) > limit:
         # Name the worst bone so a different rig reads apart from a few nudged bones.
         worst = int(np.argmax(error))
-        off = sum(value > max(1e-7, extent * 2e-5) for value in error)
+        off = sum(value > limit for value in error)
         raise ValueError(
             f"Rest-joint positions do not match one rigid or uniform-scale game-rig transform: "
             f"{off} of {len(error)} matching bones are off; the worst, {matched_names[worst]}, "
