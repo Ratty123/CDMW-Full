@@ -46,9 +46,10 @@ function Get-SourceCheckoutRoots {
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $commonDir = (& git -C $scriptDir rev-parse --path-format=absolute --git-common-dir 2>$null |
-            Select-Object -First 1)
-        if ($LASTEXITCODE -ne 0) { $commonDir = $null }
+        # Not `| Select-Object -First 1`: stopping the pipeline early leaves a failing
+        # $LASTEXITCODE behind, which discarded the answer.
+        $output = @(& git -C $scriptDir rev-parse --path-format=absolute --git-common-dir 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) { $commonDir = [string]$output[0] }
     } catch {
         $commonDir = $null
     } finally {

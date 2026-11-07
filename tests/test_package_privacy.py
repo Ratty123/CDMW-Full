@@ -130,3 +130,32 @@ def test_the_build_maps_every_local_root_for_rust_and_msvc(tmp_path) -> None:
     # One quoted option per root; the doubled backslash is a literal one to cl.exe.
     assert f'"/d1trimfile:{checkout}\\\\"' in lines["CL"]
     assert re.search(r"/PDBALTPATH:%_PDB%", lines["LINK"])
+
+
+@pytest.mark.skipif(POWERSHELL is None or shutil.which("git") is None,
+                    reason="PowerShell and git are required")
+def test_a_worktree_build_also_covers_its_main_checkout(tmp_path) -> None:
+    main_checkout, worktree = tmp_path / "main repo", tmp_path / "wt"
+    main_checkout.mkdir()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run([*git, "init", "-q", str(main_checkout)], check=True)
+    (main_checkout / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run([*git, "-C", str(main_checkout), "add", "f.txt"], check=True)
+    subprocess.run([*git, "-C", str(main_checkout), "commit", "-q", "-m", "x"], check=True)
+    subprocess.run([*git, "-C", str(main_checkout), "worktree", "add", "-q", "--detach",
+                    str(worktree)], check=True)
+    source = BUILDER.read_text(encoding="utf-8")
+    script = tmp_path / "roots.ps1"
+    script.write_text(
+        "$ErrorActionPreference = 'Stop'\nSet-StrictMode -Version Latest\n"
+        f"$scriptDir = '{worktree}'\n" + _function(source, "Get-SourceCheckoutRoots") + "\n"
+        "(Get-SourceCheckoutRoots) -join '|'\n",
+        encoding="utf-8-sig",
+    )
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    roots = {Path(root).resolve() for root in result.stdout.strip().split("|")}
+    assert roots == {worktree.resolve(), main_checkout.resolve()}
