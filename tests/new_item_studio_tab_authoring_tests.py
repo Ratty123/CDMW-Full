@@ -1016,7 +1016,9 @@ class _TabAuthoringMixin:
                 for tick in range(6):
                     self.app.processEvents()
                     with self.subTest(size=(width, height), enabled=enabled, tick=tick):
-                        gap = panel.inspector_tabs.y() - panel.preview_controls.geometry().bottom() - 1
+                        # The fitting-reference group sits between the preview controls and the tabs.
+                        above = panel.reference_group if panel.reference_group.isVisibleTo(panel) else panel.preview_controls
+                        gap = panel.inspector_tabs.y() - above.geometry().bottom() - 1
                         self.assertEqual(gap, panel.model_icon_content.layout().spacing())
                         self.assertIs(panel.inspector_tabs.currentWidget(), panel.dyes)
                 self.assertEqual(panel.dyes.contents.isVisibleTo(panel), enabled)

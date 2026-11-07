@@ -1371,7 +1371,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
         panel = tab.model_panel
         requested = []
 
-        def record(*, include_character=False, editable_template=False):
+        def record(*, include_character=False, editable_template=False, **_):
             requested.append(editable_template)
             return None
 
@@ -1413,7 +1413,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
         with patch.object(
             tab.controller,
             "item_preview_source",
-            side_effect=lambda *, include_character=False, editable_template=False: routed.append(include_character),
+            side_effect=lambda *, include_character=False, editable_template=False, **_: routed.append(include_character),
         ), patch.object(panel, "isVisible", return_value=True):
             panel.show_character.setChecked(True)
 
