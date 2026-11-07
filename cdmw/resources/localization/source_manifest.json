@@ -4198,11 +4198,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 234,
           "sink": "python-return:_build_workflow_planning_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
-          "sink": "python-return:build_error_reference_section"
         }
       ]
     },
@@ -4941,7 +4936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -19261,7 +19256,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -34792,6 +34787,16 @@
       "manual": true
     },
     {
+      "key": "Codes covered by the guidance above:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 78,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
+        }
+      ]
+    },
+    {
       "key": "Coincident seam vertices are grouped without welding the model.",
       "origins": [
         {
@@ -44841,7 +44846,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -52021,7 +52026,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -59296,7 +59301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -59306,7 +59311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -61671,7 +61676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -61681,7 +61686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -61691,7 +61696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -70106,7 +70111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -78706,7 +78711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -90042,6 +90047,16 @@
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 74,
+          "sink": "python-data:WIKI_REFERENCE_FILES"
+        }
+      ]
+    },
+    {
+      "key": "Messages and source files for these codes",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference_guidance.py",
+          "line": 77,
           "sink": "python-data:WIKI_REFERENCE_FILES"
         }
       ]
@@ -123711,7 +123726,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -127366,17 +127381,17 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         },
         {
@@ -141781,7 +141796,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -154518,11 +154533,6 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 286,
           "sink": "setHeaderLabels"
-        },
-        {
-          "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
-          "sink": "python-return:build_error_reference_section"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
@@ -169276,7 +169286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -170711,7 +170721,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -183721,7 +183731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -184291,7 +184301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -184311,12 +184321,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 165,
+          "line": 176,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -184336,7 +184346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -184346,7 +184356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference_guidance.py",
-          "line": 77,
+          "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
         }
       ]
@@ -193261,7 +193271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 115,
+          "line": 126,
           "sink": "python-return:build_error_reference_section"
         }
       ]

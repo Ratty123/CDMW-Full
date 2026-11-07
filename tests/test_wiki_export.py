@@ -540,7 +540,11 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         assert literal in body
         guide = wiki_pages[page_slug("Error-Code-Library", language.code) + ".md"]
         assert "MAT_ROLE_ACK_TIMEOUT" in guide
-        assert literal in guide
+        # Verbatim messages live in the group's linked reference file, which the assets test
+        # checks message by message; the page links to it.
+        from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE
+        owner = next(row for row in ERROR_REFERENCE if any(literal in m for m in row["messages"]))
+        assert f"/reference/{language.code}/codes-{owner['group']}.txt" in guide
         for topic, needle in (("error_messages_textures", "native"), ("external_errors", "0xC0000005")):
             dialog.select_section(topic)
             localizer.apply(dialog)
@@ -584,7 +588,36 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         app.processEvents()
 
 
+def test_every_manual_stays_inside_the_page_budget(wiki_manuals):
+    """Fails well before GitHub's limit, while a Help edit still has room to land.
+
+    The Russian manual reached the limit twice, each time found at publication with a few
+    bytes left: Cyrillic takes two bytes a letter, so every Help sentence costs it about
+    half as much again as English. Shorten Help text, or move reference material into a
+    linked Wiki file as the Error Code Library does, before this budget is spent.
+    """
+
+    from scripts.export_github_wiki import WIKI_PAGE_BUDGET, WIKI_PAGE_LIMIT, manual_sizes
+
+    assert WIKI_PAGE_BUDGET < WIKI_PAGE_LIMIT
+    sizes = manual_sizes(wiki_manuals)
+    over = {code: size for code, size in sizes.items() if size > WIKI_PAGE_BUDGET}
+    assert not over, (
+        f"Wiki manuals over the {WIKI_PAGE_BUDGET:,}-byte budget (GitHub cuts pages off "
+        f"near {WIKI_PAGE_LIMIT:,}): " + ", ".join(f"{c} {s:,}" for c, s in over.items()))
+
+
+def test_links_within_a_manual_stay_on_its_page(wiki_manuals):
+    from scripts.export_github_wiki import manual_url
+
+    for language in BUILTIN_LANGUAGES:
+        manual = wiki_manuals[manual_path(language.code)]
+        assert manual_url(language.code) + "#" not in manual
+        assert "](#guide-" in manual
+
+
 def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_manuals):
+    from cdmw.ui.shell.error_reference import ERROR_REFERENCE_GROUPS
     from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 
@@ -597,9 +630,10 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
         assert "jmm" not in manual.casefold()
         for row in ERROR_REFERENCE:
             assert row["code"] in manual
-        # GitHub truncates long rendered pages. The complete message index is
-        # linked as Wiki-owned data, while every named code stays on the page.
-        assert len(manual.encode('utf-8')) < 450_000
+        # GitHub truncates long rendered pages. Every named code stays on the page; its
+        # messages and source files are linked Wiki-owned data, one file per group.
+        for group in ERROR_REFERENCE_GROUPS:
+            assert f'/reference/{language.code}/codes-{group}.txt' in manual
         assert f'/reference/{language.code}/index.json' in manual
         assert '<a id="external_errors"></a>' in manual
         assert '<a id="dds-raw-preview"></a>' in manual
@@ -614,9 +648,23 @@ def test_complete_wiki_assets_preserve_every_message_source_and_translated_remed
     from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
     from cdmw.ui.shell.error_reference_guidance import RECOVERY_GUIDANCE, MESSAGE_AREAS
     from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
+    from cdmw.ui.shell.error_reference import ERROR_REFERENCE_GROUPS
+
     assets = build_reference_assets()
-    assert len(assets) == 14 * 14
+    assert len(assets) == 14 * (1 + len(MESSAGE_AREAS) + len(ERROR_REFERENCE_GROUPS))
     assert not any(path.endswith('.md') for path in assets)
+    for language in BUILTIN_LANGUAGES:
+        for group in ERROR_REFERENCE_GROUPS:
+            # What left the manual page is all here: every code, message and source file.
+            text = assets[f'reference/{language.code}/codes-{group}.txt']
+            quoted = {match[1].strip() for match in re.findall(r'(`+)(.*?)\1', text, re.DOTALL)}
+            for row in ERROR_REFERENCE:
+                if row['group'] != group:
+                    continue
+                assert row['code'] in quoted
+                assert set(row['messages']) <= quoted
+                for source in row['sources']:
+                    assert f'/blob/main/{source})' in text
     for language in BUILTIN_LANGUAGES:
         raw = assets[f'reference/{language.code}/index.json']
         reference = json.loads(raw)

@@ -42,6 +42,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Create New Item's **Write item package** works for items with a painted cutout, blending or eye-cover mask; the masks are already in the item's textures. **Send to DMM** asks before replacing a DMM mod of the same name that CDMW sent earlier, and a cancelled send no longer leaves its staging folder beside DMM's mods folder.
 - Create New Item handles fast shop changes while moving between steps more safely: the dropdown linked to the reported crash is gone, open lists close when the step changes, each shop change is applied once, and a shop missing from the current game tables clears its stock lines instead of failing.
 
+### Docs
+
+- The Wiki's **Error Code Library** keeps every code and its explanation on the page and links each group's exact messages and source files as a separate file, as it already did for messages without a code. Every language's manual is now well inside the size GitHub can show in full.
+
 ## [0.12.0-alpha.2] - 2026-11-04
 
 ### Added

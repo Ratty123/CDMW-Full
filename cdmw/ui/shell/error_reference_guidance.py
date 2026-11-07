@@ -72,6 +72,10 @@ WIKI_REFERENCE_FILES = {
     'json': 'Complete message index (JSON)',
     'text': 'Open full message list',
     'recovery': 'Message recovery guidance',
+    # The manual page lists every code; its messages and source files are in a linked file
+    # per group, which keeps every language's page under GitHub's rendering limit.
+    'codes': 'Messages and source files for these codes',
+    'group_codes': 'Codes covered by the guidance above:',
 }
 
 EXTERNAL_ERROR_GUIDE = """

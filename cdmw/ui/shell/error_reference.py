@@ -91,27 +91,38 @@ CODE_GUIDANCE = {
 }
 
 
+def build_error_group_html(group: str) -> str:
+    """One group's heading, guidance and every code with its messages and sources.
+
+    Help shows all groups on one page. The Wiki keeps a compact list of the codes on its
+    manual page and publishes this complete form as a linked reference file per group.
+    """
+
+    title, guide = ERROR_REFERENCE_GROUPS[group]
+    parts = [f'<h4 id="errors-{group}">{escape(title)}</h4>{guide}']
+    for row in ERROR_REFERENCE:
+        if row["group"] != group:
+            continue
+        detail = []
+        if row["code"] in CODE_GUIDANCE:
+            detail.append(escape(CODE_GUIDANCE[row["code"]]))
+        elif group == 'native_tools':
+            detail.append(escape(RECOVERY_GUIDANCE[row['recovery']][1]))
+        detail.extend(f'<code translate="no">{escape(message)}</code>' for message in row["messages"])
+        if not detail:
+            detail.append(ERROR_REFERENCE_FALLBACK)
+        sources = ', '.join(f'<a href="https://github.com/Ratty123/CDMW-Full/blob/main/{path}"><code translate="no">{escape(PurePosixPath(path).name)}</code></a>' for path in row["sources"])
+        parts.append(f'<p><b><code translate="no">{escape(row["code"])}</code></b></p>')
+        parts.append('<ul>' + ''.join(f'<li>{message}</li>' for message in detail) + '</ul>')
+        parts.append(f'<p><b>Source</b>: {sources}</p>')
+    return ''.join(parts)
+
+
 def build_error_reference_section() -> dict[str, str]:
     parts = [ERROR_REFERENCE_INTRO, MESSAGE_REFERENCE_INTRO, '<ul>']
     parts.extend(f'<li><a href="topic:error_messages_{area}">{escape(title)}</a></li>' for area, title in MESSAGE_AREAS.items())
     parts.append('<li><a href="topic:external_errors">Windows and external-tool errors</a></li></ul>')
-    for group, (title, guide) in ERROR_REFERENCE_GROUPS.items():
-        parts.append(f'<h4 id="errors-{group}">{escape(title)}</h4>{guide}')
-        for row in ERROR_REFERENCE:
-            if row["group"] != group:
-                continue
-            detail = []
-            if row["code"] in CODE_GUIDANCE:
-                detail.append(escape(CODE_GUIDANCE[row["code"]]))
-            elif group == 'native_tools':
-                detail.append(escape(RECOVERY_GUIDANCE[row['recovery']][1]))
-            detail.extend(f'<code translate="no">{escape(message)}</code>' for message in row["messages"])
-            if not detail:
-                detail.append(ERROR_REFERENCE_FALLBACK)
-            sources = ', '.join(f'<a href="https://github.com/Ratty123/CDMW-Full/blob/main/{path}"><code translate="no">{escape(PurePosixPath(path).name)}</code></a>' for path in row["sources"])
-            parts.append(f'<p><b><code translate="no">{escape(row["code"])}</code></b></p>')
-            parts.append('<ul>' + ''.join(f'<li>{message}</li>' for message in detail) + '</ul>')
-            parts.append(f'<p><b>Source</b>: {sources}</p>')
+    parts.extend(build_error_group_html(group) for group in ERROR_REFERENCE_GROUPS)
     return {
         "id": "error_code_library",
         "title": "Error Code Library",

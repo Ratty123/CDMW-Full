@@ -93545,7 +93545,7 @@ MESSAGE_REFERENCE = [
     "message": "Draw analysis incomplete: {len(error.splitlines())} unreadable clips",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_carry.py": 1042
+      "tools/placement_studio/window_carry.py": 1048
     }
   },
   {
@@ -95291,7 +95291,7 @@ MESSAGE_REFERENCE = [
     "message": "No defined socket matches the {len(chart_socket)} characters of {chart_socket}, so the draw animation cannot be retargeted yet. A socket of exactly that length unblocks it.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_editing.py": 399
+      "tools/placement_studio/window_editing.py": 511
     }
   },
   {
@@ -95483,7 +95483,7 @@ MESSAGE_REFERENCE = [
     "message": "No weapon asset is selected, so {part_name} cannot be resolved to one equipment unit. Choose the item whose child sockets apply.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/session.py": 499
+      "tools/placement_studio/session.py": 500
     }
   },
   {
@@ -95580,7 +95580,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/placement_studio/documents.py": 210,
-      "tools/placement_studio/editing.py": 948
+      "tools/placement_studio/editing.py": 956
     }
   },
   {
@@ -95588,7 +95588,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a socket file: {game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 931
+      "tools/placement_studio/editing.py": 939
     }
   },
   {
@@ -96206,7 +96206,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing a non-normalized quaternion",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 877
+      "tools/placement_studio/editing.py": 885
     }
   },
   {
@@ -96673,7 +96673,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Carried at, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 313
+      "tools/placement_studio/window_tasks.py": 325
     }
   },
   {
@@ -96738,7 +96738,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/documents.py": 131,
-      "tools/placement_studio/editing.py": 936
+      "tools/placement_studio/editing.py": 944
     }
   },
   {
@@ -96746,7 +96746,7 @@ MESSAGE_REFERENCE = [
     "message": "Socket {socket_name} is not defined by any loaded file; create the definition before routing to it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 950
+      "tools/placement_studio/editing.py": 958
     }
   },
   {
@@ -97932,7 +97932,7 @@ MESSAGE_REFERENCE = [
     "message": "no body socket file found for model {model}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/session.py": 177
+      "tools/placement_studio/session.py": 178
     }
   },
   {
@@ -97948,7 +97948,7 @@ MESSAGE_REFERENCE = [
     "message": "no skeleton available for model {model} (tried {candidates})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/session.py": 207
+      "tools/placement_studio/session.py": 208
     }
   },
   {
@@ -98209,7 +98209,7 @@ MESSAGE_REFERENCE = [
     "message": "using shared rig {path} — no dedicated skeleton for this variant",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/session.py": 201
+      "tools/placement_studio/session.py": 202
     }
   },
   {
@@ -98241,7 +98241,7 @@ MESSAGE_REFERENCE = [
     "message": "{asset.weapon_id} belongs to {asset.model}, not {self.model}. An operation cannot span two characters.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/session.py": 504
+      "tools/placement_studio/session.py": 505
     }
   },
   {
@@ -98537,7 +98537,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} is a {expected} row but {asset.weapon_id} is a {hands} asset. Select the matching item before moving it.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/session.py": 512
+      "tools/placement_studio/session.py": 513
     }
   },
   {
@@ -98545,7 +98545,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} is aimed by {', '.join(sorted(wanted_children))}, none of which {asset.weapon_id} defines. The row and the asset are different items.",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/session.py": 519
+      "tools/placement_studio/session.py": 520
     }
   },
   {
@@ -98553,7 +98553,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} is not a descriptor row of {self.label}. The row and the character do not match, so there is nothing to move.",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/session.py": 492
+      "tools/placement_studio/session.py": 493
     }
   },
   {

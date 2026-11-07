@@ -28,8 +28,20 @@ from cdmw.ui.shell.error_reference_guidance import (
     MESSAGE_AREAS, MESSAGE_REFERENCE_INTRO, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
     WIKI_REFERENCE_FILES,
 )
-from cdmw.ui.shell.error_reference import build_error_reference_sections, CODE_GUIDANCE, ERROR_REFERENCE_GROUPS
+from cdmw.ui.shell.error_reference import (
+    CODE_GUIDANCE,
+    ERROR_REFERENCE_GROUPS,
+    build_error_group_html,
+    build_error_reference_sections,
+)
 from cdmw.ui.shell.error_reference_data import ERROR_REFERENCE, MESSAGE_REFERENCE, DYNAMIC_REFERENCE
+
+#: GitHub stops rendering a Wiki page partway past about this size, so the export refuses a
+#: manual over it rather than publish one whose end is cut off.
+WIKI_PAGE_LIMIT = 450_000
+#: Where the Wiki tests fail, well before the limit: a manual that is filling up is caught
+#: while a Help edit still has room, instead of at publication with nothing left to trim.
+WIKI_PAGE_BUDGET = 430_000
 
 WIKI = "https://github.com/Ratty123/CDMW-Full/wiki/"
 REPOSITORY = "https://github.com/Ratty123/CDMW-Full"
@@ -511,6 +523,50 @@ def _title(page: str, sections: dict, translate) -> str:
     return translate(sections[topics[0]]["title"])
 
 
+def _compact_code_library(intro: str, locale: str) -> str:
+    """The Error Code Library as the manual page shows it.
+
+    Every code and every translated explanation stays on the page. The verbatim messages
+    and source links, identical in all fourteen manuals and more than half of each page,
+    are in the group's reference file (`build_reference_assets`), linked from the group.
+    """
+
+    def code(name: str) -> str:
+        return f'<code translate="no">{html.escape(name)}</code>'
+
+    parts = [intro]
+    for group, (title, guide) in ERROR_REFERENCE_GROUPS.items():
+        rows = [row for row in ERROR_REFERENCE if row['group'] == group]
+        parts.append(f'<h4 id="errors-{group}">{html.escape(title)}</h4>{guide}')
+        parts.append(f'<p><a href="{WIKI_RAW}reference/{locale}/codes-{group}.txt">'
+                     f'{WIKI_REFERENCE_FILES["codes"]}</a></p>')
+        for row in rows:
+            if row['code'] in CODE_GUIDANCE:
+                parts.append(f'<p><b>{code(row["code"])}</b></p>'
+                             f'<p>{html.escape(CODE_GUIDANCE[row["code"]])}</p>')
+        rest = [row for row in rows if row['code'] not in CODE_GUIDANCE]
+        if group == 'native_tools':
+            # Each of these is explained by its recovery step, so list them under it.
+            for key, (label, _remedy) in RECOVERY_GUIDANCE.items():
+                codes = [row['code'] for row in rest if row['recovery'] == key]
+                if codes:
+                    parts.append(f'<p><a href="#errors-recovery-{key}">{html.escape(label)}</a>: '
+                                 + ', '.join(code(name) for name in codes) + '</p>')
+            listed = {row['code'] for row in rest if row['recovery'] in RECOVERY_GUIDANCE}
+            rest = [row for row in rest if row['code'] not in listed]
+        if rest:
+            parts.append(f'<p>{WIKI_REFERENCE_FILES["group_codes"]} '
+                         + ', '.join(code(row['code']) for row in rest) + '</p>')
+    return ''.join(parts)
+
+
+def manual_sizes(manuals: dict[str, str]) -> dict[str, int]:
+    """Each language's manual in UTF-8 bytes, which is what GitHub's limit counts."""
+
+    return {language.code: len(manuals[manual_path(language.code)].encode("utf-8"))
+            for language in BUILTIN_LANGUAGES}
+
+
 def build_pages() -> dict[str, str]:
     """Render individual guides in memory for manual composition and migration."""
     builder = AboutDocumentationEnglishMixin()
@@ -586,17 +642,11 @@ def build_pages() -> dict[str, str]:
                         source_html = EXTERNAL_ERROR_GUIDE
                     elif topic == 'error_code_library':
                         reference_digest = hashlib.sha256(reference_assets[f'reference/{locale}/index.json'].encode('utf-8')).hexdigest()
-                        # Link repeated remedies to their full explanation once,
-                        # keeping every code while leaving room for all locales.
-                        for key, (label, remedy) in RECOVERY_GUIDANCE.items():
-                            source_html = source_html.replace(
-                                f'<li>{html.escape(remedy)}</li>',
-                                f'<li><a href="#errors-recovery-{key}">{html.escape(label)}</a></li>',
-                            )
+                        intro = source_html.split('<h4 id="errors-', 1)[0]
                         source_html = (
                             f'<p>{WIKI_REFERENCE_FILES["intro"]}</p>'
                             f'<p><a href="{WIKI_RAW}reference/{locale}/index.json#sha256={reference_digest}">{WIKI_REFERENCE_FILES["json"]}</a></p>'
-                            + source_html
+                            + _compact_code_library(intro, locale)
                         )
                 body = _translate_html(source_html, locale, translations)
                 parsed = DocumentParser(body).root
@@ -721,12 +771,17 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
     if missing:
         raise ValueError("Missing source Wiki guides: " + ", ".join(missing))
 
-    def rewrite_link(match):
+    def rewrite_link(match, current: str):
         target, _, anchor = match[1][len(WIKI):].partition("#")
         if target not in targets:
             return match[0]
         locale, page = targets[target]
-        return "](" + manual_url(locale, anchor or "guide-" + page.lower()) + ")"
+        anchor = anchor or "guide-" + page.lower()
+        # A section of the same manual is on this page: the bare anchor is enough. The full
+        # URL cost every link up to 85 bytes, a percent-encoded name and all.
+        if locale == current:
+            return "](#" + anchor + ")"
+        return "](" + manual_url(locale, anchor) + ")"
 
     result = {}
     order = [page for _, pages in MANUAL_GROUPS for page in pages]
@@ -787,7 +842,8 @@ def build_manuals(guides: dict[str, str] | None = None) -> dict[str, str]:
                     raise ValueError("Home start section is missing: " + locale)
                 body = body.replace(heading, '<a id="start-here"></a>\n\n' + heading, 1)
             body = re.sub(r"(?m)^(#{1,5}) ", r"#\1 ", body)
-            body = re.sub(r"\]\((" + re.escape(WIKI) + r"[^)\n]+)\)", rewrite_link, body)
+            body = re.sub(r"\]\((" + re.escape(WIKI) + r"[^)\n]+)\)",
+                          lambda match, current=locale: rewrite_link(match, current), body)
             parts.extend([
                 '---\n\n<a id="guide-' + page.lower() + '"></a>\n\n## ' + titles[page],
                 body,
@@ -836,6 +892,11 @@ def build_reference_assets() -> dict[str, str]:
         for area, title in MESSAGE_AREAS.items():
             body = render(sections['error_messages_' + area]['html'])
             assets[f'reference/{locale}/{area}.txt'] = translate(title) + '\n\n' + body + f'\n\nCDMW {APP_VERSION}\n'
+        # Every code of a group with its explanation, messages and source files, as Help has
+        # them; the manual page links here instead of carrying them (`_compact_code_library`).
+        for group, (title, _guide) in ERROR_REFERENCE_GROUPS.items():
+            body = render(build_error_group_html(group))
+            assets[f'reference/{locale}/codes-{group}.txt'] = translate(title) + '\n\n' + body + f'\n\nCDMW {APP_VERSION}\n'
     return assets
 
 
@@ -857,7 +918,18 @@ def main() -> int:
     guides = None if args.source_wiki is None else {
         name: (args.source_wiki / name).read_text(encoding="utf-8") for name in legacy_names
     }
-    pages = {**build_manuals(guides), **build_reference_assets()}
+    manuals = build_manuals(guides)
+    sizes = manual_sizes(manuals)
+    largest = max(sizes, key=sizes.get)
+    over = sorted(code for code, size in sizes.items() if size > WIKI_PAGE_LIMIT)
+    if over:
+        print("GitHub would cut these manuals short; shorten their Help text first: "
+              + ", ".join(f"{code} {sizes[code]:,} bytes" for code in over)
+              + f" (limit {WIKI_PAGE_LIMIT:,}).")
+        return 1
+    print(f"Largest manual: {largest} {sizes[largest]:,} bytes, "
+          f"{WIKI_PAGE_BUDGET - sizes[largest]:,} below the {WIKI_PAGE_BUDGET:,}-byte budget.")
+    pages = {**manuals, **build_reference_assets()}
     output = args.output.resolve()
     old_paths = legacy_names | {manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES}
     obsolete = sorted(name for name in old_paths - pages.keys() if (output / name).is_file())
