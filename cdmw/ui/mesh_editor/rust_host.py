@@ -166,6 +166,7 @@ class RustMeshEditorHostFrame(QFrame):
         result_layout.setContentsMargins(8, 20, 8, 20)
         result_layout.addStretch(1)
         title = QLabel("Mesh edits accepted", content)
+        self._result_title = title
         title.setObjectName("MeshEditorRustResultTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         result_layout.addWidget(title)
@@ -200,10 +201,14 @@ class RustMeshEditorHostFrame(QFrame):
                  "Close the current mesh editing session. Build a mod or add the finished mesh to Archive Browser first if you want to keep using the result."),
         )
         current_heading = None
+        # Save and Check groups belong to an ordinary session; a Create New Item model
+        # is saved and checked by Create New Item, so they hide while it owns the mesh.
+        self._result_groups: dict[str, QWidget] = {}
         for heading, action_id, text, signal, description in action_specs:
             if heading != current_heading:
                 current_heading = heading
                 group = QGroupBox(heading, content) if heading else QWidget(content)
+                self._result_groups[heading] = group
                 if heading:
                     group.setObjectName("MeshEditorRustResultGroup" + "".join(heading.split()))
                 layout = QVBoxLayout(group)
@@ -250,10 +255,19 @@ class RustMeshEditorHostFrame(QFrame):
         self._return_is_current = is_current if callable(is_current) else None
         self._refresh_return_button()
 
-    def _refresh_return_button(self) -> None:
-        current = self._return_callback is not None and (
+    def _return_is_offered(self) -> bool:
+        return self._return_callback is not None and (
             self._return_is_current is None or bool(self._return_is_current()))
+
+    def _refresh_return_button(self) -> None:
+        current = self._return_is_offered()
         self._return_button.setVisible(current)
+        for heading in ("Save and reuse", "Check or install"):
+            group = self._result_groups.get(heading)
+            if group is not None:
+                group.setVisible(not current)
+        self._result_title.setText(
+            self.tr("Mesh edits accepted. Back in Create New Item.") if current else self.tr("Mesh edits accepted"))
 
     def _return_requested(self) -> None:
         if self._return_callback is not None:
@@ -448,6 +462,10 @@ class RustMeshEditorHostFrame(QFrame):
         self._refresh_return_button()
         self._pages.setCurrentWidget(self._result_page)
         self._pages.setVisible(True)
+        if self._return_is_offered():
+            # Finish and return to Create New Item: go back without another click. The
+            # page stays behind with Keep editing and the return button for a later visit.
+            QTimer.singleShot(0, self._return_requested)
 
     def eventFilter(self, watched: object, event: QEvent) -> bool:
         if watched is self._surface and event.type() == QEvent.Type.WinIdChange and self._child_hwnd > 0:

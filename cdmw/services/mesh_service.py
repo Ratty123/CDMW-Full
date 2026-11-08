@@ -1403,6 +1403,17 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         with session.export_lock:
             return self._session_view_locked(session)
 
+    def set_handoff_target(self, session_id: str, target: str) -> None:
+        """Name the workflow an accepted edit goes back to ("new_item"), or "" for none.
+
+        Mesh Editor reads it to label Finish Edit Mesh and to hide the Free Edit
+        output controls, which the handing-off workflow owns.
+        """
+
+        session = self._session(session_id)
+        with session.export_lock:
+            session.handoff_target = str(target or "")
+
     def configure_output_policy(
         self,
         session_id: str,

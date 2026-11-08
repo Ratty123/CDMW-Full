@@ -7595,6 +7595,8 @@ class RustMeshAuthoringSession:
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()
+    # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
+    handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
@@ -7767,6 +7769,7 @@ class RustMeshAuthoringSession:
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
+                handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
@@ -8613,6 +8616,7 @@ class RustMeshAuthoringSession:
             "authoring_enabled": view.authoring_enabled,
             "exact_write_status": view.exact_write_status,
             "output_policy_reason": view.output_policy_reason,
+            "handoff_target": self.handoff_target,
             "selection_revision": view.selection_revision,
             "topology_generation": view.topology_generation,
             "geometry_layers": {

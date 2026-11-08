@@ -1697,6 +1697,7 @@ impl LabApplication {
         self.dispatch_cdmw_shortcuts(&root_ui.ctx().clone(), &mut actions);
         self.draw_cdmw_shortcut_editor(&root_ui.ctx().clone());
         self.draw_cdmw_session_bar(root_ui, &mut actions);
+        self.draw_cdmw_handoff_banner(root_ui);
         self.draw_cdmw_correction_comparison_banner(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);
@@ -1918,7 +1919,7 @@ impl LabApplication {
                 cdmw_primary_button(ui, crate::localization::tr(if self.hair.pending_finish {
                     "Saving hair before Finish…"
                 } else {
-                    "Finish Edit Mesh"
+                    self.cdmw_finish_label()
                 }), primary),
             )
             .on_disabled_hover_text(crate::localization::tr(if busy {
@@ -2822,6 +2823,9 @@ impl LabApplication {
         ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
             self.draw_cdmw_output_policy(ui, actions, false);
         });
+        if self.cdmw_returns_to_new_item() {
+            return;
+        }
         ui.separator();
         if ui
             .add_enabled(
@@ -2843,6 +2847,9 @@ impl LabApplication {
         let ready = state_bool(&self.cdmw_state, "output_destination_ready");
         if self.cdmw_has_archive_refit() {
             return ("Archive Refit", "Archive Refit · original game files");
+        }
+        if self.cdmw_returns_to_new_item() {
+            return ("Create New Item", "Finish sends the edit back to Create New Item");
         }
         match policy {
             "replacement_game_asset" => ("Replacement", "Replacement · prepared game-asset output"),
@@ -2885,6 +2892,10 @@ impl LabApplication {
         let free_edit = policy == "free_edit_rebuild";
         let replacement = policy == "replacement_game_asset";
         let archive_refit = self.cdmw_has_archive_refit();
+        if self.cdmw_returns_to_new_item() {
+            self.draw_cdmw_handoff_output(ui, heading);
+            return;
+        }
         if heading {
             ui.label(RichText::new(crate::localization::tr("Output")).strong());
         }
@@ -3469,14 +3480,21 @@ impl LabApplication {
                 ("Weighted Normals", "weighted_normals"),
                 ("Copy Source Normals", "copy_normals"),
             ] {
+                // Create New Item's build keeps the template's tangent lanes, so a
+                // generated tangent would be silently lost on the way back.
+                let tangents_dropped = action == "generate_tangents" && self.cdmw_returns_to_new_item();
                 let response = ui
-                    .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                    .add_enabled(selected && !tangents_dropped, Button::new(crate::localization::tr(label)))
                     .on_hover_text(crate::localization::tr(if action == "copy_normals" {
                         "Copy Source Normals restores the matching original game-mesh normal rows."
                     } else {
                         "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay."
                     }))
-                    .on_disabled_hover_text(crate::localization::tr("Select mesh elements or Parts first"));
+                    .on_disabled_hover_text(crate::localization::tr(if tangents_dropped {
+                        "Create New Item builds tangents from the template, so generated tangents would not be kept."
+                    } else {
+                        "Select mesh elements or Parts first"
+                    }));
                 if response.clicked() {
                     if action != "generate_tangents" {
                         self.show_normals = true;

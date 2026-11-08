@@ -816,6 +816,16 @@ automatic glass conversion.
 
 ## Placement and appearance
 
+The step's right-hand column runs in working order: **Components**, the selected
+component's model section (import or template, Mesh Editor, **Template cloth /
+physics** and cloth-paint status, weights and rig, import details, FBX setup), the
+Placement, Appearance, Dyes and Icon tabs, then **Body underneath** for worn templates
+only (`template_is_worn`). **Apply placement** and its status stay pinned below the
+scroll area. The view options and the installed-model fitting reference sit under the
+viewport, and the fitting reference is offered only for worn templates. The
+Components table hides its Body underneath column for other templates, and
+**Skin weights…** is shown only for a model with its own bone weights.
+
 Template models also support Move, Rotate, Scale, Glow and **Translucency (experimental)**
 without importing a replacement. Template placement goes directly into Build plan;
 Reset placement restores the authored geometry. Each selected variant receives its
@@ -1213,7 +1223,7 @@ equipment identity. Add Kliff explicitly; this new item's own selectors do not
 depend on when Equip All Armor runs. Source data and owned-fixture export
 checks do not establish successful equipping or appearance in game.
 
-### Installed character models (local test)
+### Installed character models
 
 **Model & Placement > Browse installed models…** opens the dedicated installed-model picker. It reads DMM's existing
 `dmm/install_folder` setting or detects its usual installation location. **Choose
@@ -2635,7 +2645,8 @@ copying the template model itself also retains them.
 imported vertex still copies the nearest template vertex's whole record, cloth lanes
 included, so cloth lands unpredictably. Painting replaces that. In Mesh Editor, the
 Cloth page's **Cloth paint** section sets a 0–1 value on the explicitly selected
-vertices of an imported model (Undo applies; game models refuse it). The value is the
+vertices of an imported model, or on every vertex with **Paint whole model** (Undo
+applies; game models refuse it). The value is the
 per-vertex `cloth_paint` attribute and follows copies, topology edits and subdivision.
 At **Apply placement**, `cdmw/services/new_item_cloth_paint.py` places every imported
 vertex with the same placement matrix as the viewport and, in
@@ -2650,6 +2661,20 @@ cloth; a part that only partly lines up refuses the build instead of painting th
 vertices. Cloth moves only in parts whose material sidecar assigns a cloth profile; the
 plan summary names the parts that received cloth. Templates without guides are refused.
 None of this has been checked in game, and the preview does not simulate it.
+Beside **Template cloth / physics**, the model section says whether the model carries
+paint and warns when painted cloth would be ignored because the option is off.
+
+**Mesh Editor round trip:** **Open in Mesh Editor** prepares the session in
+`cdmw/workers/new_item_mesh_session.py`, which names a Free Edit folder up front and
+sets the session's `handoff_target` to `new_item`. Mesh Editor reads it from the state
+payload: Finish reads **Finish and return to Create New Item**, a banner points to
+Create Part and cloth paint, the Output page drops the Free Edit folder and package
+controls, and **Generate Tangents** is disabled because the PAC build keeps the
+template's tangent lanes. When Finish is accepted, the host's accepted page calls
+back into Create New Item, which shows its tab, publishes the edit as with **Use
+Mesh Editor changes**, and starts **Apply placement** again when a built result
+existed before. Parts hidden in Mesh Editor still ship; deleting their faces removes
+them.
 
 The template's HKX companion is copied byte for byte under each new stem either way.
 It is a rigid Havok collision shape that names no vertices or files, and the game

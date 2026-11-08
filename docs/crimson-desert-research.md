@@ -1091,7 +1091,7 @@ check installed-file updates when preparing references. Owned-fixture tests cove
 reference isolation and output contracts; no game acceptance is claimed.
 The current-profile format and ASI behavior were not validated; the existing
 9.1.16 profile-reader boundary above remains unchanged. See the
-[local-test contract](../cdmw/ui/new_item/README.md#installed-character-models-local-test).
+[installed-model contract](../cdmw/ui/new_item/README.md#installed-character-models).
 
 Reviewed 2026-10-28 (archive inspection, source): orc, dwarf and goblin heads
 tie the human and several creature rigs on every palette bone. Every prefab

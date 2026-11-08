@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-CLOTH_PAINT_ARGUMENTS = frozenset({"selection", "value"})
+CLOTH_PAINT_ARGUMENTS = frozenset({"selection", "value", "whole_model"})
 
 
 def cloth_paint_state(session, cache=None) -> dict[str, object]:
@@ -40,7 +40,11 @@ def cloth_paint_state(session, cache=None) -> dict[str, object]:
 
 
 def run_cloth_paint_command(authoring, args: Mapping[str, object]) -> dict[str, object]:
-    """Set the explicitly selected vertices' paint; the selection travels with the command."""
+    """Set the explicitly selected vertices' paint; the selection travels with the command.
+
+    ``whole_model`` paints every vertex of every part instead, for a garment that
+    should move as cloth all over (or, with 0, to clear the paint everywhere).
+    """
     from cdmw.services.mesh_rust_authoring import RustMeshValidationError
 
     selection = authoring._apply_explicit_rig_selection(
@@ -52,7 +56,12 @@ def run_cloth_paint_command(authoring, args: Mapping[str, object]) -> dict[str, 
     from cdmw.domain.mesh.editing import MeshEditSelection
     vertices = {index: set(rows) for index, rows in selection.vertex_map().items()}
     submeshes = session.working_mesh.submeshes
-    for index in selection.source_indices:
+    whole_model = args.get("whole_model", False)
+    if not isinstance(whole_model, bool):
+        raise RustMeshValidationError("cloth_paint_set whole_model must be true or false.")
+    if whole_model:
+        vertices = {index: set(range(len(part.vertices))) for index, part in enumerate(submeshes)}
+    for index in () if whole_model else selection.source_indices:
         if 0 <= int(index) < len(submeshes):
             vertices.setdefault(int(index), set()).update(range(len(submeshes[int(index)].vertices)))
     if not any(vertices.values()):

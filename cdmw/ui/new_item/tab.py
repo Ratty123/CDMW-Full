@@ -188,6 +188,7 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
+        self._reapply_after_model_part_edit = False
         self._current_step = 0
         self._syncing_step = False
 
@@ -1158,7 +1159,7 @@ class NewItemStudioTab(QWidget):
             self._model_part_editor_controller = editor.standalone_controller
             self._model_part_editor_session_id = view.session_id
             self.model_panel.set_part_editor_state(
-                True, "Brush or select faces, then choose Create Part from Selection. Choose Finish Edit Mesh before returning here to use the edited parts.")
+                True, "Split parts or paint cloth in Mesh Editor, then choose Finish and return to Create New Item.")
             frame = getattr(editor, "standalone_native_host_frame", None)
             if callable(getattr(frame, "set_return_action", None)):
                 frame.set_return_action(self._return_from_model_part_editor, self._model_part_editor_is_open)
@@ -1180,7 +1181,7 @@ class NewItemStudioTab(QWidget):
         if (getattr(editor, "standalone_rust_authoring_session", None) is not None
                 and not getattr(editor, "standalone_rust_finish_accepted", False)):
             self.model_panel.set_part_editor_state(
-                True, "Choose Finish Edit Mesh in Mesh Editor, then return here to use the accepted changes.")
+                True, "Choose Finish and return to Create New Item in Mesh Editor first.")
             return
         active_worker = getattr(editor, "_standalone_action_worker_active", None)
         if (
@@ -1189,6 +1190,8 @@ class NewItemStudioTab(QWidget):
         ):
             self.model_panel.set_part_editor_state(True, "Wait for the current Mesh Editor task to finish.")
             return
+        # The edit replaces the built result; build it again if there was one.
+        self._reapply_after_model_part_edit = self.controller.model_result is not None
         started = self.controller.start_model_part_edit_apply(
             source,
             mesh_controller,
@@ -1203,10 +1206,16 @@ class NewItemStudioTab(QWidget):
             return
         mesh = getattr(getattr(source, "scene", None), "mesh", None)
         part_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
-        self.model_panel.set_part_editor_state(
-            True,
-            f"Using Mesh Editor revision with {part_count} part(s). Apply the placement again before building the item.",
-        )
+        reapply = bool(getattr(self, "_reapply_after_model_part_edit", False))
+        self._reapply_after_model_part_edit = False
+        message = (f"Using the Mesh Editor edit with {part_count} part(s). Applying the placement again…" if reapply
+                   else f"Using the Mesh Editor edit with {part_count} part(s). Apply placement to build it.")
+        from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
+        if mesh is not None and mesh_has_cloth_paint(mesh) and not self.model_panel.keep_physics.isChecked():
+            message += " The model has cloth paint: turn on Template cloth / physics to use it."
+        self.model_panel.set_part_editor_state(True, message)
+        if reapply and not self.controller.busy:
+            self.controller.start_model_apply()
 
     def _model_part_edit_failed(self, message: str) -> None:
         if self._model_part_editor_session_id:

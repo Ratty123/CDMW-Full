@@ -5,6 +5,7 @@ mod camera;
 mod cdmw_bend;
 mod cdmw_cloth;
 mod cdmw_cloth_paint;
+mod cdmw_handoff;
 mod cdmw_hair;
 mod cdmw_history;
 mod cdmw_jiggle;

@@ -9,6 +9,10 @@ from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.services.mesh_service import MeshService
 
 
+#: Mesh Editor's handoff target for a model Create New Item opened.
+NEW_ITEM_HANDOFF = "new_item"
+
+
 @dataclass
 class PreparedNewItemMeshSession:
     service: MeshService
@@ -44,6 +48,7 @@ def prepare_new_item_mesh_session(mesh, session_id, stop_event):
         if not view.authoring_enabled and str(getattr(view, "output_policy", "")) == MeshOutputPolicy.FREE_EDIT.value:
             result.view = service.configure_output_policy(
                 view.session_id, MeshOutputPolicy.FREE_EDIT, output_destination=new_item_edit_destination())
+        service.set_handoff_target(view.session_id, NEW_ITEM_HANDOFF)
         raise_if_cancelled(stop_event)
         return result
     except BaseException:

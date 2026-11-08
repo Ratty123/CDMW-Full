@@ -302,6 +302,11 @@ class NewItemModelControllerMixin:
 
         return equipment_placement_frame(self.snapshot.equip_type_name(row), family.model_folder) == HELD_PLACEMENT_FRAME
 
+    def template_is_worn(self) -> bool:
+        """Whether the template is worn on the body (armour, clothing), not held or placed."""
+
+        return self._template_is_wearable()
+
     def _template_is_wearable(self) -> bool:
         """Whether Effects should preserve the template's authored body-frame origin."""
 

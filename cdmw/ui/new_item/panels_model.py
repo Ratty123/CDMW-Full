@@ -234,13 +234,17 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         appearance_layout = QVBoxLayout(self.appearance_page)
         appearance_layout.setContentsMargins(8, 8, 8, 8)
         appearance_layout.setSpacing(6)
-        for widget in (self.plain_pbr, self.own_sheath, self.keep_physics):
+        for widget in (self.plain_pbr, self.own_sheath):
             appearance_layout.addWidget(widget)
         self._build_model_appearance_controls(model, appearance_layout, import_row)
-        appearance_layout.addWidget(self.import_details)
         self.blender_details.layout().insertWidget(0, self.blender_details.toggle)
-        appearance_layout.addWidget(self.blender_details)
         appearance_layout.addStretch(1)
+        # Model section order: the file, then what prepares it (Mesh Editor, cloth,
+        # weights), then the details to read when something needs attention.
+        for widget in (self.import_summary, self.part_editor_holder, self.keep_physics, self.cloth_paint_note,
+                       self.weights_rig_details, self.import_details, self.blender_details, self.busy_bar):
+            self.model_layout.removeWidget(widget)
+            self.model_layout.addWidget(widget)
 
         self._build_placement_controls()
 
@@ -248,14 +252,14 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         self._build_icon_controls()
 
+        # The column follows the work: which component, its model (and any Mesh Editor
+        # or cloth preparation), where it sits and how it looks, then what stays
+        # visible underneath a worn item. Apply placement stays pinned below.
         from cdmw.ui.new_item.component_list import ComponentList
         self.components = ComponentList(controller, self)
         model_icon_content_layout.addWidget(self.components)
-        self.model_layout.insertWidget(self.model_layout.indexOf(self.weights_rig_details), self.body_visibility_editor)
         self.components.preview_out_of_date.connect(self.mark_preview_stale)
         model_icon_content_layout.addWidget(self.model_group)
-        model_icon_content_layout.addWidget(self.preview_controls)
-        model_icon_content_layout.addWidget(self.reference_group)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
         self.inspector_tabs = _InspectorTabs()
@@ -265,8 +269,26 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.inspector_tabs.addTab(self.dyes, "Dyes")
         self.inspector_tabs.addTab(self.icon_group, "Icon")
         model_icon_content_layout.addWidget(self.inspector_tabs)
+        self.body_details = _foldout(self.body_visibility_editor)
+        self.body_details.setObjectName("new_item_body_underneath")
+        self.body_details.toggle.setText("Body underneath")
+        self.body_details.toggle.setToolTip(
+            "What stays visible under this worn component: skin, hair and other clothing layers it would cut.")
+        self.body_details.setVisible(controller.template_is_worn())
+        model_icon_content_layout.addWidget(self.body_details)
         model_icon_content_layout.addStretch(1)
         preview_column_layout.addWidget(self.preview_group, 1)
+        # View options and the fitting reference change only the picture: they sit
+        # under it, not among the item's own settings.
+        self.preview_options = QWidget(self.preview_column)
+        self.preview_options.setObjectName("new_item_preview_options")
+        preview_options_layout = QHBoxLayout(self.preview_options)
+        preview_options_layout.setContentsMargins(0, 0, 0, 0)
+        preview_options_layout.setSpacing(6)
+        preview_options_layout.addWidget(self.preview_controls, 3)
+        preview_options_layout.addWidget(self.reference_group, 2)
+        preview_column_layout.addWidget(self.preview_options)
+        self.reference_group.setVisible(controller.template_is_worn())
         self.material_warning = NoteLabel("", WARN)
         model_icon_column_layout.addWidget(self.material_warning)
         model_icon_column_layout.addWidget(self.operation_banner)
@@ -949,14 +971,15 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         part_editor_buttons.setSpacing(4)
         self.open_part_editor_button = QPushButton("Open in Mesh Editor")
         self.open_part_editor_button.setToolTip(
-            "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part "
-            "from Selection, choose Finish Edit Mesh, then return here and choose Use Mesh Editor changes."
+            "Open this imported model in Mesh Editor to split it into parts or paint cloth. Finish and return to "
+            "Create New Item brings the edit back here and applies the placement again if it was applied."
         )
         self.open_part_editor_button.clicked.connect(self.part_editor_open_requested.emit)
         part_editor_buttons.addWidget(self.open_part_editor_button, 0, Qt.AlignmentFlag.AlignLeft)
         self.use_part_editor_button = QPushButton("Use Mesh Editor changes")
         self.use_part_editor_button.setToolTip(
-            "After Finish Edit Mesh, capture the accepted revision, rebuild this textured preview, and make its parts the source for Apply the placement."
+            "Use the edit accepted in Mesh Editor, if it did not come back by itself. It rebuilds this preview and "
+            "becomes the model Apply placement builds."
         )
         self.use_part_editor_button.clicked.connect(self.part_editor_apply_requested.emit)
         part_editor_buttons.addWidget(self.use_part_editor_button, 0, Qt.AlignmentFlag.AlignLeft)
@@ -1028,6 +1051,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.keep_physics.toggled.connect(self._keep_physics_changed)
         model_layout.addWidget(self.keep_physics)
+        self.cloth_paint_note = NoteLabel("", None)
+        self.cloth_paint_note.setObjectName("new_item_cloth_paint_note")
+        self.cloth_paint_note.setVisible(False)
+        model_layout.addWidget(self.cloth_paint_note)
         return model, model_layout, import_row
 
     def mount_preview(self) -> None:
@@ -1080,8 +1107,30 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         has_source = self._controller.model_import is not None
         has_import = has_source or self._controller.model_result is not None
         self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
+        self._refresh_cloth_paint_note()
         if keep:
             self.flip_texture_v.setVisible(False)
+
+    def _refresh_cloth_paint_note(self) -> None:
+        """Say beside Template cloth / physics whether the model carries cloth paint."""
+
+        from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
+
+        source = self._controller.model_import
+        mesh = getattr(getattr(source, "scene", None), "mesh", None)
+        painted = mesh is not None and mesh_has_cloth_paint(mesh)
+        shown = (self.keep_physics.isVisibleTo(self) and not self.keep_model.isChecked() and mesh is not None
+                 and (painted or self.keep_physics.isChecked()))
+        self.cloth_paint_note.setVisible(shown)
+        if not shown:
+            return
+        if painted and self.keep_physics.isChecked():
+            self.cloth_paint_note.set_note("Cloth paint: painted areas move with the template's cloth.", OK)
+        elif painted:
+            self.cloth_paint_note.set_note("This model has cloth paint. Turn on Template cloth / physics to use it.", WARN)
+        else:
+            self.cloth_paint_note.set_note(
+                "No cloth paint. To choose what swings, open the model in Mesh Editor and use the Cloth page.", None)
 
     def set_part_editor_state(self, active: bool, message: str = "") -> None:
         """Show the two ends of the cross-tab part-edit handoff."""
@@ -1298,6 +1347,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _refresh_body_visibility(self, *, looking=False) -> None:
         from cdmw.ui.new_item.component_list import component_name
         row = next((value for value in self._controller.component_rows() if value.selected), None)
+        # Only a worn item cuts the body or other clothing; a weapon has nothing underneath.
+        details = getattr(self, "body_details", None)  # absent while the panel is still being built
+        if details is not None:
+            worn = self._controller.template_is_worn()
+            details.setVisible(worn)
+            # Installed character models are worn gear: a reference only helps a worn item.
+            self.reference_group.setVisible(worn or self._controller.installed_reference is not None)
         self.body_visibility_editor.refresh(
             self._controller.draft.body_visibility,
             enabled=self._controller.current_variant_identity() is not None,
@@ -1311,9 +1367,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         if row is None:
             self.editing_label.setText("")
         elif row.included:
-            self.editing_label.setText(translate_active_ui_text("Editing: {name}").format(name=component_name(row)))
+            self.editing_label.setText(translate_active_ui_text("Model for {name}").format(name=component_name(row)))
         else:
-            self.editing_label.setText(translate_active_ui_text("Editing: {name} (left out of the export)").format(
+            self.editing_label.setText(translate_active_ui_text("Model for {name} (left out of the export)").format(
                 name=component_name(row)))
         self._refresh_source_actions()
 
@@ -1431,6 +1487,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _keep_physics_changed(self, keep: bool) -> None:
         self._controller.draft.keep_template_physics = bool(keep)
         self._controller.invalidate_plan()
+        self._refresh_cloth_paint_note()
 
     def _flip_texture_v_changed(self, flip: bool) -> None:
         source = self._controller.model_import
@@ -1513,6 +1570,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _show_model(self, result: object) -> None:
         self._apply_error = ""
         source = self._controller.model_import
+        # Only a model with its own bone weights has weights to choose; hide it otherwise.
+        self.skinning_button.setVisible(bool(source is not None and source.skinning_target))
         self.skinning_button.setEnabled(bool(source is not None and source.skinning_target
             and source.mesh_generation == source.skinning_generation and not self._controller.busy))
         keep = self._controller.draft.model_source is ModelSource.TEMPLATE
@@ -1565,7 +1624,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             lines.extend(note(text, None) for text in getattr(result, "notes", ()))
             self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
         elif source is not None:
-            self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
+            self.apply_status.set_note("Placement not applied yet. Apply placement builds the mesh the item exports.", WARN)
         self.model_status.set_lines(lines)
         self._sync_placement_numbers(self._controller.model_placement)
         self._refresh_apply_status()

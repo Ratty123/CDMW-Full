@@ -179,7 +179,7 @@ class ModelPanelPreviewMixin:
         elif self._controller.model_result is not None:
             self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
         else:
-            self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
+            self.apply_status.set_note("Placement not applied yet. Apply placement builds the mesh the item exports.", WARN)
 
     def _fit_to_template(self) -> None:
         self._controller.fit_model_placement()

@@ -175,6 +175,9 @@ class ComponentList(QGroupBox):
                             current = item
                 if current is not None:
                     self.tree.setCurrentItem(current)
+                # Body underneath matters only for a worn item.
+                worn = getattr(self._controller, "template_is_worn", None)
+                self.tree.setColumnHidden(2, callable(worn) and not worn())
                 rows_shown = self.tree.topLevelItemCount()
                 self.tree.setFixedHeight(min(10, max(3, rows_shown)) * 24 + 30)
         finally:

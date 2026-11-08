@@ -142,9 +142,10 @@ impl LabApplication {
             .default_open(true)
             .show(ui, |ui| {
                 ui.small(crate::localization::tr(
-                    "Mark which parts of your model swing as cloth. Select vertices (a brush or lasso works well), \
-                     set the amount and click Paint selection. Painted cloth follows the template's own cloth \
-                     when Create New Item builds with Template cloth / physics on.",
+                    "Painted areas swing with the template's cloth; unpainted areas follow the bones. \
+                     Paint a whole dress or cape with Paint whole model, or select the loose parts \
+                     (a brush or lasso works well) and click Paint selection. Used only when \
+                     Template cloth / physics is on in Create New Item.",
                 ));
                 // Explicit vertices plus every vertex of the Parts picked in the Parts list.
                 let parts = self.selected_part_indices().into_iter().collect::<HashSet<_>>();
@@ -193,6 +194,34 @@ impl LabApplication {
                         actions.push(UiAction::CdmwCommand {
                             command: "cloth_paint_set",
                             arguments: json!({"value": 0.0}),
+                            label: "Clear cloth paint",
+                        });
+                    }
+                });
+                let can_paint_all = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(can_paint_all, egui::Button::new(crate::localization::tr("Paint whole model")))
+                        .on_hover_text(crate::localization::tr(
+                            "Paint every vertex with the cloth amount above, for a garment that moves as cloth all over.",
+                        ))
+                        .clicked()
+                    {
+                        actions.push(UiAction::CdmwCommand {
+                            command: "cloth_paint_set",
+                            arguments: json!({"value": self.cdmw_cloth_paint.amount, "whole_model": true}),
+                            label: "Paint cloth",
+                        });
+                    }
+                    if ui
+                        .add_enabled(can_paint_all && self.cdmw_cloth_paint.painted > 0,
+                            egui::Button::new(crate::localization::tr("Clear whole model")))
+                        .on_hover_text(crate::localization::tr("Return every vertex to the bones."))
+                        .clicked()
+                    {
+                        actions.push(UiAction::CdmwCommand {
+                            command: "cloth_paint_set",
+                            arguments: json!({"value": 0.0, "whole_model": true}),
                             label: "Clear cloth paint",
                         });
                     }

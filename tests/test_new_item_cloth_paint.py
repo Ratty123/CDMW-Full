@@ -213,6 +213,24 @@ def test_whole_parts_from_the_parts_list_paint_every_vertex():
         service.close_edit_session(sid)
 
 
+def test_paint_whole_model_covers_every_part_and_clears_everywhere():
+    from cdmw.services.mesh_rust_authoring import RustMeshValidationError
+    from cdmw.services.mesh_rust_cloth_paint import run_cloth_paint_command
+    authoring = _authoring_for(imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), ()))
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    empty = {"vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": []}
+    try:
+        assert run_cloth_paint_command(authoring, {"selection": empty, "value": .75, "whole_model": True}) == {
+            "changed_vertex_count": 3}
+        assert service._session(sid).working_mesh.submeshes[0].cloth_paint == [.75, .75, .75]
+        run_cloth_paint_command(authoring, {"selection": empty, "value": 0., "whole_model": True})
+        assert service._session(sid).working_mesh.submeshes[0].cloth_paint == [0., 0., 0.]
+        with pytest.raises(RustMeshValidationError, match="whole_model"):
+            run_cloth_paint_command(authoring, {"selection": empty, "value": 1., "whole_model": "yes"})
+    finally:
+        service.close_edit_session(sid)
+
+
 def _placed_with_influences(tmp_path, monkeypatch, paint):
     from cdmw.models import ArchiveEntry
     from cdmw.modding.scene_import_result_ops import SceneImportResult
@@ -257,6 +275,7 @@ def test_create_new_item_editing_sessions_open_with_the_tools_unlocked():
     try:
         assert prepared.view.authoring_enabled
         assert prepared.view.output_policy == "free_edit_rebuild"
+        assert prepared.service._session(prepared.view.session_id).handoff_target == "new_item"
         destination = Path(prepared.view.output_destination)
         assert destination.parent.name == "cdmw-new-item-edits" and not destination.exists()
     finally:
@@ -275,14 +294,23 @@ def test_accepted_page_offers_the_way_back_only_for_the_linked_mesh():
         button = frame._return_button
         assert button.isHidden()
         calls, linked = [], [True]
+        saving = frame._result_groups["Save and reuse"]
         frame.set_return_action(lambda: calls.append("back"), lambda: linked[0])
         frame.show_result("")
-        assert not button.isHidden() and button.text() == "Return to Create New Item"
-        button.click()
+        # Finish and return goes back by itself once the accepted page is up.
+        assert calls == []
+        app.processEvents()
         assert calls == ["back"]
+        assert not button.isHidden() and button.text() == "Return to Create New Item"
+        assert saving.isHidden() and frame._result_groups["Check or install"].isHidden()
+        assert not frame._result_groups["Keep editing"].isHidden()
+        button.click()
+        assert calls == ["back", "back"]
         linked[0] = False  # the New Item mesh was closed; another mesh finished later
         frame.show_result("")
-        assert button.isHidden()
+        app.processEvents()
+        assert calls == ["back", "back"]
+        assert button.isHidden() and not saving.isHidden()
         frame.set_return_action(None)
         assert button.isHidden()
     finally:
@@ -300,3 +328,33 @@ def test_return_shows_create_new_item_then_uses_the_changes():
                            _use_model_part_editor_changes=lambda: events.append(("use", True)))
     NewItemStudioTab._return_from_model_part_editor(fake)
     assert events == [("show", True), ("use", True)]
+
+
+def _finished_tab(*, painted, keep_physics, reapply, busy=False):
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    mesh = imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), (1., 1., 1.) if painted else ())
+    source = SimpleNamespace(scene=SimpleNamespace(mesh=mesh))
+    notes, applied = [], []
+    fake = SimpleNamespace(
+        _model_part_editor_source=source, _reapply_after_model_part_edit=reapply,
+        model_panel=SimpleNamespace(keep_physics=SimpleNamespace(isChecked=lambda: keep_physics),
+                                    set_part_editor_state=lambda active, message="": notes.append(message)),
+        controller=SimpleNamespace(busy=busy, start_model_apply=lambda: applied.append(True)))
+    NewItemStudioTab._model_part_edit_finished(fake, source)
+    return notes[-1], applied, fake
+
+
+def test_returning_edit_applies_the_placement_again_only_if_it_was_applied():
+    message, applied, fake = _finished_tab(painted=False, keep_physics=False, reapply=True)
+    assert applied == [True] and "Applying the placement again" in message
+    assert fake._reapply_after_model_part_edit is False
+    message, applied, _ = _finished_tab(painted=False, keep_physics=False, reapply=False)
+    assert applied == [] and "Apply placement to build it" in message
+    assert "cloth paint" not in message
+
+
+def test_returning_painted_edit_asks_for_template_cloth_when_it_is_off():
+    message, _applied, _ = _finished_tab(painted=True, keep_physics=False, reapply=False)
+    assert "turn on Template cloth / physics" in message
+    message, _applied, _ = _finished_tab(painted=True, keep_physics=True, reapply=False)
+    assert "Template cloth" not in message

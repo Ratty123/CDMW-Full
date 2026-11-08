@@ -17,6 +17,7 @@ use winit::event::DeviceId;
 mod cloth_preview_tests;
 mod bend;
 mod free_edit_destination;
+mod new_item_handoff;
 mod island_controls_tests;
 mod parts_output_tests;
 mod history_controls_tests;

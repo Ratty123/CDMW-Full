@@ -48,6 +48,7 @@ def test_imported_free_edit_can_open_choose_destination_edit_and_finish(tmp_path
             tmp_path / "host", process_generation=1,
         )
         initial = host.state_payload()
+        assert initial["handoff_target"] == ""
         assert initial["output_policy"] == "free_edit_rebuild"
         assert initial["output_destination"] == ""
         assert not initial["output_destination_ready"]
@@ -110,6 +111,8 @@ def test_create_new_item_session_is_authorable_through_the_editor_host(tmp_path)
         state = host.state_payload()
         assert state["output_policy"] == "free_edit_rebuild" and state["authoring_enabled"]
         assert state["cloth_paint"]["supported"]
+        # Mesh Editor names Finish after the way back and hides Free Edit's output folder.
+        assert state["handoff_target"] == "new_item"
     finally:
         if host is not None:
             host.cancel()

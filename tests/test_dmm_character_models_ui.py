@@ -25,6 +25,11 @@ def test_guided_picker_filters_parts_reports_import_failure_and_refreshes(studio
     assert tab.model_panel.reference_group.parentWidget() is tab.model_panel.preview_controls.parentWidget()
     monkeypatch.setattr(tab.model_panel, 'refresh_preview', lambda: None)
     monkeypatch.setattr(tab.controller, 'template_primary_entry', lambda: SimpleNamespace(path=path))
+    # The fixture template is a sword; installed character models are a reference for worn gear.
+    assert tab.model_panel.reference_group.isHidden() and tab.model_panel.body_details.isHidden()
+    monkeypatch.setattr(tab.controller, 'template_is_worn', lambda: True)
+    tab.model_panel._refresh_body_visibility()
+    assert not tab.model_panel.reference_group.isHidden() and not tab.model_panel.body_details.isHidden()
     editor._settings = SimpleNamespace(setValue=lambda *_: None)
     editor._saved = str(install)
     tab.show_step(2)

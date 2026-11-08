@@ -275,7 +275,7 @@ def test_apply_captures_inputs_and_rejects_changed_geometry(studio, monkeypatch,
             assert "Included in Build plan" in panel.apply_status.plain_text()
             assert panel.apply_button.isHidden()
         else:
-            assert "Not applied" in panel.apply_status.plain_text()
+            assert "not applied" in panel.apply_status.plain_text()
         assert "Placement applied to" not in tab.output_panel.log.toPlainText()
         if changed == "template":
             assert controller.draft.model_source is ModelSource.TEMPLATE

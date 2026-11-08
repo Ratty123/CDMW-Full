@@ -269,6 +269,9 @@ class _MeshEditSession:
     # Parts hidden with View in the editor's Parts list. Viewport only; the
     # editor reports them at Finish and receives them again when it reopens.
     viewport_hidden_parts: tuple[int, ...] = ()
+    # The workflow the accepted edit goes back to, such as "new_item" for a model
+    # Create New Item opened. Empty for an ordinary Mesh Editor session.
+    handoff_target: str = ""
     mesh_layer_autosave_timer: threading.Timer | None = field(default=None, repr=False)
     mesh_layer_autosave_thread: threading.Thread | None = field(default=None, repr=False)
     mesh_layer_autosave_stop_event: threading.Event | None = field(default=None, repr=False)

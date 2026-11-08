@@ -891,11 +891,18 @@ class _TabAuthoringMixin:
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertIs(panel.icon_thumbnail.parentWidget(), panel.icon_group)
         self.assertTrue(panel.quick_turn_section.contents.isHidden())
-        for control in (panel.model_group, panel.variants, panel.show_character,
-                        panel.view_toolbar, panel.capture_inline_button, panel.preview_status,
-                        panel.part_editor_holder, panel.operation_banner):
+        for control in (panel.model_group, panel.variants, panel.part_editor_holder, panel.keep_physics,
+                        panel.import_details, panel.operation_banner):
             self.assertTrue(panel.model_icon_column.isAncestorOf(control))
             self.assertFalse(panel.preview_column.isAncestorOf(control))
+        # View options change only the picture, so they sit under it.
+        for control in (panel.show_character, panel.view_toolbar, panel.capture_inline_button,
+                        panel.preview_status, panel.reference_group):
+            self.assertTrue(panel.preview_column.isAncestorOf(control))
+            self.assertFalse(panel.model_icon_column.isAncestorOf(control))
+        order = panel.model_icon_content.layout()
+        self.assertLess(order.indexOf(panel.model_group), order.indexOf(panel.inspector_tabs))
+        self.assertLess(order.indexOf(panel.inspector_tabs), order.indexOf(panel.body_details))
         panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.assertFalse(panel.model_status.isVisibleTo(panel))
         panel.import_details.toggle.click()
@@ -917,7 +924,8 @@ class _TabAuthoringMixin:
             if width >= 1280:
                 self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), 0)
                 self.assertGreater(panel.preview_column.width(), panel.model_icon_column.width())
-                self.assertGreaterEqual(panel.preview.height(), panel.workspace_splitter.height() - 4)
+                self.assertGreaterEqual(panel.preview.height(),
+                                        panel.workspace_splitter.height() - panel.preview_options.height() - 16)
             for index, page in enumerate((panel.placement_group, panel.appearance_page, panel.dyes, panel.icon_group)):
                 panel.inspector_tabs.setCurrentIndex(index)
                 self.app.processEvents()
@@ -1016,9 +1024,8 @@ class _TabAuthoringMixin:
                 for tick in range(6):
                     self.app.processEvents()
                     with self.subTest(size=(width, height), enabled=enabled, tick=tick):
-                        # The fitting-reference group sits between the preview controls and the tabs.
-                        above = panel.reference_group if panel.reference_group.isVisibleTo(panel) else panel.preview_controls
-                        gap = panel.inspector_tabs.y() - above.geometry().bottom() - 1
+                        # The inspector tabs follow the model section directly.
+                        gap = panel.inspector_tabs.y() - panel.model_group.geometry().bottom() - 1
                         self.assertEqual(gap, panel.model_icon_content.layout().spacing())
                         self.assertIs(panel.inspector_tabs.currentWidget(), panel.dyes)
                 self.assertEqual(panel.dyes.contents.isVisibleTo(panel), enabled)
