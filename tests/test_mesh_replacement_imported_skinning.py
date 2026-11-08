@@ -399,3 +399,42 @@ def test_export_rig_glb_writes_the_pac_on_its_skeleton(editor, tmp_path):
     finally:
         if not host.closed:
             host.cancel()
+
+
+def test_rig_and_weights_edit_an_imported_part_and_the_edit_is_written(editor, tmp_path):
+    service, sid, order = editor
+    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=sid), tmp_path / "host", process_generation=1)
+    try:
+        entry = ArchiveEntry(service.working_mesh(sid).path, tmp_path / "0.pamt", tmp_path / "0.paz", 0, 0, 0, 0, 0)
+        context = SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})
+        result = command(host, "replacement_choose", {"scope": "entire", "source_path": str(source_glb(tmp_path, mismatch=True)),
+                         "_archive_entry": entry, "_archive_dependencies": context})
+        key = result["state"]["replacement"]["pending"]["targets"][0]["id"]
+        command(host, "replacement_apply", {"targets": [key], "materials": "original", "weights": "transfer"})
+        shadow = host.shadow_service._session(host.shadow_session_id)
+        from cdmw.services.mesh_rust_authoring import _rust_skin_weight_capability
+        capability = _rust_skin_weight_capability(shadow)
+        assert capability.enabled and 0 in capability.eligible_submesh_indices
+        assert capability.replacement_submesh_indices == (0,)
+        assert shadow.working_mesh.submeshes[0].bone_indices[0] == (0,)
+        # Pin vertex 0 a quarter to skeleton bone 5, which is palette slot 1.
+        command(host, "rig_select_bone", {"bone_index": order[1]})
+        command(host, "rig_adjust_weight", {"selection": {"vertices_by_submesh": {"0": [0]}, "edges_by_submesh": {},
+                                                          "faces_by_submesh": {}, "source_indices": []}, "delta": 0.25})
+        edited = dict(zip(shadow.working_mesh.submeshes[0].bone_indices[0], shadow.working_mesh.submeshes[0].bone_weights[0]))
+        assert edited.get(1, 0) > 0
+        written = _written_row(host.shadow_service.capture_export_snapshot(host.shadow_session_id), 0, 0)
+        assert written == pytest.approx(edited, abs=1 / 255)
+        # Transfer from Original on the selection puts the original surface's row back.
+        command(host, "rig_transfer_weights", {"selection": {"vertices_by_submesh": {"0": [0]}, "edges_by_submesh": {},
+                                                             "faces_by_submesh": {}, "source_indices": []}})
+        assert shadow.working_mesh.submeshes[0].bone_indices[0] == (0,)
+        # Vertex Parameters keeps exact records only and points to Rig & Weights.
+        from cdmw.services.mesh_vertex_parameters import _capabilities
+        view = SimpleNamespace(mesh_format="pac", output_policy="replacement_game_asset", lod_index=0)
+        weights = _capabilities(shadow, shadow.working_mesh, {0: [0]}, view, "",
+                                _rust_skin_weight_capability(shadow), None)["weights"]
+        assert not weights["editable"] and "Rig & Weights" in weights["reason"]
+    finally:
+        if not host.closed:
+            host.cancel()

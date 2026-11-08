@@ -667,7 +667,7 @@ const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
 const CDMW_REVEAL_OUTPUT: &str = "cdmw_reveal_output_section";
-const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 18] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
     (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
@@ -688,14 +688,16 @@ const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
     (CdmwRailPage::Uv, "UV", None),
     (CdmwRailPage::Cloth, "Cloth", None),
     (CdmwRailPage::Jiggle, "Jiggle", None),
+    (CdmwRailPage::RigWeights, "Rig & Weights", None),
     (CdmwRailPage::MorphRefit, "Morph & Refit", None),
 ];
-// The first tool of each rail group: Selection, Transform, Sculpt, Mesh Data, Morph & Refit.
-const CDMW_RAIL_GROUP_STARTS: [CdmwRailPage; 5] = [
+// The first tool of each rail group: Selection, Transform, Sculpt, Mesh Data, Rig, Morph & Refit.
+const CDMW_RAIL_GROUP_STARTS: [CdmwRailPage; 6] = [
     CdmwRailPage::Select,
     CdmwRailPage::Move,
     CdmwRailPage::Grab,
     CdmwRailPage::VertexParameters,
+    CdmwRailPage::RigWeights,
     CdmwRailPage::MorphRefit,
 ];
 
@@ -2522,6 +2524,15 @@ impl LabApplication {
                             actions,
                             "Mesh Data",
                             &CDMW_RAIL_TOOLS[9..16],
+                            busy,
+                            authoring,
+                            &policy_reason,
+                        );
+                        self.draw_cdmw_tool_group(
+                            ui,
+                            actions,
+                            "Rig",
+                            &CDMW_RAIL_TOOLS[16..17],
                             busy,
                             authoring,
                             &policy_reason,

@@ -88,4 +88,38 @@ def pac_skin_rows_safe(submesh: object, vertex_count: int, palette_size: int, or
     return True
 
 
-__all__ = ["pac_skin_part_layout_matches", "pac_skin_row_capacity", "pac_skin_rows_safe"]
+def replacement_skin_part_safe(original: object, current: object, palette_size: int) -> bool:
+    """An imported replacement part whose rows the replacement writer can encode.
+
+    The writer builds new 40-byte records for an imported part on ``original``'s
+    layout, so there are no original records to patch: every vertex needs one
+    to six unique in-palette slots with finite, non-negative weights summing to
+    one (within a byte step).
+    """
+    if str(getattr(original, "source_skin_weight_layout", "") or "") != PAC_SKIN_WEIGHT_LAYOUT:
+        return False
+    if int(getattr(original, "source_vertex_stride", 0) or 0) != 40:
+        return False
+    vertices = tuple(getattr(current, "vertices", ()) or ())
+    index_rows = tuple(getattr(current, "bone_indices", ()) or ())
+    weight_rows = tuple(getattr(current, "bone_weights", ()) or ())
+    if not vertices or not len(index_rows) == len(weight_rows) == len(vertices):
+        return False
+    for raw_indices, raw_weights in zip(index_rows, weight_rows):
+        try:
+            indices = tuple(int(value) for value in tuple(raw_indices or ()))
+            weights = tuple(float(value) for value in tuple(raw_weights or ()))
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if not 1 <= len(indices) == len(weights) <= PAC_SKIN_PALETTE_SLOTS or len(set(indices)) != len(indices):
+            return False
+        if any(index < 0 or index > 1023 or index >= palette_size for index in indices):
+            return False
+        if any(not math.isfinite(weight) or weight < 0.0 for weight in weights):
+            return False
+        if not math.isclose(sum(weights), 1.0, rel_tol=0.0, abs_tol=1.0 / 255.0):
+            return False
+    return True
+
+
+__all__ = ["pac_skin_part_layout_matches", "pac_skin_row_capacity", "pac_skin_rows_safe", "replacement_skin_part_safe"]

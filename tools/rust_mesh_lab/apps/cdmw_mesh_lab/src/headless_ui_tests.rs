@@ -1345,19 +1345,6 @@ impl HeadlessUi {
                 ..Default::default()
             },
             |ui| {
-                // Exercise the retained rig implementation directly. There is no product entry point.
-                if self.integrated_cdmw
-                    && self.application.cdmw_rail_page == Some(CdmwRailPage::RigWeights)
-                {
-                    egui::Panel::left("retained_rig_test")
-                        .exact_size(350.0)
-                        .show(ui, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                self.application
-                                    .draw_cdmw_rig_weights_page(ui, &mut actions);
-                            });
-                        });
-                }
                 actions.extend(if self.integrated_cdmw {
                     self.application.draw_cdmw_ui(ui)
                 } else {
@@ -1390,8 +1377,8 @@ impl HeadlessUi {
         assert!(self.application.renderer.is_none());
     }
 
-    fn open_retained_rig_page(&mut self) {
-        self.application.cancel_active_gesture("Retained rig test");
+    fn open_rig_page(&mut self) {
+        self.application.cancel_active_gesture("Rig test");
         self.application.cdmw_rail_page = Some(CdmwRailPage::RigWeights);
         self.application.viewport_tool = ViewportTool::Select;
         self.application.selection_domain = SelectionDomain::Vertex;
@@ -2495,7 +2482,8 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         );
         assert_eq!(ui.application.cdmw_rail_page, Some(page));
     }
-    assert!(ui.sidebar_button("Rig & Weights").is_none());
+    ui.click_sidebar("Rig & Weights")?;
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::RigWeights));
     assert!(ui.label_rect("Sidebars").is_none());
     ui.click_sidebar("Move")?;
     ui.click_sidebar("Rotate")?;
@@ -3287,7 +3275,7 @@ fn integrated_blender_lite_pages_dispatch_typed_mesh_and_weight_commands() -> Te
         } if params.get("projection").and_then(Value::as_str) == Some("planar")
     )));
 
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
     ui.click("Weight +")?;
     assert!(ui.last_actions.iter().any(|action| matches!(
         action,
@@ -3548,7 +3536,7 @@ fn integrated_rig_controls_require_explicit_vertices_and_can_restore_source_weig
             .vertices
             .is_empty()
     );
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
     ui.last_actions.clear();
     ui.click("Weight +")?;
     assert!(!ui.last_actions.iter().any(|action| matches!(
@@ -3595,7 +3583,7 @@ fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult 
         "bones": [{"index": 0, "name": "Root", "parent_index": -1}]
     });
     ui.click("Select All")?;
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
     ui.reveal("No named rig attached")?;
     ui.reveal("Skin weights require an exact PAC LOD0 output route.")?;
     ui.last_actions.clear();
@@ -3701,7 +3689,7 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
             .selection_revision,
         selection_revision
     );
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
     ui.click("Selected vertex weights")?;
     ui.reveal("SM 0 · V 2 · Root 0.750, Spine 0.250 · Σ 1.000")?;
 
@@ -4437,7 +4425,7 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
         .vertices()
         .map(|(_, v)| v.position)
         .collect::<Vec<_>>();
-    assert!(ui.label_rect("Rig & Weights").is_none());
+    ui.reveal("Rig")?;
     for (label, page) in [
         ("Selection", CdmwRailPage::Select),
         ("Move", CdmwRailPage::Move),
@@ -6118,7 +6106,7 @@ fn integrated_rig_controls_all_dispatch_and_bind_the_explicit_vertex_selection()
         ]
     });
     ui.click("Select All")?;
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
 
     ui.last_actions.clear();
     ui.choose("Active bone", "0: Root", "1: Spine")?;
@@ -6198,7 +6186,7 @@ fn integrated_rig_inspection_links_names_search_frame_weights_and_selection() ->
         .ok_or("mesh")?
         .selection
         .clone();
-    ui.open_retained_rig_page();
+    ui.open_rig_page();
     ui.reveal("character_body.pac")?;
     ui.reveal("Rig loaded")?;
     ui.reveal("character.pab")?;

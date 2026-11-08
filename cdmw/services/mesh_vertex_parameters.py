@@ -89,6 +89,8 @@ def _capabilities(session, mesh, scope, view, reason, skin, neutral_appearance):
         if 0 <= index < len(neutral_appearance.skin_matrices)
     }) > 1:
         why = "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices."
+    if not why and any(p in skin.replacement_submesh_indices for p in scope):
+        why = "Edit the weights of an imported replacement part in Rig & Weights."
     if not why and any(p not in skin.eligible_submesh_indices for p in scope):
         why = "One or more selected parts cannot preserve exact PAC skin weights."
     result["weights"] = {"editable": bool(total and not why), "reason": why}
