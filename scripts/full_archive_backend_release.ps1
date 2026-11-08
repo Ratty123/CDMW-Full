@@ -210,7 +210,9 @@ function Invoke-FullArchiveBackendBuild {
     }
 
     Write-Host "Publishing self-contained full archive worker ($Configuration)..."
-    & $dotnet.Source publish $workerProject -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -p:PublishTrimmed=false -o $outputDir --nologo --verbosity:minimal
+    # ContinuousIntegrationBuild maps source and PDB paths to /_/, so the assemblies do not
+    # carry the build machine's folders (measured: obj\Release\...pdb otherwise).
+    & $dotnet.Source publish $workerProject -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -p:PublishTrimmed=false -p:ContinuousIntegrationBuild=true -p:Deterministic=true -o $outputDir --nologo --verbosity:minimal
     if ($LASTEXITCODE -ne 0) {
         throw "Full archive worker publish failed with exit code $LASTEXITCODE."
     }

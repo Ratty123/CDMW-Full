@@ -713,6 +713,7 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Fine-tune the position or angle</b></p>
                 <ul>
                   <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b> or <b>Position</b>, use the <b>Turn</b> arrows, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
+                  <li>To turn the view without moving the item, hold Alt while you drag, or drag with the right mouse button. Let go of Alt to carry on with the item.</li>
                   <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
                 </ul>
                 <p><b>Change an animation, or make a new one</b></p>

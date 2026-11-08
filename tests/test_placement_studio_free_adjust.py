@@ -428,3 +428,73 @@ def test_parsed_files_are_reused_without_sharing_what_callers_change() -> None:
     third.add_files(changed)
     moved = next(w for w in third.weapons() if w.game_path == W1H).sockets[GRIP]
     assert moved.translation.x == pytest.approx(0.04)
+
+
+# ── the view: Alt and the right button turn the view in the edit modes ──
+
+def _mouse(view, kind: str, x: float, y: float, *, button=None, held=None, alt=False) -> None:
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    types = {"press": QMouseEvent.Type.MouseButtonPress, "move": QMouseEvent.Type.MouseMove,
+             "release": QMouseEvent.Type.MouseButtonRelease}
+    point = QPointF(x, y)
+    event = QMouseEvent(types[kind], point, point, button or Qt.NoButton, held or Qt.NoButton,
+                        Qt.AltModifier if alt else Qt.NoModifier)
+    {"press": view.mousePressEvent, "move": view.mouseMoveEvent,
+     "release": view.mouseReleaseEvent}[kind](event)
+
+
+def _move_mode_view():
+    view, _turned = _viewport()
+    view.set_edit_mode("move")
+    view.set_snap(0.0)
+    moved, finished = [], []
+    view.socket_dragged.connect(lambda *args: moved.append(args))
+    view.drag_finished.connect(lambda: finished.append(True))
+    return view, moved, finished
+
+
+@pytest.mark.parametrize("alt,button_name", [(True, "LeftButton"), (False, "RightButton")])
+def test_alt_drag_and_right_drag_turn_the_view_not_the_item(alt, button_name) -> None:
+    from PySide6.QtCore import Qt
+
+    view, moved, finished = _move_mode_view()
+    button = getattr(Qt, button_name)
+    yaw = view._camera.yaw
+    _mouse(view, "press", 400, 300, button=button, held=button, alt=alt)
+    _mouse(view, "move", 430, 300, held=button, alt=alt)
+    _mouse(view, "release", 430, 300, button=button, alt=alt)
+    assert moved == [] and finished == []
+    assert view._camera.yaw != yaw
+
+
+def test_alt_during_a_drag_pauses_the_edit_and_letting_go_carries_on() -> None:
+    from PySide6.QtCore import Qt
+
+    view, moved, finished = _move_mode_view()
+    _mouse(view, "press", 400, 300, button=Qt.LeftButton, held=Qt.LeftButton)
+    _mouse(view, "move", 410, 300, held=Qt.LeftButton)
+    assert len(moved) == 1
+    yaw = view._camera.yaw
+    _mouse(view, "move", 440, 300, held=Qt.LeftButton, alt=True)
+    assert len(moved) == 1 and view._camera.yaw != yaw
+    _mouse(view, "move", 450, 300, held=Qt.LeftButton)
+    assert len(moved) == 2
+    _mouse(view, "release", 450, 300, button=Qt.LeftButton)
+    assert finished == [True]
+
+
+def test_alt_click_does_not_add_an_attach_point(monkeypatch) -> None:
+    from PySide6.QtCore import Qt
+
+    view, _moved, _finished = _move_mode_view()
+    view.set_edit_mode("pick")
+    monkeypatch.setattr(view, "pick_surface", lambda _point: Vec3(0.0, 1.0, 0.0))
+    picked = []
+    view.surface_picked.connect(lambda *args: picked.append(args))
+    _mouse(view, "press", 400, 300, button=Qt.LeftButton, held=Qt.LeftButton, alt=True)
+    assert picked == []
+    _mouse(view, "release", 400, 300, button=Qt.LeftButton, alt=True)
+    _mouse(view, "press", 400, 300, button=Qt.LeftButton, held=Qt.LeftButton)
+    assert len(picked) == 1

@@ -39239,7 +39239,7 @@ MESSAGE_REFERENCE = [
     "message": "Accent glow applied: {_profile_accent_glow_strength(material_profile)}% ({_profile_accent_glow_intensity(material_profile)} emissive intensity) on {glow_wrappers} source-owned wrapper(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2590
+      "cdmw/modding/material_source_driven.py": 2613
     }
   },
   {
@@ -39383,7 +39383,7 @@ MESSAGE_REFERENCE = [
     "message": "CD Runtime Approx divergence for {texture_set.material_name}: {reason}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2381
+      "cdmw/modding/material_source_driven.py": 2391
     }
   },
   {
@@ -39519,7 +39519,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap applied calibrated scratch/shine scalar profile {material_profile.name} to {applied_scalar_wrappers} material wrapper(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2729
+      "cdmw/modding/material_source_driven.py": 2752
     }
   },
   {
@@ -39527,7 +39527,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap derived scratch roughness/metallic values from source PBR map(s) for {applied_scalar_wrappers} material wrapper(s): {', '.join(sorted(applied_sources))}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2734
+      "cdmw/modding/material_source_driven.py": 2757
     }
   },
   {
@@ -39535,7 +39535,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap removed stale original material wrapper(s) from rebuilt PAC XML: {detail}",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2750
+      "cdmw/modding/material_source_driven.py": 2773
     }
   },
   {
@@ -39543,7 +39543,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap removed stale original material wrapper(s) from rebuilt PAC XML: {detail} ...",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2750
+      "cdmw/modding/material_source_driven.py": 2773
     }
   },
   {
@@ -39551,7 +39551,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap reordered _subMeshResources wrappers to match rebuilt PAC draw sections.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2760
+      "cdmw/modding/material_source_driven.py": 2783
     }
   },
   {
@@ -39559,7 +39559,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap reset inherited target shader/material response for {neutralized_wrappers} source-driven material wrapper(s), {neutralized_parameters} parameter edit(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2649
+      "cdmw/modding/material_source_driven.py": 2672
     }
   },
   {
@@ -39567,7 +39567,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete external swap updated _subMeshResources IdBase for source-owned material wrapper IDs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2765
+      "cdmw/modding/material_source_driven.py": 2788
     }
   },
   {
@@ -39583,7 +39583,7 @@ MESSAGE_REFERENCE = [
     "message": "Complete swap generated CD runtime material mask from source PBR/factors for {source_slot.material_name} using profile {material_profile.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2464
+      "cdmw/modding/material_source_driven.py": 2487
     }
   },
   {
@@ -39679,7 +39679,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not find an original DDS template for {source_slot.slot_kind} source {source_slot.source_path.name}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2428
+      "cdmw/modding/material_source_driven.py": 2451
     }
   },
   {
@@ -39999,7 +39999,7 @@ MESSAGE_REFERENCE = [
     "message": "Edge relief generated {source_slot.slot_kind} support for {source_slot.material_name}: {output_texture_path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2474
+      "cdmw/modding/material_source_driven.py": 2497
     }
   },
   {
@@ -40079,7 +40079,7 @@ MESSAGE_REFERENCE = [
     "message": "Failed to build source-driven replacement texture for {source_slot.source_path.name}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2449
+      "cdmw/modding/material_source_driven.py": 2472
     }
   },
   {
@@ -40255,7 +40255,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Authority PBR Source Test: using direct source bindings, high material roughness, source metalness, and no inherited dye/detail layer color pipeline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2062
+      "cdmw/modding/material_source_driven.py": 2072
     }
   },
   {
@@ -40319,7 +40319,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Authority target-safe preserve applied: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2561
+      "cdmw/modding/material_source_driven.py": 2584
     }
   },
   {
@@ -40327,7 +40327,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Authority target-safe preserve applied: {detail} ...",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2561
+      "cdmw/modding/material_source_driven.py": 2584
     }
   },
   {
@@ -40335,7 +40335,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Authority target-safe preserve neutralized inherited tint/layer scalar response for {target_safe_neutralized_wrappers} material wrapper(s), {target_safe_neutralized_parameters} parameter edit(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2641
+      "cdmw/modding/material_source_driven.py": 2664
     }
   },
   {
@@ -40343,7 +40343,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Authority: source base uses working-mod overlay ItemID and source material mask is routed through _detailMaskTexture to avoid the glossy color-blend response.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2088
+      "cdmw/modding/material_source_driven.py": 2098
     }
   },
   {
@@ -40359,7 +40359,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority brute force: preserving target shader texture parameter slots and repointing them to source-derived DDS.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2078
+      "cdmw/modding/material_source_driven.py": 2088
     }
   },
   {
@@ -40367,7 +40367,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority detail preserve: keeping target CD height/material/detail layer texture parameters.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2072
+      "cdmw/modding/material_source_driven.py": 2082
     }
   },
   {
@@ -40415,7 +40415,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority runtime XML: preserved original PAC XML wrapper order, helper/protected wrappers, IDs, and inactive material blocks.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2739
+      "cdmw/modding/material_source_driven.py": 2762
     }
   },
   {
@@ -40423,7 +40423,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority runtime XML: preserving target/corpus PAC XML shader, wrapper order, stock masks, detail, height, grime, dye, and PBD response; patching compatible direct source slots only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2057
+      "cdmw/modding/material_source_driven.py": 2067
     }
   },
   {
@@ -40431,7 +40431,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority source color + relief: source color authoritative; target relief/support preserved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2067
+      "cdmw/modding/material_source_driven.py": 2077
     }
   },
   {
@@ -40439,7 +40439,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority true source: original PAC/XML supplies draw ABI and protected hooks only; active source-owned wrappers use source or neutral generated visible material bindings.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2083
+      "cdmw/modding/material_source_driven.py": 2093
     }
   },
   {
@@ -40632,7 +40632,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutralized inherited material layers for {neutralized_wrappers} source-driven material wrapper(s), {neutralized_parameters} parameter edit(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2654
+      "cdmw/modding/material_source_driven.py": 2677
     }
   },
   {
@@ -40657,7 +40657,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/material_rebuilt_payloads.py": 221,
-      "cdmw/modding/material_source_driven.py": 2371
+      "cdmw/modding/material_source_driven.py": 2381
     }
   },
   {
@@ -40737,7 +40737,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML corpus index failed to load: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2150
+      "cdmw/modding/material_source_driven.py": 2160
     }
   },
   {
@@ -40745,7 +40745,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML corpus index ready: {corpus_index.xml_count} XML; {corpus_index.wrapper_count} wrappers; {corpus_index.parameter_count} params; paired models {corpus_index.paired_model_count}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2137
+      "cdmw/modding/material_source_driven.py": 2147
     }
   },
   {
@@ -40753,7 +40753,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML corpus index unavailable or empty: {root_note}.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2147
+      "cdmw/modding/material_source_driven.py": 2157
     }
   },
   {
@@ -40761,7 +40761,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML profile cache: sqlite v2; lazy template lookup.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2144
+      "cdmw/modding/material_source_driven.py": 2154
     }
   },
   {
@@ -40785,7 +40785,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime profile parser skipped {PurePosixPath(sidecar_path).name}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2120
+      "cdmw/modding/material_source_driven.py": 2130
     }
   },
   {
@@ -40793,7 +40793,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime profile: unsafe target shader/profile on {target_name}; using matched corpus template {match.template_path or '<none>'} ({match.template_shader_family or 'unknown shader'}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2305
+      "cdmw/modding/material_source_driven.py": 2315
     }
   },
   {
@@ -40801,7 +40801,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML source-driven patch: complete external swap reset target shader/material response and used source texture roles where possible.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2832
+      "cdmw/modding/material_source_driven.py": 2855
     }
   },
   {
@@ -40809,7 +40809,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML source-driven patch: preserved original shader wrappers and rebound compatible direct texture slots only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2844
+      "cdmw/modding/material_source_driven.py": 2867
     }
   },
   {
@@ -40817,7 +40817,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML source-driven patch: source-color faithful mode neutralized inherited tint/grime/detail/color-blend layers on patched wrappers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2836
+      "cdmw/modding/material_source_driven.py": 2859
     }
   },
   {
@@ -40825,7 +40825,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML source-driven patch: source-color faithful mode was enabled, but no inherited material layers matched the patched wrappers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2840
+      "cdmw/modding/material_source_driven.py": 2863
     }
   },
   {
@@ -40833,7 +40833,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML texture contract warning: {warning}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2793
+      "cdmw/modding/material_source_driven.py": 2816
     }
   },
   {
@@ -41033,7 +41033,7 @@ MESSAGE_REFERENCE = [
     "message": "Preserved helper material wrapper {target_name}; automatic source texture routing does not patch _black/_inside-style parts. Use Advanced original-DDS overrides only if you intentionally want to edit that helper shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2325
+      "cdmw/modding/material_source_driven.py": 2335
     }
   },
   {
@@ -41529,7 +41529,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped source-driven sidecar {PurePosixPath(sidecar_path).name}; no compatible material wrapper texture slot could be patched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2659
+      "cdmw/modding/material_source_driven.py": 2682
     }
   },
   {
@@ -41545,7 +41545,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped {skipped_count} generated source texture(s) because no compatible original shader parameter used them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2821
+      "cdmw/modding/material_source_driven.py": 2844
     }
   },
   {
@@ -41553,7 +41553,7 @@ MESSAGE_REFERENCE = [
     "message": "Source emissive material parameters applied on {glow_wrappers} source-owned wrapper(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2598
+      "cdmw/modding/material_source_driven.py": 2621
     }
   },
   {
@@ -41841,7 +41841,7 @@ MESSAGE_REFERENCE = [
     "message": "Strict source-owned routing cannot choose a texture fallback for factor-only material {texture_set.material_name} on {target_name}: multiple source texture sets are available ({names}). Choose a source material override or split the draw section.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2277
+      "cdmw/modding/material_source_driven.py": 2287
     }
   },
   {
@@ -41849,7 +41849,7 @@ MESSAGE_REFERENCE = [
     "message": "Strict source-owned routing found no real source texture set for factor-only material {texture_set.material_name} on {target_name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2283
+      "cdmw/modding/material_source_driven.py": 2293
     }
   },
   {
@@ -41857,7 +41857,7 @@ MESSAGE_REFERENCE = [
     "message": "Strict source-owned routing inherited real source texture set {fallback.material_name} for factor-only material {texture_set.material_name} on {target_name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2265
+      "cdmw/modding/material_source_driven.py": 2275
     }
   },
   {
@@ -42193,7 +42193,7 @@ MESSAGE_REFERENCE = [
     "message": "Visible gem-sensitive material wrapper(s) changed in a gem/emissive PAC XML: {detail} .... Validate gem color separately before treating the edit as blade/body-only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2569
+      "cdmw/modding/material_source_driven.py": 2592
     }
   },
   {
@@ -42201,7 +42201,7 @@ MESSAGE_REFERENCE = [
     "message": "Visible gem-sensitive material wrapper(s) changed in a gem/emissive PAC XML: {detail}. Validate gem color separately before treating the edit as blade/body-only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_source_driven.py": 2569
+      "cdmw/modding/material_source_driven.py": 2592
     }
   },
   {
@@ -42316,7 +42316,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/modding/material_rebuilt_payloads.py": 725,
       "cdmw/modding/material_sidecar_payloads.py": 337,
-      "cdmw/modding/material_source_driven.py": 690,
+      "cdmw/modding/material_source_driven.py": 700,
       "cdmw/modding/material_texture_payloads.py": 1263,
       "cdmw/services/mesh_dotnet_material_package.py": 377
     }
