@@ -60,6 +60,7 @@ def apply_import_cloth_paint(result, mesh, matrix: Sequence[float]) -> bool:
         result.rebuilt_data, {}, default=samples,
         max_sample_distance=max(1e-5, size * SAMPLE_TOLERANCE))
     result.rebuilt_data = data
+    result.cloth_paint_report = report
     result.summary_lines.append(
         f"Cloth paint: {report.cloth_vertices:,} vertices follow the template's {report.guide_count:,} cloth guides, "
         f"{report.rigid_vertices:,} follow bones only"

@@ -105,7 +105,7 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
                                       scene=scenes.get(appearance.identity), glow=appearance.glow_choice(),
                                       translucency=appearance.translucency, on_log=on_log, stop_event=stop_event)
-        if appearance.keep_template_physics:
+        if appearance.keep_template_physics and not getattr(files, "cloth_painted", False):
             from cdmw.modding.pac_cloth import pac_cloth_lods
             from cdmw.services.new_item_skinning import validate_imported_skin_physics
             validate_imported_skin_physics(part for level in pac_cloth_lods(files.pac_data) for part in level.submeshes)

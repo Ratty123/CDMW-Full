@@ -146,7 +146,19 @@ impl LabApplication {
                      set the amount and click Paint selection. Painted cloth follows the template's own cloth \
                      when Create New Item builds with Template cloth / physics on.",
                 ));
-                let selected = self.mesh.as_ref().map_or(0, |mesh| mesh.selection.vertices.len());
+                // Explicit vertices plus every vertex of the Parts picked in the Parts list.
+                let parts = self.selected_part_indices().into_iter().collect::<HashSet<_>>();
+                let selected = self.mesh.as_ref().map_or(0, |mesh| {
+                    let mut handles = mesh.selection.vertices.iter().copied().collect::<HashSet<_>>();
+                    if !parts.is_empty() {
+                        for (_, face) in mesh.faces() {
+                            if parts.contains(&face.submesh) {
+                                handles.extend(face.vertices);
+                            }
+                        }
+                    }
+                    handles.len()
+                });
                 ui.small(crate::localization::tr(format!(
                     "{} painted vertices · {selected} selected",
                     self.cdmw_cloth_paint.painted

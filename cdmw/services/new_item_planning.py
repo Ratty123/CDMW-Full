@@ -133,6 +133,9 @@ class ModelFiles:
     palette_extension: object = None
     #: bones the mesh's palette uses that are appended to its rig (SkeletonEditRecipe); the plan patches that PAB
     skeleton_edit: object = None
+    #: Cloth paint bound this model's cloth explicitly: painted vertices follow the
+    #: template's guides with four bones, the rest follow bones only (up to six).
+    cloth_painted: bool = False
     #: A finished model from an item package: the appearance already written into its
     #: files (see `_baked_key`), which planning never applies again.
     baked_appearance: object = None
@@ -858,7 +861,8 @@ class _Planner(EffectPlanningMixin):
                     from cdmw.services.new_item_skinning import strip_template_vertex_physics
                     payload = strip_template_vertex_physics(payload)
                     self.summary.append(f"  {item.path}: template cloth and jiggle bindings removed from every LOD.")
-                elif self.spec.model_source is ModelSource.IMPORTED and (item.path == old_pac or item.path in self.model.side_files):
+                elif (self.spec.model_source is ModelSource.IMPORTED and not getattr(self.model, "cloth_painted", False)
+                      and (item.path == old_pac or item.path in self.model.side_files)):
                     from cdmw.modding.pac_cloth import pac_cloth_lods
                     from cdmw.services.new_item_skinning import validate_imported_skin_physics
                     validate_imported_skin_physics(part for level in pac_cloth_lods(payload) for part in level.submeshes)
@@ -1187,10 +1191,11 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
     lines = tuple(str(line).strip() for line in getattr(result, "summary_lines", ()))
     return ModelFiles(
         pac_data=data, side_files=side,
-        notes=tuple(line for line in lines if line.startswith("Skin weights ")),
+        notes=tuple(line for line in lines if line.startswith(("Skin weights ", "Cloth paint:"))),
         warnings=tuple(line.removeprefix("Warning: ") for line in lines if line.startswith("Warning: skin weights ")),
         palette_extension=getattr(result, "palette_extension", None),
         skeleton_edit=getattr(result, "skeleton_edit", None),
+        cloth_painted=getattr(result, "cloth_paint_report", None) is not None,
     )
 
 

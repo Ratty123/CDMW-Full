@@ -48,10 +48,18 @@ def run_cloth_paint_command(authoring, args: Mapping[str, object]) -> dict[str, 
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     if str(getattr(session, "mesh_format", "") or "").casefold() == "pac":
         raise RustMeshValidationError("Cloth paint is for models imported in Create New Item.")
-    if not selection.vertex_map():
+    # Whole Parts picked in the Parts list arrive as source indices: paint all their vertices.
+    from cdmw.domain.mesh.editing import MeshEditSelection
+    vertices = {index: set(rows) for index, rows in selection.vertex_map().items()}
+    submeshes = session.working_mesh.submeshes
+    for index in selection.source_indices:
+        if 0 <= int(index) < len(submeshes):
+            vertices.setdefault(int(index), set()).update(range(len(submeshes[int(index)].vertices)))
+    if not any(vertices.values()):
         raise RustMeshValidationError("Select one or more vertices before painting cloth.")
     previous = session.selection
-    session.selection = selection
+    session.selection = MeshEditSelection.from_maps(
+        vertices_by_submesh={index: tuple(sorted(rows)) for index, rows in vertices.items() if rows})
     try:
         changed = authoring.shadow_service.set_selected_vertex_cloth_paint(
             authoring.shadow_session_id, args.get("value"))

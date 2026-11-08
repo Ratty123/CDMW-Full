@@ -31495,7 +31495,7 @@ MESSAGE_REFERENCE = [
     "message": "A socket unlock material is not an item in the active tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 521
+      "cdmw/services/new_item_planning.py": 524
     }
   },
   {
@@ -31890,7 +31890,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 795
+      "cdmw/services/new_item_planning.py": 798
     }
   },
   {
@@ -31898,7 +31898,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 791
+      "cdmw/services/new_item_planning.py": 794
     }
   },
   {
@@ -31906,7 +31906,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 746
+      "cdmw/services/new_item_planning.py": 749
     }
   },
   {
@@ -31914,7 +31914,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 869
+      "cdmw/services/new_item_planning.py": 873
     }
   },
   {
@@ -31946,7 +31946,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1074
+      "cdmw/services/new_item_planning.py": 1078
     }
   },
   {
@@ -34135,7 +34135,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 960
+      "cdmw/services/new_item_planning.py": 964
     }
   },
   {
@@ -34215,7 +34215,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 990
+      "cdmw/services/new_item_planning.py": 994
     }
   },
   {
@@ -35630,7 +35630,7 @@ MESSAGE_REFERENCE = [
     "message": "The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 413
+      "cdmw/services/new_item_planning.py": 416
     }
   },
   {
@@ -35830,7 +35830,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block as a list, so it should take them, but a rebuilt list is unproven in game until the first check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 498
+      "cdmw/services/new_item_planning.py": 501
     }
   },
   {
@@ -35838,7 +35838,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; a rebuilt ladder is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 540
+      "cdmw/services/new_item_planning.py": 543
     }
   },
   {
@@ -35846,7 +35846,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, so a list that long is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 535
+      "cdmw/services/new_item_planning.py": 538
     }
   },
   {
@@ -35854,7 +35854,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 549
+      "cdmw/services/new_item_planning.py": 552
     }
   },
   {
@@ -35896,7 +35896,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 34,
       "cdmw/domain/new_item/rules.py": 511,
-      "cdmw/services/new_item_planning.py": 519
+      "cdmw/services/new_item_planning.py": 522
     }
   },
   {
@@ -35984,7 +35984,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1127
+      "cdmw/services/new_item_planning.py": 1131
     }
   },
   {
@@ -36072,7 +36072,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 844
+      "cdmw/services/new_item_planning.py": 847
     }
   },
   {
@@ -36160,7 +36160,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 707
+      "cdmw/services/new_item_planning.py": 710
     }
   },
   {
@@ -37346,7 +37346,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1014
+      "cdmw/services/new_item_planning.py": 1018
     }
   },
   {
@@ -37594,7 +37594,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1021
+      "cdmw/services/new_item_planning.py": 1025
     }
   },
   {
@@ -37602,7 +37602,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1023
+      "cdmw/services/new_item_planning.py": 1027
     }
   },
   {
@@ -37674,7 +37674,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 966
+      "cdmw/services/new_item_planning.py": 970
     }
   },
   {
@@ -38076,7 +38076,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1003
+      "cdmw/services/new_item_planning.py": 1007
     }
   },
   {
@@ -38084,7 +38084,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 989
+      "cdmw/services/new_item_planning.py": 993
     }
   },
   {
@@ -38140,7 +38140,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 401
+      "cdmw/services/new_item_planning.py": 404
     }
   },
   {
@@ -38164,7 +38164,7 @@ MESSAGE_REFERENCE = [
     "message": "the built icon is named {self.icon.icon_string}, the plan needs {self.icon_string}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 353
+      "cdmw/services/new_item_planning.py": 356
     }
   },
   {
@@ -38261,7 +38261,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1170
+      "cdmw/services/new_item_planning.py": 1174
     }
   },
   {
@@ -38301,7 +38301,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 528
+      "cdmw/services/new_item_planning.py": 531
     }
   },
   {
@@ -38317,7 +38317,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 951
+      "cdmw/services/new_item_planning.py": 955
     }
   },
   {
@@ -38333,7 +38333,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 823
+      "cdmw/services/new_item_planning.py": 826
     }
   },
   {
@@ -38341,7 +38341,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1052
+      "cdmw/services/new_item_planning.py": 1056
     }
   },
   {
@@ -38349,7 +38349,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1049
+      "cdmw/services/new_item_planning.py": 1053
     }
   },
   {
@@ -38357,7 +38357,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1026
+      "cdmw/services/new_item_planning.py": 1030
     }
   },
   {
@@ -38373,7 +38373,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.desc_key} for the template's description",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 690
+      "cdmw/services/new_item_planning.py": 693
     }
   },
   {
@@ -38381,7 +38381,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.name_key} for the template's name",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 684
+      "cdmw/services/new_item_planning.py": 687
     }
   },
   {
@@ -38582,7 +38582,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 871
+      "cdmw/services/new_item_planning.py": 875
     }
   },
   {
@@ -38614,7 +38614,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} uses the finished model from the item package, which already has its material route, glow, translucency, surface and shader settings written in. Import the source model again in step 3 to change them.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/new_item_planning.py": 171
+      "cdmw/services/new_item_planning.py": 174
     }
   },
   {
@@ -38638,7 +38638,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 554
+      "cdmw/services/new_item_planning.py": 557
     }
   },
   {
@@ -38687,7 +38687,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is written as {value}; shipped equipment carries it between {low} and {high}. A value that far outside the game's own range has crashed the game on purchase (an item carrying AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables read fine either way, so nothing shows until the item is bought.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_planning.py": 615
+      "cdmw/services/new_item_planning.py": 618
     }
   },
   {
@@ -38807,7 +38807,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 913
+      "cdmw/services/new_item_planning.py": 917
     }
   },
   {
@@ -38847,7 +38847,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists in the archives; a new item must not overwrite it",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_planning.py": 272
+      "cdmw/services/new_item_planning.py": 275
     }
   },
   {
@@ -38863,7 +38863,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is added twice",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 274
+      "cdmw/services/new_item_planning.py": 277
     }
   },
   {
@@ -38871,7 +38871,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 798
+      "cdmw/services/new_item_planning.py": 801
     }
   },
   {
@@ -39007,7 +39007,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 484
+      "cdmw/services/new_item_planning.py": 487
     }
   },
   {
@@ -39015,7 +39015,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 405
+      "cdmw/services/new_item_planning.py": 408
     }
   },
   {
@@ -39023,7 +39023,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 955
+      "cdmw/services/new_item_planning.py": 959
     }
   },
   {
@@ -39031,7 +39031,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} owns no part-prefab records to clone",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 373
+      "cdmw/services/new_item_planning.py": 376
     }
   },
   {
@@ -39039,7 +39039,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 817
+      "cdmw/services/new_item_planning.py": 820
     }
   },
   {
@@ -39175,7 +39175,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 675
+      "cdmw/services/new_item_planning.py": 678
     }
   },
   {
@@ -60398,7 +60398,7 @@ MESSAGE_REFERENCE = [
     "message": "Select one or more vertices before painting cloth.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_paint.py": 52
+      "cdmw/services/mesh_rust_cloth_paint.py": 59
     }
   },
   {

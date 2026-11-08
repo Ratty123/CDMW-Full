@@ -1449,8 +1449,13 @@ def build_placed_import(
             on_progress(int(current) + 1, int(total) + 1, detail)
 
     if keep_template_physics:
+        from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
         from cdmw.services.new_item_skinning import validate_imported_skin_physics
-        validate_imported_skin_physics(scene.mesh.submeshes)
+        # Painted cloth is explicit: painted vertices are reduced to four bones and
+        # reported, the rest follow up to six bones. Without paint, a row over four
+        # would silently lose the template cloth it was asked to keep.
+        if not mesh_has_cloth_paint(scene.mesh):
+            validate_imported_skin_physics(scene.mesh.submeshes)
     result = build_mesh_import_preview(
         entry,
         Path(source.model_path),

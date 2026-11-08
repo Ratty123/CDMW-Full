@@ -199,3 +199,52 @@ def test_paint_survives_the_editor_clone_that_publishes_to_create_new_item():
         assert clone_mesh_for_editing(published).submeshes[0].cloth_paint == [0., 1., 0.]
     finally:
         service.close_edit_session(sid)
+
+
+def test_whole_parts_from_the_parts_list_paint_every_vertex():
+    from cdmw.services.mesh_rust_cloth_paint import run_cloth_paint_command
+    authoring = _authoring_for(imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), ()))
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    try:
+        parts = {"vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": [0]}
+        assert run_cloth_paint_command(authoring, {"selection": parts, "value": .5}) == {"changed_vertex_count": 3}
+        assert service._session(sid).working_mesh.submeshes[0].cloth_paint == [.5, .5, .5]
+    finally:
+        service.close_edit_session(sid)
+
+
+def _placed_with_influences(tmp_path, monkeypatch, paint):
+    from cdmw.models import ArchiveEntry
+    from cdmw.modding.scene_import_result_ops import SceneImportResult
+    from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import
+
+    data = cloth_template()
+    template = pac_cloth_lods(data)[0].submeshes[1]
+    mesh = imported(template.vertices, [paint] * len(template.vertices))
+    part = mesh.submeshes[0]
+    part.bone_indices = [(0, 1, 2, 3, 4)] * len(part.vertices)  # five bones, as a template transfer gives
+    part.bone_weights = [(.2,) * 5] * len(part.vertices)
+    monkeypatch.setattr("cdmw.services.preview_workflow_service.build_mesh_import_preview",
+                        lambda *_a, **_k: SimpleNamespace(rebuilt_data=data, summary_lines=[], palette_extension=None,
+                                                          skeleton_edit=None, cloth_paint_report=None))
+    source = ModelImportSource(tmp_path / "s.obj", tmp_path / "s.obj", SceneImportResult(mesh=mesh), None, None)
+    entry = ArchiveEntry("character/model/test/target.pac", Path("0.pamt"), Path("0.paz"), 0, 0, 0, 0, 0)
+    return build_placed_import(entry, source, ModelPlacement(), keep_template_physics=True)
+
+
+def test_painted_builds_skip_the_four_bone_gate_and_unpainted_builds_keep_it(tmp_path, monkeypatch):
+    result = _placed_with_influences(tmp_path, monkeypatch, 1.)
+    assert result.cloth_paint_report is not None and result.cloth_paint_report.cloth_vertices
+    with pytest.raises(ValueError, match="Turn off Template cloth / physics"):
+        _placed_with_influences(tmp_path, monkeypatch, 0.)
+
+
+def test_planning_knows_a_model_was_cloth_painted():
+    from cdmw.services.new_item_planning import model_files_from_import
+    family = SimpleNamespace(files_for=lambda _role: ())
+    painted = SimpleNamespace(rebuilt_data=b"PAR ", supplemental_file_specs=(),
+                              summary_lines=["Cloth paint: 4 vertices follow the template's 4 cloth guides."],
+                              cloth_paint_report=object())
+    files = model_files_from_import(painted, family=family)
+    assert files.cloth_painted and files.notes == ("Cloth paint: 4 vertices follow the template's 4 cloth guides.",)
+    assert not model_files_from_import(SimpleNamespace(rebuilt_data=b"PAR "), family=family).cloth_painted

@@ -45,6 +45,8 @@ class MeshImportPreviewResult:
     palette_extension: Any = None
     #: New Item: the skeleton edit whose added bones the palette extension uses
     skeleton_edit: Any = None
+    #: New Item: what cloth paint bound to the template's guides (ClothPaintReport), or None
+    cloth_paint_report: Any = None
 
 @dataclass(slots=True)
 class ArchiveLooseExportResult:
