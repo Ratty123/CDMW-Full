@@ -46,6 +46,7 @@ class MeshPartSplitResult:
 _EXTRA_SUBMESH_ATTRS = (
     "uv_sets", "vertex_colors", "morph_targets", "morph_normals", "morph_tangents", "morph_weights",
     "interchange_material", "interchange_skin", "interchange_transform", "interchange_node_index", "interchange_vertex_ids",
+    "cloth_paint",
     "_cdmw_replacement_part_id",
     "texture_slots",
     "preview_color",
@@ -313,6 +314,8 @@ def _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count, *, 
                                for name, rows in getattr(submesh, attr).items()})
     if hasattr(submesh, "interchange_vertex_ids"):
         submesh.interchange_vertex_ids = _remap_vertex_aligned_list(submesh.interchange_vertex_ids, index_map, old_vertex_count)
+    if hasattr(submesh, "cloth_paint"):
+        submesh.cloth_paint = _remap_vertex_aligned_list(submesh.cloth_paint, index_map, old_vertex_count)
 
 
 def _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_count, vertices):
@@ -328,6 +331,15 @@ def _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_c
     submesh.vertex_colors = interpolate(submesh.vertex_colors)
     for attr in ("uv_sets", "morph_targets", "morph_normals", "morph_tangents"):
         setattr(submesh, attr, {name: interpolate(rows) for name, rows in getattr(submesh, attr).items()})
+    paint = list(getattr(submesh, "cloth_paint", ()) or ())
+    if len(paint) == old_vertex_count:
+        # Scalar per vertex: a new edge midpoint takes the average of its two ends.
+        for (a, b), index in sorted(edge_midpoints.items(), key=lambda item: item[1]):
+            if index != len(paint):
+                paint = []
+                break
+            paint.append((float(paint[a]) + float(paint[b])) * 0.5)
+        submesh.cloth_paint = paint
     # Added vertices receive fresh identifiers on export, with topology proof
     # owned by the existing editor provenance contract.
     if hasattr(submesh, "interchange_vertex_ids"):

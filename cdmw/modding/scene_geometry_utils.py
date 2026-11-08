@@ -204,6 +204,7 @@ def _copy_submesh_with_transform(
         setattr(copied, "tangent_signs", [float(value) * sign_scale for value in tangent_signs])
     for attr_name in (
         "interchange_vertex_ids",
+        "cloth_paint",
         "texture_slots",
         "preview_color",
         "preview_texture_path",

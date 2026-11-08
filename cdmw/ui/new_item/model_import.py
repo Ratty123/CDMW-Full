@@ -1467,6 +1467,11 @@ def build_placed_import(
         palette_extension=getattr(scene.mesh, "interchange_palette_extension", None),
         palette_skeleton=getattr(scene.mesh, "interchange_skeleton", None),
     )
+    if keep_template_physics:
+        # Painted cloth replaces the nearest-template-vertex copy with explicit
+        # bindings to the template's own guides; unpainted vertices follow bones.
+        from cdmw.services.new_item_cloth_paint import apply_import_cloth_paint
+        apply_import_cloth_paint(result, scene.mesh, placement.matrix(origin=source.baked_origin()))
     if source.skeleton_edit is not None:
         appended = set(result.palette_extension.appended_names if result.palette_extension is not None else ())
         used = [name for name in source.skeleton_edit.bone_names if name in appended]

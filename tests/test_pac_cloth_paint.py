@@ -79,7 +79,7 @@ def test_paint_that_does_not_line_up_is_refused():
     data = cloth_template()
     part = pac_cloth_lods(data)[0].submeshes[1]
     shifted = ClothPaintSamples(tuple((x + 5, y, z) for x, y, z in part.vertices), (1.0,) * len(part.vertices))
-    with pytest.raises(ValueError, match="does not line up with the built model"):
+    with pytest.raises(ValueError, match="does not line up with"):
         apply_pac_cloth_paint(data, {1: shifted}, max_sample_distance=.01)
 
 

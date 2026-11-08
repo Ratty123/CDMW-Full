@@ -44,6 +44,8 @@ class ClothPaintReport:
     rigid_vertices: int
     reduced_vertices: int
     guide_count: int
+    kept_template_parts: int = 0
+    cloth_parts: tuple[str, ...] = ()
 
 
 def blend_for_paint(value: float) -> int:
@@ -69,13 +71,42 @@ def _skeletal(data, offset, palette_count):
     return tuple(live), False
 
 
-def _nearest_values(points, samples: ClothPaintSamples):
+def _nearest_values(points, samples: ClothPaintSamples, cell: float | None = None):
+    """Value and distance of the nearest sample for each point.
+
+    With ``cell`` (the largest distance the caller accepts), samples are hashed
+    into a grid and only the 27 neighbouring cells are searched; a point with no
+    sample that close reports an infinite distance. Without it, a brute-force
+    search keeps each chunk to a few million distances.
+    """
     import numpy as np
     source = np.asarray(samples.positions, dtype=np.float64)
-    values = np.asarray(samples.values, dtype=np.float64)
+    values = samples.values
+    if cell is not None and cell > 0 and len(source) > 4096:
+        keys = np.floor(source / cell).astype(np.int64)
+        grid: dict[tuple[int, int, int], list[int]] = {}
+        for index, key in enumerate(map(tuple, keys.tolist())):
+            grid.setdefault(key, []).append(index)
+        out, distances = [], []
+        for point in points:
+            px, py, pz = (float(v) for v in point)
+            kx, ky, kz = math.floor(px / cell), math.floor(py / cell), math.floor(pz / cell)
+            best, best_index = math.inf, -1
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for dz in (-1, 0, 1):
+                        for index in grid.get((kx + dx, ky + dy, kz + dz), ()):
+                            sx, sy, sz = source[index]
+                            squared = (px - sx) ** 2 + (py - sy) ** 2 + (pz - sz) ** 2
+                            if squared < best:
+                                best, best_index = squared, index
+            out.append(float(values[best_index]) if best_index >= 0 else 0.0)
+            distances.append(math.sqrt(best))
+        return out, distances
+    chunk = max(1, 4_000_000 // max(1, len(source)))
     out, distances = [], []
-    for start in range(0, len(points), 256):
-        delta = np.asarray(points[start:start + 256], dtype=np.float64)[:, None, :] - source[None, :, :]
+    for start in range(0, len(points), chunk):
+        delta = np.asarray(points[start:start + chunk], dtype=np.float64)[:, None, :] - source[None, :, :]
         squared = np.einsum("vsi,vsi->vs", delta, delta)
         nearest = np.argmin(squared, axis=1)
         out.extend(float(values[i]) for i in nearest)
@@ -88,11 +119,13 @@ def apply_pac_cloth_paint(
     paint: Mapping[int, ClothPaintSamples],
     *,
     max_sample_distance: float | None = None,
+    default: ClothPaintSamples | None = None,
 ) -> tuple[bytes, ClothPaintReport]:
     """Rewrite every part's guide lanes from paint; unpainted parts follow bones only.
 
     ``max_sample_distance`` refuses a paint whose samples do not sit on the built
-    geometry, rather than painting the wrong vertices.
+    geometry, rather than painting the wrong vertices. ``default`` serves every part
+    without its own samples, for paint that does not know the built part layout.
     """
     guides = decode_pac_cloth_guides(data)
     if guides is None or not guides.vertices:
@@ -100,24 +133,34 @@ def apply_pac_cloth_paint(
     levels = pac_cloth_lods(data)
     if any(type(i) is not int or not 0 <= i < len(levels[0].submeshes) for i in paint):
         raise ValueError("Cloth paint refers to an invalid PAC part.")
-    if not any(v > 0 for samples in paint.values() for v in samples.values):
+    if not any(v > 0 for samples in (*paint.values(), *((default,) if default else ())) for v in samples.values):
         raise ValueError("Paint at least one area as cloth.")
     palette_count = len(decode_pac_embedded_volumes(data).bone_palette)
     result = bytearray(data)
     cloth = rigid = reduced = 0
+    cloth_parts: dict[str, None] = {}
+    matched, kept = set(), set()
     for level in levels:
         for index, part in enumerate(level.submeshes):
             if not part.source_vertex_offsets:
                 continue
-            samples = paint.get(index)
+            samples = paint.get(index, default)
             if samples is None:
                 values = [0.0] * len(part.vertices)
             else:
-                values, distances = _nearest_values(part.vertices, samples)
-                if max_sample_distance is not None and distances and max(distances) > max_sample_distance:
-                    raise ValueError(
-                        f"Cloth paint for {part.name or index} does not line up with the built model "
-                        f"({max(distances):.4g} from the nearest painted point). Apply placement again, then rebuild.")
+                values, distances = _nearest_values(part.vertices, samples, max_sample_distance)
+                if max_sample_distance is not None and distances:
+                    far = sum(1 for distance in distances if distance > max_sample_distance)
+                    if far == len(distances):
+                        # No painted source anywhere near: a template part the import
+                        # did not replace. It keeps the template's own cloth.
+                        kept.add(index)
+                        continue
+                    if far:
+                        raise ValueError(
+                            f"Cloth paint for {part.name or index} does not line up with the built model "
+                            f"({max(distances):.4g} from the nearest painted point). Apply placement again, then rebuild.")
+                matched.add(index)
             painted = [i for i, value in enumerate(values) if blend_for_paint(value) < 63]
             bindings = dict(zip(painted, _bindings([part.vertices[i] for i in painted], guides.vertices)))
             for vertex, offset in enumerate(part.source_vertex_offsets):
@@ -147,6 +190,12 @@ def apply_pac_cloth_paint(
                 result[offset + 32:offset + 36] = bytes(weights)
                 result[offset + 39] = (data[offset + 39] & 0xC0) | blend
                 cloth += 1
+                cloth_parts.setdefault(part.name or str(index), None)
+    if max_sample_distance is not None and not matched:
+        raise ValueError("Cloth paint does not line up with any part of the built model. "
+                         "Apply placement again, then rebuild.")
+    if kept & matched:
+        raise ValueError("Cloth paint lines up with only some levels of detail of a part. Rebuild the model.")
     output = bytes(result)
     for level in levels:
         for part in level.submeshes:
@@ -154,4 +203,4 @@ def apply_pac_cloth_paint(
                 binding = decode_pac_cloth_binding(output, offset)
                 if binding is not None and (any(i >= len(guides.vertices) for i in binding[1]) or sum(binding[2]) != 255):
                     raise ValueError("A painted cloth binding did not decode back to the template's guides.")
-    return output, ClothPaintReport(cloth, rigid, reduced, len(guides.vertices))
+    return output, ClothPaintReport(cloth, rigid, reduced, len(guides.vertices), len(kept), tuple(cloth_parts))
