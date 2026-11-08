@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import math
+import re
 import struct
 
 import numpy as np
@@ -104,8 +105,15 @@ def test_changed_bases_refuse_unproven_rigs_without_publishing(rig_editor, tmp_p
     service, sid, _order, points, parents = rig_editor
     snapshot = service.capture_export_snapshot(sid)
     path, _transform = changed_basis_glb(tmp_path, points, parents, **options)
+    # The mapping step says why Keep is unavailable; Keep itself is refused.
+    pending = prepare_import(snapshot, path)
+    keep = pending.skin.option("preserve")
+    assert not keep.available and re.search(reason, keep.reason)
+    assert pending.skin.default_policy == ""
     with pytest.raises(ValueError, match=reason):
-        prepare_import(snapshot, path)
+        compose_import(pending, (pending.target_part_ids[0],), skin_policy="preserve")
+    with pytest.raises(ValueError, match="Choose how to handle the imported weights"):
+        compose_import(pending, (pending.target_part_ids[0],))
     assert service.capture_export_snapshot(sid).mesh_revision == snapshot.mesh_revision
     assert service.capture_export_snapshot(sid).replacement_state is None
 
@@ -113,8 +121,9 @@ def test_changed_bases_refuse_unproven_rigs_without_publishing(rig_editor, tmp_p
 def test_rest_pose_refusal_names_the_worst_bone(rig_editor, tmp_path):
     service, sid, _order, points, parents = rig_editor
     path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=True)
+    pending = prepare_import(service.capture_export_snapshot(sid), path)
     with pytest.raises(ValueError, match=r"the worst, bone7, by [0-9.]+ \([0-9.]+% of the rig size\)"):
-        prepare_import(service.capture_export_snapshot(sid), path)
+        compose_import(pending, (pending.target_part_ids[0],), skin_policy="preserve")
 
 
 def test_transfer_uses_a_foreign_rig_model_as_authored(rig_editor, tmp_path):

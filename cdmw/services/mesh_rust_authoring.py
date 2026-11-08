@@ -7592,6 +7592,8 @@ class RustMeshAuthoringSession:
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
     replacement_comparison: str = "edit"
+    # What the last applied import did with its weights, shown under the parts.
+    replacement_weight_notes: tuple[str, ...] = ()
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()

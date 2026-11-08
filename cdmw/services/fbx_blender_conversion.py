@@ -37,7 +37,9 @@ __all__ = [
     "BlenderConversion",
     "BlenderNotConfigured",
     "apply_fbx_sibling_texture_factors",
+    "convert_fbx_for_import",
     "convert_fbx_to_glb",
+    "copy_loose_textures",
     "describe_blender",
     "is_blender_executable",
     "likely_blender_executables",
@@ -393,3 +395,56 @@ def convert_fbx_to_glb(
     if on_log:
         on_log(conversion.summary(path))
     return conversion
+
+
+_LOOSE_TEXTURE_SUFFIXES = frozenset({".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"})
+_LOOSE_TEXTURE_FILE_LIMIT = 256
+_LOOSE_TEXTURE_BYTE_LIMIT = 1 << 30
+
+
+def copy_loose_textures(folder: Path, target: Path, stop_event: threading.Event | None) -> None:
+    """Copy the images in `folder` and its textures/ folder for discovery, within a bound.
+
+    A folder with more than a model's worth of images (a downloads folder) is left
+    alone rather than copied wholesale.
+    """
+    import shutil
+
+    pairs = []
+    for source_dir, target_dir in ((folder, target), (folder / "textures", target / "textures")):
+        try:
+            pairs.extend((item, target_dir / item.name) for item in sorted(source_dir.iterdir())
+                         if item.is_file() and item.suffix.casefold() in _LOOSE_TEXTURE_SUFFIXES)
+        except OSError:
+            continue
+    try:
+        total = sum(item.stat().st_size for item, _ in pairs)
+    except OSError:
+        return
+    if not pairs or len(pairs) > _LOOSE_TEXTURE_FILE_LIMIT or total > _LOOSE_TEXTURE_BYTE_LIMIT:
+        return
+    for item, destination in pairs:
+        raise_if_cancelled(stop_event)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.exists():
+            shutil.copyfile(item, destination)
+
+
+def convert_fbx_for_import(
+    source: Path,
+    output_dir: Path,
+    blender: object,
+    *,
+    on_log: Callable[[str], None] | None = None,
+    stop_event: threading.Event | None = None,
+) -> Path:
+    """`source` (an `.fbx`) as a GLB in `output_dir`, never beside the user's file.
+
+    Blender carries over only the images the FBX links; the loose maps beside it
+    (roughness, metal, normal) are copied next to the GLB so they are found by name.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    copy_loose_textures(Path(source).parent, output_dir, stop_event)
+    raise_if_cancelled(stop_event)
+    return convert_fbx_to_glb(source, blender, output_dir=output_dir, on_log=on_log, stop_event=stop_event).glb

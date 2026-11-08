@@ -34,6 +34,7 @@ from cdmw.services.fbx_blender_conversion import (
     FBX_EXTENSION,
     apply_fbx_sibling_texture_factors,
     convert_fbx_to_glb,
+    copy_loose_textures as _copy_loose_textures,
 )
 from cdmw.services.preview_workflow_service import scene_import_normalizes_texture_v
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
@@ -1222,39 +1223,6 @@ def _fbx_converted_to_glb(
         return None
     raise_if_cancelled(stop_event)
     return convert_fbx_to_glb(source, blender, output_dir=output_dir, on_log=on_log, stop_event=stop_event).glb
-
-
-_LOOSE_TEXTURE_SUFFIXES = frozenset({".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"})
-_LOOSE_TEXTURE_FILE_LIMIT = 256
-_LOOSE_TEXTURE_BYTE_LIMIT = 1 << 30
-
-
-def _copy_loose_textures(folder: Path, target: Path, stop_event: Optional[threading.Event]) -> None:
-    """Copy the images in `folder` and its textures/ folder for discovery, within a bound.
-
-    A folder with more than a model's worth of images (a downloads folder) is left
-    alone rather than copied wholesale.
-    """
-    from cdmw.domain.cancellation import raise_if_cancelled
-
-    pairs = []
-    for source_dir, target_dir in ((folder, target), (folder / "textures", target / "textures")):
-        try:
-            pairs.extend((item, target_dir / item.name) for item in sorted(source_dir.iterdir())
-                         if item.is_file() and item.suffix.casefold() in _LOOSE_TEXTURE_SUFFIXES)
-        except OSError:
-            continue
-    try:
-        total = sum(item.stat().st_size for item, _ in pairs)
-    except OSError:
-        return
-    if not pairs or len(pairs) > _LOOSE_TEXTURE_FILE_LIMIT or total > _LOOSE_TEXTURE_BYTE_LIMIT:
-        return
-    for item, destination in pairs:
-        raise_if_cancelled(stop_event)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if not destination.exists():
-            shutil.copyfile(item, destination)
 
 
 def _file_fingerprint(path: Path, stop_event: Optional[threading.Event]) -> str:

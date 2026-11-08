@@ -388,8 +388,11 @@ def test_gltf_skin_without_matching_armature_refuses_before_replacement(editor, 
     path = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
                        normals=[(0, 0, 1)] * 3, uvs=[(0, 0), (1, 0), (0, 1)], weights=[(1, 0, 0, 0)] * 3)
     before = service.session_view(sid)
+    # The mapping step offers Transfer instead; keeping these weights is refused.
+    pending = prepare_import(original, path, target_part_ids=(key,))
+    assert "matching skeleton and resolved PAC bone palette" in pending.skin.option("preserve").reason
     with pytest.raises(ValueError, match="matching skeleton and resolved PAC bone palette"):
-        prepare_import(original, path, target_part_ids=(key,))
+        compose_import(pending, (key,), skin_policy="preserve")
     after = service.session_view(sid)
     assert (after.revision, after.undo_count) == (before.revision, before.undo_count)
     current = service.capture_export_snapshot(sid)

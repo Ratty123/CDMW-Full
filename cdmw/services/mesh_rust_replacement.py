@@ -48,16 +48,18 @@ def replacement_ui_state(authoring):
                "blocked_by": blocked_by,
                "experimental": experimental,
                "comparison": authoring.replacement_comparison, "parts": parts,
+               "weight_notes": list(authoring.replacement_weight_notes),
                "has_import": bool(state and any(part.import_positions for part in state.parts))}
     if pending is not None:
         payload["pending"] = {
             "token": pending.token,
-            "source": Path(pending.source_path).name,
+            "source": pending.label,
             "revision": pending.snapshot.mesh_revision,
             "targets": [part for part in parts if part["id"] in pending.target_part_ids],
             "sources": [{"name": part.name or f"Source {index}", "target": pending.suggested_targets[index]}
                         for index, part in enumerate(pending.source.mesh.submeshes)],
             "materials": imported_material_status(pending),
+            "weights": pending.skin.payload() if pending.skin is not None else {"rigged": False},
         }
     return payload
 
@@ -82,6 +84,7 @@ def run_replacement_command(authoring, command, args, stop_event):
     service, session_id = authoring.shadow_service, authoring.shadow_session_id
     if command == "replacement_cancel":
         authoring.pending_replacement = None
+        authoring.replacement_weight_notes = ()
         return {"status": "cancelled"}
     if command == "replacement_compare":
         mode = str(args.get("mode", "edit"))
@@ -114,9 +117,11 @@ def run_replacement_command(authoring, command, args, stop_event):
         if args.get("scope") == "selected" and not selected:
             raise ValueError("Select at least one target part before importing a replacement.")
         pending = prepare_import(snapshot, args.get("source_path", ""), target_part_ids=selected,
-                                 entry=entry, dependencies=dependencies, stop_event=stop_event)
+                                 entry=entry, dependencies=dependencies, stop_event=stop_event,
+                                 blender=args.get("_blender"), work_dir=authoring.root / "fbx-import")
         authoring._raise_if_cancelled(stop_event)
         authoring.pending_replacement = pending
+        authoring.replacement_weight_notes = ()
         return {"status": "choose_mapping"}
     if command == "replacement_apply":
         pending = authoring.pending_replacement
@@ -132,12 +137,16 @@ def run_replacement_command(authoring, command, args, stop_event):
         if choice == "imported":
             from cdmw.services.mesh_replacement_materials import prepare_imported_materials
             files = prepare_imported_materials(pending, targets, authoring.root, stop_event)
-        mesh, state = compose_import(pending, targets, material_choice=choice, companion_files=files)
+        weights = str(args.get("weights", "") or "") or None
+        skin_notes = []
+        mesh, state = compose_import(pending, targets, material_choice=choice, companion_files=files,
+                                     skin_policy=weights, skin_notes=skin_notes)
         authoring._preflight_mesh_document_capacity(mesh)
         from cdmw.services.mesh_rust_replacement_materials import stage_replacement_materials
         stage_replacement_materials(authoring, mesh, state, stop_event)
         result = commit_replacement(service, snapshot, mesh, state, label="Import replacement", stop_event=stop_event)
         authoring.pending_replacement = None
+        authoring.replacement_weight_notes = tuple(dict.fromkeys(skin_notes))
     elif command == "replacement_include":
         result = set_part_inclusion(service, snapshot, args.get("part_ids", ()), bool(args.get("included", True)),
                                     entry=entry, dependencies=dependencies, stop_event=stop_event)
