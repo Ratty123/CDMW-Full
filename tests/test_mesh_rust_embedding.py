@@ -665,8 +665,11 @@ def test_result_page_groups_and_clickable_help_distinguish_editing_choices() -> 
         assert scroll.horizontalScrollBar().maximum() == 0
         assert scroll.verticalScrollBar().maximum() > 0
         actions = [button for button in host.findChildren(QPushButton)
-                   if button.objectName().startswith("MeshEditorRustResult")]
+                   if button.objectName().startswith("MeshEditorRustResult")
+                   and button.objectName() != "MeshEditorRustResultReturnToNewItem"]
         assert len(actions) == 6
+        # Only a mesh opened from Create New Item offers the way back.
+        assert host.findChild(QPushButton, "MeshEditorRustResultReturnToNewItem").isHidden()
         with patch("cdmw.ui.mesh_editor.rust_host.QWhatsThis.showText") as explain:
             for button in actions:
                 help_button = host.findChild(QToolButton, button.objectName() + "Help")

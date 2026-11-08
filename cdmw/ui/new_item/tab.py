@@ -1159,6 +1159,9 @@ class NewItemStudioTab(QWidget):
             self._model_part_editor_session_id = view.session_id
             self.model_panel.set_part_editor_state(
                 True, "Brush or select faces, then choose Create Part from Selection. Choose Finish Edit Mesh before returning here to use the edited parts.")
+            frame = getattr(editor, "standalone_native_host_frame", None)
+            if callable(getattr(frame, "set_return_action", None)):
+                frame.set_return_action(self._return_from_model_part_editor, self._model_part_editor_is_open)
             self._activate_model_part_editor()
         self.controller.start_model_editor_session(ready, failed)
 
@@ -1214,7 +1217,24 @@ class NewItemStudioTab(QWidget):
             self._clear_model_part_editor_link()
             self.model_panel.set_part_editor_state(False)
 
+    def _model_part_editor_is_open(self) -> bool:
+        controller = self._model_part_editor_controller
+        return bool(self._model_part_editor_session_id) and controller is not None and (
+            str(getattr(controller, "active_session_id", "") or "") == self._model_part_editor_session_id)
+
+    def _return_from_model_part_editor(self) -> None:
+        """Back from Mesh Editor's accepted page: show this tab and use the accepted edit."""
+        shell = getattr(self._window, "shell", None)
+        activate = getattr(shell, "_activate_tool_widget", None)
+        container = getattr(shell, "new_item_studio_tab", None)
+        if callable(activate) and container is not None:
+            activate(container)
+        self._use_model_part_editor_changes()
+
     def _clear_model_part_editor_link(self) -> None:
+        frame = getattr(self._model_part_editor_widget, "standalone_native_host_frame", None)
+        if callable(getattr(frame, "set_return_action", None)):
+            frame.set_return_action(None)
         self._model_part_editor_source = None
         self._model_part_editor_widget = None
         self._model_part_editor_controller = None

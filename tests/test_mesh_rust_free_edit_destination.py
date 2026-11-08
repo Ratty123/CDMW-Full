@@ -12,6 +12,7 @@ from cdmw.services.mesh_rust_authoring import (
     RustMeshValidationError,
     read_owned_payload_reference,
 )
+from cdmw.services.mesh_service import MeshService
 from cdmw.workers.new_item_mesh_session import prepare_new_item_mesh_session
 from tests.test_mesh_rust_authoring import _candidate_reference, _request
 from tests.test_scene_importer_gltf import _triangle_payload, _write_glb
@@ -30,9 +31,13 @@ def test_imported_free_edit_can_open_choose_destination_edit_and_finish(tmp_path
             "usemtl Imported\nf 1/1/1 2/2/1 3/3/1\n"
         )
     source_bytes = source.read_bytes()
-    prepared = prepare_new_item_mesh_session(
-        import_scene_mesh(source), "new-item-imported", threading.Event(),
-    )
+    # A file opened directly in Mesh Editor: Free Edit needs a chosen folder first.
+    # (Create New Item names its own folder; see test_new_item_cloth_paint.)
+    service = MeshService()
+    view = service.open_edit_session(import_scene_mesh(source), session_id="new-item-imported", mode="edit")
+    prepared = SimpleNamespace(
+        service=service, view=view,
+        cleanup=lambda: service.close_edit_session(view.session_id, force_without_saving=True))
     host = None
     destination = tmp_path / "free-edit-output"
     try:
@@ -86,6 +91,25 @@ def test_imported_free_edit_can_open_choose_destination_edit_and_finish(tmp_path
         assert result.format == source_format
         assert not destination.exists()
         assert source.read_bytes() == source_bytes
+    finally:
+        if host is not None:
+            host.cancel()
+        prepared.cleanup()
+
+
+def test_create_new_item_session_is_authorable_through_the_editor_host(tmp_path):
+    source = tmp_path / "imported.obj"
+    source.write_text("o imported\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    prepared = prepare_new_item_mesh_session(import_scene_mesh(source), "new-item-unlocked", threading.Event())
+    host = None
+    try:
+        host = RustMeshAuthoringSession.create(
+            SimpleNamespace(mesh_service=prepared.service, active_session_id=prepared.view.session_id),
+            tmp_path / "host", process_generation=1,
+        )
+        state = host.state_payload()
+        assert state["output_policy"] == "free_edit_rebuild" and state["authoring_enabled"]
+        assert state["cloth_paint"]["supported"]
     finally:
         if host is not None:
             host.cancel()

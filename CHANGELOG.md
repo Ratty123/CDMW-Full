@@ -16,6 +16,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - Dragging in Placement & Animations' view now turns the character the way the pointer moves, left-right as well as up-down, as in the Mesh Editor; before, left-right turned it the other way. **Reverse view drag**, next to the **Show** options, moves the camera with the pointer instead and is remembered.
+- Opening an imported model in Mesh Editor from Create New Item unlocks the editing tools at once, without first choosing a Free Edit output folder; the edits return to Create New Item. After **Finish Edit Mesh**, **Return to Create New Item** goes back and uses the accepted changes, as **Use Mesh Editor changes** does.
 
 ### Fixed
 

@@ -2591,7 +2591,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 159,
+          "line": 171,
           "sink": "rust-presentation"
         }
       ]
@@ -7666,17 +7666,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -7711,7 +7711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -22126,7 +22126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -23846,7 +23846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 276,
+          "line": 307,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -28376,7 +28376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -28431,7 +28431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 195,
+          "line": 206,
           "sink": "QGroupBox"
         }
       ]
@@ -28531,17 +28531,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -29516,7 +29516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1179,
+          "line": 1182,
           "sink": "set_part_editor_state"
         }
       ]
@@ -33531,7 +33531,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 184,
+          "line": 196,
           "sink": "rust-presentation"
         }
       ]
@@ -33766,7 +33766,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 176,
+          "line": 188,
           "sink": "rust-presentation"
         },
         {
@@ -34756,17 +34756,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -34831,7 +34831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -34916,7 +34916,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 156,
+          "line": 168,
           "sink": "rust-presentation"
         }
       ]
@@ -40506,17 +40506,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -51176,7 +51176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 273,
+          "line": 304,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -52191,7 +52191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1239,
+          "line": 1259,
           "sink": "warning"
         }
       ]
@@ -65717,6 +65717,16 @@
       ]
     },
     {
+      "key": "Go back to Create New Item and use these accepted changes there, as Use Mesh Editor changes does.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 183,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Go to Setup",
       "origins": [
         {
@@ -68896,7 +68906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 216,
+          "line": 227,
           "sink": "setAccessibleName"
         },
         {
@@ -75506,7 +75516,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1245,
+          "line": 1265,
           "sink": "warning"
         }
       ]
@@ -75526,7 +75536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1249,
+          "line": 1269,
           "sink": "question"
         }
       ]
@@ -75601,7 +75611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1249,
+          "line": 1269,
           "sink": "question"
         }
       ]
@@ -79286,12 +79296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 195,
+          "line": 206,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 195,
+          "line": 206,
           "sink": "QGroupBox"
         }
       ]
@@ -97481,7 +97491,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 234,
+          "line": 237,
           "sink": "raise_if_cancelled"
         },
         {
@@ -106891,12 +106901,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1171,
+          "line": 1174,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1175,
+          "line": 1178,
           "sink": "set_part_editor_state"
         }
       ]
@@ -109386,7 +109396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1239,
+          "line": 1259,
           "sink": "warning"
         }
       ]
@@ -111466,7 +111476,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 172,
+          "line": 184,
           "sink": "rust-presentation"
         }
       ]
@@ -111506,7 +111516,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 165,
+          "line": 177,
           "sink": "rust-presentation"
         }
       ]
@@ -115711,7 +115721,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1085,
+          "line": 1089,
           "sink": "log"
         }
       ]
@@ -118261,7 +118271,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1196,
+          "line": 1199,
           "sink": "set_part_editor_state"
         }
       ]
@@ -118281,12 +118291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 240,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 261,
+          "line": 292,
           "sink": "show_loading"
         },
         {
@@ -118551,7 +118561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1104,
+          "line": 1108,
           "sink": "add"
         }
       ]
@@ -119821,7 +119831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 294,
+          "line": 325,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -119831,7 +119841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 289,
+          "line": 320,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -119841,7 +119851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 297,
+          "line": 328,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -120016,7 +120026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 280,
+          "line": 311,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -121436,7 +121446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 278,
+          "line": 309,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -121446,7 +121456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 285,
+          "line": 316,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -126956,17 +126966,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -131471,17 +131481,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 221,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 211,
+          "line": 222,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 228,
           "sink": "setWhatsThis"
         }
       ]
@@ -136776,7 +136786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -136806,7 +136816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 201,
+          "line": 212,
           "sink": "QLabel"
         }
       ]
@@ -137251,8 +137261,18 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 177,
+          "line": 189,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Return to Create New Item",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 180,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -140511,12 +140531,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 195,
+          "line": 206,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 195,
+          "line": 206,
           "sink": "QGroupBox"
         }
       ]
@@ -147721,12 +147741,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 166,
+          "line": 178,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 178,
+          "line": 190,
           "sink": "rust-presentation"
         }
       ]
@@ -151951,7 +151971,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 188,
+          "line": 200,
           "sink": "rust-presentation"
         }
       ]
@@ -157981,7 +158001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -164801,7 +164821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1245,
+          "line": 1265,
           "sink": "warning"
         },
         {
@@ -181486,7 +181506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1203,
+          "line": 1206,
           "sink": "set_part_editor_state"
         }
       ]
@@ -183551,7 +183571,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1187,
+          "line": 1190,
           "sink": "set_part_editor_state"
         }
       ]
@@ -194531,7 +194551,7 @@
         },
         {
           "path": "cdmw/workers/new_item_mesh_session.py",
-          "line": 23,
+          "line": 41,
           "sink": "open_edit_session"
         }
       ]
@@ -197521,7 +197541,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 956,
+          "line": 960,
           "sink": "add"
         }
       ]
@@ -200841,7 +200861,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 407,
+          "line": 410,
           "sink": "allocate_owned_keys"
         },
         {
@@ -207301,7 +207321,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 917,
+          "line": 921,
           "sink": "add"
         }
       ]
@@ -208916,7 +208936,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 905,
+          "line": 909,
           "sink": "add"
         }
       ]
@@ -215666,7 +215686,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs",
-          "line": 151,
+          "line": 163,
           "sink": "rust-presentation"
         }
       ]
@@ -218651,7 +218671,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 889,
+          "line": 893,
           "sink": "add"
         },
         {

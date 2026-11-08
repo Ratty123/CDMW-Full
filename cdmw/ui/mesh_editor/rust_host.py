@@ -174,6 +174,17 @@ class RustMeshEditorHostFrame(QFrame):
         self._result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._result_label.setWordWrap(True)
         result_layout.addWidget(self._result_label)
+        # Shown only while Create New Item owns the open mesh: its edits go back there.
+        self._return_callback = None
+        self._return_is_current = None
+        self._return_button = QPushButton("Return to Create New Item", content)
+        self._return_button.setObjectName("MeshEditorRustResultReturnToNewItem")
+        self._return_button.setMinimumHeight(38)
+        self._return_button.setToolTip(
+            "Go back to Create New Item and use these accepted changes there, as Use Mesh Editor changes does.")
+        self._return_button.clicked.connect(self._return_requested)
+        self._return_button.setVisible(False)
+        result_layout.addWidget(self._return_button)
         action_specs = (
                 ("Keep editing", "ReopenEdit", "Resume current edit", self.reopen_edit_requested,
                  "Reopen the accepted mesh in the current session, keeping its fitting setup, parts and output choices. The original source stays the reference. Undo/Redo starts again when the editor reopens."),
@@ -227,6 +238,26 @@ class RustMeshEditorHostFrame(QFrame):
         result_outer.addWidget(scroll)
         self._pages.addWidget(self._result_page)
         self.show_loading("Preparing the embedded Mesh Editor...")
+
+    def set_return_action(self, callback=None, is_current=None) -> None:
+        """Offer Return to Create New Item on the accepted page; None hides it.
+
+        ``is_current`` answers whether the open mesh is still the one Create New Item
+        handed over, so a later, unrelated mesh never offers the way back.
+        """
+
+        self._return_callback = callback if callable(callback) else None
+        self._return_is_current = is_current if callable(is_current) else None
+        self._refresh_return_button()
+
+    def _refresh_return_button(self) -> None:
+        current = self._return_callback is not None and (
+            self._return_is_current is None or bool(self._return_is_current()))
+        self._return_button.setVisible(current)
+
+    def _return_requested(self) -> None:
+        if self._return_callback is not None:
+            self._return_callback()
 
     def set_theme(self, theme_key: str) -> None:
         """Retain CDMW's active theme contract for the embedded surface."""
@@ -414,6 +445,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._editor_visible = False
         self._set_child_visible(False)
         self._result_label.setText(str(message or "The validated mesh revision is ready for output."))
+        self._refresh_return_button()
         self._pages.setCurrentWidget(self._result_page)
         self._pages.setVisible(True)
 

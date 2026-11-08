@@ -32636,7 +32636,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1239
+      "cdmw/ui/new_item/tab.py": 1259
     }
   },
   {
@@ -35229,7 +35229,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_service.py": 658,
-      "cdmw/ui/new_item/tab.py": 1245,
+      "cdmw/ui/new_item/tab.py": 1265,
       "cdmw/workers/new_item_workers.py": 342
     }
   },
@@ -57912,7 +57912,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child window could not be attached to CDMW",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 294
+      "cdmw/ui/mesh_editor/rust_host.py": 325
     }
   },
   {
@@ -57920,7 +57920,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child-window validation failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 297
+      "cdmw/ui/mesh_editor/rust_host.py": 328
     }
   },
   {

@@ -248,3 +248,55 @@ def test_planning_knows_a_model_was_cloth_painted():
     files = model_files_from_import(painted, family=family)
     assert files.cloth_painted and files.notes == ("Cloth paint: 4 vertices follow the template's 4 cloth guides.",)
     assert not model_files_from_import(SimpleNamespace(rebuilt_data=b"PAR "), family=family).cloth_painted
+
+
+def test_create_new_item_editing_sessions_open_with_the_tools_unlocked():
+    from cdmw.workers.new_item_mesh_session import prepare_new_item_mesh_session
+    prepared = prepare_new_item_mesh_session(
+        imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), ()), "new-item-model:test", None)
+    try:
+        assert prepared.view.authoring_enabled
+        assert prepared.view.output_policy == "free_edit_rebuild"
+        destination = Path(prepared.view.output_destination)
+        assert destination.parent.name == "cdmw-new-item-edits" and not destination.exists()
+    finally:
+        prepared.cleanup()
+
+
+def test_accepted_page_offers_the_way_back_only_for_the_linked_mesh():
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
+
+    app = QApplication.instance() or QApplication([])
+    frame = RustMeshEditorHostFrame()
+    try:
+        button = frame._return_button
+        assert button.isHidden()
+        calls, linked = [], [True]
+        frame.set_return_action(lambda: calls.append("back"), lambda: linked[0])
+        frame.show_result("")
+        assert not button.isHidden() and button.text() == "Return to Create New Item"
+        button.click()
+        assert calls == ["back"]
+        linked[0] = False  # the New Item mesh was closed; another mesh finished later
+        frame.show_result("")
+        assert button.isHidden()
+        frame.set_return_action(None)
+        assert button.isHidden()
+    finally:
+        frame.deleteLater()
+        app.processEvents()
+
+
+def test_return_shows_create_new_item_then_uses_the_changes():
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    events = []
+    container = object()
+    shell = SimpleNamespace(new_item_studio_tab=container,
+                            _activate_tool_widget=lambda widget: events.append(("show", widget is container)))
+    fake = SimpleNamespace(_window=SimpleNamespace(shell=shell),
+                           _use_model_part_editor_changes=lambda: events.append(("use", True)))
+    NewItemStudioTab._return_from_model_part_editor(fake)
+    assert events == [("show", True), ("use", True)]
