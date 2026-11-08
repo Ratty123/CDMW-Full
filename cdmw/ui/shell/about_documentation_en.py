@@ -42,6 +42,7 @@ CREATE_NEW_ITEM_SECTION = {
     <h4>Model &amp; Placement</h4>
     <p>Import the model with its referenced textures. FBX uses the configured Blender executable. Inspect every part and variant; armour needs compatible skin weights and a supported template or body donor. A section cannot exceed 65,535 vertices. A working preview alone does not establish export compatibility.</p>
     <p>For a rigged model, choose Weights on next import before importing. Transfer from template replaces the model's weights with the template's; use it for a model that was not weighted to this game's skeleton. If its armature does not match the template's skeleton, the model is used as authored, so check its placement. Keep imported weights keeps your weights, but only on the template's own skeleton: choose Export rig GLB… in the Rig row, weight your model to that rig in Blender, and do not move, rotate or rescale its bones or apply a pose as the rest pose. A different rig is refused, and the message names the bone that is off the most.</p>
+    <p>To reweight a creature, mount or any other model that is not an item, open its PAC from Archive Browser in Mesh Editor instead. Its Import Replacement offers the same weight choices and its own Export Rig GLB.</p>
     <p>Armour and clothing are placed as exported, with no automatic turn or scale, so export them standing upright in the game's body frame. Fit to template scales, turns and moves the model onto the template instead; the result shows in the placement numbers, and Reset rotation undoes the turn.</p>
     <p>Move, Rotate and Scale select the preview handles. Placement numbers provide exact values; Uniform scale keeps proportions when changing an axis. Review the character reference, size and attachment from several angles. Choose Apply placement before Build plan, and apply again after changing the imported model or placement.</p>
     <p>Appearance belongs to the selected model variant. Review its materials, textures, glow, transparency and icon separately. Imported-model dyes start disabled. Blended transparency and painted cutouts have different shader requirements; overlapping transparent surfaces and unsupported transmission can differ from the game. The game does not draw glow on translucent parts. Inspect the plan's material warnings.</p>
@@ -606,6 +607,15 @@ class AboutDocumentationEnglishMixin:
                 <p>View hides geometry only in the viewport; Mod or Include controls output inclusion. Use Output Preview to inspect the prepared result. Mesh islands addresses disconnected pieces within a part. Unsupported lower-LOD mappings block exclusion rather than guessing which triangles should disappear.</p>
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
+                <p>Import Replacement reads OBJ, DAE, glTF, GLB and FBX. FBX is converted with the Blender chosen for Create New Item; the first FBX asks for blender.exe.</p>
+                <p>A rigged model shows a Weights choice before Apply Replacement:</p>
+                <ul>
+                  <li><b>Keep Imported Weights</b> uses the model's own weights. Its rig must be this model's game skeleton: choose Export Rig GLB... in Parts, weight your model to that rig in Blender, and do not move, rotate or rescale the bones.</li>
+                  <li><b>Reduce to Six Influences</b> keeps each vertex's six strongest bones and rebalances them. A game vertex holds six.</li>
+                  <li><b>Transfer from Original</b> replaces the model's weights with the original model's weights at the nearest surface. It works with any rig, or none.</li>
+                </ul>
+                <p>Hover an unavailable choice to see why, for example the bone that is furthest from the game skeleton. Parts without weights always take the original part's weights. After Apply, Weights from the last import lists what was done.</p>
+                <p>Transferred weights follow the nearest surface, so rigid pieces such as horns can bend with what they touch. Check them in Rig &amp; Weights and pin them to the right bone there.</p>
                 <p>Imports keep their decoded size and position. Fit to Original is optional; Reset Placement restores the import. Mod controls output inclusion; viewport hiding stays independent.</p>
                 <p>Neutral-appearance meshes show an Experimental warning; imports and Mod inclusion are available without an extra enable button. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.</p>
                 <p>Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.</p>
@@ -615,7 +625,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Parts sharing a material wrapper need matching settings. Restore incompatible overrides before choosing another experiment. Previews approximate the game shaders; refraction, lighting, and animation may differ in game.</p>
                 <h4>Vertex Parameters</h4>
                 <p>Open Mesh Data &gt; Vertex Parameters and select vertices, edges, faces, or parts. Inspect Position, UV Coordinates, Normals, and Skin Weights, enter supported changes, then choose Apply to commit the batch as one Undo step. Discard clears pending inputs.</p>
-                <p>Editing depends on the format, LOD, source mapping, and output support. Unsupported channels remain read-only; a rejected batch changes no vertices. UV1 and vertex colours are not editable. Skin weight editing requires a supported Exact PAC LOD0 layout and resolved bone palette; the separate Rig &amp; Weights tool remains hidden.</p>
+                <p>Editing depends on the format, LOD, source mapping, and output support. Unsupported channels remain read-only; a rejected batch changes no vertices. UV1 and vertex colours are not editable. Skin weight editing requires a supported Exact PAC LOD0 layout and resolved bone palette; edit the weights of parts brought in by Import Replacement in Rig &amp; Weights.</p>
                 <h4>Authored cloth profiles</h4>
                 <p>Open Mesh Data &gt; Cloth &gt; Authored cloth profile and choose a captured variant. Use profile in preview loads supported starting values; preview sliders do not change the mod.</p>
                 <p>Under Edit profile for mod, choose the shared assignment group and source profile, then select the raw values to override. Apply profile edit and Restore profile assignment support Undo/Redo. Finish and Build Mod include the cloned profile, catalogue, and sidecar assignment; a single PAC export cannot contain these companions.</p>
@@ -624,7 +634,13 @@ class AboutDocumentationEnglishMixin:
                 <p>Hair Tools is experimental for Kliff, Damiane and Oongka. Create starts on an empty fitting scalp; Edit loads an existing hairstyle. Hair and motion have not been tested in game and may not work correctly.</p>
                 <p>Draw offers Freehand, Straight, Arc and Circle. Use Stroke smoothing, Bend, Follow scalp and Move reach to control the shape. Ctrl temporarily draws away from the scalp while collision stays active.</p>
                 <h4>Rig &amp; Weights</h4>
-                <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
+                <p>Open Rig &gt; Rig &amp; Weights to inspect and repair skin weights on an Exact PAC, or on parts brought in by Import Replacement. It needs the model's skeleton, which Archive Browser attaches automatically.</p>
+                <ol>
+                  <li>Choose the Active bone; Search bones finds it by name. Weight colours shows its influence from blue (0%) to gold (100%).</li>
+                  <li>Select vertices, then use Weight + or Weight - with the Weight step, Normalize Weights, or Transfer from Original.</li>
+                  <li>To make a rigid piece such as a horn follow one bone, select the piece, choose that bone and raise its weight with Weight + until it reaches 100%.</li>
+                </ol>
+                <p>A game vertex holds six bones, or four on cloth. Frame bone and Frame influence move the camera only. Rig &amp; Weights does not pose the rig or paint with a brush.</p>
                 <h4>Morph &amp; Refit</h4>
                 <p>For an existing item, start with Open in Mesh Editor. Load or assign the body driver, load the garments, select their parts and bind them. Inspect the fit at cuffs, underarms, belts and thin trim. Reset discards a preview; Bake keeps it. Refit changes geometry, not the skeleton or animation.</p>
                 <p>Bake is the last step in Morph &amp; Refit, not the export. After Bake, the panel names the next steps: choose Finish Edit Mesh at the top right, then Build Mod on the page that opens. With Free Edit output, Finish saves the package instead.</p>

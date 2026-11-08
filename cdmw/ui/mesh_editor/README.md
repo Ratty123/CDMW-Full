@@ -916,9 +916,29 @@ A split must verify each piece's actual palette, ownership, materials and retain
 companions; dividing an outfit alone does not make unsupported bones available.
 
 Unskinned replacements retain the existing transfer from original game geometry.
+Since 2026-11-08 that transfer runs when Apply composes the import rather than when
+the writer runs, so the editor holds the rows and Rig & Weights can change them.
 This authored-weight path belongs to **Import Replacement** on PAC targets;
 Create New Item now reuses the same compatibility proof before static conversion, and
-Free Edit's OBJ output does not retain a rig. Owned GLB/glTF and PAC fixtures
+Free Edit's OBJ output does not retain a rig.
+
+#### Weights choice
+
+Preparation no longer refuses a rig it cannot keep. `assess_imported_skin`
+(`cdmw/services/mesh_skin_import_policy.py`) tries each choice on a copy and the
+mapping step offers **Keep Imported Weights** (`preserve`), **Reduce to Six
+Influences** (`reduce`) and **Transfer from Original** (`transfer`), each enabled or
+explained. Keep is preselected when the rig matches; otherwise Apply waits for a
+choice. A static original (no weights) defaults to Transfer, which then drops the
+imported weights. Transfer applies the rig's bind frame when it is provable and
+otherwise uses the model as authored, exactly as Create New Item's transfer does;
+both features call the same keep, reduce and transfer helpers. In neutral sessions a
+transferred model is treated like an unskinned import.
+
+**Export Rig GLB…** in Parts writes the open PAC on its attached skeleton
+(`export_rig_glb`) for weighting in Blender. FBX replacements convert through the
+Blender chosen for Create New Item; the user's FBX is the hashed source and the GLB is
+CDMW's working copy under the session root. Owned GLB/glTF and PAC fixtures
 verify the replacement writer. The supplied Rosa Cassius Blender/GLB pair was
 also inspected: geometry and named hierarchy agree, while the GLB reduces the
 source's weights to four influences. Its rest-joint layout matches the PHW game
@@ -2060,9 +2080,17 @@ automatic-resolution failure (including missing dependencies, ambiguous matches,
 invalid or empty skeletons) and keeps weight editing disabled until the exact PAC LOD0,
 palette, source-map, and record-layout requirements are satisfied.
 
-Rig & Weights is temporarily hidden from the product tool rail. Its code and
-direct headless tests remain available; the following describes the retained
-implementation rather than a currently accessible tool.
+Rig & Weights sits in its own **Rig** group of the tool rail, after Mesh Data.
+It was hidden from 2026-09-07 to 2026-11-08 with no recorded defect and returned
+with the replacement weight choices below.
+
+In a replacement session, imported parts whose rows fit a new six-lane PAC record
+(`replacement_skin_part_safe` in `cdmw/modding/mesh_pac_skin_contract.py`) are
+editable too; `_rust_skin_weight_capability` lists them as
+`replacement_submesh_indices`. Their edits change the working rows that the
+replacement writer encodes and add no exact-record operation. Transfer from
+Original samples the original part at the same index. Vertex Parameters still
+edits exact original records only and points imported parts to Rig & Weights.
 
 Rig & Weights identifies the loaded mesh, named Parts, and automatically attached PAB.
 Its searchable bone chooser shows parent context and a labelled gold marker on the

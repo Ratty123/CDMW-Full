@@ -7,6 +7,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's **Import Replacement…** has a **Weights** choice for a rigged model: **Keep Imported Weights**, **Reduce to Six Influences** or **Transfer from Original**. A model weighted to another rig, with more than six bones on a vertex, or with no matching skeleton now reaches the mapping step instead of being refused; hover an unavailable choice to see why. **Export Rig GLB…** in Parts saves the model with its game skeleton for weighting in Blender, and FBX models are read through the Blender chosen for Create New Item. Creatures, mounts and other models that are not items no longer need Create New Item to keep or transfer weights. Not yet checked in game.
+
+### Changed
+
+- **Rig & Weights** is back in the Mesh Editor, in its own **Rig** group. It also edits the weights of parts brought in by **Import Replacement…**, so rigid pieces of a transferred model, such as horns, can be pinned to one bone before **Build Mod**. Imported parts without weights now get the original part's weights as soon as the replacement is applied, so Rig & Weights shows them straight away.
+
 ## [0.12.0-alpha.3] - 2026-11-07
 
 ### Added
