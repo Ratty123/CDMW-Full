@@ -1,5 +1,6 @@
 from dataclasses import replace
 from pathlib import Path
+import re
 from types import SimpleNamespace
 
 from PIL import Image
@@ -29,7 +30,7 @@ def entry(root, path, data):
     return ArchiveEntry(path, root / "0009/0.pamt", source, 0, len(data), len(data), 0, 0)
 
 
-def material_fixture(root, snapshot, *, layered=False):
+def material_fixture(root, snapshot, *, layered=False, normal=False):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
@@ -37,6 +38,10 @@ def material_fixture(root, snapshot, *, layered=False):
     # A layered target paints its own detail mask on the original UV layout.
     layer = (lambda i: f'<MaterialParameterTexture _name="_detailMaskTexture" Index="1"><ResourceReferencePath_ITexture '
              f'_path="character/texture/detail{i}.dds"/></MaterialParameterTexture>') if layered else (lambda i: "")
+    if normal:
+        # Its normal map is sculpted for that layout too (Kairos Plate Helm).
+        layer = (lambda i: f'<MaterialParameterTexture _name="_normalTexture" Index="1"><ResourceReferencePath_ITexture '
+                 f'_path="character/texture/original{i}_n.dds"/></MaterialParameterTexture>')
     xml = ('<Root>' + ''.join(
         f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}"><Material><Vector Name="_parameters">'
         f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original{i}.dds"/>'
@@ -44,7 +49,8 @@ def material_fixture(root, snapshot, *, layered=False):
     target = entry(root, snapshot.mesh.path, snapshot.original_data)
     entries = [target, entry(root, str(Path(target.path).with_suffix(".pac_xml")), xml.encode()),
                *(entry(root, f"character/texture/original{i}.dds", original.read_bytes()) for i in range(2)),
-               *((entry(root, f"character/texture/detail{i}.dds", original.read_bytes()) for i in range(2)) if layered else ())]
+               *((entry(root, f"character/texture/detail{i}.dds", original.read_bytes()) for i in range(2)) if layered else ()),
+               *((entry(root, f"character/texture/original{i}_n.dds", original.read_bytes()) for i in range(2)) if normal else ())]
     context = SimpleNamespace(entries_by_basename={Path(item.path).name.casefold(): [item] for item in entries},
                               entries_by_normalized_path={item.path.casefold(): [item] for item in entries})
     model = root / "import.obj"
@@ -85,6 +91,29 @@ def test_imported_materials_drop_the_targets_inherited_detail_layers(editor, tmp
     replaced, untouched = text.split('_subMeshName="target1"')
     assert "detail0.dds" not in replaced and "original0.dds" not in replaced
     assert "detail1.dds" in untouched and "original1.dds" in untouched
+
+
+@pytest.mark.parametrize("own_normal", [False, True])
+def test_imported_materials_replace_the_targets_normal_map(editor, tmp_path, own_normal):
+    """The target's normal map follows the original UVs; on the imported
+    model's UVs its engravings show through the imported texture."""
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, normal=True)
+    if own_normal:
+        Image.new("RGBA", (4, 4), (140, 100, 255, 255)).save(tmp_path / "bumps.png")
+        model.with_suffix(".mtl").write_text("newmtl imported\nKd 1 1 1\nmap_Kd color.dds\nmap_Bump bumps.png\n")
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    assert "original0_n.dds" not in replaced and "_normalTexture" in replaced
+    assert ("normal_neutral" in replaced) is not own_normal
+    assert "original1_n.dds" in untouched
+    bound = {path.casefold() for path in re.findall(r'_path="([^"]+)"', replaced)}
+    assert all(file.path.casefold() in bound for file in files if file.path.endswith(".dds"))
 
 
 def _snapshot_with_material_labels(snapshot, labels):

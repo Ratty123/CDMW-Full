@@ -464,6 +464,16 @@ def _complete_swap_neutral_support_slot(
     )
 
 
+def _target_binds_normal_texture(target_name: str, original_texture_refs: Sequence[object]) -> bool:
+    for reference in tuple(original_texture_refs or ()):
+        material_name = str(getattr(reference, "material_name", "") or "").strip()
+        if material_name and not _sidecar_material_names_match(material_name, target_name):
+            continue
+        if str(getattr(reference, "sidecar_parameter_name", "") or "").strip().lower() == "_normaltexture":
+            return True
+    return False
+
+
 def _complete_swap_runtime_material_mask_slot(
     texture_set: ReplacementTextureSet,
     material_profile: CDMaterialRuntimeProfile,
@@ -2392,6 +2402,19 @@ def _build_source_driven_pac_material_payloads(
             include_complete_support_fallbacks=bool(complete_external_material_reset),
             material_profile=material_profile,
         ))
+        if (
+            neutralize_inherited_material_layers
+            and not complete_external_material_reset
+            and not any(str(slot.slot_kind or "").strip().lower() == "normal" for slot in source_slots)
+            and _target_binds_normal_texture(target_name, original_texture_refs)
+        ):
+            # The target's normal map is sculpted for its own UV layout, like
+            # the detail and height layers dropped above. On the import's UVs
+            # it draws the original's engravings across the new texture, so a
+            # model without its own normal map gets a flat one instead.
+            source_slots.append(
+                _complete_swap_neutral_support_slot(texture_set, "normal", material_profile=material_profile)
+            )
         if not any(str(slot.slot_kind or "").strip().lower() == "emissive" for slot in source_slots):
             accent_slot = _complete_swap_accent_emissive_slot(texture_set, target_name, material_profile)
             if accent_slot is not None:
