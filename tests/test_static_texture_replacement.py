@@ -6049,7 +6049,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             root = Path(temp_dir)
             source_dds = root / "replacement.dds"
             original_dds = root / "original.dds"
-            source_dds.write_bytes(_fake_dds_bytes(64, 64, mips=1, fourcc=b"DXT5"))
+            source_dds.write_bytes(_fake_dds_bytes(64, 64, mips=7, fourcc=b"DXT5"))
             original_dds.write_bytes(_fake_dds_bytes(64, 64, mips=1, fourcc=b"DXT5"))
             entry = _entry("character/texture/sample.dds", root)
             report = TextureReplacementReport()
@@ -6066,7 +6066,40 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual(source_dds.read_bytes(), payload)
             warning_text = "\n".join(report.warnings)
             self.assertIn("Crimson DDS warning", warning_text)
-            self.assertIn("mip chain", warning_text)
+            self.assertIn("mips 7 != original 1", warning_text)
+
+    def test_dds_source_without_mip_chain_is_reencoded_with_every_level(self) -> None:
+        # Exporters from other games often write a single level. Copied as
+        # is, it shimmers into noise wherever the game draws it smaller.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            source_dds = root / "single_level.dds"
+            original_dds = root / "original.dds"
+            Image.new("RGBA", (16, 8), (90, 60, 30, 255)).save(source_dds)
+            original_dds.write_bytes(_fake_dds_bytes(16, 8, mips=5, fourcc=b"DXT1"))
+            entry = _entry("character/texture/sample.dds", root)
+            report = TextureReplacementReport()
+            calls: list[dict[str, object]] = []
+
+            def fake_native_encode(source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                calls.append(kwargs)
+                return _fake_native_dds_encode(source, target, **kwargs)
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                payload = _build_texture_payload(
+                    ReplacementTextureSlot("replacement", "base", source_dds),
+                    target_entry=entry,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                )
+
+            self.assertNotEqual(source_dds.read_bytes(), payload)
+            self.assertEqual([(16, 8, 5)], [(call["width"], call["height"], call["mip_count"]) for call in calls])
+            self.assertIn("re-encoding DDS source to add mip levels", "\n".join(report.warnings))
 
     def test_dds_source_color_adjustment_is_baked_before_export(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

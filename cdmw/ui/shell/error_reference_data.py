@@ -39783,7 +39783,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS encoder did not produce {produced.name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1164
+      "cdmw/modding/material_texture_payloads.py": 1175
     }
   },
   {
@@ -39815,7 +39815,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS replacement {source_slot.source_path.name} differs from target template: {', '.join(mismatch_parts)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1022
+      "cdmw/modding/material_texture_payloads.py": 1027
     }
   },
   {
@@ -40199,7 +40199,7 @@ MESSAGE_REFERENCE = [
     "message": "Inverted green channel for green-up normal map: {source_png.name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1040
+      "cdmw/modding/material_texture_payloads.py": 1051
     }
   },
   {
@@ -40592,7 +40592,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS encode failed or produced an invalid DDS{detail}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1162
+      "cdmw/modding/material_texture_payloads.py": 1173
     }
   },
   {
@@ -42317,7 +42317,7 @@ MESSAGE_REFERENCE = [
       "cdmw/modding/material_rebuilt_payloads.py": 725,
       "cdmw/modding/material_sidecar_payloads.py": 337,
       "cdmw/modding/material_source_driven.py": 700,
-      "cdmw/modding/material_texture_payloads.py": 1263,
+      "cdmw/modding/material_texture_payloads.py": 1274,
       "cdmw/services/mesh_dotnet_material_package.py": 377
     }
   },
@@ -42625,7 +42625,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_png.name}: colour texture output uses BC7_UNORM instead of template format {output_format}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1106
+      "cdmw/modding/material_texture_payloads.py": 1117
     }
   },
   {
@@ -42633,7 +42633,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_png.name}: native DDS encode produced an invalid DDS ({native_encode_error}).",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1148
+      "cdmw/modding/material_texture_payloads.py": 1159
     }
   },
   {
@@ -42641,7 +42641,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_png.name}: normal map output uses BC5_UNORM instead of template format {output_format}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1115
+      "cdmw/modding/material_texture_payloads.py": 1126
     }
   },
   {
@@ -42649,7 +42649,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_png.name}: output DDS size {output_width}x{output_height} is smaller than source {source_width}x{source_height}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1092
+      "cdmw/modding/material_texture_payloads.py": 1103
     }
   },
   {
@@ -42657,7 +42657,15 @@ MESSAGE_REFERENCE = [
     "message": "{source_slot.source_path.name}: baking source {adjustment} by re-encoding DDS source.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/material_texture_payloads.py": 1028
+      "cdmw/modding/material_texture_payloads.py": 1039
+    }
+  },
+  {
+    "area": "materials",
+    "message": "{source_slot.source_path.name}: re-encoding DDS source to add mip levels (it has {int(source_info.mip_count or 1)}).",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/material_texture_payloads.py": 1032
     }
   },
   {
@@ -106737,7 +106745,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/material_texture_payloads.py": {
     "diagnostic_field": 2,
-    "failure": 18,
+    "failure": 19,
     "finding": 17,
     "raise": 3,
     "report": 5
