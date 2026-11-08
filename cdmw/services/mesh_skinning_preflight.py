@@ -76,7 +76,8 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
                 from cdmw.modding.mesh_glb_assets import skeleton_skin
                 from cdmw.modding.scene_geometry_utils import _copy_submesh_with_transform
                 try:
-                    frame = _target_bind_frame(skin, skeleton_skin(skeleton))
+                    frame = _target_bind_frame(skin, skeleton_skin(skeleton),
+                                               {joint for row in part.bone_indices for joint in row})
                 except ValueError as exc:
                     # Transfer replaces the authored weights, so a foreign rig only loses
                     # its placement proof: keep the geometry as authored, like an unrigged model.
@@ -92,7 +93,10 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
                     missing_parts[part.name] = missing
                     continue
                 single = replace(source, submeshes=[part])
-                part = retain_imported_skinning(single, snapshot, state).submeshes[0]
+                rig_notes = []
+                part = retain_imported_skinning(single, snapshot, state, rig_notes).submeshes[0]
+                if rig_notes:
+                    report = replace(report, transfer_details=report.transfer_details + tuple(rig_notes))
                 quantization = 0.
                 for joints, weights in zip(part.bone_indices, part.bone_weights, strict=True):
                     record = bytearray(40)

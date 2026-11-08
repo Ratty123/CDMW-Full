@@ -17,6 +17,10 @@ from cdmw.modding.scene_geometry_utils import (
 #: small far-out bones such as toes by about 0.01%; a different rig is off by whole
 #: percents. 0.1% is about a millimetre on a character rig.
 REST_JOINT_TOLERANCE = 1e-3
+#: The same, for bones the imported mesh is not weighted to. They still prove the
+#: frame and catch a different rig, but their small drift (a face rig revised in a
+#: game update, say) cannot move a single vertex, so it must not block the import.
+UNUSED_REST_JOINT_TOLERANCE = 1e-2
 
 
 def _bind_matrix(values):
@@ -53,18 +57,22 @@ def _nearest_joint_parent(index, parents, names):
     return None
 
 
-def _target_bind_frame(skin, target_skin):
+def _target_bind_frame(skin, target_skin, used_joints=None, notes=None):
     """Prove the model frame using all known incoming joints, not just used ones.
 
     Blender can change each bone's local basis while keeping the same named
     hierarchy and bind-joint centers. Imported animation is discarded, so a
     proper similarity fitted to those centers is sufficient for game-space
     geometry. It is not permission to retarget a different rest skeleton.
+
+    ``used_joints`` (glTF joint slots the mesh is weighted to) holds those bones
+    to the strict tolerance and the rest to the looser unused one; ``notes``
+    receives a line about unused bones that only the looser limit accepted.
     """
     target_by_name = {}
     for index, node in enumerate(target_skin["nodes"]):
         target_by_name.setdefault(str(node.get("name", "")), []).append(index)
-    source_names, target_names, matches, matched_names = {}, {}, [], []
+    source_names, target_names, matches, matched_names, matched_used = {}, {}, [], [], []
     inverses = skin.get("inverse_bind_matrices", ())
     for slot, node_index in enumerate(skin["joints"]):
         name = str(skin["nodes"][node_index].get("name", ""))
@@ -79,6 +87,7 @@ def _target_bind_frame(skin, target_skin):
         target_inverse = _bind_matrix(target_skin["inverse_bind_matrices"][target])
         matches.append((_invert_affine_matrix(source_inverse), _invert_affine_matrix(target_inverse), source_inverse))
         matched_names.append(name)
+        matched_used.append(used_joints is None or slot in used_joints)
     source_parents, target_parents = _parents(skin["nodes"]), _parents(target_skin["nodes"])
     source_parent_names = {name: _nearest_joint_parent(index, source_parents, source_names)
                            for index, name in source_names.items()}
@@ -98,38 +107,69 @@ def _target_bind_frame(skin, target_skin):
     target = np.asarray([(matrix[3], matrix[7], matrix[11]) for _source, matrix, _inverse in matches])
     if not np.isfinite(source).all() or not np.isfinite(target).all():
         raise ValueError("Imported rig has non-finite rest-joint centers.")
-    centered_source, centered_target = source - source.mean(axis=0), target - target.mean(axis=0)
-    # Two axes must be measurable. Collinear/coincident joints leave a model
-    # rotation unresolved even when the weighted part uses only one bone.
-    for points in (centered_source, centered_target):
-        singular = np.linalg.svd(points, compute_uv=False)
-        if len(singular) < 2 or singular[0] <= 1e-8 or singular[1] <= singular[0] * 1e-5:
-            raise ValueError("Rest-joint centers are degenerate; a common model transform cannot be proven.")
-    left, _singular, right = np.linalg.svd(centered_source.T @ centered_target)
-    rotation = right.T @ left.T
-    if np.linalg.det(rotation) < 0:
-        right[-1] *= -1
+    def degenerate(points):
+        # Two axes must be measurable. Collinear/coincident joints leave a model
+        # rotation unresolved even when the weighted part uses only one bone.
+        singular = np.linalg.svd(points - points.mean(axis=0), compute_uv=False)
+        return len(singular) < 2 or singular[0] <= 1e-8 or singular[1] <= singular[0] * 1e-5
+
+    def fit(mask):
+        chosen_source, chosen_target = source[mask], target[mask]
+        centered_source = chosen_source - chosen_source.mean(axis=0)
+        centered_target = chosen_target - chosen_target.mean(axis=0)
+        left, _singular, right = np.linalg.svd(centered_source.T @ centered_target)
         rotation = right.T @ left.T
-    scale = float(np.sum((centered_source @ rotation.T) * centered_target) / np.sum(centered_source * centered_source))
-    translation = target.mean(axis=0) - scale * (rotation @ source.mean(axis=0))
-    extent = float(np.max(np.linalg.norm(centered_target, axis=1)))
-    error = np.linalg.norm(scale * (source @ rotation.T) + translation - target, axis=1)
+        if np.linalg.det(rotation) < 0:
+            right[-1] *= -1
+            rotation = right.T @ left.T
+        scale = float(np.sum((centered_source @ rotation.T) * centered_target) / np.sum(centered_source * centered_source))
+        translation = chosen_target.mean(axis=0) - scale * (rotation @ chosen_source.mean(axis=0))
+        return rotation, scale, translation, np.linalg.norm(scale * (source @ rotation.T) + translation - target, axis=1)
+
+    if degenerate(source) or degenerate(target):
+        raise ValueError("Rest-joint centers are degenerate; a common model transform cannot be proven.")
+    extent = float(np.max(np.linalg.norm(target - target.mean(axis=0), axis=1)))
+    strict = max(1e-7, extent * REST_JOINT_TOLERANCE)
+    used_mask = np.asarray(matched_used, dtype=bool)
+    inliers = np.ones(len(matches), dtype=bool)
+    rotation, scale, translation, error = fit(inliers)
+    # A least-squares fit spreads one drifted bone's error over every bone. Refit
+    # without the worst drifted unused bone until none is past the strict limit,
+    # so drift the mesh never feels cannot make its weighted bones look off.
+    while math.isfinite(scale) and np.isfinite(error).all():
+        candidates = np.flatnonzero(~used_mask & inliers & (error > strict))
+        if not len(candidates):
+            break
+        trial = inliers.copy()
+        trial[candidates[np.argmax(error[candidates])]] = False
+        if trial.sum() < 3 or degenerate(source[trial]) or degenerate(target[trial]):
+            break
+        inliers = trial
+        rotation, scale, translation, error = fit(inliers)
     if not math.isfinite(scale) or scale <= 0 or not np.isfinite(error).all():
         raise ValueError("Rest-joint positions do not match one rigid or uniform-scale game-rig transform.")
-    limit = max(1e-7, extent * REST_JOINT_TOLERANCE)
-    if float(error.max()) > limit:
+    limits = np.asarray([strict if used else max(1e-7, extent * UNUSED_REST_JOINT_TOLERANCE)
+                         for used in matched_used])
+    if bool((error > limits).any()):
         # Name the worst bone so a different rig reads apart from a few nudged bones.
-        worst = int(np.argmax(error))
-        off = sum(value > limit for value in error)
+        worst = int(np.argmax(error / limits))
+        off = int((error > limits).sum())
         raise ValueError(
             f"Rest-joint positions do not match one rigid or uniform-scale game-rig transform: "
             f"{off} of {len(error)} matching bones are off; the worst, {matched_names[worst]}, "
             f"by {float(error[worst]):.4g} ({float(error[worst]) / max(extent, 1e-12):.2%} of the rig size).")
+    drifted = [index for index, value in enumerate(error) if value > strict]
+    if drifted and notes is not None:
+        worst = max(drifted, key=lambda index: float(error[index]))
+        notes.append(
+            f"{len(drifted)} bone(s) the model is not weighted to sit up to "
+            f"{float(error[worst]) / max(extent, 1e-12):.2%} of the rig size off the game skeleton "
+            f"(worst {matched_names[worst]}); they move no vertex, so the import continues.")
     return tuple(float(scale * rotation[row, column]) if column < 3 else float(translation[row])
                  for row in range(3) for column in range(4)) + (0., 0., 0., 1.)
 
 
-def retain_imported_skinning(source, snapshot, state):
+def retain_imported_skinning(source, snapshot, state, notes=None):
     """Map used joints by exact name and one common bind-space transform.
 
     PAC vertex influences address palette slots, never skeleton indices. The
@@ -177,7 +217,7 @@ def retain_imported_skinning(source, snapshot, state):
         if not remap:
             raise ValueError(f"Imported skin has no non-zero influences in {part.name}.")
         try:
-            frame = _target_bind_frame(skin, target_skin)
+            frame = _target_bind_frame(skin, target_skin, used, notes)
         except ValueError as exc:
             raise ValueError(f"Imported joint bind frames disagree in {part.name}: {exc} Rig retargeting is unavailable.") from exc
         indices, weights = [], []

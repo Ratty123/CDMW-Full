@@ -20,7 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Moving, rotating or tilting a weapon by dragging in Placement & Animations' view is much smoother. The view and Fine-tune follow the drag, and the other panels update once it ends; on a 1.5x-scaled screen a drag went from about 12-14 to about 40-48 updates a second.
-- Create New Item and Mesh Editor's **Import Replacement…** no longer refuse a rigged GLB with **Keep imported weights** because a few bones sit a hair off the game skeleton. Blender's export rounding moves small bones such as toes by about 0.01% of the rig's size, which counted as a different rig. Offsets up to 0.1% are now accepted; a rig whose bones really differ is still refused and names the bone that is off the most.
+- Create New Item and Mesh Editor's **Import Replacement…** no longer refuse a rigged GLB with **Keep imported weights** because a few bones sit a hair off the game skeleton. Blender's export rounding moves small bones such as toes by about 0.01% of the rig's size, which counted as a different rig. Offsets up to 0.1% are now accepted. Bones the model is not weighted to, such as a face rig a game update moved, may sit up to 1% off; Import details names them. A rig whose weighted bones really differ is still refused and names the bone that is off the most.
 
 ## [0.12.0-alpha.3] - 2026-11-07
 

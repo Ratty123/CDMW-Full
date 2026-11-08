@@ -34,7 +34,7 @@ def rig_editor(editor):
 
 
 def changed_basis_glb(tmp_path, points, parents, *, single_used=False, altered_rest=False,
-                      altered_hierarchy=False, degenerate=False, reflected=False):
+                      altered_hierarchy=False, degenerate=False, reflected=False, altered_index=7):
     path = source_glb(tmp_path, names=tuple(f"bone{i}" for i in range(8)))
     document, raw = _read_glb(path)
     binary = bytearray(raw)
@@ -46,7 +46,7 @@ def changed_basis_glb(tmp_path, points, parents, *, single_used=False, altered_r
     view = document["bufferViews"][accessor["bufferView"]]
     for index, point in enumerate(points):
         source_point = (transform_inverse @ np.array((*point, 1.)))[:3]
-        if altered_rest is not False and index == 7:
+        if altered_rest is not False and index == altered_index:
             # Unused known bone must still be checked. A number is the offset itself.
             source_point[1] += .1 if altered_rest is True else float(altered_rest)
         if degenerate:
@@ -130,11 +130,34 @@ def test_export_rounding_on_a_far_bone_still_reads_as_the_game_rig(rig_editor, t
     assert mesh.submeshes[0].vertices[0] == pytest.approx(expected, abs=.002)
 
 
-def test_a_one_percent_rest_offset_is_still_a_different_rig(rig_editor, tmp_path):
+def test_a_one_percent_offset_on_a_weighted_bone_is_still_a_different_rig(rig_editor, tmp_path):
     service, sid, _order, points, parents = rig_editor
-    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.01)
-    with pytest.raises(ValueError, match=r"matching bones are off; the worst, bone7, by [0-9.]+ \(0\.[0-9]+% of the rig size\)"):
+    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.01, altered_index=1)
+    with pytest.raises(ValueError, match=r"matching bones are off; the worst, bone[01], by [0-9.]+ \(0\.[0-9]+% of the rig size\)"):
         prepare_import(service.capture_export_snapshot(sid), path)
+
+
+def test_a_small_offset_on_a_bone_the_mesh_does_not_use_is_noted_not_refused(rig_editor, tmp_path):
+    # A tester's GLB carried a face rig a game update had moved: B_Tongue_01 0.16% off.
+    from cdmw.modding.mesh_glb_assets import skeleton_skin
+    from cdmw.services.mesh_replacement_skinning import _target_bind_frame
+    from cdmw.ui.new_item.model_import import load_model_import_source
+
+    service, sid, _order, points, parents = rig_editor
+    snapshot = service.capture_export_snapshot(sid)
+    path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.005)
+    prepare_import(snapshot, path)  # bone7 carries no weight in this mesh (joints 0 and 1 do)
+    source = load_model_import_source(path)
+    try:
+        skin = source.scene.mesh.submeshes[0].interchange_skin
+        used = {joint for row in source.scene.mesh.submeshes[0].bone_indices for joint in row}
+        notes = []
+        _target_bind_frame(skin, skeleton_skin(snapshot.mesh.interchange_skeleton), used, notes)
+        assert len(notes) == 1 and "worst bone7" in notes[0] and "move no vertex" in notes[0]
+        with pytest.raises(ValueError, match="Rest-joint positions"):
+            _target_bind_frame(skin, skeleton_skin(snapshot.mesh.interchange_skeleton))  # every bone counts
+    finally:
+        source.cleanup()
 
 
 def test_transfer_uses_a_foreign_rig_model_as_authored(rig_editor, tmp_path):
