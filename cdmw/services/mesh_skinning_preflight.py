@@ -5,11 +5,12 @@ import hashlib
 from dataclasses import replace
 from types import SimpleNamespace
 
-from cdmw.domain.mesh.skin_policy import SkinningChoice, SkinningPartReport, reduce_influences
+from cdmw.domain.mesh.skin_policy import SkinningChoice, SkinningPartReport
 from cdmw.modding.mesh_parser import parse_pac, _decode_pac_skin_influences, resolve_pac_bone_palette
 from cdmw.modding.mesh_skinning import pack_pac_skin_weights
 from cdmw.modding.mesh_totals import refresh_mesh_totals
-from cdmw.services.mesh_replacement_skinning import retain_imported_skinning, _target_bind_frame
+from cdmw.services.mesh_replacement_skinning import retain_imported_skinning
+from cdmw.services.mesh_skin_import_policy import bind_for_transfer, clear_authored_skin, reduce_part
 
 
 def has_authored_skin(mesh):
@@ -60,32 +61,12 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
             required = tuple(sorted({identities[joint] for row in part.bone_indices for joint in row}))
             report = replace(report, required_bones=required)
             if choice.policy == "reduce":
-                rows = [reduce_influences(a, b, choice.capacity, identities)
-                        for a, b in zip(part.bone_indices, part.bone_weights, strict=True)]
-                part.bone_indices = [row[0] for row in rows]
-                part.bone_weights = [row[1] for row in rows]
-                report = replace(report, reduced_vertices=sum(row[2] > 0 for row in rows),
-                                 maximum_removed_mass=max((row[2] for row in rows), default=0.),
-                                 over_one_percent=sum(row[2] > .01 for row in rows),
-                                 over_five_percent=sum(row[2] > .05 for row in rows),
-                                 removed_bones=tuple(sorted({name for row in rows for name in row[3]})),
-                                 maximum_normalization_change=max((row[4] for row in rows), default=0.))
-                report = replace(report, required_bones=tuple(sorted({identities[joint]
-                    for row in part.bone_indices for joint in row})))
+                part, loss = reduce_part(part, choice.capacity, identities)
+                report = replace(report, **loss)
             if transfer:
-                from cdmw.modding.mesh_glb_assets import skeleton_skin
-                from cdmw.modding.scene_geometry_utils import _copy_submesh_with_transform
-                try:
-                    frame = _target_bind_frame(skin, skeleton_skin(skeleton),
-                                               {joint for row in part.bone_indices for joint in row})
-                except ValueError as exc:
-                    # Transfer replaces the authored weights, so a foreign rig only loses
-                    # its placement proof: keep the geometry as authored, like an unrigged model.
-                    report = replace(report, transfer_details=report.transfer_details + (
-                        f"The imported rig does not match the game skeleton ({exc}); "
-                        "the model is used as authored, so check its placement.",))
-                else:
-                    part = _copy_submesh_with_transform(part, frame)
+                part, note = bind_for_transfer(part, skeleton)
+                if note:
+                    report = replace(report, transfer_details=report.transfer_details + (note,))
             else:
                 names = {skeleton.bones[bone].name for bone in palette}
                 missing = sorted(set(report.required_bones) - names)
@@ -107,9 +88,7 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
                     quantization = max(quantization, *(abs(encoded[joint] - weight) for joint, weight in zip(joints, weights)))
                 report = replace(report, maximum_quantization_change=quantization)
         if transfer:
-            part = copy.copy(part)
-            part.bone_indices, part.bone_weights, part.interchange_skin = [], [], {}
-            part.source_vertex_map, part.source_vertex_map_authority = [], "topology"
+            part = clear_authored_skin(part)
             if authored or has_authored_skin(mesh) or index in decisions or choice.donor_parts or choice.policy == "body_transfer":
                 # Transfer on the selected surface before any material merge.
                 from cdmw.modding.mesh_skinning import ensure_final_target_skin_weights
@@ -231,19 +210,32 @@ def template_skeleton(snapshot, target_path, skeleton_edit=None, *, skeleton_edi
 
 def export_template_rig_glb(snapshot, target_path, output_dir, *, skeleton_edit=None, skeleton_edits=(), stop_event=None):
     """Write the template mesh skinned to its rig as GLB, added bones included, for weighting elsewhere."""
-    from pathlib import Path, PurePosixPath
     from cdmw.domain.cancellation import raise_if_cancelled
-    from cdmw.modding.mesh_glb_interchange import export_glb
 
     raise_if_cancelled(stop_event)
     skeleton, _data, _path, skeleton_edit = template_skeleton(snapshot, target_path, skeleton_edit,
                                                                skeleton_edits=skeleton_edits)
-    original = snapshot.payload(target_path)
-    mesh = parse_pac(original, target_path)
-    palette = resolve_pac_bone_palette(original, skeleton)
-    mesh.interchange_skeleton = skeleton
     raise_if_cancelled(stop_event)
-    name = PurePosixPath(str(target_path).replace("\\", "/")).stem + ("_edited_rig" if skeleton_edit is not None else "_rig")
+    return export_rig_glb(snapshot.payload(target_path), target_path, skeleton, output_dir,
+                          suffix="_edited_rig" if skeleton_edit is not None else "_rig")
+
+
+def export_rig_glb(pac_data, pac_path, skeleton, output_dir, *, suffix="_rig"):
+    """Write a PAC skinned to its PAB as GLB, every bone included, for weighting a new model.
+
+    The file is named after the PAC with ``suffix``. Returns the written paths.
+    """
+    from pathlib import Path, PurePosixPath
+    from cdmw.modding.mesh_glb_interchange import export_glb
+
+    if not tuple(getattr(skeleton, "bones", ()) or ()):
+        raise ValueError("No game skeleton is attached to this model, so there is no rig to export.")
+    mesh = parse_pac(pac_data, pac_path)
+    palette = resolve_pac_bone_palette(pac_data, skeleton)
+    if not palette:
+        raise ValueError("The attached skeleton does not resolve this model's bone palette, so its rig cannot be exported.")
+    mesh.interchange_skeleton = skeleton
+    name = PurePosixPath(str(pac_path).replace("\\", "/")).stem + suffix
     paths = export_glb(mesh, output_dir, name, skeleton=skeleton, bone_palette=palette)
     # This is a rig to weight a new model against, not a round-trip package. Its
     # sidecar would make a model saved back over the same name import as one.

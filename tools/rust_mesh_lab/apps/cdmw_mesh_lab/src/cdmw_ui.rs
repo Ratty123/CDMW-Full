@@ -667,7 +667,7 @@ const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
 const CDMW_REVEAL_OUTPUT: &str = "cdmw_reveal_output_section";
-const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 18] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
     (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
@@ -688,14 +688,16 @@ const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 17] = [
     (CdmwRailPage::Uv, "UV", None),
     (CdmwRailPage::Cloth, "Cloth", None),
     (CdmwRailPage::Jiggle, "Jiggle", None),
+    (CdmwRailPage::RigWeights, "Rig & Weights", None),
     (CdmwRailPage::MorphRefit, "Morph & Refit", None),
 ];
-// The first tool of each rail group: Selection, Transform, Sculpt, Mesh Data, Morph & Refit.
-const CDMW_RAIL_GROUP_STARTS: [CdmwRailPage; 5] = [
+// The first tool of each rail group: Selection, Transform, Sculpt, Mesh Data, Rig, Morph & Refit.
+const CDMW_RAIL_GROUP_STARTS: [CdmwRailPage; 6] = [
     CdmwRailPage::Select,
     CdmwRailPage::Move,
     CdmwRailPage::Grab,
     CdmwRailPage::VertexParameters,
+    CdmwRailPage::RigWeights,
     CdmwRailPage::MorphRefit,
 ];
 
@@ -2527,6 +2529,15 @@ impl LabApplication {
                             authoring,
                             &policy_reason,
                         );
+                        self.draw_cdmw_tool_group(
+                            ui,
+                            actions,
+                            "Rig",
+                            &CDMW_RAIL_TOOLS[16..17],
+                            busy,
+                            authoring,
+                            &policy_reason,
+                        );
                         ui.add_space(3.0);
                         let active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
                         let morph = ui
@@ -2805,6 +2816,55 @@ impl LabApplication {
         if ui.button(crate::localization::tr("Keyboard Shortcuts...")).clicked() {
             self.shortcut_editor.open = true;
         }
+    }
+
+    /// The mapping step's Weights choice for a rigged import. Returns None when the
+    /// import has no weights, otherwise the chosen policy ("" until one is chosen).
+    fn draw_cdmw_replacement_weights(ui: &mut egui::Ui, token: &str, weights: &Value) -> Option<String> {
+        if !weights["rigged"].as_bool().unwrap_or(false) {
+            return None;
+        }
+        let options = weights["options"].as_array().cloned().unwrap_or_default();
+        let enabled = |policy: &str| {
+            options.iter().any(|option| option["policy"] == policy && option["enabled"].as_bool().unwrap_or(false))
+        };
+        let id = egui::Id::new(("replacement_weights", token));
+        let mut policy = ui.ctx().data_mut(|data| data.get_temp::<String>(id))
+            .unwrap_or_else(|| weights["default"].as_str().unwrap_or("").to_owned());
+        if !policy.is_empty() && !enabled(&policy) {
+            policy.clear();
+        }
+        ui.strong(crate::localization::tr("Weights"));
+        ui.horizontal_wrapped(|ui| {
+            for (value, title, help) in [
+                ("preserve", "Keep Imported Weights", "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are."),
+                ("reduce", "Reduce to Six Influences", "Keep each vertex's six strongest bones and rebalance them. A game vertex holds six."),
+                ("transfer", "Transfer from Original", "Replace the model's weights with the original model's weights at the nearest surface. Works with any rig, or none."),
+            ] {
+                let available = enabled(value);
+                let radio = ui.add_enabled(available, egui::RadioButton::new(policy == value, crate::localization::tr(title)));
+                if radio.clicked() {
+                    policy = value.to_owned();
+                }
+                let reason = options.iter().find(|option| option["policy"] == value)
+                    .and_then(|option| option["reason"].as_str()).unwrap_or("");
+                if available {
+                    radio.on_hover_text(crate::localization::tr(help));
+                } else if !reason.is_empty() {
+                    radio.on_disabled_hover_text(crate::localization::tr(reason));
+                }
+            }
+        });
+        ui.ctx().data_mut(|data| data.insert_temp(id, policy.clone()));
+        if let Some(summary) = weights["summary"].as_str().filter(|summary| !summary.is_empty()) {
+            ui.small(crate::localization::tr(summary));
+        }
+        if policy.is_empty() {
+            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("Choose how to handle this model's weights before applying."));
+        } else if policy == "transfer" {
+            ui.small(crate::localization::tr("Transferred weights follow the nearest original surface, so rigid pieces such as horns may bend with what they touch. Check and fix them in Rig & Weights after applying."));
+        }
+        Some(policy)
     }
 
     fn draw_cdmw_output_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -4474,6 +4534,17 @@ impl LabApplication {
                         }
                     });
                 });
+                let rig_export = &replacement["rig_export"];
+                let rig_ready = rig_export["available"].as_bool().unwrap_or(false);
+                let rig_button = ui.add_enabled(rig_ready, Button::new(crate::localization::tr("Export Rig GLB…")));
+                if rig_button.clicked() {
+                    actions.push(UiAction::ChooseCdmwRigExport);
+                }
+                if rig_ready {
+                    rig_button.on_hover_text(crate::localization::tr("Save this model with its game skeleton as GLB. Weight your new model to that skeleton in Blender, keep the bones where they are, then choose Import Replacement… and Keep Imported Weights."));
+                } else if let Some(reason) = rig_export["reason"].as_str().filter(|reason| !reason.is_empty()) {
+                    rig_button.on_disabled_hover_text(crate::localization::tr(reason));
+                }
                 if replacement["has_import"].as_bool().unwrap_or(false) && comparison == "edit" {
                     for (command, title) in [("replacement_fit", "Fit to Original"), ("replacement_reset", "Reset Placement")] {
                         if ui.button(crate::localization::tr(title)).clicked() {
@@ -4499,6 +4570,15 @@ impl LabApplication {
                             });
                         }
                     }
+                });
+            }
+            let weight_notes = replacement["weight_notes"].as_array().cloned().unwrap_or_default();
+            if !weight_notes.is_empty() && replacement.get("pending").is_none() {
+                crate::localization::collapsing("Weights from the last import").id_salt("replacement_weight_notes").show(ui, |ui| {
+                    for note in weight_notes.iter().filter_map(Value::as_str) {
+                        ui.small(crate::localization::tr(note));
+                    }
+                    ui.small(crate::localization::tr("Check rigid pieces such as horns, armour plates and weapons in Rig & Weights."));
                 });
             }
             if let Some(pending) = replacement.get("pending") {
@@ -4587,10 +4667,17 @@ impl LabApplication {
                     } else if !imported && pending.get("materials").is_some() {
                         ui.small(crate::localization::tr("Keep Original Materials draws the game's textures on this model's UVs. They only line up if its UVs match the original layout."));
                     }
+                    let weights = Self::draw_cdmw_replacement_weights(ui, token, &pending["weights"]);
                     ui.horizontal_wrapped(|ui| {
-                        if ui.add_enabled(choices.iter().all(|value| !value.is_empty()), Button::new(crate::localization::tr("Apply Replacement"))).clicked() {
+                        let ready = choices.iter().all(|value| !value.is_empty())
+                            && weights.as_ref().is_none_or(|policy| !policy.is_empty());
+                        if ui.add_enabled(ready, Button::new(crate::localization::tr("Apply Replacement"))).clicked() {
+                            let mut arguments = json!({"token": token, "targets": choices, "materials": if imported { "imported" } else { "original" }});
+                            if let Some(policy) = &weights {
+                                arguments["weights"] = json!(policy);
+                            }
                             actions.push(UiAction::CdmwCommand {
-                                command: "replacement_apply", arguments: json!({"token": token, "targets": choices, "materials": if imported { "imported" } else { "original" }}), label: "Apply replacement",
+                                command: "replacement_apply", arguments, label: "Apply replacement",
                             });
                         }
                         if ui.button(crate::localization::tr("Cancel Import")).clicked() {

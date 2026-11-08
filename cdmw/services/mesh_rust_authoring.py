@@ -49,11 +49,13 @@ from cdmw.domain.mesh.authoring_capability import (
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_pac_skin_contract import (
+    replacement_skin_part_safe,
     pac_skin_part_layout_matches,
     pac_skin_row_capacity,
     pac_skin_rows_safe,
 )
 from cdmw.modding.mesh_parser import (
+    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_WEIGHT_LAYOUT,
     ParsedMesh,
     resolve_pac_bone_palette,
@@ -6630,6 +6632,9 @@ class _RustSkinWeightCapability:
     eligible_submesh_indices: tuple[int, ...] = ()
     palette: tuple[int, ...] = ()
     skeleton_bone_to_palette_slot: Mapping[int, int] = field(default_factory=dict)
+    # Eligible imported replacement parts. Their rows have no original records,
+    # so only Rig & Weights edits them; Vertex Parameters keeps exact parts.
+    replacement_submesh_indices: tuple[int, ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -6691,7 +6696,11 @@ def _rust_skin_weight_capability(
             bone_index = bone_ordinal
         bone_to_slot.setdefault(bone_index, slot)
 
-    if str(getattr(session, "output_policy", "") or "") != MeshOutputPolicy.EXACT_GAME_ASSET.value:
+    imported = _replacement_imported_part_indices(session)
+    if (
+        str(getattr(session, "output_policy", "") or "") != MeshOutputPolicy.EXACT_GAME_ASSET.value
+        and imported is None
+    ):
         return _RustSkinWeightCapability(
             False,
             "Skin-weight editing requires Exact Game Asset output; Free Edit OBJ cannot preserve rig weights.",
@@ -6712,15 +6721,22 @@ def _rust_skin_weight_capability(
     working_submeshes = tuple(getattr(working_mesh, "submeshes", ()) or ())
     if len(base_submeshes) != len(working_submeshes):
         return _RustSkinWeightCapability(False, "Skin-weight editing requires unchanged PAC part topology.")
-    eligible = tuple(
+    imported = imported or frozenset()
+    replaced = tuple(
+        index
+        for index in sorted(imported)
+        if index < len(base_submeshes)
+        and replacement_skin_part_safe(base_submeshes[index], working_submeshes[index], len(palette))
+    )
+    eligible = tuple(sorted(replaced + tuple(
         index
         for index, (original, current) in enumerate(zip(base_submeshes, working_submeshes))
-        if _safe_pac_skin_weight_submesh(
+        if index not in imported and _safe_pac_skin_weight_submesh(
             original, current, original_data, len(palette),
             source_rows_cache=cache.source_rows if cache is not None else None,
             source_key=source_key,
         )
-    )
+    )))
     if not eligible:
         return _RustSkinWeightCapability(
             False,
@@ -6734,7 +6750,23 @@ def _rust_skin_weight_capability(
         eligible_submesh_indices=eligible,
         palette=palette,
         skeleton_bone_to_palette_slot=bone_to_slot,
+        replacement_submesh_indices=replaced,
     )
+
+
+def _replacement_imported_part_indices(session: object) -> frozenset[int] | None:
+    """Working-mesh indices of imported replacement parts, or None outside a replacement."""
+    from cdmw.domain.mesh.replacement import REPLACEMENT_POLICY, bound_part_indices
+
+    state = getattr(session, "replacement_state", None)
+    if state is None or str(getattr(session, "output_policy", "") or "") != REPLACEMENT_POLICY:
+        return None
+    try:
+        indices = bound_part_indices(getattr(session, "working_mesh", None), state)
+    except (TypeError, ValueError, KeyError):
+        return frozenset()
+    return frozenset(indices[part.part_id] for part in state.parts
+                     if part.included and part.import_positions and part.part_id in indices)
 
 
 def _safe_pac_skin_weight_submesh(
@@ -7592,6 +7624,8 @@ class RustMeshAuthoringSession:
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
     replacement_comparison: str = "edit"
+    # What the last applied import did with its weights, shown under the parts.
+    replacement_weight_notes: tuple[str, ...] = ()
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()
@@ -8220,6 +8254,15 @@ class RustMeshAuthoringSession:
                                 "Skin-weight edit would leave a vertex without any bones, "
                                 "outside the exact PAC contract. Keep at least one influence."
                             )
+                        if submesh_index in capability.replacement_submesh_indices:
+                            # An imported part's records are new six-lane records.
+                            if (len(positive) == PAC_SKIN_PALETTE_SLOTS
+                                    and palette_slot not in positive and 0.0 < delta < 1.0):
+                                raise RustMeshValidationError(
+                                    "A game vertex holds six bones. "
+                                    "Remove an existing influence before adding another."
+                                )
+                            continue
                         capacity = _pac_skin_row_capacity(
                             session.original_data,
                             submesh.source_vertex_offsets[vertex_index],
@@ -8288,18 +8331,25 @@ class RustMeshAuthoringSession:
                 )
             )
             if changed_submeshes:
+                base_parts = (
+                    getattr(session, "source_coordinate_base_mesh", None) or session.base_mesh
+                ).submeshes
                 invalid = tuple(
                     submesh_index
                     for submesh_index in changed_submeshes
-                    if not _safe_pac_skin_rows(
-                        session.working_mesh.submeshes[submesh_index],
-                        len(
-                            session.working_mesh.submeshes[
-                                submesh_index
-                            ].vertices
-                        ),
-                        len(capability.palette),
-                        session.original_data,
+                    if not (
+                        replacement_skin_part_safe(
+                            base_parts[submesh_index],
+                            session.working_mesh.submeshes[submesh_index],
+                            len(capability.palette),
+                        )
+                        if submesh_index in capability.replacement_submesh_indices
+                        else _safe_pac_skin_rows(
+                            session.working_mesh.submeshes[submesh_index],
+                            len(session.working_mesh.submeshes[submesh_index].vertices),
+                            len(capability.palette),
+                            session.original_data,
+                        )
                     )
                 )
                 if invalid:
@@ -8312,6 +8362,10 @@ class RustMeshAuthoringSession:
 
                 operations = list(tuple(session.edit_operations))
                 for submesh_index in changed_submeshes:
+                    if submesh_index in capability.replacement_submesh_indices:
+                        # The replacement writer encodes an imported part's
+                        # current rows; there are no original records to prove.
+                        continue
                     submesh = session.working_mesh.submeshes[submesh_index]
                     before_indices, before_weights = before_rows[submesh_index]
                     changed_rows = [index for index in range(len(submesh.vertices))

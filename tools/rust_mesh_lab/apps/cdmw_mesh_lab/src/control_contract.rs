@@ -304,7 +304,6 @@ fn product_compiled_anchor_rows() -> Result<Vec<Value>> {
                 "invalid Rust product control row"
             );
             let verified = CDMW_UI_SOURCE.contains(ui_anchor) && MAIN_SOURCE.contains(main_anchor);
-            let hidden = key == "page.rig_weights" || key.starts_with("rig.");
             Ok(json!({
                 "key": key,
                 "surface": surface,
@@ -312,14 +311,14 @@ fn product_compiled_anchor_rows() -> Result<Vec<Value>> {
                 "route": format!("compiled_anchor:{main_anchor}"),
                 "disposition": "executable",
                 "availability": "session",
-                "reason": if hidden { "Rig & Weights is temporarily hidden" } else { "" },
+                "reason": "",
                 "evidence_category": "compiled_rust_control_contract",
                 "host_owned": false,
                 "control_type": "RustIntegratedControl",
                 "control_name": key,
                 "control_text": "",
-                "currently_visible": !hidden,
-                "currently_enabled": !hidden,
+                "currently_visible": true,
+                "currently_enabled": true,
                 "rust_control_id": format!("rust.integrated.anchor.{key}"),
                 "rust_route": format!("compiled_anchor:{main_anchor}"),
                 "rust_route_kind": "compiled_anchor",
@@ -804,6 +803,8 @@ topology.weld_distance|topology|cdmw_weld_distance|cdmw_weld_distance
 output.host_handoff|import_output_export|"Finish Edit Mesh"|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand
+replacement.weights|import_output_export|"Transfer from Original"|UiAction::CdmwCommand
+replacement.export_rig|import_output_export|ChooseCdmwRigExport|choose_cdmw_rig_export
 replacement.inclusion|parts|"replacement_include"|UiAction::CdmwCommand
 islands.selection|parts|"Mesh islands"|UiAction::SelectIsland
 islands.visibility|parts|"View"|UiAction::SetIslandVisibility

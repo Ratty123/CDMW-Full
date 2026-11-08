@@ -81,6 +81,20 @@ class PendingMeshReplacement:
     source_files: tuple[tuple[str, str], ...] = ()
     material_source_files: tuple[tuple[str, str], ...] = ()
     material_error: str = ""
+    # What each weights choice would do. ``source.mesh`` is the model with
+    # ``skin_policy`` applied; ``raw_mesh`` keeps the authored rows so Apply can
+    # use another choice.
+    skin: object = None
+    skin_snapshot: object = None
+    raw_mesh: object = None
+    skin_policy: str = ""
+    skin_notes: tuple[str, ...] = ()
+    # The file the user chose when ``source_path`` is its converted GLB (FBX).
+    source_label: str = ""
+
+    @property
+    def label(self):
+        return self.source_label or Path(self.source_path).name
 
 
 def _import_source_files(path, *, include_materials=True):
@@ -144,14 +158,26 @@ def verify_import_sources(pending, *, include_materials=False):
 
 
 def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependencies=(), stop_event=None,
-                   palette_extension_bones=()):
-    """Run on the managed protocol worker. The existing session is untouched."""
+                   palette_extension_bones=(), blender=None, work_dir=None):
+    """Run on the managed protocol worker. The existing session is untouched.
+
+    An FBX is converted to GLB through ``blender`` into ``work_dir`` first.
+    """
     from cdmw.modding.scene_importer import import_scene_mesh_with_report
     raise_if_cancelled(stop_event, "Replacement import cancelled.")
     source_path = Path(path).expanduser().resolve(strict=True)
-    if source_path.suffix.lower() not in {".obj", ".dae", ".gltf", ".glb"}:
-        raise ValueError("Choose an OBJ, DAE, glTF or GLB replacement.")
+    if source_path.suffix.lower() not in {".obj", ".dae", ".gltf", ".glb", ".fbx"}:
+        raise ValueError("Choose an OBJ, DAE, glTF, GLB or FBX replacement.")
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
+    chosen_file = None
+    if source_path.suffix.lower() == ".fbx":
+        from cdmw.services.fbx_blender_conversion import convert_fbx_for_import
+        if work_dir is None:
+            raise ValueError("FBX import needs a working folder for its converted copy.")
+        chosen_file = source_path
+        fbx_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        source_path = Path(convert_fbx_for_import(source_path, Path(work_dir), blender,
+                                                  stop_event=stop_event)).resolve(strict=True)
     if palette_extension_bones:
         from cdmw.modding.pac_palette_extension import extend_pac_palette
         if state.palette_extension is not None or state.neutral_coordinates:
@@ -165,6 +191,9 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
     captured = {str(file): hashlib.sha256(file.read_bytes()).hexdigest()
                 for file in _import_source_files(source_path, include_materials=False)}
     digest = captured[str(source_path)]
+    if chosen_file is not None:
+        # The user's FBX is the source; its GLB is CDMW's own working copy.
+        captured[str(chosen_file)] = digest = fbx_digest
     material_files, material_error = {}, ""
     try:
         material_files = {str(file): hashlib.sha256(file.read_bytes()).hexdigest()
@@ -185,10 +214,18 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
                             for index, rows in part.uv_sets.items()}
     if not source.mesh.submeshes or not source.mesh.total_faces:
         raise ValueError("The imported model has no editable triangle geometry.")
-    from cdmw.services.mesh_replacement_skinning import retain_imported_skinning
     from cdmw.services.mesh_replacement_output import replacement_target_data
+    from cdmw.services.mesh_skin_import_policy import apply_skin_policy, assess_imported_skin
     skin_snapshot = replace(snapshot, original_data=replacement_target_data(snapshot, state))
-    source.mesh = retain_imported_skinning(source.mesh, skin_snapshot, state)
+    # A rig that cannot be kept is no longer refused here: the mapping step
+    # says why, and Apply can reduce or transfer instead.
+    skin = assess_imported_skin(source.mesh, skin_snapshot, state)
+    raw_mesh = source.mesh
+    # Show and map the model as the likely choice leaves it: kept weights in
+    # game bind space, or (when they cannot be kept) the transfer geometry.
+    skin_policy, skin_notes = skin.default_policy or "transfer", ()
+    if skin.rigged:
+        source.mesh, skin_notes = apply_skin_policy(raw_mesh, skin_snapshot, state, skin_policy)
     if not material_error:
         try:
             for binding in source.material_bindings:
@@ -211,20 +248,54 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
                 suggested[index] = chosen[mapping.target_submesh_index]
     raise_if_cancelled(stop_event, "Replacement import cancelled.")
     pending = PendingMeshReplacement(snapshot, state, source, str(source_path), digest, chosen, tuple(suggested), uuid4().hex,
-                                    tuple(captured.items()), tuple(material_files.items()), material_error)
+                                    tuple(captured.items()), tuple(material_files.items()), material_error,
+                                    skin=skin, skin_snapshot=skin_snapshot, raw_mesh=raw_mesh,
+                                    skin_policy=skin_policy if skin.rigged else "", skin_notes=skin_notes,
+                                    source_label=chosen_file.name if chosen_file is not None else "")
     verify_import_sources(pending)
     return pending
 
 
-def compose_import(pending, source_targets, *, material_choice="original", companion_files=None):
-    """Compose a full editable candidate without collapsing any excluded part."""
+def pending_skin_source(pending, skin_policy=None):
+    """The imported model with the chosen weights policy applied, and its notes.
+
+    ``None`` takes the assessment's default: Keep when the rig matches. A choice
+    the assessment ruled out is refused with its reason.
+    """
+    skin = pending.skin
+    if skin is None or not skin.rigged:
+        return pending.source.mesh, ()
+    policy = skin_policy or skin.default_policy
+    if not policy:
+        raise ValueError(f"Choose how to handle the imported weights. {skin.summary}")
+    option = skin.option(policy)
+    if not option.available:
+        raise ValueError(option.reason)
+    if policy == pending.skin_policy:
+        # Prepared with this choice already; reuse the shown geometry exactly.
+        return pending.source.mesh, pending.skin_notes
+    from cdmw.services.mesh_skin_import_policy import apply_skin_policy
+    return apply_skin_policy(pending.raw_mesh, pending.skin_snapshot, pending.state, policy)
+
+
+def compose_import(pending, source_targets, *, material_choice="original", companion_files=None,
+                   skin_policy=None, skin_notes=None):
+    """Compose a full editable candidate without collapsing any excluded part.
+
+    ``skin_policy`` is ``preserve``, ``reduce`` or ``transfer`` for a rigged
+    import (``None`` keeps a matching rig). What it did, and every weight
+    transfer, is appended to the ``skin_notes`` list when one is given.
+    """
     if material_choice not in {"original", "imported"}:
         raise ValueError("Choose original or imported materials.")
     verify_import_sources(pending, include_materials=material_choice == "imported")
     if material_choice == "imported" and companion_files is None:
         raise ValueError("Imported materials require a complete prepared material and texture bundle.")
+    source_mesh, notes = pending_skin_source(pending, skin_policy)
+    if skin_notes is not None:
+        skin_notes.extend(notes)
     targets = tuple(str(value) for value in source_targets)
-    if len(targets) != len(pending.source.mesh.submeshes) or any(key not in pending.target_part_ids for key in targets):
+    if len(targets) != len(source_mesh.submeshes) or any(key not in pending.target_part_ids for key in targets):
         raise ValueError("Choose a target part for every imported part before applying replacement.")
     candidate = mesh_with_part_ids(pending.snapshot, pending.state)
     indices = bound_part_indices(candidate, pending.state)
@@ -235,22 +306,22 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
     # Mixing an authored skin with an unweighted source would make the generic
     # merge drop its rows and transfer donor weights for the whole target.
     for mapping in mappings:
-        sources = [pending.source.mesh.submeshes[i] for i in mapping.source_submesh_indices]
+        sources = [source_mesh.submeshes[i] for i in mapping.source_submesh_indices]
         if any(part.bone_weights for part in sources):
             from cdmw.modding.mesh_parser import PAC_SKIN_WEIGHT_LAYOUT
             if candidate.submeshes[mapping.target_submesh_index].source_skin_weight_layout != PAC_SKIN_WEIGHT_LAYOUT:
                 raise ValueError("The selected target cannot encode imported skin weights in a proven PAC layout.")
             if any(not part.bone_weights for part in sources):
                 raise ValueError("Map skinned and unskinned imported parts to separate game parts to preserve authored skin weights.")
-    preview = build_static_replacement_preview_mesh(candidate, pending.source.mesh, manual_replacement_options(mappings))
-    skin_reference = None
-    if pending.state.neutral_appearance is not None:
-        # Every import uses the retained PAC donor. A previous replacement has
-        # authored weights but no original vertex-record layout, and using its
-        # surface would also make later transfers depend on import order.
-        skin_reference = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
-        if pending.state.neutral_coordinates:
-            skin_reference = pending.state.neutral_appearance.to_neutral(skin_reference)
+    preview = build_static_replacement_preview_mesh(candidate, source_mesh, manual_replacement_options(mappings))
+    # Every import transfers from the retained PAC donor. A previous replacement
+    # has authored weights but no original vertex-record layout, and using its
+    # surface would also make later transfers depend on import order. Weights
+    # are transferred here rather than by the writer, so the editor holds them
+    # and Rig & Weights can show and change them after Apply.
+    skin_reference = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    if pending.state.neutral_coordinates:
+        skin_reference = pending.state.neutral_appearance.to_neutral(skin_reference)
     parts = []
     for binding in pending.state.parts:
         if binding.part_id not in pending.target_part_ids:
@@ -269,18 +340,22 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         # presentation comes from the prepared sidecar/DDS bundle, not source paths.
         imported.name, imported.material, imported.texture = donor.name, donor.material, donor.texture
         copy_extra_submesh_attrs(donor, imported)
-        if skin_reference is not None:
+        from cdmw.modding.mesh_skinning import (
+            ensure_final_target_skin_weights, has_valid_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY,
+        )
+        if pending.state.neutral_appearance is not None:
             # Transfer on the displayed target surface before any inverse
             # transform. Never let the writer guess weights in source space.
-            from cdmw.modding.mesh_skinning import ensure_final_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY
             imported.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
-            ensure_final_target_skin_weights(imported, skin_reference.submeshes[binding.target_index],
-                                             target_index=binding.target_index, summary=None)
+        # Kept weights pass through unchanged; only a transfer is worth a note.
+        ensure_final_target_skin_weights(imported, skin_reference.submeshes[binding.target_index],
+                                         target_index=binding.target_index,
+                                         summary=None if has_valid_target_skin_weights(imported) else skin_notes)
         setattr(imported, PART_ID_ATTRIBUTE, binding.part_id)
         candidate.submeshes[index] = imported
         parts.append(replace(binding, included=True, material_choice=material_choice,
             excluded_island_faces=(),
-            source_label=Path(pending.source_path).name,
+            source_label=pending.label,
             source_part_ids=tuple(f"{pending.source_sha256}:{i}" for i in source_indices),
             import_positions=tuple(tuple(float(v) for v in position) for position in imported.vertices),
             import_normals=tuple(tuple(float(v) for v in normal) for normal in imported.normals)))

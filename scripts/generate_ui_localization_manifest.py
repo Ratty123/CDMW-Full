@@ -465,6 +465,8 @@ _PYTHON_SINKS = {
     "ArchiveModelTextureReference",
     "ArchivePreviewResult",
     "CompatibilityFinding",
+    "SkinPolicyOption",
+    "SkinImportAssessment",
     "VirtualSessionStatus",
     "AssetAuthoringHelperSpec",
     "CompactToolSpec",
@@ -873,6 +875,16 @@ def _python_candidate_nodes(call: ast.Call, sink: str) -> Iterable[ast.AST]:
     if sink == "CompatibilityFinding":
         # Mod labels and virtual paths are user data, not translation keys.
         yield from _python_wrapper_candidates(call, (0, 3), (("status", "mods", "path", "detail"),))
+        return
+    if sink == "SkinPolicyOption":
+        # The policy is a machine value; the reason is shown on the choice.
+        yield from _python_wrapper_candidates(call, (2,), (("policy", "available", "reason"),))
+        return
+    if sink == "SkinImportAssessment":
+        # Part names are user data; the summary is shown under the choices.
+        yield from _python_wrapper_candidates(
+            call, (3,), (("rigged_parts", "options", "over_capacity", "summary", "static_target"),)
+        )
         return
     if sink == "CompactToolSpec":
         # The remaining fields are stable tool/icon identifiers, not UI text.
@@ -1982,7 +1994,8 @@ def _native_ui_keys(manifest: dict[str, object]) -> list[str]:
                 "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
                 "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
                 "cdmw/services/mesh_morph_profiles", "cdmw/services/mesh_service_body_controls",
-                "cdmw/services/mesh_hair_color",
+                "cdmw/services/mesh_hair_color", "cdmw/services/mesh_skin_import_policy",
+                "cdmw/services/mesh_replacement_skinning",
             ))
             for origin in entry["origins"]
         )

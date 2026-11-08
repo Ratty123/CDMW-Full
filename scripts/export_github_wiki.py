@@ -137,11 +137,15 @@ _CONTROLS = (
     "Save Mod Folder...", "Action Charts", "Open Action Chart Mod...", "Use Clip Length", "Show in Archive Browser",
     "Other Charts Playing This Clip...", "Change in Ticked Charts",
     "Refresh Research", "Extract Selected Set", "Find References", "Scan UI Rect References", "Save Note",
+    "Import Replacement", "Apply Replacement", "Keep Imported Weights", "Reduce to Six Influences",
+    "Transfer from Original", "Export Rig GLB...", "Export Rig GLB…", "Rig & Weights", "Weights from the last import",
+    "Normalize Weights", "Weight colours", "Active bone", "Search bones", "Frame bone", "Frame influence",
+    "Weight step", "Weight +", "Weight -",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
     r"^(?:" + "|".join(re.escape(name) for name in sorted(_CONTROLS, key=len, reverse=True))
-    + r") (?:is|are|appears|stays)\b"
+    + r") (?:is|are|appears|stays|reads)\b"
 )
 _INLINE_MARKUP = re.compile(r"(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*)")
 _ADVANCED_MESH_SECTIONS = frozenset({

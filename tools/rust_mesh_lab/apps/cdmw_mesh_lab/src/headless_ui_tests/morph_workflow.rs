@@ -18,11 +18,22 @@ impl HeadlessUi {
 
     pub(super) fn refit_scope(&mut self, all: bool) -> TestResult {
         self.reveal("Editing")?;
-        let current = self.output.shapes.iter().find_map(|shape| match &shape.shape {
+        let scope = |ui: &Self| ui.output.shapes.iter().find_map(|shape| match &shape.shape {
             egui::Shape::Text(text) if text.galley.job.text.starts_with("All bound garments ·")
                 || text.galley.job.text.starts_with("Selected garments ·") => Some(text.galley.job.text.clone()),
             _ => None,
-        }).ok_or("missing refit scope")?;
+        });
+        // The label can be revealed at the panel's bottom edge with its dropdown
+        // still clipped below it; scroll on until the dropdown is drawn.
+        let mut current = scope(self);
+        for _ in 0..8 {
+            if current.is_some() {
+                break;
+            }
+            self.scroll_tool_rail(-120.0);
+            current = scope(self);
+        }
+        let current = current.ok_or("missing refit scope")?;
         self.choose("Editing", &current, if all { "All bound garments" } else { "Selected garments" })
     }
 
