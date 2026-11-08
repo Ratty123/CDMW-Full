@@ -142,8 +142,9 @@ def test_export_rounding_on_a_far_bone_still_reads_as_the_game_rig(rig_editor, t
 def test_a_one_percent_offset_on_a_weighted_bone_is_still_a_different_rig(rig_editor, tmp_path):
     service, sid, _order, points, parents = rig_editor
     path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.01, altered_index=1)
+    pending = prepare_import(service.capture_export_snapshot(sid), path)
     with pytest.raises(ValueError, match=r"matching bones are off; the worst, bone[01], by [0-9.]+ \(0\.[0-9]+% of the rig size\)"):
-        prepare_import(service.capture_export_snapshot(sid), path)
+        compose_import(pending, (pending.target_part_ids[0],), skin_policy="preserve")
 
 
 def test_a_small_offset_on_a_bone_the_mesh_does_not_use_is_noted_not_refused(rig_editor, tmp_path):
@@ -155,7 +156,8 @@ def test_a_small_offset_on_a_bone_the_mesh_does_not_use_is_noted_not_refused(rig
     service, sid, _order, points, parents = rig_editor
     snapshot = service.capture_export_snapshot(sid)
     path, _transform = changed_basis_glb(tmp_path, points, parents, altered_rest=.005)
-    prepare_import(snapshot, path)  # bone7 carries no weight in this mesh (joints 0 and 1 do)
+    pending = prepare_import(snapshot, path)  # bone7 carries no weight in this mesh (joints 0 and 1 do)
+    compose_import(pending, (pending.target_part_ids[0],), skin_policy="preserve")
     source = load_model_import_source(path)
     try:
         skin = source.scene.mesh.submeshes[0].interchange_skin

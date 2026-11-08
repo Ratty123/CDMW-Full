@@ -800,7 +800,7 @@ rig.transfer_weights|rig_weights|"rig_transfer_weights"|UiAction::CdmwCommand
 topology.loop_cut_parameters|topology|cdmw_loop_cut_count|cdmw_loop_cut_count
 topology.refine_parameters|topology|cdmw_refine_strength|cdmw_refine_strength
 topology.weld_distance|topology|cdmw_weld_distance|cdmw_weld_distance
-output.host_handoff|import_output_export|"Finish Edit Mesh"|UiAction::FinishCdmw
+output.host_handoff|import_output_export|self.cdmw_finish_label()|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand
 replacement.weights|import_output_export|"Transfer from Original"|UiAction::CdmwCommand
