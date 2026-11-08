@@ -1005,7 +1005,12 @@ def _build_texture_payload(
         source_slot.normal_scale != 1.0 or source_slot.normal_space == "green_up"
     )
     source_alpha_mode = source_slot.alpha_mode.upper() if source_slot.slot_kind == "base" else ""
-    if source_is_dds and not (needs_source_color_bake or needs_normal_bake or source_alpha_mode):
+    # A DDS without its mip chain shimmers into noise wherever the game draws
+    # it smaller than full size. Exporters from other games often write one
+    # level only, so such a source is re-encoded with every level.
+    needs_mip_chain = source_info is not None and int(source_info.mip_count or 1) < max_mips_for_size(
+        int(source_info.width), int(source_info.height))
+    if source_is_dds and not (needs_source_color_bake or needs_normal_bake or source_alpha_mode or needs_mip_chain):
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
         original_info = parse_dds(original_texture_source_path(target_entry))
@@ -1023,7 +1028,13 @@ def _build_texture_payload(
                 f"DDS replacement {source_slot.source_path.name} differs from target template: {', '.join(mismatch_parts)}."
             )
         return source_slot.source_path.read_bytes()
-    if source_is_dds:
+    if source_is_dds and needs_mip_chain and not (needs_source_color_bake or needs_normal_bake or source_alpha_mode):
+        _warn_once(
+            report,
+            f"{source_slot.source_path.name}: re-encoding DDS source to add mip levels "
+            f"(it has {int(source_info.mip_count or 1)}).",
+        )
+    elif source_is_dds:
         adjustment = "color adjustment" if needs_source_color_bake else "material settings"
         _warn_once(
             report,

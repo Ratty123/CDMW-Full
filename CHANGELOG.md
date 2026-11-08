@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Mesh Editor's **Import Replacement…** with **Imported Materials & Textures** no longer keeps the original model's normal map when the imported model has none of its own. The normal map was made for the original UV layout, so its engravings showed through the imported texture, for example Kairos Plate Helm's patterns on a replacement helm. The part now gets a flat normal map; a model that brings its own normal map keeps using it. Not yet checked in game.
+- Imported DDS textures without a full set of mipmaps are now converted with every level instead of being copied as they are. Textures exported from other games often have only one level, and in game they shimmered into a noisy pattern wherever the item was drawn smaller than full size. Not yet checked in game.
 
 ## [0.12.0-alpha.3] - 2026-11-07
 
