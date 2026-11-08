@@ -1696,7 +1696,8 @@ runtime dump, archives read-only):
   same. The Alt dodge kept its speed in both tests although the chart's 197
   dodge animations all carry speed windows; Kliff's lower-body chart
   `basic_lower` has its own dodge and roll animations and is the likely source,
-  which is not tested. Event edits are not checked in game yet.
+  which is not tested. Socket-event `begin` edits were seen working in game on
+  2026-11-08 and 2026-11-09 ([Section 7.5](#75-weapon-carry-sockets-mirrored-carries-and-swap-timing)).
 - **Descriptor.** `.paacdesc` is fully decoded: each character package names its
   main chart and the charts for its weapon slots (Player_Kliff's Sword slot is
   `upperaction/1_pc/1_phm/sword_upper`). `.paatt` was not needed for the charts
@@ -1760,6 +1761,107 @@ edits instead of normalising the whole file through a conventional XML serialize
 Sources: [PAPR container][papr], [configuration block grammar][papr-block],
 [pose-modifier editor][posemodifier], [rig-behaviour workflow][rig-behaviour],
 [constraint tests][papr-tests].
+
+### 7.5 Weapon carry: sockets, mirrored carries and swap timing
+
+Reviewed 2026-11-08 and 2026-11-09 while building a modular carry mod (1H swords
+and axes on the back, the 2H sword on the hip, and a female-Kliff variant) for game
+2.04.08 (executable 1.0.0.3576), mounted with DMM 4.7.4 with and without Character
+Creator Enhanced 9.1.30. Archives were read only. The mod's build and measurement
+scripts are local research material, not published; the clip, chart and prefab
+work went through `tools/paa_motion/edit.py`, `cdmw/core/action_chart_binary.py`
+and `build_prefab_socket_name_patch`.
+
+- **The descriptor row picks the body socket.** A `PartInOutSocket` row's
+  `InSocketBone`/`InChildSocketBone` (stowed) and `OutSocketBone`/`OutChildSocketBone`
+  (held) decide where a part hangs. The prefab's `_attachedSocketName` does not:
+  Damiane's seven 2H prefabs name `Spine2_B_Socket`, which neither of her body
+  socket files defines, and a body socket that only the descriptor named
+  (`Pelvis_R_SubWeapon_Socket`, inserted by the mod) carried her 2H sword in game.
+  Renaming prefab sockets as well is harmless, but it is not what moves the weapon.
+- **Where a weapon sits.** In the row-vector form of Section 7.2, a stowed weapon's
+  origin is `inverse(child socket) * body socket * parent bone`, with the child from
+  the weapon's `.sockets.xml` and the body socket from the skeleton's
+  `.pab.sockets.xml`. Held, it is `inverse(Basic_ChildSocket) * RHand_Socket` (or
+  `LHand_Socket`) `* hand bone`. Child sockets live in each weapon's socket file, so
+  a child edit moves only the weapons that share that file. Measured on Kliff's 1H
+  axe (`cd_phm_01_axe_0001.pac`): the axe lies along -Z with the head at z -0.36 to
+  -0.54 and the blade along -X; children `1 0 0 0` (right) and `0 -1 0 0` (left)
+  at z -0.12 put both blades outward and flat, heads 25 cm apart.
+- **Female Kliff reads Damiane's files.** With Character Creator's gender switch,
+  Kliff uses `phw_description_player_001.xml` and the `phw_01` and `phw_damian_01`
+  `.pab.sockets.xml` files on Damiane's skeleton, so every carry edit needs a
+  Damiane-side copy. Her weapon-attach bones match Kliff's, except that
+  `Bip_Weapon_Attach_In_02` sits 4.6 cm nearer the spine. Which of the two body files
+  the game reads was not settled; both get the same edit. Her 2H prefabs 0001 to 0007
+  have phm twins of the same number (253 phw stems in `partprefabtable.pappt` do);
+  that the game picks the phw twin by name is inferred, not shown. Damiane has no
+  charts: Kliff's charts name `cd_phw_*` clips only for the 2H longsword and the tool
+  axe. Character Creator's copy of her descriptor is the only one with
+  `MainWeapon_Axe_*` rows.
+- **Handedness and mirrored carries.** Damiane's 2H row holds the sword in
+  `LHand_Socket`, so Kliff's right-handed draw from the left hip looks wrong on her.
+  What worked in game is Kliff's carry mirrored. The right-hip socket is solved so
+  the weapon's world transform becomes `S * W * S`, where S reflects the skeleton's
+  left-right axis (x), with the existing child socket and per body file. The draw
+  and sheathe clips are mirrored with `ClipEdit(mirror=True)` on Kliff's
+  `phm_01.pab`, the skeleton they were made for; the hands land within 0.4 mm of
+  the reflected original.
+- **Swap timing is a chart event in clip seconds.** The hand-off between carry
+  socket and hand is a `ModelAttachmentSocket` frame event (mode 0 stows, mode 1
+  draws) on the chart animation, not part of the clip. Its `begin` counts the clip's
+  own seconds, before speed windows. In the game's own 2H clips the event fires as
+  the hand reaches the weapon (hand bone to carry bone, a coarse measure):
+
+  | Vanilla clip | Hand at weapon | Event `begin` |
+  | --- | --- | --- |
+  | Her standing 2H sheathe | 0.60 s | 0.567 s |
+  | Her standing 2H draw | 0.73 s | 0.767 s |
+  | Her sitting 2H sheathe | 0.93 s | 0.933 s |
+  | Her riding 2H sheathe | 1.33 s | 1.400 s |
+  | His standing 2H sheathe | 1.13 s | 1.150 s |
+  | His standing 2H draw | 0.40 s | 0.550 s |
+  | His sitting 2H sheathe | 0.47 s | 0.467 s |
+  | His riding 2H sheathe | 1.33 s | 1.667 s |
+
+  Replacing a draw or sheathe clip without moving its event therefore pops the
+  weapon early or late. The earlier 1H and 2H carry packs did: their 1H standing sheathe
+  swapped at 0.50 s with the hand at the back at 1.10 s, and their 2H sitting
+  sheathe at 0.47 s against 1.30 s. Setting `begin` to the frame where the held and
+  stowed weapon origins meet fixed it. The female-Kliff events were seen right in
+  game on 2026-11-08; a set of 140 retimed events across seven of Kliff's charts
+  was reported working in game on 2026-11-09. The animation's end time bounds the
+  usable `begin`: an event that only fits after the entry ends needs a faster clip.
+  The same check exposed a clip that never reaches the weapon: those packs shipped
+  one left-hip draw under eight back-carry draw names (the hand stayed 0.51 m from
+  the stowed sword).
+- **Per animation, not per clip.** One clip can be played by several chart
+  animations with different events: Kliff's sitting 2H sheathe entry swaps at
+  0.467 s and the phw entry that later played the same clip at 0.933 s. Edits go to
+  frame-event instances, which belong to one animation even when the event payload
+  is shared. Some socket events name no part (part index 0xFFFF) and address an
+  equipment-type hash with slot 0 or 1 instead (dual-wield draws, the 1H riding
+  sheathe); what the slot means is not established, and those were retimed only
+  by their order.
+- **Shared charts.** One chart can hold several weapons' entries:
+  `basic_upper_weaponin.paac` has the 1H, axe and 2H sheathes of both genders. A
+  manager serves one copy of each chart, so timing for independently optional
+  parts cannot ship in separate packages; the mod ships one Timing package that
+  assumes all its carry parts. Character Creator ships its own
+  `twohandsword_upper.paac` (4 bytes differ from the game's; its grip fix), so a
+  timing copy has to start from that copy and load after it.
+
+What this suggests for Placement & Animations (not implemented):
+
+- resolve a stowed or held part as descriptor row, body socket and child socket,
+  and edit the descriptor when moving a weapon, not only the prefab;
+- under a draw or sheathe clip, plot the held-to-stowed gap with the chart's socket
+  events marked, and offer to move an event to the contact frame;
+- when a clip is replaced, list every chart animation that plays it with its socket
+  events, since timing belongs to each animation;
+- offer a mirrored carry (mirrored socket plus mirrored clips) for left-handed
+  characters;
+- warn when another installed mod ships the same chart.
 
 ## 8. Prefabs and reflection containers
 
@@ -2875,6 +2977,25 @@ fix. Preservation of item records and textures with the updated DMM remains an
 open in-game check. The earlier failure remains a workflow/version finding, not
 a claim that every DMM file replacement fails.
 
+DMM runtime XML patches, observed 2026-11-08 with DMM 4.7.4 (no documentation
+was found; every rule below comes from in-game mounts and DMM's mount log). DMM
+merges a full copy of a shared XML descriptor with other mods' copies by
+position. Character Creator Enhanced inserts three rows into Kliff's descriptor,
+so a full copy's edits landed on the wrong rows and the game crashed at load. A
+`<name>.xml.patch` file beside the target's path edits rows in place instead:
+
+- `<xml-patch>` holds `<set find="PartInOutSocket" match-PartName="..." attr="..." value="..."/>`,
+  `<unset ... attr="..."/>` and `<insert into="SocketList"><Socket .../></insert>`;
+- `find` takes a bare element name and searches the whole file; `[@...]` predicates
+  and `A/B` paths matched nothing;
+- each `match-<attr>` filter narrows the rows and several are ANDed; an op with an
+  attribute DMM does not know ignores it, so it hits every row the filters leave;
+- the mount log reports `[XML PATCH] <mod> :: <file>.patch: N applied, M failed`,
+  and an op whose rows are missing is shown as a mod "made for an older version"
+  (seen when a patch aimed at Character Creator's added rows ran without it);
+- identical files shipped by two enabled mods still raise `[RUNTIME_CONFLICT]`, and
+  the last-loaded mod wins.
+
 Reviewed on 2026-10-21 against `b0c6ad68248b` plus the scoped DMM export patch.
 [Owned-fixture interface checks](../tests/test_new_item_mod_name.py) confirm DMM
 selection, retained saved choices and complete archive-package export through the
@@ -3792,7 +3913,7 @@ This is a research register, not a promised delivery schedule.
 | Do generated hair and new cloth/collider profiles behave correctly in game? | Experimental authoring and bounded preview | Exact exported equipment, activation, movement/collision and reload comparisons |
 | What is the remaining EyeCover overlap mechanism? | Inspected scene-buffer composition and overlap-related user observation | Active-frame resource/permutation capture and a verified fix or bounded workaround |
 | Can effect previews reproduce runtime surfaces and final appearance? | Keyed reflection, selected lightning kernels and static-surface spawning | Animated stream-out surfaces, actual seed/birth state, shader variants and attachment/lifetime evidence |
-| Can full action charts, scenes and projectile tables be authored? | Charts read to the last byte from the loader's own member order, with constrained string and timing writes; scenes and projectile tables have metadata/references and selected consumer leads | Node, branch and frame-event payload semantics, a game check of a retargeted and a retimed chart, and source-faithful writers for scenes and projectile tables |
+| Can full action charts, scenes and projectile tables be authored? | Charts read to the last byte from the loader's own member order, with constrained string and timing writes; clip retargets, speed windows and socket-event `begin` edits work in game; scenes and projectile tables have metadata/references and selected consumer leads | Node, branch and frame-event payload semantics (including slot-addressed socket events), and source-faithful writers for scenes and projectile tables |
 | Can items be registered additively through a native API? | Rejected ordinary static-info shortcut and identified owners | Independent definition sets, real lookup/auxiliary registration, lifecycle and persistence |
 | Can native resource loading be generalized safely? | Recorded asynchronous manager/provider route | Exact receiver/build provenance, texture binding, retirement, failure recovery and required socket consumers |
 | Can arbitrary package domains compose? | Typed item, field, link and texture subsets | A complete adapter and real consumer for each new domain; explicit conflict semantics |
@@ -3813,6 +3934,9 @@ This is a research register, not a promised delivery schedule.
 | Treat a fixed-size HKX patch or copied collider as new physics | Structural data, bindings and simulation activation are separate. |
 | Treat a second static-info header as an additive registry | The inspected owner replaces primary state and retains unresolved cache/lifetime behaviour. |
 | Treat successful manager import as complete installation | Added table records or texture registrations can be lost downstream. |
+| Ship a full copy of a shared XML descriptor to DMM | DMM merges copies by position; another mod's inserted rows moved the edits onto the wrong rows and crashed the game. Patch the rows instead. |
+| Move a stowed weapon by renaming prefab sockets alone | The descriptor's `PartInOutSocket` row chooses the body socket. |
+| Replace a draw or sheathe clip and keep its chart events | The swap happens at the event's clip time, so the weapon pops early or late. |
 | Treat file changes as a successful save | Failed or unknown attempts can also modify selected files. |
 | Treat a reporting version label as binary provenance | The executable, reporting binary, source and observation must be bound explicitly. |
 
