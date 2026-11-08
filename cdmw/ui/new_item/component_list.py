@@ -55,6 +55,7 @@ def body_state_text(row) -> str:
 
 def _row_tooltip(row) -> str:
     tip = translate_active_ui_text("Prefab: {prefab}\nModel: {model}").format(prefab=row.prefab_path, model=row.model_path)
+    tip += "\n" + source_text(row)
     if not row.included:
         tip += "\n" + translate_active_ui_text("Left out of the export. Tick to include it again with its previous model.")
     return tip
@@ -80,6 +81,7 @@ class ComponentList(QGroupBox):
         self._structure = None
         self._syncing = False
         self._pending_selection = None
+        self._compact = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
         layout.setSpacing(2)
@@ -119,6 +121,21 @@ class ComponentList(QGroupBox):
         self._rebuild()
 
     # ------------------------------------------------------------------ view
+
+    def compact(self) -> None:
+        """Name and a one-word state only, for a narrow column beside the viewport.
+
+        Body underneath has its own section; the full model name stays in the tooltip.
+        """
+
+        self._compact = True
+        self.tree.setHeaderLabels(["Component", "State", "Body underneath"])
+        header = self.tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setColumnHidden(2, True)
+        self._structure = None
+        self._rebuild()
 
     def rows(self):
         return self._rows
@@ -177,14 +194,20 @@ class ComponentList(QGroupBox):
                     self.tree.setCurrentItem(current)
                 # Body underneath matters only for a worn item.
                 worn = getattr(self._controller, "template_is_worn", None)
-                self.tree.setColumnHidden(2, callable(worn) and not worn())
+                self.tree.setColumnHidden(2, self._compact or (callable(worn) and not worn()))
                 rows_shown = self.tree.topLevelItemCount()
                 self.tree.setFixedHeight(min(10, max(3, rows_shown)) * 24 + 30)
         finally:
             self._syncing = False
 
     def _write_row(self, item, row) -> None:
-        texts = ("  " + component_name(row), source_text(row), body_state_text(row))
+        if self._compact:
+            state = (translate_active_ui_text("Left out") if not row.included
+                     else translate_active_ui_text("Imported") if row.source is ComponentSource.IMPORTED
+                     else translate_active_ui_text("Template"))
+        else:
+            state = source_text(row)
+        texts = ("  " + component_name(row), state, body_state_text(row))
         for column, text in enumerate(texts):
             if item.text(column) != text:
                 item.setText(column, text)
@@ -283,6 +306,30 @@ def export_summary_text(rows) -> str:
     return text
 
 
+def export_summary_lines(rows) -> list:
+    """The output review's headline as short (text, tone) lines."""
+
+    from cdmw.ui.new_item.ui_kit import WARN, note
+
+    if not rows:
+        return [note(translate_active_ui_text("Choose a template to see its components."))]
+    worn = [row for row in rows if row.role is ComponentRole.WORN]
+    included = [row for row in worn if row.included]
+    imported = sum(1 for row in included if row.source is ComponentSource.IMPORTED)
+    kept = sum(1 for row in worn if row.body_kept)
+    lines = [
+        note(translate_active_ui_text("In the export: {imported} imported, {template} template model(s)").format(
+            imported=imported, template=len(included) - imported)),
+        note(translate_active_ui_text("Left out: {hidden} of {total} worn components").format(
+            hidden=len(worn) - len(included), total=len(worn))),
+        note(translate_active_ui_text("Body underneath: kept for {kept} of {total}").format(kept=kept, total=len(worn))),
+    ]
+    if any(not row.included for row in rows if row.role is ComponentRole.DROPPED):
+        lines.append(note(translate_active_ui_text("The ground model is left out: a dropped item will be invisible."),
+                          WARN))
+    return lines
+
+
 class ComponentSummary(QWidget):
     """Output review: the components the export contains, read from the live draft."""
 
@@ -292,14 +339,18 @@ class ComponentSummary(QWidget):
         self._controller = controller
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        self.headline = QLabel("")
-        self.headline.setWordWrap(True)
+        from cdmw.ui.new_item.ui_kit import NoteLabel
+        self.headline = NoteLabel("")
         layout.addWidget(self.headline)
         self.table = QTreeWidget(self)
         self.table.setColumnCount(3)
         self.table.setHeaderLabels(["Component", "In the export", "Body underneath"])
         self.table.setRootIsDecorated(False)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        header = self.table.header()
+        for column in (0, 1):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        header.setStretchLastSection(True)
         layout.addWidget(self.table, 1)
         self.setToolTip(translate_active_ui_text(
             "Left-out components export empty geometry. Optional fitting references and the template are never exported."))
@@ -312,24 +363,51 @@ class ComponentSummary(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        from PySide6.QtGui import QBrush, QPalette
+
         rows = self._controller.component_rows()
-        self.headline.setText(export_summary_text(rows))
+        self.headline.set_lines(export_summary_lines(rows))
         self.table.clear()
+        palette = self.palette()
+        from PySide6.QtGui import QColor
+        from cdmw.ui.new_item.ui_kit import EDIT, tone_color
+        band = QBrush(palette.color(QPalette.ColorRole.Button))
+        muted = QBrush(palette.color(QPalette.ColorRole.PlaceholderText))
+        accent = QBrush(QColor(tone_color(EDIT) or palette.color(QPalette.ColorRole.Highlight).name()))
         for role in _ROLE_ORDER:
             members = [row for row in rows if row.role is role]
             if not members:
                 continue
-            group = QTreeWidgetItem([_group_label(role)])
+            # A shaded, bold band names each group; its rows follow, indented.
+            group = QTreeWidgetItem([_group_label(role), "", ""])
             group.setFirstColumnSpanned(True)
+            for column in range(3):
+                group.setBackground(column, band)
+                font = group.font(column)
+                font.setBold(True)
+                group.setFont(column, font)
             self.table.addTopLevelItem(group)
             for row in members:
                 state = source_text(row) if row.included else translate_active_ui_text("Left out")
-                self.table.addTopLevelItem(QTreeWidgetItem(["  " + component_name(row), state, body_state_text(row)]))
+                item = QTreeWidgetItem(["   " + component_name(row), state, body_state_text(row)])
+                if not row.included:
+                    for column in range(3):
+                        item.setForeground(column, muted)
+                        font = item.font(column)
+                        font.setItalic(True)
+                        item.setFont(column, font)
+                elif row.source is ComponentSource.IMPORTED:
+                    font = item.font(1)
+                    font.setBold(True)
+                    item.setFont(1, font)
+                    item.setForeground(1, accent)
+                self.table.addTopLevelItem(item)
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
         self.refresh()
 
 
-__all__ = ["ComponentList", "ComponentSummary", "body_state_text", "component_name", "export_summary_text",
+__all__ = ["ComponentList", "ComponentSummary", "body_state_text", "component_name", "export_summary_lines",
+           "export_summary_text",
            "source_text"]

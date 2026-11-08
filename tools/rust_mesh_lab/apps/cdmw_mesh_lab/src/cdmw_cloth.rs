@@ -721,6 +721,10 @@ impl LabApplication {
         };
         self.draw_cdmw_physics_detection(ui, &inspected, true);
         self.draw_cdmw_cloth_paint(ui, actions);
+        // An imported model has no cloth bindings of its own: paint is all it can use here.
+        if self.cdmw_cloth_paint.supported {
+            return;
+        }
         if !state_bool(&cloth, "available") {
             ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();

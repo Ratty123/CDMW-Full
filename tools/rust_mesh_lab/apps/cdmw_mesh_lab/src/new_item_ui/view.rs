@@ -779,6 +779,11 @@ impl PresentationView {
                             egui::Layout::top_down(egui::Align::Min),
                             |ui| {
                                 ui.set_min_width(cell_width);
+                                // A form's captions are quieter than the values beside them.
+                                if node.flag("form") && start == 0 && child.kind == "label" {
+                                    let weak = ui.visuals().weak_text_color();
+                                    ui.visuals_mut().override_text_color = Some(weak);
+                                }
                                 self.node(ui, child);
                             },
                         );
@@ -956,22 +961,38 @@ impl PresentationView {
             self.column(ui, &node.children);
             return;
         }
+        // A titled section reads as a header bar over its contents, as in an inspector.
+        let titled = node.flag("checkable") || !node.label.is_empty();
         egui::Frame::group(ui.style())
-            .inner_margin(6.0)
+            .inner_margin(if titled { 0.0 } else { 6.0 })
             .show(ui, |ui| {
                 ui.set_min_width((ui.available_width() - 2.0).max(0.0));
-                if node.flag("checkable") {
-                    let mut checked = node.flag("checked");
-                    let response = ui.checkbox(&mut checked, RichText::new(&node.label).strong());
-                    self.record(ui, node, &response);
-                    if response.changed() {
-                        self.input(node, "toggle", json!(checked));
-                    }
-                } else if !node.label.is_empty() {
-                    let response = ui.label(RichText::new(&node.label).strong());
-                    self.record(ui, node, &response);
+                if titled {
+                    let bar = ui.visuals().faint_bg_color;
+                    egui::Frame::new()
+                        .fill(bar)
+                        .inner_margin(egui::Margin::symmetric(8, 5))
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            if node.flag("checkable") {
+                                let mut checked = node.flag("checked");
+                                let response = ui.checkbox(&mut checked, RichText::new(&node.label).strong());
+                                self.record(ui, node, &response);
+                                if response.changed() {
+                                    self.input(node, "toggle", json!(checked));
+                                }
+                            } else {
+                                let response = ui.label(RichText::new(&node.label).strong());
+                                self.record(ui, node, &response);
+                            }
+                        });
+                    egui::Frame::new().inner_margin(6.0).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        self.column(ui, &node.children);
+                    });
+                } else {
+                    self.column(ui, &node.children);
                 }
-                self.column(ui, &node.children);
             });
     }
 
@@ -1772,7 +1793,10 @@ impl PresentationView {
                                             else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
                                             let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
                                             if cell["selected"] != true
-                                                && let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
+                                                // A selectable cell draws no frame, so a row colour needs one to show.
+                                                && let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) {
+                                                button = button.fill(color).frame(true).frame_when_inactive(true).stroke(egui::Stroke::NONE);
+                                            }
                                             let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,control_height(ui)),button)).inner;
                                             if response.clicked() || response.double_clicked() {
                                                 response.request_focus();

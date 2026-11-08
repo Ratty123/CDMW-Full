@@ -6410,7 +6410,14 @@ impl LabApplication {
         if self.cdmw_mode()
             && let Some(label) = cdmw_transaction
         {
-            self.submit_cdmw_local_edit(label);
+            // With the cloth brush, a finished stroke paints instead of only selecting.
+            if matches!(label, CdmwLocalEdit::Selection(_))
+                && let Some(value) = self.cloth_brush_value()
+            {
+                self.submit_cloth_brush_stroke(value);
+            } else {
+                self.submit_cdmw_local_edit(label);
+            }
         }
     }
 

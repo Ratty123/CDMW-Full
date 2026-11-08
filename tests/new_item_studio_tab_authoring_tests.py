@@ -885,13 +885,17 @@ class _TabAuthoringMixin:
         panel.model_status.set_note("Full import notes and material warnings stay available.")
         panel.keep_physics.show()
         panel.flip_texture_v.show()
+        # Components left of the viewport, the selected component's inspector on the right.
+        self.assertIs(panel.model_outer_splitter.widget(0), panel.components_column)
+        self.assertIs(panel.model_outer_splitter.widget(1), panel.workspace_splitter)
+        self.assertTrue(panel.components_column.isAncestorOf(panel.variants))
         self.assertEqual(panel.workspace_splitter.count(), 2)
         self.assertIs(panel.workspace_splitter.widget(0), panel.preview_column)
         self.assertIs(panel.workspace_splitter.widget(1), panel.model_icon_column)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertIs(panel.icon_thumbnail.parentWidget(), panel.icon_group)
         self.assertTrue(panel.quick_turn_section.contents.isHidden())
-        for control in (panel.model_group, panel.variants, panel.part_editor_holder, panel.keep_physics,
+        for control in (panel.model_group, panel.edit_group, panel.part_editor_holder, panel.keep_physics,
                         panel.import_details, panel.operation_banner):
             self.assertTrue(panel.model_icon_column.isAncestorOf(control))
             self.assertFalse(panel.preview_column.isAncestorOf(control))
@@ -1025,7 +1029,7 @@ class _TabAuthoringMixin:
                     self.app.processEvents()
                     with self.subTest(size=(width, height), enabled=enabled, tick=tick):
                         # The inspector tabs follow the model section directly.
-                        gap = panel.inspector_tabs.y() - panel.model_group.geometry().bottom() - 1
+                        gap = panel.inspector_tabs.y() - panel.edit_group.geometry().bottom() - 1
                         self.assertEqual(gap, panel.model_icon_content.layout().spacing())
                         self.assertIs(panel.inspector_tabs.currentWidget(), panel.dyes)
                 self.assertEqual(panel.dyes.contents.isVisibleTo(panel), enabled)

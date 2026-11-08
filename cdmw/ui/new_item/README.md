@@ -816,15 +816,20 @@ automatic glass conversion.
 
 ## Placement and appearance
 
-The step's right-hand column runs in working order: **Components**, the selected
-component's model section (import or template, Mesh Editor, **Template cloth /
-physics** and cloth-paint status, weights and rig, import details, FBX setup), the
-Placement, Appearance, Dyes and Icon tabs, then **Body underneath** for worn templates
-only (`template_is_worn`). **Apply placement** and its status stay pinned below the
+The step has three columns. **Components** sits left of the viewport in a compact
+list (name and a one-word state; the full model name is in the tooltip) inside an
+outer splitter, `model_outer_splitter`; only the viewport/inspector splitter turns
+vertical on a narrow window. The inspector on the right holds titled sections: the
+**Model** form (File, Source, Weights, Rig, Notes, FBX; labels hide with their
+import-only fields), **Mesh Editor and cloth** (Mesh Editor round trip, **Template
+cloth / physics** and cloth-paint status), the Placement, Appearance, Dyes and Icon
+tabs, then **Body underneath** for worn templates only (`template_is_worn`). A failed
+import is reported in the Model section; a bone or rig refusal offers **Import again
+with Transfer from template**. **Apply placement** and its status stay pinned below the
 scroll area. The view options and the installed-model fitting reference sit under the
-viewport, and the fitting reference is offered only for worn templates. The
-Components table hides its Body underneath column for other templates, and
-**Skin weights…** is shown only for a model with its own bone weights.
+viewport, and the fitting reference is offered only for worn templates. The Rust
+presentation draws every titled section with a header bar and quiets form captions, so
+the other steps share the same look. **Skin weights…** is shown only for a model with its own bone weights.
 
 Template models also support Move, Rotate, Scale, Glow and **Translucency (experimental)**
 without importing a replacement. Template placement goes directly into Build plan;
@@ -2645,8 +2650,9 @@ copying the template model itself also retains them.
 imported vertex still copies the nearest template vertex's whole record, cloth lanes
 included, so cloth lands unpredictably. Painting replaces that. In Mesh Editor, the
 Cloth page's **Cloth paint** section sets a 0–1 value on the explicitly selected
-vertices of an imported model, or on every vertex with **Paint whole model** (Undo
-applies; game models refuse it). The value is the
+vertices of an imported model, on every vertex with **Paint whole model**, or along a viewport stroke with
+**Brush**/**Eraser**, which reuses the brush selection and sends each finished stroke as
+`cloth_paint_set` (Undo applies; game models refuse it). The value is the
 per-vertex `cloth_paint` attribute and follows copies, topology edits and subdivision.
 At **Apply placement**, `cdmw/services/new_item_cloth_paint.py` places every imported
 vertex with the same placement matrix as the viewport and, in

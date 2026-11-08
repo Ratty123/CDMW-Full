@@ -162,7 +162,21 @@ class ModelPanelPreviewMixin:
             return
         settings.setValue(IMPORT_DIR_SETTING, str(Path(path).parent))
         self.import_model.setChecked(True)
-        self._controller.start_model_import(Path(path), skin_policy=self.import_skin_policy.currentData())
+        self._start_import(Path(path), self.import_skin_policy.currentData())
+
+    def _start_import(self, path: Path, policy: object) -> None:
+        self._last_import_path = Path(path)
+        self.import_problem.setVisible(False)
+        self._controller.start_model_import(Path(path), skin_policy=policy)
+
+    def _retry_import_with_transfer(self) -> None:
+        path = getattr(self, "_last_import_path", None)
+        if path is None:
+            return
+        index = self.import_skin_policy.findData("transfer")
+        if index >= 0:
+            self.import_skin_policy.setCurrentIndex(index)
+        self._start_import(path, "transfer")
 
     def _refresh_apply_status(self) -> None:
         imported = self._controller.draft.model_source is ModelSource.IMPORTED
@@ -261,7 +275,20 @@ class ModelPanelPreviewMixin:
             self._controller.set_model_placement(placement)
 
     def _import_failed(self, message: object) -> None:
-        self.model_status.set_note(str(message or "The model could not be read."), WARN)
+        text = str(message or "The model could not be read.")
+        # Keep or Reduce refuses a rig that does not fit the template's skeleton.
+        bones = self.import_skin_policy.currentData() != "transfer" and any(
+            word in text for word in ("bone", "rig", "skeleton", "palette"))
+        if bones:
+            self.import_problem_note.set_note(
+                text + "\n\nThe model is weighted to bones the template's skeleton does not have, so Keep imported "
+                "weights cannot use it. Import it again with Transfer from template, or weight it to the template's "
+                "rig in Blender (Model > Rig > Export rig GLB…).", WARN)
+        else:
+            self.import_problem_note.set_note(text, WARN)
+        self.retry_transfer_button.setVisible(bones and getattr(self, "_last_import_path", None) is not None)
+        self.import_problem.setVisible(True)
+        self.model_status.set_note(text, WARN)
         self.import_details.toggle.setChecked(True)
         if "Blender" in str(message):
             self.blender_details.toggle.setChecked(True)

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFormLayout,
     QFrame,
     QFileDialog,
     QGridLayout,
@@ -185,7 +186,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.workspace_splitter.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.workspace_splitter.setChildrenCollapsible(False)
         self.workspace_splitter.installEventFilter(self)
-        outer.addWidget(self.workspace_splitter, 1)
+        # Components sit in their own column left of the viewport/inspector pair, which
+        # alone turns vertical on a narrow window.
+        self.model_outer_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.model_outer_splitter.setObjectName("new_item_model_outer_splitter")
+        self.model_outer_splitter.setChildrenCollapsible(False)
+        outer.addWidget(self.model_outer_splitter, 1)
 
         self.model_icon_column = QWidget(self.workspace_splitter)
         self.model_icon_column.setObjectName("new_item_model_icon_column")
@@ -241,10 +247,17 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         appearance_layout.addStretch(1)
         # Model section order: the file, then what prepares it (Mesh Editor, cloth,
         # weights), then the details to read when something needs attention.
-        for widget in (self.import_summary, self.part_editor_holder, self.keep_physics, self.cloth_paint_note,
-                       self.weights_rig_details, self.import_details, self.blender_details, self.busy_bar):
+        # Mesh Editor and cloth get a section of their own under Model.
+        self.edit_group = QGroupBox("Mesh Editor and cloth")
+        self.edit_group.setObjectName("new_item_edit_and_cloth")
+        edit_layout = QVBoxLayout(self.edit_group)
+        edit_layout.setContentsMargins(6, 4, 6, 4)
+        edit_layout.setSpacing(4)
+        for widget in (self.part_editor_holder, self.keep_physics, self.cloth_paint_note):
             self.model_layout.removeWidget(widget)
-            self.model_layout.addWidget(widget)
+            edit_layout.addWidget(widget)
+        self.model_layout.removeWidget(self.busy_bar)
+        self.model_layout.addWidget(self.busy_bar)
 
         self._build_placement_controls()
 
@@ -256,10 +269,21 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         # or cloth preparation), where it sits and how it looks, then what stays
         # visible underneath a worn item. Apply placement stays pinned below.
         from cdmw.ui.new_item.component_list import ComponentList
+        # Components get their own column left of the viewport, so the inspector holds
+        # only the selected component's settings.
+        self.components_column = QWidget(self.model_outer_splitter)
+        self.components_column.setObjectName("new_item_components_column")
+        self.components_column.setMinimumWidth(190)
+        self.components_column.setMaximumWidth(320)
+        components_layout = QVBoxLayout(self.components_column)
+        components_layout.setContentsMargins(0, 0, 0, 0)
         self.components = ComponentList(controller, self)
-        model_icon_content_layout.addWidget(self.components)
+        self.components.compact()
+        components_layout.addWidget(self.components)
+        components_layout.addStretch(1)
         self.components.preview_out_of_date.connect(self.mark_preview_stale)
         model_icon_content_layout.addWidget(self.model_group)
+        model_icon_content_layout.addWidget(self.edit_group)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
         self.inspector_tabs = _InspectorTabs()
@@ -297,7 +321,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.workspace_splitter.addWidget(self.model_icon_column)
         for index, factor in enumerate((1, 0)):
             self.workspace_splitter.setStretchFactor(index, factor)
-        self.workspace_splitter.setSizes((800, 380))
+        self.workspace_splitter.setSizes((720, 470))
+        self.model_outer_splitter.addWidget(self.components_column)
+        self.model_outer_splitter.addWidget(self.workspace_splitter)
+        self.model_outer_splitter.setStretchFactor(0, 0)
+        self.model_outer_splitter.setStretchFactor(1, 1)
+        self.model_outer_splitter.setSizes((220, 1200))
         # The component list is the binding selector; it lives with the model, not the preview.
         self.variants = self.components
         self.preview_controls.layout().insertWidget(0, self.show_character)
@@ -306,6 +335,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         controller.model_changed.connect(lambda _result: self.refresh_preview())
         controller.model_import_changed.connect(lambda _source: self._show_model(controller.model_result))
         controller.model_import_changed.connect(lambda _source: self.refresh_preview())
+        # A model that arrived clears the note about an earlier failed import.
+        controller.model_import_changed.connect(
+            lambda source: self.import_problem.setVisible(False) if source is not None else None)
         controller.model_placement_changed.connect(self._placement_changed)
         controller.busy_changed.connect(self._busy_changed)
         controller.operation_progress.connect(self._operation_progress)
@@ -366,7 +398,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
                   for page in (self.model_group, self.preview_controls, self.placement_group,
                                self.appearance_page, self.dyes, self.icon_group)),
             )
-            inspector_width = max(340, inspector_content_width + scrollbar)
+            # Wide enough that the Model section keeps its labels beside the values.
+            inspector_width = max(470, inspector_content_width + scrollbar)
             preview_width = max(440, self.preview_group.minimumSizeHint().width())
             self.preview_column.setMinimumWidth(preview_width)
             available = self.workspace_splitter.width()
@@ -379,7 +412,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             # the native preview retain their widget parents at every width.
             orientation = (Qt.Orientation.Vertical if available < inspector_width + preview_width + handle
                            else Qt.Orientation.Horizontal)
-            if self.workspace_splitter.orientation() != orientation:
+            sizes = self.workspace_splitter.sizes()
+            squeezed = (orientation == Qt.Orientation.Horizontal and len(sizes) == 2
+                        and sizes[1] < inspector_width and available >= inspector_width + preview_width + handle)
+            if self.workspace_splitter.orientation() != orientation or squeezed:
                 self.workspace_splitter.setOrientation(orientation)
                 if orientation == Qt.Orientation.Vertical:
                     self.workspace_splitter.setSizes((max(360, self.height() - 250), 250))
@@ -801,12 +837,25 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.model_group = model
 
+    def _add_model_row(self, label: str, field: QWidget, tooltip: str = "") -> None:
+        """One label/value row of the Model section; the label follows its field's visibility."""
+
+        caption = QLabel(label)
+        caption.setObjectName("new_item_model_row_label")
+        caption.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        if tooltip:
+            caption.setToolTip(tooltip)
+        self.model_grid.addRow(caption, field)
+        self._model_rows.append((caption, field))
+
+    def _sync_model_row_labels(self) -> None:
+        for caption, field in getattr(self, "_model_rows", ()):
+            caption.setVisible(not field.isHidden())
+
     def _build_model_source_controls(self):
-        model = QGroupBox("Selected component")
-        model.setTitle("")
-        model.setAccessibleName("Selected component")
+        model = QGroupBox("Model")
+        model.setAccessibleName("Model")
         model.setObjectName("new_item_selected_component")
-        model.setProperty("titlelessSection", True)
         model_layout = QVBoxLayout(model)
         model_layout.setContentsMargins(6, 4, 6, 4)
         model_layout.setSpacing(3)
@@ -818,6 +867,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         editing_font = self.editing_label.font()
         editing_font.setBold(True)
         self.editing_label.setFont(editing_font)
+        # The section title names the component; the label stays for its text.
+        self.editing_label.setVisible(False)
         model_layout.addWidget(self.editing_label)
         source_label = QLabel("Exported model:")
         self.keep_model = QRadioButton("Template model")
@@ -857,7 +908,35 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.use_import_button.clicked.connect(lambda: self.import_model.setChecked(True))
         picker_row.addWidget(self.use_import_button)
         picker_row.addStretch(1)
-        model_layout.addLayout(picker_row)
+        # Label/value rows: what the model is, where it comes from, how it is weighted.
+        self.model_grid = QFormLayout()
+        self.model_grid.setContentsMargins(0, 2, 0, 2)
+        self.model_grid.setHorizontalSpacing(10)
+        self.model_grid.setVerticalSpacing(6)
+        self._model_rows = []
+        self.source_field = QWidget()
+        source_layout = QVBoxLayout(self.source_field)
+        source_layout.setContentsMargins(0, 0, 0, 0)
+        source_layout.setSpacing(4)
+        source_layout.addLayout(picker_row)
+        # A failed import says why right here, not only in the window's status line,
+        # and offers the usual way out when the model's bones do not fit the template.
+        self.import_problem = QWidget()
+        self.import_problem.setObjectName("new_item_import_problem")
+        problem_layout = QVBoxLayout(self.import_problem)
+        problem_layout.setContentsMargins(0, 2, 0, 2)
+        problem_layout.setSpacing(4)
+        self.import_problem_note = NoteLabel("", WARN)
+        problem_layout.addWidget(self.import_problem_note)
+        self.retry_transfer_button = QPushButton("Import again with Transfer from template")
+        self.retry_transfer_button.setObjectName("new_item_retry_transfer")
+        self.retry_transfer_button.setToolTip(
+            "Read the same file again, replacing its weights with the template's. Use Export rig GLB… instead "
+            "to keep your own weights: weight the model to that rig in Blender and import it again.")
+        self.retry_transfer_button.clicked.connect(self._retry_import_with_transfer)
+        problem_layout.addWidget(self.retry_transfer_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self.import_problem.setVisible(False)
+        self._last_import_path = None
         from cdmw.ui.new_item.installed_character_models import InstalledCharacterModels
         self.installed_models = InstalledCharacterModels(self._controller, self)
         self.installed_models.loaded.connect(self._installed_model_loaded)
@@ -899,30 +978,28 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         row.addStretch(1)
         import_row = QWidget()
         import_row.setLayout(row)
-        model_layout.addWidget(import_row)
+        source_layout.addWidget(import_row)
         self.weights_rig_group = QWidget()
         self.weights_rig_group.setObjectName("new_item_weights_rig")
         weights_rig_layout = QVBoxLayout(self.weights_rig_group)
         weights_rig_layout.setContentsMargins(12, 0, 0, 2)
         weights_rig_layout.setSpacing(4)
-        skin_row = QHBoxLayout()
-        skin_row.addWidget(QLabel("Weights on next import"))
         self.import_skin_policy = QComboBox()
         self.import_skin_policy.addItem("Keep imported weights", "preserve")
         self.import_skin_policy.addItem("Transfer from template", "transfer")
         self.import_skin_policy.addItem("Reduce to six influences", "reduce")
         self.import_skin_policy.setToolTip("Used when importing a rigged model. Keeping weights refuses missing bones or excess influences. "
                                          "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
-        skin_row.addWidget(self.import_skin_policy, 1)
-        weights_rig_layout.addLayout(skin_row)
-        rig_row = QHBoxLayout()
+        self.rig_field = QWidget()
+        rig_row = QHBoxLayout(self.rig_field)
+        rig_row.setContentsMargins(0, 0, 0, 0)
         rig_label = QLabel("Rig")
         rig_label.setToolTip(
             "Weight a model to new bones, for capes, tails or long hair:\n"
             "1. Choose Add bones… and add child bones or a chain to this variant's skeleton.\n"
             "2. Choose Export rig GLB… and weight your model to the new bones in Blender.\n"
             "3. Import the model here. The item ships the added bones.")
-        rig_row.addWidget(rig_label)
+        self._rig_tooltip = rig_label.toolTip()
         self.rig_summary = QLabel("Template skeleton")
         self.rig_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.rig_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -945,11 +1022,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             "Write the template mesh skinned to its skeleton, with any added bones, as GLB to weight a model against in Blender.")
         self.export_rig_button.clicked.connect(self._pick_rig_export_folder)
         rig_row.addWidget(self.export_rig_button)
-        weights_rig_layout.addLayout(rig_row)
-        self.weights_rig_details = _foldout(self.weights_rig_group)
-        self.weights_rig_details.toggle.setText("Weights and rig")
-        self.weights_rig_details.layout().insertWidget(0, self.weights_rig_details.toggle)
-        model_layout.addWidget(self.weights_rig_details)
+        # Kept for callers that look the old foldout up; it no longer holds the controls.
+        self.weights_rig_details = self.weights_rig_group
+        self.weights_rig_group.setVisible(False)
         self._controller.skeleton_edit_changed.connect(self._show_skeleton_edit)
         # Open the dialog after the reading task has finished, not inside its callback.
         self._controller.rig_source_ready.connect(
@@ -958,12 +1033,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.import_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        model_layout.addWidget(self.import_summary)
         source_choices.addStretch(1)
         self.model_status = NoteLabel("No imported model.", None)
         self.import_details = _foldout(self.model_status)
         self.import_details.toggle.setText("Import details")
-        model_layout.addWidget(self.import_details)
         self.part_editor_holder = QWidget()
         part_editor_layout = QVBoxLayout(self.part_editor_holder)
         part_editor_layout.setContentsMargins(0, 0, 0, 0)
@@ -1012,9 +1085,18 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         blender_row.addLayout(blender_buttons)
         self.blender_details = _foldout(self.blender_holder)
         self.blender_details.toggle.setText("FBX setup")
-        row.addWidget(self.blender_details.toggle)
-        model_layout.addWidget(self.blender_details)
+        for label, field, tip in (
+            ("File", self.import_summary, ""),
+            ("Source", self.source_field, ""),
+            ("Weights", self.import_skin_policy, "How the next import of a rigged model is weighted."),
+            ("Rig", self.rig_field, self._rig_tooltip),
+            ("Notes", self.import_details, ""),
+            ("FBX", self.blender_details, ""),
+        ):
+            self._add_model_row(label, field, tip)
+        model_layout.insertLayout(model_layout.indexOf(self.source_radio_row) + 1, self.model_grid)
         self._refresh_blender_label()
+        model_layout.addWidget(self.import_problem)
         self.busy_bar = QProgressBar()
         self.busy_bar.setObjectName("new_item_model_progress")
         self.busy_bar.setRange(0, 0)
@@ -1108,6 +1190,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         has_import = has_source or self._controller.model_result is not None
         self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
         self._refresh_cloth_paint_note()
+        self._sync_model_row_labels()
         if keep:
             self.flip_texture_v.setVisible(False)
 
@@ -1364,6 +1447,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             hidden=row is not None and not row.included,
         )
         from cdmw.services.active_ui_translation import translate_active_ui_text
+        group = getattr(self, "model_group", None)  # absent while the panel is still being built
+        if group is not None:
+            group.setTitle(translate_active_ui_text("Model for {name}").format(name=component_name(row))
+                           if row is not None else translate_active_ui_text("Model"))
         if row is None:
             self.editing_label.setText("")
         elif row.included:
@@ -1611,7 +1698,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             lines.append(note(f"{source.label}: {vertices:,} vertices, {parts} part(s), {textures}", OK))
             self.import_summary.setText(f"{elided(source.label, 42)}\n{vertices:,} vertices · {parts} parts · {source.texture_count} textures")
             self.import_summary.setToolTip(source.label)
-            lines.extend(note(text, None) for text in source.notes)
+            from cdmw.ui.new_item.import_details import import_detail_lines
+            lines.extend(import_detail_lines(source))
         if result is not None:
             entry = self._controller.model_entry
             head = f"Placed over {entry.basename}" if entry is not None else "Placed"
@@ -1621,7 +1709,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
                 self.import_summary.setText(f"{head}\n{size:,} bytes · {extras} side files")
                 self.import_summary.setToolTip(head)
             lines.append(note(f"{head}: the rebuilt mesh is {size:,} bytes, {extras} side file(s)", OK))
-            lines.extend(note(text, None) for text in getattr(result, "notes", ()))
+            from cdmw.ui.new_item.import_details import build_note_lines
+            lines.extend(build_note_lines(getattr(result, "notes", ())))
             self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
         elif source is not None:
             self.apply_status.set_note("Placement not applied yet. Apply placement builds the mesh the item exports.", WARN)

@@ -6,9 +6,17 @@
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 
+/// Viewport brush that paints each finished stroke straight away.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ClothBrush {
+    Paint,
+    Erase,
+}
+
 pub(super) struct ClothPaintView {
-    /// Cloth amount the next Paint selection applies, 0 (bones) to 1 (cloth).
+    /// Cloth amount the brush and Paint selection apply, 0 (bones) to 1 (cloth).
     pub amount: f64,
+    pub brush: Option<ClothBrush>,
     pub show: bool,
     pub supported: bool,
     pub reason: String,
@@ -27,6 +35,7 @@ impl Default for ClothPaintView {
     fn default() -> Self {
         Self {
             amount: 1.0,
+            brush: None,
             show: true,
             supported: false,
             reason: String::new(),
@@ -134,36 +143,70 @@ impl LabApplication {
             && self.cdmw_cloth_paint.show
     }
 
+    /// The value a finished brush stroke paints, while the cloth brush is in use.
+    pub(super) fn cloth_brush_value(&self) -> Option<f64> {
+        let brush = self.cdmw_cloth_paint.brush?;
+        (self.cdmw_cloth_paint.supported
+            && self.cdmw_rail_page == Some(CdmwRailPage::Cloth)
+            && self.viewport_tool == ViewportTool::Select
+            && self.selection_tool == SelectionTool::Brush)
+            .then_some(if brush == ClothBrush::Erase { 0.0 } else { self.cdmw_cloth_paint.amount })
+    }
+
+    /// Paint the vertices of the stroke just committed (the current selection).
+    pub(super) fn submit_cloth_brush_stroke(&mut self, value: f64) {
+        let label = if value > 0.0 { "Paint cloth" } else { "Erase cloth" };
+        self.submit_cdmw_command("cloth_paint_set", json!({"value": value}), label);
+    }
+
+    pub(super) fn set_cloth_brush(&mut self, brush: Option<ClothBrush>) {
+        self.cdmw_cloth_paint.brush = brush;
+        if brush.is_some() {
+            self.cancel_active_gesture("Cloth brush selected");
+            self.viewport_tool = ViewportTool::Select;
+            self.selection_tool = SelectionTool::Brush;
+            self.selection_domain = SelectionDomain::Vertex;
+            self.cdmw_orbit_mode = false;
+            self.cdmw_cloth_paint.show = true;
+        }
+    }
+
     pub(super) fn draw_cdmw_cloth_paint(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         if !self.cdmw_cloth_paint.supported {
             return;
         }
+        // Another tool, or another selection mode, ends the cloth brush.
+        if self.cdmw_cloth_paint.brush.is_some()
+            && (self.viewport_tool != ViewportTool::Select || self.selection_tool != SelectionTool::Brush)
+        {
+            self.cdmw_cloth_paint.brush = None;
+        }
+        let can_paint = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
         crate::localization::collapsing("Cloth paint (experimental)")
             .default_open(true)
             .show(ui, |ui| {
-                ui.small(crate::localization::tr(
-                    "Painted areas swing with the template's cloth; unpainted areas follow the bones. \
-                     Paint a whole dress or cape with Paint whole model, or select the loose parts \
-                     (a brush or lasso works well) and click Paint selection. Used only when \
-                     Template cloth / physics is on in Create New Item.",
-                ));
-                // Explicit vertices plus every vertex of the Parts picked in the Parts list.
-                let parts = self.selected_part_indices().into_iter().collect::<HashSet<_>>();
-                let selected = self.mesh.as_ref().map_or(0, |mesh| {
-                    let mut handles = mesh.selection.vertices.iter().copied().collect::<HashSet<_>>();
-                    if !parts.is_empty() {
-                        for (_, face) in mesh.faces() {
-                            if parts.contains(&face.submesh) {
-                                handles.extend(face.vertices);
-                            }
+                ui.horizontal_wrapped(|ui| {
+                    let brush = self.cdmw_cloth_paint.brush;
+                    for (kind, label, tip) in [
+                        (ClothBrush::Paint, "Brush", "Paint cloth by dragging over the model. Painted areas swing with the template's cloth."),
+                        (ClothBrush::Erase, "Eraser", "Drag over the model to return painted areas to the bones."),
+                    ] {
+                        let on = brush == Some(kind);
+                        if ui
+                            .add_enabled(can_paint, egui::Button::new(crate::localization::tr(label)).selected(on))
+                            .on_hover_text(crate::localization::tr(tip))
+                            .clicked()
+                        {
+                            self.set_cloth_brush(if on { None } else { Some(kind) });
                         }
                     }
-                    handles.len()
                 });
-                ui.small(crate::localization::tr(format!(
-                    "{} painted vertices · {selected} selected",
-                    self.cdmw_cloth_paint.painted
-                )));
+                if self.cdmw_cloth_paint.brush.is_some() {
+                    ui.add(
+                        crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0)
+                            .text(crate::localization::tr("Brush size px")),
+                    );
+                }
                 ui.add(
                     crate::cdmw_ui::numeric::slider(&mut self.cdmw_cloth_paint.amount, 0.0..=1.0)
                         .text(crate::localization::tr("Cloth amount")),
@@ -171,37 +214,9 @@ impl LabApplication {
                 .on_hover_text(crate::localization::tr(
                     "0 follows the bones only, 1 swings fully with the cloth. Use lower values near seams and waistbands.",
                 ));
-                let can_paint = selected > 0 && !self.cdmw_busy()
-                    && state_bool(&self.cdmw_state, "authoring_enabled");
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .add_enabled(can_paint, egui::Button::new(crate::localization::tr("Paint selection")))
-                        .on_disabled_hover_text(crate::localization::tr("Select vertices first"))
-                        .clicked()
-                    {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "cloth_paint_set",
-                            arguments: json!({"value": self.cdmw_cloth_paint.amount}),
-                            label: "Paint cloth",
-                        });
-                    }
-                    if ui
-                        .add_enabled(can_paint, egui::Button::new(crate::localization::tr("Clear selection")))
-                        .on_hover_text(crate::localization::tr("Return the selected vertices to the bones."))
-                        .on_disabled_hover_text(crate::localization::tr("Select vertices first"))
-                        .clicked()
-                    {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "cloth_paint_set",
-                            arguments: json!({"value": 0.0}),
-                            label: "Clear cloth paint",
-                        });
-                    }
-                });
-                let can_paint_all = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .add_enabled(can_paint_all, egui::Button::new(crate::localization::tr("Paint whole model")))
+                        .add_enabled(can_paint, egui::Button::new(crate::localization::tr("Paint whole model")))
                         .on_hover_text(crate::localization::tr(
                             "Paint every vertex with the cloth amount above, for a garment that moves as cloth all over.",
                         ))
@@ -214,7 +229,7 @@ impl LabApplication {
                         });
                     }
                     if ui
-                        .add_enabled(can_paint_all && self.cdmw_cloth_paint.painted > 0,
+                        .add_enabled(can_paint && self.cdmw_cloth_paint.painted > 0,
                             egui::Button::new(crate::localization::tr("Clear whole model")))
                         .on_hover_text(crate::localization::tr("Return every vertex to the bones."))
                         .clicked()
@@ -226,7 +241,50 @@ impl LabApplication {
                         });
                     }
                 });
-                ui.checkbox(&mut self.cdmw_cloth_paint.show, crate::localization::tr("Show cloth paint"));
+                // Paint what is already selected (vertices, or whole Parts from the Parts list).
+                let parts = self.selected_part_indices().into_iter().collect::<HashSet<_>>();
+                let selected = self.mesh.as_ref().map_or(0, |mesh| {
+                    let mut handles = mesh.selection.vertices.iter().copied().collect::<HashSet<_>>();
+                    if !parts.is_empty() {
+                        for (_, face) in mesh.faces() {
+                            if parts.contains(&face.submesh) {
+                                handles.extend(face.vertices);
+                            }
+                        }
+                    }
+                    handles.len()
+                });
+                if self.cdmw_cloth_paint.brush.is_none() && selected > 0 {
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .add_enabled(can_paint, egui::Button::new(crate::localization::tr("Paint selection")))
+                            .clicked()
+                        {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "cloth_paint_set",
+                                arguments: json!({"value": self.cdmw_cloth_paint.amount}),
+                                label: "Paint cloth",
+                            });
+                        }
+                        if ui
+                            .add_enabled(can_paint, egui::Button::new(crate::localization::tr("Clear selection")))
+                            .on_hover_text(crate::localization::tr("Return the selected vertices to the bones."))
+                            .clicked()
+                        {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "cloth_paint_set",
+                                arguments: json!({"value": 0.0}),
+                                label: "Clear cloth paint",
+                            });
+                        }
+                    });
+                }
+                ui.horizontal_wrapped(|ui| {
+                    ui.checkbox(&mut self.cdmw_cloth_paint.show, crate::localization::tr("Show cloth paint"));
+                    ui.small(crate::localization::tr(format!(
+                        "{} painted vertices", self.cdmw_cloth_paint.painted
+                    )));
+                });
                 if !self.cdmw_cloth_paint.reason.is_empty() {
                     ui.small(crate::localization::tr(self.cdmw_cloth_paint.reason.clone()));
                 }

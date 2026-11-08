@@ -32250,7 +32250,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1397
+      "cdmw/ui/new_item/panels_model.py": 1484
     }
   },
   {
@@ -32602,7 +32602,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export animated or RGB glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1024
+      "cdmw/services/new_item_materials.py": 1026
     }
   },
   {
@@ -32610,7 +32610,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export translucency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1022,
+      "cdmw/services/new_item_materials.py": 1024,
       "cdmw/services/new_item_translucency.py": 131,
       "cdmw/services/new_item_transparency_paint.py": 63
     }
@@ -32724,7 +32724,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. Viewport transmission is approximate; game refraction and lighting may differ.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 950,
+      "cdmw/services/new_item_materials.py": 952,
       "cdmw/services/new_item_translucency.py": 158
     }
   },
@@ -34416,7 +34416,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted transparency needs separate material textures. Import these atlas parts separately before painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 766,
+      "cdmw/services/new_item_materials.py": 768,
       "cdmw/services/new_item_shader_controls.py": 45,
       "cdmw/services/new_item_transparency_paint.py": 55
     }
@@ -35550,7 +35550,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon could not be made from that selection: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 422
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 449
     }
   },
   {
@@ -36504,7 +36504,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency materials were not found in the exported model: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_materials.py": 949
+      "cdmw/services/new_item_materials.py": 951
     }
   },
   {
@@ -38002,7 +38002,7 @@ MESSAGE_REFERENCE = [
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 678,
+      "cdmw/services/new_item_materials.py": 680,
       "cdmw/ui/new_item/model_import.py": 1274,
       "cdmw/ui/new_item/rust_ui_tab.py": 238
     }
@@ -38236,7 +38236,7 @@ MESSAGE_REFERENCE = [
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 420
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 447
     }
   },
   {
@@ -38244,7 +38244,7 @@ MESSAGE_REFERENCE = [
     "message": "the import carries {len(xml_keys)} .pac_xml sidecar(s), not one",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 676,
+      "cdmw/services/new_item_materials.py": 678,
       "cdmw/services/new_item_translucency.py": 135
     }
   },
@@ -39055,7 +39055,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: animated/RGB glow requires a separate material part; split this atlas before applying it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_materials.py": 773
+      "cdmw/services/new_item_materials.py": 775
     }
   },
   {
@@ -39071,7 +39071,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, but the plain-PBR game shader has no verified mapping for this alpha mode; the exported material does not support the source transparency behavior.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 793
+      "cdmw/services/new_item_materials.py": 795
     }
   },
   {
@@ -39079,7 +39079,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 799
+      "cdmw/services/new_item_materials.py": 801
     }
   },
   {
@@ -39095,7 +39095,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: RGB glow needs a source glow texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 845
+      "cdmw/services/new_item_materials.py": 847
     }
   },
   {
@@ -39103,7 +39103,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: translucent emission keeps the emissive map, colour and strength, but the game's translucent shader does not draw glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 933
+      "cdmw/services/new_item_materials.py": 935
     }
   },
   {
@@ -39191,7 +39191,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: no source metallic/roughness map is known, so the Builder's mask stands in as _sp; its roughness was clamped towards matte.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 828
+      "cdmw/services/new_item_materials.py": 830
     }
   },
   {
@@ -39215,7 +39215,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the import gave it no base colour texture, so its material is left as the Builder wrote it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 750
+      "cdmw/services/new_item_materials.py": 752
     }
   },
   {
@@ -39223,7 +39223,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the template's material glows and your model brought no emissive map, so the glow is off. Choose the parts that glow on the Model step if you want it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 895
+      "cdmw/services/new_item_materials.py": 897
     }
   },
   {
@@ -44647,7 +44647,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW handshake failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7321
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7328
     }
   },
   {
@@ -44759,7 +44759,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW mesh upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6805
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6812
     }
   },
   {
@@ -45713,7 +45713,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 725
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 729
     }
   },
   {
@@ -48348,7 +48348,7 @@ MESSAGE_REFERENCE = [
     "message": "Focus loss cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7377
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7384
     }
   },
   {
@@ -48822,7 +48822,7 @@ MESSAGE_REFERENCE = [
     "message": "Gesture rollback failed: {error}",
     "recovery": "recovery",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6432
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6439
     }
   },
   {
@@ -54915,7 +54915,7 @@ MESSAGE_REFERENCE = [
     "message": "No supported weapon collision geometry.",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 883
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 887
     }
   },
   {
@@ -59758,7 +59758,7 @@ MESSAGE_REFERENCE = [
     "message": "Resize cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7364
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7371
     }
   },
   {
@@ -60558,7 +60558,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection highlight failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6477
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6484
     }
   },
   {
@@ -62196,7 +62196,7 @@ MESSAGE_REFERENCE = [
     "message": "The host did not provide an editable skeleton hierarchy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6963
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6970
     }
   },
   {
@@ -62604,7 +62604,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy bone counts do not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6991
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6998
     }
   },
   {
@@ -62612,7 +62612,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a duplicate bone index",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7004
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7011
     }
   },
   {
@@ -62620,7 +62620,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a parent cycle",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7053
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7060
     }
   },
   {
@@ -62628,7 +62628,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid bone index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7002
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7009
     }
   },
   {
@@ -62636,7 +62636,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid parent index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7039
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7046
     }
   },
   {
@@ -62644,7 +62644,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an out-of-range bone position",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7023
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7030
     }
   },
   {
@@ -62652,7 +62652,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy has no parent-child segments to draw",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7070
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7077
     }
   },
   {
@@ -62660,7 +62660,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is incomplete or has no root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7046
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7053
     }
   },
   {
@@ -62668,7 +62668,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is truncated, so its overlay is disabled",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6966
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6973
     }
   },
   {
@@ -62676,7 +62676,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton parser reported an incomplete hierarchy",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6973
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6980
     }
   },
   {
@@ -65618,7 +65618,7 @@ MESSAGE_REFERENCE = [
     "message": "embedded parent window is invalid: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7282
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7289
     }
   },
   {
@@ -66078,7 +66078,7 @@ MESSAGE_REFERENCE = [
     "message": "frame failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6923
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6930
     }
   },
   {
@@ -74121,7 +74121,7 @@ MESSAGE_REFERENCE = [
     "message": "window creation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7291
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7298
     }
   },
   {
@@ -74948,7 +74948,7 @@ MESSAGE_REFERENCE = [
     "message": "· texture warning: {warning}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6821
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6828
     }
   },
   {
@@ -109525,6 +109525,7 @@ SOURCE_COVERAGE = {
     "raise": 4
   },
   "cdmw/ui/new_item/glow_animation_editor.py": {},
+  "cdmw/ui/new_item/import_details.py": {},
   "cdmw/ui/new_item/independent_items_page.py": {
     "diagnostic_field": 2,
     "dialog": 2

@@ -64,3 +64,28 @@ fn an_ordinary_session_keeps_finish_edit_mesh_and_its_output_choices() -> TestRe
     ui.reveal("Export Free Edit Package")?;
     Ok(())
 }
+
+#[test]
+fn cloth_brush_turns_strokes_into_paint_and_ends_with_another_tool() -> TestResult {
+    let mut ui = new_item_session()?;
+    ui.application.cdmw_state["cloth_paint"] =
+        json!({"supported": true, "painted_vertex_count": 0, "parts": []});
+    let state = ui.application.cdmw_state.clone();
+    ui.application.cdmw_cloth_paint.update(&state);
+    ui.frame(Vec::new());
+    ui.click("2 Paint cloth")?;
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Cloth));
+    ui.reveal("Paint whole model")?;
+    assert!(ui.label_rect("Mark which parts of your model swing as cloth.").is_none());
+    ui.click("Brush")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+    assert_eq!(ui.application.selection_tool, SelectionTool::Brush);
+    assert_eq!(ui.application.cloth_brush_value(), Some(1.0));
+    ui.click("Eraser")?;
+    assert_eq!(ui.application.cloth_brush_value(), Some(0.0));
+    ui.application.selection_tool = SelectionTool::Lasso;
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cloth_brush_value(), None);
+    assert!(ui.application.cdmw_cloth_paint.brush.is_none());
+    Ok(())
+}

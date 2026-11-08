@@ -358,3 +358,14 @@ def test_returning_painted_edit_asks_for_template_cloth_when_it_is_off():
     assert "turn on Template cloth / physics" in message
     message, _applied, _ = _finished_tab(painted=True, keep_physics=True, reapply=False)
     assert "Template cloth" not in message
+
+
+def test_material_routing_keeps_the_cloth_painted_flag():
+    # Plan rebuilt the files for the material route and lost the flag, so Build plan
+    # still refused a painted six-bone model with Template cloth / physics on.
+    from cdmw.services.new_item_materials import route_model_files
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.domain.new_item.spec import MaterialRoute
+    painted = ModelFiles(pac_data=b"PAR ", cloth_painted=True)
+    assert route_model_files(painted, MaterialRoute.BUILDER).cloth_painted
+    assert not route_model_files(ModelFiles(pac_data=b"PAR "), MaterialRoute.BUILDER).cloth_painted
