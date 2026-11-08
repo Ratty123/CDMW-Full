@@ -8715,6 +8715,9 @@ class RustMeshAuthoringSession:
                 "weight_edit_capability": weight_edit_capability.payload(),
                 "reason": _bounded_text(exc),
             }
+        from cdmw.services.mesh_rust_cloth_paint import cloth_paint_state
+        with shadow_session.export_lock:
+            state["cloth_paint"] = cloth_paint_state(shadow_session, self.state_cache)
         return state
 
     @_with_protocol_lock
@@ -9222,6 +9225,9 @@ class RustMeshAuthoringSession:
             "rig_transfer_weights",
         }:
             result = self._run_rig_weight_command(command, args)
+        elif command == "cloth_paint_set":
+            from cdmw.services.mesh_rust_cloth_paint import run_cloth_paint_command
+            result = run_cloth_paint_command(self, args)
         elif command.startswith("replacement_"):
             from cdmw.services.mesh_rust_replacement import run_replacement_command
             result = run_replacement_command(self, command, args, stop_event)
@@ -9419,6 +9425,7 @@ class RustMeshAuthoringSession:
             "rig_adjust_weight",
             "rig_normalize_weights",
             "rig_transfer_weights",
+            "cloth_paint_set",
         } or command.startswith("morph_") or command.startswith("refit_"):
             self._preflight_current_command_document(command)
         result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
@@ -9448,7 +9455,8 @@ class RustMeshAuthoringSession:
             before_revision=before_revision,
             before_signature=before_signature,
             mesh_change=("none" if state_only or command == "state" else
-                         "weights" if command in {"rig_adjust_weight", "rig_normalize_weights", "rig_transfer_weights"}
+                         "weights" if command in {"rig_adjust_weight", "rig_normalize_weights", "rig_transfer_weights",
+                                                  "cloth_paint_set"}
                          else "all"),
         )
         state = self.state_payload(

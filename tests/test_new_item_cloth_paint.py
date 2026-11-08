@@ -136,3 +136,66 @@ def test_mesh_editor_sets_cloth_paint_on_the_selection_with_undo_and_redo():
             service.set_selected_vertex_cloth_paint(sid, 2)
     finally:
         service.close_edit_session(sid)
+
+
+def _authoring_for(mesh):
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from cdmw.services.mesh_service import MeshService
+
+    service = MeshService()
+    sid = service.open_edit_session(mesh).session_id
+    authoring = SimpleNamespace(shadow_service=service, shadow_session_id=sid)
+    authoring._apply_explicit_rig_selection = lambda args, **kwargs: (
+        RustMeshAuthoringSession._apply_explicit_rig_selection(authoring, args, **kwargs))
+    return authoring
+
+
+def _selection(vertices):
+    return {"vertices_by_submesh": {"0": list(vertices)}, "edges_by_submesh": {},
+            "faces_by_submesh": {}, "source_indices": []}
+
+
+def test_editor_command_paints_the_sent_selection_and_publishes_painted_rows():
+    from cdmw.services.mesh_rust_authoring import RustMeshValidationError
+    from cdmw.services.mesh_rust_cloth_paint import cloth_paint_state, run_cloth_paint_command
+    from cdmw.services.mesh_rust_state_cache import RustMeshStateCache
+
+    authoring = _authoring_for(imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (1., 1., 0.)), ()))
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    try:
+        session = service._session(sid)
+        cache = RustMeshStateCache()
+        empty = cloth_paint_state(session, cache)
+        assert empty["supported"] and empty["painted_vertex_count"] == 0
+        assert run_cloth_paint_command(authoring, {"selection": _selection((0, 2)), "value": .6}) == {
+            "changed_vertex_count": 2}
+        state = cloth_paint_state(session, cache)
+        assert state["painted_vertex_count"] == 2
+        assert state["parts"] == [{"submesh_index": 0, "values": [[0, .6], [2, .6]]}]
+        assert cloth_paint_state(session, cache) is state  # cached until the next edit
+        with pytest.raises(RustMeshValidationError, match="Select one or more vertices"):
+            run_cloth_paint_command(authoring, {"selection": _selection(()), "value": 1})
+        with pytest.raises(RustMeshValidationError, match="between 0 and 1"):
+            run_cloth_paint_command(authoring, {"selection": _selection((1,)), "value": -1})
+    finally:
+        service.close_edit_session(sid)
+
+
+def test_game_models_do_not_offer_cloth_paint():
+    from cdmw.services.mesh_rust_cloth_paint import cloth_paint_state
+    state = cloth_paint_state(SimpleNamespace(mesh_format="pac"))
+    assert not state["supported"] and "Create New Item" in state["reason"]
+
+
+def test_paint_survives_the_editor_clone_that_publishes_to_create_new_item():
+    from cdmw.services.mesh_workflow_service import clone_mesh_for_editing
+    authoring = _authoring_for(imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), ()))
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    try:
+        from cdmw.services.mesh_rust_cloth_paint import run_cloth_paint_command
+        run_cloth_paint_command(authoring, {"selection": _selection((1,)), "value": 1})
+        published = service.working_mesh(sid, clone=True)
+        assert published.submeshes[0].cloth_paint == [0., 1., 0.]
+        assert clone_mesh_for_editing(published).submeshes[0].cloth_paint == [0., 1., 0.]
+    finally:
+        service.close_edit_session(sid)

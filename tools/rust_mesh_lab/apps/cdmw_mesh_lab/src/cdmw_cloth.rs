@@ -720,6 +720,7 @@ impl LabApplication {
                 .filter(|part| state_bool(part, "included")).map(|part| state_u64(part, "index") as u32).collect()
         };
         self.draw_cdmw_physics_detection(ui, &inspected, true);
+        self.draw_cdmw_cloth_paint(ui, actions);
         if !state_bool(&cloth, "available") {
             ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();

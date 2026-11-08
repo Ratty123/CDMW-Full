@@ -4,6 +4,7 @@
 mod camera;
 mod cdmw_bend;
 mod cdmw_cloth;
+mod cdmw_cloth_paint;
 mod cdmw_hair;
 mod cdmw_history;
 mod cdmw_jiggle;
@@ -2125,6 +2126,7 @@ struct LabApplication {
     skeleton_overlay_lines: Vec<[f32; 3]>,
     cdmw_skeleton_overlay_reason: String,
     cdmw_rig: cdmw_rig::RigView,
+    cdmw_cloth_paint: cdmw_cloth_paint::ClothPaintView,
     cdmw_cloth: cdmw_cloth::ClothView,
     cdmw_jiggle: cdmw_jiggle::JiggleView,
     cdmw_history: cdmw_history::HistoryView,
@@ -2328,6 +2330,7 @@ impl LabApplication {
             skeleton_overlay_lines: Vec::new(),
             cdmw_skeleton_overlay_reason: "No complete skeleton hierarchy is available".to_owned(),
             cdmw_rig: cdmw_rig::RigView::default(),
+            cdmw_cloth_paint: cdmw_cloth_paint::ClothPaintView::default(),
             cdmw_cloth: cdmw_cloth::ClothView::default(),
             cdmw_jiggle: cdmw_jiggle::JiggleView::default(),
             cdmw_history: cdmw_history::HistoryView::default(),
@@ -2649,6 +2652,7 @@ impl LabApplication {
 
     fn refresh_cdmw_skeleton_overlay(&mut self) {
         self.cdmw_rig.update(&self.cdmw_state);
+        self.cdmw_cloth_paint.update(&self.cdmw_state);
         match parse_cdmw_skeleton_overlay(&self.cdmw_state) {
             Ok(overlay) => {
                 self.skeleton_overlay_lines = overlay.lines;
@@ -2767,7 +2771,7 @@ impl LabApplication {
     fn cdmw_command_arguments(&self, command: &str, arguments: Value) -> Result<Value, String> {
         if !matches!(
             command,
-            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights"
+            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights" | "cloth_paint_set"
         ) {
             return Ok(arguments);
         }

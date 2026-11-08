@@ -2631,6 +2631,26 @@ a new or updated plan. The shared Mesh Editor writer still preserves physics for
 ordinary edits. Explicitly retaining template physics keeps its original bindings;
 copying the template model itself also retains them.
 
+**Cloth paint (experimental):** with **Template cloth / physics** on and no paint, each
+imported vertex still copies the nearest template vertex's whole record, cloth lanes
+included, so cloth lands unpredictably. Painting replaces that. In Mesh Editor, the
+Cloth page's **Cloth paint** section sets a 0–1 value on the explicitly selected
+vertices of an imported model (Undo applies; game models refuse it). The value is the
+per-vertex `cloth_paint` attribute and follows copies, topology edits and subdivision.
+At **Apply placement**, `cdmw/services/new_item_cloth_paint.py` places every imported
+vertex with the same placement matrix as the viewport and, in
+`cdmw/modding/pac_cloth_paint.py`, gives each built vertex at every LOD the value of the
+source vertex it was built from. Painted vertices bind to their four nearest guides of
+the template's existing guide mesh (inverse-distance weights totalling 255) with the
+skeletal blend byte set from the paint (1 = cloth only, 0 = bones only, reduced to four
+skeletal influences); unpainted vertices follow bones only. The guide mesh, its
+constraints, the physics profile and every other byte stay as the template shipped them.
+A built part with no imported vertex nearby is template geometry and keeps its own
+cloth; a part that only partly lines up refuses the build instead of painting the wrong
+vertices. Cloth moves only in parts whose material sidecar assigns a cloth profile; the
+plan summary names the parts that received cloth. Templates without guides are refused.
+None of this has been checked in game, and the preview does not simulate it.
+
 The template's HKX companion is copied byte for byte under each new stem either way.
 It is a rigid Havok collision shape that names no vertices or files, and the game
 looks one up for every model stem: game 2.04.02 logs each one it cannot find.

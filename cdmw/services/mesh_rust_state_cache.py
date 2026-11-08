@@ -99,6 +99,8 @@ class RustMeshStateCache:
     source_rows: dict[int, tuple] = field(default_factory=dict, repr=False)
     skeleton_summary: tuple | None = field(default=None, repr=False)
     bone_influence: tuple | None = field(default=None, repr=False)
+    #: (session revision key, painted-rows state) for the cloth paint overlay
+    cloth_paint: tuple | None = field(default=None, repr=False)
     document: _MeshDocument | None = field(default=None, repr=False)
 
     def _record(self, session: object, identity: tuple[object, ...]) -> None:

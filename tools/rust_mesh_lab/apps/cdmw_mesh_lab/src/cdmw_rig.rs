@@ -19,6 +19,13 @@ pub(super) struct RigView {
     uploaded: bool,
 }
 
+impl RigView {
+    /// Upload this view's colours again on the next paint (another view used the overlay).
+    pub fn force_upload(&mut self) {
+        self.uploaded = false;
+    }
+}
+
 impl Default for RigView {
     fn default() -> Self {
         Self {
@@ -433,6 +440,28 @@ impl LabApplication {
     pub(super) fn paint_rig_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
         let active = self.cdmw_rail_page == Some(CdmwRailPage::RigWeights);
         let visible = self.cdmw_visible_submeshes();
+        // Cloth paint shares the weight overlay while the Cloth page shows it.
+        if self.cloth_paint_overlay_active() {
+            if let Some(mesh) = &self.mesh {
+                self.cdmw_cloth_paint.prepare(mesh, visible);
+            }
+            if !self.cdmw_cloth_paint.uploaded
+                && let Some(renderer) = &mut self.renderer
+            {
+                match renderer.set_rig_weights(&self.cdmw_cloth_paint.positions, &self.cdmw_cloth_paint.colours) {
+                    Ok(()) => {
+                        self.cdmw_cloth_paint.uploaded = true;
+                        self.cdmw_rig.force_upload();
+                    }
+                    Err(error) => self.status = format!("Cloth paint display failed: {error}"),
+                }
+            }
+            return;
+        }
+        if self.cdmw_cloth_paint.uploaded {
+            self.cdmw_cloth_paint.uploaded = false;
+            self.cdmw_rig.force_upload();
+        }
         if let Some(mesh) = &self.mesh {
             self.cdmw_rig.prepare(
                 mesh,
