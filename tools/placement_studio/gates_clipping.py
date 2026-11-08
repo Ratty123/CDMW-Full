@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 from typing import List, Optional
 
+from cdmw.domain.part_names import same_part_name
 from tools.placement_studio.cli_support import log as _log
 from tools.placement_studio.corpus import Baseline
+from tools.placement_studio.model import SWORD_ROW
 
 
 def cmd_clipping(args: argparse.Namespace) -> int:
@@ -77,10 +79,10 @@ def cmd_clipping(args: argparse.Namespace) -> int:
     _log("")
 
     binding = next(
-        (b for b in session.bindings() if b.part_name == "CD_MainWeapon_Sword_R"), None
+        (b for b in session.bindings() if same_part_name(b.part_name, SWORD_ROW)), None
     )
     if binding is None:
-        _log("No CD_MainWeapon_Sword_R row for this model")
+        _log(f"No {SWORD_ROW} row for this model")
         return 1
 
     def penetration(translation_delta: Optional[Vec3] = None) -> float:

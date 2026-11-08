@@ -26,9 +26,9 @@ XML = (b'\xef\xbb\xbf<!-- retained </ParamDesc> comment -->\r\n<MeshParam>\r\n'
        + b'</ParamDesc>\r\n<ParamDesc Index="3" Default="0" /></MeshParam>')
 
 
-def fixture(*, stem=STEM):
+def fixture(*, stem=STEM, slot="CD_Hair"):
     mesh = MESH.replace(STEM, stem)
-    record = PartPrefabRecord(stem, "1_pc/02_phw/head/hair", "", flag=0, parts=(PartPrefabPart("CD_Hair"),))
+    record = PartPrefabRecord(stem, "1_pc/02_phw/head/hair", "", flag=0, parts=(PartPrefabPart(slot),))
     table = PartPrefabTable((record,), tag_prefix=b"\x01")
     files = {
         DAMIANE_MESH_PARAM: XML.replace(STEM.encode(), stem.encode()),
@@ -50,3 +50,17 @@ def test_prefab_donor_gate_explains_multi_mesh_and_alias_choices(monkeypatch, re
         SimpleNamespace(resource_strings=lambda: [SimpleNamespace(text=path) for path in resources]))
     with pytest.raises(HairRegistrationError, match=reason):
         hair_registration.validate_hair_prefab_donor(b"prefab", MESH)
+
+
+@pytest.mark.parametrize("slot", ["Hair", "CD_Hair"])
+def test_the_hair_slot_is_accepted_in_both_namings_and_cloned_as_spelled(slot):
+    # `Hair` since the October 2026 update, `CD_Hair` in tables extracted before it.
+    plan = prepare_damiane_hair_registration(fixture(slot=slot), new_stem=NEW, existing_paths=())
+    table = parse_pappt(dict((item.path, item.data) for item in plan.replacements)[PART_PREFAB_TABLE])
+    assert [part.name for part in table.records[-1].parts] == [slot]
+    assert table.records[-1].stem == NEW
+
+
+def test_a_template_in_another_slot_is_refused():
+    with pytest.raises(HairRegistrationError, match="one Hair prefab record"):
+        prepare_damiane_hair_registration(fixture(slot="Hair_Tail"), new_stem=NEW, existing_paths=())

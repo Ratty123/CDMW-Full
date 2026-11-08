@@ -18,6 +18,7 @@ from cdmw.domain.hair_registration import (
     HairRegistrationError, append_hair_choice, read_hair_choices, validate_hair_stem,
 )
 from cdmw.domain.hair_characters import hair_character
+from cdmw.domain.part_names import same_part_name
 
 
 DAMIANE_MESH_PARAM = "character/descriptors/customizationmeta/meshparam_example_damian.xml"
@@ -113,8 +114,9 @@ def prepare_hair_registration(
     if encode_pappt(table) != table_bytes:
         raise HairRegistrationError("The active prefab table does not round-trip exactly.")
     donors = [row for row in table.records if row.stem.casefold() == donor.prefab_stem.casefold()]
-    if len(donors) != 1 or tuple(part.name for part in donors[0].parts) != ("CD_Hair",):
-        raise HairRegistrationError("The template must resolve to one CD_Hair prefab record.")
+    # `Hair` since the October 2026 update, `CD_Hair` in tables from before it.
+    if len(donors) != 1 or len(donors[0].parts) != 1 or not same_part_name(donors[0].parts[0].name, "Hair"):
+        raise HairRegistrationError("The template must resolve to one Hair prefab record.")
     if any(row.stem.casefold() == new_stem for row in (*table.records, *table.head_records)):
         raise HairRegistrationError("The new hair name already exists in the prefab table.")
     record = donors[0]

@@ -264,6 +264,12 @@
     "reason": "Placement Studio validation-gate output; excluded developer harness."
   },
   {
+    "path": "tools/placement_studio/model.py",
+    "symbol": "sword_row",
+    "source": "MainWeapon_Sword_R",
+    "reason": "Game part role identifier from Kliff's character description, shown verbatim like the other descriptor row names."
+  },
+  {
     "path": "tools/placement_studio/gates_clipping.py",
     "symbol": "developer_harness",
     "source": "*",

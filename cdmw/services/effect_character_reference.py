@@ -41,6 +41,7 @@ from typing import Callable, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.placement import BODY_PLACEMENT_FRAME, equipment_placement_frame
+from cdmw.domain.part_names import bare_part_name, find_part_name
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 __all__ = [
@@ -396,14 +397,36 @@ def _preferred_prefab_paths(prefab_paths: Sequence[str]) -> Tuple[str, ...]:
     return tuple(sorted(normalized, key=lambda path: "_in" in path))
 
 
-def _part_names_in_prefab(prefab: bytes) -> Tuple[str, ...]:
-    """Descriptor part names remain unambiguous ASCII even in older prefab layouts."""
+def _part_names_in_prefab(prefab: bytes, known: Iterable[str] = ()) -> Tuple[str, ...]:
+    """Descriptor part names in a prefab's bytes, in either naming, in file order.
+
+    Before the October 2026 update every name carried ``CD_``, which is enough to find it
+    even in older prefab layouts. Current names (``MainWeapon_Sword_R``) are plain
+    identifiers, so one counts only when it is one of the `known` descriptor names, and is
+    returned as the descriptor spells it.
+    """
 
     import re
 
-    return tuple(
-        dict.fromkeys(match.decode("ascii") for match in re.findall(rb"CD_[A-Za-z0-9_]+", prefab))
-    )
+    hits = [(match.start(), match.group().decode("ascii"))
+            for match in re.finditer(rb"CD_[A-Za-z0-9_]+", prefab)]
+    by_bare = {bare_part_name(name): str(name) for name in known if bare_part_name(name)}
+    if by_bare:
+        for match in re.finditer(rb"[A-Za-z0-9_]+", prefab):
+            name = by_bare.get(bare_part_name(match.group().decode("ascii")))
+            if name:
+                hits.append((match.start(), name))
+    return tuple(dict.fromkeys(name for _offset, name in sorted(hits)))
+
+
+def _reference_part(parts: Mapping[str, object], name: str) -> object:
+    """The descriptor row for `name`, whichever side of the ``CD_`` rename each is from."""
+
+    part = parts.get(name)
+    if part is None and name:
+        spelled = find_part_name(parts, name)
+        part = parts.get(spelled) if spelled else None
+    return part
 
 
 def _item_attachment_route(
@@ -428,7 +451,7 @@ def _item_attachment_route(
         except Exception:  # noqa: BLE001 - another owned part may carry the route
             continue
         if profile:
-            part = reference.parts.get(str(profile.get("_partName") or ""))
+            part = _reference_part(reference.parts, str(profile.get("_partName") or ""))
             body_socket = str(getattr(part, "out_socket", "") or "")
             child_socket = str(getattr(part, "out_child_socket", "") or "")
             if body_socket:
@@ -437,8 +460,8 @@ def _item_attachment_route(
             child_socket = str(profile.get("_pivotSocketName") or "")
             if body_socket:
                 return body_socket, child_socket or _CHILD_SOCKET, "prefab"
-        for part_name in _part_names_in_prefab(payload):
-            part = reference.parts.get(part_name)
+        for part_name in _part_names_in_prefab(payload, reference.parts):
+            part = _reference_part(reference.parts, part_name)
             body_socket = str(getattr(part, "out_socket", "") or "")
             child_socket = str(getattr(part, "out_child_socket", "") or "")
             if body_socket:

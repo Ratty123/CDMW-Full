@@ -213,6 +213,29 @@ class WeaponSwapTemplateRegistryTests(unittest.TestCase):
         self.assertIn('WeaponCasePart="CD_MainWeapon_Sword_IN_L"', result.text)
         self.assertGreaterEqual(len(result.diffs), 8)
 
+    def test_dual_descriptor_patch_reads_current_part_names_and_writes_them_back(self) -> None:
+        # Kliff's descriptor since the October 2026 update: no `CD_`, and no `_Aux` rows.
+        base_xml = """
+        <Root>
+          <PartInOutSocket PartName="MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" WeaponCasePart="Old_R" />
+          <PartInOutSocket PartName="MainWeapon_Sword_IN_R" InSocketBone="Pelvis_L_Socket" OutSocketBone="Pelvis_L_Socket" InChildSocketBone="Pelvis_L_ChildSocket" OutChildSocketBone="Pelvis_L_ChildSocket" />
+          <PartInOutSocket PartName="MainWeapon_Sword_L" InSocketBone="Pelvis_R_Socket" InChildSocketBone="Pelvis_R_ChildSocket" WeaponCasePart="MainWeapon_Sword_IN_L" />
+          <PartInOutSocket PartName="MainWeapon_Sword_IN_L" InSocketBone="Pelvis_R_Socket" OutSocketBone="Pelvis_R_Socket" InChildSocketBone="Pelvis_R_ChildSocket" OutChildSocketBone="Pelvis_R_ChildSocket" />
+        </Root>
+        """
+
+        result = build_part_in_out_weapon_swap_template_patch(base_xml, "dual_onehand_back_crossed")
+
+        self.assertEqual(
+            ("MainWeapon_Sword_R", "MainWeapon_Sword_IN_R", "MainWeapon_Sword_L", "MainWeapon_Sword_IN_L"),
+            result.patched_part_names,
+        )
+        self.assertIn('WeaponCasePart="MainWeapon_Sword_IN_R"', result.text)
+        self.assertNotIn("CD_", result.text)
+        # A case link that already names the current case part is left alone.
+        self.assertNotIn(("MainWeapon_Sword_L", "WeaponCasePart"), {(d.part_name, d.field_name) for d in result.diffs})
+        self.assertEqual(13, len(result.diffs))
+
     def test_unknown_template_is_rejected(self) -> None:
         with self.assertRaises(KeyError):
             get_weapon_swap_template("missing")

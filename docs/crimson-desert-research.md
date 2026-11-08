@@ -1614,6 +1614,20 @@ The replacement workspace retains exact installed paths, Full/LOD companions
 and source identity. Packed timing analysis uses matched clip families rather
 than assuming a distance variant is a different rig.
 
+**Part role names lost the `CD_` prefix in the DLC update.** Checked 2026-11-08
+against the installed game (executable 1.0.0.3576, archives read-only):
+`CD_MainWeapon_Sword_R` is now `MainWeapon_Sword_R`, `CD_Upperbody` is
+`Upperbody` and the `CD_Bag_For_Dock` element is `Bag_For_Dock`. No name keeps
+the prefix in the 83 `PartInOutSocket` rows of `phm_description_player_kliff.xml`,
+the 25,535 part slots of `partprefabtable.pappt`, the Hide targets of
+`conditionalpartprefab_postfix.xml` or the 1,280 player weapon prefabs that carry
+placement sockets. In a prefab the role is the first `SkinnedMeshComponent`'s
+name, at the same value position as before. Internal PAC submesh names such as
+`CD_PHW_00_Nude_00_0001` did not change, and Kliff's description no longer has
+the `MainWeapon_Sword_*_Aux` rows. CDMW compares part names in either form and
+writes the form the edited file already uses; placement mods built this way
+have not been tested in game.
+
 Action charts (`.paac`) are now read to the last byte. Reviewed 2026-11-02
 against the installed 2.04.03 build (executable 1.0.0.3479; loader read from a
 runtime dump, archives read-only):

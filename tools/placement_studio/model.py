@@ -14,6 +14,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.part_names import bare_part_name, find_part_name
+
 _PRECISION = 6
 
 # Translation step sizes the tuning guide sanctions, smallest first.
@@ -200,6 +202,18 @@ class Socket:
         return not self.parent_bone
 
 
+#: The row a sword view falls back to when nothing is selected: the right-hand sword. Files
+#: from before the October 2026 update spell it `CD_MainWeapon_Sword_R`, so compare with
+#: `cdmw.domain.part_names.same_part_name` rather than `==`.
+SWORD_ROW = "MainWeapon_Sword_R"
+
+
+def sword_row(part_names: Iterable[str]) -> str:
+    """The right-hand sword row as the loaded descriptor spells it, in either naming."""
+
+    return find_part_name(part_names, SWORD_ROW) or SWORD_ROW
+
+
 @dataclass(frozen=True, slots=True)
 class DescriptorPart:
     """One equipment row: which sockets an item uses when stowed and when held."""
@@ -222,11 +236,13 @@ class DescriptorPart:
 
     @property
     def category(self) -> str:
-        name = self.part_name
+        # Either naming: `CD_MainWeapon_Sword_R` before the October 2026 update,
+        # `MainWeapon_Sword_R` after it.
+        name = bare_part_name(self.part_name)
         for prefix, label in (
-            ("CD_MainWeapon_", "main_weapon"),
-            ("CD_TwoHandWeapon_", "two_hand_weapon"),
-            ("CD_Tool_", "tool"),
+            ("MainWeapon_", "main_weapon"),
+            ("TwoHandWeapon_", "two_hand_weapon"),
+            ("Tool_", "tool"),
         ):
             if name.startswith(prefix):
                 return label
@@ -234,10 +250,10 @@ class DescriptorPart:
 
     @property
     def weapon_type(self) -> str:
-        """`CD_MainWeapon_Sword_IN_R` -> `Sword`; `CD_TwoHandWeapon_Axe` -> `Axe`."""
+        """`MainWeapon_Sword_IN_R` -> `Sword`; `TwoHandWeapon_Axe` -> `Axe`; either naming."""
 
-        name = self.part_name
-        for prefix in ("CD_MainWeapon_", "CD_TwoHandWeapon_", "CD_Tool_"):
+        name = bare_part_name(self.part_name)
+        for prefix in ("MainWeapon_", "TwoHandWeapon_", "Tool_"):
             if name.startswith(prefix):
                 rest = name[len(prefix) :]
                 for suffix in ("_IN_L", "_IN_R", "_L_Aux", "_R_Aux", "_IN", "_L", "_R"):

@@ -2,6 +2,8 @@
 from dataclasses import dataclass, field
 import re
 
+from cdmw.domain.part_names import bare_part_name
+
 SKIN_RECEIVERS = frozenset({'Nude'})
 HAIR_RECEIVERS = frozenset({'Hair', 'LongHair', 'Hair_Tail', 'Beard'})
 _RECEIVER = re.compile(r"[A-Za-z0-9_]{1,64}\Z")
@@ -44,12 +46,17 @@ class BodyVisibilityChoice:
     def hidden_parts(self) -> frozenset[str]:
         # A restored head needs its eyes and mouth as well. Helmet-owned item hair
         # and unrelated clothing remain governed by their original rules; clothing
-        # receivers have no known whole-part hide counterpart.
-        skin = {'CD_Nude', 'CD_Head', 'CD_Tooth', 'CD_EyeRight', 'CD_EyeLeft',
-                'CD_Eyelashes', 'CD_Eyebrows'} if self.keep_skin else set()
-        hair = {'CD_Hair', 'CD_Hair_Tail', 'CD_Hair_UpTail', 'CD_Hair_Acc',
-                'CD_Nude_Hair', 'CD_Beard', 'CD_Beard_Long'} if self.keep_hair else set()
+        # receivers have no known whole-part hide counterpart. Current part names; rules
+        # from before the October 2026 update say `CD_Hair`, which `hides_part` accepts.
+        skin = {'Nude', 'Head', 'Tooth', 'EyeRight', 'EyeLeft',
+                'Eyelashes', 'Eyebrows'} if self.keep_skin else set()
+        hair = {'Hair', 'Hair_Tail', 'Hair_UpTail', 'Hair_Acc',
+                'Nude_Hair', 'Beard', 'Beard_Long'} if self.keep_hair else set()
         return frozenset(skin | hair)
+
+    def hides_part(self, part_name: str) -> bool:
+        """Whether a Hide rule's `TargetPart` is one this choice keeps visible, in either naming."""
+        return bare_part_name(part_name) in self.hidden_parts
 
     @staticmethod
     def combine(choices) -> "BodyVisibilityChoice":

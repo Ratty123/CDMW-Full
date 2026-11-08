@@ -346,6 +346,13 @@ class PartDropdownTests(unittest.TestCase):
         harness._populate_parts()
         self.assertEqual(harness._selected_part, "CD_MainWeapon_Sword_R")
 
+    def test_the_sword_row_is_the_default_pick_in_the_current_naming(self) -> None:
+        # Since the October 2026 update the row is `MainWeapon_Sword_R`; the default used to
+        # be the hard-coded `CD_` name, which no current row matched.
+        harness = _PartsHarness([_part(part_name="MainWeapon_Axe_R"), _part(part_name="MainWeapon_Sword_R")])
+        harness._populate_parts()
+        self.assertEqual(harness._selected_part, "MainWeapon_Sword_R")
+
     def test_syncing_an_unknown_part_leaves_the_box_alone(self) -> None:
         harness = _PartsHarness([_part()])
         harness._populate_parts()

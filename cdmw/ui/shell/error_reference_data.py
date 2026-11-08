@@ -9796,7 +9796,7 @@ MESSAGE_REFERENCE = [
     "message": "Changing a socket name to a different length needs a prefab this tool can read all the way through, and this one stopped: {exc}. Same-length replacements still work, and do not move any bytes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1189
+      "cdmw/core/archive_attachment_patches.py": 1218
     }
   },
   {
@@ -13938,7 +13938,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab placement profile fields were not proven safe to edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1127
+      "cdmw/core/archive_attachment_patches.py": 1148
     }
   },
   {
@@ -13946,7 +13946,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab socket-name fields were not proven safe to edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1097
+      "cdmw/core/archive_attachment_patches.py": 1118
     }
   },
   {
@@ -17160,7 +17160,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe prefab rewrite blocked: replacement would resize target prefab ({field.field_name} {field.byte_length} -> {len(encoded)} bytes).",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1155
+      "cdmw/core/archive_attachment_patches.py": 1182
     }
   },
   {
@@ -17706,10 +17706,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "_partName replacement must be a Crimson part role such as CD_MainWeapon_Sword_R.",
+    "message": "_partName replacement must be a Crimson part role such as MainWeapon_Sword_R.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1078
+      "cdmw/core/archive_attachment_patches.py": 1099
     }
   },
   {
@@ -17717,7 +17717,7 @@ MESSAGE_REFERENCE = [
     "message": "_socketFileName replacement must be a socket descriptor path ending in .sockets.xml.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1081
+      "cdmw/core/archive_attachment_patches.py": 1102
     }
   },
   {
@@ -18563,7 +18563,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/archive_asset_family.py": 531,
       "cdmw/core/archive_attachment_iteminfo.py": 898,
-      "cdmw/core/archive_attachment_patches.py": 916,
+      "cdmw/core/archive_attachment_patches.py": 919,
       "cdmw/core/archive_filtering.py": 669,
       "cdmw/core/archive_model_preview.py": 208,
       "cdmw/core/archive_structured_preview.py": 201,
@@ -19839,7 +19839,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} contains characters that are unsafe for this prefab string slot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1053
+      "cdmw/core/archive_attachment_patches.py": 1074
     }
   },
   {
@@ -19847,7 +19847,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} is not editable in a prefab placement profile patch.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1083
+      "cdmw/core/archive_attachment_patches.py": 1104
     }
   },
   {
@@ -19855,7 +19855,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} must be ASCII for a safe prefab profile rewrite.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1069
+      "cdmw/core/archive_attachment_patches.py": 1090
     }
   },
   {
@@ -19863,7 +19863,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} must be ASCII for a safe prefab socket-name rewrite.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1051
+      "cdmw/core/archive_attachment_patches.py": 1072
     }
   },
   {
@@ -19871,7 +19871,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} replacement is too long for the prefab placement profile patch.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1085
+      "cdmw/core/archive_attachment_patches.py": 1106
     }
   },
   {
@@ -19879,7 +19879,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} replacement must be a socket name, not a path.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1055
+      "cdmw/core/archive_attachment_patches.py": 1076
     }
   },
   {
@@ -19887,7 +19887,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.field_name} replacement must be exactly {field.byte_length} byte(s) for the proven safe prefab rewrite; {text} is {len(encoded)} byte(s).",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_attachment_patches.py": 1057
+      "cdmw/core/archive_attachment_patches.py": 1078
     }
   },
   {
@@ -33581,7 +33581,7 @@ MESSAGE_REFERENCE = [
     "message": "Kept underlying layers must be shrink receiver names.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/body_visibility.py": 35
+      "cdmw/domain/new_item/body_visibility.py": 37
     }
   },
   {
@@ -36569,7 +36569,7 @@ MESSAGE_REFERENCE = [
     "message": "Underlying skin and hair choices must be booleans.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/body_visibility.py": 32
+      "cdmw/domain/new_item/body_visibility.py": 34
     }
   },
   {
@@ -74747,7 +74747,7 @@ MESSAGE_REFERENCE = [
     "message": "2H horse PAAC socket replacement must be same length.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/weapon_swap_templates.py": 292
+      "cdmw/core/weapon_swap_templates.py": 293
     }
   },
   {
@@ -74931,7 +74931,7 @@ MESSAGE_REFERENCE = [
     "message": "A new hair asset would overwrite an existing path: {addition.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/hair_registration.py": 144
+      "cdmw/services/hair_registration.py": 146
     }
   },
   {
@@ -75195,7 +75195,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous source ownership: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/hair_registration.py": 61
+      "cdmw/services/hair_registration.py": 62
     }
   },
   {
@@ -79196,7 +79196,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair registration source changed: {path}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/hair_registration.py": 45
+      "cdmw/services/hair_registration.py": 46
     }
   },
   {
@@ -79460,7 +79460,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid archive-relative path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/hair_registration.py": 52
+      "cdmw/services/hair_registration.py": 53
     }
   },
   {
@@ -80910,7 +80910,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing hair registration dependency: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/hair_registration.py": 103
+      "cdmw/services/hair_registration.py": 104
     }
   },
   {
@@ -80974,7 +80974,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing prepared source bytes: {name}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/hair_registration.py": 63
+      "cdmw/services/hair_registration.py": 64
     }
   },
   {
@@ -83241,7 +83241,7 @@ MESSAGE_REFERENCE = [
     "message": "SocketBoneData XML does not contain a SocketList.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/weapon_swap_templates.py": 311
+      "cdmw/core/weapon_swap_templates.py": 312
     }
   },
   {
@@ -83730,7 +83730,7 @@ MESSAGE_REFERENCE = [
     "message": "The active prefab table does not round-trip exactly.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/hair_registration.py": 114
+      "cdmw/services/hair_registration.py": 115
     }
   },
   {
@@ -83898,7 +83898,7 @@ MESSAGE_REFERENCE = [
     "message": "The character for the placement viewport could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/effect_character_reference.py": 662
+      "cdmw/services/effect_character_reference.py": 685
     }
   },
   {
@@ -83946,7 +83946,7 @@ MESSAGE_REFERENCE = [
     "message": "The cloned prefab did not retain the new mesh reference.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/hair_registration.py": 133
+      "cdmw/services/hair_registration.py": 135
     }
   },
   {
@@ -84114,7 +84114,7 @@ MESSAGE_REFERENCE = [
     "message": "The donor does not belong to the selected character's hair family.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/hair_registration.py": 126
+      "cdmw/services/hair_registration.py": 128
     }
   },
   {
@@ -84762,7 +84762,7 @@ MESSAGE_REFERENCE = [
     "message": "The new hair name already exists in the prefab table.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/hair_registration.py": 119
+      "cdmw/services/hair_registration.py": 121
     }
   },
   {
@@ -85403,7 +85403,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/domain/hair_registration.py": 91,
-      "cdmw/services/hair_registration.py": 109
+      "cdmw/services/hair_registration.py": 110
     }
   },
   {
@@ -85416,10 +85416,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The template must resolve to one CD_Hair prefab record.",
+    "message": "The template must resolve to one Hair prefab record.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/hair_registration.py": 117
+      "cdmw/services/hair_registration.py": 119
     }
   },
   {
@@ -85491,7 +85491,7 @@ MESSAGE_REFERENCE = [
     "message": "The updated prefab table changed existing records.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/hair_registration.py": 150
+      "cdmw/services/hair_registration.py": 152
     }
   },
   {
@@ -85699,7 +85699,7 @@ MESSAGE_REFERENCE = [
     "message": "This registered hairstyle uses multiple PAC meshes. Hair authoring currently requires a single-mesh hairstyle; choose another base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/hair_registration.py": 72
+      "cdmw/services/hair_registration.py": 73
     }
   },
   {
@@ -85707,7 +85707,7 @@ MESSAGE_REFERENCE = [
     "message": "This registration points to a different PAC mesh. Choose another verified base hairstyle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/hair_registration.py": 74
+      "cdmw/services/hair_registration.py": 75
     }
   },
   {
@@ -86091,7 +86091,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown weapon swap template: {template_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/weapon_swap_templates.py": 154
+      "cdmw/core/weapon_swap_templates.py": 155
     }
   },
   {
@@ -87086,7 +87086,7 @@ MESSAGE_REFERENCE = [
     "message": "a rotation is nine numbers",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/effect_character_reference.py": 180
+      "cdmw/services/effect_character_reference.py": 181
     }
   },
   {
@@ -93318,7 +93318,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot normalize a zero-length quaternion",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/model.py": 95
+      "tools/placement_studio/model.py": 97
     }
   },
   {
@@ -93850,7 +93850,7 @@ MESSAGE_REFERENCE = [
     "message": "Expected {expected} values, got {len(parts)}: {text}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/model.py": 42
+      "tools/placement_studio/model.py": 44
     }
   },
   {
@@ -93890,7 +93890,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: a held weapon should only graze the body, not sit inside it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 133
+      "tools/placement_studio/gates_clipping.py": 135
     }
   },
   {
@@ -93906,7 +93906,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: proxy covers only {coverage} of the rig (need {MIN_BODY_COVERAGE}) — {', '.join((p.rsplit('/', 1)[-1] for p in body_paths))}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 65
+      "tools/placement_studio/gates_clipping.py": 67
     }
   },
   {
@@ -93914,7 +93914,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: some direction should clear the body entirely",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 157
+      "tools/placement_studio/gates_clipping.py": 159
     }
   },
   {
@@ -93922,7 +93922,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: some direction should push the weapon further into the body",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 160
+      "tools/placement_studio/gates_clipping.py": 162
     }
   },
   {
@@ -93930,7 +93930,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: the metric barely responded to a 0.40 sweep",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 154
+      "tools/placement_studio/gates_clipping.py": 156
     }
   },
   {
@@ -93938,7 +93938,7 @@ MESSAGE_REFERENCE = [
     "message": "FAIL: vanilla is closer to fully buried than to clear",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/gates_clipping.py": 167
+      "tools/placement_studio/gates_clipping.py": 169
     }
   },
   {
@@ -93955,7 +93955,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/gates.py": 635,
-      "tools/placement_studio/gates_clipping.py": 192
+      "tools/placement_studio/gates_clipping.py": 194
     }
   },
   {
@@ -95404,7 +95404,7 @@ MESSAGE_REFERENCE = [
     "message": "No defined socket matches the {len(chart_socket)} characters of {chart_socket}, so the draw animation cannot be retargeted yet. A socket of exactly that length unblocks it.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_editing.py": 511
+      "tools/placement_studio/window_editing.py": 513
     }
   },
   {
@@ -95644,7 +95644,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-numeric transform value: {text}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/model.py": 46
+      "tools/placement_studio/model.py": 48
     }
   },
   {
@@ -106207,6 +106207,7 @@ SOURCE_COVERAGE = {
   "cdmw/domain/packages/export_policy.py": {},
   "cdmw/domain/packages/layout.py": {},
   "cdmw/domain/packages/retrofit.py": {},
+  "cdmw/domain/part_names.py": {},
   "cdmw/domain/textures/__init__.py": {},
   "cdmw/domain/textures/editor_brush.py": {},
   "cdmw/domain/textures/editor_common.py": {},
