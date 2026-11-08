@@ -369,6 +369,47 @@ class MeshRiggingServiceMixin:
         return self.skeleton_summary(session_id)
 
     @_with_session_export_lock
+    def set_selected_vertex_cloth_paint(self, session_id: str, value: object) -> int:
+        """Set the cloth paint of the explicitly selected vertices; returns how many changed.
+
+        0 follows the skeleton only, 1 follows the template's cloth guides only. The
+        value travels with the mesh as the per-vertex ``cloth_paint`` attribute and is
+        bound to the template's guides when Create New Item builds the model.
+        """
+        session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("Cloth paint is unavailable while the native mesh state is stale.")
+        try:
+            amount = float(value)
+        except (TypeError, ValueError, OverflowError):
+            amount = math.nan
+        if not math.isfinite(amount) or not 0.0 <= amount <= 1.0:
+            raise ValueError("Cloth paint must be a number between 0 and 1.")
+        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        planned: list[tuple[int, list[float], list[int]]] = []
+        for submesh_index, vertex_indices in session.selection.vertex_map().items():
+            if not 0 <= submesh_index < len(session.working_mesh.submeshes):
+                continue
+            submesh = session.working_mesh.submeshes[submesh_index]
+            count = len(submesh.vertices)
+            paint = [float(v) for v in (getattr(submesh, "cloth_paint", ()) or ())]
+            if len(paint) != count:
+                paint = [0.0] * count
+            changed = [i for i in _valid_vertex_indices(submesh, vertex_indices) if paint[i] != amount]
+            if changed:
+                planned.append((submesh_index, paint, changed))
+        if not planned:
+            return 0
+        self._push_history(session, action="set_cloth_paint", label="Set Cloth Paint")
+        for submesh_index, paint, changed in planned:
+            for vertex_index in changed:
+                paint[vertex_index] = amount
+            session.working_mesh.submeshes[submesh_index].cloth_paint = paint
+        _clear_history_stack(session.redo_stack)
+        session.revision += 1
+        return sum(len(changed) for _index, _paint, changed in planned)
+
+    @_with_session_export_lock
     def normalize_selected_vertex_weights(self, session_id: str) -> MeshSkeletonSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:

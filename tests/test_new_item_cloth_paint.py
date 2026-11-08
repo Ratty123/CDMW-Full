@@ -113,3 +113,26 @@ def _row(point, m):
 def _inverse_rows(m):
     import numpy as np
     return tuple(float(v) for v in np.linalg.inv(np.asarray(m, dtype=float).reshape(4, 4)).reshape(16))
+
+
+def test_mesh_editor_sets_cloth_paint_on_the_selection_with_undo_and_redo():
+    from cdmw.domain.mesh.editing import MeshEditSelection
+    from cdmw.services.mesh_service import MeshService
+
+    service = MeshService()
+    mesh = imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (1., 1., 0.)), ())
+    sid = service.open_edit_session(mesh).session_id
+    try:
+        session = service._session(sid)
+        session.selection = MeshEditSelection.from_maps(vertices_by_submesh={0: (1, 3)})
+        assert service.set_selected_vertex_cloth_paint(sid, .75) == 2
+        assert session.working_mesh.submeshes[0].cloth_paint == [0., .75, 0., .75]
+        assert service.set_selected_vertex_cloth_paint(sid, .75) == 0  # no-op leaves history alone
+        service.undo(sid)
+        assert part_cloth_paint(service._session(sid).working_mesh.submeshes[0]) in ([], [0.] * 4)
+        service.redo(sid)
+        assert service._session(sid).working_mesh.submeshes[0].cloth_paint == [0., .75, 0., .75]
+        with pytest.raises(ValueError, match="between 0 and 1"):
+            service.set_selected_vertex_cloth_paint(sid, 2)
+    finally:
+        service.close_edit_session(sid)
