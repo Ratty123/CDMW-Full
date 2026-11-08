@@ -22,6 +22,7 @@ mod parts_output_tests;
 mod history_controls_tests;
 mod keyboard_shortcuts;
 mod free_edit_replacement_tests;
+mod replacement_weights_tests;
 mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;

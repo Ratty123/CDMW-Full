@@ -375,3 +375,27 @@ def test_fbx_replacement_is_converted_and_tracked_by_its_own_file(editor, tmp_pa
         verify_import_sources(pending)
     with pytest.raises(ValueError, match="working folder"):
         prepare_import(service.capture_export_snapshot(sid), fbx)
+
+
+def test_export_rig_glb_writes_the_pac_on_its_skeleton(editor, tmp_path):
+    service, sid, _ = editor
+    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=sid), tmp_path / "host", process_generation=1)
+    try:
+        state = command(host, "replacement_compare", {"mode": "edit"})["state"]["replacement"]
+        assert state["rig_export"] == {"available": True, "reason": ""}
+        folder = tmp_path / "rig"
+        folder.mkdir()
+        result = command(host, "replacement_export_rig", {"folder": str(folder)})
+        glb = Path(result["result"]["glb"] if "result" in result else result["glb"])
+        assert glb.name == "target_rig.glb" and glb.is_file()
+        assert not list(folder.glob("*.meta.json"))
+        from cdmw.modding.scene_gltf_import import _read_glb
+        document, _ = _read_glb(glb)
+        joints = {document["nodes"][joint]["name"] for joint in document["skins"][0]["joints"]}
+        assert {"bone5", "bone2", "bone0"} <= joints
+        host.shadow_service._session(host.shadow_session_id).skeleton = None
+        state = command(host, "replacement_compare", {"mode": "edit"})["state"]["replacement"]
+        assert not state["rig_export"]["available"] and "skeleton" in state["rig_export"]["reason"]
+    finally:
+        if not host.closed:
+            host.cancel()

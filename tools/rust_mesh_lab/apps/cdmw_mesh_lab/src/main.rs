@@ -1474,6 +1474,7 @@ enum UiAction {
     ExportObj,
     ChooseCdmwImportPackage,
     ChooseCdmwExport(&'static str),
+    ChooseCdmwRigExport,
     ChooseCdmwFreeEdit,
     ChooseCdmwMorphPreset {
         save: bool,
@@ -4871,6 +4872,7 @@ impl LabApplication {
                 UiAction::ExportObj => self.choose_export(),
                 UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
                 UiAction::ChooseCdmwExport(format) => self.choose_cdmw_export(format),
+                UiAction::ChooseCdmwRigExport => self.choose_cdmw_rig_export(),
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitRecipe { save } => self.choose_cdmw_refit_recipe(save),
@@ -5367,6 +5369,21 @@ impl LabApplication {
             command: "export_mesh",
             arguments: json!({"path": path, "format": format}),
             label: "Export mesh",
+        }]);
+    }
+
+    fn choose_cdmw_rig_export(&mut self) {
+        let Some(folder) = self
+            .cdmw_file_dialog()
+            .set_title(crate::localization::tr("Choose a folder for the rig GLB"))
+            .pick_folder()
+        else {
+            return;
+        };
+        self.handle_actions(vec![UiAction::CdmwCommand {
+            command: "replacement_export_rig",
+            arguments: json!({"folder": folder}),
+            label: "Export rig GLB",
         }]);
     }
 

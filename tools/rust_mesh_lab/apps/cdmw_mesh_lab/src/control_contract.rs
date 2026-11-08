@@ -804,6 +804,8 @@ topology.weld_distance|topology|cdmw_weld_distance|cdmw_weld_distance
 output.host_handoff|import_output_export|"Finish Edit Mesh"|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand
+replacement.weights|import_output_export|"Transfer from Original"|UiAction::CdmwCommand
+replacement.export_rig|import_output_export|ChooseCdmwRigExport|choose_cdmw_rig_export
 replacement.inclusion|parts|"replacement_include"|UiAction::CdmwCommand
 islands.selection|parts|"Mesh islands"|UiAction::SelectIsland
 islands.visibility|parts|"View"|UiAction::SetIslandVisibility

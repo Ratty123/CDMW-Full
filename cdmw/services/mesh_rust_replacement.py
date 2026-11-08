@@ -49,6 +49,7 @@ def replacement_ui_state(authoring):
                "experimental": experimental,
                "comparison": authoring.replacement_comparison, "parts": parts,
                "weight_notes": list(authoring.replacement_weight_notes),
+               "rig_export": rig_export_state(session),
                "has_import": bool(state and any(part.import_positions for part in state.parts))}
     if pending is not None:
         payload["pending"] = {
@@ -62,6 +63,37 @@ def replacement_ui_state(authoring):
             "weights": pending.skin.payload() if pending.skin is not None else {"rigged": False},
         }
     return payload
+
+
+def rig_export_state(session):
+    """Whether Export Rig GLB can write this model's skeleton, and if not, why."""
+    if str(session.mesh_format or "").lower() != "pac" or not session.original_data:
+        return {"available": False, "reason": "Export Rig GLB needs an original skinned PAC from Archive Browser."}
+    if not tuple(getattr(session.skeleton, "bones", ()) or ()):
+        reason = str(getattr(session, "skeleton_resolution_reason", "") or "").strip()
+        return {"available": False, "reason": reason or (
+            "No matching PAB skeleton was attached automatically. Open this PAC from Archive Browser "
+            "with its skeleton dependencies available.")}
+    return {"available": True, "reason": ""}
+
+
+def export_rig(authoring, args):
+    """Write the open PAC skinned to its skeleton as GLB, to weight a new model against."""
+    from cdmw.services.mesh_skinning_preflight import export_rig_glb
+
+    folder_text = str(args.get("folder", "") or "").strip()
+    folder = Path(folder_text).expanduser() if folder_text else None
+    if folder is None or not folder.is_dir():
+        raise ValueError("Choose an existing folder for the rig GLB.")
+    session = authoring.shadow_service._session(authoring.shadow_session_id)
+    with session.export_lock:
+        state = rig_export_state(session)
+        if not state["available"]:
+            raise ValueError(state["reason"])
+        data, skeleton = bytes(session.original_data), session.skeleton
+        path = str(getattr(session.base_mesh, "path", "") or getattr(session.working_mesh, "path", "") or "model.pac")
+    paths = export_rig_glb(data, path, skeleton, folder)
+    return {"status": "exported", "paths": [str(item) for item in paths], "glb": str(paths[0])}
 
 
 _IMAGE_SUFFIXES = {".dds", ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
@@ -97,6 +129,9 @@ def run_replacement_command(authoring, command, args, stop_event):
             service._replacement_output_for_snapshot(snapshot)
         authoring.replacement_comparison = mode
         return {"comparison": mode}
+    if command == "replacement_export_rig":
+        # Reads the original PAC and its skeleton only; works whatever the output mode.
+        return export_rig(authoring, args)
     ui = replacement_ui_state(authoring)
     if not ui["available"]:
         raise ValueError(ui["reason"])
