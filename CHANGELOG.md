@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mesh Editor's **Import Replacement…** with **Imported Materials & Textures** no longer keeps the original model's normal map when the imported model has none of its own. The normal map was made for the original UV layout, so its engravings showed through the imported texture, for example Kairos Plate Helm's patterns on a replacement helm. The part now gets a flat normal map; a model that brings its own normal map keeps using it. Not yet checked in game.
+
 ## [0.12.0-alpha.3] - 2026-11-07
 
 ### Added
