@@ -30,12 +30,17 @@ class ClothPaintSamples:
 
     positions: tuple[tuple[float, float, float], ...]
     values: tuple[float, ...]
+    #: Optional cloth pins, one flag per point: where newly built guides are held.
+    pins: tuple[bool, ...] | None = None
 
     def __post_init__(self):
         if len(self.positions) != len(self.values) or not self.positions:
             raise ValueError("Cloth paint needs one value per painted point.")
         if any(not math.isfinite(v) or not 0.0 <= v <= 1.0 for v in self.values):
             raise ValueError("Cloth paint values must be between 0 and 1.")
+        if self.pins is not None and (len(self.pins) != len(self.positions)
+                                      or any(type(pin) is not bool for pin in self.pins)):
+            raise ValueError("Cloth pins need one true/false flag per painted point.")
 
 
 @dataclass(frozen=True, slots=True)
