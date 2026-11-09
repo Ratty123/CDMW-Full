@@ -12,6 +12,9 @@ class ArchiveRequest:
     charts: tuple
     mesh_paths: frozenset
     weapons: bool
+    #: `(owner model, chart entries)` for the charts another character's animations are
+    #: played from (`armour.chart_models`), each read under its owner's cache.
+    shared_charts: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -30,10 +33,10 @@ def prepare_archive_content(request, cancelled, progress):
     signature = package_signature(request.root)
     errors, caches, models = [], [], []
 
-    def read_kind(kind, entries):
+    def read_kind(kind, entries, model=request.model):
         if cancelled():
             return {}
-        cached = cached_content(request.model, kind, request.root)
+        cached = cached_content(model, kind, request.root)
         payloads = {}
         failed = False
         for number, (path, entry) in enumerate(entries):
@@ -47,7 +50,7 @@ def prepare_archive_content(request, cancelled, progress):
                 errors.append(f'{path}: {exc}')
             progress(number + 1, len(entries))
         if payloads and not failed and cached is None:
-            caches.append((kind, payloads))
+            caches.append((model, kind, payloads))
         return payloads
 
     sockets = read_kind('sockets', request.sockets) if request.weapons else {}
@@ -60,13 +63,16 @@ def prepare_archive_content(request, cancelled, progress):
                           if model.mesh in request.mesh_paths)
         except (OSError, ValueError, RuntimeError, KeyError) as exc:
             errors.append(f'{path}: {exc}')
-    charts = read_kind('charts', request.charts)
+    # A copy: the payloads read under this character's cache key are stored as its own set.
+    charts = dict(read_kind('charts', request.charts))
+    for owner, entries in request.shared_charts:
+        charts.update(read_kind('charts', entries, owner))
     if cancelled():
         return None
     if package_signature(request.root) != signature:
         raise ValueError('Equipment relationships changed; refresh required')
-    for kind, payloads in caches:
+    for model, kind, payloads in caches:
         if cancelled():
             return None
-        store_content(request.model, kind, payloads, request.root, signature=signature)
+        store_content(model, kind, payloads, request.root, signature=signature)
     return ArchiveResult(tuple(sockets.items()), tuple(models), tuple(charts.items()), tuple(errors))

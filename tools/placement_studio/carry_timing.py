@@ -43,6 +43,12 @@ SURE_CONTACT_GAP = 0.20
 #: An event already this close to the contact frame is on time.
 ON_TIME = 0.05
 
+#: An event that fires while the weapon in the hand is already this close to its best gap is
+#: on time too, however far from the best frame. Many draws hold the hand on the weapon for a
+#: stretch: Damiane's own standing two-hand draw stays within 0.08 m for over a second, and
+#: moving its event from 0.767 s to the 0.333 s minimum would change nothing anyone can see.
+PLATEAU = 0.03
+
 STATUS_ON_TIME = "on_time"
 STATUS_EARLY = "early"
 STATUS_LATE = "late"
@@ -327,7 +333,8 @@ def decide(event: SwapEvent, curve: Optional[GapCurve], *, problem: str = "") ->
         notes.append(f"The hand only comes within {gap:.2f} m of the weapon; check it in the "
                      f"view before moving this one")
     proposed = round(min(max(contact, event.start), last), 4)
-    if abs(proposed - event.begin) < ON_TIME:
+    if abs(proposed - event.begin) < ON_TIME or (
+            at_begin is not None and at_begin <= gap + PLATEAU):
         status = STATUS_ON_TIME
         proposed = event.begin
     else:

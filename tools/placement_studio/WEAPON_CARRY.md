@@ -134,8 +134,9 @@ Built on 2026-11-09, with `tests/test_placement_studio_carry_timing.py`.
   socket`). `decide` follows the rules of the shipped retimes: contact is the nearest frame
   inside the stretch the animation plays, at least one frame before it ends; a gap above
   0.35 m keeps the event's time, and so does a hand-off at the start of the played stretch;
-  within 0.05 s is on time. Within 0.20 m is a sure contact; 0.20 to 0.35 m "nearly
-  reaches" and moves only when selected. Clips made for another rig are left out. `survey` measures each clip and
+  within 0.05 s is on time, and so is an event that fires within 3 cm of the best gap
+  (added in slice 3). Within 0.20 m is a sure contact; 0.20 to 0.35 m "nearly reaches" and
+  moves only when selected. Clips made for another rig are left out. `survey` measures each clip and
   row once, however many animations play it.
 - `EditSession.retime_event` records an `event_begin` command (only `ModelAttachmentSocket`
   events, only inside the played stretch). A `retime_events` operation's scope names each
@@ -195,6 +196,15 @@ the mirrored point equals the `Pelvis_R_SubWeapon_Socket` Weapon Carry 1.0.1 shi
 working in game) to within 1e-6 on both files, parent `B_WeaponIn_L_00`. The script is in the
 worktree's `.work/research/2026-11-09-mirror-check/`.
 
-Not in this slice: mirrored clips and the hip swing (slice 4); a Damiane session loads only
-her own charts (deliberately, for load time), so her draws inside Kliff's charts are not yet
-listed by the timing panel; Help and translations of the new text.
+A Damiane session also loads Kliff's charts (`armour.chart_models`, Fredric's call on
+2026-11-09), each character's set under its own cache, so the timing panel lists her draws
+and sheathes, which are `cd_phw` clips in Kliff's charts. On her untouched files that showed
+the timing rule moving game draws along stretches where the hand holds the weapon (her
+standing draw sits within 0.08 m for over a second), so an event that fires within 3 cm of
+the best gap is now on time too. Against Weapon Carry 1.0.1 that keeps 34 of its 92 retimes
+where they were (all within 3 cm); the other 58 still get the shipped time. On her game files
+10 of 14 timed two-hand hand-offs read on time; the alert draw and both riding hand-offs are
+flagged, 0.12 to 0.15 m off when they fire. Scripts: `.work/research/2026-11-09-damiane-timing/`.
+
+Not in this slice: mirrored clips and the hip swing (slice 4); Help and translations of the
+new text.

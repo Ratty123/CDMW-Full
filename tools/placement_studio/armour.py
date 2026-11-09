@@ -14,7 +14,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 #: Directory name -> label, in the order they should appear.
 SLOTS: tuple[tuple[str, str], ...] = (
@@ -54,6 +54,19 @@ FACE_SLOT = "head"
 #: reads them came out empty. Carried as a slot so the existing cache round-trips them.
 CHART_SLOT = "chart"
 WEAPON_PREFAB_SLOT = "weapon_prefab"
+
+#: Other characters whose charts a character's own animations are played from. Damiane has
+#: charts of her own only for her rapier; her other draws and sheathes, and female Kliff's
+#: (Character Creator, Heroine of Pywel), are `cd_phw` clips played by Kliff's charts
+#: (research reference, Section 7.5). So a Damiane session reads Kliff's charts too, under
+#: Kliff's own cache. Kliff's animations need nothing of hers.
+CHART_SHARERS = {"2_phw": ("1_phm",)}
+
+
+def chart_models(model: str) -> Tuple[str, ...]:
+    """Whose charts a session for `model` loads: its own first, then the ones it plays from."""
+
+    return (model,) + tuple(owner for owner in CHART_SHARERS.get(model, ()) if owner != model)
 _WEAPON_PREFAB = re.compile(r"^character/bin__/prefab/1_pc/(\d+_[^/]+)/weapon/.+\.prefab$")
 _CHART = re.compile(r"^actionchart/.+/1_pc/([^/]+)/([^/]+)\.paac$")
 # Weapon *socket* files, which are what make a weapon placeable rather than merely drawable.

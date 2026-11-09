@@ -342,7 +342,10 @@ class ArmourPickerMixin:
             )
 
     def _iter_archive_charts(self):
-        """Give the edit session this character's own action charts.
+        """Give the edit session this character's action charts, and those it plays from.
+
+        Damiane's draws and sheathes are played by Kliff's charts (`armour.chart_models`), so
+        her session reads his too, each character's set under its own cache.
 
         The pinned baseline holds Kliff's four. Damian was therefore shown Kliff's — the raw
         chart text belonged to another character, and the socket list built from it filtered
@@ -351,6 +354,17 @@ class ArmourPickerMixin:
         Only the selected character's are loaded. Kliff has 101; reading every chart of both
         bodies to show one of them would be paid on every launch.
         """
+
+        from .armour import chart_models
+
+        session = self._session
+        if session is None:
+            return
+        for owner in chart_models(session.model):
+            yield from self._iter_archive_charts_of(owner)
+
+    def _iter_archive_charts_of(self, owner: str):
+        """One character's charts, from its cache or the archives, into the edit session."""
 
         from .armour import CHART_SLOT, cached_content, read_armour, store_content
         from .corpus import game_root, package_signature
@@ -369,7 +383,7 @@ class ArmourPickerMixin:
         # subset and stored that subset as if it were the character's whole chart set.
         # `add_base_files` ignores paths it already has, so handing it everything is both
         # cheaper to reason about and idempotent.
-        cached = cached_content(session.model, "charts", root)
+        cached = cached_content(owner, "charts", root)
         if cached is not None:
             # Three separate turns on purpose. Inflating the blob is ~0.14s and the animation
             # refresh that follows is ~0.5s; run back to back after the socket files they add
@@ -386,7 +400,7 @@ class ArmourPickerMixin:
         wanted = {}
         failed = False
         since_yield = 0
-        for piece in index.pieces(session.model, CHART_SLOT):
+        for piece in index.pieces(owner, CHART_SLOT):
             if piece.path in self._baseline:
                 continue
             try:
@@ -399,7 +413,7 @@ class ArmourPickerMixin:
                 since_yield = 0
                 yield
         if wanted and not failed and package_signature(root) == signature:
-            store_content(session.model, "charts", wanted, root, signature=signature)
+            store_content(owner, "charts", wanted, root, signature=signature)
         if wanted and self._edits.add_base_files(wanted):
             self._refresh_animation()
 

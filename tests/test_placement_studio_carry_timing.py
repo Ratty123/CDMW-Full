@@ -178,6 +178,17 @@ class DecideTests(unittest.TestCase):
         self.assertFalse(retime.movable)
         self.assertIn("never come closer than 0.60 m", retime.notes[-1])
 
+    def test_a_hand_off_on_a_plateau_is_on_time(self) -> None:
+        """The hand holds the weapon for a stretch, as in Damiane's standing two-hand draw:
+        firing anywhere on it shows nothing, so the event is not moved to the exact minimum."""
+
+        gaps = [0.08] * 10 + [0.075] + [0.08] * 20 + [0.4] * 15
+        retime = carry_timing.decide(_event(begin=0.767), _curve(gaps))
+        self.assertEqual((retime.status, retime.proposed), (STATUS_ON_TIME, 0.767))
+        self.assertAlmostEqual(retime.contact, 10 / 30)
+        off_plateau = carry_timing.decide(_event(begin=0.767), _curve([0.08] * 10 + [0.03] + [0.12] * 35))
+        self.assertEqual(off_plateau.status, STATUS_LATE)
+
     def test_a_hand_off_at_the_start_keeps_its_time(self) -> None:
         """It sets where the weapon is as the animation begins; the shipped retimes kept them."""
 

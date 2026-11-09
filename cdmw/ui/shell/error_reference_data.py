@@ -94303,7 +94303,7 @@ MESSAGE_REFERENCE = [
     "message": "Equipment relationships changed; refresh required",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/archive_loading.py": 67
+      "tools/placement_studio/archive_loading.py": 73
     }
   },
   {
@@ -95040,7 +95040,7 @@ MESSAGE_REFERENCE = [
     "message": "Installation changed during wearable indexing",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 168
+      "tools/placement_studio/armour.py": 181
     }
   },
   {
@@ -95056,7 +95056,7 @@ MESSAGE_REFERENCE = [
     "message": "Installation changed while reading wearable index",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 161
+      "tools/placement_studio/armour.py": 174
     }
   },
   {
@@ -96290,7 +96290,7 @@ MESSAGE_REFERENCE = [
     "message": "Not an event address: {key}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 117
+      "tools/placement_studio/carry_timing.py": 123
     }
   },
   {
@@ -98001,7 +98001,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no {missing}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 252
+      "tools/placement_studio/carry_timing.py": 258
     }
   },
   {
@@ -98065,7 +98065,7 @@ MESSAGE_REFERENCE = [
     "message": "Timing measurement cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 376
+      "tools/placement_studio/carry_timing.py": 383
     }
   },
   {
@@ -98433,7 +98433,7 @@ MESSAGE_REFERENCE = [
     "message": "archive read returned nothing ({message})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 452
+      "tools/placement_studio/armour.py": 465
     }
   },
   {
@@ -99415,7 +99415,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.part_name} has no put-away or held attach point to measure",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 240
+      "tools/placement_studio/carry_timing.py": 246
     }
   },
   {
@@ -99535,7 +99535,7 @@ MESSAGE_REFERENCE = [
     "message": "{piece.path}: archive read returned nothing ({message})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 474
+      "tools/placement_studio/armour.py": 487
     }
   },
   {
@@ -99543,7 +99543,7 @@ MESSAGE_REFERENCE = [
     "message": "{piece.path}: no archive entry to read",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 471
+      "tools/placement_studio/armour.py": 484
     }
   },
   {
@@ -99551,7 +99551,7 @@ MESSAGE_REFERENCE = [
     "message": "{piece_or_path}: not in the armour index",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/armour.py": 469
+      "tools/placement_studio/armour.py": 482
     }
   },
   {

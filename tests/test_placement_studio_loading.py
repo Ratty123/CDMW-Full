@@ -495,6 +495,58 @@ def test_archive_preparation_cancels_between_reads_and_rejects_changed_installat
     assert stored == []
 
 
+
+def test_damiane_reads_kliff_s_charts_under_kliff_s_cache(monkeypatch):
+    """Her draws are cd_phw clips in Kliff's charts; reading them under her own cache key would
+    re-read all of Kliff's on every launch once her own set was cached."""
+
+    from tools.placement_studio.archive_loading import ArchiveRequest, prepare_archive_content
+    from tools.placement_studio import armour, corpus
+    assert armour.chart_models("2_phw") == ("2_phw", "1_phm")
+    assert armour.chart_models("1_phm") == ("1_phm",)
+    request = ArchiveRequest('fixture', '2_phw', frozenset(), (), (),
+                             (('rapier_upper.paac', 'own'),), frozenset(), False,
+                             (('1_phm', (('twohandsword_upper.paac', 'kliff'),)),))
+    asked, stored = [], []
+    caches = {('1_phm', 'charts'): {'twohandsword_upper.paac': b'cached kliff'}}
+
+    def cached(model, kind, _root=None):
+        asked.append((model, kind))
+        return caches.get((model, kind))
+
+    monkeypatch.setattr(armour, 'cached_content', cached)
+    monkeypatch.setattr(armour, 'read_entry', lambda entry: entry.encode())
+    monkeypatch.setattr(armour, 'store_content', lambda *args, **kwargs: stored.append(args[:3]))
+    monkeypatch.setattr(corpus, 'package_signature', lambda *_: 'identity')
+    result = prepare_archive_content(request, lambda: False, lambda *_: None)
+    assert dict(result.charts) == {'rapier_upper.paac': b'own',
+                                   'twohandsword_upper.paac': b'cached kliff'}
+    assert asked == [('2_phw', 'charts'), ('1_phm', 'charts')]
+    assert stored == [('2_phw', 'charts', {'rapier_upper.paac': b'own'})]
+
+
+def test_the_foreground_loader_reads_each_owner_s_charts(monkeypatch):
+    from types import SimpleNamespace
+
+    from tools.placement_studio import armour, corpus
+    from tools.placement_studio.window_armour import ArmourPickerMixin
+
+    added = []
+    index = SimpleNamespace(pieces=lambda model, slot: [SimpleNamespace(path=f'{model}.paac')])
+    stub = SimpleNamespace(
+        _session=SimpleNamespace(model='2_phw'),
+        _edits=SimpleNamespace(add_base_files=lambda files: added.append(dict(files)) or len(files)),
+        _armour_index=index, _baseline=set(), _ARCHIVE_LOAD_SLICE=4,
+        _refresh_animation=lambda: None)
+    stub._iter_archive_charts_of = lambda owner: ArmourPickerMixin._iter_archive_charts_of(stub, owner)
+    monkeypatch.setattr(armour, 'cached_content', lambda model, kind, _root=None: None)
+    monkeypatch.setattr(armour, 'read_armour', lambda piece, _index: piece.path.encode())
+    monkeypatch.setattr(armour, 'store_content', lambda *args, **kwargs: None)
+    monkeypatch.setattr(corpus, 'package_signature', lambda *_: 'identity')
+    monkeypatch.setattr(corpus, 'game_root', lambda: 'fixture')
+    list(ArmourPickerMixin._iter_archive_charts(stub))
+    assert added == [{'2_phw.paac': b'2_phw.paac'}, {'1_phm.paac': b'1_phm.paac'}]
+
 def test_archive_publication_preserves_edits_made_while_loading(studio):
     from tools.placement_studio.editing import EditSession
     from tools.placement_studio.archive_loading import ArchiveResult
