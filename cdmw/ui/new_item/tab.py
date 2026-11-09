@@ -188,7 +188,13 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
+        #: the binding whose import is open in Mesh Editor, so a return can select it again
+        self._model_part_editor_variant: object | None = None
+        #: another component's row is selected while that import is still open there
+        self._model_part_editor_parked = False
         self._reapply_after_model_part_edit = False
+        #: the import whose placement is applied again once the controller is idle
+        self._model_apply_after_part_edit: object | None = None
         self._current_step = 0
         self._syncing_step = False
 
@@ -242,6 +248,7 @@ class NewItemStudioTab(QWidget):
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
         self.controller.busy_changed.connect(self._resume_install_refresh)
+        self.controller.busy_changed.connect(self._apply_placement_after_model_part_edit)
         self.controller.log_message.connect(self._status.setText)
         preview_settings_signal = getattr(
             getattr(getattr(window, "shell", None), "settings_tab", None),
@@ -1155,6 +1162,7 @@ class NewItemStudioTab(QWidget):
                 return
             prepared.adopted = True
             self._model_part_editor_source = source
+            self._model_part_editor_variant = getattr(self.controller, "_active_variant", None)
             self._model_part_editor_widget = editor
             self._model_part_editor_controller = editor.standalone_controller
             self._model_part_editor_session_id = view.session_id
@@ -1214,17 +1222,56 @@ class NewItemStudioTab(QWidget):
         if mesh is not None and mesh_has_cloth_paint(mesh) and not self.model_panel.keep_physics.isChecked():
             message += " The model has cloth paint: turn on Template cloth / physics to use it."
         self.model_panel.set_part_editor_state(True, message)
-        if reapply and not self.controller.busy:
+        if not reapply:
+            return
+        if self.controller.busy:
+            # This runs inside the task that captured the edit, which still counts as
+            # busy until its worker thread has ended: build once the controller is idle.
+            self._model_apply_after_part_edit = source
+        else:
+            self.controller.start_model_apply()
+
+    def _apply_placement_after_model_part_edit(self, busy: object) -> None:
+        source = getattr(self, "_model_apply_after_part_edit", None)
+        if busy or source is None:
+            return
+        self._model_apply_after_part_edit = None
+        # Only for the edit it was promised for: not after a discard, another row or a manual Apply.
+        if source is self.controller.model_import and self.controller.model_result is None:
             self.controller.start_model_apply()
 
     def _model_part_edit_failed(self, message: str) -> None:
+        self._model_apply_after_part_edit = None
         if self._model_part_editor_session_id:
             self.model_panel.set_part_editor_state(True, str(message))
 
     def _model_part_editor_source_changed(self, source: object) -> None:
-        if self._model_part_editor_source is not None and source is not self._model_part_editor_source:
-            self._clear_model_part_editor_link()
-            self.model_panel.set_part_editor_state(False)
+        linked = self._model_part_editor_source
+        if linked is None:
+            return
+        if source is linked:
+            if not getattr(self, "_model_part_editor_parked", False):
+                return
+            # Back on the edited component after another row was selected.
+            self._model_part_editor_parked = False
+            if self._model_part_editor_is_open():
+                self.model_panel.set_part_editor_state(
+                    True, "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.")
+            else:
+                self._clear_model_part_editor_link()
+                self.model_panel.set_part_editor_state(False)
+            return
+        holds = getattr(self.controller, "holds_model_source", None)
+        other_row = getattr(self.controller, "_active_variant", None) != self._model_part_editor_variant
+        if other_row and self._model_part_editor_is_open() and callable(holds) and holds(linked):
+            # Another component is selected. The open session still belongs to its own
+            # component, so its edits can come back once that component is selected again.
+            self._model_part_editor_parked = True
+            self.model_panel.set_part_editor_state(
+                False, "Mesh Editor is open for another component. Select that component to use its changes.")
+            return
+        self._clear_model_part_editor_link()
+        self.model_panel.set_part_editor_state(False)
 
     def _model_part_editor_is_open(self) -> bool:
         controller = self._model_part_editor_controller
@@ -1238,6 +1285,14 @@ class NewItemStudioTab(QWidget):
         container = getattr(shell, "new_item_studio_tab", None)
         if callable(activate) and container is not None:
             activate(container)
+        linked = getattr(self, "_model_part_editor_source", None)
+        variant = getattr(self, "_model_part_editor_variant", None)
+        if linked is not None and variant is not None and self.controller.model_import is not linked:
+            # Another component was selected while Mesh Editor was open: go back to the edited one.
+            try:
+                self.controller.select_variant(variant)
+            except ValueError:
+                pass
         self._use_model_part_editor_changes()
 
     def _clear_model_part_editor_link(self) -> None:
@@ -1245,6 +1300,8 @@ class NewItemStudioTab(QWidget):
         if callable(getattr(frame, "set_return_action", None)):
             frame.set_return_action(None)
         self._model_part_editor_source = None
+        self._model_part_editor_variant = None
+        self._model_part_editor_parked = False
         self._model_part_editor_widget = None
         self._model_part_editor_controller = None
         self._model_part_editor_session_id = ""

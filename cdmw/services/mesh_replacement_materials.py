@@ -168,13 +168,15 @@ def capture_replacement_dependencies(entry, context, stop_event=None):
     return tuple(result)
 
 
-def prepare_imported_materials(pending, targets, resource_root, stop_event=None, *, surface=None):
+def prepare_imported_materials(pending, targets, resource_root, stop_event=None, *, surface=None, skin_policy=None):
     """Use retained routing/conversion, but refuse every unresolved result.
 
     Only explicitly mapped target materials enter the retained generator.
     Global donor resets and pruning are disabled, including selected-part use.
     ``surface`` is an optional (roughness, metallic) pair in 0..1; when either
     is above 0 the replaced wrappers get it as a uniform layer R.
+    ``skin_policy`` is the weights choice Apply will use. The materials are built
+    over the same composed model, and a rig that cannot be kept has no default.
     """
     from cdmw.core.archive_mesh_import_build_state import MeshImportBuildState
     from cdmw.core.archive_mesh_import_build_stages import resolve_mesh_import_sidecars, collect_mesh_import_references
@@ -192,7 +194,8 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
     if not pending.state.dependencies:
         raise ValueError("Imported materials require the original material sidecar and texture dependencies.")
     names = _target_material_names(pending, targets)
-    candidate, candidate_state = compose_import(pending, targets, material_choice="imported", companion_files=())
+    candidate, candidate_state = compose_import(pending, targets, material_choice="imported", companion_files=(),
+                                                skin_policy=skin_policy)
     geometry = prepare_replacement_output(replace(pending.snapshot, mesh=candidate, replacement_state=candidate_state))
     original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
     bindings = material_binding_names(pending.state)

@@ -81,6 +81,24 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     assert state.parts[0].material_choice == "imported"
 
 
+def test_imported_materials_are_built_with_the_weights_choice_apply_will_use(editor, tmp_path, monkeypatch):
+    """A rig that cannot be kept has no default choice, so the materials pass must
+    compose with the chosen one or Apply stops asking for a choice already made."""
+    import cdmw.services.mesh_replacement_import as imports
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    composed, compose = [], imports.compose_import
+    monkeypatch.setattr(imports, "compose_import", lambda *args, **kwargs: (
+        composed.append(kwargs.get("skin_policy")), compose(*args, **kwargs))[1])
+    assert prepare_imported_materials(pending, (key,), tmp_path, skin_policy="transfer")
+    assert prepare_imported_materials(pending, (key,), tmp_path)
+    assert composed == ["transfer", None]
+
+
 def test_imported_materials_drop_the_targets_inherited_detail_layers(editor, tmp_path):
     """The target's detail mask follows the original UVs; on the imported
     model's UVs it shows through as a mixed-up second texture."""

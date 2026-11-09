@@ -6,6 +6,10 @@ them at their old length: three vertices beside four colours, which GLB and FBX
 export then refused. They are stored with the vertex origins they line up with
 and re-expressed for the current vertices through the edit's topology
 provenance, whose origins name the same original vertices.
+
+Cloth paint and cloth pins travel the same way. A derived vertex takes the
+weighted paint of its parents and is pinned only when every parent is, as the
+Python subdivision does for an edge midpoint.
 """
 
 from __future__ import annotations
@@ -19,12 +23,17 @@ VERTEX_EXTRAS_ORIGINS_ATTR = "_cdmw_vertex_extras_origins"
 _ROW_LIST_EXTRAS = ("vertex_colors",)
 _ROW_MAP_EXTRAS = ("uv_sets", "morph_targets", "morph_normals", "morph_tangents")
 _ID_EXTRAS = ("interchange_vertex_ids",)
+#: One number per vertex, blended for a derived vertex.
+_SCALAR_EXTRAS = ("cloth_paint",)
+#: One true/false per vertex; a derived vertex is set only when all its parents are.
+_FLAG_EXTRAS = ("cloth_pin",)
 
 _Plan = list[list[tuple[int, float]]]
 
 
 def has_vertex_extras(submesh: object) -> bool:
-    return any(getattr(submesh, name, None) for name in (*_ROW_LIST_EXTRAS, *_ROW_MAP_EXTRAS, *_ID_EXTRAS))
+    return any(getattr(submesh, name, None) for name in (
+        *_ROW_LIST_EXTRAS, *_ROW_MAP_EXTRAS, *_ID_EXTRAS, *_SCALAR_EXTRAS, *_FLAG_EXTRAS))
 
 
 def vertex_extras_origins(submesh: object) -> list[list[list[float]]] | None:
@@ -131,6 +140,52 @@ def realign_vertex_extras(
             setattr(submesh, name, [ids[max(sources, key=lambda source: source[1])[0]] for sources in plan])
         elif len(ids) != vertex_count:
             setattr(submesh, name, [])
+    for name in _SCALAR_EXTRAS:
+        values = getattr(submesh, name, None)
+        if not values:
+            continue
+        if plan is not None and len(values) == stored_count:
+            setattr(submesh, name, blend_scalars(values, plan) or [])
+        elif len(values) != vertex_count:
+            setattr(submesh, name, [])
+    for name in _FLAG_EXTRAS:
+        flags = getattr(submesh, name, None)
+        if not flags:
+            continue
+        if plan is not None and len(flags) == stored_count:
+            setattr(submesh, name, all_flags(flags, plan))
+        elif len(flags) != vertex_count:
+            setattr(submesh, name, [])
+
+
+def blend_scalars(values: Sequence[object], plan: _Plan) -> list[float] | None:
+    """One 0..1 number per planned vertex: the weighted value of its sources."""
+
+    try:
+        return [min(1.0, max(0.0, sum(float(values[index]) * weight for index, weight in sources)))
+                for sources in plan]
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def all_flags(flags: Sequence[object], plan: _Plan) -> list[bool]:
+    """One flag per planned vertex: set only when every one of its sources is."""
+
+    return [all(bool(flags[index]) for index, _weight in sources) for sources in plan]
+
+
+def lineage_plan(stored_origins: object, stored_count: int, provenance: object) -> _Plan | None:
+    """How ``provenance``'s vertices derive from rows stored against ``stored_origins``.
+
+    None when the two do not share a lineage that can be followed.
+    """
+
+    if not isinstance(provenance, SubmeshTopologyProvenance):
+        return None
+    stored = _stored_origins(stored_origins, provenance.original_vertex_count)
+    if stored is None or len(stored) != stored_count:
+        return None
+    return _plan(stored, provenance)
 
 
 __all__ = [

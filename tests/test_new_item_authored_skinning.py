@@ -343,6 +343,75 @@ def test_weight_transfer_samples_the_displayed_fit_and_placement(studio, tmp_pat
     assert source.bake == bake and controller.model_placement == placement
 
 
+@pytest.mark.parametrize("moved", [True, False])
+def test_apply_placement_transfers_weights_again_where_the_model_was_moved_to(studio, tmp_path, monkeypatch, moved):
+    """Transfer from template runs at import, before the model is placed. Apply placement
+    must not build those weights once the model sits over another part of the template."""
+    import time
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+    from cdmw.modding.scene_import_result_ops import SceneImportResult
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_pac_cloth_guide_builder import guide_free_pac
+    from tests.test_pac_palette_extension import rig
+
+    app, tab = studio
+    controller = tab.controller
+    controller.select_variant(controller.primary_variant_identity())
+    raw = bytearray(guide_free_pac(parts=2))
+    for level in pac_cloth_lods(bytes(raw)):
+        for index, part in enumerate(level.submeshes):
+            for offset in part.source_vertex_offsets:
+                record = bytearray(raw[offset:offset + 40])
+                pack_pac_skin_weights(record, (0 if index == 0 else 6,), (1.,), context="placed donor fixture")
+                raw[offset:offset + 40] = record
+    original = parse_pac(bytes(raw), "target.pac").submeshes[0]
+    mesh = ParsedMesh(format="obj", submeshes=[SubMesh(name="garment", vertices=list(original.vertices),
+                                                     faces=list(original.faces))])
+    prepared = []
+
+    def prepare(mesh, _snapshot, _path, **kwargs):
+        prepared.append(kwargs.get("transfer_transform"))
+        return preflight_imported_skin(mesh, bytes(raw), rig(), "target.pac", **kwargs)
+
+    monkeypatch.setattr("cdmw.services.mesh_skinning_preflight.prepare_new_item_skin", prepare)
+    # As the import leaves it: weights transferred where the file put the model (over donor 0).
+    choices = (SkinningChoice(0, "transfer"),)
+    imported, reports = preflight_imported_skin(mesh, bytes(raw), rig(), "target.pac", choices=choices)
+    source = ModelImportSource(tmp_path / "source.obj", tmp_path / "source.obj", SceneImportResult(mesh=imported),
+                               None, None, preview_mesh=imported, raw_import_mesh=mesh, skinning_target="target.pac",
+                               skinning_choices=choices, skinning_reports=reports)
+    assert imported.submeshes[0].bone_indices == [(0,)] * len(original.vertices)
+    controller.model_import = source
+    if moved:
+        controller.set_model_placement(ModelPlacement(offset=(3., 0., 0.)))  # now over donor 1 (x=3..4)
+    built = []
+
+    def build(_entry, build_source, placement, **_kwargs):
+        built.append((list(build_source.scene.mesh.submeshes[0].bone_indices), placement))
+        return ModelFiles(b"built")
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build, raising=False)
+    assert controller.start_model_apply()
+    deadline = time.monotonic() + 5
+    while not built and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(.001)
+    _finish(app, controller)
+    assert len(built) == 1 and built[0][1] == controller.model_placement
+    if moved:
+        assert len(prepared) == 1 and prepared[0] is not None
+        assert built[0][0] == [(6,)] * len(original.vertices), "sampled where the model sits now"
+        assert source.skinning_transform is not None and controller.model_placement.offset == (3., 0., 0.)
+        # A second Apply at the same placement builds straight away.
+        assert controller.start_model_apply()
+        _finish(app, controller)
+        assert len(prepared) == 1 and len(built) == 2
+    else:
+        assert prepared == [] and built[0][0] == [(0,)] * len(original.vertices)
+    assert controller.model_result is not None
+
+
 @pytest.mark.parametrize("operation", ["skin", "hide"])
 @pytest.mark.parametrize("change", ["keep", "keep_then_import", "draft", "discard", "none"])
 def test_newer_model_choices_win_over_pending_skin_or_hide(studio, editor, tmp_path, monkeypatch, operation, change):

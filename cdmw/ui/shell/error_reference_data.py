@@ -26499,7 +26499,7 @@ MESSAGE_REFERENCE = [
     "message": "A required item resource is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 627
+      "cdmw/services/independent_item_package.py": 631
     }
   },
   {
@@ -26571,7 +26571,7 @@ MESSAGE_REFERENCE = [
     "message": "A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 878
+      "cdmw/services/independent_item_package.py": 884
     }
   },
   {
@@ -26683,7 +26683,7 @@ MESSAGE_REFERENCE = [
     "message": "An item resource exceeds the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 692
+      "cdmw/services/independent_item_package.py": 698
     }
   },
   {
@@ -26819,7 +26819,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW packages use the .cdmw extension.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 871
+      "cdmw/services/independent_item_package.py": 877
     }
   },
   {
@@ -27532,7 +27532,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate or missing package entries.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 828
+      "cdmw/services/independent_item_package.py": 834
     }
   },
   {
@@ -27540,7 +27540,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate package metadata key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 843
+      "cdmw/services/independent_item_package.py": 849
     }
   },
   {
@@ -27548,7 +27548,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate prepared variant binding.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 659
+      "cdmw/services/independent_item_package.py": 665
     }
   },
   {
@@ -27724,7 +27724,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages may borrow only shipped game resources. Rebuild against the clean game baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 454
+      "cdmw/services/independent_item_package.py": 458
     }
   },
   {
@@ -27861,7 +27861,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game dependency checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 587
+      "cdmw/services/independent_item_package.py": 591
     }
   },
   {
@@ -27909,7 +27909,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item package: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 865
+      "cdmw/services/independent_item_package.py": 871
     }
   },
   {
@@ -27917,7 +27917,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item recipe.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 603
+      "cdmw/services/independent_item_package.py": 607
     }
   },
   {
@@ -27941,7 +27941,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 579
+      "cdmw/services/independent_item_package.py": 583
     }
   },
   {
@@ -28061,7 +28061,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared model.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 635
+      "cdmw/services/independent_item_package.py": 640
     }
   },
   {
@@ -28069,7 +28069,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared skeleton edit path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 644
+      "cdmw/services/independent_item_package.py": 649
     }
   },
   {
@@ -28077,7 +28077,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared skeleton edit: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 648
+      "cdmw/services/independent_item_package.py": 653
     }
   },
   {
@@ -28085,7 +28085,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variant binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 656
+      "cdmw/services/independent_item_package.py": 662
     }
   },
   {
@@ -28093,7 +28093,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prepared variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 653
+      "cdmw/services/independent_item_package.py": 659
     }
   },
   {
@@ -28357,7 +28357,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 591
+      "cdmw/services/independent_item_package.py": 595
     }
   },
   {
@@ -28365,7 +28365,7 @@ MESSAGE_REFERENCE = [
     "message": "Item package metadata exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_package.py": 690
+      "cdmw/services/independent_item_package.py": 696
     }
   },
   {
@@ -28389,7 +28389,7 @@ MESSAGE_REFERENCE = [
     "message": "Item resource failed its checksum or size check.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_package.py": 752
+      "cdmw/services/independent_item_package.py": 758
     }
   },
   {
@@ -28421,7 +28421,7 @@ MESSAGE_REFERENCE = [
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 623
+      "cdmw/services/independent_item_package.py": 627
     }
   },
   {
@@ -28533,7 +28533,7 @@ MESSAGE_REFERENCE = [
     "message": "Portable items must use symbolic identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 606
+      "cdmw/services/independent_item_package.py": 610
     }
   },
   {
@@ -28958,7 +28958,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_package.py": 876
+      "cdmw/services/independent_item_package.py": 882
     }
   },
   {
@@ -29335,7 +29335,7 @@ MESSAGE_REFERENCE = [
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 902
+      "cdmw/services/independent_item_package.py": 908
     }
   },
   {
@@ -29519,7 +29519,7 @@ MESSAGE_REFERENCE = [
     "message": "The package changed while it was being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 854
+      "cdmw/services/independent_item_package.py": 860
     }
   },
   {
@@ -29527,7 +29527,7 @@ MESSAGE_REFERENCE = [
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 673
+      "cdmw/services/independent_item_package.py": 679
     }
   },
   {
@@ -29551,7 +29551,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has no verified game dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 581
+      "cdmw/services/independent_item_package.py": 585
     }
   },
   {
@@ -29567,7 +29567,7 @@ MESSAGE_REFERENCE = [
     "message": "The package resource inventory does not match its contents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 589
+      "cdmw/services/independent_item_package.py": 593
     }
   },
   {
@@ -29575,7 +29575,7 @@ MESSAGE_REFERENCE = [
     "message": "The package selected for update is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/independent_item_package.py": 882
+      "cdmw/services/independent_item_package.py": 888
     }
   },
   {
@@ -30159,7 +30159,7 @@ MESSAGE_REFERENCE = [
     "message": "The source contains conflicting resource versions.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_package.py": 457
+      "cdmw/services/independent_item_package.py": 461
     }
   },
   {
@@ -30167,7 +30167,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 893
+      "cdmw/services/independent_item_package.py": 899
     }
   },
   {
@@ -30375,7 +30375,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_package.py": 771
+      "cdmw/services/independent_item_package.py": 777
     }
   },
   {
@@ -30495,7 +30495,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe or unsupported package entry.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 835
+      "cdmw/services/independent_item_package.py": 841
     }
   },
   {
@@ -30552,7 +30552,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item package version or fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 569
+      "cdmw/services/independent_item_package.py": 573
     }
   },
   {
@@ -30649,7 +30649,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported prepared model side file.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_package.py": 638
+      "cdmw/services/independent_item_package.py": 643
     }
   },
   {
@@ -31130,7 +31130,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title}: only Create New Item packages can be rebuilt ({extra}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 539
+      "cdmw/services/independent_item_package.py": 543
     }
   },
   {
@@ -31733,7 +31733,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1147
+      "cdmw/ui/new_item/tab.py": 1154
     }
   },
   {
@@ -31749,7 +31749,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 628
+      "cdmw/ui/new_item/controller.py": 631
     }
   },
   {
@@ -31789,7 +31789,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 432
+      "cdmw/ui/new_item/tab.py": 439
     }
   },
   {
@@ -32110,7 +32110,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an exact component binding of this template.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 239
+      "cdmw/ui/new_item/controller_variant_mixin.py": 242
     }
   },
   {
@@ -32542,7 +32542,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 292
+      "cdmw/ui/new_item/tab.py": 299
     }
   },
   {
@@ -32656,7 +32656,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1268
+      "cdmw/ui/new_item/tab.py": 1325
     }
   },
   {
@@ -32833,7 +32833,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported weights belong to another template variant; import against this variant again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1418
+      "cdmw/ui/new_item/model_import.py": 1421
     }
   },
   {
@@ -32881,7 +32881,7 @@ MESSAGE_REFERENCE = [
     "message": "Installed character models are fitting references only and cannot be exported.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1398
+      "cdmw/ui/new_item/model_import.py": 1401
     }
   },
   {
@@ -33769,7 +33769,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 966
+      "cdmw/ui/new_item/controller_model_mixin.py": 1014
     }
   },
   {
@@ -34147,7 +34147,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 696
+      "cdmw/ui/new_item/tab.py": 703
     }
   },
   {
@@ -34308,7 +34308,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/new_item/item_preview.py": 126,
-      "cdmw/ui/new_item/model_import.py": 896
+      "cdmw/ui/new_item/model_import.py": 899
     }
   },
   {
@@ -34662,7 +34662,7 @@ MESSAGE_REFERENCE = [
     "message": "Run imported skin preflight against the selected template before Apply placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1416
+      "cdmw/ui/new_item/model_import.py": 1419
     }
   },
   {
@@ -34686,7 +34686,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an exact variant binding from this template.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 105
+      "cdmw/ui/new_item/controller_variant_mixin.py": 108
     }
   },
   {
@@ -34726,7 +34726,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 695
+      "cdmw/ui/new_item/controller_model_mixin.py": 707
     }
   },
   {
@@ -35087,8 +35087,8 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 890,
-      "cdmw/ui/new_item/model_import.py": 986
+      "cdmw/ui/new_item/controller_model_mixin.py": 938,
+      "cdmw/ui/new_item/model_import.py": 989
     }
   },
   {
@@ -35224,7 +35224,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 395
+      "cdmw/ui/new_item/tab.py": 402
     }
   },
   {
@@ -35249,7 +35249,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_service.py": 658,
-      "cdmw/ui/new_item/tab.py": 1274,
+      "cdmw/ui/new_item/tab.py": 1331,
       "cdmw/workers/new_item_workers.py": 342
     }
   },
@@ -35266,7 +35266,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 444
+      "cdmw/ui/new_item/tab.py": 451
     }
   },
   {
@@ -35706,7 +35706,7 @@ MESSAGE_REFERENCE = [
     "message": "The model could not be read: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 507
+      "cdmw/ui/new_item/controller_model_mixin.py": 523
     }
   },
   {
@@ -35714,7 +35714,7 @@ MESSAGE_REFERENCE = [
     "message": "The model or material changed. Close this painter and reopen it for the current part.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 167
+      "cdmw/ui/new_item/controller_model_mixin.py": 183
     }
   },
   {
@@ -35770,7 +35770,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 837
+      "cdmw/ui/new_item/controller_model_mixin.py": 860
     }
   },
   {
@@ -35980,7 +35980,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader changed while painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 182
+      "cdmw/ui/new_item/controller_model_mixin.py": 198
     }
   },
   {
@@ -36068,7 +36068,7 @@ MESSAGE_REFERENCE = [
     "message": "The template changed. Choose the fitting reference again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 347
+      "cdmw/ui/new_item/controller_model_mixin.py": 363
     }
   },
   {
@@ -36476,7 +36476,7 @@ MESSAGE_REFERENCE = [
     "message": "This template has no model variant to dye.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_variant_mixin.py": 303
+      "cdmw/ui/new_item/controller_variant_mixin.py": 306
     }
   },
   {
@@ -36757,7 +36757,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown transparency mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 91
+      "cdmw/ui/new_item/controller_model_mixin.py": 107
     }
   },
   {
@@ -36765,7 +36765,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown transparency painting target.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 178
+      "cdmw/ui/new_item/controller_model_mixin.py": 194
     }
   },
   {
@@ -37894,7 +37894,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 379
+      "cdmw/ui/new_item/controller.py": 382
     }
   },
   {
@@ -38063,7 +38063,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_materials.py": 681,
-      "cdmw/ui/new_item/model_import.py": 1279,
+      "cdmw/ui/new_item/model_import.py": 1282,
       "cdmw/ui/new_item/rust_ui_tab.py": 238
     }
   },
@@ -38690,7 +38690,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1041
+      "cdmw/ui/new_item/tab.py": 1048
     }
   },
   {
@@ -38698,7 +38698,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1031
+      "cdmw/ui/new_item/tab.py": 1038
     }
   },
   {
@@ -39067,7 +39067,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 620
+      "cdmw/ui/new_item/controller.py": 623
     }
   },
   {
@@ -95257,7 +95257,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 288
+      "cdmw/services/mesh_replacement_materials.py": 291
     }
   },
   {
@@ -95473,7 +95473,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: no representable source material textures",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 257
+      "cdmw/services/mesh_replacement_materials.py": 260
     }
   },
   {
@@ -95481,7 +95481,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 257
+      "cdmw/services/mesh_replacement_materials.py": 260
     }
   },
   {
@@ -95497,7 +95497,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material {part.material or part.name} has no proven target binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 264
+      "cdmw/services/mesh_replacement_materials.py": 267
     }
   },
   {
@@ -95505,7 +95505,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 299
+      "cdmw/services/mesh_replacement_materials.py": 302
     }
   },
   {
@@ -95513,7 +95513,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 259
+      "cdmw/services/mesh_replacement_materials.py": 262
     }
   },
   {
@@ -95521,7 +95521,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 225
+      "cdmw/services/mesh_replacement_materials.py": 228
     }
   },
   {
@@ -95537,7 +95537,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 244
+      "cdmw/services/mesh_replacement_materials.py": 247
     }
   },
   {
@@ -95545,7 +95545,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 191
+      "cdmw/services/mesh_replacement_materials.py": 193
     }
   },
   {
@@ -95561,7 +95561,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require the original material sidecar and texture dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 193
+      "cdmw/services/mesh_replacement_materials.py": 195
     }
   },
   {
@@ -96370,7 +96370,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 248
+      "cdmw/services/mesh_replacement_materials.py": 251
     }
   },
   {
@@ -96410,7 +96410,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 269
+      "cdmw/services/mesh_replacement_materials.py": 272
     }
   },
   {
@@ -97957,7 +97957,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 323
+      "cdmw/services/mesh_replacement_materials.py": 326
     }
   },
   {
@@ -99002,7 +99002,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 281
+      "cdmw/services/mesh_rust_replacement.py": 282
     }
   },
   {
@@ -107893,6 +107893,7 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_builder_common.py": {
     "raise": 12
   },
+  "cdmw/modding/mesh_cloth_extras.py": {},
   "cdmw/modding/mesh_deformer.py": {
     "raise": 3
   },

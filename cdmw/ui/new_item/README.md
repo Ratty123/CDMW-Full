@@ -2654,6 +2654,12 @@ vertices of an imported model, on every vertex with **Paint whole model**, or al
 **Brush**/**Eraser**, which reuses the brush selection and sends each finished stroke as
 `cloth_paint_set` (Undo applies; game models refuse it). The value is the
 per-vertex `cloth_paint` attribute and follows copies, topology edits and subdivision.
+The Python working mesh is the authority for paint and pins: the resident native
+session only holds the attributes a Part had when it was opened, so every export from
+it (`export_native_mesh_editor_session_to_mesh`) captures them first and lays them
+back onto the returned vertices in `cdmw/modding/mesh_cloth_extras.py`, through the
+edit's topology provenance where there is one, by index for a move or sculpt, and by
+position after an edit that returns no lineage (an extrusion, a merge, a separation).
 At **Apply placement**, `cdmw/services/new_item_cloth_paint.py` places every imported
 vertex with the same placement matrix as the viewport and, in
 `cdmw/modding/pac_cloth_paint.py`, gives each built vertex at every LOD the value of the
@@ -2697,8 +2703,13 @@ controls, and **Generate Tangents** is disabled because the PAC build keeps the
 template's tangent lanes. When Finish is accepted, the host's accepted page calls
 back into Create New Item, which shows its tab, publishes the edit as with **Use
 Mesh Editor changes**, and starts **Apply placement** again when a built result
-existed before. Parts hidden in Mesh Editor still ship; deleting their faces removes
-them.
+existed before. The edit is published from inside its own worker task, so that Apply
+waits for the controller to go idle. Selecting another component while the session is
+open keeps the link to it: the panel says Mesh Editor is open for another component,
+and the return selects the edited component again before using its changes. The link
+is dropped when that import is discarded or replaced, the template changes, or the
+session was closed in Mesh Editor. Parts hidden in Mesh Editor still ship; deleting
+their faces removes them.
 
 The template's HKX companion is copied byte for byte under each new stem either way.
 It is a rigid Havok collision shape that names no vertices or files, and the game
@@ -2722,7 +2733,11 @@ reduction to six influences. **Skin weights…** then exposes each part separate
 keep, reduce to four/six, transfer from the template (optionally one named surface),
 or transfer from the verified character body. Transfer uses the current fit and
 placement, including rotation about the fitted origin; changing weights preserves
-that placement. Import details and Build plan
+that placement. The import itself transfers where the file puts the model, so **Apply
+placement** transfers again first when the fit or placement differs from the one the
+weights were sampled at (`ModelImportSource.skinning_transform`). After a Mesh Editor
+geometry edit the weights can only be prepared from a fresh import, and the log says so.
+Import details and Build plan
 retain the named donor, separate removed mass/normalization/byte-quantization results,
 1%/5% reduction review counts and native surface-distance warnings. These thresholds
 prioritize review; they do not establish deformation quality. Keep rigid pieces on

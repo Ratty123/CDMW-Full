@@ -108,6 +108,28 @@ def test_mesh_editor_acceptance_drops_settings_of_removed_parts(studio):
     assert tab.controller.draft.translucency is None
 
 
+def test_returning_mesh_editor_edit_applies_the_placement_once_the_worker_has_ended(studio, monkeypatch):
+    """The edit is published while its own worker still counts as busy; the promised
+    Apply placement must wait for that worker instead of being dropped."""
+    app, tab = studio
+    source = _import(tab)
+    applied = []
+    monkeypatch.setattr(tab.controller, "start_model_apply", lambda: applied.append(tab.controller.busy) or True)
+    editor = SimpleNamespace(active_session_id="owned-review", session_view=lambda: SimpleNamespace(session_id="owned-review", revision=1),
+                             working_mesh=lambda **kw: source.scene.mesh)
+    tab._model_part_editor_source = source
+    tab._model_part_editor_session_id = "owned-review"
+    tab._reapply_after_model_part_edit = True
+    try:
+        assert tab.controller.start_model_part_edit_apply(source, editor, expected_session_id="owned-review")
+        pump(app, lambda: bool(applied))
+        assert applied == [False], "started once, after the capturing task ended"
+        assert "Applying the placement again" in tab.model_panel.part_editor_status.plain_text()
+    finally:
+        pump(app, lambda: not tab.controller.busy)
+        tab._clear_model_part_editor_link()
+
+
 def test_mesh_editor_changes_require_rust_finish_before_acceptance(studio, tmp_path):
     from cdmw.ui.mesh_editor.controller import MeshEditorController
     from tests.test_mesh_rust_authoring import RustMeshAuthoringTests, _request, _candidate_reference
@@ -134,7 +156,7 @@ def test_mesh_editor_changes_require_rust_finish_before_acceptance(studio, tmp_p
         tab.model_panel.use_part_editor_button.click()
         assert not tab.controller.busy
         assert not completed and source.mesh_generation == 0
-        assert "Finish Edit Mesh" in tab.model_panel.part_editor_status.plain_text()
+        assert "Finish and return to Create New Item" in tab.model_panel.part_editor_status.plain_text()
         assert source.scene.mesh.submeshes[0].vertices[0][0] == 0
 
         assert session.finish(_request(session, "finish_request", 2))["status"] == "accepted"

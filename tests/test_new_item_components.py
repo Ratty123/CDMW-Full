@@ -212,6 +212,30 @@ def test_preview_entries_omit_left_out_companions(studio):
     assert controller._template_geometry_build()[0] != token_before
 
 
+def test_a_component_unticked_before_any_row_is_selected_is_left_out_of_preview_and_plan(studio):
+    """Ticking never selects a row, so the first untick can arrive with no active binding."""
+    service, snapshot, controller = studio
+    lb, main = identity(controller, LB), identity(controller, MAIN)
+    assert controller._active_variant is None
+    assert lb[1] in [entry.path.casefold() for entry in controller.template_entries()]
+    assert controller.set_component_included(lb, False)
+    assert controller.current_variant_identity() == main, "the row shown as selected is the one in effect"
+    shown = [entry.path.casefold() for entry in controller.template_entries()]
+    assert lb[1] not in shown and main[1] == shown[0]
+    plan = plan_for(service, snapshot, controller)
+    assert isinstance(controller.variant_plan_inputs()[0][lb], HiddenVariantRequest)
+    record = next(r for r in plan.manifest["body_visibility"]["prefabs"] if r["source_prefab"].endswith(WORN_PART + ".prefab"))
+    assert {c["model_path"] for c in record["components"] if c.get("hidden_in_export")} == {STEM + "_lb.pac"}
+    written = [data for path, data in plan.loose_files.items() if path.endswith(".pac") and "sword" in path]
+    assert sum(is_hidden_variant_result(ModelFiles(data)) for data in written) == 1
+    # Ticking it back in, still with no row selected, exports the whole template again.
+    assert controller.set_component_included(lb, True)
+    assert lb[1] in [entry.path.casefold() for entry in controller.template_entries()]
+    again = plan_for(service, snapshot, controller)
+    assert not any(is_hidden_variant_result(ModelFiles(data)) for path, data in again.loose_files.items()
+                   if path.endswith(".pac") and "sword" in path)
+
+
 def test_export_uses_unticked_rows_without_a_preview_refresh(studio):
     from cdmw.services.new_item_skinning import HiddenVariantRequest, is_hidden_variant_result
     service, snapshot, controller = studio

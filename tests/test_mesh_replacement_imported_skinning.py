@@ -347,6 +347,39 @@ def test_rust_mapping_step_reports_weights_and_applies_the_choice(editor, tmp_pa
             host.cancel()
 
 
+def test_rust_apply_gives_the_weights_choice_to_the_imported_materials_pass(editor, tmp_path, monkeypatch):
+    """A rig that cannot be kept has no default: the materials pass composed without the
+    choice and Apply stopped with "Choose how to handle the imported weights"."""
+    import cdmw.services.mesh_replacement_materials as materials
+    service, sid, _ = editor
+    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=sid), tmp_path / "host", process_generation=1)
+    seen = []
+
+    def prepare(pending, targets, _root, _stop_event=None, *, surface=None, skin_policy=None):
+        # The real pass composes the import first; do the same with what it was given.
+        compose_import(pending, targets, material_choice="imported", companion_files=(), skin_policy=skin_policy)
+        seen.append(skin_policy)
+        return ()
+
+    monkeypatch.setattr(materials, "prepare_imported_materials", prepare)
+    try:
+        path = source_glb(tmp_path, mismatch=True)
+        entry = ArchiveEntry(service.working_mesh(sid).path, tmp_path / "0.pamt", tmp_path / "0.paz", 0, 0, 0, 0, 0)
+        context = SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})
+        result = command(host, "replacement_choose", {"scope": "entire", "source_path": str(path),
+                         "_archive_entry": entry, "_archive_dependencies": context})
+        pending = result["state"]["replacement"]["pending"]
+        assert pending["weights"]["default"] == ""
+        key = pending["targets"][0]["id"]
+        # The stand-in bundle is empty, so Apply stops at the next step, past the weights.
+        with pytest.raises(ValueError, match="no prepared texture binding"):
+            command(host, "replacement_apply", {"targets": [key], "materials": "imported", "weights": "transfer"})
+        assert seen == ["transfer"]
+    finally:
+        if not host.closed:
+            host.cancel()
+
+
 def test_fbx_replacement_is_converted_and_tracked_by_its_own_file(editor, tmp_path, monkeypatch):
     import shutil
 

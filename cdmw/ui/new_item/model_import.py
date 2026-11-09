@@ -844,6 +844,9 @@ class ModelImportSource:
     #: the Skeleton Edit recipe the weights were prepared against (its bones appended to the template's rig)
     skeleton_edit: object = None
     skinning_generation: int = 0
+    #: the (column-vector) transform transferred weights were last sampled at; None is
+    #: the model as imported. Apply placement samples again when the model has moved.
+    skinning_transform: Optional[tuple] = None
     #: Installed-mod witnesses mark preview-only sources, which output paths refuse.
     dmm_source_revision: object = None
 

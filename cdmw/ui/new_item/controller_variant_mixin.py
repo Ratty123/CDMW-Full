@@ -75,8 +75,11 @@ class NewItemVariantControllerMixin:
         if (self._active_variant is None and self.snapshot is not None and self.snapshot.sources
                 and self.snapshot.sources.static_layout and self.draft.model_source is ModelSource.TEMPLATE
                 and (self.draft.glow_parts or self.draft.translucency is not None or self.draft.shader_controls
-                     or self.draft.template_transform or self.draft.body_visibility.wanted)):
+                     or self.draft.template_transform or self.draft.body_visibility.wanted
+                     or self.draft.excluded_bindings)):
             # The selector already displays the primary binding before its first edit.
+            # Ticking a component out never selects a row, so it counts as one too:
+            # without an active binding the plan would export what the list shows left out.
             self._active_variant = self.primary_variant_identity()
         if self._active_variant is None:
             return
@@ -365,6 +368,13 @@ class NewItemVariantControllerMixin:
                 models[key], scenes[key] = value.result, value.scene
         return (models, scenes, tuple(value.source for key, value in states
                                       if value.source is not None and key not in excluded))
+
+    def holds_model_source(self, source) -> bool:
+        """Whether an import still belongs to this item: the active one or one a row keeps."""
+        if source is None:
+            return False
+        return source is self.model_import or any(
+            value.source is source for value in (*self._variant_states.values(), *self._hidden_restore.values()))
 
     def reset_variants(self):
         sources = {id(value.source):value.source for value in (*self._variant_states.values(), *self._hidden_restore.values())

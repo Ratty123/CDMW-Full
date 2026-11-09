@@ -64,6 +64,22 @@ def blender_for_fbx(*args, **kwargs):
     return _controller_override("blender_for_fbx", _BLENDER_FOR_FBX)(*args, **kwargs)
 
 
+_IDENTITY_MATRIX = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+
+
+def _skin_transfer_transform(source: ModelImportSource, placement: ModelPlacement):
+    """Where the donor sampler sees the imported model: the fit, then the placement about the fitted origin."""
+
+    from cdmw.modding.mesh_glb_assets import transpose
+    from cdmw.modding.scene_geometry_utils import _multiply_matrix
+    # Placement uses row vectors; the donor sampler uses column vectors.
+    return _multiply_matrix(transpose(placement.matrix(origin=source.baked_origin())), transpose(source.bake.matrix()))
+
+
+def _same_matrix(first, second) -> bool:
+    return len(first) == len(second) and all(abs(float(a) - float(b)) <= 1e-9 for a, b in zip(first, second))
+
+
 def _translucency_for_parts(choice, remaining_parts):
     """`choice` limited to the parts that still exist, or None when none do."""
     if choice is None:
@@ -636,12 +652,7 @@ class NewItemModelControllerMixin:
         choices, generation = tuple(choices), source.mesh_generation
         draft_revision = self._draft_revision
         source_bake, placement, flip = source.bake, self.model_placement, source.flip_texture_v
-        from cdmw.modding.mesh_glb_assets import transpose
-        from cdmw.modding.scene_geometry_utils import _multiply_matrix
-        # Placement uses row vectors; the donor sampler uses column vectors.
-        # Apply the fit first, then placement about the fitted origin.
-        transfer_transform = _multiply_matrix(
-            transpose(placement.matrix(origin=source.baked_origin())), transpose(source_bake.matrix()))
+        transfer_transform = _skin_transfer_transform(source, placement)
         target = source.skinning_target
         captured_scene = source.scene
         extension = getattr(captured_scene.mesh, "interchange_palette_extension", None)
@@ -679,6 +690,7 @@ class NewItemModelControllerMixin:
             source.scene, source.preview_model, source.preview_mesh = scene, preview, scene.mesh
             source.bounds, source.centroid, source.principal_frame = analysis.bounds, analysis.centroid, analysis.principal_frame
             source.texture_count, source.skinning_reports, source.skinning_choices = textures, reports, choices
+            source.skinning_transform = tuple(transfer_transform)
             source.notes = tuple(item.summary() for item in reports)
             source.mesh_generation += 1
             source.skinning_generation = source.mesh_generation
@@ -783,6 +795,17 @@ class NewItemModelControllerMixin:
         if source is None or not entries:
             self.status_message.emit("Import a model first; there is nothing to place.", True)
             return False
+        if self._weights_need_sampling_at(source, self.model_placement):
+            # Transferred weights were copied from the template where the model sat when
+            # they were prepared. It has moved since, so copy them again where it sits now.
+            wanted = tuple(_skin_transfer_transform(source, self.model_placement))
+            self.log_message.emit("The model moved since its weights were transferred; transferring them again at its placement...")
+            if self.start_model_skinning(source.skinning_choices):
+                if self.busy:
+                    self._apply_after_skinning = (source, wanted)
+                    return True
+                if source.skinning_transform is None or not _same_matrix(source.skinning_transform, wanted):
+                    return False  # the transfer failed or was superseded; its own message says why
         entry = self.template_primary_entry()
         placement = self.model_placement
         snapshot = self.snapshot
@@ -837,6 +860,31 @@ class NewItemModelControllerMixin:
             self.model_apply_failed.emit(said)
 
         return self._run("model_apply", task, done, failed, task_accepts_progress=True, source_owners=(source,))
+
+    def _weights_need_sampling_at(self, source: ModelImportSource, placement: ModelPlacement) -> bool:
+        """Whether weights copied from the template by position belong to another placement."""
+
+        if (source.raw_import_mesh is None or not source.skinning_target
+                or not any(choice.policy in {"transfer", "body_transfer"} for choice in source.skinning_choices)):
+            return False
+        sampled = source.skinning_transform if source.skinning_transform is not None else _IDENTITY_MATRIX
+        if _same_matrix(sampled, _skin_transfer_transform(source, placement)):
+            return False
+        if source.mesh_generation != source.skinning_generation:
+            # The weights can only be prepared again from the file as imported.
+            self.log_message.emit("The weights were transferred before the model was moved, and a Mesh Editor edit keeps "
+                                  "them from being transferred again. Import the model again to refresh them.")
+            return False
+        return True
+
+    def _run_pending_model_apply(self, busy: bool) -> None:
+        if busy or self._apply_after_skinning is None:
+            return
+        (source, wanted), self._apply_after_skinning = self._apply_after_skinning, None
+        if (self.model_import is source and source.skinning_transform is not None
+                and _same_matrix(source.skinning_transform, wanted)):
+            # After every other listener has seen the controller go idle.
+            QTimer.singleShot(0, self, self.start_model_apply)
 
     def start_model_editor_session(self, on_ready, on_error) -> bool:
         from cdmw.workers.new_item_mesh_session import prepare_new_item_mesh_session

@@ -137,6 +137,34 @@ def test_imported_mesh_icon_and_material_references_remap_together(tmp_path, aux
     assert load_registry(root)['items'][packages[0].identity]['values'] == first['values']
 
 
+def test_a_cloth_painted_model_is_still_cloth_painted_after_the_package_round_trip(tmp_path):
+    """Painted cloth keeps up to six bones on vertices that follow bones only. A package
+    that forgot the paint met the four-bone physics check when it was continued."""
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.independent_item_package import unpack_recipe
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_new_item_service import PAC_XML, imported_pac
+
+    def models(painted):
+        service, snapshot = imported_game(tmp_path / f'author-{painted}')
+        choice = replace(shop_spec('PaintedClothItem'), model_source=ModelSource.IMPORTED)
+        model = ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)}, cloth_painted=painted)
+        package = from_plan(service.plan(choice, snapshot, model=model, capture_independent=True), uuid4().hex)
+        _spec, primary, variants, _icon = unpack_recipe(read_package(package_bytes(package)))
+        return package, [value for value in (primary, *variants.values()) if value is not None]
+
+    package, restored = models(True)
+    assert restored and all(value.cloth_painted for value in restored)
+    _plain, restored = models(False)
+    assert restored and not any(value.cloth_painted for value in restored)
+    # The flag is either absent or true; anything else is not a package this build wrote.
+    recipe = json.loads(json.dumps(package.recipe))
+    rows = [recipe['model'], *(row['model'] for row in recipe['variants'])]
+    next(row for row in rows if row and row.get('cloth_painted'))['cloth_painted'] = False
+    with pytest.raises(IndependentItemError, match='Invalid prepared model'):
+        read_package(package_bytes(replace(package, recipe=recipe)))
+
+
 def authored(root, identity=None, name='SameSourceName'):
     service, snapshot, _ = setup_game(root)
     plan = service.plan(shop_spec(name), snapshot, capture_independent=True)

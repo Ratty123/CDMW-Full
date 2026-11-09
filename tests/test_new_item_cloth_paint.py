@@ -231,6 +231,121 @@ def test_paint_whole_model_covers_every_part_and_clears_everywhere():
         service.close_edit_session(sid)
 
 
+_TOPOLOGY_EDITS = {
+    "subdivide": ({"vertices_by_submesh": {0: (6, 7, 8, 11, 12, 13, 16, 17, 18)}}, {}),
+    "delete": ({"faces_by_submesh": {0: (0, 1)}}, {"target_mode": "face"}),
+    "extrude": ({"faces_by_submesh": {0: (30, 31)}}, {"distance": .5}),
+    "loop_cut": ({"edges_by_submesh": {0: ((0, 1),)}}, {}),
+    "separate": ({"faces_by_submesh": {0: (30, 31)}}, {}),
+    "merge": ({"vertices_by_submesh": {0: (23, 24)}}, {}),
+}
+
+
+@pytest.mark.parametrize("action", sorted(_TOPOLOGY_EDITS))
+def test_paint_and_pins_follow_the_vertices_through_a_topology_edit(action):
+    """A topology edit returns the part with new vertices; the paint must come back with them."""
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from cdmw.services.mesh_service import MeshService
+
+    side = 5
+    vertices = [(float(x), float(y), 0.) for y in range(side) for x in range(side)]
+    faces = []
+    for y in range(side - 1):
+        for x in range(side - 1):
+            a = y * side + x
+            faces += [(a, a + 1, a + side), (a + 1, a + side + 1, a + side)]
+    part = SubMesh(name="dress", material="cloth", vertices=vertices, faces=faces)
+    service = MeshService()
+    sid = service.open_edit_session(ParsedMesh(format="obj", submeshes=[part]),
+                                    session_id=f"cloth-paint-{action}", mode="edit").session_id
+    try:
+        session = service._session(sid)
+        top = tuple(i for i in range(side * side) if i // side >= 3)
+        session.selection = MeshEditSelection.from_maps(vertices_by_submesh={0: top})
+        assert service.set_selected_vertex_cloth_paint(sid, 1.) == len(top)
+        pinned = tuple(i for i in top if i // side == 3)
+        session.selection = MeshEditSelection.from_maps(vertices_by_submesh={0: pinned})
+        assert service.set_selected_vertex_cloth_pin(sid, True) == len(pinned)
+        selection, params = _TOPOLOGY_EDITS[action]
+        assert service.apply_command(sid, MeshEditCommand(
+            action, selection=MeshEditSelection.from_maps(**selection), params=params, mode="edit")).ok
+        mesh = service.working_mesh(sid, clone=True)
+        assert mesh.submeshes[0].vertices != vertices, "the edit changed the part"
+        painted_rows = pinned_rows = 0
+        for edited in mesh.submeshes:
+            paint, pins = part_cloth_paint(edited), list(edited.cloth_pin)
+            assert len(paint) == len(pins) == len(edited.vertices)
+            for vertex, value, pin in zip(edited.vertices, paint, pins):
+                if abs(vertex[2]) > 1e-6:
+                    continue  # raised by the extrusion, off the original sheet
+                # Whole rows were painted, so every vertex on or between them is cloth
+                # and nothing below them is, whether it is original or derived.
+                assert (value > .99) == (vertex[1] >= 3. - 1e-6), (action, vertex, value)
+                assert not pin or abs(vertex[1] - 3.) < 1e-6, (action, vertex)
+                painted_rows += value > .99
+                pinned_rows += pin
+        assert painted_rows >= len(top) - 1 and pinned_rows >= len(pinned)
+    finally:
+        service.close_edit_session(sid)
+
+
+@pytest.mark.parametrize("later", ("transform", "subdivide", "extrude"))
+def test_paint_set_after_an_edit_survives_the_next_edit_and_undo_keeps_its_order(later):
+    """The resident session opened by the first edit knows nothing of paint set afterwards."""
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from cdmw.services.mesh_service import MeshService
+
+    side = 5
+    vertices = [(float(x), float(y), 0.) for y in range(side) for x in range(side)]
+    faces = []
+    for y in range(side - 1):
+        for x in range(side - 1):
+            a = y * side + x
+            faces += [(a, a + 1, a + side), (a + 1, a + side + 1, a + side)]
+    service = MeshService()
+    sid = service.open_edit_session(
+        ParsedMesh(format="obj", submeshes=[SubMesh(name="dress", material="cloth", vertices=vertices, faces=faces)]),
+        session_id=f"cloth-paint-after-{later}", mode="edit").session_id
+
+    def edit(action):
+        selection, params = {
+            "transform": ({"vertices_by_submesh": {0: (0, 1)}}, {"translate": (0., 0., .25)}),
+            "subdivide": ({"vertices_by_submesh": {0: (0, 1, 5, 6)}}, {}),
+            "extrude": ({"faces_by_submesh": {0: (0, 1)}}, {"distance": .5}),
+        }[action]
+        assert service.apply_command(sid, MeshEditCommand(
+            action, selection=MeshEditSelection.from_maps(**selection), params=params, mode="edit")).ok
+
+    def painted():
+        part = service.working_mesh(sid, clone=True).submeshes[0]
+        paint = part_cloth_paint(part)
+        assert not paint or len(paint) == len(part.vertices)
+        assert all((value > .99) == (vertex[1] >= 3. - 1e-6) for vertex, value in zip(part.vertices, paint))
+        return len(part.vertices), sum(value > .99 for value in paint)
+
+    try:
+        edit("subdivide")
+        before_paint = painted()
+        assert before_paint[1] == 0
+        session = service._session(sid)
+        top = tuple(i for i, vertex in enumerate(session.working_mesh.submeshes[0].vertices) if vertex[1] >= 3. - 1e-6)
+        session.selection = MeshEditSelection.from_maps(vertices_by_submesh={0: top})
+        assert service.set_selected_vertex_cloth_paint(sid, 1.) == len(top) == 10
+        edit(later)
+        assert painted()[1] == 10
+        service.undo(sid)  # the later edit
+        assert painted() == (before_paint[0], 10)
+        service.undo(sid)  # the paint
+        assert painted() == before_paint
+        service.undo(sid)  # the first subdivide, made before the paint
+        assert painted() == (len(vertices), 0)
+        for expected in (0, 10, 10):
+            service.redo(sid)
+            assert painted()[1] == expected
+    finally:
+        service.close_edit_session(sid)
+
+
 def _placed_with_influences(tmp_path, monkeypatch, paint, *, own_guides=False, stop_event=None):
     from cdmw.models import ArchiveEntry
     from cdmw.modding.scene_import_result_ops import SceneImportResult
@@ -376,6 +491,98 @@ def test_returning_edit_applies_the_placement_again_only_if_it_was_applied():
     message, applied, _ = _finished_tab(painted=False, keep_physics=False, reapply=False)
     assert applied == [] and "Apply placement to build it" in message
     assert "cloth paint" not in message
+
+
+def test_returning_edit_waits_for_the_finishing_task_before_applying_the_placement():
+    """The edit is published from inside its own task, while the controller still counts as busy."""
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    message, applied, fake = _finished_tab(painted=False, keep_physics=False, reapply=True, busy=True)
+    assert applied == [] and "Applying the placement again" in message
+    source = fake._model_part_editor_source
+    fake.controller.model_import, fake.controller.model_result = source, None
+    NewItemStudioTab._apply_placement_after_model_part_edit(fake, True)
+    assert applied == [], "still busy"
+    NewItemStudioTab._apply_placement_after_model_part_edit(fake, False)
+    assert applied == [True] and fake._model_apply_after_part_edit is None
+    NewItemStudioTab._apply_placement_after_model_part_edit(fake, False)
+    assert applied == [True], "once"
+    # A discard, another row or a manual Apply in between takes the promise away.
+    for model_import, result in ((None, None), (object(), None), (source, object())):
+        _message, applied, fake = _finished_tab(painted=False, keep_physics=False, reapply=True, busy=True)
+        fake.controller.model_import = fake._model_part_editor_source if model_import is source else model_import
+        fake.controller.model_result = result
+        NewItemStudioTab._apply_placement_after_model_part_edit(fake, False)
+        assert applied == []
+
+
+def _linked_tab(*, active_variant, model_import, held=True, session="open", parked=False):
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    linked = object()
+    states, selected = [], []
+    fake = SimpleNamespace(
+        _model_part_editor_source=linked, _model_part_editor_variant=("prefab", "a.pac"),
+        _model_part_editor_widget=None, _model_part_editor_session_id="open", _model_part_editor_parked=parked,
+        _model_part_editor_controller=SimpleNamespace(active_session_id=session),
+        model_panel=SimpleNamespace(set_part_editor_state=lambda active, message="": states.append((active, message))),
+        _use_model_part_editor_changes=lambda: selected.append("use"))
+    fake.controller = SimpleNamespace(
+        _active_variant=active_variant, model_import=linked if model_import == "linked" else model_import,
+        holds_model_source=lambda source: held and source is linked,
+        select_variant=lambda identity: selected.append(identity))
+    fake._model_part_editor_is_open = lambda: NewItemStudioTab._model_part_editor_is_open(fake)
+    fake._clear_model_part_editor_link = lambda: NewItemStudioTab._clear_model_part_editor_link(fake)
+    return fake, linked, states, selected
+
+
+def test_selecting_another_component_keeps_the_open_mesh_editor_session_linked():
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    other = object()
+    fake, linked, states, _selected = _linked_tab(active_variant=("prefab", "b.pac"), model_import=other)
+    NewItemStudioTab._model_part_editor_source_changed(fake, other)
+    assert fake._model_part_editor_source is linked and fake._model_part_editor_session_id == "open"
+    assert states == [(False, "Mesh Editor is open for another component. Select that component to use its changes.")]
+    # Selecting the edited component again shows its way back.
+    assert fake._model_part_editor_parked
+    fake.controller._active_variant = ("prefab", "a.pac")
+    NewItemStudioTab._model_part_editor_source_changed(fake, linked)
+    assert states[-1][0] is True and "still open" in states[-1][1]
+    # While it is shown, other changes to the same import leave its status alone.
+    assert not fake._model_part_editor_parked
+    NewItemStudioTab._model_part_editor_source_changed(fake, linked)
+    assert len(states) == 2
+
+
+@pytest.mark.parametrize("case", ("discarded", "replaced", "template changed", "session closed"))
+def test_the_mesh_editor_link_is_dropped_when_its_import_or_session_is_gone(case):
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    if case == "discarded":  # same row, the import is gone
+        fake, _linked, states, _ = _linked_tab(active_variant=("prefab", "a.pac"), model_import=None, held=False)
+        NewItemStudioTab._model_part_editor_source_changed(fake, None)
+    elif case == "replaced":  # same row, another file
+        other = object()
+        fake, _linked, states, _ = _linked_tab(active_variant=("prefab", "a.pac"), model_import=other)
+        NewItemStudioTab._model_part_editor_source_changed(fake, other)
+    elif case == "template changed":  # no row keeps the import any more
+        fake, _linked, states, _ = _linked_tab(active_variant=None, model_import=None, held=False)
+        NewItemStudioTab._model_part_editor_source_changed(fake, None)
+    else:  # back on the row after the session was closed in Mesh Editor
+        fake, linked, states, _ = _linked_tab(active_variant=("prefab", "a.pac"), model_import="linked",
+                                              session="", parked=True)
+        NewItemStudioTab._model_part_editor_source_changed(fake, linked)
+    assert fake._model_part_editor_source is None and fake._model_part_editor_variant is None
+    assert states == [(False, "")]
+
+
+def test_return_selects_the_edited_component_again_before_using_its_changes():
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    fake, _linked, _states, selected = _linked_tab(active_variant=("prefab", "b.pac"), model_import=object())
+    fake._window = SimpleNamespace(shell=None)
+    NewItemStudioTab._return_from_model_part_editor(fake)
+    assert selected == [("prefab", "a.pac"), "use"]
+    fake, _linked, _states, selected = _linked_tab(active_variant=("prefab", "a.pac"), model_import="linked")
+    fake._window = SimpleNamespace(shell=None)
+    NewItemStudioTab._return_from_model_part_editor(fake)
+    assert selected == ["use"], "already on the edited component"
 
 
 def test_returning_painted_edit_asks_for_template_cloth_when_it_is_off():

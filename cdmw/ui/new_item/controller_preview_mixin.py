@@ -857,9 +857,14 @@ class NewItemPreviewControllerMixin:
 
         if self.draft.template_key is None:
             return ()
-        if self._active_variant is not None and self.snapshot is not None:
+        active = self._active_variant
+        if active is None and self.draft.excluded_bindings and self.snapshot is not None:
+            # A component ticked out before any row was selected: the list shows the
+            # primary binding, and the plan will use it, so the preview does too.
+            active = self.primary_variant_identity()
+        if active is not None and self.snapshot is not None:
             family = self.snapshot.family(self.draft.template_key)
-            prefab,path = self._active_variant
+            prefab,path = active
             part = next((value for value in family.parts if value.prefab_path.casefold()==prefab),None)
             if part is None:
                 return ()

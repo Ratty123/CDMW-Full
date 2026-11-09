@@ -218,13 +218,14 @@ def run_replacement_command(authoring, command, args, stop_event):
         choice = str(args.get("materials", "original"))
         targets = tuple(args.get("targets", ()))
         files = None
+        weights = str(args.get("weights", "") or "") or None
         if choice == "imported":
             from cdmw.services.mesh_replacement_materials import prepare_imported_materials
             surface = _surface_argument(args)
             if surface is not None and any(surface):
                 check_imported_surface_support(pending)
-            files = prepare_imported_materials(pending, targets, authoring.root, stop_event, surface=surface)
-        weights = str(args.get("weights", "") or "") or None
+            files = prepare_imported_materials(pending, targets, authoring.root, stop_event, surface=surface,
+                                               skin_policy=weights)
         skin_notes = []
         mesh, state = compose_import(pending, targets, material_choice=choice, companion_files=files,
                                      skin_policy=weights, skin_notes=skin_notes)

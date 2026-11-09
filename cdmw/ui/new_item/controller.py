@@ -168,6 +168,9 @@ class NewItemStudioController(
         #: a skeleton edit changed while a task ran; weight the import again once idle
         self._reweight_pending = False
         self.busy_changed.connect(self._run_pending_reweight)
+        #: (import, transform) whose placement is applied once its weights are sampled there
+        self._apply_after_skinning = None
+        self.busy_changed.connect(self._run_pending_model_apply)
         self.preview_lighting_preset = "neutral_studio"
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)

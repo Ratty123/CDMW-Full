@@ -441,6 +441,10 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
                   "material_route": value.material_route}
         if value.skeleton_edit is not None:
             result["skeleton_edit"] = value.skeleton_edit.to_dict()
+        if getattr(value, "cloth_painted", False):
+            # Painted cloth keeps up to six bones on the vertices that follow bones only.
+            # Without this a continued package meets the four-bone physics check again.
+            result["cloth_painted"] = True
         return result
     from cdmw.domain.new_item.item_properties import property_values
     properties = property_values(plan.spec)
@@ -630,8 +634,9 @@ def _recipe_values(package):
     def model(raw):
         if raw is None:
             return None
-        if (not isinstance(raw, dict) or set(raw) - {"skeleton_edit"} != {"pac", "side_files", "material_route"}
-                or not isinstance(raw["side_files"], dict) or not isinstance(raw["material_route"], str)):
+        if (not isinstance(raw, dict) or set(raw) - {"skeleton_edit", "cloth_painted"} != {"pac", "side_files", "material_route"}
+                or not isinstance(raw["side_files"], dict) or not isinstance(raw["material_route"], str)
+                or raw.get("cloth_painted", True) is not True):
             raise IndependentItemError("Invalid prepared model.")
         side = {virtual_path(path): blob(key) for path, key in raw["side_files"].items()}
         if any(not path.endswith((".pac", ".pac_xml", ".dds")) for path in side):
@@ -646,7 +651,8 @@ def _recipe_values(package):
                 skeleton_edit = SkeletonEditRecipe.from_dict(raw["skeleton_edit"])
             except ValueError as exc:
                 raise IndependentItemError(f"Invalid prepared skeleton edit: {exc}") from exc
-        return ModelFiles(blob(raw["pac"]), side, raw["material_route"], skeleton_edit=skeleton_edit)
+        return ModelFiles(blob(raw["pac"]), side, raw["material_route"], skeleton_edit=skeleton_edit,
+                          cloth_painted="cloth_painted" in raw)
     primary = model(value["model"])
     variants = {}
     if not isinstance(value["variants"], list) or len(value["variants"]) > 128:

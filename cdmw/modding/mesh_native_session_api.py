@@ -932,7 +932,12 @@ def export_native_mesh_editor_session_to_mesh(
         snapshot_items[submesh_index] = snapshot_item
     if set(snapshot_items) != set(requested):
         return False
-    return restore_native_mesh_submesh_snapshot(
+    # The resident session returns each Part's attributes as they were when it was
+    # opened. Cloth paint and pins set since then live on ``mesh`` alone.
+    from cdmw.modding.mesh_cloth_extras import capture_cloth_extras, restore_cloth_extras
+
+    cloth_extras = capture_cloth_extras(mesh)
+    restored = restore_native_mesh_submesh_snapshot(
         mesh,
         {
             "kind": "native_submesh_snapshot",
@@ -942,6 +947,9 @@ def export_native_mesh_editor_session_to_mesh(
         stop_event=stop_event,
         timeout_seconds=timeout_seconds,
     )
+    if restored:
+        restore_cloth_extras(mesh, cloth_extras)
+    return restored
 
 
 def close_native_mesh_editor_session(
