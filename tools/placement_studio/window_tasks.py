@@ -141,6 +141,17 @@ class TaskPanelMixin:
         self._carry_status.setWordWrap(True)
         row.addWidget(self._carry_status, 1)
         carried_layout.addLayout(row)
+        row = QHBoxLayout()
+        self._carry_guide_button = QPushButton("Carry it somewhere else…")
+        self._carry_guide_button.setToolTip(
+            "A guided move for this body: see the rows that decide where the weapon and its "
+            "case hang, pick a spot, and mirror it for a body that holds the weapon in the "
+            "left hand."
+        )
+        self._carry_guide_button.clicked.connect(self._open_carry_guide)
+        row.addWidget(self._carry_guide_button)
+        row.addStretch(1)
+        carried_layout.addLayout(row)
         layout.addWidget(carried)
 
         layout.addWidget(self._build_fine_tune_box())

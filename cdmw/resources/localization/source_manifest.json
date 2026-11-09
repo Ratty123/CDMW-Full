@@ -181,7 +181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1087,
+          "line": 1089,
           "sink": "setToolTip"
         }
       ]
@@ -1651,7 +1651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 534,
+          "line": 536,
           "sink": "addItem"
         }
       ]
@@ -1716,7 +1716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1149,
+          "line": 1151,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -3097,6 +3097,16 @@
       ]
     },
     {
+      "key": "1. What moves: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 85,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "1. What to work on",
       "origins": [
         {
@@ -3240,6 +3250,11 @@
       "key": "2. Where it is carried",
       "origins": [
         {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 112,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "tools/placement_studio/window_tasks.py",
           "line": 129,
           "sink": "QGroupBox"
@@ -3346,7 +3361,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 162,
+          "line": 173,
           "sink": "QGroupBox"
         }
       ]
@@ -3471,7 +3486,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 148,
+          "line": 159,
           "sink": "QGroupBox"
         }
       ]
@@ -4757,6 +4772,16 @@
         {
           "path": "cdmw/ui/new_item/body_visibility_editor.py",
           "line": 24,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "A guided move for this body: see the rows that decide where the weapon and its case hang, pick a spot, and mirror it for a body that holds the weapon in the left hand.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_tasks.py",
+          "line": 146,
           "sink": "setToolTip"
         }
       ]
@@ -6086,7 +6111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 368,
+          "line": 379,
           "sink": "addTab"
         }
       ]
@@ -8146,7 +8171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 174,
+          "line": 185,
           "sink": "QLabel"
         }
       ]
@@ -8241,7 +8266,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 311,
+          "line": 313,
           "sink": "addTab"
         },
         {
@@ -9003,6 +9028,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_01.py",
           "line": 482,
           "sink": "python-return:_comparison_lines_from_mapping"
+        }
+      ]
+    },
+    {
+      "key": "Afterwards: the draw and put-away animations stay as they are. Give the weapon draws for its new place on the Animations tab, then use Draw and put-away timing there.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 138,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -10066,7 +10101,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 215,
+          "line": 217,
           "sink": "setToolTip"
         }
       ]
@@ -10821,7 +10856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 212,
+          "line": 223,
           "sink": "addRow"
         }
       ]
@@ -11221,7 +11256,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 301,
+          "line": 303,
           "sink": "addTab"
         }
       ]
@@ -15971,7 +16006,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 307,
+          "line": 309,
           "sink": "addTab"
         }
       ]
@@ -16741,7 +16776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 274,
+          "line": 276,
           "sink": "setHeaderLabels"
         }
       ]
@@ -16771,7 +16806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 355,
+          "line": 366,
           "sink": "addTab"
         }
       ]
@@ -16781,7 +16816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 312,
+          "line": 314,
           "sink": "setTabToolTip"
         }
       ]
@@ -20496,7 +20531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1056,
+          "line": 1058,
           "sink": "setText"
         }
       ]
@@ -20687,6 +20722,16 @@
       ]
     },
     {
+      "key": "Body: {value_0}. Where a weapon hangs is decided by its row in this body's descriptor, and the case row moves with it.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 79,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Bold emphasis in logs / code",
       "origins": [
         {
@@ -20846,7 +20891,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 208,
+          "line": 210,
           "sink": "QCheckBox"
         },
         {
@@ -20901,7 +20946,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 360,
+          "line": 371,
           "sink": "setTabToolTip"
         }
       ]
@@ -26397,6 +26442,26 @@
       ]
     },
     {
+      "key": "Carry it somewhere else",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 71,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Carry it somewhere else…",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_tasks.py",
+          "line": 145,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Carrying {value_0} file(s) forward from the overlay at {value_1}.",
       "origins": [
         {
@@ -26413,6 +26478,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 131,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Case",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 46,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -26866,7 +26941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 304,
+          "line": 306,
           "sink": "setTabToolTip"
         }
       ]
@@ -28506,7 +28581,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 257,
+          "line": 259,
           "sink": "QPushButton"
         }
       ]
@@ -30452,6 +30527,16 @@
       ]
     },
     {
+      "key": "Choose a character and a slot first.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 214,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Choose a character and a slot on the Position tab first.",
       "origins": [
         {
@@ -31003,6 +31088,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1845,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Choose a spot.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 187,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -32821,7 +32916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1080,
+          "line": 1082,
           "sink": "showMessage"
         }
       ]
@@ -45296,7 +45391,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 274,
+          "line": 276,
           "sink": "setHeaderLabels"
         }
       ]
@@ -47816,7 +47911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 228,
+          "line": 239,
           "sink": "addRow"
         }
       ]
@@ -48141,7 +48236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 224,
+          "line": 226,
           "sink": "setToolTip"
         }
       ]
@@ -48151,7 +48246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 209,
+          "line": 211,
           "sink": "setToolTip"
         }
       ]
@@ -48201,7 +48296,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 308,
+          "line": 310,
           "sink": "setTabToolTip"
         }
       ]
@@ -48226,7 +48321,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 359,
+          "line": 370,
           "sink": "addTab"
         }
       ]
@@ -49996,7 +50091,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 303,
+          "line": 305,
           "sink": "addTab"
         },
         {
@@ -53116,7 +53211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 356,
+          "line": 367,
           "sink": "setTabToolTip"
         }
       ]
@@ -53136,7 +53231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 372,
+          "line": 383,
           "sink": "setTabToolTip"
         }
       ]
@@ -53166,7 +53261,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 310,
+          "line": 312,
           "sink": "setTabToolTip"
         }
       ]
@@ -59016,7 +59111,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 371,
+          "line": 382,
           "sink": "addTab"
         }
       ]
@@ -59381,7 +59476,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 227,
+          "line": 229,
           "sink": "setToolTip"
         }
       ]
@@ -65631,7 +65726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 315,
+          "line": 317,
           "sink": "setTabToolTip"
         }
       ]
@@ -65791,7 +65886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 302,
+          "line": 304,
           "sink": "setTabToolTip"
         }
       ]
@@ -69397,6 +69492,26 @@
       ]
     },
     {
+      "key": "Held child",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 45,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Held in",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 45,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Helmet visibility",
       "origins": [
         {
@@ -69436,7 +69551,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 314,
+          "line": 316,
           "sink": "addTab"
         }
       ]
@@ -78202,6 +78317,16 @@
       ]
     },
     {
+      "key": "It is already there",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 190,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "It is listed under Your mod, where you can save it as a mod or remove it.",
       "origins": [
         {
@@ -80991,7 +81116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 211,
+          "line": 213,
           "sink": "QCheckBox"
         }
       ]
@@ -85848,6 +85973,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 783,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Makes a new attach point so the weapon hangs where it would on the chosen spot, reflected across the body. Each body file gets its own value.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 123,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -91731,7 +91866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 223,
+          "line": 225,
           "sink": "QCheckBox"
         }
       ]
@@ -92348,6 +92483,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Mirror it to the other side of the body",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 122,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -95522,6 +95667,21 @@
       ]
     },
     {
+      "key": "Move it",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 152,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 192,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Move items into an overlay",
       "origins": [
         {
@@ -95626,7 +95786,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_operation.py",
-          "line": 167,
+          "line": 172,
           "sink": "python-return:action_label"
         },
         {
@@ -95641,7 +95801,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_operation.py",
-          "line": 167,
+          "line": 172,
           "sink": "python-return:action_label"
         }
       ]
@@ -95696,7 +95856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_operation.py",
-          "line": 165,
+          "line": 170,
           "sink": "python-return:action_label"
         }
       ]
@@ -95736,7 +95896,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 191,
+          "line": 202,
           "sink": "addRow"
         }
       ]
@@ -95856,7 +96016,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 170,
+          "line": 181,
           "sink": "setItemData"
         }
       ]
@@ -95926,7 +96086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 168,
+          "line": 179,
           "sink": "setItemData"
         }
       ]
@@ -96571,7 +96731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 212,
+          "line": 214,
           "sink": "setToolTip"
         }
       ]
@@ -99426,7 +99586,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_operation.py",
-          "line": 162,
+          "line": 167,
           "sink": "python-return:action_label"
         },
         {
@@ -104547,6 +104707,16 @@
       ]
     },
     {
+      "key": "Nothing was changed; the status bar says why.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 237,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Nothing was saved. CDMW refused the change: {value_0}",
       "origins": [
         {
@@ -105026,7 +105196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 232,
+          "line": 234,
           "sink": "setToolTip"
         }
       ]
@@ -112900,6 +113070,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 43,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 515,
           "sink": "rust-presentation"
@@ -115821,7 +115996,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 128,
+          "line": 130,
           "sink": "setWindowTitle"
         }
       ]
@@ -117221,7 +117396,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 299,
+          "line": 301,
           "sink": "addTab"
         },
         {
@@ -117271,7 +117446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 197,
+          "line": 208,
           "sink": "addRow"
         }
       ]
@@ -124892,6 +125067,16 @@
       ]
     },
     {
+      "key": "Put away on",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 44,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Put away, or in the character's hand. *Show it* on the Position tab switches between the two.",
       "origins": [
         {
@@ -125053,6 +125238,16 @@
           "path": "cdmw/services/archive_overlay_migration.py",
           "line": 384,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Put-away child",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 44,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -133336,7 +133531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_operation.py",
-          "line": 168,
+          "line": 173,
           "sink": "python-return:action_label"
         }
       ]
@@ -135431,7 +135626,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 374,
+          "line": 376,
           "sink": "QAction"
         }
       ]
@@ -138621,7 +138816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 231,
+          "line": 233,
           "sink": "QCheckBox"
         }
       ]
@@ -139306,7 +139501,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 364,
+          "line": 375,
           "sink": "addTab"
         }
       ]
@@ -140453,6 +140648,11 @@
           "path": "cdmw/ui/new_item/game_tables_editor.py",
           "line": 164,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 43,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -147281,7 +147481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 380,
+          "line": 391,
           "sink": "_hint"
         }
       ]
@@ -151606,7 +151806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 365,
+          "line": 376,
           "sink": "setTabToolTip"
         }
       ]
@@ -151986,7 +152186,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 326,
+          "line": 337,
           "sink": "setText"
         }
       ]
@@ -154841,7 +155041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 254,
+          "line": 256,
           "sink": "QLabel"
         }
       ]
@@ -154851,7 +155051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1056,
+          "line": 1058,
           "sink": "setText"
         }
       ]
@@ -156681,7 +156881,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 226,
+          "line": 228,
           "sink": "QCheckBox"
         }
       ]
@@ -158452,6 +158652,16 @@
       ]
     },
     {
+      "key": "Spot:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 121,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Spring-back response",
       "origins": [
         {
@@ -160186,7 +160396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 188,
+          "line": 199,
           "sink": "QLabel"
         }
       ]
@@ -170247,6 +170457,16 @@
       ]
     },
     {
+      "key": "The row names no hand to hold it in.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 106,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "The runtime refused this session. Review its diagnostics before retrying.",
       "origins": [
         {
@@ -171231,7 +171451,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 167,
+          "line": 178,
           "sink": "addItem"
         }
       ]
@@ -171861,7 +172081,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 202,
+          "line": 204,
           "sink": "setToolTip"
         }
       ]
@@ -172847,6 +173067,26 @@
       ]
     },
     {
+      "key": "This body holds it in the left hand, so a carry made for the right hand looks wrong here: mirror it to the other side.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 102,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "This body holds it in the right hand.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 105,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "This bone has no influence on the loaded mesh.",
       "origins": [
         {
@@ -173506,7 +173746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 166,
+          "line": 177,
           "sink": "addItem"
         }
       ]
@@ -175781,7 +176021,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 350,
+          "line": 361,
           "sink": "_hint"
         }
       ]
@@ -176926,7 +177166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 203,
+          "line": 214,
           "sink": "QLabel"
         }
       ]
@@ -177121,7 +177361,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 206,
+          "line": 217,
           "sink": "addRow"
         }
       ]
@@ -179756,7 +179996,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 214,
+          "line": 216,
           "sink": "QCheckBox"
         }
       ]
@@ -186981,7 +187221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 300,
+          "line": 302,
           "sink": "setTabToolTip"
         }
       ]
@@ -187026,7 +187266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 369,
+          "line": 380,
           "sink": "setTabToolTip"
         }
       ]
@@ -190001,7 +190241,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 309,
+          "line": 311,
           "sink": "addTab"
         },
         {
@@ -192371,7 +192611,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 167,
+          "line": 178,
           "sink": "addItem"
         }
       ]
@@ -193871,7 +194111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1124,
+          "line": 1126,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198661,12 +198901,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 242,
+          "line": 244,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1124,
+          "line": 1126,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -199066,7 +199306,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 242,
+          "line": 244,
           "sink": "addItem"
         }
       ]
@@ -199501,7 +199741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 166,
+          "line": 177,
           "sink": "addItem"
         }
       ]
@@ -205896,7 +206136,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 243,
+          "line": 245,
           "sink": "addItem"
         }
       ]
@@ -209556,12 +209796,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 243,
+          "line": 245,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1124,
+          "line": 1126,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -213491,7 +213731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1087,
+          "line": 1089,
           "sink": "setToolTip"
         }
       ]
@@ -213531,7 +213771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 472,
+          "line": 474,
           "sink": "addItem"
         }
       ]
@@ -215361,7 +215601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1134,
+          "line": 1136,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -216067,6 +216307,16 @@
       ]
     },
     {
+      "key": "{value_0} has rows of its own: switch Character and do the same there, and save each body as its own mod.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry_guide.py",
+          "line": 143,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0} has weights without their imported rig identity.",
       "origins": [
         {
@@ -216231,7 +216481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 336,
+          "line": 347,
           "sink": "setText"
         }
       ]
@@ -217501,7 +217751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1149,
+          "line": 1151,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -217801,7 +218051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1105,
+          "line": 1107,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -220461,7 +220711,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1056,
+          "line": 1058,
           "sink": "setText"
         },
         {

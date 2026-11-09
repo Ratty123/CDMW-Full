@@ -166,3 +166,35 @@ charts in a Damiane session (slice 3), and starting from another mod's copy of a
 tried in game. The patch result is source and fixture evidence only; DMM 4.7.4 and the
 game accepted hand-written patches of the same form on 2026-11-08, but patches written by the
 tab have not been mounted yet.
+
+## Third slice: the guided carry plan
+
+Built on 2026-11-09, with `tests/test_placement_studio_carry_plan.py`.
+
+- `carry_plan.py` (pure): `held_hand` reads the row's `OutSocketBone`; `solve_mirrored_socket`
+  puts a new body attach point on the mirror partner of the picked spot's bone
+  (`B_WeaponIn_R_00` <-> `B_WeaponIn_L_00`) so the weapon, hung by the same child socket,
+  lands at `S W S`; `free_mirrored_name` names it after the mirrored spot, or
+  `<spot>_Carry_Socket` when that name is in use. `plan_mirrored_move` plans the move to the
+  picked spot with `plan_move`, then re-aims every row at the mirrored point, solved per body
+  socket file that defines the spot (both `phw_01` and `phw_damian_01` for Damiane).
+- `MovePlan.new_body_sockets` and `mirror_of`: `apply_move` creates the body points in the
+  same operation, and the scope allows exactly those files and names, so a mirrored carry is
+  one undoable change that saves through the slice 1 patches (an `<insert>` per body file).
+- **Position > 2. Where it is carried > Carry it somewhere else...**: the body, the slot's
+  descriptor rows as this session has them, which hand holds it, a spot, and **Mirror it to
+  the other side of the body** (on by default for a left-handed body, off for a centre spot).
+  The plan is shown in words before **Move it**. Placement only: animations and timing stay
+  on the Animations tab.
+- Each body is its own character in the tab and its own mod; the preflight refuses one mod
+  for two characters, and Weapon Carry ships its female parts as separate folders too.
+
+Checked on real files on 2026-11-09: solved from the game's and Character Creator's
+`phw_01` and `phw_damian_01` `Pelvis_L_Socket` with the package's `Pelvis_L_ChildSocket`,
+the mirrored point equals the `Pelvis_R_SubWeapon_Socket` Weapon Carry 1.0.1 ships (seen
+working in game) to within 1e-6 on both files, parent `B_WeaponIn_L_00`. The script is in the
+worktree's `.work/research/2026-11-09-mirror-check/`.
+
+Not in this slice: mirrored clips and the hip swing (slice 4); a Damiane session loads only
+her own charts (deliberately, for load time), so her draws inside Kliff's charts are not yet
+listed by the timing panel; Help and translations of the new text.

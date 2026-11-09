@@ -93499,7 +93499,7 @@ MESSAGE_REFERENCE = [
     "message": "A target animation was selected more than once",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/move_operation.py": 493
+      "tools/placement_studio/move_operation.py": 508
     }
   },
   {
@@ -93691,7 +93691,7 @@ MESSAGE_REFERENCE = [
     "message": "Animation preparation does not match the selection: {detail}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/move_operation.py": 498
+      "tools/placement_studio/move_operation.py": 513
     }
   },
   {
@@ -95950,6 +95950,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "No body socket file of this character defines {source}",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 289
+    }
+  },
+  {
+    "area": "placement",
     "message": "No companion material sidecar was found; texture-slot export may be limited to existing mesh bindings.",
     "recovery": "limits",
     "sources": {
@@ -95994,6 +96002,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py": 935
+    }
+  },
+  {
+    "area": "placement",
+    "message": "No free name for a mirror of {source}",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 94
     }
   },
   {
@@ -96322,7 +96338,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing would change, so there is no operation to record",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/move_operation.py": 489
+      "tools/placement_studio/move_operation.py": 504
     }
   },
   {
@@ -97359,7 +97375,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Carried at, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 326
+      "tools/placement_studio/window_tasks.py": 337
     }
   },
   {
@@ -97798,6 +97814,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The mirrored {source.name} could not be solved (off by {error})",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 211
+    }
+  },
+  {
+    "area": "placement",
     "message": "The mod already ships {collisions[0]}",
     "recovery": "internal",
     "sources": {
@@ -97926,6 +97950,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The skeleton has no bone {name or '(none)'}",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 166
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The skeleton has no left and right bones to mirror across",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 112
+    }
+  },
+  {
+    "area": "placement",
     "message": "The target mesh could not be parsed into replaceable draw sections.",
     "recovery": "format",
     "sources": {
@@ -97934,10 +97974,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The weapon has no child socket for that spot, so its mirror cannot be solved",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 283
+    }
+  },
+  {
+    "area": "placement",
     "message": "This action also changes equipment or docking through unsupported events",
     "recovery": "unsupported",
     "sources": {
       "tools/placement_studio/event_timeline.py": 58
+    }
+  },
+  {
+    "area": "placement",
+    "message": "This character has no skeleton to mirror across",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 279
     }
   },
   {
@@ -99367,7 +99423,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} has no asset file to define a child socket in, so its orientation cannot be resolved",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/move_operation.py": 401
+      "tools/placement_studio/move_operation.py": 416
     }
   },
   {
@@ -99383,7 +99439,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} has no descriptor row to re-route",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/move_operation.py": 401
+      "tools/placement_studio/move_operation.py": 416
     }
   },
   {
@@ -99391,7 +99447,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} has nothing compatible defined for the {zone or 'destination'}; aim it in the viewport and mark the orientation reviewed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/move_operation.py": 401
+      "tools/placement_studio/move_operation.py": 416
     }
   },
   {
@@ -99503,7 +99559,7 @@ MESSAGE_REFERENCE = [
     "message": "{request.scope.label} has not been confirmed. It replaces {len(request.replacements)} files across the whole family and changes the off-hand and stance as well.",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/move_operation.py": 330
+      "tools/placement_studio/move_operation.py": 345
     }
   },
   {
@@ -99560,6 +99616,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/preflight.py": 521
+    }
+  },
+  {
+    "area": "placement",
+    "message": "{source or 'That spot'} has no other side to mirror to",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 273
     }
   },
   {
@@ -105557,6 +105621,7 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/archive_loading.py",
     "tools/placement_studio/attachment_binding.py",
     "tools/placement_studio/background.py",
+    "tools/placement_studio/carry_plan.py",
     "tools/placement_studio/carry_timing.py",
     "tools/placement_studio/cli.py",
     "tools/placement_studio/cli_support.py",
@@ -105588,6 +105653,7 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/window_animation_editor.py",
     "tools/placement_studio/window_armour.py",
     "tools/placement_studio/window_carry.py",
+    "tools/placement_studio/window_carry_guide.py",
     "tools/placement_studio/window_clips.py",
     "tools/placement_studio/window_constraints.py",
     "tools/placement_studio/window_editing.py",
@@ -111433,6 +111499,10 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "tools/placement_studio/carry.py": {},
+  "tools/placement_studio/carry_plan.py": {
+    "diagnostic_field": 2,
+    "raise": 8
+  },
   "tools/placement_studio/carry_replacements.py": {},
   "tools/placement_studio/carry_timing.py": {
     "raise": 5
@@ -111626,6 +111696,10 @@ SOURCE_COVERAGE = {
     "display": 4,
     "finding": 1,
     "raise": 3
+  },
+  "tools/placement_studio/window_carry_guide.py": {
+    "display": 1,
+    "report": 1
   },
   "tools/placement_studio/window_clips.py": {
     "display": 2

@@ -59,6 +59,7 @@ from .window_rig_tabs import RigTabsMixin
 from .window_save import SaveModMixin
 from .window_tasks import TaskPanelMixin
 from .window_timing import TimingPanelMixin
+from .window_carry_guide import CarryGuideMixin
 
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
@@ -118,7 +119,8 @@ fit_popup = _fit_popup
 class PlacementStudioWindow(
     StudioLoadingMixin, EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
     CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
-    RigTabsMixin, TaskPanelMixin, SaveModMixin, AnimationEditorMixin, TimingPanelMixin, QMainWindow
+    RigTabsMixin, TaskPanelMixin, SaveModMixin, AnimationEditorMixin, TimingPanelMixin,
+    CarryGuideMixin, QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
