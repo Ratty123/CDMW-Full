@@ -1217,8 +1217,9 @@ not claim that a part can never move.
 ### Influence and profile boundaries
 
 These influence controls edit render-vertex cloth influence. Profile authoring
-uses the separate **Edit profile for mod** section described below; simulation
-anchors and collision shapes remain source-owned.
+uses the separate **Edit profile for mod** section described below. Simulation
+anchors and collision shapes stay as the source stores them unless the
+experimental **Create cloth guides** or **Collision shapes** sections change them.
 Cloth-only drafts use project/generation v6 and replacement payload v4 so older apps
 reject them before attempting recovery that could lose the settings. Drafts
 without cloth settings retain their existing formats unless jiggle settings are present.
@@ -1283,6 +1284,41 @@ Standalone inputs must use bone hashes; unsupported shapes or bindings are rejec
 Failed or cancelled loads preserve the previous inputs. Inputs are held for this session
 only and do not change mesh Undo, drafts or exported PACs. Outfit files are not selected
 automatically and game collision activation remains unverified.
+
+#### Collision shapes (experimental)
+
+With **Experimental features** on, **Collision shapes** lists the volumes of each
+editable set: **This model's shapes** (the PAC's own embedded set) and the body
+and head PABV files loaded under **Collision sources**. Each row shows the bone,
+the kind and the current sizes and position.
+
+- Enter a new size or position for a shape, or use **Scale all sizes**.
+- **Copy shape** adds another shape of the same kind on the same bone;
+  **Delete copy** drops it again.
+- **Remove shape** marks a shipped shape for removal; **Keep shape** undoes that.
+- **Apply shape edits** stages the edit. **Restore source shapes** removes it.
+
+`cdmw/services/mesh_collision_volumes.py` owns the `set_collision_volume_edit`
+shadow command and the `collision_volumes` state. The staged edit is one
+`CollisionVolumeEdit` per source in the replacement state, pinned to the source
+file's SHA-256, so Undo/Redo, Finish, saved drafts (version 17) and Build Mod carry
+it. A body or head file's source bytes travel in the session dependencies under
+its archive path. The cloth preview resolves its body volumes through the edited
+bytes, so a staged edit acts on preview contacts at once.
+
+Build Mod writes the model's own shapes into the output PAC and adds an edited
+body or head PABV as a companion file at its game path. That file is shared by
+every model on the body, and the panel says so while such a set is selected: the
+mod changes them all and conflicts with any other mod that ships the same file.
+
+Limits come from `cdmw/modding/collision_volume_edit.py`. A new shape is a copy of
+an existing one and keeps its kind. Mesh shapes can be moved, copied or removed,
+not resized. A set keeps at least one shape, and a body or head set keeps a
+`Bip01 Head` shape when it had one. Sizes are limited to 100 and positions to
+1,000 units, and a set to 128 shapes or its shipped count. A body or head set
+with a box or mesh shape is not loaded for preview, and PABV files in a header
+layout the decoder does not read are refused. Game collision with edited shapes
+is unverified.
 
 #### Weapon collisions
 
@@ -1551,6 +1587,20 @@ skeleton. Select the parts to affect and enable **Create guides for selected
 parts only** when appropriate. Choose a **Source LOD** and **Pin guides at or
 above Y**, then **Create / update guides**. Pin height uses displayed neutral
 coordinates; generated positions remain in the PAC source frame.
+
+Painted pins are the second way to hold guides. Under **Cloth pins
+(experimental)**, **Pin brush** and **Unpin brush** paint the per-vertex
+`cloth_pin` attribute along a viewport stroke (`cloth_pin_set`, with Undo),
+**Pin selection** and **Unpin selection** set it on the selected vertices,
+**Clear all pins** removes it, and **Show cloth pins** draws the pinned vertices.
+Tick **Use painted pins** in **Create cloth guides** to pin every guide welded
+from a pinned vertex; the pin height can stay on, in which case both apply, or be
+unticked so that only paint pins. The rule stores the displayed positions of the
+pinned vertices at the time it was made, so changing the pins afterwards does not
+silently change the guides: the panel reports that the pins differ and **Create /
+update guides** applies them. Every separate piece of the guide mesh needs at
+least one pin or a vertex above the height. A rule with painted pins, or without a
+height, is saved as replacement draft version 17.
 
 #### Generation and skinning limits
 

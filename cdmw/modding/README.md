@@ -675,6 +675,39 @@ truncation and primary geometry preparation. Shipped Damiane and standard body v
 also been decoded from read-only copies; this is format evidence, not proof of
 visible collision behavior or game parity.
 
+### Editing volume sets (experimental)
+
+`collision_volume_edit.py` is the one writer for decoded volume sets. It takes a
+`CollisionVolumeEdit` (`cdmw/domain/mesh/collision_volumes.py`): per-record
+changes that resize, move or remove, plus copies of existing records, pinned to
+the SHA-256 of the source it was made against. `apply_pabv_volume_edit` rewrites a
+standalone PABV as its 20-byte header, the new count and the records.
+`apply_pac_volume_edit` rewrites the set embedded in a PAC's section 0 and adds
+the size change to the section size and to every LOD offset word, as the weapon
+collider writer does.
+
+Records are rebuilt from the decoded ones. An untouched record is kept byte for
+byte; an edited one has only its dimension floats and the translation row of its
+local matrix rewritten; a copy is the template record with new values. The result
+is decoded again and compared record by record. For a PAC the writer also proves
+that the palette, bounds and metadata flags are unchanged, that every byte outside
+the set and the patched offset words is identical, and that the relocated offsets
+still point at sections of the same size.
+
+Refusals: an edit made against other source bytes, an ordinal outside the set, a
+size count that does not match the shape, a size that stores as zero or less, a
+resized mesh volume, an emptied set, a hashed-key PABV that loses its last
+`Bip01 Head` volume, and growth past `max(128, shipped count)`. Shape kind, bone
+key, rotation, usage and flags are never written. The domain rules bound sizes to
+100 and positions to 1,000 units.
+
+`tests/test_collision_volume_edit.py` covers both containers on owned fixtures.
+Read-only round trips of shipped files (2026-11-09) passed for all 60 decodable
+PABV files of 101 and for all 91 PACs with a decoded set in a 600-PAC sample;
+files the decoder does not read are refused before any write. This shows that the
+writer and the decoder agree. Whether the game accepts or uses an edited set is
+unverified.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.
@@ -1941,6 +1974,42 @@ preflight, Undo/Redo, Finish and loose Build Mod route apply. Restore removes th
 recipe and dependent cloth amount rule, rebuilding from the retained PAC. This
 first generator does not import an independent guide mesh or edit an existing
 guide topology. Generated guides have no in-game activation/motion acceptance.
+
+Painted pins extend the rule (2026-11-09). `PacClothGuideRule.fixed_above` may be
+`None`, and `pinned_points` holds the displayed positions of the part's pinned
+LOD0 vertices, up to 262,144. A guide is fixed when its welded vertex is at or
+above the height or matches a pinned point; a rule needs at least one of the two
+sources. Such a rule is saved as replacement draft version 17, which older
+readers reject.
+
+#### Guides from cloth paint
+
+`pac_cloth_painted_guides.py` builds a PAC's own guides from Create New Item's
+cloth paint. `remove_pac_cloth_guides` deletes an existing guide block, clears the
+guide layout nibble and rebases the size and LOD offsets, leaving every render
+vertex skeleton-only. `create_painted_cloth_guides` then walks the stored LODs
+from the most detailed, takes the faces whose vertices are all painted, welds them
+by position, and uses the first LOD whose welded surface has at most 1,024
+vertices. When none fits, `reduce_guide_mesh` collapses edges of the smallest
+candidate towards 1,000 vertices. A collapse is skipped when it would make the
+surface non-manifold, flip or flatten a face, move a pin onto an unpinned vertex
+or pull an open border inwards; every surviving guide keeps an original position
+and skin. A surface that stays above the limit is refused with the count it
+stopped at.
+
+Guides are pinned where the painted area meets unpainted vertices and where the
+import carries a painted `cloth_pin`. `held_guide_pieces` drops a separate painted
+piece that holds no pin from the guide mesh; its render vertices then bind to the
+nearest remaining guides, so a button rides the cloth beside it instead of
+falling. No pin at all, every guide pinned, fewer than three guides and a
+non-manifold painted surface are refused with the reason. The block is written
+with the generator's grammar above, decoded again, and the painted render
+vertices of every LOD are bound through `pac_cloth_paint`.
+
+Read-only runs on shipped PACs (2026-11-09) built and decoded painted guides on
+40 of 40 samples; reduction reached the limit on 23 of 25 single LOD 0 surfaces
+and 11 of 14 fragmented ones, the rest being hair and fur strips that end in the
+refusal. These guides have no preview and no in-game acceptance.
 
 #### Constraint consumer and construction evidence
 

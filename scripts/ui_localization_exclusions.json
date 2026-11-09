@@ -394,5 +394,65 @@
     "symbol": "build_error_reference_sections",
     "source": "error message warning exception native helper failure recovery",
     "reason": "Internal Help topic identifier or search keywords; the visible title, summary and guidance are translated separately."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "_collision_volume_ui_state",
+    "source": "available",
+    "reason": "Field name in the collision shape state sent to the native panel, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "_collision_volume_ui_state",
+    "source": "reason",
+    "reason": "Field name in the collision shape state sent to the native panel, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "_collision_volume_ui_state",
+    "source": "role",
+    "reason": "Field name in the collision shape state sent to the native panel, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "_collision_volume_ui_state",
+    "source": "rows",
+    "reason": "Field name in the collision shape state sent to the native panel, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "_collision_volume_ui_state",
+    "source": "shared",
+    "reason": "Field name in the collision shape state sent to the native panel, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "set_collision_volume_edit",
+    "source": "edits",
+    "reason": "Protocol list name in a malformed-request error, not a visible label."
+  },
+  {
+    "path": "cdmw/services/mesh_collision_volumes.py",
+    "symbol": "set_collision_volume_edit",
+    "source": "copies",
+    "reason": "Protocol list name in a malformed-request error, not a visible label."
+  },
+  {
+    "path": "cdmw/ui/new_item/panels_model.py",
+    "symbol": "ModelPanel.__init__",
+    "source": "template",
+    "reason": "Combo box data identity; the visible choice label is translated separately."
+  },
+  {
+    "path": "cdmw/ui/new_item/panels_model.py",
+    "symbol": "ModelPanel.__init__",
+    "source": "own",
+    "reason": "Combo box data identity; the visible choice label is translated separately."
+  },
+  {
+    "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_collision_volumes.rs",
+    "symbol": "LabApplication::draw_collision_volume_authoring",
+    "source": "Collision shapes (experimental)",
+    "reason": "Widget identity salt for the Collision shapes header, never drawn; the visible header is translated separately."
   }
 ]

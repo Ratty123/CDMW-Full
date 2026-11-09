@@ -2670,6 +2670,24 @@ None of this has been checked in game, and the preview does not simulate it.
 Beside **Template cloth / physics**, the model section says whether the model carries
 paint and warns when painted cloth would be ignored because the option is off.
 
+**Cloth guides of its own (experimental):** **Painted cloth** in the model section
+chooses between **Follows the template's cloth** (the bind above) and **Gets cloth
+guides of its own (experimental)**. With the second choice, **Apply placement**
+calls `cdmw/services/new_item_cloth_guides.py`, which hands the placed paint and
+pin samples to `cdmw/modding/pac_cloth_painted_guides.py`. That removes the
+template's guide block, builds a guide mesh from the painted faces (thinned to
+1,024 guides when needed), pins it where paint meets unpainted vertices and where
+Mesh Editor's **Pin brush** painted the `cloth_pin` attribute, and binds the
+painted vertices of every LOD to the new guides. A whole-model paint has no
+unpainted edge and needs pins. A separate painted piece that nothing holds follows
+the nearest held cloth. **Cloth profile** lists the profile names from the game's
+`character/descriptors/pbd/pbdconfig.xml`; the choice is written to
+`_pbdSimulationMaterialName` of the cloth parts in the material sidecar, and
+**The template's profile** leaves the sidecar's assignment as shipped. A name
+that is not in the catalogue is refused. The plan summary reports the guide and
+pin counts, the source LOD, any reduction and the cloth parts. Guides built this
+way are not shown in the preview and have not been checked in game.
+
 **Mesh Editor round trip:** **Open in Mesh Editor** prepares the session in
 `cdmw/workers/new_item_mesh_session.py`, which names a Free Edit folder up front and
 sets the session's `handoff_target` to `new_item`. Mesh Editor reads it from the state

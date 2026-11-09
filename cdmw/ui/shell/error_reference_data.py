@@ -31495,7 +31495,7 @@ MESSAGE_REFERENCE = [
     "message": "A socket unlock material is not an item in the active tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 524
+      "cdmw/services/new_item_planning.py": 527
     }
   },
   {
@@ -31890,7 +31890,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 798
+      "cdmw/services/new_item_planning.py": 801
     }
   },
   {
@@ -31898,7 +31898,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 794
+      "cdmw/services/new_item_planning.py": 797
     }
   },
   {
@@ -31906,7 +31906,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 749
+      "cdmw/services/new_item_planning.py": 752
     }
   },
   {
@@ -31914,7 +31914,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 873
+      "cdmw/services/new_item_planning.py": 876
     }
   },
   {
@@ -31922,7 +31922,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 404
+      "cdmw/services/new_item_variants.py": 409
     }
   },
   {
@@ -31946,7 +31946,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1078
+      "cdmw/services/new_item_planning.py": 1089
     }
   },
   {
@@ -32083,6 +32083,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 241
+    }
+  },
+  {
+    "area": "items",
+    "message": "Choose a valid cloth profile.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_cloth_guides.py": 53
     }
   },
   {
@@ -32250,7 +32258,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1484
+      "cdmw/ui/new_item/panels_model.py": 1524
     }
   },
   {
@@ -32450,7 +32458,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 383
+      "cdmw/services/new_item_variants.py": 388
     }
   },
   {
@@ -32602,7 +32610,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export animated or RGB glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1026
+      "cdmw/services/new_item_materials.py": 1027
     }
   },
   {
@@ -32610,7 +32618,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable Plain PBR materials to export translucency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 1024,
+      "cdmw/services/new_item_materials.py": 1025,
       "cdmw/services/new_item_translucency.py": 131,
       "cdmw/services/new_item_transparency_paint.py": 63
     }
@@ -32724,7 +32732,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. Viewport transmission is approximate; game refraction and lighting may differ.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 952,
+      "cdmw/services/new_item_materials.py": 953,
       "cdmw/services/new_item_translucency.py": 158
     }
   },
@@ -32813,7 +32821,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported weights belong to another template variant; import against this variant again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1413
+      "cdmw/ui/new_item/model_import.py": 1418
     }
   },
   {
@@ -32861,7 +32869,7 @@ MESSAGE_REFERENCE = [
     "message": "Installed character models are fitting references only and cannot be exported.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1393
+      "cdmw/ui/new_item/model_import.py": 1398
     }
   },
   {
@@ -33749,7 +33757,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 964
+      "cdmw/ui/new_item/controller_model_mixin.py": 966
     }
   },
   {
@@ -34135,7 +34143,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 964
+      "cdmw/services/new_item_planning.py": 975
     }
   },
   {
@@ -34215,7 +34223,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 994
+      "cdmw/services/new_item_planning.py": 1005
     }
   },
   {
@@ -34288,7 +34296,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/new_item/item_preview.py": 126,
-      "cdmw/ui/new_item/model_import.py": 891
+      "cdmw/ui/new_item/model_import.py": 896
     }
   },
   {
@@ -34416,7 +34424,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted transparency needs separate material textures. Import these atlas parts separately before painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 768,
+      "cdmw/services/new_item_materials.py": 769,
       "cdmw/services/new_item_shader_controls.py": 45,
       "cdmw/services/new_item_transparency_paint.py": 55
     }
@@ -34642,7 +34650,7 @@ MESSAGE_REFERENCE = [
     "message": "Run imported skin preflight against the selected template before Apply placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/model_import.py": 1411
+      "cdmw/ui/new_item/model_import.py": 1416
     }
   },
   {
@@ -35067,8 +35075,8 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 888,
-      "cdmw/ui/new_item/model_import.py": 981
+      "cdmw/ui/new_item/controller_model_mixin.py": 890,
+      "cdmw/ui/new_item/model_import.py": 986
     }
   },
   {
@@ -35287,6 +35295,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 457
+    }
+  },
+  {
+    "area": "items",
+    "message": "The cloth profile {profile} is not in the game's profile catalogue.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_cloth_guides.py": 122
     }
   },
   {
@@ -35630,7 +35646,7 @@ MESSAGE_REFERENCE = [
     "message": "The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 416
+      "cdmw/services/new_item_planning.py": 419
     }
   },
   {
@@ -35647,6 +35663,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/rules.py": 413
+    }
+  },
+  {
+    "area": "items",
+    "message": "The material file has no entry for cloth part(s): {', '.join(missing)}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/new_item_cloth_guides.py": 108
     }
   },
   {
@@ -35734,7 +35758,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 835
+      "cdmw/ui/new_item/controller_model_mixin.py": 837
     }
   },
   {
@@ -35830,7 +35854,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block as a list, so it should take them, but a rebuilt list is unproven in game until the first check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 501
+      "cdmw/services/new_item_planning.py": 504
     }
   },
   {
@@ -35838,7 +35862,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; a rebuilt ladder is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 543
+      "cdmw/services/new_item_planning.py": 546
     }
   },
   {
@@ -35846,7 +35870,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, so a list that long is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 538
+      "cdmw/services/new_item_planning.py": 541
     }
   },
   {
@@ -35854,7 +35878,7 @@ MESSAGE_REFERENCE = [
     "message": "The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 552
+      "cdmw/services/new_item_planning.py": 555
     }
   },
   {
@@ -35896,7 +35920,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 34,
       "cdmw/domain/new_item/rules.py": 511,
-      "cdmw/services/new_item_planning.py": 522
+      "cdmw/services/new_item_planning.py": 525
     }
   },
   {
@@ -35928,7 +35952,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 406
+      "cdmw/services/new_item_variants.py": 411
     }
   },
   {
@@ -35984,7 +36008,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1131
+      "cdmw/services/new_item_planning.py": 1142
     }
   },
   {
@@ -36053,10 +36077,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The template gives {', '.join(empty)} no cloth profile, so the new cloth would not move. Choose a cloth profile.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/new_item_cloth_guides.py": 118
+    }
+  },
+  {
+    "area": "items",
     "message": "The template has a description; the clone needs a description key too (leave both keys unset to allocate them together).",
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 484
+    }
+  },
+  {
+    "area": "items",
+    "message": "The template has no cloth guides for the painted cloth to follow. Set Painted cloth to \"Gets cloth guides of its own\", or choose a template with cloth.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_cloth_paint.py": 63
     }
   },
   {
@@ -36072,7 +36112,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 847
+      "cdmw/services/new_item_planning.py": 850
     }
   },
   {
@@ -36160,7 +36200,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 710
+      "cdmw/services/new_item_planning.py": 713
     }
   },
   {
@@ -36504,7 +36544,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency materials were not found in the exported model: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_materials.py": 951
+      "cdmw/services/new_item_materials.py": 952
     }
   },
   {
@@ -37346,7 +37386,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1018
+      "cdmw/services/new_item_planning.py": 1029
     }
   },
   {
@@ -37594,7 +37634,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1025
+      "cdmw/services/new_item_planning.py": 1036
     }
   },
   {
@@ -37602,7 +37642,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1027
+      "cdmw/services/new_item_planning.py": 1038
     }
   },
   {
@@ -37674,7 +37714,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 970
+      "cdmw/services/new_item_planning.py": 981
     }
   },
   {
@@ -38002,8 +38042,8 @@ MESSAGE_REFERENCE = [
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 680,
-      "cdmw/ui/new_item/model_import.py": 1274,
+      "cdmw/services/new_item_materials.py": 681,
+      "cdmw/ui/new_item/model_import.py": 1279,
       "cdmw/ui/new_item/rust_ui_tab.py": 238
     }
   },
@@ -38076,7 +38116,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1007
+      "cdmw/services/new_item_planning.py": 1018
     }
   },
   {
@@ -38084,7 +38124,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 993
+      "cdmw/services/new_item_planning.py": 1004
     }
   },
   {
@@ -38140,7 +38180,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 404
+      "cdmw/services/new_item_planning.py": 407
     }
   },
   {
@@ -38164,7 +38204,7 @@ MESSAGE_REFERENCE = [
     "message": "the built icon is named {self.icon.icon_string}, the plan needs {self.icon_string}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 356
+      "cdmw/services/new_item_planning.py": 359
     }
   },
   {
@@ -38244,7 +38284,7 @@ MESSAGE_REFERENCE = [
     "message": "the import carries {len(xml_keys)} .pac_xml sidecar(s), not one",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 678,
+      "cdmw/services/new_item_materials.py": 679,
       "cdmw/services/new_item_translucency.py": 135
     }
   },
@@ -38258,10 +38298,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "the imported build carries no material file to give its new cloth a profile",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 1208
+    }
+  },
+  {
+    "area": "items",
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1174
+      "cdmw/services/new_item_planning.py": 1185
     }
   },
   {
@@ -38301,7 +38349,7 @@ MESSAGE_REFERENCE = [
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 531
+      "cdmw/services/new_item_planning.py": 534
     }
   },
   {
@@ -38317,7 +38365,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 955
+      "cdmw/services/new_item_planning.py": 966
     }
   },
   {
@@ -38333,7 +38381,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 826
+      "cdmw/services/new_item_planning.py": 829
     }
   },
   {
@@ -38341,7 +38389,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1056
+      "cdmw/services/new_item_planning.py": 1067
     }
   },
   {
@@ -38349,7 +38397,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1053
+      "cdmw/services/new_item_planning.py": 1064
     }
   },
   {
@@ -38357,7 +38405,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1030
+      "cdmw/services/new_item_planning.py": 1041
     }
   },
   {
@@ -38373,7 +38421,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.desc_key} for the template's description",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 693
+      "cdmw/services/new_item_planning.py": 696
     }
   },
   {
@@ -38381,7 +38429,7 @@ MESSAGE_REFERENCE = [
     "message": "the {language} table has no entry {template.name_key} for the template's name",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 687
+      "cdmw/services/new_item_planning.py": 690
     }
   },
   {
@@ -38582,7 +38630,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 875
+      "cdmw/services/new_item_planning.py": 878
     }
   },
   {
@@ -38614,7 +38662,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} uses the finished model from the item package, which already has its material route, glow, translucency, surface and shader settings written in. Import the source model again in step 3 to change them.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/new_item_planning.py": 174
+      "cdmw/services/new_item_planning.py": 177
     }
   },
   {
@@ -38638,7 +38686,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 557
+      "cdmw/services/new_item_planning.py": 560
     }
   },
   {
@@ -38687,7 +38735,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is written as {value}; shipped equipment carries it between {low} and {high}. A value that far outside the game's own range has crashed the game on purchase (an item carrying AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables read fine either way, so nothing shows until the item is bought.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_planning.py": 618
+      "cdmw/services/new_item_planning.py": 621
     }
   },
   {
@@ -38807,7 +38855,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 917
+      "cdmw/services/new_item_planning.py": 928
     }
   },
   {
@@ -38847,7 +38895,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists in the archives; a new item must not overwrite it",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_planning.py": 275
+      "cdmw/services/new_item_planning.py": 278
     }
   },
   {
@@ -38863,7 +38911,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is added twice",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 277
+      "cdmw/services/new_item_planning.py": 280
     }
   },
   {
@@ -38871,7 +38919,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 801
+      "cdmw/services/new_item_planning.py": 804
     }
   },
   {
@@ -39007,7 +39055,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 487
+      "cdmw/services/new_item_planning.py": 490
     }
   },
   {
@@ -39015,7 +39063,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 408
+      "cdmw/services/new_item_planning.py": 411
     }
   },
   {
@@ -39023,7 +39071,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 959
+      "cdmw/services/new_item_planning.py": 970
     }
   },
   {
@@ -39031,7 +39079,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} owns no part-prefab records to clone",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 376
+      "cdmw/services/new_item_planning.py": 379
     }
   },
   {
@@ -39039,7 +39087,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 820
+      "cdmw/services/new_item_planning.py": 823
     }
   },
   {
@@ -39055,7 +39103,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: animated/RGB glow requires a separate material part; split this atlas before applying it.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_materials.py": 775
+      "cdmw/services/new_item_materials.py": 776
     }
   },
   {
@@ -39071,7 +39119,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, but the plain-PBR game shader has no verified mapping for this alpha mode; the exported material does not support the source transparency behavior.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 795
+      "cdmw/services/new_item_materials.py": 796
     }
   },
   {
@@ -39079,7 +39127,7 @@ MESSAGE_REFERENCE = [
     "message": "{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 801
+      "cdmw/services/new_item_materials.py": 802
     }
   },
   {
@@ -39095,7 +39143,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: RGB glow needs a source glow texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 847
+      "cdmw/services/new_item_materials.py": 848
     }
   },
   {
@@ -39103,7 +39151,7 @@ MESSAGE_REFERENCE = [
     "message": "{source_name}: translucent emission keeps the emissive map, colour and strength, but the game's translucent shader does not draw glow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 935
+      "cdmw/services/new_item_materials.py": 936
     }
   },
   {
@@ -39175,7 +39223,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 678
+      "cdmw/services/new_item_planning.py": 681
     }
   },
   {
@@ -39191,7 +39239,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: no source metallic/roughness map is known, so the Builder's mask stands in as _sp; its roughness was clamped towards matte.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 830
+      "cdmw/services/new_item_materials.py": 831
     }
   },
   {
@@ -39215,7 +39263,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the import gave it no base colour texture, so its material is left as the Builder wrote it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 752
+      "cdmw/services/new_item_materials.py": 753
     }
   },
   {
@@ -39223,7 +39271,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the template's material glows and your model brought no emissive map, so the glow is off. Choose the parts that glow on the Model step if you want it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_materials.py": 897
+      "cdmw/services/new_item_materials.py": 898
     }
   },
   {
@@ -42873,7 +42921,7 @@ MESSAGE_REFERENCE = [
     "message": "(+{} more)",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3896
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3899
     }
   },
   {
@@ -42938,6 +42986,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/pab_skeleton_edit_service.py": 311
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A collision volume copy must name an existing volume.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 81
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A collision volume edit must change at least one volume.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 135
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "A collision volume edit must resize, move or remove the volume.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 59
     }
   },
   {
@@ -43025,7 +43097,7 @@ MESSAGE_REFERENCE = [
     "message": "A game vertex holds six bones. Remove an existing influence before adding another.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8261
+      "cdmw/services/mesh_rust_authoring.py": 8265
     }
   },
   {
@@ -43062,6 +43134,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A removed collision volume cannot also be resized or moved.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 57
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A replacement draft cannot fall back to a generation without its output state.",
     "recovery": "stale",
     "sources": {
@@ -43089,7 +43169,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider definition is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9695
+      "cdmw/services/mesh_rust_authoring.py": 9705
     }
   },
   {
@@ -43097,7 +43177,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider or outfit correction requires unchanged topology and source mapping. Undo the incompatible edit, or save/discard the pending work before replacing the mesh.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9121
+      "cdmw/services/mesh_rust_authoring.py": 9127
     }
   },
   {
@@ -43105,7 +43185,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected part has no assignment in this variant.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 200
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 230
     }
   },
   {
@@ -43113,7 +43193,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected profile could not be resolved from its exact source.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 210
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 240
     }
   },
   {
@@ -43233,7 +43313,7 @@ MESSAGE_REFERENCE = [
     "message": "Adding body or armor Parts requires Free Edit",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9054
+      "cdmw/services/mesh_rust_authoring.py": 9060
     }
   },
   {
@@ -43359,6 +43439,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Another file with this PABV's path is already part of this edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 143
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Apply DDS edits through Hair Appearance so every material reference is retained.",
     "recovery": "internal",
     "sources": {
@@ -43370,7 +43458,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply or Cancel Restore fitting shape before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9641
+      "cdmw/services/mesh_rust_authoring.py": 9651
     }
   },
   {
@@ -43410,7 +43498,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit preserves each source Part and topology; finish this refit before changing topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9455
+      "cdmw/services/mesh_rust_authoring.py": 9464
     }
   },
   {
@@ -43474,7 +43562,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive open failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3501
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3504
     }
   },
   {
@@ -43667,7 +43755,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis move failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4928
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4931
     }
   },
   {
@@ -43675,7 +43763,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis rotate failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4968
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4971
     }
   },
   {
@@ -43683,7 +43771,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis scale failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5003
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5006
     }
   },
   {
@@ -44085,7 +44173,7 @@ MESSAGE_REFERENCE = [
     "message": "Blocked by Morph & Refit",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 575,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 605,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs": 286
     }
   },
@@ -44567,7 +44655,7 @@ MESSAGE_REFERENCE = [
     "message": "Bones requires an exact or unambiguous proven-family PAB companion",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4219
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4222
     }
   },
   {
@@ -44591,7 +44679,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW LOD{} material {} presentation could not be installed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2075
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2076
     }
   },
   {
@@ -44599,7 +44687,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW audit package has no material-owned triangles",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 931
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 932
     }
   },
   {
@@ -44615,7 +44703,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW capture requires --capture-output <bmp>",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 127
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 128
     }
   },
   {
@@ -44647,7 +44735,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW handshake failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7328
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7335
     }
   },
   {
@@ -44655,7 +44743,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no authoritative Mesh Edit session",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7680
+      "cdmw/services/mesh_rust_authoring.py": 7684
     }
   },
   {
@@ -44687,7 +44775,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material audit capture failed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1045
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1046
     }
   },
   {
@@ -44695,7 +44783,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material audit wrote {} captures to {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1164
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1165
     }
   },
   {
@@ -44703,7 +44791,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material capture failed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 776
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 777
     }
   },
   {
@@ -44711,7 +44799,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material capture wrote {} and {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 851
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 852
     }
   },
   {
@@ -44719,7 +44807,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material presentation LOD could not be restored",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3342
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3345
     }
   },
   {
@@ -44759,7 +44847,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW mesh upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6812
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6819
     }
   },
   {
@@ -44767,7 +44855,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW protocol failure: {message}",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2928
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2931
     }
   },
   {
@@ -44935,7 +45023,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add {role} mesh: {blockers[0]}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9071
+      "cdmw/services/mesh_rust_authoring.py": 9077
     }
   },
   {
@@ -45297,7 +45385,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a GLB, FBX or OBJ filename matching the export format.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9304
+      "cdmw/services/mesh_rust_authoring.py": 9313
     }
   },
   {
@@ -45313,7 +45401,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a body/head PABV or weapon PAC, or clear the preview inputs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 336
+      "cdmw/services/mesh_rust_jiggle.py": 352
     }
   },
   {
@@ -45321,7 +45409,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a bone region from the matching source skeleton.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 467
+      "cdmw/services/mesh_rust_jiggle.py": 491
     }
   },
   {
@@ -45330,6 +45418,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/mesh/vertex_parameters.py": 87
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Choose a collision volume set to edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 109
     }
   },
   {
@@ -45369,7 +45465,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a named bone region before setting regional jiggle.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 461
+      "cdmw/services/mesh_rust_jiggle.py": 485
     }
   },
   {
@@ -45425,7 +45521,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a stored guide source LOD between 0 and 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/mesh/cloth_guides.py": 23
+      "cdmw/domain/mesh/cloth_guides.py": 30
     }
   },
   {
@@ -45473,7 +45569,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a weapon PAC before changing its preview placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 348
+      "cdmw/services/mesh_rust_jiggle.py": 365
     }
   },
   {
@@ -45481,7 +45577,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an absolute path to a weapon PAC or body/head PABV file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 367
+      "cdmw/services/mesh_rust_jiggle.py": 384
     }
   },
   {
@@ -45529,7 +45625,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose included parts for guide creation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 90
+      "cdmw/services/mesh_rust_cloth_guides.py": 108
     }
   },
   {
@@ -45537,7 +45633,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose included parts with editable jiggle data.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 457
+      "cdmw/services/mesh_rust_jiggle.py": 481
     }
   },
   {
@@ -45561,7 +45657,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose the collision input through the game archive picker.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 361
+      "cdmw/services/mesh_rust_jiggle.py": 378
     }
   },
   {
@@ -45593,7 +45689,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose unique included parts for guide creation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 85
+      "cdmw/services/mesh_rust_cloth_guides.py": 103
     }
   },
   {
@@ -45601,7 +45697,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose unique jiggle parts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 454
+      "cdmw/services/mesh_rust_jiggle.py": 478
     }
   },
   {
@@ -45610,6 +45706,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_island_authoring.py": 125
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Choose whether painted pins hold the guides.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_guides.py": 114
     }
   },
   {
@@ -45633,7 +45737,7 @@ MESSAGE_REFERENCE = [
     "message": "Clear Refit before adding body or armor Parts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9058
+      "cdmw/services/mesh_rust_authoring.py": 9064
     }
   },
   {
@@ -45689,7 +45793,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth guide data could not be decoded; its availability is unknown.",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 490
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 520
     }
   },
   {
@@ -45713,7 +45817,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 729
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 759
     }
   },
   {
@@ -45753,7 +45857,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint is for models imported in Create New Item.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_paint.py": 54
+      "cdmw/services/mesh_rust_cloth_paint.py": 75
     }
   },
   {
@@ -45778,6 +45882,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_cloth.py": 218
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Cloth pins are unavailable while the native mesh state is stale.",
+    "recovery": "stale",
+    "sources": {
+      "cdmw/services/mesh_service_rigging.py": 423
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Cloth pins must be set to true or false.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_service_rigging.py": 420
     }
   },
   {
@@ -45889,7 +46009,7 @@ MESSAGE_REFERENCE = [
     "message": "Collision inputs need a decoded cloth preview; body/head inputs also need a matching rig.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 345
+      "cdmw/services/mesh_rust_jiggle.py": 362
     }
   },
   {
@@ -45897,7 +46017,7 @@ MESSAGE_REFERENCE = [
     "message": "Collision preview inputs must be at most 8 MiB.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 375
+      "cdmw/services/mesh_rust_jiggle.py": 392
     }
   },
   {
@@ -45906,6 +46026,86 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/modding/pac_cloth_preview.py": 105
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume edits must name an existing volume.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 49
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume edits must name each volume once, in order.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 131
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume edits need the source set's SHA-256.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 124
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume edits need their source set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 117
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume edits outside the model need a game-archive .pabv path.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 122
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume removal must be true or false.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 51
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume sets hold at most {VOLUME_LIMIT} volumes.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 133
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume sizes must be greater than zero.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 34
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume {name} has the wrong number of values.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 29
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Collision volume {name} must be finite and within ±{limit}.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 32
     }
   },
   {
@@ -45993,7 +46193,7 @@ MESSAGE_REFERENCE = [
     "message": "Convert hair guides to ordinary geometry before using these mesh operations.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9439
+      "cdmw/services/mesh_rust_authoring.py": 9448
     }
   },
   {
@@ -46065,7 +46265,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not capture edit; rolled back: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6380
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6383
     }
   },
   {
@@ -46097,7 +46297,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not map mesh action selection: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2829
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2832
     }
   },
   {
@@ -46105,7 +46305,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not map selection: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2704
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2707
     }
   },
   {
@@ -46113,7 +46313,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not map topology selection: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2809
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2812
     }
   },
   {
@@ -46129,7 +46329,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not queue edit transaction: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2739
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2742
     }
   },
   {
@@ -46137,7 +46337,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not queue {label}: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2752
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2755
     }
   },
   {
@@ -46145,7 +46345,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not request Finish Edit Mesh: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2855
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2858
     }
   },
   {
@@ -46193,7 +46393,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not start tool: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6024
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6027
     }
   },
   {
@@ -46417,7 +46617,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded motion has invalid current skeletal weights.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 131
+      "cdmw/services/mesh_rust_jiggle.py": 147
     }
   },
   {
@@ -46433,7 +46633,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded motion needs complete 40-byte PAC records.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 124
+      "cdmw/services/mesh_rust_jiggle.py": 140
     }
   },
   {
@@ -46441,7 +46641,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded motion needs complete retained skeletal weights.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 116
+      "cdmw/services/mesh_rust_jiggle.py": 132
     }
   },
   {
@@ -46473,7 +46673,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part cannot remove every Part because the editable mesh must retain geometry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8153
+      "cdmw/services/mesh_rust_authoring.py": 8157
     }
   },
   {
@@ -46481,7 +46681,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part requires at least one explicitly selected Part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8149
+      "cdmw/services/mesh_rust_authoring.py": 8153
     }
   },
   {
@@ -46710,6 +46910,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Duplicate replacement companion: {edit.source}",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 167
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Duplicate triangle found.",
     "recovery": "conflict",
     "sources": {
@@ -46737,7 +46945,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh Finish was cancelled before authoritative publication.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7854
+      "cdmw/services/mesh_rust_authoring.py": 7858
     }
   },
   {
@@ -46745,7 +46953,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh Finish was rejected and Morph profile rollback also failed: {type(rollback_error).__name__}: {rollback_error}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10428
+      "cdmw/services/mesh_rust_authoring.py": 10438
     }
   },
   {
@@ -46753,7 +46961,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh can import editable GLB, FBX, or OBJ packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9147
+      "cdmw/services/mesh_rust_authoring.py": 9153
     }
   },
   {
@@ -46761,7 +46969,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {action} under the current output policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8065
+      "cdmw/services/mesh_rust_authoring.py": 8069
     }
   },
   {
@@ -46769,7 +46977,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {command}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9462
+      "cdmw/services/mesh_rust_authoring.py": 9471
     }
   },
   {
@@ -46777,7 +46985,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot {operation} under the current output policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7863
+      "cdmw/services/mesh_rust_authoring.py": 7867
     }
   },
   {
@@ -46785,7 +46993,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh closed before authoritative publication.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10193
+      "cdmw/services/mesh_rust_authoring.py": 10203
     }
   },
   {
@@ -46865,7 +47073,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable package path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9143
+      "cdmw/services/mesh_rust_authoring.py": 9149
     }
   },
   {
@@ -47251,7 +47459,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset topology writer did not prove that fallback was disabled.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9956
+      "cdmw/services/mesh_rust_authoring.py": 9966
     }
   },
   {
@@ -47259,7 +47467,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer attempted to use a developer override.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9951
+      "cdmw/services/mesh_rust_authoring.py": 9961
     }
   },
   {
@@ -47267,7 +47475,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer did not return a passing validation report.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9947
+      "cdmw/services/mesh_rust_authoring.py": 9957
     }
   },
   {
@@ -47275,7 +47483,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt hash does not match its output.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9978
+      "cdmw/services/mesh_rust_authoring.py": 9988
     }
   },
   {
@@ -47283,7 +47491,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt-size evidence does not match its output.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9974
+      "cdmw/services/mesh_rust_authoring.py": 9984
     }
   },
   {
@@ -47291,7 +47499,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9940
+      "cdmw/services/mesh_rust_authoring.py": 9950
     }
   },
   {
@@ -47299,7 +47507,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer returned no rebuilt bytes.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9964
+      "cdmw/services/mesh_rust_authoring.py": 9974
     }
   },
   {
@@ -47307,7 +47515,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source hash does not match the session snapshot.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9970
+      "cdmw/services/mesh_rust_authoring.py": 9980
     }
   },
   {
@@ -47315,7 +47523,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source-size evidence does not match the session snapshot.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9966
+      "cdmw/services/mesh_rust_authoring.py": 9976
     }
   },
   {
@@ -47331,7 +47539,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact physics profiles are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 475
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 505
     }
   },
   {
@@ -47411,7 +47619,7 @@ MESSAGE_REFERENCE = [
     "message": "Export presets outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9744
+      "cdmw/services/mesh_rust_authoring.py": 9754
     }
   },
   {
@@ -47635,7 +47843,7 @@ MESSAGE_REFERENCE = [
     "message": "FBX sidecar is required for editable mesh package import.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9154,
+      "cdmw/services/mesh_rust_authoring.py": 9160,
       "cdmw/workers/mesh_editor_workers.py": 195
     }
   },
@@ -47724,7 +47932,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish or cancel neutral face editing before loading a different source mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9449
+      "cdmw/services/mesh_rust_authoring.py": 9458
     }
   },
   {
@@ -48348,7 +48556,7 @@ MESSAGE_REFERENCE = [
     "message": "Focus loss cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7384
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7391
     }
   },
   {
@@ -48421,7 +48629,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must still be new; the selected destination now exists: {target}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10072
+      "cdmw/services/mesh_rust_authoring.py": 10082
     }
   },
   {
@@ -48446,7 +48654,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output must not overwrite the source asset.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10064
+      "cdmw/services/mesh_rust_authoring.py": 10074
     }
   },
   {
@@ -48470,7 +48678,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder no longer exists: {target.parent}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10068
+      "cdmw/services/mesh_rust_authoring.py": 10078
     }
   },
   {
@@ -48494,7 +48702,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a valid new output folder before Finish.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10047
+      "cdmw/services/mesh_rust_authoring.py": 10057
     }
   },
   {
@@ -48502,7 +48710,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10031
+      "cdmw/services/mesh_rust_authoring.py": 10041
     }
   },
   {
@@ -48750,7 +48958,7 @@ MESSAGE_REFERENCE = [
     "message": "Generate Tangents would split vertices and cannot be written by Exact PAC output. Choose Free Edit before generating tangents for this mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8018
+      "cdmw/services/mesh_rust_authoring.py": 8022
     }
   },
   {
@@ -48758,7 +48966,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated guide preview requires unchanged render topology.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 120
+      "cdmw/services/mesh_rust_jiggle.py": 136
     }
   },
   {
@@ -48814,7 +49022,7 @@ MESSAGE_REFERENCE = [
     "message": "Gesture cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5756
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5759
     }
   },
   {
@@ -48822,7 +49030,7 @@ MESSAGE_REFERENCE = [
     "message": "Gesture rollback failed: {error}",
     "recovery": "recovery",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6439
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6446
     }
   },
   {
@@ -48894,7 +49102,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 29
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 31
     }
   },
   {
@@ -48902,7 +49110,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires an unambiguous existing bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/mesh/cloth_guides.py": 29
+      "cdmw/domain/mesh/cloth_guides.py": 37
     }
   },
   {
@@ -48910,7 +49118,15 @@ MESSAGE_REFERENCE = [
     "message": "Guide pin height must be finite.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/mesh/cloth_guides.py": 25
+      "cdmw/domain/mesh/cloth_guides.py": 33
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Guide pins must be finite positions.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/cloth_guides.py": 42
     }
   },
   {
@@ -48926,7 +49142,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide rotation cannot be applied without orientation neighbors.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 558
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 588
     }
   },
   {
@@ -48942,7 +49158,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide skinning reduction must be explicitly enabled or disabled.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/mesh/cloth_guides.py": 21
+      "cdmw/domain/mesh/cloth_guides.py": 28
     }
   },
   {
@@ -49619,7 +49835,7 @@ MESSAGE_REFERENCE = [
     "message": "Influence selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4752
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4755
     }
   },
   {
@@ -49739,7 +49955,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid cloth guide settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/domain/mesh/cloth_guides.py": 40
+      "cdmw/domain/mesh/cloth_guides.py": 59
     }
   },
   {
@@ -49808,6 +50024,54 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Invalid collision volume copy.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 95
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid collision volume edit.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 69
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid collision volume edits.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 128
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid collision volume restore request.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 112
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid collision volume values.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/collision_volumes.py": 103
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid collision volume {name}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 100
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Invalid decoded jiggle settings or frame time.",
     "recovery": "configuration",
     "sources": {
@@ -49872,6 +50136,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Invalid guide creation request.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_guides.py": 111
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Invalid guide or scalp attachment.",
     "recovery": "input",
     "sources": {
@@ -49883,7 +50155,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid guide reset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 81
+      "cdmw/services/mesh_rust_cloth_guides.py": 99
     }
   },
   {
@@ -50035,7 +50307,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid jiggle reset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 450
+      "cdmw/services/mesh_rust_jiggle.py": 474
     }
   },
   {
@@ -50214,7 +50486,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid source value",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 278
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 308
     }
   },
   {
@@ -50759,7 +51031,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD preparation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5166
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5169
     }
   },
   {
@@ -50783,7 +51055,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD switch cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5171
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5174
     }
   },
   {
@@ -50807,7 +51079,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD {target_index} is not available for editing",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5144
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5147
     }
   },
   {
@@ -50960,6 +51232,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_refit_loading.py": 25
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Load that collision volume set before editing it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 131
     }
   },
   {
@@ -51595,7 +51875,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor event loop failed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 167
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 168
     }
   },
   {
@@ -52071,7 +52351,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Morph state exceeds the 16 MiB inline protocol limit",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8636
+      "cdmw/services/mesh_rust_authoring.py": 8640
     }
   },
   {
@@ -52087,7 +52367,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8102
+      "cdmw/services/mesh_rust_authoring.py": 8106
     }
   },
   {
@@ -52095,7 +52375,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8099
+      "cdmw/services/mesh_rust_authoring.py": 8103
     }
   },
   {
@@ -52103,7 +52383,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8079
+      "cdmw/services/mesh_rust_authoring.py": 8083
     }
   },
   {
@@ -52111,7 +52391,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8083
+      "cdmw/services/mesh_rust_authoring.py": 8087
     }
   },
   {
@@ -52119,7 +52399,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring session is closed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7833
+      "cdmw/services/mesh_rust_authoring.py": 7837
     }
   },
   {
@@ -52127,7 +52407,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh base revision is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8586
+      "cdmw/services/mesh_rust_authoring.py": 8590
     }
   },
   {
@@ -52159,7 +52439,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate UV count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8863
+      "cdmw/services/mesh_rust_authoring.py": 8869
     }
   },
   {
@@ -52167,7 +52447,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate belongs to another session",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8942
+      "cdmw/services/mesh_rust_authoring.py": 8948
     }
   },
   {
@@ -52175,7 +52455,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed topology outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8865
+      "cdmw/services/mesh_rust_authoring.py": 8871
     }
   },
   {
@@ -52183,7 +52463,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed vertex count outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8859
+      "cdmw/services/mesh_rust_authoring.py": 8865
     }
   },
   {
@@ -52215,7 +52495,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate normal count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8861
+      "cdmw/services/mesh_rust_authoring.py": 8867
     }
   },
   {
@@ -52223,7 +52503,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate schema does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8940
+      "cdmw/services/mesh_rust_authoring.py": 8946
     }
   },
   {
@@ -52231,7 +52511,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh count changed outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8963
+      "cdmw/services/mesh_rust_authoring.py": 8969
     }
   },
   {
@@ -52239,7 +52519,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh is malformed",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8839
+      "cdmw/services/mesh_rust_authoring.py": 8845
     }
   },
   {
@@ -52247,7 +52527,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices are duplicate, unordered or out of range",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8853
+      "cdmw/services/mesh_rust_authoring.py": 8859
     }
   },
   {
@@ -52255,7 +52535,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices must be integers",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8849
+      "cdmw/services/mesh_rust_authoring.py": 8855
     }
   },
   {
@@ -52263,7 +52543,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains a boolean",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10537
+      "cdmw/services/mesh_rust_authoring.py": 10547
     }
   },
   {
@@ -52271,7 +52551,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains an invalid index",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10543
+      "cdmw/services/mesh_rust_authoring.py": 10553
     }
   },
   {
@@ -52279,7 +52559,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains non-finite values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10526
+      "cdmw/services/mesh_rust_authoring.py": 10536
     }
   },
   {
@@ -52287,7 +52567,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not integral",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10541
+      "cdmw/services/mesh_rust_authoring.py": 10551
     }
   },
   {
@@ -52295,7 +52575,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not numeric",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10524
+      "cdmw/services/mesh_rust_authoring.py": 10534
     }
   },
   {
@@ -52303,7 +52583,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} must be an array",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10514
+      "cdmw/services/mesh_rust_authoring.py": 10524
     }
   },
   {
@@ -52311,7 +52591,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} rows must contain {width} values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10518
+      "cdmw/services/mesh_rust_authoring.py": 10528
     }
   },
   {
@@ -52327,7 +52607,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel exceeds finite f32 range",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10506
+      "cdmw/services/mesh_rust_authoring.py": 10516
     }
   },
   {
@@ -52335,7 +52615,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel row width changed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10493
+      "cdmw/services/mesh_rust_authoring.py": 10503
     }
   },
   {
@@ -52359,7 +52639,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh command would exceed the 512 MiB state payload limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7950
+      "cdmw/services/mesh_rust_authoring.py": 7954
     }
   },
   {
@@ -52367,7 +52647,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh command would exceed the 768 MiB aggregate limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7963
+      "cdmw/services/mesh_rust_authoring.py": 7967
     }
   },
   {
@@ -52375,7 +52655,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh control payload exceeds the 16 MiB state limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8792
+      "cdmw/services/mesh_rust_authoring.py": 8798
     }
   },
   {
@@ -52399,7 +52679,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh edit changed topology; only existing vertex positions may be modified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 230
+      "cdmw/modding/mesh_deformer.py": 231
     }
   },
   {
@@ -52616,7 +52896,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3475
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3478
     }
   },
   {
@@ -52624,7 +52904,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh loading was cancelled before the scene changed",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9066
+      "cdmw/services/mesh_rust_authoring.py": 9072
     }
   },
   {
@@ -53114,7 +53394,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8578
+      "cdmw/services/mesh_rust_authoring.py": 8582
     }
   },
   {
@@ -53122,7 +53402,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8580
+      "cdmw/services/mesh_rust_authoring.py": 8584
     }
   },
   {
@@ -53130,7 +53410,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh protocol version does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8572
+      "cdmw/services/mesh_rust_authoring.py": 8576
     }
   },
   {
@@ -53138,7 +53418,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body received an invalid archive context",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9819
+      "cdmw/services/mesh_rust_authoring.py": 9829
     }
   },
   {
@@ -53146,7 +53426,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body reference_body and body_weights must be boolean",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9815
+      "cdmw/services/mesh_rust_authoring.py": 9825
     }
   },
   {
@@ -53154,7 +53434,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh request is stale: expected shadow revision {current}, received {expected}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8589
+      "cdmw/services/mesh_rust_authoring.py": 8593
     }
   },
   {
@@ -53210,7 +53490,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh session id does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8574
+      "cdmw/services/mesh_rust_authoring.py": 8578
     }
   },
   {
@@ -53218,7 +53498,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh session preparation was cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 7669
+      "cdmw/services/mesh_rust_authoring.py": 7673
     }
   },
   {
@@ -53370,7 +53650,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology command received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8129
+      "cdmw/services/mesh_rust_authoring.py": 8133
     }
   },
   {
@@ -53378,7 +53658,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8162
+      "cdmw/services/mesh_rust_authoring.py": 8166
     }
   },
   {
@@ -53386,7 +53666,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8159
+      "cdmw/services/mesh_rust_authoring.py": 8163
     }
   },
   {
@@ -53394,7 +53674,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8125
+      "cdmw/services/mesh_rust_authoring.py": 8129
     }
   },
   {
@@ -53402,7 +53682,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction omitted its candidate reference",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8925
+      "cdmw/services/mesh_rust_authoring.py": 8931
     }
   },
   {
@@ -53410,7 +53690,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction selection contains invalid mesh elements",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9004
+      "cdmw/services/mesh_rust_authoring.py": 9010
     }
   },
   {
@@ -54106,7 +54386,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile changes cannot be published because CDMW settings are unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10160
+      "cdmw/services/mesh_rust_authoring.py": 10170
     }
   },
   {
@@ -54138,7 +54418,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback did not restore the prior shadow profile tree.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9615
+      "cdmw/services/mesh_rust_authoring.py": 9625
     }
   },
   {
@@ -54146,7 +54426,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback validation failed.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9611
+      "cdmw/services/mesh_rust_authoring.py": 9621
     }
   },
   {
@@ -54154,7 +54434,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and the shadow transaction could not be rolled back safely.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9586
+      "cdmw/services/mesh_rust_authoring.py": 9596
     }
   },
   {
@@ -54218,7 +54498,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile staging cleanup is pending: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10113
+      "cdmw/services/mesh_rust_authoring.py": 10123
     }
   },
   {
@@ -54290,7 +54570,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed outside an acknowledged CDMW command.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8605
+      "cdmw/services/mesh_rust_authoring.py": 8609
     }
   },
   {
@@ -54306,7 +54586,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed while the command result was being finalized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9621
+      "cdmw/services/mesh_rust_authoring.py": 9631
     }
   },
   {
@@ -54330,7 +54610,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph runtime cleanup is pending: {type(exc).__name__}: {exc}; defer failed: {type(defer_exc).__name__}: {defer_exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10102
+      "cdmw/services/mesh_rust_authoring.py": 10112
     }
   },
   {
@@ -54730,7 +55010,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral export failed: {message}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3531
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3534
     }
   },
   {
@@ -54915,7 +55195,7 @@ MESSAGE_REFERENCE = [
     "message": "No supported weapon collision geometry.",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 887
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 918
     }
   },
   {
@@ -57045,7 +57325,7 @@ MESSAGE_REFERENCE = [
     "message": "Part selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5056
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5059
     }
   },
   {
@@ -57297,6 +57577,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_physics_profiles.py": 45
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Pin a selection, not the whole model: pinned cloth cannot move.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_paint.py": 120
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Pin the guides by height or paint pins before creating them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/mesh/cloth_guides.py": 44
     }
   },
   {
@@ -58008,7 +58304,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview event loop failed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 153
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 154
     }
   },
   {
@@ -58453,7 +58749,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile assignments are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 194
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 224
     }
   },
   {
@@ -58461,7 +58757,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile part assignments are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 185
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 215
     }
   },
   {
@@ -58469,7 +58765,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile values are unsupported by the cloth preview.",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 531
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 561
     }
   },
   {
@@ -58709,7 +59005,7 @@ MESSAGE_REFERENCE = [
     "message": "Refit diagnostics could not identify the current Morph state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9430
+      "cdmw/services/mesh_rust_authoring.py": 9439
     }
   },
   {
@@ -58918,7 +59214,7 @@ MESSAGE_REFERENCE = [
     "message": "Regional edits keep the existing whole-part height limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 469
+      "cdmw/services/mesh_rust_jiggle.py": 493
     }
   },
   {
@@ -58934,7 +59230,7 @@ MESSAGE_REFERENCE = [
     "message": "Regional jiggle requires complete retained skin weights.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 276
+      "cdmw/services/mesh_rust_jiggle.py": 292
     }
   },
   {
@@ -58974,7 +59270,7 @@ MESSAGE_REFERENCE = [
     "message": "Render guide bindings exist, but their guide mesh is missing.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 650
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 680
     }
   },
   {
@@ -59758,7 +60054,7 @@ MESSAGE_REFERENCE = [
     "message": "Resize cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7371
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7378
     }
   },
   {
@@ -60014,7 +60310,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit before changing replacement geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8910
+      "cdmw/services/mesh_rust_authoring.py": 8916
     }
   },
   {
@@ -60022,7 +60318,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit comparison before changing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9441
+      "cdmw/services/mesh_rust_authoring.py": 9450
     }
   },
   {
@@ -60190,7 +60486,7 @@ MESSAGE_REFERENCE = [
     "message": "Save fitting setups outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9735
+      "cdmw/services/mesh_rust_authoring.py": 9745
     }
   },
   {
@@ -60206,7 +60502,7 @@ MESSAGE_REFERENCE = [
     "message": "Save or cancel the outfit correction before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9644
+      "cdmw/services/mesh_rust_authoring.py": 9654
     }
   },
   {
@@ -60222,7 +60518,7 @@ MESSAGE_REFERENCE = [
     "message": "Save the sculpted slider or discard its captured base before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9649
+      "cdmw/services/mesh_rust_authoring.py": 9659
     }
   },
   {
@@ -60398,7 +60694,7 @@ MESSAGE_REFERENCE = [
     "message": "Select faces from one part before splitting.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 847
+      "cdmw/modding/mesh_deformer.py": 859
     }
   },
   {
@@ -60438,7 +60734,15 @@ MESSAGE_REFERENCE = [
     "message": "Select one or more vertices before painting cloth.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_paint.py": 68
+      "cdmw/services/mesh_rust_cloth_paint.py": 89
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Select one or more vertices before pinning cloth.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_paint.py": 131
     }
   },
   {
@@ -60446,7 +60750,7 @@ MESSAGE_REFERENCE = [
     "message": "Select one or more vertices or whole parts before editing skin weights.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8217
+      "cdmw/services/mesh_rust_authoring.py": 8221
     }
   },
   {
@@ -60526,7 +60830,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected parts use different profiles. Preview one assignment at a time.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 218
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 248
     }
   },
   {
@@ -60534,7 +60838,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection cancelled: {error}",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6089
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6092
     }
   },
   {
@@ -60542,7 +60846,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection commit failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6370
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6373
     }
   },
   {
@@ -60550,7 +60854,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5923
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5926
     }
   },
   {
@@ -60558,7 +60862,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection highlight failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6484
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6491
     }
   },
   {
@@ -60638,7 +60942,7 @@ MESSAGE_REFERENCE = [
     "message": "Sidecar preview factors · {} · non-conflicting material ownership; emissive fields require a bound emissive texture, hair anisotropy requires both Flow and a proven hair/fur family, and the layer-mask selector affects only a bound Layer Mask diagnostic",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3771
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3774
     }
   },
   {
@@ -60678,7 +60982,7 @@ MESSAGE_REFERENCE = [
     "message": "Skeleton overlay upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2677
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2680
     }
   },
   {
@@ -60790,7 +61094,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit produced a row outside the exact PAC contract; the edit was rolled back.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8358
+      "cdmw/services/mesh_rust_authoring.py": 8362
     }
   },
   {
@@ -60798,7 +61102,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would exceed the exact PAC contract: cloth vertices support only four skeletal influences. Remove an existing influence before adding another.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8272
+      "cdmw/services/mesh_rust_authoring.py": 8276
     }
   },
   {
@@ -60806,7 +61110,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would leave a vertex without any bones, outside the exact PAC contract. Keep at least one influence.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8253
+      "cdmw/services/mesh_rust_authoring.py": 8257
     }
   },
   {
@@ -60814,7 +61118,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight editing is unavailable for selected part(s): {detail}. The parts must retain the exact 40-byte PAC LOD 0 skin layout.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8224
+      "cdmw/services/mesh_rust_authoring.py": 8228
     }
   },
   {
@@ -60854,7 +61158,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight transfer is too far from source surface for part {submesh_index}: p95 {p95} exceeds 5% bbox limit {limit}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_service_rigging.py": 558
+      "cdmw/services/mesh_service_rigging.py": 594
     }
   },
   {
@@ -60974,7 +61278,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because no DDS material texture could be uploaded.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2593
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2596
     }
   },
   {
@@ -60982,7 +61286,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because no DDS material texture could be uploaded: {reason}",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2598
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2601
     }
   },
   {
@@ -60990,7 +61294,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because no usable DDS material texture has been uploaded.",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2328
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2330
     }
   },
   {
@@ -60998,7 +61302,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because this session has no resolved DDS material texture.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2582
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2585
     }
   },
   {
@@ -61006,7 +61310,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because uploaded textures could not bind to this mesh revision: {reason}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2610
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2613
     }
   },
   {
@@ -61014,7 +61318,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable because uploaded textures have no unambiguous owner in this mesh revision.",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2605
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2608
     }
   },
   {
@@ -61022,7 +61326,7 @@ MESSAGE_REFERENCE = [
     "message": "Solid (Textured) is unavailable: {}",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2586
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2589
     }
   },
   {
@@ -61087,7 +61391,7 @@ MESSAGE_REFERENCE = [
     "message": "Source skin weights for part {submesh_index}, vertex {vertex_index} are empty after bone mapping.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_service_rigging.py": 549
+      "cdmw/services/mesh_service_rigging.py": 585
     }
   },
   {
@@ -61095,7 +61399,7 @@ MESSAGE_REFERENCE = [
     "message": "Source skin-weight row {mapped} is empty or invalid.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_service_rigging.py": 766
+      "cdmw/services/mesh_service_rigging.py": 802
     }
   },
   {
@@ -61135,7 +61439,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot change topology",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8855
+      "cdmw/services/mesh_rust_authoring.py": 8861
     }
   },
   {
@@ -61143,7 +61447,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot create missing attribute channels",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8877
+      "cdmw/services/mesh_rust_authoring.py": 8883
     }
   },
   {
@@ -61151,7 +61455,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate vertex count does not match positions",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8857
+      "cdmw/services/mesh_rust_authoring.py": 8863
     }
   },
   {
@@ -61263,7 +61567,7 @@ MESSAGE_REFERENCE = [
     "message": "Standalone rigid attachment has no matched body collision rig.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 398
+      "cdmw/services/mesh_rust_jiggle.py": 420
     }
   },
   {
@@ -61416,7 +61720,7 @@ MESSAGE_REFERENCE = [
     "message": "Subdivision interchange vertex ordering changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 328
+      "cdmw/modding/mesh_deformer.py": 331
     }
   },
   {
@@ -61627,7 +61931,7 @@ MESSAGE_REFERENCE = [
     "message": "Target skin-weight vertex {vertex_index} is not finite.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rigging.py": 770
+      "cdmw/services/mesh_service_rigging.py": 806
     }
   },
   {
@@ -61731,7 +62035,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW Morph & Refit state changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10228
+      "cdmw/services/mesh_rust_authoring.py": 10238
     }
   },
   {
@@ -61739,7 +62043,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW geometry layers changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10220
+      "cdmw/services/mesh_rust_authoring.py": 10230
     }
   },
   {
@@ -61747,7 +62051,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW mesh changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10298
+      "cdmw/services/mesh_rust_authoring.py": 10308
     }
   },
   {
@@ -62024,6 +62328,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The collision volume source {edit.source} is missing from this edit.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/mesh_collision_volumes.py": 165
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The core-bone flag is 0 or 1.",
     "recovery": "internal",
     "sources": {
@@ -62131,7 +62443,7 @@ MESSAGE_REFERENCE = [
     "message": "The exact profile source is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 215
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 245
     }
   },
   {
@@ -62196,7 +62508,7 @@ MESSAGE_REFERENCE = [
     "message": "The host did not provide an editable skeleton hierarchy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6970
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6977
     }
   },
   {
@@ -62372,7 +62684,7 @@ MESSAGE_REFERENCE = [
     "message": "The prepared collision input changed; choose it from the archives again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 379
+      "cdmw/services/mesh_rust_jiggle.py": 396
     }
   },
   {
@@ -62476,7 +62788,7 @@ MESSAGE_REFERENCE = [
     "message": "The sculpted slider contains unsupported metadata.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9701
+      "cdmw/services/mesh_rust_authoring.py": 9711
     }
   },
   {
@@ -62484,7 +62796,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected archive input exceeds the preview size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 370
+      "cdmw/services/mesh_rust_jiggle.py": 387
     }
   },
   {
@@ -62524,7 +62836,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected skeleton bone is not present in the PAC bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8234
+      "cdmw/services/mesh_rust_authoring.py": 8238
     }
   },
   {
@@ -62604,7 +62916,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy bone counts do not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6998
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7005
     }
   },
   {
@@ -62612,7 +62924,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a duplicate bone index",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7011
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7018
     }
   },
   {
@@ -62620,7 +62932,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a parent cycle",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7060
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7067
     }
   },
   {
@@ -62628,7 +62940,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid bone index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7009
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7016
     }
   },
   {
@@ -62636,7 +62948,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid parent index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7046
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7053
     }
   },
   {
@@ -62644,7 +62956,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an out-of-range bone position",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7030
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7037
     }
   },
   {
@@ -62652,7 +62964,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy has no parent-child segments to draw",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7077
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7084
     }
   },
   {
@@ -62660,7 +62972,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is incomplete or has no root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7053
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7060
     }
   },
   {
@@ -62668,7 +62980,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is truncated, so its overlay is disabled",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6973
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6980
     }
   },
   {
@@ -62676,7 +62988,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton parser reported an incomplete hierarchy",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6980
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6987
     }
   },
   {
@@ -63045,7 +63357,7 @@ MESSAGE_REFERENCE = [
     "message": "This variant explicitly leaves a selected part without a profile.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 204
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 234
     }
   },
   {
@@ -63069,7 +63381,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool commit failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6407
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6410
     }
   },
   {
@@ -63077,7 +63389,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool failed and was rolled back: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6348
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6351
     }
   },
   {
@@ -63245,7 +63557,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9631,
+      "cdmw/services/mesh_rust_authoring.py": 9641,
       "cdmw/services/mesh_service_morph_authoring.py": 295
     }
   },
@@ -63318,7 +63630,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo replacement operations before adding geometry layers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9445
+      "cdmw/services/mesh_rust_authoring.py": 9454
     }
   },
   {
@@ -63593,7 +63905,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh authoring action: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8074
+      "cdmw/services/mesh_rust_authoring.py": 8078
     }
   },
   {
@@ -63601,7 +63913,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh command: {command or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9377
+      "cdmw/services/mesh_rust_authoring.py": 9386
     }
   },
   {
@@ -63609,7 +63921,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh morph command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9834
+      "cdmw/services/mesh_rust_authoring.py": 9844
     }
   },
   {
@@ -63625,7 +63937,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh topology command: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8120
+      "cdmw/services/mesh_rust_authoring.py": 8124
     }
   },
   {
@@ -63986,7 +64298,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8955
+      "cdmw/services/mesh_rust_authoring.py": 8961
     }
   },
   {
@@ -64082,7 +64394,7 @@ MESSAGE_REFERENCE = [
     "message": "Vertex inspection requires arguments.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9391
+      "cdmw/services/mesh_rust_authoring.py": 9400
     }
   },
   {
@@ -64130,7 +64442,7 @@ MESSAGE_REFERENCE = [
     "message": "Viewport changed; active gesture cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5600
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5603
     }
   },
   {
@@ -64178,7 +64490,7 @@ MESSAGE_REFERENCE = [
     "message": "Weapon collision preview inputs must be at most 32 MiB.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 375
+      "cdmw/services/mesh_rust_jiggle.py": 392
     }
   },
   {
@@ -64186,7 +64498,7 @@ MESSAGE_REFERENCE = [
     "message": "Weapon preview placement needs finite position and rotation values.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_jiggle.py": 332
+      "cdmw/services/mesh_rust_jiggle.py": 348
     }
   },
   {
@@ -64322,7 +64634,7 @@ MESSAGE_REFERENCE = [
     "message": "a CDMW capture package and exactly one of --capture-output or --capture-audit-output must be supplied together",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 302
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 303
     }
   },
   {
@@ -64498,7 +64810,7 @@ MESSAGE_REFERENCE = [
     "message": "audit capture could not create LOD{source_lod_index}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 910
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 911
     }
   },
   {
@@ -64922,7 +65234,7 @@ MESSAGE_REFERENCE = [
     "message": "capture camera and material options require --capture-output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 332
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 333
     }
   },
   {
@@ -64930,7 +65242,7 @@ MESSAGE_REFERENCE = [
     "message": "capture could not create LOD{source_lod_index}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 719
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 720
     }
   },
   {
@@ -64938,7 +65250,7 @@ MESSAGE_REFERENCE = [
     "message": "capture output already exists and will not be overwritten: {}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 633
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 634
     }
   },
   {
@@ -64946,7 +65258,7 @@ MESSAGE_REFERENCE = [
     "message": "capture output file name is not valid Unicode",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 649
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 650
     }
   },
   {
@@ -64954,7 +65266,7 @@ MESSAGE_REFERENCE = [
     "message": "capture output must have a file name",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 576
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 577
     }
   },
   {
@@ -64970,7 +65282,7 @@ MESSAGE_REFERENCE = [
     "message": "capture output paths cannot contain parent traversal: {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 569
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 570
     }
   },
   {
@@ -64978,7 +65290,7 @@ MESSAGE_REFERENCE = [
     "message": "capture outputs must be outside the CDMW session directory {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 603
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 604
     }
   },
   {
@@ -64986,7 +65298,7 @@ MESSAGE_REFERENCE = [
     "message": "capture outputs must name four distinct files",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 544
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 545
     }
   },
   {
@@ -65050,7 +65362,23 @@ MESSAGE_REFERENCE = [
     "message": "cloth_paint_set whole_model must be true or false.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_paint.py": 61
+      "cdmw/services/mesh_rust_cloth_paint.py": 82
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "cloth_pin_set value must be true or false.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_paint.py": 115
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "cloth_pin_set whole_model must be true or false.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_paint.py": 118
     }
   },
   {
@@ -65066,7 +65394,7 @@ MESSAGE_REFERENCE = [
     "message": "command arguments must be an object",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2788
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2791
     }
   },
   {
@@ -65178,7 +65506,7 @@ MESSAGE_REFERENCE = [
     "message": "could not map the rig-weight selection: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2784
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2787
     }
   },
   {
@@ -65618,7 +65946,7 @@ MESSAGE_REFERENCE = [
     "message": "embedded parent window is invalid: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7289
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7296
     }
   },
   {
@@ -65806,7 +66134,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to atomically publish capture {}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 459
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 460
     }
   },
   {
@@ -65814,7 +66142,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to canonicalize CDMW session root {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 534
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 535
     }
   },
   {
@@ -65822,7 +66150,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to canonicalize capture directory {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 594
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 595
     }
   },
   {
@@ -65830,7 +66158,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to create capture directory {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 609
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 610
     }
   },
   {
@@ -65846,7 +66174,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to create the Windows event loop",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 144
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 145
     }
   },
   {
@@ -65854,7 +66182,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to hash CDMW audit manifest {}",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1078
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1079
     }
   },
   {
@@ -65862,7 +66190,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to inspect capture output {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 638
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 639
     }
   },
   {
@@ -65878,7 +66206,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to load CDMW audit package {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 901
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 902
     }
   },
   {
@@ -65886,7 +66214,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to load CDMW capture package {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 709
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 710
     }
   },
   {
@@ -65902,7 +66230,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to open CDMW session {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 160
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 161
     }
   },
   {
@@ -65910,7 +66238,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to read material audit capture {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1432
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1433
     }
   },
   {
@@ -65942,7 +66270,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to reserve a unique capture temporary beside {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 674
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 675
     }
   },
   {
@@ -65950,7 +66278,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to reserve capture temporary file {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 666
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 667
     }
   },
   {
@@ -65958,7 +66286,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to resolve current material audit directory",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1284
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1285
     }
   },
   {
@@ -65966,7 +66294,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to resolve the current capture directory",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 561
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 562
     }
   },
   {
@@ -65974,7 +66302,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to write capture report temporary {}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 845
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 846
     }
   },
   {
@@ -66006,7 +66334,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to write material audit report {}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1159
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1160
     }
   },
   {
@@ -66078,7 +66406,7 @@ MESSAGE_REFERENCE = [
     "message": "frame failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6930
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6937
     }
   },
   {
@@ -67245,7 +67573,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid --embedded-parent-hwnd value '{value}'",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 267
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 268
     }
   },
   {
@@ -67253,7 +67581,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid CDMW LOD{active_lod_index} state",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3304
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3307
     }
   },
   {
@@ -67693,7 +68021,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid {option} value '{value}'",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 373
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 374
     }
   },
   {
@@ -67853,7 +68181,7 @@ MESSAGE_REFERENCE = [
     "message": "material audit evidence must be outside the source package",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1304
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1305
     }
   },
   {
@@ -67861,7 +68189,7 @@ MESSAGE_REFERENCE = [
     "message": "material audit output already exists; refusing replacement: {}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1289
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1290
     }
   },
   {
@@ -67869,7 +68197,7 @@ MESSAGE_REFERENCE = [
     "message": "material audit output cannot contain parent traversal: {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1276
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1277
     }
   },
   {
@@ -68616,7 +68944,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3862
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3865
     }
   },
   {
@@ -70193,7 +70521,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor skeleton controls unavailable; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_rigging.py": 587
+      "cdmw/services/mesh_service_rigging.py": 623
     }
   },
   {
@@ -71113,7 +71441,7 @@ MESSAGE_REFERENCE = [
     "message": "only one CDMW capture package type may be supplied",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 288
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 289
     }
   },
   {
@@ -71915,7 +72243,7 @@ MESSAGE_REFERENCE = [
     "message": "protocol failure",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2930
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 2933
     }
   },
   {
@@ -72607,7 +72935,7 @@ MESSAGE_REFERENCE = [
     "message": "runtime DDS payload offset exceeds its binary length",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1226
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 1227
     }
   },
   {
@@ -72871,7 +73199,7 @@ MESSAGE_REFERENCE = [
     "message": "shadow-session cleanup is pending: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10124
+      "cdmw/services/mesh_rust_authoring.py": 10134
     }
   },
   {
@@ -72887,7 +73215,7 @@ MESSAGE_REFERENCE = [
     "message": "skeleton overlay upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3865
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3868
     }
   },
   {
@@ -74121,7 +74449,7 @@ MESSAGE_REFERENCE = [
     "message": "window creation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7298
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7305
     }
   },
   {
@@ -74394,7 +74722,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5304
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5307
     }
   },
   {
@@ -74458,7 +74786,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} rejected: {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3032
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3035
     }
   },
   {
@@ -74635,7 +74963,7 @@ MESSAGE_REFERENCE = [
     "message": "{option} must be finite",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 375
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 376
     }
   },
   {
@@ -74643,7 +74971,7 @@ MESSAGE_REFERENCE = [
     "message": "{option} requires a non-negative integer",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 383
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 384
     }
   },
   {
@@ -74651,7 +74979,7 @@ MESSAGE_REFERENCE = [
     "message": "{option} requires a number",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 370
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 371
     }
   },
   {
@@ -74659,7 +74987,7 @@ MESSAGE_REFERENCE = [
     "message": "{option} requires a path",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 364
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 365
     }
   },
   {
@@ -74781,6 +75109,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/domain/mesh/body_region_atlas.py": 180
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{rows[key].get('name') or key} has no painted pins. Paint pins on it, or pin the guides by height.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_rust_cloth_guides.py": 128
     }
   },
   {
@@ -74932,7 +75268,7 @@ MESSAGE_REFERENCE = [
     "message": "· GPU warning: {error}{}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3894
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3897
     }
   },
   {
@@ -74940,7 +75276,7 @@ MESSAGE_REFERENCE = [
     "message": "· texture binding warning: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5229
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5232
     }
   },
   {
@@ -74948,7 +75284,7 @@ MESSAGE_REFERENCE = [
     "message": "· texture warning: {warning}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6828
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6835
     }
   },
   {
@@ -75172,7 +75508,7 @@ MESSAGE_REFERENCE = [
     "message": "A painted cloth binding did not decode back to the template's guides.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 205
+      "cdmw/modding/pac_cloth_paint.py": 210
     }
   },
   {
@@ -76571,7 +76907,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Choose a pin height that leaves both fixed and moving guides.",
+    "message": "Choose a pin height or pins that leave both fixed and moving guides.",
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 152
@@ -76875,6 +77211,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Cloth guide creation changed the retained bone palette.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 405
+    }
+  },
+  {
+    "area": "other",
     "message": "Cloth guide positions must be finite three-component points.",
     "recovery": "input",
     "sources": {
@@ -76918,7 +77262,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint does not line up with any part of the built model. Apply placement again, then rebuild.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 195
+      "cdmw/modding/pac_cloth_paint.py": 200
     }
   },
   {
@@ -76926,7 +77270,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint for {part.name or index} does not line up with the built model ({max(distances)} from the nearest painted point). Apply placement again, then rebuild.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 160
+      "cdmw/modding/pac_cloth_paint.py": 165
     }
   },
   {
@@ -76934,7 +77278,15 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint lines up with only some levels of detail of a part. Rebuild the model.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 198
+      "cdmw/modding/pac_cloth_paint.py": 203
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cloth paint needs a positive sample tolerance.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 348
     }
   },
   {
@@ -76942,7 +77294,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint needs one value per painted point.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 36
+      "cdmw/modding/pac_cloth_paint.py": 38
     }
   },
   {
@@ -76950,7 +77302,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint refers to an invalid PAC part.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 135
+      "cdmw/modding/pac_cloth_paint.py": 140
     }
   },
   {
@@ -76958,7 +77310,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint requires valid existing bone influences at every LOD.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 69
+      "cdmw/modding/pac_cloth_paint.py": 74
     }
   },
   {
@@ -76966,7 +77318,31 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint values must be between 0 and 1.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 38
+      "cdmw/modding/pac_cloth_paint.py": 40
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cloth pins for {name} need the part's LOD0 geometry.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_guide_builder.py": 272
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cloth pins need one true/false flag per painted point.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_paint.py": 43
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cloth pins on {name} no longer line up with its vertices. Create the cloth guides again; paint the pins first if they are gone.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_guide_builder.py": 279
     }
   },
   {
@@ -77128,6 +77504,94 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_collisions.py": 877
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume edits cannot move undecoded data after the PAC sections.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 75
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume edits need complete PAC sections.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 69
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume edits need decompressed PAC metadata.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 73
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume edits need the decoded 2, 3 or 4 LOD section layout.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 78
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume records do not match their decoded layout.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 52
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume sets hold at most {max(VOLUME_LIMIT, count)} volumes.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 162
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume {index + 1} ({SHAPE_NAMES[volume.serialized_shape]}) takes {expected} size value(s).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 138
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume {index + 1} is a mesh; it can be moved but not resized.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 135
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume {index + 1} needs a finite position.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 147
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume {index + 1} needs sizes greater than zero.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 143
+    }
+  },
+  {
+    "area": "other",
+    "message": "Collision volume {ordinal + 1} does not exist in this set of {count}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 129
     }
   },
   {
@@ -77520,6 +77984,22 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/core/mod_compatibility.py": 548
+    }
+  },
+  {
+    "area": "other",
+    "message": "Copying or removing collision volumes cannot prove this PAC's vertex and index section offsets. Resize or move volumes instead.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 107
+    }
+  },
+  {
+    "area": "other",
+    "message": "Copying or removing collision volumes needs decoded PAC sections.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 100
     }
   },
   {
@@ -78384,6 +78864,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Edited collision volumes did not decode back to the requested records.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 175
+    }
+  },
+  {
+    "area": "other",
     "message": "Edited compact recipe did not round-trip.",
     "recovery": "internal",
     "sources": {
@@ -78428,7 +78916,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited joint bind frames disagree; cannot prove mesh coordinate reconstruction.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 313
+      "cdmw/modding/scene_geometry_utils.py": 314
     }
   },
   {
@@ -78666,6 +79154,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Every cloth guide is pinned, so nothing would move. Paint a larger area or fewer pins.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 386
+    }
+  },
+  {
+    "area": "other",
     "message": "Every device state needs an explicit bounded deadline.",
     "recovery": "timeout",
     "sources": {
@@ -78674,7 +79170,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Every disconnected guide piece needs a fixed guide. Lower the pin height or select fewer parts.",
+    "message": "Every disconnected guide piece needs a fixed guide. Lower the pin height, paint a pin on each piece or select fewer parts.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 164
@@ -79141,7 +79637,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated guide topology did not pass independent decoding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 332
+      "cdmw/modding/pac_cloth_guide_builder.py": 369
     }
   },
   {
@@ -79333,7 +79829,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation changed the retained bone palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 334
+      "cdmw/modding/pac_cloth_guide_builder.py": 371
     }
   },
   {
@@ -79474,6 +79970,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Guide removal changed the retained bone palette.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "Guide removal left a guide block behind.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 106
+    }
+  },
+  {
+    "area": "other",
+    "message": "Guide removal needs decompressed PAC metadata.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 97
+    }
+  },
+  {
+    "area": "other",
     "message": "Guide runtime blend factors must be finite and within [0, 1].",
     "recovery": "input",
     "sources": {
@@ -79485,7 +80005,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide settings refer to an invalid PAC part.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 265
+      "cdmw/modding/pac_cloth_guide_builder.py": 299
     }
   },
   {
@@ -80980,6 +81500,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Keep a Bip01 Head volume: the game merges body and head volumes through it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 168
+    }
+  },
+  {
+    "area": "other",
+    "message": "Keep at least one collision volume in this set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 164
+    }
+  },
+  {
+    "area": "other",
     "message": "Key is {len(key_bytes)} byte(s); this table's keys are {key_width}.",
     "recovery": "internal",
     "sources": {
@@ -81223,7 +81759,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh coordinate transform is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 293
+      "cdmw/modding/scene_geometry_utils.py": 294
     }
   },
   {
@@ -81231,7 +81767,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transform is invalid or singular; cannot export editable coordinates.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 258
+      "cdmw/modding/scene_geometry_utils.py": 259
     }
   },
   {
@@ -81640,7 +82176,7 @@ MESSAGE_REFERENCE = [
     "message": "New cloth requires 3 to 1024 welded guides in total. Choose a lower source LOD or fewer parts.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 303
+      "cdmw/modding/pac_cloth_guide_builder.py": 340
     }
   },
   {
@@ -81897,6 +82433,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/character_finder/creator_look.py": 242
+    }
+  },
+  {
+    "area": "other",
+    "message": "Nothing holds the painted cloth. Leave the area it hangs from unpainted, or paint pins where it attaches.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 383
     }
   },
   {
@@ -82632,7 +83176,8 @@ MESSAGE_REFERENCE = [
     "message": "Paint at least one area as cloth.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 137
+      "cdmw/modding/pac_cloth_paint.py": 142,
+      "cdmw/modding/pac_cloth_painted_guides.py": 350
     }
   },
   {
@@ -83618,7 +84163,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin has duplicate joint names; cannot prove its coordinate frame.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 283
+      "cdmw/modding/scene_geometry_utils.py": 284
     }
   },
   {
@@ -83626,7 +84171,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin hierarchy contains a parent cycle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 271
+      "cdmw/modding/scene_geometry_utils.py": 272
     }
   },
   {
@@ -83691,7 +84236,7 @@ MESSAGE_REFERENCE = [
     "message": "Source mesh transform is singular; cannot restore editable coordinates.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 296
+      "cdmw/modding/scene_geometry_utils.py": 297
     }
   },
   {
@@ -83715,7 +84260,7 @@ MESSAGE_REFERENCE = [
     "message": "Source skin bind frame is singular.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_geometry_utils.py": 310
+      "cdmw/modding/scene_geometry_utils.py": 311
     }
   },
   {
@@ -84291,7 +84836,7 @@ MESSAGE_REFERENCE = [
     "message": "The captured guide bone palette does not match this PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 270
+      "cdmw/modding/pac_cloth_guide_builder.py": 304
     }
   },
   {
@@ -84364,6 +84909,38 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 133
+    }
+  },
+  {
+    "area": "other",
+    "message": "The collision volume edit changed PAC metadata it must keep.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 209
+    }
+  },
+  {
+    "area": "other",
+    "message": "The collision volume edit changed bytes outside the volume set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 217
+    }
+  },
+  {
+    "area": "other",
+    "message": "The collision volume edit changed the PAC geometry sections.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 220
+    }
+  },
+  {
+    "area": "other",
+    "message": "The collision volume source changed since it was edited. Restore the edits and make them again.",
+    "recovery": "stale",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 124
     }
   },
   {
@@ -84779,7 +85356,7 @@ MESSAGE_REFERENCE = [
     "message": "The guide source LOD is not stored in this PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 272
+      "cdmw/modding/pac_cloth_guide_builder.py": 306
     }
   },
   {
@@ -85208,6 +85785,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The new cloth guides did not pass independent decoding.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 403
+    }
+  },
+  {
+    "area": "other",
     "message": "The new hair name already exists in the prefab table.",
     "recovery": "conflict",
     "sources": {
@@ -85448,6 +86033,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The painted area cannot become a cloth guide mesh ({detail}). Paint whole faces of a single-layer surface.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 370
+    }
+  },
+  {
+    "area": "other",
+    "message": "The painted area could not be reduced to {target} cloth guides without breaking its surface (it stops at {len(alive)}). Paint a smaller area.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 241
+    }
+  },
+  {
+    "area": "other",
+    "message": "The painted area is too small for cloth. Paint at least one whole face.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 381
+    }
+  },
+  {
+    "area": "other",
     "message": "The policy replay exceeds its size limit.",
     "recovery": "limits",
     "sources": {
@@ -85659,7 +86268,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected guide source LOD has no geometry for this part.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 275
+      "cdmw/modding/pac_cloth_guide_builder.py": 309
     }
   },
   {
@@ -85881,6 +86490,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The template's cloth guide block could not be located exactly.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/pac_cloth_painted_guides.py": 93
+    }
+  },
+  {
+    "area": "other",
     "message": "The terminal cleanup journal belongs to a different request.",
     "recovery": "internal",
     "sources": {
@@ -85981,6 +86598,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/services/game_table_edits.py": 350
+    }
+  },
+  {
+    "area": "other",
+    "message": "These collision volume edits belong to another source.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/collision_volume_edit.py": 122
     }
   },
   {
@@ -86156,7 +86781,7 @@ MESSAGE_REFERENCE = [
     "message": "This model has no cloth guides to bind painted cloth to. Choose a template with cloth.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 132
+      "cdmw/modding/pac_cloth_paint.py": 137
     }
   },
   {
@@ -87375,7 +88000,7 @@ MESSAGE_REFERENCE = [
     "message": "Welding the guide source produces a degenerate triangle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 297
+      "cdmw/modding/pac_cloth_guide_builder.py": 334
     }
   },
   {
@@ -93655,7 +94280,7 @@ MESSAGE_REFERENCE = [
     "message": "Animated glow cannot share a part with translucency.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 167
+      "cdmw/services/mesh_replacement_draft.py": 173
     }
   },
   {
@@ -93938,7 +94563,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth guide settings require replacement draft version 9.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 153
+      "cdmw/services/mesh_replacement_draft.py": 157
     }
   },
   {
@@ -93954,7 +94579,31 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence settings require replacement draft version 4.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 150
+      "cdmw/services/mesh_replacement_draft.py": 154
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Collision and pin draft has no collision edits or painted pins.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_replacement_draft.py": 235
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Collision volume edits are supported only for PAC meshes.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_replacement_output.py": 406
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Collision volume edits must name each source once.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/mesh/replacement.py": 84
     }
   },
   {
@@ -94179,7 +94828,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate replacement companion: {file.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 468
+      "cdmw/services/mesh_replacement_output.py": 477
     }
   },
   {
@@ -94660,7 +95309,7 @@ MESSAGE_REFERENCE = [
     "message": "Glow draft has no emission settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 229
+      "cdmw/services/mesh_replacement_draft.py": 243
     }
   },
   {
@@ -94668,7 +95317,7 @@ MESSAGE_REFERENCE = [
     "message": "Glow settings require replacement draft version 11.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 164
+      "cdmw/services/mesh_replacement_draft.py": 170
     }
   },
   {
@@ -94692,7 +95341,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide draft has no guide creation settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 233
+      "cdmw/services/mesh_replacement_draft.py": 247
     }
   },
   {
@@ -95130,6 +95779,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Invalid collision volume draft settings.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/services/mesh_replacement_draft.py": 231
+    }
+  },
+  {
+    "area": "placement",
     "message": "Invalid declared duration",
     "recovery": "input",
     "sources": {
@@ -95181,7 +95838,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid experimental replacement coordinate frame.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 250
+      "cdmw/services/mesh_replacement_draft.py": 264
     }
   },
   {
@@ -95197,7 +95854,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid mesh island exclusion mapping.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 215
+      "cdmw/services/mesh_replacement_draft.py": 221
     }
   },
   {
@@ -95205,7 +95862,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid physics profile settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 239
+      "cdmw/services/mesh_replacement_draft.py": 253
     }
   },
   {
@@ -95221,7 +95878,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement archive identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 137
+      "cdmw/services/mesh_replacement_draft.py": 141
     }
   },
   {
@@ -95229,7 +95886,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement companion: {file.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 466
+      "cdmw/services/mesh_replacement_output.py": 475
     }
   },
   {
@@ -95237,7 +95894,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement draft parts.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 147
+      "cdmw/services/mesh_replacement_draft.py": 151
     }
   },
   {
@@ -95245,7 +95902,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement draft resource path or size.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 125
+      "cdmw/services/mesh_replacement_draft.py": 129
     }
   },
   {
@@ -95253,7 +95910,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement import placement data.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 194
+      "cdmw/services/mesh_replacement_draft.py": 200
     }
   },
   {
@@ -95261,7 +95918,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement output intent.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 209
+      "cdmw/services/mesh_replacement_draft.py": 215
     }
   },
   {
@@ -95325,7 +95982,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid weapon collision draft settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 115
+      "cdmw/services/mesh_replacement_draft.py": 119
     }
   },
   {
@@ -95333,7 +95990,7 @@ MESSAGE_REFERENCE = [
     "message": "Island draft has no excluded faces.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 225
+      "cdmw/services/mesh_replacement_draft.py": 239
     }
   },
   {
@@ -95357,7 +96014,7 @@ MESSAGE_REFERENCE = [
     "message": "Jiggle settings require replacement draft version 5.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 156
+      "cdmw/services/mesh_replacement_draft.py": 162
     }
   },
   {
@@ -95429,7 +96086,7 @@ MESSAGE_REFERENCE = [
     "message": "Malformed replacement draft state.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 96
+      "cdmw/services/mesh_replacement_draft.py": 100
     }
   },
   {
@@ -96133,7 +96790,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-finite replacement import normals.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 207
+      "cdmw/services/mesh_replacement_draft.py": 213
     }
   },
   {
@@ -96141,7 +96798,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-finite replacement import placement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 197
+      "cdmw/services/mesh_replacement_draft.py": 203
     }
   },
   {
@@ -96427,10 +97084,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Painted cloth guide pins require replacement draft version 17.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_replacement_draft.py": 160
+    }
+  },
+  {
+    "area": "placement",
     "message": "Paired LOD material has no target mapping: {lod_part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 446
+      "cdmw/services/mesh_replacement_output.py": 455
     }
   },
   {
@@ -96438,7 +97103,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 440
+      "cdmw/services/mesh_replacement_output.py": 449
     }
   },
   {
@@ -96446,7 +97111,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD writer changed the required section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 458
+      "cdmw/services/mesh_replacement_output.py": 467
     }
   },
   {
@@ -96454,7 +97119,7 @@ MESSAGE_REFERENCE = [
     "message": "Palette extension requires its explicit draft version.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 110
+      "cdmw/services/mesh_replacement_draft.py": 114
     }
   },
   {
@@ -96510,7 +97175,7 @@ MESSAGE_REFERENCE = [
     "message": "Physics profile assignment is ambiguous or does not match the PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 187
+      "cdmw/services/mesh_replacement_draft.py": 193
     }
   },
   {
@@ -96816,7 +97481,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt replacement is invalid: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 414
+      "cdmw/services/mesh_replacement_output.py": 420
     }
   },
   {
@@ -96848,7 +97513,7 @@ MESSAGE_REFERENCE = [
     "message": "Regional jiggle draft has no regional contribution settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 223
+      "cdmw/services/mesh_replacement_draft.py": 237
     }
   },
   {
@@ -96856,7 +97521,7 @@ MESSAGE_REFERENCE = [
     "message": "Regional jiggle settings require replacement draft version 15.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 177
+      "cdmw/services/mesh_replacement_draft.py": 183
     }
   },
   {
@@ -96872,7 +97537,7 @@ MESSAGE_REFERENCE = [
     "message": "Relative jiggle draft has no retained contribution settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 237
+      "cdmw/services/mesh_replacement_draft.py": 251
     }
   },
   {
@@ -96880,7 +97545,7 @@ MESSAGE_REFERENCE = [
     "message": "Relative jiggle draft is missing the retained contribution.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 189
+      "cdmw/services/mesh_replacement_draft.py": 195
     }
   },
   {
@@ -96888,7 +97553,7 @@ MESSAGE_REFERENCE = [
     "message": "Relative jiggle settings require replacement draft version 6.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 191
+      "cdmw/services/mesh_replacement_draft.py": 197
     }
   },
   {
@@ -96928,7 +97593,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement coordinates require a saved appearance transform.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 252
+      "cdmw/services/mesh_replacement_draft.py": 266
     }
   },
   {
@@ -96944,7 +97609,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft is missing saved import normals.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 200
+      "cdmw/services/mesh_replacement_draft.py": 206
     }
   },
   {
@@ -96952,7 +97617,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft island masks exceed the face limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 55
+      "cdmw/services/mesh_replacement_draft.py": 58
     }
   },
   {
@@ -96960,7 +97625,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft part identities are missing or duplicated.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 241
+      "cdmw/services/mesh_replacement_draft.py": 255
     }
   },
   {
@@ -96968,7 +97633,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft resource checksum changed.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 130
+      "cdmw/services/mesh_replacement_draft.py": 134
     }
   },
   {
@@ -96976,7 +97641,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft resource size changed.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 127
+      "cdmw/services/mesh_replacement_draft.py": 131
     }
   },
   {
@@ -96984,7 +97649,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft resources exceed the 512 MiB limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 38
+      "cdmw/services/mesh_replacement_draft.py": 39
     }
   },
   {
@@ -96992,7 +97657,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft target mappings are invalid or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 243
+      "cdmw/services/mesh_replacement_draft.py": 257
     }
   },
   {
@@ -97048,7 +97713,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement part identities changed. Undo the part operation before exporting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/mesh/replacement.py": 86
+      "cdmw/domain/mesh/replacement.py": 96
     }
   },
   {
@@ -97112,7 +97777,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement writer changed the required target section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 411
+      "cdmw/services/mesh_replacement_output.py": 417
     }
   },
   {
@@ -97120,7 +97785,7 @@ MESSAGE_REFERENCE = [
     "message": "Required companion {paired.path} could not be rebuilt: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 460
+      "cdmw/services/mesh_replacement_output.py": 469
     }
   },
   {
@@ -97249,7 +97914,7 @@ MESSAGE_REFERENCE = [
     "message": "Saved import normals do not match the replacement geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 204,
+      "cdmw/services/mesh_replacement_draft.py": 210,
       "cdmw/services/mesh_replacement_import.py": 440
     }
   },
@@ -97299,7 +97964,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader controls require replacement draft version 12.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 169
+      "cdmw/services/mesh_replacement_draft.py": 175
     }
   },
   {
@@ -97307,7 +97972,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader draft has no experimental controls.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 227
+      "cdmw/services/mesh_replacement_draft.py": 241
     }
   },
   {
@@ -97315,7 +97980,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader experiments cannot share a part with Glow or Translucency overrides.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 172
+      "cdmw/services/mesh_replacement_draft.py": 178
     }
   },
   {
@@ -97509,7 +98174,7 @@ MESSAGE_REFERENCE = [
     "message": "Surface overrides require translucency on the same part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 174
+      "cdmw/services/mesh_replacement_draft.py": 180
     }
   },
   {
@@ -97909,7 +98574,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency draft has no absorption settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 235
+      "cdmw/services/mesh_replacement_draft.py": 249
     }
   },
   {
@@ -97917,7 +98582,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency settings require replacement draft version 8.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 158
+      "cdmw/services/mesh_replacement_draft.py": 164
     }
   },
   {
@@ -97925,7 +98590,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucent surface draft has no surface settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 231
+      "cdmw/services/mesh_replacement_draft.py": 245
     }
   },
   {
@@ -97933,7 +98598,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucent surface settings require replacement draft version 10.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 161
+      "cdmw/services/mesh_replacement_draft.py": 167
     }
   },
   {
@@ -98125,7 +98790,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 277
+      "cdmw/services/mesh_rust_replacement.py": 281
     }
   },
   {
@@ -98133,7 +98798,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement draft state.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_replacement_draft.py": 104
+      "cdmw/services/mesh_replacement_draft.py": 108
     }
   },
   {
@@ -98197,7 +98862,7 @@ MESSAGE_REFERENCE = [
     "message": "Weapon collision authoring must be explicitly enabled or disabled.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/mesh/replacement.py": 74
+      "cdmw/domain/mesh/replacement.py": 79
     }
   },
   {
@@ -104980,6 +105645,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/rendering/preview_comparison.py",
     "cdmw/services/effect_preview_geometry.py",
     "cdmw/services/effect_preview_model.py",
+    "cdmw/services/mesh_collision_volumes.py",
     "cdmw/services/mesh_editor_error_codes.py",
     "cdmw/services/mesh_emission.py",
     "cdmw/services/mesh_layer_project_service.py",
@@ -106565,7 +107231,10 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/domain/mesh/cloth_guides.py": {
-    "raise": 5
+    "raise": 9
+  },
+  "cdmw/domain/mesh/collision_volumes.py": {
+    "raise": 19
   },
   "cdmw/domain/mesh/compare.py": {},
   "cdmw/domain/mesh/editing.py": {
@@ -106631,7 +107300,7 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/domain/mesh/replacement.py": {
-    "raise": 2
+    "raise": 3
   },
   "cdmw/domain/mesh/resident_mutation.py": {
     "raise": 10
@@ -106841,6 +107510,9 @@ SOURCE_COVERAGE = {
     "finding": 15,
     "report": 2,
     "validation": 2
+  },
+  "cdmw/modding/collision_volume_edit.py": {
+    "raise": 21
   },
   "cdmw/modding/full_import_model_replacement.py": {},
   "cdmw/modding/logging.py": {},
@@ -107073,7 +107745,7 @@ SOURCE_COVERAGE = {
     "raise": 11
   },
   "cdmw/modding/pac_cloth_guide_builder.py": {
-    "raise": 34
+    "raise": 36
   },
   "cdmw/modding/pac_cloth_guides.py": {
     "raise": 18
@@ -107082,7 +107754,10 @@ SOURCE_COVERAGE = {
     "raise": 13
   },
   "cdmw/modding/pac_cloth_paint.py": {
-    "raise": 10
+    "raise": 11
+  },
+  "cdmw/modding/pac_cloth_painted_guides.py": {
+    "raise": 13
   },
   "cdmw/modding/pac_cloth_preparation.py": {
     "raise": 2
@@ -107592,6 +108267,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/mesh_archive_results.py": {
     "raise": 14
   },
+  "cdmw/services/mesh_collision_volumes.py": {
+    "raise": 9
+  },
   "cdmw/services/mesh_dotnet_experiment_output.py": {
     "raise": 9
   },
@@ -107679,7 +108357,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/mesh_refit_weights.py": {},
   "cdmw/services/mesh_replacement_draft.py": {
-    "raise": 48
+    "raise": 51
   },
   "cdmw/services/mesh_replacement_import.py": {
     "raise": 30
@@ -107691,7 +108369,7 @@ SOURCE_COVERAGE = {
     "code": 2,
     "failure": 2,
     "finding": 2,
-    "raise": 29
+    "raise": 30
   },
   "cdmw/services/mesh_replacement_skinning.py": {
     "raise": 24,
@@ -107712,10 +108390,10 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/services/mesh_rust_cloth_guides.py": {
-    "raise": 4
+    "raise": 8
   },
   "cdmw/services/mesh_rust_cloth_paint.py": {
-    "raise": 5
+    "raise": 11
   },
   "cdmw/services/mesh_rust_contract.py": {
     "validation": 8
@@ -107834,7 +108512,7 @@ SOURCE_COVERAGE = {
     "raise": 38
   },
   "cdmw/services/mesh_service_rigging.py": {
-    "raise": 16
+    "raise": 18
   },
   "cdmw/services/mesh_service_selection.py": {
     "report": 1
@@ -107903,7 +108581,12 @@ SOURCE_COVERAGE = {
     "finding": 7,
     "raise": 13
   },
-  "cdmw/services/new_item_cloth_paint.py": {},
+  "cdmw/services/new_item_cloth_guides.py": {
+    "raise": 4
+  },
+  "cdmw/services/new_item_cloth_paint.py": {
+    "raise": 1
+  },
   "cdmw/services/new_item_definition.py": {
     "finding": 1,
     "raise": 17
@@ -107956,7 +108639,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
     "finding": 15,
-    "raise": 36
+    "raise": 39
   },
   "cdmw/services/new_item_prices.py": {
     "raise": 1
@@ -111493,6 +112176,7 @@ SOURCE_COVERAGE = {
     "native_message": 19
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth_paint.rs": {},
+  "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_collision_volumes.rs": {},
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_emission.rs": {
     "native_message": 4
   },

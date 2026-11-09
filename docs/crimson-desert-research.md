@@ -1425,6 +1425,31 @@ activation remain separately supplied or unresolved where stated. Generated
 guides, new profiles and copied template physics retain experimental game
 compatibility limits.
 
+Guides can also be built from cloth paint (2026-11-09, source revision
+`rr/cloth-collision-pins`). `cdmw/modding/pac_cloth_painted_guides.py` removes a
+PAC's existing guide block, returns every render vertex to skeleton-only skinning,
+and takes the painted faces of the highest-detail stored LOD that fits the
+1,024-guide limit. When no LOD fits, the smallest one is reduced by edge collapse
+that keeps the surface manifold, its borders and its pins; a surface that cannot be
+brought under the limit is refused with the count it stopped at. Guides are pinned
+where paint meets unpainted vertices and wherever a pin was painted. A separate
+painted piece that no pin holds takes the bindings of the nearest held cloth instead
+of becoming a free-falling guide island. The profile written into the material
+sidecar's `_pbdSimulationMaterialName` must be a name present in
+`character/descriptors/pbd/pbdconfig.xml`. The same pin source is available to the
+Mesh Editor guide generator, where painted pins replace or add to the pin height.
+
+Evidence level: source, owned fixtures, and read-only round trips of shipped PACs
+through CDMW's own decoder. Removing the guide block left a decodable, guide-free
+PAC for 191 of 200 guided samples, with 9 refused before any write; 37 further
+samples do not decode with the current reader and were not attempted. Painted
+guides built and decoded again on 40 of 40 sampled PACs. Reduction of real LOD 0
+surfaces reached the limit on 23 of 25 single surfaces and 11 of 14 fragmented
+ones; the rest are hair and fur strips that end in the refusal above. These runs
+show that the writer and the decoder agree. They are not preview evidence, the
+motion preview does not show guides built this way, and nothing here has been
+checked in game.
+
 Sources: [PAC cloth bindings][pac-cloth], [runtime reference][cloth-runtime],
 [profile editing][pbd-profile], [physics workflow][mesh-editor].
 
@@ -1464,16 +1489,38 @@ Sources: [jiggle contribution and consumer analysis][modding-notes],
 
 ### 6.4 Skeleton volumes and weapon collision
 
-Supported PABV and embedded PAB/PAC volume layouts have bounded read-only
-decoders. Serialized shape tags differ from the CPU/GPU shape enum, and
-standalone versus embedded records have different bone-key conventions.
-Resolution must use the correct hash/index interpretation before binding a
-volume to a skeleton.
+Supported PABV and embedded PAB/PAC volume layouts have bounded decoders.
+Serialized shape tags differ from the CPU/GPU shape enum, and standalone versus
+embedded records have different bone-key conventions. Resolution must use the
+correct hash/index interpretation before binding a volume to a skeleton.
+
+A constrained writer, `cdmw/modding/collision_volume_edit.py`, edits the decoded
+sets (2026-11-09, source revision `rr/cloth-collision-pins`): a standalone body or
+head PABV and a PAC's own embedded set. It resizes or moves a volume by rewriting
+only its dimension and translation floats, copies an existing record onto the same
+bone, or removes one. Untouched records stay byte for byte, and in a PAC only the
+section size and the LOD offset words that point past the set change. Every result
+is decoded again and compared with the requested records before it is returned.
+The writer refuses what it cannot justify: a new shape kind, a resized mesh
+volume, an emptied set, a hashed-key set that loses its last `Bip01 Head` volume
+(the body/head merge goes through it), growth past 128 volumes or the shipped
+count, and any file the decoder does not read.
+
+Read-only round trips of shipped files, each a resize, a move, an exact restore,
+a copy and a removal: all 60 decodable PABV files of 101 passed (40 use a header
+the decoder does not read and one is empty; both are refused cleanly), and in a
+600-PAC sample all 91 PACs with a decoded set passed, 70 were refused as
+undecoded and 439 carry no set. This is writer and decoder agreement, not game
+acceptance. A body or head PABV is one file shared by every model on that body, so
+shipping an edited copy changes them all and conflicts with any other mod that
+ships it. The cloth preview still refuses a body or head set that contains a box
+or mesh volume.
 
 A weapon PAC can provide collision shapes without providing a rendered weapon
 mesh. Mesh Editor can inspect those shapes and use supported references for
-cloth preview. Constrained collider/profile export is experimental; shape
-visibility in the editor does not establish game-side collision activation.
+cloth preview. Constrained collider/profile export and collision shape editing
+are experimental; shape visibility in the editor, or an edited shape acting in
+the preview, does not establish game-side collision activation.
 
 Sources: [volume decoder][pabv], [weapon collision layouts][weapon-collision],
 [collision and profile workflow][mesh-editor].

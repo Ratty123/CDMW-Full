@@ -143,6 +143,11 @@ _CONTROLS = (
     "Transfer from Original", "Export Rig GLB...", "Export Rig GLB…", "Rig & Weights", "Weights from the last import",
     "Normalize Weights", "Weight colours", "Active bone", "Search bones", "Frame bone", "Frame influence",
     "Weight step", "Weight +", "Weight -",
+    "Painted cloth", "Follows the template's cloth", "Gets cloth guides of its own (experimental)",
+    "Pin brush", "Unpin brush", "Pin selection", "Experimental features", "Create cloth guides",
+    "Cloth pins (experimental)", "Pin guides at or above Y", "Use painted pins", "Create / update guides",
+    "Copy shape", "Remove shape", "Scale all sizes", "Apply shape edits", "Restore source shapes",
+    "Collision sources", "Cloth profile",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
@@ -153,6 +158,7 @@ _INLINE_MARKUP = re.compile(r"(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*
 _ADVANCED_MESH_SECTIONS = frozenset({
     "Material experiments", "Vertex Parameters", "Authored cloth profiles",
     "Hair Tools (Experimental)", "Rig & Weights",
+    "Cloth guides, pins and collision shapes (experimental)",
 })
 
 
@@ -272,7 +278,16 @@ def _emphasize_paired(units: list[str], source_units: list[str], locale: str) ->
     ]
 
 
+_EXPERIMENTAL_CONTROLS = re.compile(
+    "|".join(re.escape(name) for name in sorted(_CONTROLS, key=len, reverse=True) if "experimental" in name.lower())
+)
+
+
 def _sentence_kind(source: str) -> str:
+    # A step that names a control called "... (experimental)" is still a step;
+    # the warning is the sentence that says what is unproven.
+    if _is_instruction(source) and not _EXPERIMENTAL_CONTROLS.match(source):
+        source = _EXPERIMENTAL_CONTROLS.sub("", source)
     if re.search(r"\b(experimental|unverified|not (?:been )?tested in game|may (?:be wrong|not work)|not proof|does not (?:verify|establish))\b", source, re.IGNORECASE):
         return "WARNING"
     if re.search(r"\b(unsupported|read-only|not editable|requires?|cannot|do not|does not|depends on|needs? a|source mismatch|not inferred|remain(?:s)? hidden|temporarily hidden|block(?:s)?|refus(?:e|es))\b", source, re.IGNORECASE):
@@ -285,7 +300,7 @@ def _is_instruction(source: str) -> bool:
         return False
     if re.match(r"^[A-Z][A-Za-z &/().+-]*? (?:shows|writes|clears|restores|keeps|opens|loads|includes|requires|retains|starts|accepts|provides|supports?|remains|permits|controls|offers|previews|selects?)\b", source):
         return False
-    return bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Inspect|Enter|Follow|Keep|Run|Set|Add|Clear|Reset|Bake|Export|Apply|Turn|Under|For an existing|For external|To verify|When fitting)\b", source))
+    return bool(re.match(r"(?:Use|Open|Choose|Select|Start|Import|Move|Compare|Browse|Review|Read|Load|Inspect|Enter|Follow|Keep|Run|Set|Add|Clear|Reset|Bake|Export|Apply|Turn|Tick|Under|For an existing|For external|To verify|When fitting)\b", source))
 
 
 def _readable_prose(source: str, translated: str, locale: str, *, alert: str = "", portable: bool = False) -> str:
