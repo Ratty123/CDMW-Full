@@ -260,7 +260,7 @@ class StudioLoadingMixin:
             self._armour_status.setToolTip('\n'.join(errors))
 
     def _stop_loading(self):
-        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task"):
+        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task", "_timing_task"):
             task = getattr(self, name, None)
             if task is not None:
                 task.shutdown()

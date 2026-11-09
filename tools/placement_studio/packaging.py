@@ -185,8 +185,9 @@ def build_readme(
         op for op in plan.operations
         if str(op.detail.get("payload_kind") or "") == "animation"
     ]
+    retime_ops = [op for op in plan.operations if op.kind == "paac_event_begin"]
     animation_by_tier: Dict[str, int] = {}
-    for op in animation_ops:
+    for op in animation_ops + retime_ops:
         animation_by_tier[op.tier] = animation_by_tier.get(op.tier, 0) + 1
     for tier, count in tiers.items():
         remainder = count - animation_by_tier.get(tier, 0)
@@ -194,7 +195,27 @@ def build_readme(
             lines.append(f"  {remainder:>4}  {labels.get(tier, tier)}")
     if animation_ops:
         lines.append(f"  {len(animation_ops):>4}  animation substitutions")
+    if retime_ops:
+        lines.append(f"  {len(retime_ops):>4}  draw and put-away timing changes")
     lines.append("")
+
+    if retime_ops:
+        lines += ["Draw and put-away timing", "------------------------"]
+        for op in retime_ops[:60]:
+            lines.append(
+                f"  {PurePosixPath(op.game_path).name} animation {op.detail.get('animation')}: "
+                f"hand-off {float(op.detail.get('old', 0)):.3f} s -> "
+                f"{float(op.detail.get('new', 0)):.3f} s")
+        if len(retime_ops) > 60:
+            lines.append(f"  ... and {len(retime_ops) - 60} more")
+        lines += [
+            "",
+            "  Each change moves when one chart animation hands the weapon between the body and",
+            "  the hand; only those four bytes of the chart differ. DMM serves one copy of each",
+            "  chart, so another mod that ships the same chart replaces this one or is replaced",
+            "  by it: load this mod after the one whose chart it was made on.",
+            "",
+        ]
 
     if animation_ops:
         lines += ["Animations replaced", "-------------------"]

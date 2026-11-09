@@ -181,7 +181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1086,
+          "line": 1087,
           "sink": "setToolTip"
         }
       ]
@@ -191,7 +191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 309,
+          "line": 315,
           "sink": "setPlainText"
         }
       ]
@@ -231,7 +231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 309,
+          "line": 315,
           "sink": "setPlainText"
         }
       ]
@@ -1621,7 +1621,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 330,
+          "line": 336,
           "sink": "addItem"
         }
       ]
@@ -1641,7 +1641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 533,
+          "line": 534,
           "sink": "addItem"
         }
       ]
@@ -1706,7 +1706,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1148,
+          "line": 1149,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -2623,6 +2623,16 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "0 m",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 115,
+          "sink": "drawText"
         }
       ]
     },
@@ -4531,7 +4541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 394,
+          "line": 403,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -4796,7 +4806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 285,
+          "line": 294,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -4806,7 +4816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 256,
+          "line": 265,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -5948,6 +5958,11 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 429,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 41,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -6021,7 +6036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 133,
+          "line": 139,
           "sink": "QGroupBox"
         }
       ]
@@ -6071,7 +6086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 87,
+          "line": 93,
           "sink": "QLabel"
         }
       ]
@@ -8131,12 +8146,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 119,
+          "line": 123,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 136,
+          "line": 145,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -8216,7 +8231,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 310,
+          "line": 311,
           "sink": "addTab"
         },
         {
@@ -8356,7 +8371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 156,
+          "line": 165,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -10041,7 +10056,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 214,
+          "line": 215,
           "sink": "setToolTip"
         }
       ]
@@ -10296,7 +10311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 404,
+          "line": 413,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -10928,6 +10943,11 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 304,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 41,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -11016,7 +11036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 150,
+          "line": 159,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -11191,7 +11211,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 300,
+          "line": 301,
           "sink": "addTab"
         }
       ]
@@ -11221,7 +11241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 127,
+          "line": 133,
           "sink": "QGroupBox"
         }
       ]
@@ -12046,7 +12066,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 115,
+          "line": 121,
           "sink": "QPushButton"
         },
         {
@@ -15941,7 +15961,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 306,
+          "line": 307,
           "sink": "addTab"
         }
       ]
@@ -16701,7 +16721,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 273,
+          "line": 274,
           "sink": "setHeaderLabels"
         }
       ]
@@ -16711,7 +16731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 104,
+          "line": 110,
           "sink": "QLabel"
         }
       ]
@@ -16741,7 +16761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 311,
+          "line": 312,
           "sink": "setTabToolTip"
         }
       ]
@@ -20456,7 +20476,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1055,
+          "line": 1056,
           "sink": "setText"
         }
       ]
@@ -20806,7 +20826,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 207,
+          "line": 208,
           "sink": "QCheckBox"
         },
         {
@@ -25846,7 +25866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 728,
+          "line": 739,
           "sink": "EditError"
         }
       ]
@@ -26791,7 +26811,7 @@
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 116,
+          "line": 120,
           "sink": "translate_active_ui_text"
         },
         {
@@ -26826,7 +26846,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 303,
+          "line": 304,
           "sink": "setTabToolTip"
         }
       ]
@@ -28223,6 +28243,11 @@
           "path": "cdmw/ui/archive_browser/action_chart_link_dialog.py",
           "line": 61,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 40,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -28461,7 +28486,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 256,
+          "line": 257,
           "sink": "QPushButton"
         }
       ]
@@ -30403,6 +30428,16 @@
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 34,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Choose a character and a slot on the Position tab first.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 232,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -32766,7 +32801,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1079,
+          "line": 1080,
           "sink": "showMessage"
         }
       ]
@@ -34508,6 +34543,11 @@
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 315,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 40,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -43186,7 +43226,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 278,
+          "line": 287,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -45236,7 +45276,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 273,
+          "line": 274,
           "sink": "setHeaderLabels"
         }
       ]
@@ -46687,6 +46727,16 @@
       ]
     },
     {
+      "key": "Distance between the weapon in the hand and the weapon on the body. The shaded stretch is the part of the clip the animation plays; orange is when the hand-off happens now, green is where the hand reaches the weapon.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 72,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Distance between threads. Higher values make larger, more open cells. Unchecked: retain the authored value, or 0.5.",
       "origins": [
         {
@@ -47925,6 +47975,11 @@
           "sink": "python-data:_TRIM_PAIRS"
         },
         {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 57,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1007,
           "sink": "rust-presentation"
@@ -47953,6 +48008,41 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 95,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "Draw and put-away timing",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 140,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 363,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Draw and put-away timing ({value_0} hand-off(s))",
+      "origins": [
+        {
+          "path": "tools/placement_studio/save_mod.py",
+          "line": 107,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Draw and put-away timing: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 351,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -48031,7 +48121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 223,
+          "line": 224,
           "sink": "setToolTip"
         }
       ]
@@ -48041,7 +48131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 208,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -48091,7 +48181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 307,
+          "line": 308,
           "sink": "setTabToolTip"
         }
       ]
@@ -48126,7 +48216,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 188,
+          "line": 197,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -49886,7 +49976,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 302,
+          "line": 303,
           "sink": "addTab"
         },
         {
@@ -50536,7 +50626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 104,
+          "line": 105,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -52962,6 +53052,16 @@
       "manual": true
     },
     {
+      "key": "Event {value_0}:{value_1} in {value_2} is not a weapon hand-off",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 832,
+          "sink": "EditError"
+        }
+      ]
+    },
+    {
       "key": "Events",
       "origins": [
         {
@@ -53046,7 +53146,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 309,
+          "line": 310,
           "sink": "setTabToolTip"
         }
       ]
@@ -53068,6 +53168,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 747,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Every hand-off marked early or late. Those the hand never reaches keep their time.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 186,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -59251,7 +59361,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 226,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -60871,7 +60981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 149,
+          "line": 151,
           "sink": "EditError"
         }
       ]
@@ -64922,6 +65032,16 @@
       ]
     },
     {
+      "key": "Gap",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 43,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Garment correction authoring requires a slider with a 100 percent target.",
       "origins": [
         {
@@ -65491,7 +65611,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 314,
+          "line": 315,
           "sink": "setTabToolTip"
         }
       ]
@@ -65621,7 +65741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 254,
+          "line": 263,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -65641,7 +65761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 71,
+          "line": 72,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -65651,7 +65771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 301,
+          "line": 302,
           "sink": "setTabToolTip"
         }
       ]
@@ -68527,12 +68647,42 @@
       ]
     },
     {
+      "key": "Hand never reaches it",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 51,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Hand or foot:",
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 339,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Hand reaches it",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 42,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Hand-off now",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 42,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -69266,7 +69416,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 313,
+          "line": 314,
           "sink": "addTab"
         }
       ]
@@ -80821,7 +80971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 210,
+          "line": 211,
           "sink": "QCheckBox"
         }
       ]
@@ -85831,7 +85981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 142,
+          "line": 151,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -87823,6 +87973,56 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 179,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Measure timing",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 154,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Measure, then select a row to see its gap.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 91,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Measuring stopped.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 273,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Measuring {value_0}/{value_1}...",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 268,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Measuring...",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 263,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -91511,7 +91711,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 222,
+          "line": 223,
           "sink": "QCheckBox"
         }
       ]
@@ -95212,6 +95412,16 @@
       ]
     },
     {
+      "key": "Move all to contact",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 185,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Move each connected garment piece with one rotation and translation. Suitable for hard armor plates.",
       "origins": [
         {
@@ -95332,6 +95542,16 @@
       ]
     },
     {
+      "key": "Move selected to contact",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 183,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Move step",
       "origins": [
         {
@@ -95431,12 +95651,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 106,
+          "line": 110,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 110,
+          "line": 114,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95446,7 +95666,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 107,
+          "line": 111,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95528,6 +95748,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 103,
           "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Moved {value_0} hand-off(s). They are in Your mod; save them there.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 375,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -95886,12 +96116,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 224,
+          "line": 233,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 228,
+          "line": 237,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -96321,7 +96551,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 211,
+          "line": 212,
           "sink": "setToolTip"
         }
       ]
@@ -96376,7 +96606,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 76,
+          "line": 77,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -97581,7 +97811,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 128,
+          "line": 134,
           "sink": "setToolTip"
         }
       ]
@@ -97876,12 +98106,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 122,
+          "line": 126,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 138,
+          "line": 147,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -99658,6 +99888,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 1015,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "No draw or put-away animation hands this slot over in this character's charts.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 285,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -102366,22 +102606,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 831,
+          "line": 894,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 840,
+          "line": 903,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 847,
+          "line": 910,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 871,
+          "line": 934,
           "sink": "EditError"
         }
       ]
@@ -103541,12 +103781,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 740,
+          "line": 751,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 793,
+          "line": 766,
+          "sink": "EditError"
+        },
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 823,
+          "sink": "EditError"
+        },
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 856,
           "sink": "EditError"
         }
       ]
@@ -103556,7 +103806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 711,
+          "line": 722,
           "sink": "EditError"
         }
       ]
@@ -103566,7 +103816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 956,
+          "line": 1019,
           "sink": "EditError"
         }
       ]
@@ -103576,7 +103826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 939,
+          "line": 1002,
           "sink": "EditError"
         }
       ]
@@ -103648,6 +103898,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 13,
           "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
+      "key": "Not measured",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 52,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -104126,7 +104386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 320,
+          "line": 329,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -104746,7 +105006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 231,
+          "line": 232,
           "sink": "setToolTip"
         }
       ]
@@ -104973,6 +105233,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 382,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "On time",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 48,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -108311,7 +108581,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 318,
+          "line": 326,
           "sink": "EditError"
         }
       ]
@@ -108321,12 +108591,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 305,
+          "line": 313,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 560,
+          "line": 568,
           "sink": "EditError"
         }
       ]
@@ -108336,12 +108606,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 425,
+          "line": 433,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 504,
+          "line": 512,
           "sink": "EditError"
         }
       ]
@@ -115531,7 +115801,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 127,
+          "line": 128,
           "sink": "setWindowTitle"
         }
       ]
@@ -115701,7 +115971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 141,
+          "line": 150,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -116672,6 +116942,26 @@
       ]
     },
     {
+      "key": "Plays each draw and put-away of the selected slot on this character, with your changes, and measures how far the hand is from the weapon on every frame.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 155,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Plays {value_0} to {value_1} s of the clip",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 310,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Please add: game version, active mods, recent game/mod changes, and steps to reproduce.",
       "origins": [
         {
@@ -116706,7 +116996,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 97,
+          "line": 103,
           "sink": "QGroupBox"
         }
       ]
@@ -116911,7 +117201,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 298,
+          "line": 299,
           "sink": "addTab"
         },
         {
@@ -124573,6 +124863,11 @@
           "path": "tools/placement_studio/window_tasks.py",
           "line": 124,
           "sink": "setItemText"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 57,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -125416,12 +125711,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 124,
+          "line": 128,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 148,
+          "line": 157,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -130281,7 +130576,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 885,
+          "line": 948,
           "sink": "EditError"
         }
       ]
@@ -130321,7 +130616,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 773,
+          "line": 801,
           "sink": "EditError"
         }
       ]
@@ -133001,7 +133296,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 114,
+          "line": 118,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -133011,7 +133306,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 112,
+          "line": 116,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -135116,7 +135411,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 373,
+          "line": 374,
           "sink": "QAction"
         }
       ]
@@ -138306,7 +138601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 230,
+          "line": 231,
           "sink": "QCheckBox"
         }
       ]
@@ -138896,7 +139191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 98,
+          "line": 104,
           "sink": "setToolTip"
         }
       ]
@@ -139011,7 +139306,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 191,
+          "line": 200,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -140866,7 +141161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 795,
+          "line": 858,
           "sink": "EditError"
         }
       ]
@@ -146296,7 +146591,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 159,
+          "line": 165,
           "sink": "QLabel"
         }
       ]
@@ -154526,7 +154821,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 253,
+          "line": 254,
           "sink": "QLabel"
         }
       ]
@@ -154536,7 +154831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1055,
+          "line": 1056,
           "sink": "setText"
         }
       ]
@@ -156216,7 +156511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 944,
+          "line": 1007,
           "sink": "EditError"
         }
       ]
@@ -156226,7 +156521,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 799,
+          "line": 862,
           "sink": "EditError"
         }
       ]
@@ -156236,7 +156531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 958,
+          "line": 1021,
           "sink": "EditError"
         }
       ]
@@ -156366,7 +156661,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 225,
+          "line": 226,
           "sink": "QCheckBox"
         }
       ]
@@ -156573,6 +156868,16 @@
           "path": "cdmw/services/independent_item_install.py",
           "line": 539,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Something changed while measuring. Measure again.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 277,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -159755,6 +160060,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 43,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3949,
           "sink": "rust-presentation"
@@ -161248,6 +161558,26 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 82,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Swaps early",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 49,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Swaps late",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 50,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -166307,6 +166637,16 @@
       ]
     },
     {
+      "key": "The character, slot or your changes moved on since this was measured. Measure again first.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 341,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "The chosen bone has no resolved PAC palette mapping.",
       "origins": [
         {
@@ -167501,7 +167841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 260,
+          "line": 269,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -169376,7 +169716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 134,
+          "line": 140,
           "sink": "setToolTip"
         }
       ]
@@ -170531,7 +170871,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 401,
+          "line": 410,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -171491,7 +171831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 397,
+          "line": 406,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -171501,7 +171841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 201,
+          "line": 202,
           "sink": "setToolTip"
         }
       ]
@@ -171686,7 +172026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 152,
+          "line": 161,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -174582,6 +174922,16 @@
       ]
     },
     {
+      "key": "Timing is saved as whole action charts, and one chart holds the draws of several weapons. DMM serves one copy of each chart, so another mod that ships the same chart (Character Creator ships one for the two-hand sword) and this one replace each other: load this mod after it.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 194,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Timing metadata is unavailable or incomplete.",
       "origins": [
         {
@@ -176861,7 +177211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 407,
+          "line": 416,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -176871,7 +177221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 316,
+          "line": 325,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -178446,7 +178796,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/preflight.py",
-          "line": 641,
+          "line": 671,
           "sink": "ValueError"
         }
       ]
@@ -179386,7 +179736,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 213,
+          "line": 214,
           "sink": "QCheckBox"
         }
       ]
@@ -181441,7 +181791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 111,
+          "line": 117,
           "sink": "QLabel"
         }
       ]
@@ -181481,7 +181831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 73,
+          "line": 74,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -186377,6 +186727,16 @@
       ]
     },
     {
+      "key": "When a weapon is drawn or put away, the game swaps it between the body and the hand at a set moment of each animation. After moving a weapon or changing its animations, that moment can come before or after the hand gets there, and the weapon pops. Measure finds where the hand reaches the weapon in every draw and put-away of the selected slot; move a hand-off to that moment and it goes into Your mod.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 142,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "When checked, preview lighting ignores resolved height-map texture input.",
       "origins": [
         {
@@ -186601,7 +186961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 299,
+          "line": 300,
           "sink": "setTabToolTip"
         }
       ]
@@ -189561,7 +189921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 413,
+          "line": 422,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -189586,7 +189946,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 305,
+          "line": 314,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -189621,7 +189981,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 308,
+          "line": 309,
           "sink": "addTab"
         },
         {
@@ -189972,11 +190332,21 @@
       ]
     },
     {
+      "key": "[{value_0}] {value_1} :: event {value_2} begin {value_3} -> {value_4}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/ops.py",
+          "line": 83,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
       "key": "[{value_0}] {value_1} :: retarget {value_2} -> {value_3} at {value_4} site(s)",
       "origins": [
         {
           "path": "tools/placement_studio/ops.py",
-          "line": 84,
+          "line": 89,
           "sink": "python-return:describe"
         }
       ]
@@ -189986,7 +190356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/ops.py",
-          "line": 88,
+          "line": 93,
           "sink": "python-return:describe"
         }
       ]
@@ -190531,7 +190901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 723,
+          "line": 734,
           "sink": "EditError"
         }
       ]
@@ -193431,7 +193801,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/ops.py",
-          "line": 328,
+          "line": 333,
           "sink": "python-return:descriptor_alias_source"
         }
       ]
@@ -193481,7 +193851,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1123,
+          "line": 1124,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198271,12 +198641,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 241,
+          "line": 242,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1123,
+          "line": 1124,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198676,7 +199046,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 241,
+          "line": 242,
           "sink": "addItem"
         }
       ]
@@ -203167,6 +203537,16 @@
       ]
     },
     {
+      "key": "now",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 126,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "numeric constants={value_0}",
       "origins": [
         {
@@ -203501,7 +203881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 469,
+          "line": 477,
           "sink": "python-return:adopt_loose_commands"
         }
       ]
@@ -205496,7 +205876,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 242,
+          "line": 243,
           "sink": "addItem"
         }
       ]
@@ -205653,6 +206033,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_01.py",
           "line": 300,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "reaches",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 127,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -206356,7 +206746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 703,
+          "line": 711,
           "sink": "EditError"
         }
       ]
@@ -206937,6 +207327,16 @@
         {
           "path": "tools/placement_studio/editing_operations.py",
           "line": 93,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
+      "key": "retime event {value_0} in {value_1} -> {value_2} s",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing_operations.py",
+          "line": 95,
           "sink": "python-return:describe"
         }
       ]
@@ -209136,12 +209536,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 242,
+          "line": 243,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1123,
+          "line": 1124,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -212606,7 +213006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 201,
+          "line": 207,
           "sink": "setData"
         }
       ]
@@ -213071,7 +213471,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1086,
+          "line": 1087,
           "sink": "setToolTip"
         }
       ]
@@ -213111,7 +213511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 471,
+          "line": 472,
           "sink": "addItem"
         }
       ]
@@ -213141,7 +213541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 294,
+          "line": 300,
           "sink": "addItem"
         }
       ]
@@ -213261,7 +213661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 279,
+          "line": 301,
           "sink": "python-return:describe"
         }
       ]
@@ -214186,7 +214586,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 302,
+          "line": 324,
           "sink": "python-return:describe"
         }
       ]
@@ -214426,7 +214826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 309,
+          "line": 315,
           "sink": "setPlainText"
         }
       ]
@@ -214461,7 +214861,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 140,
+          "line": 149,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -214516,7 +214916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 126,
+          "line": 130,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -214941,7 +215341,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1133,
+          "line": 1134,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -215177,6 +215577,16 @@
       ]
     },
     {
+      "key": "{value_0} could not be read (hover for details).",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 291,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0} could not be read: {value_1}",
       "origins": [],
       "manual": true
@@ -215326,7 +215736,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/ops.py",
-          "line": 582,
+          "line": 630,
           "sink": "python-return:summary"
         }
       ]
@@ -215527,6 +215937,16 @@
       ]
     },
     {
+      "key": "{value_0} hand-off(s); {value_1} swap early or late.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 288,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0} has an invalid imported joint.",
       "origins": [
         {
@@ -215553,6 +215973,16 @@
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 170,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} has no frame event {value_1}:{value_2} ({value_3})",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 830,
+          "sink": "EditError"
         }
       ]
     },
@@ -215936,7 +216366,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 215,
+          "line": 221,
           "sink": "showMessage"
         }
       ]
@@ -215986,7 +216416,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 805,
+          "line": 868,
           "sink": "EditError"
         }
       ]
@@ -216036,7 +216466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 389,
+          "line": 398,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -216188,6 +216618,21 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 471,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} m",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 114,
+          "sink": "drawText"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 307,
+          "sink": "QTableWidgetItem"
         }
       ]
     },
@@ -217036,7 +217481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1148,
+          "line": 1149,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -217093,6 +217538,21 @@
           "path": "tools/placement_studio/key_timeline.py",
           "line": 179,
           "sink": "drawText"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 116,
+          "sink": "drawText"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 307,
+          "sink": "QTableWidgetItem"
+        },
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 307,
+          "sink": "QTableWidgetItem"
         }
       ]
     },
@@ -217113,6 +217573,16 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 1327,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} s is outside the stretch animation {value_1} plays ({value_2} to {value_3} s)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 836,
+          "sink": "EditError"
         }
       ]
     },
@@ -217311,7 +217781,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1104,
+          "line": 1105,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -218682,6 +219152,16 @@
       ]
     },
     {
+      "key": "{value_0}, animation {value_1}: the hand-off now happens at {value_2} s",
+      "origins": [
+        {
+          "path": "tools/placement_studio/save_mod.py",
+          "line": 134,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0}, but no HKX physics overlay targets were recovered for this model. Try another related model if Show in 3D still cannot highlight rows.{value_1}{value_2}",
       "origins": [
         {
@@ -218716,7 +219196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/save_mod.py",
-          "line": 411,
+          "line": 420,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -219936,12 +220416,17 @@
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 730,
+          "line": 741,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 745,
+          "line": 756,
+          "sink": "EditError"
+        },
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 773,
           "sink": "EditError"
         },
         {
@@ -219956,7 +220441,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1055,
+          "line": 1056,
           "sink": "setText"
         },
         {

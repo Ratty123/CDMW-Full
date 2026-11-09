@@ -91,6 +91,9 @@ class Command:
             return f"replace {target} with {self.text or 'supplied bytes'}"
         if self.kind == "retarget":
             return f"retarget {self.field_name} -> {self.text} in {self.game_path.rsplit('/', 1)[-1]}"
+        if self.kind == "event_begin":
+            return (f"retime event {self.target} in {self.game_path.rsplit('/', 1)[-1]} "
+                    f"-> {self.text} s")
         return f"{self.kind} {self.target}"
 
 
@@ -136,6 +139,8 @@ OP_MANUAL_ORIENTATION = "manual_orientation"
 OP_FREEFORM = "freeform"
 #: An animation made or changed in the animation editor, written over one game clip.
 OP_EDIT_ANIMATION = "edit_animation"
+#: Draw and sheathe hand-offs moved to when the hand reaches the weapon (`carry_timing`).
+OP_RETIME_EVENTS = "retime_events"
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +171,9 @@ class OperationScope:
     #: Socket names the operation may create. Empty means any valid name, still bounded by
     #: `allowed_socket_files`; naming them pins a replay to the sockets that were reviewed.
     allowed_socket_names: Tuple[str, ...] = ()
+    #: Chart frame events whose `begin` the operation may move, as
+    #: `carry_timing.event_key(chart, animation, event)`.
+    allowed_chart_events: Tuple[str, ...] = ()
     enforce: bool = True
 
     @classmethod
@@ -193,6 +201,14 @@ class OperationScope:
             return ""
         if name not in self.allowed_socket_names:
             return f"{name} is not a socket this operation declared it would create"
+        return ""
+
+    def allows_chart_event(self, game_path: str, animation: int, event: int) -> str:
+        if not self.enforce:
+            return ""
+        if f"{game_path}#{int(animation)}:{int(event)}" not in self.allowed_chart_events:
+            return (f"Event {animation}:{event} in {game_path} is not one this operation "
+                    f"declared it would retime")
         return ""
 
     def allows_animation_target(self, game_path: str) -> str:
@@ -248,6 +264,12 @@ class EditOperation:
 
     def created_sockets(self) -> Tuple[str, ...]:
         return tuple(sorted({c.target for c in self.commands if c.kind == "add_socket"}))
+
+    def retimed_events(self) -> Tuple[Tuple[str, str, str], ...]:
+        """`(chart, "animation:event", begin)` for every event this operation moved."""
+
+        return tuple(sorted((c.game_path, c.target, c.text) for c in self.commands
+                            if c.kind == "event_begin"))
 
     def modified_sockets(self) -> Tuple[str, ...]:
         """Sockets whose transform this operation changed but did not itself create."""
@@ -392,6 +414,9 @@ class OperationHandle:
     def replace_clip(self, game_path: str, data: bytes, source: str = "",
                      original: Optional[bytes] = None) -> None:
         self._session.replace_clip(game_path, data, source, original)
+
+    def retime_event(self, game_path: str, animation: int, event: int, seconds: float) -> None:
+        self._session.retime_event(game_path, animation, event, seconds)
 
     # ── lifecycle ───────────────────────────────────────────────────
 

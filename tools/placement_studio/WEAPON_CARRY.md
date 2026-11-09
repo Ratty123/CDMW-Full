@@ -121,6 +121,39 @@ script used for the shipped mod rather than seen in a DMM log: a `<set>` on an a
 row lacks adds it (the tab does this when a row has no `InChildSocketBone`, for example).
 
 Not in this slice: partial files, other mods' copies as the base, timing, mirroring, swing,
-and the panel itself. The patch result is source and fixture evidence only; DMM 4.7.4 and the
+and the panel itself.
+
+## Second slice: timing
+
+Built on 2026-11-09, with `tests/test_placement_studio_carry_timing.py`.
+
+- `carry_timing.py` (pure): `swap_events` lists the `ModelAttachmentSocket` hand-offs of one
+  row in draw and sheathe animations, addressed as chart, animation and event index.
+  `gap_curve` poses a session on every frame and measures the held weapon
+  (`inverse(out child) * out socket`) against the carried one (`inverse(in child) * in
+  socket`). `decide` follows the rules of the shipped retimes: contact is the nearest frame
+  inside the stretch the animation plays, at least one frame before it ends; a gap above
+  0.35 m keeps the event's time; within 0.05 s is on time. `survey` measures each clip and
+  row once, however many animations play it.
+- `EditSession.retime_event` records an `event_begin` command (only `ModelAttachmentSocket`
+  events, only inside the played stretch). A `retime_events` operation's scope names each
+  event it may move (`allowed_chart_events`), and the preflight refuses any moved event no
+  selected operation declared. `ops.derive_file` reads a retimed chart as tier C
+  `paac_event_begin` operations (four bytes each) instead of an opaque file, and `replay`
+  reproduces it.
+- **Animations > Draw and put-away timing**: **Measure timing** runs the survey for the
+  selected slot on a private session off the UI thread, with every pending change (moved
+  attach points, replaced clips). The table shows each hand-off with its status; the plot
+  shows the gap with the played stretch, the current hand-off and the contact. **Move
+  selected to contact** and **Move all to contact** record one timing operation per slot;
+  moving more later replaces it. A measurement is refused once the history, character, slot
+  or weapon has changed.
+- Charts ship whole. The panel and the README say that DMM serves one copy of each chart, so
+  the mod has to load after another mod that ships the same chart.
+
+Not in this slice: slot-addressed events (dual wield), mode 2 events, speed windows, and
+starting from another mod's copy of a chart (slice 5). Help and the 13 translations of the
+panel's text are pending; the measurement has not been compared with the research script
+on real clips, and nothing has been tried in game. The patch result is source and fixture evidence only; DMM 4.7.4 and the
 game accepted hand-written patches of the same form on 2026-11-08, but patches written by the
 tab have not been mounted yet.

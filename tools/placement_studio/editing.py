@@ -17,6 +17,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import hashlib
 import itertools
+import math
 import re
 from dataclasses import replace
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -93,6 +94,7 @@ class ScopeError(EditError):
 from .editing_operations import (
     OP_EDIT_ANIMATION,
     OP_FREEFORM,
+    OP_RETIME_EVENTS,
     OP_MANUAL_ORIENTATION,
     OP_MOVE_EQUIPMENT,
     OP_REPLACE_ANIMATIONS,
@@ -712,6 +714,9 @@ class EditSession:
         if command.kind == "retarget":
             self._apply_retarget(command)
             return
+        if command.kind == "event_begin":
+            self._apply_event_begin(command)
+            return
         document = self._documents.get(command.game_path)
         if document is None:
             raise EditError(f"Not a loaded file: {command.game_path}")
@@ -750,6 +755,23 @@ class EditSession:
         except (paac.PaacPatchError, RetargetError) as exc:
             raise EditError(f"{command.describe()}: {exc}") from exc
 
+    def _apply_event_begin(self, command: Command) -> None:
+        """Move one frame event's `begin`: four bytes in the chart, nothing else."""
+
+        from cdmw.core.action_chart_binary import (ActionChartError, ChartValueEdit,
+                                                   apply_chart_value_edits)
+
+        data = self._charts.get(command.game_path)
+        if data is None:
+            raise EditError(f"Not a loaded action chart: {command.game_path}")
+        animation, _sep, event = command.target.partition(":")
+        try:
+            self._charts[command.game_path] = apply_chart_value_edits(
+                data, [ChartValueEdit("event.begin", float(command.text), animation=int(animation),
+                                      item=int(event))], virtual_path=command.game_path)
+        except (ActionChartError, ValueError) as exc:
+            raise EditError(f"{command.describe()}: {exc}") from exc
+
     # ── edits ───────────────────────────────────────────────────────
 
     def charts(self) -> List[str]:
@@ -785,6 +807,41 @@ class EditSession:
         self._record(
             Command("replace_file", game_path, game_path, text=source, payload=data)
         )
+
+    def retime_event(self, game_path: str, animation: int, event: int, seconds: float) -> None:
+        """Move when one draw or sheathe hands the weapon over, in clip seconds.
+
+        Only `ModelAttachmentSocket` events are accepted, and only inside the stretch of clip
+        the animation plays: an event after the animation's end never fires.
+        """
+
+        from cdmw.core.action_chart_binary import (MODEL_ATTACHMENT_SOCKET_KIND, ActionChartError,
+                                                   decode_action_chart, frame_event_at)
+
+        data = self._charts.get(game_path)
+        if data is None:
+            raise EditError(f"Not a loaded action chart: {game_path}")
+        try:
+            chart = decode_action_chart(data, virtual_path=game_path)
+            entry = chart.animations[animation]
+            ref = entry.events[event]
+            kind = frame_event_at(chart, data, ref).kind
+        except (ActionChartError, IndexError, ValueError) as exc:
+            raise EditError(f"{game_path} has no frame event {animation}:{event} ({exc})") from exc
+        if kind != MODEL_ATTACHMENT_SOCKET_KIND:
+            raise EditError(f"Event {animation}:{event} in {game_path} is not a weapon hand-off")
+        seconds = float(seconds)
+        if not (math.isfinite(seconds)
+                and entry.start_time - 1e-6 <= seconds <= entry.end_time + 1e-6):
+            raise EditError(
+                f"{seconds:.3f} s is outside the stretch animation {animation} plays "
+                f"({entry.start_time:.3f} to {entry.end_time:.3f} s)")
+        if self._active is not None:
+            problem = self._active.scope.allows_chart_event(game_path, animation, event)
+            if problem:
+                raise ScopeError(problem)
+        self._record(Command("event_begin", game_path, f"{int(animation)}:{int(event)}",
+                             field_name="begin", text=f"{seconds:.6f}"))
 
     def retarget(self, game_path: str, old_name: str, new_name: str) -> None:
         """Point an action chart at a different socket of the same name length.

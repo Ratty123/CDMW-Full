@@ -70,7 +70,13 @@ class AnimationTabMixin:
 
         browser_box = QGroupBox("Find and play animations")
         _fill(browser_box, self._build_clip_browser())
-        layout.addWidget(browser_box, 1)
+        split = QSplitter(Qt.Vertical)
+        split.addWidget(self._build_handoff_timing_box())
+        split.addWidget(browser_box)
+        split.setChildrenCollapsible(False)
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 1)
+        layout.addWidget(split, 1)
 
         # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
         # the clip index the first time it is opened.

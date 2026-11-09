@@ -23,7 +23,7 @@ from cdmw.services.active_ui_translation import translate_active_ui_text
 
 from .clip_names import part_label, socket_label
 from .editing import (EditError, OP_EDIT_ANIMATION, OP_MANUAL_ORIENTATION, OP_MOVE_EQUIPMENT,
-                      OP_REPLACE_ANIMATIONS)
+                      OP_REPLACE_ANIMATIONS, OP_RETIME_EVENTS)
 
 #: CDMW exports mods for DMM only; other managers are not updated for the October 2026 DLC.
 MOD_MANAGERS: Tuple[str, ...] = ("DMM",)
@@ -100,8 +100,12 @@ def describe_operation(operation) -> ModChange:
     destination = operation.scope.destination_socket
     subject = part_label(parts[0]) if parts else (operation.label or "Item")
     place = socket_label(destination) if destination else ""
+    retimed = operation.retimed_events()
     if operation.kind == OP_EDIT_ANIMATION:
         title = hint = operation.label or translate_active_ui_text("Edited animation")
+    elif operation.kind == OP_RETIME_EVENTS:
+        title = hint = operation.label or translate_active_ui_text(
+            f"Draw and put-away timing ({len(retimed)} hand-off(s))")
     elif operation.kind == OP_MOVE_EQUIPMENT and destination and clips:
         hint = translate_active_ui_text(f"Move {subject} to {place}")
         title = translate_active_ui_text(
@@ -124,6 +128,11 @@ def describe_operation(operation) -> ModChange:
         detail.append(translate_active_ui_text(f"Re-routed {part_label(part)}  ({part})"))
     if clips:
         detail.append(translate_active_ui_text(f"{len(clips)} animation file(s) replaced"))
+    for chart, address, begin in retimed:
+        animation, _sep, event = address.partition(":")
+        name = chart.rsplit("/", 1)[-1]
+        detail.append(translate_active_ui_text(
+            f"{name}, animation {animation}: the hand-off now happens at {float(begin):.3f} s"))
     return ModChange(operation.operation_id, title, tuple(detail), hint)
 
 
