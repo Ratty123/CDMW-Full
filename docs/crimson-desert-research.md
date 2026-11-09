@@ -1864,9 +1864,7 @@ and `build_prefab_socket_name_patch`.
   A body's `_socketName` may name a bone. To make a mirrored carry swing, mirror
   Kliff's item the same way as its socket, by conjugating with S. Seen working in
   game on 2026-11-09.
-- **Damiane's own 1H moveset is the rapier.** Played as Damiane (Crimson Live
-  Edit's character switch, Ctrl+Alt+1/2/3; TagSwap did not switch on 3576), her 1H
-  sword is `MainWeapon_Sword_L` in `LHand_Socket` with the shield as
+- **Damiane's own 1H moveset is the rapier.** Played as Damiane, her 1H sword is `MainWeapon_Sword_L` in `LHand_Socket` with the shield as
   `MainWeapon_Shield_R`. Her draws are in `2_phw/rapier_upper.paac` (stand, alert,
   sit), her sheathes in Kliff's `basic_upper_weaponin.paac` anims 22 to 25, and her
   riding pair in `ride_weapon_upper` / `ride_upper`
