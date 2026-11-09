@@ -231,7 +231,7 @@ def test_paint_whole_model_covers_every_part_and_clears_everywhere():
         service.close_edit_session(sid)
 
 
-def _placed_with_influences(tmp_path, monkeypatch, paint):
+def _placed_with_influences(tmp_path, monkeypatch, paint, *, own_guides=False, stop_event=None):
     from cdmw.models import ArchiveEntry
     from cdmw.modding.scene_import_result_ops import SceneImportResult
     from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import
@@ -247,7 +247,32 @@ def _placed_with_influences(tmp_path, monkeypatch, paint):
                                                           skeleton_edit=None, cloth_paint_report=None))
     source = ModelImportSource(tmp_path / "s.obj", tmp_path / "s.obj", SceneImportResult(mesh=mesh), None, None)
     entry = ArchiveEntry("character/model/test/target.pac", Path("0.pamt"), Path("0.paz"), 0, 0, 0, 0, 0)
-    return build_placed_import(entry, source, ModelPlacement(), keep_template_physics=True)
+    source.own_cloth_guides = own_guides
+    return build_placed_import(entry, source, ModelPlacement(), keep_template_physics=True,
+                               stop_event=stop_event)
+
+
+def test_apply_placement_builds_own_cloth_guides_and_honours_cancel(tmp_path, monkeypatch):
+    """The own-guides route runs inside Apply placement with the worker's stop event."""
+    import threading
+
+    from cdmw.domain.cancellation import RunCancelled
+
+    calls = []
+
+    def build_guides(_result, _mesh, _matrix, *, profile="", check_cancelled=lambda: None):
+        # Large painted areas are reduced, and the reduction polls this between collapses.
+        check_cancelled()
+        calls.append(profile)
+        return True
+
+    monkeypatch.setattr("cdmw.services.new_item_cloth_guides.apply_import_cloth_guides", build_guides)
+    _placed_with_influences(tmp_path, monkeypatch, 1., own_guides=True, stop_event=threading.Event())
+    assert calls == [""]
+    stopped = threading.Event()
+    stopped.set()
+    with pytest.raises(RunCancelled):
+        _placed_with_influences(tmp_path, monkeypatch, 1., own_guides=True, stop_event=stopped)
 
 
 def test_painted_builds_skip_the_four_bone_gate_and_unpainted_builds_keep_it(tmp_path, monkeypatch):

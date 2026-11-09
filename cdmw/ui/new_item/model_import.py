@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.owned_temp import OWNER_MARKER, cleanup_owned_temp_directory, create_owned_temp_directory
-from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.models import ArchiveEntry
 from cdmw.services.fbx_blender_conversion import (
     FBX_EXTENSION,
