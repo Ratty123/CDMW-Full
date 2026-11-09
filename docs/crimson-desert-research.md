@@ -1850,6 +1850,20 @@ and `build_prefab_socket_name_patch`.
   assumes all its carry parts. Character Creator ships its own
   `twohandsword_upper.paac` (4 bytes differ from the game's; its grip fix), so a
   timing copy has to start from that copy and load after it.
+- **Hip sheathes swing by physics attachment, per body socket.** The sway of a
+  hip-carried weapon is neither animation (`B_WeaponIn_R_00` and `_L_00` are still in
+  every locomotion clip) nor the sheathe itself (sheathe PACs are skinned to one bone).
+  `character/descriptors/physicsattachment/1_pc/1_phm/phm_01.xml` simulates the
+  sockets `Pelvis_L_Socket` and `Pelvis_R_Socket`: each one gets a dynamic box body
+  (`_childBodyDesc`), hung from a static body on `Physics_Parent_Pelvis_L/R_Socket`
+  (`_parentBodyDesc`) by a ragdoll constraint (cone 15°). Anything a descriptor row
+  stows on those sockets swings, and a carry moved to any other socket is rigid.
+  Damiane's file (`.../2_phw/phw_01.xml`, the one phw skeleton, so female Kliff too)
+  has lanterns only, so her hip carries are rigid even in vanilla. A
+  `.xml.patch` with `<insert into="Vector" match-Name="_instanceDescs">` adds an item.
+  A body's `_socketName` may name a bone. To make a mirrored carry swing, mirror
+  Kliff's item the same way as its socket, by conjugating with S. Built 2026-11-09;
+  not yet seen in game.
 
 What this suggests for Placement & Animations (not implemented):
 
