@@ -50,7 +50,15 @@ def _status_text(status: str) -> str:
         carry_timing.STATUS_LATE: translate_active_ui_text("Swaps late"),
         carry_timing.STATUS_UNREACHED: translate_active_ui_text("Hand never reaches it"),
         carry_timing.STATUS_UNMEASURED: translate_active_ui_text("Not measured"),
+        carry_timing.STATUS_AT_START: translate_active_ui_text("At the start"),
     }.get(status, status)
+
+
+def _row_status(row) -> str:
+    text = _status_text(row.status)
+    if row.movable and not row.sure:
+        text += " " + translate_active_ui_text("(nearly reaches)")
+    return text
 
 
 def _action_text(mode: int) -> str:
@@ -184,7 +192,9 @@ class TimingPanelMixin:
         self._timing_move.clicked.connect(lambda: self._move_timing(selected_only=True))
         self._timing_move_all = QPushButton(translate_active_ui_text("Move all to contact"))
         self._timing_move_all.setToolTip(translate_active_ui_text(
-            "Every hand-off marked early or late. Those the hand never reaches keep their time."))
+            "Every hand-off marked early or late where the hand plainly reaches the weapon. "
+            "Those it only nearly reaches move when you select them; those it never reaches, "
+            "and those at the start of an animation, keep their time."))
         self._timing_move_all.clicked.connect(lambda: self._move_timing(selected_only=False))
         for button in (self._timing_move, self._timing_move_all):
             button.setEnabled(False)
@@ -237,15 +247,15 @@ class TimingPanelMixin:
     def _submit_timing(self) -> None:
         from copy import copy
 
-        from .animation import actionchart_model
         from .background import LatestTask
 
         session, edits, part = self._session, self._edits, self._timing_part()
         if session is None or edits is None or not part:
             return
         model = session.model
-        charts = {path: edits.chart_bytes(path) for path in edits.charts()
-                  if actionchart_model(path) == model}
+        # Every loaded chart, not only this character's: Kliff's charts play female Kliff's
+        # clips. The survey keeps the hand-offs whose clips are made for this rig.
+        charts = {path: edits.chart_bytes(path) for path in edits.charts()}
         files = edits.current_files()
         entries = {entry.path.lower(): entry for entry in getattr(self._clip_index, "entries", ())
                    if not entry.is_lod}
@@ -281,12 +291,14 @@ class TimingPanelMixin:
         self._show_timing_rows(rows)
         self._timing_status.setToolTip("\n".join(problems))
         movable = sum(1 for row in rows if row.movable)
+        sure = sum(1 for row in rows if row.sure)
         if not rows:
             text = translate_active_ui_text(
                 "No draw or put-away animation hands this slot over in this character's charts.")
         else:
             text = translate_active_ui_text(
-                f"{len(rows)} hand-off(s); {movable} swap early or late.")
+                f"{len(rows)} hand-off(s); {movable} swap early or late, {sure} of them where "
+                f"the hand plainly reaches the weapon.")
         if problems:
             text += " " + translate_active_ui_text(
                 f"{len(problems)} could not be read (hover for details).")
@@ -302,7 +314,7 @@ class TimingPanelMixin:
             gap = f"{row.gap:.2f} m" if row.gap is not None else "-"
             values = (event.clip_name, event.chart_name, str(event.animation),
                       _action_text(event.mode), f"{event.begin:.3f} s", contact, gap,
-                      _status_text(row.status))
+                      _row_status(row))
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setToolTip("\n".join(
@@ -311,7 +323,7 @@ class TimingPanelMixin:
                          f"Plays {event.start:.3f} to {event.end:.3f} s of the clip")]
                     + list(row.notes)))
                 table.setItem(index, column, item)
-        self._timing_move_all.setEnabled(any(row.movable for row in rows))
+        self._timing_move_all.setEnabled(any(row.sure for row in rows))
         self._timing_move.setEnabled(False)
         if rows:
             table.selectRow(0)
@@ -333,7 +345,7 @@ class TimingPanelMixin:
         from .editing import EditError, OP_RETIME_EVENTS, OperationScope
 
         rows = self._selected_timing_rows() if selected_only else list(self._timing_rows)
-        rows = [row for row in rows if row.movable]
+        rows = [row for row in rows if (row.movable if selected_only else row.sure)]
         part = self._timing_part()
         if not rows or self._edits is None or self._session is None:
             return
@@ -412,5 +424,5 @@ def _measure(source, model, part_name, weapon_path, charts, files, entries, canc
         return carry_timing.gap_curve(session, clip, part, clip_path=path)
 
     return carry_timing.survey(charts, (part_name,), read_clip=read, measure=measure,
-                               cancelled=cancelled, progress=progress)
+                               model=model, cancelled=cancelled, progress=progress)
 

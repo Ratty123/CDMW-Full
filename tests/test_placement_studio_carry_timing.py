@@ -26,6 +26,7 @@ from tests.test_action_chart_binary import animation, strings
 from tests.test_placement_studio_operations import FILES, _Baseline
 from tools.placement_studio import carry_timing, ops, preflight, save_mod
 from tools.placement_studio.carry_timing import (
+    STATUS_AT_START,
     STATUS_EARLY,
     STATUS_LATE,
     STATUS_ON_TIME,
@@ -177,6 +178,25 @@ class DecideTests(unittest.TestCase):
         self.assertFalse(retime.movable)
         self.assertIn("never come closer than 0.60 m", retime.notes[-1])
 
+    def test_a_hand_off_at_the_start_keeps_its_time(self) -> None:
+        """It sets where the weapon is as the animation begins; the shipped retimes kept them."""
+
+        retime = carry_timing.decide(_event(begin=0.0), _curve(_dip(12)))
+        self.assertEqual((retime.status, retime.proposed), (STATUS_AT_START, 0.0))
+        self.assertFalse(retime.movable)
+        late_start = carry_timing.decide(_event(begin=0.2, start=0.2), _curve(_dip(12)))
+        self.assertEqual(late_start.status, STATUS_AT_START)
+
+    def test_a_near_reach_is_movable_but_not_sure(self) -> None:
+        """0.20 to 0.35 m: the shipped axe and sitting two-hand retimes, but also game clips that
+        reach for the old carry and pass the new one, so only a selection moves it."""
+
+        retime = carry_timing.decide(_event(begin=0.9), _curve(_dip(12, low=0.27)))
+        self.assertTrue(retime.movable)
+        self.assertFalse(retime.sure)
+        self.assertIn("only comes within 0.27 m", retime.notes[-1])
+        self.assertTrue(carry_timing.decide(_event(begin=0.9), _curve(_dip(12))).sure)
+
     def test_no_curve_is_unmeasured_with_the_reason(self) -> None:
         retime = carry_timing.decide(_event(), None, problem="clip missing")
         self.assertEqual((retime.status, retime.notes), (STATUS_UNMEASURED, ("clip missing",)))
@@ -271,6 +291,18 @@ class SurveyTests(unittest.TestCase):
         self.assertEqual(statuses[(TWO_HAND, 0)], STATUS_UNMEASURED)
         self.assertIn("not in the indexed clips",
                       next(r for r in rows if r.event.mode == 0).notes[0])
+
+    def test_another_rig_s_clips_are_left_out_and_counted(self) -> None:
+        rows, problems = carry_timing.survey(
+            {CHART: chart_bytes()}, (TWO_HAND,), read_clip=lambda path: object(),
+            measure=lambda *_: _curve(_dip(12)), model="2_phw")
+        self.assertEqual(rows, [])
+        self.assertEqual(problems, ["2 hand-off(s) play another character's clips and are left out"])
+        rows, problems = carry_timing.survey(
+            {CHART: chart_bytes()}, (TWO_HAND,), read_clip=lambda path: object(),
+            measure=lambda *_: _curve(_dip(12)), model="1_phm")
+        self.assertEqual((len(rows), problems), (2, []))
+        self.assertEqual(carry_timing.clip_model("character/motion/1_pc/2_phw/cd_phw_x.paa"), "2_phw")
         self.assertEqual(problems, [])
 
 
@@ -445,6 +477,21 @@ def test_moving_again_replaces_the_slot_s_earlier_timing_change(window) -> None:
     operations = window._edits.operations()
     assert len(operations) == 1 and operations[0].operation_id != first
     assert len(operations[0].retimed_events()) == 2
+
+
+def test_move_all_leaves_near_reaches_to_a_selection(window) -> None:
+    part = window._timing_part()
+    events = carry_timing.swap_events(CHART, chart_bytes(), (part,))
+    rows = [carry_timing.decide(events[0], _curve(_dip(12))),
+            carry_timing.decide(events[1], _curve(_dip(12, low=0.3)))]
+    window._on_timing_ready((window._timing_current_signature(), (rows, [])), "")
+    assert "(nearly reaches)" in window._timing_table.item(1, 7).text()
+    window._move_timing(selected_only=False)
+    assert [address for _c, address, _b in window._edits.operations()[0].retimed_events()] == [
+        f"{events[0].animation}:{events[0].event}"]
+    window._timing_table.selectRow(1)
+    window._move_timing(selected_only=True)
+    assert len(window._edits.operations()[0].retimed_events()) == 2
 
 
 def test_a_stale_measurement_is_not_applied(window) -> None:

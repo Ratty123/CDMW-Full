@@ -133,7 +133,9 @@ Built on 2026-11-09, with `tests/test_placement_studio_carry_timing.py`.
   (`inverse(out child) * out socket`) against the carried one (`inverse(in child) * in
   socket`). `decide` follows the rules of the shipped retimes: contact is the nearest frame
   inside the stretch the animation plays, at least one frame before it ends; a gap above
-  0.35 m keeps the event's time; within 0.05 s is on time. `survey` measures each clip and
+  0.35 m keeps the event's time, and so does a hand-off at the start of the played stretch;
+  within 0.05 s is on time. Within 0.20 m is a sure contact; 0.20 to 0.35 m "nearly
+  reaches" and moves only when selected. Clips made for another rig are left out. `survey` measures each clip and
   row once, however many animations play it.
 - `EditSession.retime_event` records an `event_begin` command (only `ModelAttachmentSocket`
   events, only inside the played stretch). A `retime_events` operation's scope names each
@@ -145,15 +147,22 @@ Built on 2026-11-09, with `tests/test_placement_studio_carry_timing.py`.
   selected slot on a private session off the UI thread, with every pending change (moved
   attach points, replaced clips). The table shows each hand-off with its status; the plot
   shows the gap with the played stretch, the current hand-off and the contact. **Move
-  selected to contact** and **Move all to contact** record one timing operation per slot;
+  selected to contact** and **Move all to contact** (sure contacts only) record one timing
+  operation per slot;
   moving more later replaces it. A measurement is refused once the history, character, slot
   or weapon has changed.
 - Charts ship whole. The panel and the README say that DMM serves one copy of each chart, so
   the mod has to load after another mod that ships the same chart.
 
-Not in this slice: slot-addressed events (dual wield), mode 2 events, speed windows, and
-starting from another mod's copy of a chart (slice 5). Help and the 13 translations of the
-panel's text are pending; the measurement has not been compared with the research script
-on real clips, and nothing has been tried in game. The patch result is source and fixture evidence only; DMM 4.7.4 and the
+Checked on real clips on 2026-11-09 against the research measurement and the shipped Timing
+package of Weapon Carry 1.0.1 (Kliff, male parts): all 97 hand-offs have the same contact and
+gap, and every proposed time equals the shipped one. The check exposed looser rules on clips
+the package does not ship, which led to the at-start, sure-contact and rig rules above. The
+scripts and results are in the worktree's `.work/research/2026-11-09-timing-check/`.
+
+Not in this slice: slot-addressed events (dual wield), mode 2 events, speed windows, Kliff's
+charts in a Damiane session (slice 3), and starting from another mod's copy of a chart
+(slice 5). Help and the 13 translations of the panel's text are pending, and nothing has been
+tried in game. The patch result is source and fixture evidence only; DMM 4.7.4 and the
 game accepted hand-written patches of the same form on 2026-11-08, but patches written by the
 tab have not been mounted yet.

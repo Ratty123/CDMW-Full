@@ -1617,6 +1617,16 @@
       ]
     },
     {
+      "key": "(nearly reaches)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 60,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "(no defined socket of length {value_0} — create one first)",
       "origins": [
         {
@@ -2631,7 +2641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 115,
+          "line": 123,
           "sink": "drawText"
         }
       ]
@@ -16652,6 +16662,16 @@
       ]
     },
     {
+      "key": "At the start",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_timing.py",
+          "line": 53,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Atlas",
       "origins": [
         {
@@ -30436,7 +30456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 232,
+          "line": 242,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -46731,7 +46751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 72,
+          "line": 80,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -47976,7 +47996,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 57,
+          "line": 65,
           "sink": "translate_active_ui_text"
         },
         {
@@ -48016,12 +48036,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 140,
+          "line": 148,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 363,
+          "line": 375,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -48041,7 +48061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 351,
+          "line": 363,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -53172,11 +53192,11 @@
       ]
     },
     {
-      "key": "Every hand-off marked early or late. Those the hand never reaches keep their time.",
+      "key": "Every hand-off marked early or late where the hand plainly reaches the weapon. Those it only nearly reaches move when you select them; those it never reaches, and those at the start of an animation, keep their time.",
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 186,
+          "line": 194,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -87981,7 +88001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 154,
+          "line": 162,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -87991,7 +88011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 91,
+          "line": 99,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88001,7 +88021,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 273,
+          "line": 283,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88011,7 +88031,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 268,
+          "line": 278,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88021,7 +88041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 263,
+          "line": 273,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95416,7 +95436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 185,
+          "line": 193,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95546,7 +95566,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 183,
+          "line": 191,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -95756,7 +95776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 375,
+          "line": 387,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -99896,7 +99916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 285,
+          "line": 296,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -116946,7 +116966,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 155,
+          "line": 163,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -116956,7 +116976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 310,
+          "line": 322,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -124866,7 +124886,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 57,
+          "line": 65,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -156876,7 +156896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 277,
+          "line": 287,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -166641,7 +166661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 341,
+          "line": 353,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -174926,7 +174946,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 194,
+          "line": 204,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -186731,7 +186751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 142,
+          "line": 150,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -203541,7 +203561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 126,
+          "line": 134,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -206041,7 +206061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 127,
+          "line": 135,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -215581,7 +215601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 291,
+          "line": 303,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -215937,11 +215957,11 @@
       ]
     },
     {
-      "key": "{value_0} hand-off(s); {value_1} swap early or late.",
+      "key": "{value_0} hand-off(s); {value_1} swap early or late, {value_2} of them where the hand plainly reaches the weapon.",
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 288,
+          "line": 299,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -216626,12 +216646,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 114,
+          "line": 122,
           "sink": "drawText"
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 307,
+          "line": 319,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -217541,17 +217561,17 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 116,
+          "line": 124,
           "sink": "drawText"
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 307,
+          "line": 319,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 307,
+          "line": 319,
           "sink": "QTableWidgetItem"
         }
       ]

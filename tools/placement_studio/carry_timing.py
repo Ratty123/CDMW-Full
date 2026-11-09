@@ -33,6 +33,13 @@ FRAME = 1.0 / FPS
 #: two-hand sword and 0.35 m for axes, whose grip sits 0.24 m from the sword's.
 MAX_CONTACT_GAP = 0.35
 
+#: Within this the hand plainly reaches the weapon, and "Move all" includes the event. Between
+#: this and `MAX_CONTACT_GAP` it nearly does: the shipped retimes moved such events (an axe
+#: drawn with sword clips at 0.29 m, the sitting two-hand sheathe at 0.27 m), but so would
+#: game clips that reach for the old carry and pass the new one at 0.19 to 0.34 m, which the
+#: shipped retimes left alone. Those are moved only when selected one by one.
+SURE_CONTACT_GAP = 0.20
+
 #: An event already this close to the contact frame is on time.
 ON_TIME = 0.05
 
@@ -41,6 +48,7 @@ STATUS_EARLY = "early"
 STATUS_LATE = "late"
 STATUS_UNREACHED = "unreached"
 STATUS_UNMEASURED = "unmeasured"
+STATUS_AT_START = "at_start"
 
 STATUS_LABELS: Dict[str, str] = {
     STATUS_ON_TIME: "On time",
@@ -48,6 +56,7 @@ STATUS_LABELS: Dict[str, str] = {
     STATUS_LATE: "Swaps late",
     STATUS_UNREACHED: "Hand never reaches it",
     STATUS_UNMEASURED: "Not measured",
+    STATUS_AT_START: "At the start",
 }
 
 MODE_LABELS: Dict[int, str] = {0: "Put away", 1: "Draw"}
@@ -109,13 +118,22 @@ def parse_event_key(key: str) -> Tuple[str, int, int]:
     return chart, int(animation), int(event)
 
 
+def clip_model(clip_path: str) -> str:
+    """`character/motion/1_pc/2_phw/x.paa` -> `2_phw`: the rig a clip is authored for."""
+
+    from .clips import rig_of
+
+    return rig_of(clip_path).rsplit("/", 1)[-1]
+
+
 def swap_events(chart_path: str, data: bytes, parts: Iterable[str]) -> List[SwapEvent]:
     """Every draw or sheathe hand-off in one chart for the named equipment rows.
 
     Only animations whose clip is a draw or a sheathe are read. Skipped, because their timing
     cannot be judged from one row's sockets: events that name no part and pick an equipment
     slot instead (dual-wield draws), explicit socket pairs (mode 2), events with an interval,
-    and disabled events.
+    and disabled events. A chart can hold several characters' clips (Kliff's charts play
+    female Kliff's `cd_phw` clips), so callers filter by `clip_model`.
     """
 
     from cdmw.core.action_chart_binary import (
@@ -261,6 +279,12 @@ class Retime:
         return self.status in (STATUS_EARLY, STATUS_LATE)
 
     @property
+    def sure(self) -> bool:
+        """Movable, and the hand plainly reaches the weapon: what "Move all" moves."""
+
+        return self.movable and self.gap is not None and self.gap <= SURE_CONTACT_GAP
+
+    @property
     def status_label(self) -> str:
         return STATUS_LABELS.get(self.status, self.status)
 
@@ -270,9 +294,16 @@ def decide(event: SwapEvent, curve: Optional[GapCurve], *, problem: str = "") ->
 
     The event goes to the frame inside the played stretch where the held and carried weapon
     meet best, and at least one frame before the animation ends. A clip that never brings
-    them within `MAX_CONTACT_GAP` keeps its time, and so does an event already on time.
+    them within `MAX_CONTACT_GAP` keeps its time, and so does an event already on time. An
+    event at the very start of the played stretch is kept too: it sets where the weapon is
+    when the animation begins, and the shipped retimes never moved one.
     """
 
+    if event.begin <= event.start + 1e-6:
+        at_begin = curve.at(event.begin) if curve is not None and curve.times else None
+        return Retime(event, STATUS_AT_START, event.begin, gap_at_begin=at_begin,
+                      notes=("The hand-off sets where the weapon is as the animation starts, "
+                             "so it keeps its time",), curve=curve)
     if curve is None or not curve.times:
         return Retime(event, STATUS_UNMEASURED, event.begin,
                       notes=(problem or "The clip could not be measured",), curve=curve)
@@ -292,6 +323,9 @@ def decide(event: SwapEvent, curve: Optional[GapCurve], *, problem: str = "") ->
         notes.append(f"The held and put-away weapon never come closer than {gap:.2f} m")
         return Retime(event, STATUS_UNREACHED, event.begin, contact, gap, at_begin,
                       tuple(notes), curve)
+    if gap > SURE_CONTACT_GAP:
+        notes.append(f"The hand only comes within {gap:.2f} m of the weapon; check it in the "
+                     f"view before moving this one")
     proposed = round(min(max(contact, event.start), last), 4)
     if abs(proposed - event.begin) < ON_TIME:
         status = STATUS_ON_TIME
@@ -307,23 +341,34 @@ def survey(
     *,
     read_clip: Callable[[str], Optional[object]],
     measure: Callable[[str, object, str], GapCurve],
+    model: str = "",
     cancelled: Callable[[], bool] = lambda: False,
     progress: Callable[[int, int], None] = lambda *_: None,
 ) -> Tuple[List[Retime], List[str]]:
     """Every hand-off of `parts` in `charts`, measured and decided.
 
     `read_clip(path)` returns a parsed clip or None, and `measure(path, clip, part)` its gap
-    curve; both are passed in so the survey can be tested without a rig. Each clip and part
-    is measured once, however many animations play it. Returns `(retimes, problems)`.
+    curve; both are passed in so the survey can be tested without a rig. With `model`, only
+    clips authored for that rig are measured: another character's clip measured on this rig
+    would give a meaningless gap. Each clip and part is measured once, however many
+    animations play it. Returns `(retimes, problems)`.
     """
 
     events: List[SwapEvent] = []
     problems: List[str] = []
+    other = 0
     for path, data in sorted(charts.items()):
         try:
-            events += swap_events(path, data, parts)
+            found = swap_events(path, data, parts)
         except TimingError as exc:
             problems.append(str(exc))
+            continue
+        if model:
+            other += sum(1 for event in found if clip_model(event.clip) != model)
+            found = [event for event in found if clip_model(event.clip) == model]
+        events += found
+    if other:
+        problems.append(f"{other} hand-off(s) play another character's clips and are left out")
     curves: Dict[Tuple[str, str], Tuple[Optional[GapCurve], str]] = {}
     out: List[Retime] = []
     for done, event in enumerate(events, start=1):

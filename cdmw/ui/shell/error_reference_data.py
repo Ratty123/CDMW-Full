@@ -96274,7 +96274,7 @@ MESSAGE_REFERENCE = [
     "message": "Not an event address: {key}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 108
+      "tools/placement_studio/carry_timing.py": 117
     }
   },
   {
@@ -97945,7 +97945,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no {missing}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 234
+      "tools/placement_studio/carry_timing.py": 252
     }
   },
   {
@@ -98009,7 +98009,7 @@ MESSAGE_REFERENCE = [
     "message": "Timing measurement cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 331
+      "tools/placement_studio/carry_timing.py": 376
     }
   },
   {
@@ -99359,7 +99359,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.part_name} has no put-away or held attach point to measure",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 222
+      "tools/placement_studio/carry_timing.py": 240
     }
   },
   {
@@ -99375,7 +99375,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} has no descriptor row on this character",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_timing.py": 398
+      "tools/placement_studio/window_timing.py": 410
     }
   },
   {
