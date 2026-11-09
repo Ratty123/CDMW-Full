@@ -826,6 +826,11 @@ class ModelImportSource:
     #: formats needs the flip or its textures come out mirrored along the model. The
     #: Builder's own Flip V checkbox is the same switch.
     flip_texture_v: bool = False
+    #: painted cloth gets guides of its own (built from the paint and pins) instead of
+    #: following the template's guides; ``cloth_profile`` names the catalogue profile
+    #: those parts get, or "" to keep the template's assignment
+    own_cloth_guides: bool = False
+    cloth_profile: str = ""
     #: how many times the bake changed, for the viewport's token
     bake_generation: int = 0
     #: how many accepted Mesh Editor revisions changed the source geometry
@@ -1440,7 +1445,14 @@ def build_placed_import(
         palette_extension=getattr(scene.mesh, "interchange_palette_extension", None),
         palette_skeleton=getattr(scene.mesh, "interchange_skeleton", None),
     )
-    if keep_template_physics:
+    if keep_template_physics and getattr(source, "own_cloth_guides", False):
+        # Painted cloth gets guides of its own, built from the paint and its pins;
+        # the template's guides are removed. Unpainted vertices follow bones.
+        from cdmw.services.new_item_cloth_guides import apply_import_cloth_guides
+        apply_import_cloth_guides(result, scene.mesh, placement.matrix(origin=source.baked_origin()),
+                                  profile=getattr(source, "cloth_profile", ""),
+                                  check_cancelled=lambda: raise_if_cancelled(stop_event))
+    elif keep_template_physics:
         # Painted cloth replaces the nearest-template-vertex copy with explicit
         # bindings to the template's own guides; unpainted vertices follow bones.
         from cdmw.services.new_item_cloth_paint import apply_import_cloth_paint

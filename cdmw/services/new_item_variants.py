@@ -363,6 +363,11 @@ def plan_variant_files(planner):
                 texture_map[path] = target
                 written.append(target)
             if material is not None:
+                cloth_profile = getattr(model, "cloth_profile", None) if model is not None else None
+                if cloth_profile is not None and imported and choice.keep_template_physics:
+                    from cdmw.services.new_item_cloth_guides import CATALOGUE_PATH, assign_cloth_profile
+                    catalogue = snapshot.payload(CATALOGUE_PATH) if snapshot.has_entry(CATALOGUE_PATH) else None
+                    material = assign_cloth_profile(material, cloth_profile[0], cloth_profile[1], catalogue=catalogue)
                 if imported and not choice.keep_template_physics:
                     from cdmw.services.new_item_skinning import strip_template_material_physics
                     material = strip_template_material_physics(material)

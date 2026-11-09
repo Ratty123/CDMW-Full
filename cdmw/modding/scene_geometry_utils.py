@@ -205,6 +205,7 @@ def _copy_submesh_with_transform(
     for attr_name in (
         "interchange_vertex_ids",
         "cloth_paint",
+        "cloth_pin",
         "texture_slots",
         "preview_color",
         "preview_texture_path",

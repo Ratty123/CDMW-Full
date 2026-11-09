@@ -5,6 +5,7 @@ mod camera;
 mod cdmw_bend;
 mod cdmw_cloth;
 mod cdmw_cloth_paint;
+mod cdmw_collision_volumes;
 mod cdmw_handoff;
 mod cdmw_hair;
 mod cdmw_history;
@@ -2130,6 +2131,7 @@ struct LabApplication {
     cdmw_rig: cdmw_rig::RigView,
     cdmw_cloth_paint: cdmw_cloth_paint::ClothPaintView,
     cdmw_cloth: cdmw_cloth::ClothView,
+    cdmw_collision: cdmw_collision_volumes::CollisionView,
     cdmw_jiggle: cdmw_jiggle::JiggleView,
     cdmw_history: cdmw_history::HistoryView,
     source_label: String,
@@ -2334,6 +2336,7 @@ impl LabApplication {
             cdmw_rig: cdmw_rig::RigView::default(),
             cdmw_cloth_paint: cdmw_cloth_paint::ClothPaintView::default(),
             cdmw_cloth: cdmw_cloth::ClothView::default(),
+            cdmw_collision: cdmw_collision_volumes::CollisionView::default(),
             cdmw_jiggle: cdmw_jiggle::JiggleView::default(),
             cdmw_history: cdmw_history::HistoryView::default(),
             source_label: "No asset loaded".to_owned(),
@@ -2773,7 +2776,7 @@ impl LabApplication {
     fn cdmw_command_arguments(&self, command: &str, arguments: Value) -> Result<Value, String> {
         if !matches!(
             command,
-            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights" | "cloth_paint_set"
+            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights" | "cloth_paint_set" | "cloth_pin_set"
         ) {
             return Ok(arguments);
         }
@@ -6415,6 +6418,10 @@ impl LabApplication {
                 && let Some(value) = self.cloth_brush_value()
             {
                 self.submit_cloth_brush_stroke(value);
+            } else if matches!(label, CdmwLocalEdit::Selection(_))
+                && let Some(pinned) = self.cloth_pin_brush_value()
+            {
+                self.submit_cloth_pin_stroke(pinned);
             } else {
                 self.submit_cdmw_local_edit(label);
             }

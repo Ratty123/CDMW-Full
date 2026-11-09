@@ -136,6 +136,9 @@ class ModelFiles:
     #: Cloth paint bound this model's cloth explicitly: painted vertices follow the
     #: template's guides with four bones, the rest follow bones only (up to six).
     cloth_painted: bool = False
+    #: Own cloth guides: (profile, part names). "" keeps the template's profile
+    #: assignment, which must then exist; a name is written into the sidecar.
+    cloth_profile: object = None
     #: A finished model from an item package: the appearance already written into its
     #: files (see `_baked_key`), which planning never applies again.
     baked_appearance: object = None
@@ -878,6 +881,14 @@ class _Planner(EffectPlanningMixin):
                     payload = self._graft_effect(payload, donor, new_path)
             elif role == "pac_xml":
                 payload = self.model.side_files.get(item.path, self.snapshot.payload(item.path))
+                cloth_profile = getattr(self.model, "cloth_profile", None)
+                if cloth_profile is not None and not strip_physics:
+                    from cdmw.services.new_item_cloth_guides import CATALOGUE_PATH, assign_cloth_profile
+                    catalogue = self.snapshot.payload(CATALOGUE_PATH) if self.snapshot.has_entry(CATALOGUE_PATH) else None
+                    try:
+                        payload = assign_cloth_profile(payload, cloth_profile[0], cloth_profile[1], catalogue=catalogue)
+                    except ValueError as exc:
+                        raise NewItemPlanError(str(exc)) from exc
                 if strip_physics:
                     from cdmw.services.new_item_skinning import strip_template_material_physics
                     payload = strip_template_material_physics(payload)
@@ -1189,6 +1200,17 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
         if payload:
             side[target] = payload
     lines = tuple(str(line).strip() for line in getattr(result, "summary_lines", ()))
+    cloth_profile = getattr(result, "cloth_profile_edit", None)
+    if cloth_profile is not None:
+        from cdmw.services.new_item_cloth_guides import assign_cloth_profile
+        sidecars = [path for path in side if path.lower() in pac_xml_paths]
+        if not sidecars:
+            raise NewItemPlanError("the imported build carries no material file to give its new cloth a profile")
+        try:
+            for path in sidecars:
+                side[path] = assign_cloth_profile(side[path], cloth_profile[0], cloth_profile[1])
+        except ValueError as exc:
+            raise NewItemPlanError(str(exc)) from exc
     return ModelFiles(
         pac_data=data, side_files=side,
         notes=tuple(line for line in lines if line.startswith(("Skin weights ", "Cloth paint:"))),
@@ -1196,6 +1218,7 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
         palette_extension=getattr(result, "palette_extension", None),
         skeleton_edit=getattr(result, "skeleton_edit", None),
         cloth_painted=getattr(result, "cloth_paint_report", None) is not None,
+        cloth_profile=cloth_profile,
     )
 
 

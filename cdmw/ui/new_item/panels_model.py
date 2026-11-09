@@ -253,7 +253,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         edit_layout = QVBoxLayout(self.edit_group)
         edit_layout.setContentsMargins(6, 4, 6, 4)
         edit_layout.setSpacing(4)
-        for widget in (self.part_editor_holder, self.keep_physics, self.cloth_paint_note):
+        for widget in (self.part_editor_holder, self.keep_physics, self.cloth_paint_note, self.cloth_guides_row):
             self.model_layout.removeWidget(widget)
             edit_layout.addWidget(widget)
         self.model_layout.removeWidget(self.busy_bar)
@@ -1137,6 +1137,33 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.cloth_paint_note.setObjectName("new_item_cloth_paint_note")
         self.cloth_paint_note.setVisible(False)
         model_layout.addWidget(self.cloth_paint_note)
+        # How painted cloth moves: with the template's guides, or with guides of its own.
+        self.cloth_guides_row = QWidget()
+        self.cloth_guides_row.setObjectName("new_item_cloth_guides_row")
+        guides_form = QFormLayout(self.cloth_guides_row)
+        guides_form.setContentsMargins(0, 0, 0, 0)
+        self.cloth_guides_mode = QComboBox()
+        self.cloth_guides_mode.setObjectName("new_item_cloth_guides_mode")
+        self.cloth_guides_mode.addItem("Follows the template's cloth", "template")
+        self.cloth_guides_mode.addItem("Gets cloth guides of its own (experimental)", "own")
+        self.cloth_guides_mode.setToolTip(
+            "Template's cloth: painted areas follow the template's own cloth guides, which suits a garment shaped like "
+            "the template's. Own guides: the template's guides are removed and new ones are built from the painted area, "
+            "held where the paint meets unpainted areas and at painted pins."
+        )
+        self.cloth_guides_mode.currentIndexChanged.connect(self._cloth_guides_mode_changed)
+        guides_form.addRow("Painted cloth", self.cloth_guides_mode)
+        self.cloth_profile = QComboBox()
+        self.cloth_profile.setObjectName("new_item_cloth_profile")
+        self.cloth_profile.setToolTip(
+            "The cloth profile sets how the new cloth moves (stiffness, weight, damping). The template's profile is kept "
+            "unless you choose another one from the game's profile catalogue."
+        )
+        self.cloth_profile.currentIndexChanged.connect(self._cloth_profile_changed)
+        self._cloth_profile_snapshot = None
+        guides_form.addRow("Cloth profile", self.cloth_profile)
+        self.cloth_guides_row.setVisible(False)
+        model_layout.addWidget(self.cloth_guides_row)
         return model, model_layout, import_row
 
     def mount_preview(self) -> None:
@@ -1188,7 +1215,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.clear_button.setVisible(self._controller.model_import is not None)
         has_source = self._controller.model_import is not None
         has_import = has_source or self._controller.model_result is not None
-        self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
+        from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
+
+        mesh = getattr(getattr(self._controller.model_import, "scene", None), "mesh", None)
+        painted = mesh is not None and mesh_has_cloth_paint(mesh)
+        # Painted cloth can build guides of its own, so a template without physics offers it too.
+        self.keep_physics.setVisible(has_import and (self._controller.template_has_model_physics() or painted))
         self._refresh_cloth_paint_note()
         self._sync_model_row_labels()
         if keep:
@@ -1205,9 +1237,17 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         shown = (self.keep_physics.isVisibleTo(self) and not self.keep_model.isChecked() and mesh is not None
                  and (painted or self.keep_physics.isChecked()))
         self.cloth_paint_note.setVisible(shown)
+        own = bool(getattr(source, "own_cloth_guides", False))
+        self.cloth_guides_row.setVisible(shown and painted and self.keep_physics.isChecked())
+        if self.cloth_guides_row.isVisibleTo(self):
+            self._sync_cloth_guide_controls(source)
         if not shown:
             return
-        if painted and self.keep_physics.isChecked():
+        if painted and self.keep_physics.isChecked() and own:
+            self.cloth_paint_note.set_note(
+                "Cloth paint: painted areas get cloth guides of their own, held where they meet unpainted areas "
+                "and at painted pins.", OK)
+        elif painted and self.keep_physics.isChecked():
             self.cloth_paint_note.set_note("Cloth paint: painted areas move with the template's cloth.", OK)
         elif painted:
             self.cloth_paint_note.set_note("This model has cloth paint. Turn on Template cloth / physics to use it.", WARN)
@@ -1575,6 +1615,62 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.keep_template_physics = bool(keep)
         self._controller.invalidate_plan()
         self._refresh_cloth_paint_note()
+
+    def _sync_cloth_guide_controls(self, source) -> None:
+        """Show the source's own-guides choice; list the catalogue's profiles once per snapshot."""
+
+        snapshot = self._controller.snapshot
+        if snapshot is not self._cloth_profile_snapshot:
+            from cdmw.services.new_item_cloth_guides import CATALOGUE_PATH, cloth_profile_names
+
+            names: tuple[str, ...] = ()
+            try:
+                # One small, cached archive file.
+                if snapshot is not None and snapshot.has_entry(CATALOGUE_PATH):
+                    names = cloth_profile_names(snapshot.payload(CATALOGUE_PATH))
+            except Exception:  # noqa: BLE001 - an unreadable catalogue offers the template's profile only
+                names = ()
+            with QSignalBlocker(self.cloth_profile):
+                self.cloth_profile.clear()
+                self.cloth_profile.addItem("The template's profile", "")
+                for name in names:
+                    self.cloth_profile.addItem(name, name)
+            self._cloth_profile_snapshot = snapshot
+        own = bool(getattr(source, "own_cloth_guides", False))
+        profile = str(getattr(source, "cloth_profile", "") or "")
+        with QSignalBlocker(self.cloth_guides_mode):
+            self.cloth_guides_mode.setCurrentIndex(1 if own else 0)
+        with QSignalBlocker(self.cloth_profile):
+            index = self.cloth_profile.findData(profile)
+            if index < 0:
+                self.cloth_profile.addItem(profile, profile)
+                index = self.cloth_profile.count() - 1
+            self.cloth_profile.setCurrentIndex(index)
+        self.cloth_profile.setEnabled(own)
+
+    def _cloth_guides_mode_changed(self, _index: int) -> None:
+        source = self._controller.model_import
+        own = self.cloth_guides_mode.currentData() == "own"
+        if source is None or bool(getattr(source, "own_cloth_guides", False)) == own:
+            return
+        source.own_cloth_guides = own
+        self._drop_built_model()
+        self._refresh_cloth_paint_note()
+
+    def _cloth_profile_changed(self, _index: int) -> None:
+        source = self._controller.model_import
+        profile = str(self.cloth_profile.currentData() or "")
+        if source is None or str(getattr(source, "cloth_profile", "") or "") == profile:
+            return
+        source.cloth_profile = profile
+        self._drop_built_model()
+
+    def _drop_built_model(self) -> None:
+        # The build differs, so a result from before this change is no longer the item's.
+        if self._controller.model_result is not None:
+            self._controller.set_imported_model(None, None)
+        self._controller.invalidate_plan()
+        self._refresh_apply_status()
 
     def _flip_texture_v_changed(self, flip: bool) -> None:
         source = self._controller.model_import

@@ -400,6 +400,12 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             raise ValueError("Reversible island exclusion requires an original PAC mesh.")
         from cdmw.modding.mesh_islands import apply_pac_island_exclusions
         data = apply_pac_island_exclusions(data, snapshot.original_data, island_exclusions)
+    model_volumes = next((edit for edit in state.collision_edits if edit.source == "model"), None)
+    if model_volumes is not None:
+        if original.format.lower() != "pac":
+            raise ValueError("Collision volume edits are supported only for PAC meshes.")
+        from cdmw.modding.collision_volume_edit import apply_pac_volume_edit
+        data = apply_pac_volume_edit(data, model_volumes)
     if state.weapon_collisions:
         from cdmw.modding.pac_weapon_collisions import create_weapon_colliders
         data = create_weapon_colliders(data)
@@ -425,6 +431,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if any(part.physics_profiles for part in state.parts):
         from cdmw.services.mesh_physics_profile_output import build_physics_profile_files
         files = list(build_physics_profile_files(state, original, files))
+    if any(edit.source != "model" for edit in state.collision_edits):
+        from cdmw.services.mesh_collision_volumes import build_collision_volume_files
+        files = list(build_collision_volume_files(state, files))
     if original.format.lower() == "pam":
         paired_path = str(PurePosixPath(state.target_path).with_suffix(".pamlod"))
         paired = next((file for file in state.dependencies if file.path.casefold() == paired_path.casefold()), None)

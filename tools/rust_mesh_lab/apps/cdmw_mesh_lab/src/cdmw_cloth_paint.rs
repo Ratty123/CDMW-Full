@@ -1,7 +1,9 @@
-//! Cloth paint: mark which vertices of an imported model follow the template's cloth.
+//! Cloth paint: mark which vertices of an imported model swing as cloth, and cloth pins:
+//! mark where newly built cloth guides are held.
 //!
-//! The host owns the values (the per-vertex `cloth_paint` attribute, with Undo). This
-//! view only shows them on the shared weight overlay and sends explicit selections.
+//! The host owns the values (the per-vertex `cloth_paint` and `cloth_pin` attributes, with
+//! Undo). This view only shows them on the shared weight overlay and sends explicit
+//! selections. Game models paint pins only; imported models paint both.
 
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
@@ -11,6 +13,8 @@ use crate::cdmw_ui::{state_bool, state_str, state_u64};
 pub(super) enum ClothBrush {
     Paint,
     Erase,
+    Pin,
+    Unpin,
 }
 
 pub(super) struct ClothPaintView {
@@ -19,9 +23,13 @@ pub(super) struct ClothPaintView {
     pub brush: Option<ClothBrush>,
     pub show: bool,
     pub supported: bool,
+    /// Pins can be painted (imported models and game models alike).
+    pub pins_supported: bool,
     pub reason: String,
     pub painted: u64,
+    pub pinned: u64,
     weights: HashMap<(u32, u32), f32>,
+    pins: HashSet<(u32, u32)>,
     state: Value,
     overlay_key: Option<(u64, u64)>,
     visible: Option<HashSet<u32>>,
@@ -38,9 +46,12 @@ impl Default for ClothPaintView {
             brush: None,
             show: true,
             supported: false,
+            pins_supported: false,
             reason: String::new(),
             painted: 0,
+            pinned: 0,
             weights: HashMap::new(),
+            pins: HashSet::new(),
             state: Value::Null,
             overlay_key: None,
             visible: None,
@@ -63,6 +74,9 @@ impl ClothPaintView {
         self.reason = state_str(paint, "reason").unwrap_or("").to_owned();
         self.painted = state_u64(paint, "painted_vertex_count");
         self.weights = parse_paint(paint).unwrap_or_default();
+        self.pins_supported = state_bool(paint, "pins_supported");
+        self.pinned = state_u64(paint, "pinned_vertex_count");
+        self.pins = parse_pins(paint).unwrap_or_default();
     }
 
     pub fn prepare(&mut self, mesh: &WorkingMesh, visible: Option<HashSet<u32>>) {
@@ -81,14 +95,15 @@ impl ClothPaintView {
                 continue;
             };
             for vertex in [a, b, c] {
-                let value = match vertex.provenance {
-                    Provenance::Source { submesh, element } => {
-                        self.weights.get(&(submesh, element)).copied().unwrap_or(0.0)
-                    }
-                    Provenance::Generated { .. } => 0.0,
+                let (value, pinned) = match vertex.provenance {
+                    Provenance::Source { submesh, element } => (
+                        self.weights.get(&(submesh, element)).copied().unwrap_or(0.0),
+                        self.pins.contains(&(submesh, element)),
+                    ),
+                    Provenance::Generated { .. } => (0.0, false),
                 };
                 self.positions.push(vertex.position);
-                self.colours.push(paint_colour(value));
+                self.colours.push(if pinned { PIN_COLOUR } else { paint_colour(value) });
             }
         }
         self.overlay_key = Some(key);
@@ -123,6 +138,28 @@ fn parse_paint(value: &Value) -> Option<HashMap<(u32, u32), f32>> {
     (result.len() == count).then_some(result)
 }
 
+/// Pinned vertices: `{"pin_parts": [{"submesh_index", "vertices": [vertex]}]}`.
+fn parse_pins(value: &Value) -> Option<HashSet<(u32, u32)>> {
+    let count = usize::try_from(value["pinned_vertex_count"].as_u64().unwrap_or(0)).ok()?;
+    if count > 262_144 {
+        return None;
+    }
+    let mut result = HashSet::with_capacity(count);
+    for part in value["pin_parts"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+        let submesh = u32::try_from(part["submesh_index"].as_u64()?).ok()?;
+        for vertex in part["vertices"].as_array()? {
+            let vertex = u32::try_from(vertex.as_u64()?).ok()?;
+            if !result.insert((submesh, vertex)) {
+                return None;
+            }
+        }
+    }
+    (result.len() == count).then_some(result)
+}
+
+/// Pins stand out from every paint value.
+const PIN_COLOUR: [f32; 4] = [0.93, 0.22, 0.62, 0.92];
+
 /// Unpainted vertices stay dark; cloth shows from teal to warm gold.
 fn paint_colour(value: f32) -> [f32; 4] {
     let stops = [[0.10, 0.16, 0.24], [0.10, 0.68, 0.76], [1.0, 0.72, 0.18]];
@@ -139,18 +176,41 @@ impl LabApplication {
     /// True while the Cloth page shows paint on the shared weight overlay.
     pub(super) fn cloth_paint_overlay_active(&self) -> bool {
         self.cdmw_rail_page == Some(CdmwRailPage::Cloth)
-            && self.cdmw_cloth_paint.supported
+            && (self.cdmw_cloth_paint.supported
+                || (self.cdmw_cloth_paint.pins_supported
+                    && (self.cdmw_cloth_paint.pinned > 0 || self.cdmw_cloth_paint.brush.is_some())))
             && self.cdmw_cloth_paint.show
+    }
+
+    fn cloth_brush_ready(&self) -> bool {
+        self.cdmw_rail_page == Some(CdmwRailPage::Cloth)
+            && self.viewport_tool == ViewportTool::Select
+            && self.selection_tool == SelectionTool::Brush
     }
 
     /// The value a finished brush stroke paints, while the cloth brush is in use.
     pub(super) fn cloth_brush_value(&self) -> Option<f64> {
-        let brush = self.cdmw_cloth_paint.brush?;
-        (self.cdmw_cloth_paint.supported
-            && self.cdmw_rail_page == Some(CdmwRailPage::Cloth)
-            && self.viewport_tool == ViewportTool::Select
-            && self.selection_tool == SelectionTool::Brush)
-            .then_some(if brush == ClothBrush::Erase { 0.0 } else { self.cdmw_cloth_paint.amount })
+        let value = match self.cdmw_cloth_paint.brush? {
+            ClothBrush::Paint => self.cdmw_cloth_paint.amount,
+            ClothBrush::Erase => 0.0,
+            ClothBrush::Pin | ClothBrush::Unpin => return None,
+        };
+        (self.cdmw_cloth_paint.supported && self.cloth_brush_ready()).then_some(value)
+    }
+
+    /// Whether a finished pin-brush stroke pins (true) or unpins (false).
+    pub(super) fn cloth_pin_brush_value(&self) -> Option<bool> {
+        let pinned = match self.cdmw_cloth_paint.brush? {
+            ClothBrush::Pin => true,
+            ClothBrush::Unpin => false,
+            ClothBrush::Paint | ClothBrush::Erase => return None,
+        };
+        (self.cdmw_cloth_paint.pins_supported && self.cloth_brush_ready()).then_some(pinned)
+    }
+
+    pub(super) fn submit_cloth_pin_stroke(&mut self, pinned: bool) {
+        let label = if pinned { "Pin cloth" } else { "Unpin cloth" };
+        self.submit_cdmw_command("cloth_pin_set", json!({"value": pinned}), label);
     }
 
     /// Paint the vertices of the stroke just committed (the current selection).
@@ -173,6 +233,9 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_cloth_paint(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         if !self.cdmw_cloth_paint.supported {
+            if self.cdmw_cloth_paint.pins_supported {
+                self.draw_cdmw_cloth_pins(ui, actions);
+            }
             return;
         }
         // Another tool, or another selection mode, ends the cloth brush.
@@ -288,8 +351,85 @@ impl LabApplication {
                 if !self.cdmw_cloth_paint.reason.is_empty() {
                     ui.small(crate::localization::tr(self.cdmw_cloth_paint.reason.clone()));
                 }
+                ui.separator();
+                self.draw_cloth_pin_controls(ui, actions, can_paint,
+                    "Pins hold the cloth guides Create New Item builds from this paint. Painted areas also hang from where they meet unpainted vertices.");
             });
         ui.separator();
+    }
+
+    /// Game models: pins only, for Create cloth guides.
+    fn draw_cdmw_cloth_pins(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        if matches!(self.cdmw_cloth_paint.brush, Some(ClothBrush::Paint | ClothBrush::Erase)) {
+            self.cdmw_cloth_paint.brush = None;
+        }
+        let can_paint = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
+        crate::localization::collapsing("Cloth pins (experimental)")
+            .show(ui, |ui| {
+                self.draw_cloth_pin_controls(ui, actions, can_paint,
+                    "Pins hold the guides Create cloth guides builds: pinned guides follow the bones and the rest swing from them.");
+                ui.checkbox(&mut self.cdmw_cloth_paint.show, crate::localization::tr("Show cloth pins"));
+            });
+        ui.separator();
+    }
+
+    fn draw_cloth_pin_controls(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, can_paint: bool, tip: &str) {
+        if self.cdmw_cloth_paint.brush.is_some()
+            && (self.viewport_tool != ViewportTool::Select || self.selection_tool != SelectionTool::Brush)
+        {
+            self.cdmw_cloth_paint.brush = None;
+        }
+        ui.label(crate::localization::tr("Cloth pins")).on_hover_text(crate::localization::tr(tip));
+        ui.horizontal_wrapped(|ui| {
+            let brush = self.cdmw_cloth_paint.brush;
+            for (kind, label, hint) in [
+                (ClothBrush::Pin, "Pin brush", "Drag over the model to pin cloth where it attaches."),
+                (ClothBrush::Unpin, "Unpin brush", "Drag over the model to remove pins."),
+            ] {
+                let on = brush == Some(kind);
+                if ui
+                    .add_enabled(can_paint, egui::Button::new(crate::localization::tr(label)).selected(on))
+                    .on_hover_text(crate::localization::tr(hint))
+                    .clicked()
+                {
+                    self.set_cloth_brush(if on { None } else { Some(kind) });
+                }
+            }
+        });
+        if !self.cdmw_cloth_paint.supported
+            && matches!(self.cdmw_cloth_paint.brush, Some(ClothBrush::Pin | ClothBrush::Unpin))
+        {
+            ui.add(
+                crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0)
+                    .text(crate::localization::tr("Brush size px")),
+            );
+        }
+        let selected = self.mesh.as_ref().map_or(0, |mesh| mesh.selection.vertices.len());
+        ui.horizontal_wrapped(|ui| {
+            if self.cdmw_cloth_paint.brush.is_none() && selected > 0 {
+                if ui.add_enabled(can_paint, egui::Button::new(crate::localization::tr("Pin selection"))).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "cloth_pin_set", arguments: json!({"value": true}), label: "Pin cloth",
+                    });
+                }
+                if ui.add_enabled(can_paint, egui::Button::new(crate::localization::tr("Unpin selection"))).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "cloth_pin_set", arguments: json!({"value": false}), label: "Unpin cloth",
+                    });
+                }
+            }
+            if ui
+                .add_enabled(can_paint && self.cdmw_cloth_paint.pinned > 0,
+                    egui::Button::new(crate::localization::tr("Clear all pins")))
+                .clicked()
+            {
+                actions.push(UiAction::CdmwCommand {
+                    command: "cloth_pin_set", arguments: json!({"value": false, "whole_model": true}),
+                    label: "Clear cloth pins",
+                });
+            }
+        });
+        ui.small(crate::localization::tr(format!("{} pinned vertices", self.cdmw_cloth_paint.pinned)));
     }
 }
 
@@ -311,6 +451,19 @@ mod tests {
         let mut count = good.clone();
         count["painted_vertex_count"] = json!(3);
         assert!(parse_paint(&count).is_none());
+    }
+
+    #[test]
+    fn pin_rows_reject_duplicates_and_wrong_counts() {
+        let good = json!({"pinned_vertex_count": 2, "pin_parts": [{"submesh_index": 1, "vertices": [4, 7]}]});
+        assert_eq!(parse_pins(&good).unwrap(), HashSet::from([(1, 4), (1, 7)]));
+        let mut duplicate = good.clone();
+        duplicate["pin_parts"][0]["vertices"][1] = json!(4);
+        assert!(parse_pins(&duplicate).is_none());
+        let mut count = good.clone();
+        count["pinned_vertex_count"] = json!(1);
+        assert!(parse_pins(&count).is_none());
+        assert_eq!(parse_pins(&json!({})).unwrap().len(), 0);
     }
 
     #[test]

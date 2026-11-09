@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from .cloth import PacClothRule
 from .cloth_guides import PacClothGuideRule
+from .collision_volumes import CollisionVolumeEdit
 from .jiggle import PacJiggleRule
 from .physics_profile import PacPhysicsProfileRule
 from .emission import EmissionChoice
@@ -68,10 +69,19 @@ class MeshReplacementState:
     weapon_collisions: bool = False
     # File-level experiment only, pending current-game consumer qualification.
     palette_extension: PacPaletteExtension | None = None
+    # Explicit resize/move/copy/remove of the PAC's own collision volumes and of
+    # body/head PABV sets, one edit per source. A PABV's source bytes are kept in
+    # dependencies under its archive path.
+    collision_edits: tuple[CollisionVolumeEdit, ...] = ()
 
     def __post_init__(self):
         if type(self.weapon_collisions) is not bool:
             raise ValueError("Weapon collision authoring must be explicitly enabled or disabled.")
+        if (not isinstance(self.collision_edits, tuple)
+                or any(not isinstance(edit, CollisionVolumeEdit) for edit in self.collision_edits)
+                or len({edit.source.casefold() for edit in self.collision_edits}) != len(self.collision_edits)
+                or len(self.collision_edits) > 8):
+            raise ValueError("Collision volume edits must name each source once.")
 
 
 PART_ID_ATTRIBUTE = "_cdmw_replacement_part_id"

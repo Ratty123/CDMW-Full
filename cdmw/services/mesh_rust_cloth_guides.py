@@ -64,7 +64,10 @@ def guide_authoring_ui_state(authoring, replacement):
                 if not 0 <= index < len(displayed.submeshes):
                     continue
                 points = displayed.submeshes[index].vertices
+                working = session.working_mesh.submeshes
+                pins = getattr(working[part["index"]], "cloth_pin", ()) if 0 <= part["index"] < len(working) else ()
                 rows.append({**part, "lod_vertices": [len(level.submeshes[index].vertices) for level in levels],
+                    "pinned_count": sum(1 for pin in pins or () if pin),
                     "min_y": min((p[1] for p in points), default=0.0),
                     "max_y": max((p[1] for p in points), default=0.0),
                     "rule": binding.cloth_guides.to_dict() if binding and binding.cloth_guides else None})
@@ -88,12 +91,28 @@ def set_guide_rule(authoring, snapshot, args, *, entry, dependencies, stop_event
     available = {part["id"] for part in ui["parts"] if part["included"] or reset and part["rule"]}
     if not set(keys) <= available:
         raise ValueError("Choose included parts for guide creation.")
+    allowed = {"part_ids", "reset"} if reset else {"part_ids", "source_lod", "fixed_above", "reduce_skinning", "use_pins"}
+    if set(args) - allowed - {"_archive_entry", "_archive_dependencies"}:
+        raise ValueError("Invalid guide creation request.")
+    use_pins = args.get("use_pins", False)
+    if type(use_pins) is not bool:
+        raise ValueError("Choose whether painted pins hold the guides.")
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
-    rule = None
+    rules = {}
     if not reset:
+        from cdmw.services.mesh_rust_cloth_paint import part_pinned_points
         _, _, palette, _ = guide_creation_layout(snapshot.original_data)
-        rule = PacClothGuideRule(args.get("source_lod"), args.get("fixed_above"), palette, args.get("reduce_skinning", False))
-    parts = tuple(replace(p, cloth_guides=rule, cloth=None if reset else p.cloth) if p.part_id in keys else p for p in state.parts)
+        session = authoring.shadow_service._session(authoring.shadow_session_id)
+        rows = {part["id"]: part for part in ui["parts"]}
+        for key in keys:
+            pins = part_pinned_points(session, rows[key]["index"]) if use_pins else ()
+            if use_pins and not pins:
+                raise ValueError(f"{rows[key].get('name') or key} has no painted pins. Paint pins on it, "
+                                 "or pin the guides by height.")
+            rules[key] = PacClothGuideRule(args.get("source_lod"), args.get("fixed_above"), palette,
+                                           args.get("reduce_skinning", False), pins)
+    parts = tuple(replace(p, cloth_guides=rules.get(p.part_id), cloth=None if reset else p.cloth)
+                  if p.part_id in keys else p for p in state.parts)
     if parts == state.parts:
         return authoring.shadow_service.session_view(authoring.shadow_session_id)
     state = replace(state, parts=parts, revision=state.revision + 1)

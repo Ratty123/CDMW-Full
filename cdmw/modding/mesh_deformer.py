@@ -47,6 +47,7 @@ _EXTRA_SUBMESH_ATTRS = (
     "uv_sets", "vertex_colors", "morph_targets", "morph_normals", "morph_tangents", "morph_weights",
     "interchange_material", "interchange_skin", "interchange_transform", "interchange_node_index", "interchange_vertex_ids",
     "cloth_paint",
+    "cloth_pin",
     "_cdmw_replacement_part_id",
     "texture_slots",
     "preview_color",
@@ -316,6 +317,8 @@ def _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count, *, 
         submesh.interchange_vertex_ids = _remap_vertex_aligned_list(submesh.interchange_vertex_ids, index_map, old_vertex_count)
     if hasattr(submesh, "cloth_paint"):
         submesh.cloth_paint = _remap_vertex_aligned_list(submesh.cloth_paint, index_map, old_vertex_count)
+    if hasattr(submesh, "cloth_pin"):
+        submesh.cloth_pin = _remap_vertex_aligned_list(submesh.cloth_pin, index_map, old_vertex_count)
 
 
 def _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_count, vertices):
@@ -340,6 +343,15 @@ def _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_c
                 break
             paint.append((float(paint[a]) + float(paint[b])) * 0.5)
         submesh.cloth_paint = paint
+    pins = list(getattr(submesh, "cloth_pin", ()) or ())
+    if len(pins) == old_vertex_count:
+        # A new edge midpoint is pinned only when both of its ends are.
+        for (a, b), index in sorted(edge_midpoints.items(), key=lambda item: item[1]):
+            if index != len(pins):
+                pins = []
+                break
+            pins.append(bool(pins[a]) and bool(pins[b]))
+        submesh.cloth_pin = pins
     # Added vertices receive fresh identifiers on export, with topology proof
     # owned by the existing editor provenance contract.
     if hasattr(submesh, "interchange_vertex_ids"):

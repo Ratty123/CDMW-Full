@@ -8,7 +8,9 @@ mod authoring {
     pub(crate) struct GuideView {
         pub selected_only: bool,
         pub source_lod: u32,
+        pub use_height: bool,
         pub height: f64,
+        pub use_pins: bool,
         pub reduce_skinning: bool,
         key: Value,
     }
@@ -51,6 +53,9 @@ mod authoring {
                     let low = parts.iter().filter_map(|part| part["min_y"].as_f64()).fold(f64::INFINITY, f64::min);
                     let high = parts.iter().filter_map(|part| part["max_y"].as_f64()).fold(f64::NEG_INFINITY, f64::max);
                     view.height = rule["fixed_above"].as_f64().unwrap_or(low + (high-low)*0.9);
+                    let pinned = parts.iter().all(|part| state_u64(part, "pinned_count") > 0);
+                    view.use_pins = rule["pinned_points"].is_array() || (rule.is_null() && pinned);
+                    view.use_height = !rule["fixed_above"].is_null() || (rule.is_null() && !view.use_pins);
                     view.reduce_skinning = rule["reduce_skinning"].as_bool().unwrap_or(false);
                 }
                 egui::ComboBox::from_id_salt("cloth-guide-source-lod")
@@ -62,17 +67,33 @@ mod authoring {
                 let vertices: u64 = parts.iter().filter_map(|part| part["lod_vertices"][view.source_lod as usize].as_u64()).sum();
                 ui.small(crate::localization::tr(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts.")));
                 ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Pin guides at or above Y"))
+                    ui.checkbox(&mut view.use_height, crate::localization::tr("Pin guides at or above Y"))
                         .on_hover_text(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));
-                    ui.add(crate::cdmw_ui::numeric::value(&mut view.height).speed(0.01));
+                    if view.use_height {
+                        ui.add(crate::cdmw_ui::numeric::value(&mut view.height).speed(0.01));
+                    }
                 });
+                let pinned: u64 = parts.iter().map(|part| state_u64(part, "pinned_count")).sum();
+                ui.add_enabled(pinned > 0, egui::Checkbox::new(&mut view.use_pins,
+                        crate::localization::tr(format!("Use painted pins ({pinned} vertices)"))))
+                    .on_hover_text(crate::localization::tr("Guides at pinned vertices follow the bones. Paint pins with Cloth pins above."))
+                    .on_disabled_hover_text(crate::localization::tr("Paint pins with Cloth pins above to use them here."));
+                if pinned == 0 {
+                    view.use_pins = false;
+                }
                 ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"))
                     .on_hover_text(crate::localization::tr("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation."));
-                let valid = enabled && view.height.is_finite() && parts.iter().all(|part| state_bool(part, "included"));
+                let anchored = (view.use_height && view.height.is_finite()) || view.use_pins;
+                let valid = enabled && anchored && parts.iter().all(|part| state_bool(part, "included"));
+                if !anchored {
+                    ui.small(crate::localization::tr("Pin the guides by height or with painted pins."));
+                }
                 if ui.add_enabled(valid, egui::Button::new(crate::localization::tr("Create / update guides")))
                     .on_hover_text(crate::localization::tr("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified.")).clicked() {
                     actions.push(UiAction::CdmwCommand { command: "replacement_guides",
-                        arguments: json!({"part_ids": ids, "source_lod": view.source_lod, "fixed_above": view.height,
+                        arguments: json!({"part_ids": ids, "source_lod": view.source_lod,
+                                          "fixed_above": view.use_height.then_some(view.height),
+                                          "use_pins": view.use_pins,
                                           "reduce_skinning": view.reduce_skinning}),
                         label: "Create cloth guides" });
                 }
@@ -852,6 +873,7 @@ impl LabApplication {
         if self.cdmw_cloth.experimental {
             self.draw_weapon_collision_authoring(ui, actions);
             self.draw_cloth_collision_inputs(ui, actions);
+            self.draw_collision_volume_authoring(ui, actions);
             self.draw_cdmw_guide_authoring(ui, actions);
         }
     }

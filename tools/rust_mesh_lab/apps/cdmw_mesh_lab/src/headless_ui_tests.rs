@@ -484,7 +484,8 @@ mod guide_authoring_tests {
         let actions = ui.actions_from_click("Create / update guides")?;
         assert!(actions.iter().any(|action| matches!(action,
             UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
-            if arguments == &json!({"part_ids": ["guides:0"], "source_lod": 2, "fixed_above": 1.25, "reduce_skinning": false}))));
+            if arguments == &json!({"part_ids": ["guides:0"], "source_lod": 2, "fixed_above": 1.25,
+                                    "use_pins": false, "reduce_skinning": false}))));
         ui.click("Reduce skinning to four bones")?;
         let actions = ui.actions_from_click("Create / update guides")?;
         assert!(actions.iter().any(|action| matches!(action,
@@ -497,6 +498,28 @@ mod guide_authoring_tests {
         assert!(actions.iter().any(|action| matches!(action,
             UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
             if arguments == &json!({"part_ids": ["guides:0"], "reset": true}))));
+        Ok(())
+    }
+
+    #[test]
+    fn painted_pins_can_hold_the_guides_without_a_height() -> TestResult {
+        let mut ui = guide_ui()?;
+        // Without painted pins the option is off and cannot be turned on.
+        assert!(!ui.application.cdmw_cloth.guides.use_pins);
+        ui.application.cdmw_state["cloth_guides"]["parts"][0]["pinned_count"] = json!(12);
+        ui.application.cdmw_state["cloth_guides"]["parts"][0]["rule"] =
+            json!({"source_lod": 0, "fixed_above": null, "pinned_points": [[0.0, 1.0, 0.0]]});
+        ui.frame(Vec::new());
+        assert!(ui.application.cdmw_cloth.guides.use_pins);
+        assert!(!ui.application.cdmw_cloth.guides.use_height);
+        let actions = ui.actions_from_click("Create / update guides")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
+            if arguments["fixed_above"].is_null() && arguments["use_pins"] == json!(true))));
+        // Neither anchor: creating is refused in the view.
+        ui.application.cdmw_cloth.guides.use_pins = false;
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Pin the guides by height or with painted pins.").is_some());
         Ok(())
     }
 

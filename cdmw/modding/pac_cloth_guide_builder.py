@@ -149,7 +149,7 @@ def _topology(points, faces, pins):
     if any(len(faces) > 2 for faces in edges.values()):
         raise ValueError("The guide source has a non-manifold edge. Choose a simpler source LOD.")
     if not pins or len(pins) == len(points):
-        raise ValueError("Choose a pin height that leaves both fixed and moving guides.")
+        raise ValueError("Choose a pin height or pins that leave both fixed and moving guides.")
     # Deterministic multi-source forest. Root-to-leaf chains retain a fixed
     # first vertex, including isolated fixed roots; the fallback mode is cloth.
     parents = {pin: None for pin in sorted(pins)}
@@ -161,7 +161,7 @@ def _topology(points, faces, pins):
                 parents[other] = current
                 queue.append(other)
     if len(parents) != len(points):
-        raise ValueError("Every disconnected guide piece needs a fixed guide. Lower the pin height or select fewer parts.")
+        raise ValueError("Every disconnected guide piece needs a fixed guide. Lower the pin height, paint a pin on each piece or select fewer parts.")
     children = {parent for parent in parents.values() if parent is not None}
     groups = []
     for leaf in sorted(set(parents) - children):
@@ -255,6 +255,38 @@ def _bindings(positions, guides):
             yield ids, weights
 
 
+#: Painted pins must sit on the part's LOD0 vertices within this share of its size.
+PIN_TOLERANCE = 1e-3
+
+
+def _painted_pins(lod0, source, pinned_points, name):
+    """Per source-LOD vertex: pinned when its nearest LOD0 vertex was painted as a pin.
+
+    Every painted pin must still sit on a LOD0 vertex of the part, so pins painted
+    before an edit that moved or removed those vertices are refused, not misplaced.
+    """
+    if not pinned_points:
+        return [False] * len(source)
+    from .pac_cloth_paint import ClothPaintSamples, _nearest_values
+    if not lod0:
+        raise ValueError(f"Cloth pins for {name} need the part's LOD0 geometry.")
+    low = [min(p[i] for p in lod0) for i in range(3)]
+    high = [max(p[i] for p in lod0) for i in range(3)]
+    tolerance = max(1e-6, math.dist(low, high) * PIN_TOLERANCE)
+    reference = ClothPaintSamples(tuple(tuple(float(v) for v in p[:3]) for p in lod0), (0.0,) * len(lod0))
+    _, distances = _nearest_values(pinned_points, reference, tolerance)
+    if any(distance > tolerance for distance in distances):
+        raise ValueError(f"Cloth pins on {name} no longer line up with its vertices. "
+                         "Paint the pins again, then create the guides again.")
+    pins = ClothPaintSamples(tuple(tuple(float(v) for v in p) for p in pinned_points), (1.0,) * len(pinned_points))
+    # Mark the LOD0 vertices the pins sit on, then give each source vertex its
+    # nearest LOD0 vertex's mark (exact for LOD0, closest match below it).
+    _, to_pin = _nearest_values(reference.positions, pins, tolerance)
+    marks = ClothPaintSamples(reference.positions, tuple(1.0 if d <= tolerance else 0.0 for d in to_pin))
+    values, _ = _nearest_values([tuple(float(v) for v in p[:3]) for p in source], marks)
+    return [value > 0.5 for value in values]
+
+
 def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> bytes:
     """Generate guides, constraints and bindings at all LODs, or fail atomically."""
     if not rules:
@@ -273,9 +305,12 @@ def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule],
         source = levels[rule.source_lod].submeshes[index]
         if not source.faces or not source.vertices:
             raise ValueError("The selected guide source LOD has no geometry for this part.")
-        if rule.source_lod not in displayed:
-            displayed[rule.source_lod] = appearance.to_neutral(levels[rule.source_lod]) if appearance else levels[rule.source_lod]
+        for lod in {0, rule.source_lod}:
+            if lod not in displayed:
+                displayed[lod] = appearance.to_neutral(levels[lod]) if appearance else levels[lod]
         heights = displayed[rule.source_lod].submeshes[index].vertices
+        painted = _painted_pins(displayed[0].submeshes[index].vertices, heights, rule.pinned_points,
+                                source.name or str(index))
         used = sorted({i for face in source.faces for i in face})
         first, weld, mapping = len(points), {}, {}
         for vertex in used:
@@ -286,8 +321,8 @@ def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule],
                 weld[key] = len(points)
                 points.append(point)
                 skins.append(skin)
-                if heights[vertex][1] >= rule.fixed_above:
-                    pins.add(weld[key])
+            if (rule.fixed_above is not None and heights[vertex][1] >= rule.fixed_above) or painted[vertex]:
+                pins.add(weld[key])
             mapping[vertex] = weld[key]
         ranges[index] = (first, len(points))
         seen = set()

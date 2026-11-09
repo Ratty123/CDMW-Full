@@ -73,9 +73,11 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 try:
                     if skeleton is None:
                         raise ValueError("Standalone rigid attachment has no matched body collision rig.")
-                    inputs = {role: value[1] for role, value in authoring.cloth_collision_inputs.items() if role in ("body", "head")}
-                    volumes, collider_source = select_cloth_body_volumes(session.original_data, skeleton, **inputs)
+                    from cdmw.services.mesh_collision_volumes import preview_volume_inputs
+                    model_data, inputs, edit_reason = preview_volume_inputs(authoring, session)
+                    volumes, collider_source = select_cloth_body_volumes(model_data, skeleton, **inputs)
                     cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload, volumes=volumes)
+                    collider_reason = edit_reason
                 except (ValueError, OverflowError, struct.error) as exc:
                     cloth["body_colliders"] = []
                     collider_reason = str(exc)
@@ -97,7 +99,21 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
         cloth, cloth_state = metadata["decoded_cloth"]
         if cloth is not None:
             from cdmw.modding.pac_weapon_collisions import combined_preview_colliders
+            from cdmw.services.mesh_collision_volumes import preview_volume_inputs, preview_volume_key
             cloth, cloth_state = dict(cloth), dict(cloth_state)
+            volume_key = preview_volume_key(authoring, session)
+            if skeleton is not None and metadata.get("body_collider_key") not in (None, volume_key):
+                # Collision volume edits changed: rebuild the body contacts only.
+                try:
+                    model_data, inputs, edit_reason = preview_volume_inputs(authoring, session)
+                    volumes, collider_source = select_cloth_body_volumes(model_data, skeleton, **inputs)
+                    cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload, volumes=volumes)
+                    cloth_state.update(body_collider_count=len(cloth["body_colliders"]),
+                                       body_collider_source=collider_source, body_collider_reason=edit_reason)
+                except (ValueError, OverflowError, struct.error) as exc:
+                    cloth["body_colliders"] = []
+                    cloth_state.update(body_collider_count=0, body_collider_source="", body_collider_reason=str(exc))
+            metadata["body_collider_key"] = volume_key
             original = authoring.replacement_comparison == "original"
             state = session.replacement_state
             included = None if original or state is None else {p.target_index for p in state.parts if p.included}
@@ -335,6 +351,7 @@ def set_cloth_collision_input(authoring, args, stop_event):
                           or not isinstance(args.get("path"), str) or not args["path"]))):
         raise ValueError("Choose a body/head PABV or weapon PAC, or clear the preview inputs.")
     candidate = {} if clear else dict(authoring.cloth_collision_inputs)
+    candidate_sources = {} if clear else dict(authoring.cloth_collision_sources)
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     ui = jiggle_ui_state(authoring, replacement_ui_state(authoring))
     decoded = ui.get("decoded", {})
@@ -383,9 +400,14 @@ def set_cloth_collision_input(authoring, args, stop_event):
                     check_cancelled=lambda: authoring._raise_if_cancelled(stop_event))
             else:
                 value = decode_pabv(data)
+                # Only archive members can be shipped as edited copies.
+                if prepared is not None:
+                    candidate_sources[args["role"]] = (entry.path.replace("\\", "/"), bytes(data))
+                else:
+                    candidate_sources.pop(args["role"], None)
             candidate[args["role"]] = (name, value)
     authoring._raise_if_cancelled(stop_event)
-    if candidate == authoring.cloth_collision_inputs:
+    if candidate == authoring.cloth_collision_inputs and candidate_sources == authoring.cloth_collision_sources:
         return {"changed": False}
     cached = authoring.jiggle_source_cache
     updated = None
@@ -396,8 +418,9 @@ def set_cloth_collision_input(authoring, args, stop_event):
         try:
             if session.skeleton is None:
                 raise ValueError("Standalone rigid attachment has no matched body collision rig.")
-            volumes, source_name = select_cloth_body_volumes(
-                session.original_data, session.skeleton, **{role: value[1] for role, value in candidate.items() if role in ("body", "head")})
+            from cdmw.services.mesh_collision_volumes import preview_volume_inputs
+            model_data, inputs, reason = preview_volume_inputs(authoring, session, inputs=candidate, sources=candidate_sources)
+            volumes, source_name = select_cloth_body_volumes(model_data, session.skeleton, **inputs)
             colliders = build_cloth_body_collider_snapshot(session.skeleton, rig, volumes=volumes)
         except (ValueError, OverflowError, struct.error) as exc:
             if not clear and args.get("role") in ("body", "head"):
@@ -434,6 +457,7 @@ def set_cloth_collision_input(authoring, args, stop_event):
         authoring._raise_if_cancelled(stop_event)
     # No cancellation points after the atomic file publication.
     authoring.cloth_collision_inputs = candidate
+    authoring.cloth_collision_sources = candidate_sources
     authoring.jiggle_source_cache = updated
     with session.export_lock:
         session.revision += 1

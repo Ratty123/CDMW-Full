@@ -7606,6 +7606,10 @@ class RustMeshAuthoringSession:
     cloth_guide_output_cache: tuple | None = field(default=None, repr=False)
     jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     cloth_collision_inputs: dict[str, tuple[str, object]] = field(default_factory=dict, repr=False)
+    # Archive path and exact bytes of body/head PABV inputs picked from the game
+    # archives: the sources collision volume edits are made against.
+    cloth_collision_sources: dict[str, tuple[str, bytes]] = field(default_factory=dict, repr=False)
+    collision_volume_cache: tuple | None = field(default=None, repr=False)
     physics_profile_context: PbdProfileContext | None = field(default=None, repr=False)
     physics_profile_cache: tuple | None = field(default=None, repr=False)
     hair_skin_donor_mesh: ParsedMesh | None = None
@@ -8708,6 +8712,8 @@ class RustMeshAuthoringSession:
         state["cloth_guides"] = guide_authoring_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_weapon_collisions import weapon_collision_ui_state
         state["weapon_collisions"] = weapon_collision_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_collision_volumes import collision_volume_ui_state
+        state["collision_volumes"] = collision_volume_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_physics_profiles import physics_profiles_ui_state
         state["physics_profiles"] = physics_profiles_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_jiggle import jiggle_ui_state
@@ -9286,6 +9292,9 @@ class RustMeshAuthoringSession:
         elif command == "cloth_paint_set":
             from cdmw.services.mesh_rust_cloth_paint import run_cloth_paint_command
             result = run_cloth_paint_command(self, args)
+        elif command == "cloth_pin_set":
+            from cdmw.services.mesh_rust_cloth_paint import run_cloth_pin_command
+            result = run_cloth_pin_command(self, args)
         elif command.startswith("replacement_"):
             from cdmw.services.mesh_rust_replacement import run_replacement_command
             result = run_replacement_command(self, command, args, stop_event)
@@ -9484,6 +9493,7 @@ class RustMeshAuthoringSession:
             "rig_normalize_weights",
             "rig_transfer_weights",
             "cloth_paint_set",
+            "cloth_pin_set",
         } or command.startswith("morph_") or command.startswith("refit_"):
             self._preflight_current_command_document(command)
         result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
@@ -9514,7 +9524,7 @@ class RustMeshAuthoringSession:
             before_signature=before_signature,
             mesh_change=("none" if state_only or command == "state" else
                          "weights" if command in {"rig_adjust_weight", "rig_normalize_weights", "rig_transfer_weights",
-                                                  "cloth_paint_set"}
+                                                  "cloth_paint_set", "cloth_pin_set"}
                          else "all"),
         )
         state = self.state_payload(

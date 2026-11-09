@@ -1314,6 +1314,72 @@ fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unava
 }
 
 #[test]
+fn collision_shapes_send_only_their_changes_and_restore() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    ui.application.cdmw_state["cloth"]["available"] = json!(false);
+    ui.application.cdmw_state["collision_volumes"] = json!({"available": true, "reason": "", "active": false,
+        "sources": [{"source": "model", "role": "model", "shared": false, "available": true, "reason": "",
+                     "sha256": "ab", "edit": null, "rows": [
+            {"ordinal": 0, "shape": "capsule", "bone": "Bip01 L Calf", "bone_key": 1, "resizable": true,
+             "parameters": [0.1, 0.4], "position": [0.0, 0.5, 0.0], "axis": [0.0, 1.0, 0.0], "flags": 0, "usage": 1},
+            {"ordinal": 1, "shape": "sphere", "bone": "", "bone_key": 2, "resizable": true,
+             "parameters": [0.2], "position": [0.0, 1.6, 0.0], "axis": [0.0, 1.0, 0.0], "flags": 0, "usage": 1}]},
+                    {"source": "character/model/1_pc/1_phm/phm_01.pabv", "role": "body", "shared": true,
+                     "available": true, "reason": "", "sha256": "cd", "edit": null, "rows": []}]});
+    ui.frame(Vec::new());
+    ui.click("Experimental features")?;
+    ui.click("Collision shapes")?;
+    // Nothing edited yet: nothing to apply.
+    assert!(ui.actions_from_click("Apply shape edits")?.is_empty());
+    ui.click("1 · Capsule · Bip01 L Calf")?;
+    ui.application.cdmw_collision.volumes[0].parameters[0] = 0.05;
+    ui.frame(Vec::new());
+    ui.click("2 · Sphere · 0x00000002")?;
+    ui.click("Remove shape")?;
+    let actions = ui.actions_from_click("Apply shape edits")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_collision_volumes", arguments, .. }
+        if arguments == &json!({"source": "model", "copies": [], "changes": [
+            {"ordinal": 0, "removed": false, "parameters": [0.05, 0.4], "position": null},
+            {"ordinal": 1, "removed": true, "parameters": null, "position": null}]}))));
+    ui.application.cdmw_pending_request = None;
+    // The shared body file says so before it can be edited.
+    ui.click("Body: phm_01.pabv")?;
+    assert!(ui.label_rect("Every model on this body uses these volumes. Build Mod ships the edited file, which changes them all and conflicts with other mods that ship it.").is_some());
+    ui.click("This model's shapes")?;
+    ui.application.cdmw_state["collision_volumes"]["sources"][0]["edit"] =
+        json!({"changes": [{"ordinal": 1, "removed": true, "parameters": null, "position": null}], "copies": []});
+    ui.frame(Vec::new());
+    let actions = ui.actions_from_click("Restore source shapes")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_collision_volumes", arguments, .. }
+        if arguments == &json!({"source": "model", "reset": true}))));
+    Ok(())
+}
+
+#[test]
+fn game_models_paint_pins_only_and_pin_strokes_become_pin_commands() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    ui.application.cdmw_state["cloth"]["available"] = json!(false);
+    ui.application.cdmw_state["cloth_paint"] = json!({"supported": false, "pins_supported": true,
+        "pinned_vertex_count": 0, "pin_parts": [], "reason": "Game model"});
+    let state = ui.application.cdmw_state.clone();
+    ui.application.cdmw_cloth_paint.update(&state);
+    ui.frame(Vec::new());
+    ui.click("Cloth pins (experimental)")?;
+    assert!(ui.label_rect("Paint whole model").is_none());
+    ui.click("Pin brush")?;
+    assert_eq!(ui.application.cloth_pin_brush_value(), Some(true));
+    assert_eq!(ui.application.cloth_brush_value(), None);
+    ui.click("Unpin brush")?;
+    assert_eq!(ui.application.cloth_pin_brush_value(), Some(false));
+    ui.application.selection_tool = SelectionTool::Lasso;
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cloth_pin_brush_value(), None);
+    Ok(())
+}
+
+#[test]
 fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits() -> TestResult {
     let (root, mut ui, payload) = spline_fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();

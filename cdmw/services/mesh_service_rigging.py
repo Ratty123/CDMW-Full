@@ -410,6 +410,42 @@ class MeshRiggingServiceMixin:
         return sum(len(changed) for _index, _paint, changed in planned)
 
     @_with_session_export_lock
+    def set_selected_vertex_cloth_pin(self, session_id: str, pinned: object) -> int:
+        """Pin or unpin the explicitly selected vertices; returns how many changed.
+
+        Pins travel with the mesh as the per-vertex ``cloth_pin`` attribute. Newly
+        built cloth guides at pinned vertices follow the bones and hold the rest.
+        """
+        if type(pinned) is not bool:
+            raise ValueError("Cloth pins must be set to true or false.")
+        session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("Cloth pins are unavailable while the native mesh state is stale.")
+        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        planned: list[tuple[int, list[bool], list[int]]] = []
+        for submesh_index, vertex_indices in session.selection.vertex_map().items():
+            if not 0 <= submesh_index < len(session.working_mesh.submeshes):
+                continue
+            submesh = session.working_mesh.submeshes[submesh_index]
+            count = len(submesh.vertices)
+            pins = [bool(v) for v in (getattr(submesh, "cloth_pin", ()) or ())]
+            if len(pins) != count:
+                pins = [False] * count
+            changed = [i for i in _valid_vertex_indices(submesh, vertex_indices) if pins[i] != pinned]
+            if changed:
+                planned.append((submesh_index, pins, changed))
+        if not planned:
+            return 0
+        self._push_history(session, action="set_cloth_pin", label="Set Cloth Pins")
+        for submesh_index, pins, changed in planned:
+            for vertex_index in changed:
+                pins[vertex_index] = pinned
+            session.working_mesh.submeshes[submesh_index].cloth_pin = pins
+        _clear_history_stack(session.redo_stack)
+        session.revision += 1
+        return sum(len(changed) for _index, _pins, changed in planned)
+
+    @_with_session_export_lock
     def normalize_selected_vertex_weights(self, session_id: str) -> MeshSkeletonSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:

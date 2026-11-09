@@ -790,6 +790,7 @@ class NewItemModelControllerMixin:
         source_bake = source.bake
         source_generation = source.mesh_generation
         source_flip = source.flip_texture_v
+        source_cloth = (source.own_cloth_guides, source.cloth_profile)
         model_source = self.draft.model_source
         keep_physics = self.draft.keep_template_physics
         # A UI edit must not change the inputs underneath the worker. Source
@@ -818,6 +819,7 @@ class NewItemModelControllerMixin:
             if (self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant
                     or self.model_placement != placement or source.bake != source_bake
                     or source.mesh_generation != source_generation or source.flip_texture_v != source_flip
+                    or (source.own_cloth_guides, source.cloth_profile) != source_cloth
                     or self.draft.keep_template_physics != keep_physics
                     or self.draft.model_source != model_source):
                 cleanup = getattr(result,"cleanup",None)

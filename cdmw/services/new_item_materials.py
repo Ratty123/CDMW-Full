@@ -661,6 +661,7 @@ def _finish_plain_pbr_route(
             skeleton_edit=files.skeleton_edit,
             # Cloth paint already bound the skin rows to the template's cloth.
             cloth_painted=getattr(files, "cloth_painted", False),
+            cloth_profile=getattr(files, "cloth_profile", None),
         ),
         rewritten=tuple(result.rewritten),
         lines=tuple(lines),
@@ -1029,6 +1030,7 @@ def route_model_files(
         notes=(*files.notes, "the Builder's material sidecar as it came (Material Authority)"), warnings=files.warnings,
         palette_extension=files.palette_extension, skeleton_edit=files.skeleton_edit,
         cloth_painted=getattr(files, "cloth_painted", False),
+        cloth_profile=getattr(files, "cloth_profile", None),
     )
 
 
