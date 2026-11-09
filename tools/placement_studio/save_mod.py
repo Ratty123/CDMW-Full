@@ -159,8 +159,8 @@ def describe_unsaveable(commands) -> ModChange:
     detail += [translate_active_ui_text(f"Animation chart now uses {c.text} instead of {c.target}")
                for c in commands if c.kind == "retarget"]
     detail.append(translate_active_ui_text(
-        "These cannot go into a mod: they skip the checks a move makes. Use Carried at to move "
-        "an item, or Export changed files only to keep the files."))
+        "These cannot go into a mod: they skip the checks a move makes. Use Move it on Carry to "
+        "move an item, or Export files… to keep the files."))
     return ModChange(UNSAVEABLE,
                      translate_active_ui_text("Advanced edits that cannot be saved as a mod"),
                      tuple(detail), saveable=False)
@@ -397,14 +397,14 @@ def plain_finding(finding) -> str:
         names = ", ".join(part_label(str(u)) for u in users[:4]) + ("…" if len(users) > 4 else "")
         return translate_active_ui_text(
             f"{socket} is shared by several items ({names}), so changing it would move all of "
-            f"them. Undo that adjustment and move the item with Carried at instead, which "
+            f"them. Undo that adjustment and move the item with Move it on Carry, which "
             f"gives it an attach point of its own.")
     if code == "undefined_socket":
         return translate_active_ui_text(
             "A change points an item at an attach point that no saved file defines.")
     if code == "case_not_handled":
         return translate_active_ui_text(
-            "The weapon moves but its sheath or case does not. Move it again with Carried at so "
+            "The weapon moves but its sheath or case does not. Move it again with Move it on Carry so "
             "both go together.")
     if code == "case_left_behind":
         return translate_active_ui_text(

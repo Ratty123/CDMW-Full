@@ -24,6 +24,8 @@ session, stamped with each package file's size and mtime so a game update invali
 
 from __future__ import annotations
 
+import time
+
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -35,6 +37,8 @@ from . import corpus
 #: Entries between progress yields. Small enough that one slice is a few ms,
 #: large enough that the yield overhead stays invisible against 1.6M entries.
 _SLICE = 20_000
+#: Longest the UI thread spends in one slice of the walk.
+_SLICE_SECONDS = 0.025
 
 POSE_MODIFIER_PATH = "character/descriptors/posemodifierdata/posemodifierdata.xml"
 
@@ -96,6 +100,7 @@ def scan_rig_files(
     seen_package = None
     done = 0
     since_yield = 0
+    slice_started = time.perf_counter()
     # Iteration stays with `corpus._iter_archive_entries`, the one place that knows how to
     # walk the package tables. Progress comes from watching the package name change, so
     # this needs no second traversal and no duplicate of that logic.
@@ -110,9 +115,13 @@ def scan_rig_files(
         elif path == POSE_MODIFIER_PATH and not pose_modifier:
             pose_modifier = _read(read_archive_entry_data, entry)
         since_yield += 1
-        if since_yield >= _SLICE:
+        # Bounded by time as well as count: 20,000 entries took 0.2 to 0.7 s on one install,
+        # long enough to freeze the window, so a slice also ends after about 25 ms.
+        if since_yield >= _SLICE or (since_yield % 256 == 0
+                                     and time.perf_counter() - slice_started > _SLICE_SECONDS):
             since_yield = 0
             yield (done, total, None)
+            slice_started = time.perf_counter()
 
     files = RigFiles(
         constraint_paths=tuple(sorted(constraints)),

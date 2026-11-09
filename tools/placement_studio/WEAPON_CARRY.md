@@ -27,8 +27,7 @@ two mods without crashing or silently losing edits.
 
 ## Screens
 
-One guided panel, opened from **Position > 2. Where it is carried > Carry it somewhere
-else...**. It replaces nothing: the replacement workspace (`move_weapon.py`) stays the place
+One guided section, **Carry > Where it hangs**, with **Move it** pinned below. It replaces nothing: the replacement workspace (`move_weapon.py`) stays the place
 to pick donor clips, and **Your mod** stays the one way out. Each step can be left at its
 default.
 
@@ -144,11 +143,11 @@ Built on 2026-11-09, with `tests/test_placement_studio_carry_timing.py`.
   selected operation declared. `ops.derive_file` reads a retimed chart as tier C
   `paac_event_begin` operations (four bytes each) instead of an opaque file, and `replay`
   reproduces it.
-- **Animations > Draw and put-away timing**: **Measure timing** runs the survey for the
+- **Animations > Timing**: **Measure** runs the survey for the
   selected slot on a private session off the UI thread, with every pending change (moved
   attach points, replaced clips). The table shows each hand-off with its status; the plot
   shows the gap with the played stretch, the current hand-off and the contact. **Move
-  selected to contact** and **Move all to contact** (sure contacts only) record one timing
+  selected** and **Move all to contact** (sure contacts only) record one timing
   operation per slot;
   moving more later replaces it. A measurement is refused once the history, character, slot
   or weapon has changed.
@@ -182,10 +181,10 @@ Built on 2026-11-09, with `tests/test_placement_studio_carry_plan.py`.
 - `MovePlan.new_body_sockets` and `mirror_of`: `apply_move` creates the body points in the
   same operation, and the scope allows exactly those files and names, so a mirrored carry is
   one undoable change that saves through the slice 1 patches (an `<insert>` per body file).
-- **Position > 2. Where it is carried > Carry it somewhere else...**: the body, the slot's
-  descriptor rows as this session has them, which hand holds it, a spot, and **Mirror it to
-  the other side of the body** (on by default for a left-handed body, off for a centre spot).
-  The plan is shown in words before **Move it**. Placement only: animations and timing stay
+- **Carry > Where it hangs**: where it hangs now, which hand holds it, a spot in **Move to**,
+  and **Mirror to the other side** (on by default for a left-handed body, off for a centre
+  spot). **Weapon and case rows...** shows the slot's descriptor rows as this session has
+  them. The footer shows the plan in words before **Move it**. Placement only: animations and timing stay
   on the Animations tab.
 - Each body is its own character in the tab and its own mod; the preflight refuses one mod
   for two characters, and Weapon Carry ships its female parts as separate folders too.

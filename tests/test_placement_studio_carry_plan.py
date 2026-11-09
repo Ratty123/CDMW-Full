@@ -217,86 +217,20 @@ if __name__ == "__main__":
     unittest.main()
 
 
-# ── the guide ────────────────────────────────────────────────────────
+# ── the Carry tab's Where it hangs ───────────────────────────────────
 
 import pytest  # noqa: E402
 
 
 @pytest.fixture
-def qt_app():
-    from PySide6.QtWidgets import QApplication
-
-    return QApplication.instance() or QApplication([])
-
-
-class _FakePlan:
-    def __init__(self, socket, mirrored, changes=True):
-        self.socket, self.mirrored = socket, mirrored
-        self.blocked = False
-        self.changes_anything = changes
-
-    def review_lines(self):
-        return [f"plan {self.socket} mirrored={self.mirrored}"]
-
-
-def _dialog(hand="left", current="Pelvis_R_Socket", applied=None):
-    from tools.placement_studio.window_carry_guide import CarryGuideDialog
-
-    rows = [("Weapon", {"Row": "TwoHandWeapon_Sword", "Put away on": "Spine2_B_MainWeapon_Socket",
-                        "Held in": "LHand_Socket", "File": DESC}),
-            ("Case", {"Row": "TwoHandWeapon_Sword_IN", "File": DESC})]
-    positions = [("Pelvis_R_Socket", "Hip — right"), ("Pelvis_L_Socket", "Hip — left"),
-                 ("Spine2_B_MainWeapon_Socket", "Back — main weapon")]
-    calls = []
-
-    def plan_for(socket, mirrored):
-        calls.append((socket, mirrored))
-        return _FakePlan(socket, mirrored, changes=(socket != current or mirrored)), ""
-
-    return CarryGuideDialog(None, body="Damiane and female Kliff", slot="TwoHandWeapon_Sword",
-                            rows=rows, hand=hand, positions=positions, current=current,
-                            plan_for=plan_for,
-                            apply=lambda plan: (applied.append(plan) if applied is not None else None) or "",
-                            other_body="Kliff"), calls
-
-
-def test_the_guide_shows_the_rows_and_mirrors_for_the_left_hand(qt_app) -> None:
-    dialog, calls = _dialog()
-    assert dialog._rows.rowCount() == 2
-    assert dialog._rows.item(0, 1).text() == "TwoHandWeapon_Sword"
-    assert dialog._rows.item(0, 4).text() == "LHand_Socket"
-    assert "left hand" in dialog._hand_label.text()
-    assert dialog.spot() == "Pelvis_R_Socket" and dialog.mirrored()
-    assert calls[-1] == ("Pelvis_R_Socket", True)
-    dialog._spot.setCurrentIndex(dialog._spot.findData("Spine2_B_MainWeapon_Socket"))
-    assert not dialog._mirror.isEnabled() and not dialog.mirrored()
-    assert calls[-1] == ("Spine2_B_MainWeapon_Socket", False)
-
-
-def test_the_guide_does_not_offer_a_move_that_changes_nothing(qt_app) -> None:
-    dialog, _calls = _dialog(hand="right")
-    assert not dialog.mirrored()
-    assert not dialog._move.isEnabled()
-    assert dialog._move.text() == "It is already there"
-    dialog._mirror.setChecked(True)
-    assert dialog._move.isEnabled()
-
-
-def test_the_guide_applies_the_plan_it_shows(qt_app) -> None:
-    applied = []
-    dialog, _calls = _dialog(applied=applied)
-    dialog._move.click()
-    assert [(plan.socket, plan.mirrored) for plan in applied] == [("Pelvis_R_Socket", True)]
-
-
-@pytest.fixture
-def window(monkeypatch, tmp_path, qt_app):
+def window(monkeypatch, tmp_path):
     from PySide6.QtCore import QSettings
-    from PySide6.QtWidgets import QMessageBox
+    from PySide6.QtWidgets import QApplication, QMessageBox
 
     from tools.placement_studio import corpus
     from tools.placement_studio.window import PlacementStudioWindow
 
+    QApplication.instance() or QApplication([])
     monkeypatch.setattr(PlacementStudioWindow, "_start_armour_index", lambda self: None)
     monkeypatch.setattr(PlacementStudioWindow, "_start_archive_content_load", lambda *a, **k: None)
     monkeypatch.setattr(QMessageBox, "exec", lambda box: 0)
@@ -305,34 +239,53 @@ def window(monkeypatch, tmp_path, qt_app):
     base = tmp_path / "vanilla"
     records = {path: corpus._pin(base, path, data, "0009") for path, data in FILES.items()}
     studio = PlacementStudioWindow(corpus.Baseline(base, records), background_loading=False)
+    # The synthetic character has no skeleton; give it one so its spots are placed.
+    studio._session.hierarchy = _hierarchy()
+    studio._session._reposition()
+    studio._populate_carry_box()
     yield studio
     studio.close()
     studio.deleteLater()
 
 
-def test_the_window_guide_records_a_mirrored_move(window) -> None:
-    # The synthetic character has no skeleton; give it one so its spots are placed.
-    window._session.hierarchy = _hierarchy()
-    window._session._reposition()
-    dialog = window._open_carry_guide()
-    assert dialog is not None
-    assert dialog._rows.rowCount() >= 1
-    dialog._spot.setCurrentIndex(dialog._spot.findData("Pelvis_L_Socket"))
-    dialog._mirror.setChecked(True)
-    assert dialog._move.isEnabled(), dialog._summary.toPlainText()
-    assert "mirrored from Pelvis_L_Socket" in dialog._summary.toPlainText()
-    dialog._move.click()
+def _pick(window, socket):
+    window._carry_box.setCurrentIndex(window._carry_box.findData(socket))
+
+
+def test_picking_a_spot_plans_and_only_move_it_applies(window) -> None:
+    part = window._current_binding().part
+    assert window._carry_now.text() and window._carry_hand.text() == "Right hand"
+    _pick(window, part.in_socket)
+    assert not window._carry_move_button.isEnabled()
+    assert window._carry_plan_label.text() == "It already hangs there."
+    assert window._carry_box.findData("RHand_Socket") < 0  # held, not carried
+    _pick(window, "Pelvis_R_Socket")
+    assert window._edits.operations() == []  # picking alone changes nothing
+    assert window._carry_move_button.isEnabled(), window._carry_plan_label.text()
+    assert "→" in window._carry_plan_label.text()
+
+
+def test_mirror_is_offered_for_a_side_spot_and_creates_a_point(window) -> None:
+    part = window._current_binding().part
+    _pick(window, part.in_socket)
+    assert window._carry_mirror.isEnabled()
+    window._carry_mirror.setChecked(True)
+    assert "mirrored" in window._carry_plan_label.text()
+    assert "mirrored from" in window._carry_plan_label.toolTip()
+    window._carry_move_button.click()
     operations = window._edits.operations()
     assert len(operations) == 1
-    created = operations[0].created_sockets()
-    assert any(name.startswith("Pelvis_R") for name in created), created
+    assert any(name.startswith("Pelvis_R") for name in operations[0].created_sockets())
 
 
-def test_the_position_tab_button_opens_the_guide(window) -> None:
-    from tools.placement_studio.window_carry_guide import CarryGuideDialog
+def test_a_centre_spot_has_no_mirror(window) -> None:
+    _pick(window, "Spine2_B_MainWeapon_Socket")
+    assert not window._carry_mirror.isEnabled() and not window._carry_mirror.isChecked()
 
-    window._carry_guide_button.click()
-    shown = [d for d in window.findChildren(CarryGuideDialog) if d.isVisible()]
-    assert len(shown) == 1
-    assert shown[0].windowTitle() == "Carry it somewhere else"
-    shown[0].reject()
+
+def test_the_rows_dialog_lists_the_weapon_and_its_case(window) -> None:
+    dialog = window._show_carry_rows()
+    assert dialog is not None
+    rows = [dialog.table.item(i, 1).text() for i in range(dialog.table.rowCount())]
+    assert window._current_binding().part.part_name in rows
+    dialog.reject()

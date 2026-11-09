@@ -13,9 +13,6 @@ from PySide6.QtCore import QSettings, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -53,82 +50,66 @@ class SaveModMixin:
     """The Your mod tab. Mixed into `PlacementStudioWindow`."""
 
     def _build_mod_tab(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 6, 8, 6)
-        intro = QLabel(
-            "Everything you change is listed here. Untick anything you want to leave out, then "
-            "save it as a mod for DMM (Definitive Mod Manager). Nothing touches the game until "
-            "you enable the mod in DMM."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        from . import ui_kit as kit
 
+        page = kit.InspectorPage()
+        changes = QWidget()
+        layout = QVBoxLayout(changes)
+        layout.setContentsMargins(10, 8, 10, 4)
+        layout.setSpacing(6)
         self._mod_list = QTreeWidget()
         self._mod_list.setHeaderHidden(True)
         self._mod_list.setRootIsDecorated(True)
+        self._mod_list.setToolTip("Untick a change to leave it out of the mod. Nothing reaches "
+                                  "the game until the mod is enabled in DMM.")
         self._mod_list.itemChanged.connect(self._on_mod_item_changed)
         layout.addWidget(self._mod_list, 1)
-        self._mod_empty = QLabel(
-            "No changes yet. Move an item on the Position tab, change its animations on the "
-            "Animations tab, or tune Driven bones and Rig behaviour under Advanced."
-        )
+        self._mod_empty = QLabel("No changes yet.")
         self._mod_empty.setObjectName("HintLabel")
         self._mod_empty.setWordWrap(True)
         layout.addWidget(self._mod_empty)
 
-        actions = QHBoxLayout()
-        self._discard_change_button = QPushButton("Remove selected change")
+        self._discard_change_button = QPushButton("Remove")
         self._discard_change_button.setToolTip(
             "Take the selected change out of the session entirely. Other changes stay.")
         self._discard_change_button.clicked.connect(self._discard_selected_change)
-        actions.addWidget(self._discard_change_button)
         self._history_button.setText("History…")
-        actions.addWidget(self._history_button)
-        actions.addStretch(1)
         self._start_over_button = QPushButton("Start over")
         self._start_over_button.setToolTip("Remove every change and go back to the game as it is.")
         self._start_over_button.clicked.connect(self._start_over)
-        actions.addWidget(self._start_over_button)
-        layout.addLayout(actions)
+        layout.addWidget(kit.row(self._discard_change_button, self._history_button,
+                                 self._export_button, None, self._start_over_button,
+                                 stretch=False))
+        page.set_fill(changes)
 
-        save_box = QGroupBox("Save as a mod")
-        form = QFormLayout(save_box)
         self._mod_name_edit = QLineEdit()
+        self._mod_name_edit.setPlaceholderText("My placement mod")
         self._mod_name_edit.setToolTip("The name DMM lists the mod under.")
-        form.addRow("Name:", self._mod_name_edit)
         self._mod_author_edit = QLineEdit(str(self._mod_settings().value(_AUTHOR, "") or ""))
         self._mod_author_edit.setPlaceholderText("optional")
-        form.addRow("Author:", self._mod_author_edit)
         self._mod_version_edit = QLineEdit("1.0.0")
-        form.addRow("Version:", self._mod_version_edit)
-
-        self._save_to_dmm = QRadioButton("Straight into DMM's mods folder")
+        self._mod_version_edit.setMaximumWidth(80)
+        self._save_to_dmm = QRadioButton("DMM's mods folder")
         self._save_to_dmm.setToolTip(
             "CDMW finds DMM (or asks once where it is) and writes the mod where DMM lists it.")
         self._save_to_folder = QRadioButton("A folder I choose")
         remembered = str(self._mod_settings().value(_TARGET, "dmm") or "dmm")
         (self._save_to_folder if remembered == "folder" else self._save_to_dmm).setChecked(True)
-        where = QVBoxLayout()
-        where.addWidget(self._save_to_dmm)
-        where.addWidget(self._save_to_folder)
-        form.addRow("Save to:", where)
-
-        buttons = QHBoxLayout()
-        self._save_mod_button = QPushButton("Save as mod")
+        self._save_mod_button = kit.primary("Save as DMM mod")
         self._save_mod_button.setDefault(True)
-        self._save_mod_button.setMinimumHeight(32)
         self._save_mod_button.clicked.connect(self._on_save_mod)
-        buttons.addWidget(self._save_mod_button)
-        buttons.addStretch(1)
-        buttons.addWidget(self._export_button)
-        form.addRow(buttons)
         self._save_result = QLabel("")
         self._save_result.setWordWrap(True)
         self._save_result.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self._save_result.setOpenExternalLinks(True)
-        form.addRow(self._save_result)
-        layout.addWidget(save_box)
+        form = kit.Form()
+        form.add("Name", self._mod_name_edit)
+        form.add("Version", kit.row(self._mod_version_edit, kit.caption("Author"),
+                                    self._mod_author_edit, stretch=False))
+        form.add("Save to", kit.row(self._save_to_dmm, self._save_to_folder))
+        form.add("", kit.row(None, self._save_mod_button, stretch=False))
+        form.add_wide(self._save_result)
+        page.set_footer(form)
 
         self._mod_unchecked: set = set()
         self._mod_page = page

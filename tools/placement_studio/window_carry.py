@@ -146,7 +146,8 @@ class CarryPickerMixin:
                 "is re-routed there, its angle follows, and you are offered the matching "
                 "animations.")
         )
-        self._carry_box.currentIndexChanged.connect(self._on_carry_changed)
+        # Picking a spot shows the plan; Carry's Move it applies it (`window_carry_guide`).
+        self._carry_box.currentIndexChanged.connect(self._on_carry_spot_changed)
 
         self._history_button = QPushButton("History…")
         self._history_button.setToolTip(
@@ -204,7 +205,9 @@ class CarryPickerMixin:
         current = getattr(getattr(binding, "part", None), "in_socket", "") or ""
         self._carry_syncing = True
         self._carry_box.clear()
-        positions = carry.carry_positions(self._session)
+        # Where it hangs when put away: the hands are where it is held, not carried.
+        positions = [(socket, label) for socket, label in carry.carry_positions(self._session)
+                     if socket not in carry.HELD_SOCKETS]
         for socket, label in positions:
             self._carry_box.addItem(label, socket)
         # A part routed somewhere that is not a carry position — an earring, a lantern — still
@@ -218,6 +221,7 @@ class CarryPickerMixin:
         self._carry_box.setCurrentIndex(max(0, position))
         self._carry_syncing = False
         self._refresh_carry_status()
+        self._refresh_carry_plan()
 
     def _refresh_carry_status(self) -> None:
         if self._carry_index is None:

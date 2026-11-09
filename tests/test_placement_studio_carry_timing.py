@@ -496,11 +496,17 @@ def test_move_all_leaves_near_reaches_to_a_selection(window) -> None:
     rows = [carry_timing.decide(events[0], _curve(_dip(12))),
             carry_timing.decide(events[1], _curve(_dip(12, low=0.3)))]
     window._on_timing_ready((window._timing_current_signature(), (rows, [])), "")
-    assert "(nearly reaches)" in window._timing_table.item(1, 7).text()
+    def near_row():
+        return next(row for row in range(window._timing_table.rowCount())
+                    if "(nearly reaches)" in window._timing_table.item(row, 3).text())
+
+    assert near_row() == 1  # plain reaches first, then near ones
     window._move_timing(selected_only=False)
     assert [address for _c, address, _b in window._edits.operations()[0].retimed_events()] == [
         f"{events[0].animation}:{events[0].event}"]
-    window._timing_table.selectRow(1)
+    # The moved one is on time now, so "Needs a move" no longer lists it.
+    assert window._timing_table.rowCount() == 1
+    window._timing_table.selectRow(near_row())
     window._move_timing(selected_only=True)
     assert len(window._edits.operations()[0].retimed_events()) == 2
 

@@ -13,10 +13,9 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
-    QGridLayout,
+    QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QWidget,
 )
 
@@ -59,34 +58,32 @@ class ArmourPickerMixin:
         self._weapon_socket_entries: dict = {}
         self._weapon_mesh_entries: dict = {}
 
-        panel = QWidget()
-        grid = QGridLayout(panel)
-        grid.setContentsMargins(8, 6, 8, 6)
-        grid.setColumnStretch(1, 1)
+        from . import ui_kit as kit
 
-        self._armour_status = QLabel("Indexing armour…")
-        grid.addWidget(self._armour_status, 0, 0, 1, 2)
-
-        for row, (slot, label) in enumerate(SLOTS, start=1):
-            grid.addWidget(QLabel(label + ":"), row, 0)
+        page = kit.InspectorPage()
+        form = kit.Form()
+        for slot, label in SLOTS:
             box = QComboBox()
             box.addItem(NONE_LABEL, "")
             box.setEnabled(False)
             box.currentIndexChanged.connect(self._on_armour_changed)
-            grid.addWidget(box, row, 1)
+            form.add(label, box)
             self._armour_boxes[slot] = box
-
+        page.add(kit.Section("Worn", form))
+        self._armour_status = QLabel("Indexing armour…")
+        self._armour_status.setObjectName("HintLabel")
+        self._armour_status.setWordWrap(True)
         clear = QPushButton("Undress")
         clear.setToolTip("Clear every slot back to the bare body")
         clear.clicked.connect(self._clear_armour)
-        grid.addWidget(clear, len(SLOTS) + 1, 0, 1, 2)
-        grid.setRowStretch(len(SLOTS) + 2, 1)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(panel)
+        footer = QWidget()
+        layout = QHBoxLayout(footer)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._armour_status, 1)
+        layout.addWidget(clear)
+        page.set_footer(footer)
         self._start_armour_index()
-        return scroll
+        return page
 
     # ── indexing ────────────────────────────────────────────────────
 

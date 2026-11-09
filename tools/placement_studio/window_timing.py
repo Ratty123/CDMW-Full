@@ -17,7 +17,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -37,10 +36,17 @@ from . import carry_timing
 def _columns():
     """The timing table's headings, as literals so the localization manifest finds them."""
 
-    return [translate_active_ui_text("Clip"), translate_active_ui_text("Chart"),
-            translate_active_ui_text("Animation"), translate_active_ui_text("Action"),
-            translate_active_ui_text("Hand-off now"), translate_active_ui_text("Hand reaches it"),
-            translate_active_ui_text("Gap"), translate_active_ui_text("Status")]
+    return [translate_active_ui_text("Animation"), translate_active_ui_text("Now"),
+            translate_active_ui_text("Reaches"), translate_active_ui_text("Status")]
+
+
+def _row_order(row) -> tuple:
+    """Hand-offs to move first (plain reaches before near ones), then by animation."""
+
+    from .clip_names import trimmed
+
+    return (not row.sure, not row.movable, trimmed(row.event.clip_name), row.event.chart,
+            row.event.animation)
 
 
 def _status_text(status: str) -> str:
@@ -144,31 +150,30 @@ class GapPlot(QWidget):
 class TimingPanelMixin:
     """Draw and put-away timing. Mixed into `PlacementStudioWindow`."""
 
-    def _build_handoff_timing_box(self) -> QGroupBox:
-        box = QGroupBox(translate_active_ui_text("Draw and put-away timing"))
-        layout = QVBoxLayout(box)
-        hint = QLabel(translate_active_ui_text(
-            "When a weapon is drawn or put away, the game swaps it between the body and the "
-            "hand at a set moment of each animation. After moving a weapon or changing its "
-            "animations, that moment can come before or after the hand gets there, and the "
-            "weapon pops. Measure finds where the hand reaches the weapon in every draw and "
-            "put-away of the selected slot; move a hand-off to that moment and it goes into "
-            "Your mod."))
-        hint.setObjectName("HintLabel")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+    def _build_handoff_timing_page(self) -> QWidget:
+        """Animations > Timing: what was measured, and the moves. The plot sits under the view."""
 
-        row = QHBoxLayout()
-        self._timing_measure = QPushButton(translate_active_ui_text("Measure timing"))
+        from . import ui_kit as kit
+
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
+        self._timing_measure = QPushButton(translate_active_ui_text("Measure"))
         self._timing_measure.setToolTip(translate_active_ui_text(
-            "Plays each draw and put-away of the selected slot on this character, with your "
-            "changes, and measures how far the hand is from the weapon on every frame."))
+            "When a weapon is drawn or put away, the game swaps it between the body and the "
+            "hand at a set moment of each animation. Measure plays each draw and put-away of "
+            "the selected slot with your changes, and finds where the hand reaches the "
+            "weapon."))
         self._timing_measure.clicked.connect(self._start_timing)
-        row.addWidget(self._timing_measure)
-        self._timing_status = QLabel("")
+        self._timing_status = QLabel(translate_active_ui_text(
+            "Measure to see when each draw and put-away swaps the weapon."))
+        self._timing_status.setObjectName("HintLabel")
         self._timing_status.setWordWrap(True)
-        row.addWidget(self._timing_status, 1)
-        layout.addLayout(row)
+        top = QHBoxLayout()
+        top.addWidget(self._timing_status, 1)
+        top.addWidget(self._timing_measure)
+        layout.addLayout(top)
 
         headings = _columns()
         self._timing_table = QTableWidget(0, len(headings))
@@ -181,42 +186,47 @@ class TimingPanelMixin:
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         self._timing_table.itemSelectionChanged.connect(self._on_timing_selection)
-        self._timing_table.setMinimumHeight(120)
+        self._timing_filter = kit.Segmented((
+            ("todo", translate_active_ui_text("Needs a move"),
+             translate_active_ui_text("Hand-offs that swap before or after the hand gets there.")),
+            ("all", translate_active_ui_text("All"),
+             translate_active_ui_text("Every hand-off of the slot, on time or not.")),
+        ))
+        self._timing_filter.changed.connect(lambda _value: self._show_timing_rows(
+            getattr(self, "_timing_all_rows", [])))
+        layout.insertWidget(1, kit.row(self._timing_filter))
         layout.addWidget(self._timing_table, 1)
 
-        self._timing_plot = GapPlot()
-        layout.addWidget(self._timing_plot)
-
-        actions = QHBoxLayout()
-        self._timing_move = QPushButton(translate_active_ui_text("Move selected to contact"))
+        shared = translate_active_ui_text(
+            "Saved as whole action charts. DMM serves one copy of each chart, so another mod "
+            "that ships the same chart (Character Creator ships one for the two-hand sword) "
+            "and this one replace each other: load this mod after it.")
+        self._timing_move = QPushButton(translate_active_ui_text("Move selected"))
+        self._timing_move.setToolTip(shared)
         self._timing_move.clicked.connect(lambda: self._move_timing(selected_only=True))
-        self._timing_move_all = QPushButton(translate_active_ui_text("Move all to contact"))
+        self._timing_move_all = kit.primary(translate_active_ui_text("Move all to contact"))
         self._timing_move_all.setToolTip(translate_active_ui_text(
             "Every hand-off marked early or late where the hand plainly reaches the weapon. "
             "Those it only nearly reaches move when you select them; those it never reaches, "
-            "and those at the start of an animation, keep their time."))
+            "and those at the start of an animation, keep their time.") + "\n\n" + shared)
         self._timing_move_all.clicked.connect(lambda: self._move_timing(selected_only=False))
         for button in (self._timing_move, self._timing_move_all):
             button.setEnabled(False)
-            actions.addWidget(button)
-        actions.addStretch(1)
-        layout.addLayout(actions)
-        shared = QLabel(translate_active_ui_text(
-            "Timing is saved as whole action charts, and one chart holds the draws of several "
-            "weapons. DMM serves one copy of each chart, so another mod that ships the same "
-            "chart (Character Creator ships one for the two-hand sword) and this one replace "
-            "each other: load this mod after it."))
-        shared.setObjectName("HintLabel")
-        shared.setWordWrap(True)
-        layout.addWidget(shared)
+        layout.addWidget(kit.row(self._timing_move, None, self._timing_move_all, stretch=False))
+
+        # Under the view, on the playback bar's time scale; shown while this page is open.
+        self._timing_plot = GapPlot()
+        self._timing_plot.setMaximumHeight(150)
+        self._timing_plot.setVisible(False)
 
         self._timing_rows: List[carry_timing.Retime] = []
+        self._timing_all_rows: List[carry_timing.Retime] = []
         self._timing_signature = None
         self._timing_task = None
         #: part -> the timing operation in Your mod, and every move it holds.
         self._timing_ops: Dict[str, str] = {}
         self._timing_moves: Dict[str, Dict[str, float]] = {}
-        return box
+        return page
 
     # ── measuring ───────────────────────────────────────────────────
 
@@ -240,7 +250,7 @@ class TimingPanelMixin:
         part = self._timing_part()
         if self._session is None or self._edits is None or not part:
             self._timing_status.setText(translate_active_ui_text(
-                "Choose a character and a slot on the Position tab first."))
+                "Choose a character and a slot first."))
             return
         self._when_clips_ready("timing", self._submit_timing)
 
@@ -305,25 +315,33 @@ class TimingPanelMixin:
         self._timing_status.setText(text)
 
     def _show_timing_rows(self, rows: List[carry_timing.Retime]) -> None:
-        self._timing_rows = list(rows)
+        from .clip_names import trimmed
+
+        self._timing_all_rows = sorted(rows, key=_row_order)
+        shown = self._timing_all_rows
+        if self._timing_filter.value() == "todo":
+            shown = [row for row in shown if row.movable]
+        self._timing_rows = shown
+        rows = shown
         table = self._timing_table
         table.setRowCount(len(rows))
         for index, row in enumerate(rows):
             event = row.event
-            contact = f"{row.contact:.3f} s" if row.contact is not None else "-"
+            contact = f"{row.contact:.2f} s" if row.contact is not None else "-"
+            chart = event.chart_name.rsplit(".", 1)[0]
+            values = (f"{trimmed(event.clip_name)}  ·  {chart} {event.animation}",
+                      f"{event.begin:.2f} s", contact, _row_status(row))
             gap = f"{row.gap:.2f} m" if row.gap is not None else "-"
-            values = (event.clip_name, event.chart_name, str(event.animation),
-                      _action_text(event.mode), f"{event.begin:.3f} s", contact, gap,
-                      _row_status(row))
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setToolTip("\n".join(
-                    [event.clip, f"{event.chart} :: {event.animation}:{event.event}",
+                    [event.clip, f"{event.chart_name} · animation {event.animation}, "
+                                 f"event {event.event}",
                      translate_active_ui_text(
-                         f"Plays {event.start:.3f} to {event.end:.3f} s of the clip")]
+                         f"Plays {event.start:.3f} to {event.end:.3f} s of the clip; closest {gap}")]
                     + list(row.notes)))
                 table.setItem(index, column, item)
-        self._timing_move_all.setEnabled(any(row.sure for row in rows))
+        self._timing_move_all.setEnabled(any(row.sure for row in self._timing_all_rows))
         self._timing_move.setEnabled(False)
         if rows:
             table.selectRow(0)
@@ -344,7 +362,7 @@ class TimingPanelMixin:
     def _move_timing(self, *, selected_only: bool) -> None:
         from .editing import EditError, OP_RETIME_EVENTS, OperationScope
 
-        rows = self._selected_timing_rows() if selected_only else list(self._timing_rows)
+        rows = self._selected_timing_rows() if selected_only else list(self._timing_all_rows)
         rows = [row for row in rows if (row.movable if selected_only else row.sure)]
         part = self._timing_part()
         if not rows or self._edits is None or self._session is None:
@@ -380,7 +398,7 @@ class TimingPanelMixin:
             self._timing_moves[part] = moves
         moved = {row.event.key for row in rows}
         updated = [carry_timing.decide(replace(row.event, begin=row.proposed), row.curve)
-                   if row.event.key in moved else row for row in self._timing_rows]
+                   if row.event.key in moved else row for row in self._timing_all_rows]
         self._after_edit()
         self._timing_signature = self._timing_current_signature()
         self._show_timing_rows(updated)
@@ -396,8 +414,29 @@ def _measure(source, model, part_name, weapon_path, charts, files, entries, canc
     from .resolver import PlacementResolver
     from .session import PlacementSession
 
+    import time
+
+    from .documents import is_descriptor_file, is_socket_file
+    from .resolver import descriptor_model_of, model_of
+
+    def pause() -> None:
+        # Measuring is pure Python, like the view's drawing; sleeping hands the interpreter
+        # back to the UI thread instead of making it wait for the next forced switch.
+        time.sleep(0.0005)
+
     resolver = PlacementResolver()
-    resolver.add_files(dict(files))
+    for number, (path, data) in enumerate(files.items()):
+        # Only this character's attach points and rows: parsing every character's files
+        # was most of the stall when Measure started.
+        if is_socket_file(path) and model_of(path) not in ("", model):
+            continue
+        if is_descriptor_file(path) and descriptor_model_of(path) not in ("", model):
+            continue
+        if not (is_socket_file(path) or is_descriptor_file(path)):
+            continue
+        resolver.add_files({path: data})
+        if number % 8 == 0:
+            pause()
     session = PlacementSession(model, source._bind_hierarchy or source.hierarchy, resolver,
                                skeleton_path=source.skeleton_path)
     # Child sockets come from the selected weapon's file, with its pending changes.
@@ -421,7 +460,7 @@ def _measure(source, model, part_name, weapon_path, charts, files, entries, canc
         return load_clip(data, path.rsplit("/", 1)[-1])
 
     def measure(path, clip, _part):
-        return carry_timing.gap_curve(session, clip, part, clip_path=path)
+        return carry_timing.gap_curve(session, clip, part, clip_path=path, pause=pause)
 
     return carry_timing.survey(charts, (part_name,), read_clip=read, measure=measure,
                                model=model, cancelled=cancelled, progress=progress)

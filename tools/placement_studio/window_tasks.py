@@ -1,21 +1,20 @@
-"""The window's task layout: header, display strip, Position and Advanced.
+"""The window's layout: the top bar, the view's tools, the Carry tab and Advanced.
 
-Placement & Animations grew one control at a time, and every control landed where there was
-room: 37 on screen at first open, 84 in the window, a tree of bone names as the first thing to
-read, and every editing button disabled until a socket had been found in that tree. Moving a
-weapon, adjusting it and saving it were spread across a header, a strip under the view, seven
-tabs and four different ways to write output.
+Every tab follows Create New Item's inspector layout (`ui_kit`): titled header bars that fold,
+muted captions beside their fields, and one main action pinned under the part that scrolls.
+What to work on (character, weapon, slot) sits in the top bar for every tab; how the view is
+driven (drag modes, in hand or put away) sits on the view; what it draws is one Show menu.
 
-The layout is organised by what a person came to do instead:
-
-* **Position** -- what to work on, where it is carried, fine-tuning, and checking the fit.
-* **Animations** -- give the weapon other animations, and watch any clip.
+* **Carry** -- where the weapon hangs (the guided move, mirrored for a left hand), fine-tuning
+  its attach point, and checking the fit.
+* **Animations** -- browse and play animations, replace a weapon's draws, fix their timing.
+* **Edit** -- change an animation or make a new one.
 * **Armour** -- try the item against real gear.
-* **Your mod** -- every change in plain words, and the one button that saves them.
+* **Your mod** -- every change in plain words, and saving them.
 * **Advanced** -- attach points, Driven bones, Rig behaviour, action charts and file changes.
 
 The controls themselves, and everything they do, still belong to the mixins that built them;
-this module only decides where they sit and which attach point the editing controls act on.
+this module decides where they sit and which attach point the editing controls act on.
 """
 
 from __future__ import annotations
@@ -24,228 +23,180 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
-    QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QPushButton,
-    QScrollArea,
+    QMenu,
     QSplitter,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from . import ui_kit as kit
 from .clip_names import part_label, socket_label
 
-#: The drag modes offered on the Position tab; the two that create or re-route are Advanced.
+#: The drag modes on the view's tool row; the two that create or re-route are Advanced.
 _SIMPLE_MODES = (
-    ("off", "Look around", "Drag to turn the view. Nothing changes."),
+    ("off", "Look", "Drag to turn the view. Nothing changes."),
     ("move", "Move", "Drag the selected point to move it."),
     ("rotate", "Rotate", "Drag to turn the selected point."),
     ("tilt", "Tilt", "Drag to roll the item along its own length."),
 )
 _ADVANCED_MODES = (
-    ("route", "Click a point to hang the item there",
+    ("route", "Click to hang it there",
      "Then click an attach point in the view: the selected item hangs there when it is shown "
-     "the way the Show it setting says."),
-    ("pick", "Click the body to add an attach point",
-     "Then click the body where the new point should sit."),
+     "the way the view shows it now."),
+    ("pick", "Click to add a point",
+     "Then click the body where the new attach point should sit."),
 )
 
 
 def _hint(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setObjectName("HintLabel")
-    label.setWordWrap(True)
-    return label
+    return kit.hint(text)
 
 
 class TaskPanelMixin:
     """Where every control sits. Mixed into `PlacementStudioWindow`."""
 
-    # ── header and display strip ────────────────────────────────────
+    # ── top bar ─────────────────────────────────────────────────────
 
     def _build_header(self) -> QWidget:
-        """What is on screen, the undo pair, and how much is waiting to be saved."""
+        """What is being worked on, the undo pair, and the way to Your mod."""
 
         header = QWidget()
         row = QHBoxLayout(header)
-        row.setContentsMargins(8, 6, 8, 4)
-        row.addWidget(QLabel("Character:"))
-        row.addWidget(self._model_box, 2)
-        row.addSpacing(12)
-        row.addWidget(QLabel("Weapon:"))
-        row.addWidget(self._weapon_box, 3)
-        row.addSpacing(16)
+        row.setContentsMargins(8, 6, 8, 6)
+        row.setSpacing(6)
+        for label, box, width in (("Character", self._model_box, 200),
+                                  ("Weapon", self._weapon_box, 300),
+                                  ("Slot", self._part_box, 260)):
+            row.addWidget(kit.caption(label))
+            box.setMinimumWidth(140)
+            box.setMaximumWidth(width)
+            row.addWidget(box, 1)
+            row.addSpacing(6)
+        row.addStretch(1)
         row.addWidget(self._undo_button)
         row.addWidget(self._redo_button)
-        row.addSpacing(8)
-        self._mod_summary_button = QPushButton("Your mod: no changes")
-        self._mod_summary_button.setToolTip(
-            "Everything you have changed. Open it to review the changes and save them as a mod."
-        )
+        row.addSpacing(6)
+        self._mod_summary_button = kit.primary("Your mod: no changes",
+                                               "Every change you have made, and saving them as a mod.")
         self._mod_summary_button.clicked.connect(self._open_mod_tab)
         row.addWidget(self._mod_summary_button)
         return header
 
-    def _build_view_strip(self) -> QWidget:
-        """What the view draws. Plain names; the old ones were the rig's own vocabulary."""
+    # ── the view's tools ────────────────────────────────────────────
+
+    def _build_view_tools(self) -> QWidget:
+        """Drag modes and in hand / put away, above the view."""
+
+        bar = QWidget()
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(8, 6, 8, 4)
+        row.setSpacing(4)
+        self._mode_buttons = {}
+        self._mode_group = QButtonGroup(bar)
+        self._mode_group.setExclusive(False)  # the Advanced modes switch these all off
+        for value, label, tip_text in _SIMPLE_MODES:
+            button = kit.tool(label, tip_text, checkable=True)
+            button.clicked.connect(lambda _checked=False, v=value: self._set_mode(v))
+            self._mode_group.addButton(button)
+            self._mode_buttons[value] = button
+            row.addWidget(button)
+        row.addSpacing(16)
+        self._role_switch = kit.Segmented((
+            ("held", "In hand", "Show the item where it is held."),
+            ("stowed", "Put away", "Show the item where it is carried when put away."),
+        ))
+        self._role_switch.changed.connect(self._on_role_switch)
+        self._mesh_role_box.currentIndexChanged.connect(self._sync_role_switch)
+        self._mesh_role_box.setVisible(False)
+        row.addWidget(self._role_switch)
+        row.addStretch(1)
+        self._sync_mode_buttons(str(self._mode_box.currentData() or "off"))
+        self._sync_role_switch()
+        return bar
+
+    def _on_role_switch(self, value: str) -> None:
+        position = self._mesh_role_box.findData(value)
+        if position >= 0:
+            self._mesh_role_box.setCurrentIndex(position)
+
+    def _sync_role_switch(self, _index: int = 0) -> None:
+        switch = getattr(self, "_role_switch", None)
+        if switch is not None:
+            switch.set_value(str(self._mesh_role_box.currentData() or "held"))
+
+    def _build_show_button(self) -> QToolButton:
+        """One Show menu for what the view draws, in place of a row of check boxes."""
 
         self._show_bones.setText("Skeleton")
         self._show_unused.setText("Spare attach points")
         self._show_meshes.setText("Body and gear")
-        strip = QWidget()
-        row = QHBoxLayout(strip)
-        row.setContentsMargins(8, 2, 8, 2)
-        row.addWidget(QLabel("Show:"))
-        for box in (self._show_bones, self._show_labels, self._show_unused,
-                    self._show_meshes, self._solid_body):
-            row.addWidget(box)
-        row.addStretch(1)
-        row.addWidget(self._reverse_orbit)
-        return strip
+        button = kit.tool("Show", "What the view draws.")
+        button.setPopupMode(QToolButton.InstantPopup)
+        menu = QMenu(button)
+        self._show_actions = {}
+        for box in (self._show_bones, self._show_labels, self._show_unused, self._show_meshes,
+                    self._solid_body, self._reverse_orbit):
+            action = menu.addAction(box.text())
+            action.setCheckable(True)
+            action.setChecked(box.isChecked())
+            action.setToolTip(box.toolTip())
+            action.toggled.connect(box.setChecked)
+            box.toggled.connect(action.setChecked)
+            box.setVisible(False)
+            self._show_actions[box.text()] = action
+        menu.setToolTipsVisible(True)
+        button.setMenu(menu)
+        return button
 
-    # ── Position ────────────────────────────────────────────────────
+    def _build_view_strip(self) -> QWidget:
+        """Kept for callers that ask for the strip: the Show menu, on its own row."""
+
+        return kit.row(self._build_show_button())
+
+    # ── Carry ───────────────────────────────────────────────────────
 
     def _build_position_tab(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
-        layout.addWidget(_hint(
-            "Choose what to work on, where it is carried, then fine-tune it. Every change is "
-            "listed under Your mod until you save it; nothing touches the game before that."
-        ))
+        page = kit.InspectorPage()
+        page.add(self._build_carry_where_section())
+        page.add(self._build_fine_tune_section())
+        fit = kit.Form()
+        fit.add_wide(kit.row(self._measure_clipping_button))
+        fit.add_wide(self._clipping_label)
+        page.add(kit.Section("Check the fit", fit, expanded=False))
+        page.set_footer(self._build_carry_footer())
+        self._carry_page = page
+        return page
 
-        subject = QGroupBox("1. What to work on")
-        form = QFormLayout(subject)
-        self._mesh_role_box.setItemText(0, "In hand")
-        self._mesh_role_box.setItemText(1, "Put away")
-        form.addRow("Slot:", self._part_box)
-        form.addRow("Show it:", self._mesh_role_box)
-        layout.addWidget(subject)
-
-        carried = QGroupBox("2. Where it is carried")
-        carried_layout = QVBoxLayout(carried)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Carried at:"))
-        row.addWidget(self._carry_box, 1)
-        carried_layout.addLayout(row)
-        carried_layout.addWidget(_hint(
-            "Pick a spot and the item moves there when put away, angle and all. Its draw and "
-            "put-away animations stay as they are; to change those, use the Animations tab."
-        ))
-        row = QHBoxLayout()
-        row.addWidget(self._carry_match)
-        self._carry_status.setWordWrap(True)
-        row.addWidget(self._carry_status, 1)
-        carried_layout.addLayout(row)
-        row = QHBoxLayout()
-        self._carry_guide_button = QPushButton("Carry it somewhere else…")
-        self._carry_guide_button.setToolTip(
-            "A guided move for this body: see the rows that decide where the weapon and its "
-            "case hang, pick a spot, and mirror it for a body that holds the weapon in the "
-            "left hand."
-        )
-        self._carry_guide_button.clicked.connect(self._open_carry_guide)
-        row.addWidget(self._carry_guide_button)
-        row.addStretch(1)
-        carried_layout.addLayout(row)
-        layout.addWidget(carried)
-
-        layout.addWidget(self._build_fine_tune_box())
-
-        fit = QGroupBox("4. Check the fit")
-        fit_layout = QHBoxLayout(fit)
-        fit_layout.addWidget(self._measure_clipping_button)
-        fit_layout.addWidget(self._clipping_label, 1)
-        layout.addWidget(fit)
-        layout.addStretch(1)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setWidget(page)
-        return scroll
-
-    def _build_fine_tune_box(self) -> QGroupBox:
-        box = QGroupBox("3. Fine-tune")
-        layout = QVBoxLayout(box)
-
+    def _build_fine_tune_section(self) -> kit.Section:
         self._adjust_target_box = QComboBox()
         self._adjust_target_box.addItem("This item's own attach point", "item")
-        self._adjust_target_box.addItem("The spot on the body it hangs from", "body")
+        self._adjust_target_box.addItem("The spot on the body", "body")
         self._adjust_target_box.setItemData(
             0, "Moves this item only, unless other items share the same point.", Qt.ToolTipRole)
         self._adjust_target_box.setItemData(
             1, "Moves everything that hangs from that spot on the body.", Qt.ToolTipRole)
         self._adjust_target_box.currentIndexChanged.connect(self._on_adjust_target_changed)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Adjust:"))
-        row.addWidget(self._adjust_target_box, 1)
-        layout.addLayout(row)
-        layout.addWidget(self._edit_target)
         self._share_note = _hint("")
         self._share_note.setVisible(False)
-        layout.addWidget(self._share_note)
 
-        grid = QFormLayout()
-        moves = QHBoxLayout()
-        moves.setSpacing(4)
-        for button in self._nudge_buttons:
-            moves.addWidget(button)
-        moves.addSpacing(8)
-        moves.addWidget(QLabel("Step:"))
-        moves.addWidget(self._step_box)
-        moves.addStretch(1)
-        grid.addRow("Move:", moves)
-        position = QHBoxLayout()
-        position.setSpacing(4)
-        for spin in self._position:
-            position.addWidget(spin)
-        position.addStretch(1)
-        grid.addRow("Position:", position)
-        turns = QHBoxLayout()
-        turns.setSpacing(4)
-        for button in self._turn_buttons:
-            turns.addWidget(button)
-        turns.addSpacing(8)
-        turns.addWidget(QLabel("Turn by:"))
-        turns.addWidget(self._angle_box)
-        turns.addStretch(1)
-        grid.addRow("Turn:", turns)
-        angles = QHBoxLayout()
-        angles.setSpacing(4)
-        for spin in self._euler:
-            angles.addWidget(spin)
-        angles.addStretch(1)
-        grid.addRow("Angle:", angles)
-
-        drag = QHBoxLayout()
-        drag.setSpacing(4)
-        self._mode_buttons = {}
-        self._mode_group = QButtonGroup(box)
-        self._mode_group.setExclusive(False)  # the Advanced modes switch these all off
-        for value, label, hint in _SIMPLE_MODES:
-            button = QPushButton(label)
-            button.setCheckable(True)
-            button.setToolTip(hint)
-            button.clicked.connect(lambda _checked=False, v=value: self._set_mode(v))
-            self._mode_group.addButton(button)
-            self._mode_buttons[value] = button
-            drag.addWidget(button)
-        drag.addStretch(1)
-        grid.addRow("Drag in view:", drag)
-        layout.addLayout(grid)
-
-        row = QHBoxLayout()
-        row.addWidget(self._turn_over_button)
-        row.addWidget(self._revert_button)
-        row.addStretch(1)
-        layout.addLayout(row)
-        self._sync_mode_buttons(str(self._mode_box.currentData() or "off"))
-        return box
+        form = kit.Form()
+        form.add("Adjust", self._adjust_target_box)
+        form.add("Point", self._edit_target)
+        form.add_wide(self._share_note)
+        form.add("Position", kit.row(*self._position))
+        form.add("Angle", kit.row(*self._euler))
+        self._step_box.setMinimumWidth(78)
+        self._angle_box.setMinimumWidth(64)
+        form.add("Nudge", kit.row(*self._nudge_buttons, None, kit.caption("Step"), self._step_box,
+                                  stretch=False))
+        form.add("Turn", kit.row(*self._turn_buttons, None, kit.caption("By"), self._angle_box,
+                                 stretch=False))
+        form.add("", kit.row(self._turn_over_button, self._revert_button))
+        return kit.Section("Fine-tune", form)
 
     def _set_mode(self, value: str) -> None:
         position = self._mode_box.findData(value)
@@ -337,7 +288,7 @@ class TaskPanelMixin:
             note.setText(
                 f"Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, "
                 f"so a mod cannot be saved from that change. To move just this item, use "
-                f"Carried at, which gives it a point of its own."
+                f"Move it, which gives it a point of its own."
             )
             note.setVisible(True)
             return
@@ -352,16 +303,15 @@ class TaskPanelMixin:
             return
         note.setVisible(False)
 
+
+
     # ── Advanced ────────────────────────────────────────────────────
 
     def _build_advanced_tab(self, mono) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.addWidget(_hint(
-            "Tools for experienced modders. None of them is needed to move a weapon, change "
-            "its animations or save a mod."
-        ))
+        layout.setContentsMargins(8, 8, 8, 4)
+        layout.setSpacing(6)
         self._advanced_tabs = QTabWidget()
         self._advanced_tabs.addTab(self._build_attach_points_page(), "Attach points")
         self._advanced_tabs.setTabToolTip(
@@ -381,36 +331,45 @@ class TaskPanelMixin:
             3, "Which animations use an attach point, and pointing them at another one.")
         self._advanced_tabs.addTab(self._diff_view, "File changes")
         self._advanced_tabs.setTabToolTip(4, "Every change as the exact files and values it writes.")
+        # A dropdown picks the page: five tab captions do not fit the inspector's width, and
+        # Qt answered that with scroll arrows that hid the last two.
+        self._advanced_tabs.tabBar().setVisible(False)
+        self._advanced_page_box = QComboBox()
+        for index in range(self._advanced_tabs.count()):
+            self._advanced_page_box.addItem(self._advanced_tabs.tabText(index))
+            self._advanced_page_box.setItemData(index, self._advanced_tabs.tabToolTip(index),
+                                                Qt.ToolTipRole)
+        self._advanced_page_box.currentIndexChanged.connect(self._advanced_tabs.setCurrentIndex)
+        self._advanced_tabs.currentChanged.connect(self._advanced_page_box.setCurrentIndex)
+        layout.addWidget(kit.row(kit.caption("Page"), self._advanced_page_box, None, stretch=False))
         layout.addWidget(self._advanced_tabs, 1)
         return page
+
+    def _set_advanced_page_text(self, widget: QWidget, text: str) -> None:
+        """Rename one Advanced page in both the hidden tab and the dropdown."""
+
+        index = self._advanced_tabs.indexOf(widget)
+        if index >= 0:
+            self._advanced_tabs.setTabText(index, text)
+            box = getattr(self, "_advanced_page_box", None)
+            if box is not None and index < box.count():
+                box.setItemText(index, text)
 
     def _build_attach_points_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.addWidget(_hint(
-            "Select an attach point here or click one in the view; Position's Fine-tune then "
-            "acts on it. The panel below says what else moves if you change it."
-        ))
-        actions = QHBoxLayout()
-        actions.addWidget(self._new_socket_button)
-        actions.addWidget(self._use_orientation_button)
-        actions.addStretch(1)
-        layout.addLayout(actions)
-
-        modes = QHBoxLayout()
+        layout.setContentsMargins(0, 6, 0, 0)
+        layout.setSpacing(6)
         self._advanced_mode_buttons = {}
-        for value, label, hint in _ADVANCED_MODES:
-            button = QPushButton(label)
-            button.setCheckable(True)
-            button.setToolTip(hint)
+        modes = []
+        for value, label, tip_text in _ADVANCED_MODES:
+            button = kit.tool(label, tip_text, checkable=True)
             button.clicked.connect(
                 lambda checked=False, v=value: self._set_mode(v if checked else "off"))
             self._advanced_mode_buttons[value] = button
-            modes.addWidget(button)
-        modes.addStretch(1)
-        layout.addLayout(modes)
-
+            modes.append(button)
+        layout.addWidget(kit.row(self._new_socket_button, self._use_orientation_button))
+        layout.addWidget(kit.row(*modes))
         split = QSplitter(Qt.Vertical)
         split.addWidget(self._tree)
         split.addWidget(self._inspector)

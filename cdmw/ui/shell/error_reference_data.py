@@ -93966,7 +93966,7 @@ MESSAGE_REFERENCE = [
     "message": "Clip preparation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_clips.py": 365
+      "tools/placement_studio/window_clips.py": 337
     }
   },
   {
@@ -94079,7 +94079,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the archives: {error}",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_armour.py": 258
+      "tools/placement_studio/window_armour.py": 255
     }
   },
   {
@@ -94191,7 +94191,7 @@ MESSAGE_REFERENCE = [
     "message": "Draw analysis incomplete: {len(error.splitlines())} unreadable clips",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_carry.py": 1048
+      "tools/placement_studio/window_carry.py": 1052
     }
   },
   {
@@ -96033,7 +96033,7 @@ MESSAGE_REFERENCE = [
     "message": "No game install — armour unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/window_armour.py": 100
+      "tools/placement_studio/window_armour.py": 97
     }
   },
   {
@@ -96338,7 +96338,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing was changed: {error or 'cancelled'}",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/window_carry.py": 413
+      "tools/placement_studio/window_carry.py": 417
     }
   },
   {
@@ -96652,7 +96652,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/placement_studio/prepared_move.py": 212,
-      "tools/placement_studio/window_carry.py": 478
+      "tools/placement_studio/window_carry.py": 482
     }
   },
   {
@@ -96988,7 +96988,7 @@ MESSAGE_REFERENCE = [
     "message": "Remove every change you have made here and go back to the game as it is? This cannot be undone.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_save.py": 263
+      "tools/placement_studio/window_save.py": 244
     }
   },
   {
@@ -96996,7 +96996,7 @@ MESSAGE_REFERENCE = [
     "message": "Remove “{title}” from your changes? This cannot be undone.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_save.py": 238
+      "tools/placement_studio/window_save.py": 219
     }
   },
   {
@@ -97412,10 +97412,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Carried at, which gives it a point of its own.",
+    "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Move it, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 337
+      "tools/placement_studio/window_tasks.py": 288
     }
   },
   {
@@ -97553,7 +97553,7 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "tools/placement_studio/loading.py": 145,
-      "tools/placement_studio/window_carry.py": 493
+      "tools/placement_studio/window_carry.py": 497
     }
   },
   {
@@ -98041,7 +98041,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no {missing}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 258
+      "tools/placement_studio/carry_timing.py": 268
     }
   },
   {
@@ -98105,7 +98105,7 @@ MESSAGE_REFERENCE = [
     "message": "Timing measurement cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 383
+      "tools/placement_studio/carry_timing.py": 393
     }
   },
   {
@@ -99447,7 +99447,7 @@ MESSAGE_REFERENCE = [
     "message": "{outcome.destination} already exists. Replace it with this version? {kept}",
     "recovery": "conflict",
     "sources": {
-      "tools/placement_studio/window_save.py": 355
+      "tools/placement_studio/window_save.py": 336
     }
   },
   {
@@ -99455,7 +99455,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.part_name} has no put-away or held attach point to measure",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_timing.py": 246
+      "tools/placement_studio/carry_timing.py": 254
     }
   },
   {
@@ -99471,7 +99471,7 @@ MESSAGE_REFERENCE = [
     "message": "{part_name} has no descriptor row on this character",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_timing.py": 410
+      "tools/placement_studio/window_timing.py": 449
     }
   },
   {
@@ -105693,7 +105693,6 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/window_animation_editor.py",
     "tools/placement_studio/window_armour.py",
     "tools/placement_studio/window_carry.py",
-    "tools/placement_studio/window_carry_guide.py",
     "tools/placement_studio/window_clips.py",
     "tools/placement_studio/window_constraints.py",
     "tools/placement_studio/window_editing.py",
@@ -111715,6 +111714,7 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/table_columns.py": {
     "raise": 2
   },
+  "tools/placement_studio/ui_kit.py": {},
   "tools/placement_studio/viewport.py": {},
   "tools/placement_studio/what_is_this.py": {},
   "tools/placement_studio/window.py": {
@@ -111740,10 +111740,7 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 3
   },
-  "tools/placement_studio/window_carry_guide.py": {
-    "display": 1,
-    "report": 1
-  },
+  "tools/placement_studio/window_carry_guide.py": {},
   "tools/placement_studio/window_clips.py": {
     "display": 2
   },

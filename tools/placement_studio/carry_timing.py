@@ -153,7 +153,7 @@ def swap_events(chart_path: str, data: bytes, parts: Iterable[str]) -> List[Swap
     )
     from .relationships import resource_path
 
-    wanted = set(parts)
+    wanted = {alias for part in parts for alias in part_aliases(part)}
     try:
         chart = decode_action_chart(data, virtual_path=chart_path)
     except (ActionChartError, ValueError, IndexError) as exc:
@@ -181,6 +181,14 @@ def swap_events(chart_path: str, data: bytes, parts: Iterable[str]) -> List[Swap
                                  part, payload.mode, float(ref.begin),
                                  float(animation.start_time), float(animation.end_time)))
     return out
+
+
+def part_aliases(part: str) -> Tuple[str, ...]:
+    """A row's name in both forms: the October 2026 update dropped `CD_` from part names, and
+    a descriptor, a chart or a pinned copy may still carry either."""
+
+    bare = part[3:] if part.startswith("CD_") else part
+    return (bare, "CD_" + bare)
 
 
 #: The chart table that names equipment rows (`equipment types`); sockets are table 6.
@@ -224,7 +232,7 @@ class GapCurve:
         return min(rows, key=lambda row: (row[1], row[0]))
 
 
-def gap_curve(session, clip, part, *, clip_path: str = "") -> GapCurve:
+def gap_curve(session, clip, part, *, clip_path: str = "", pause=None) -> GapCurve:
     """Pose `session` on every frame of `clip` and measure `part`'s hand-to-carry gap.
 
     The held weapon is `inverse(out child socket) * out socket * hand bone` and the carried
@@ -250,6 +258,8 @@ def gap_curve(session, clip, part, *, clip_path: str = "") -> GapCurve:
     gaps: List[float] = []
     try:
         for frame in range(last + 1):
+            if pause is not None:
+                pause()
             session.apply_pose(clip, float(frame))
             stowed = session.attachment_point(part.in_socket, part.in_child_socket)
             held = session.attachment_point(part.out_socket, part.out_child_socket)

@@ -41,47 +41,86 @@ class AnimationTabMixin:
     """Chart indexing and retargeting. Mixed into `PlacementStudioWindow`."""
 
     def _build_animation_tab(self) -> QWidget:
-        """The everyday animation jobs: give a weapon other animations, and watch any clip.
+        """Browse and play animations, replace a weapon's draws, and fix their timing.
 
-        This page used to carry the playback bar, the clip browser, the clips routed through
-        a socket, a raw action-chart dump and the chart retarget row all at once. Retargeting
-        and the chart views are expert tools and live under Advanced now; the playback bar sits
-        under the view, where it controls what is being watched.
+        One page at a time, each with the tab's full height: stacked in one column, the
+        animation list ended up a few rows tall.
         """
+
+        from PySide6.QtWidgets import QStackedWidget
+
+        from . import ui_kit as kit
 
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 6, 8, 6)
-
-        swap_box = QGroupBox("Change this weapon's animations")
-        swap_layout = QVBoxLayout(swap_box)
-        swap_text = QLabel(
-            "Give the selected weapon another weapon's animations: for example the two-hand "
-            "sword's draw and put-away for a one-hand sword you moved to the back. You see "
-            "every file it would change, and can watch the result, before anything changes."
-        )
-        swap_text.setWordWrap(True)
-        swap_layout.addWidget(swap_text)
-        row = QHBoxLayout()
-        row.addWidget(self._carry_swap)
-        row.addStretch(1)
-        swap_layout.addLayout(row)
-        layout.addWidget(swap_box)
-
-        browser_box = QGroupBox("Find and play animations")
-        _fill(browser_box, self._build_clip_browser())
-        split = QSplitter(Qt.Vertical)
-        split.addWidget(self._build_handoff_timing_box())
-        split.addWidget(browser_box)
-        split.setChildrenCollapsible(False)
-        split.setStretchFactor(0, 1)
-        split.setStretchFactor(1, 1)
-        layout.addWidget(split, 1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self._animation_switch = kit.Segmented((
+            ("browse", "Browse", "Find and play any animation in the game."),
+            ("replace", "Replace draws",
+             "Give the weapon another weapon's draws and put-aways, to match where it hangs."),
+            ("timing", "Timing",
+             "When each draw and put-away swaps the weapon between the body and the hand."),
+        ))
+        switch_row = kit.row(self._animation_switch, stretch=False)
+        switch_row.layout().setContentsMargins(8, 8, 8, 2)
+        layout.addWidget(switch_row)
+        self._animation_stack = QStackedWidget()
+        self._animation_stack.addWidget(self._build_clip_browser())
+        self._animation_stack.addWidget(self._build_replace_draws_page())
+        self._animation_stack.addWidget(self._build_handoff_timing_page())
+        layout.addWidget(self._animation_stack, 1)
+        self._animation_switch.changed.connect(self._on_animation_page_changed)
+        self._view_footer.addWidget(self._timing_plot)
 
         # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
         # the clip index the first time it is opened.
         self._animation_page = page
+        self._lower.currentChanged.connect(lambda _index: self._sync_view_footer())
         return page
+
+    def _build_replace_draws_page(self) -> QWidget:
+        from . import ui_kit as kit
+
+        page = kit.InspectorPage()
+        swap = kit.Form()
+        swap.add_wide(kit.hint(
+            "For a weapon moved to another spot: take the draws and put-aways of a weapon "
+            "carried there. You see every file it would change before anything changes."))
+        swap.add_wide(kit.row(self._carry_swap))
+        page.add(kit.Section("Use another weapon's draws", swap))
+        fit = kit.Form()
+        fit.add_wide(kit.row(self._carry_match))
+        self._carry_status.setObjectName("HintLabel")
+        self._carry_status.setWordWrap(True)
+        fit.add_wide(self._carry_status)
+        page.add(kit.Section("Which draws fit each spot", fit))
+        return page
+
+    def _on_animation_page_changed(self, value: str) -> None:
+        index = {"browse": 0, "replace": 1, "timing": 2}.get(value, 0)
+        self._animation_stack.setCurrentIndex(index)
+        self._sync_view_footer()
+
+    def _show_animation_page(self, value: str) -> None:
+        self._animation_switch.set_value(value)
+        self._on_animation_page_changed(value)
+
+    def _sync_view_footer(self) -> None:
+        """The gap plot under the view belongs to Animations > Timing alone."""
+
+        from .layout_util import is_current_page
+
+        timeline = getattr(self, "_key_timeline", None)
+        if timeline is not None:
+            timeline.setVisible(self._lower.currentWidget()
+                                is getattr(self, "_animation_editor_page", None))
+        plot = getattr(self, "_timing_plot", None)
+        stack = getattr(self, "_animation_stack", None)
+        if plot is None or stack is None:
+            return
+        plot.setVisible(stack.currentIndex() == 2 and is_current_page(self._animation_page)
+                        and self._lower.currentWidget() is self._animation_page)
 
     def _build_chart_tab(self, mono: QFont) -> QWidget:
         """Advanced: which charts drive an attach point, and pointing them at another one."""
@@ -92,7 +131,7 @@ class AnimationTabMixin:
 
         intro = QLabel(
             "Action charts decide which animation plays when, and which attach point it "
-            "moves. Most changes never need this: use Carried at and the Animations tab first."
+            "moves. Most changes never need this: use Carry and Animations first."
         )
         intro.setObjectName("HintLabel")
         intro.setWordWrap(True)

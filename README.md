@@ -133,9 +133,10 @@ physics controls, draft recovery and output limits.
 ## Placement & Animations
 
 Change where a character carries a weapon and which animations go with it. On
-**Position**, pick a spot in **Carried at** and fine-tune the attach point; on
-**Animations**, give the weapon another weapon's animations and preview them before
-anything changes. **Edit animation** changes an animation or makes a new one: key bones
+**Carry**, pick a spot and press **Move it** (mirrored for left-handed bodies), then
+fine-tune the attach point; on **Animations**, give the weapon another weapon's draws,
+preview them before anything changes, and move each hand-off to when the hand reaches
+the weapon. **Edit** changes an animation or makes a new one: key bones
 on a timeline, reach and plant hands and feet, retime, mirror, borrow body parts, join
 animations, or animate in Blender and import the result. **Your mod** lists every
 change in plain words and saves them as one DMM mod, straight into DMM's mods folder
