@@ -197,6 +197,23 @@ def test_reduction_keeps_pins_borders_and_orientation():
         reduce_guide_mesh(points, faces, set(), target=3)  # four corners must stay
 
 
+def test_a_gently_curved_hem_thins_once_the_strict_pass_stalls(monkeypatch):
+    import math
+    from cdmw.modding import pac_cloth_painted_guides as painted
+    # A two-row band bent 12 degrees a step: every vertex is on a border that is not quite straight.
+    columns = 24
+    points = [(radius * math.cos(math.radians(12 * i)), radius * math.sin(math.radians(12 * i)), 0.0)
+              for i in range(columns) for radius in (1.0, 1.2)]
+    faces = [face for i in range(columns - 1)
+             for face in ((2 * i, 2 * i + 1, 2 * i + 2), (2 * i + 1, 2 * i + 3, 2 * i + 2))]
+    order, reduced, kept_pins = reduce_guide_mesh(points, faces, {0, 1}, target=30)
+    assert len(order) <= 30 and kept_pins == {0, 1} and not manifold_problem(reduced)
+    assert {0, 1, 2 * columns - 2, 2 * columns - 1} <= set(order)  # both ends of the band stay
+    monkeypatch.setattr(painted, "BORDER_STRAIGHTNESS", (0.985,))
+    with pytest.raises(ValueError, match=r"stops at 48"):
+        reduce_guide_mesh(points, faces, {0, 1}, target=30)
+
+
 @pytest.mark.parametrize("problem, message", [
     ("misaligned", "does not line up|no painted faces"),
     ("nothing", "Paint at least one area"),

@@ -508,7 +508,7 @@ mod guide_authoring_tests {
         assert!(!ui.application.cdmw_cloth.guides.use_pins);
         ui.application.cdmw_state["cloth_guides"]["parts"][0]["pinned_count"] = json!(12);
         ui.application.cdmw_state["cloth_guides"]["parts"][0]["rule"] =
-            json!({"source_lod": 0, "fixed_above": null, "pinned_points": [[0.0, 1.0, 0.0]]});
+            json!({"source_lod": 0, "fixed_above": null, "reduce_skinning": false, "pins": true});
         ui.frame(Vec::new());
         assert!(ui.application.cdmw_cloth.guides.use_pins);
         assert!(!ui.application.cdmw_cloth.guides.use_height);

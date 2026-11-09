@@ -38,6 +38,10 @@ from .pac_cloth_paint import ClothPaintSamples, _nearest_values, apply_pac_cloth
 GUIDE_LIMIT = 1024
 #: Reduction stops a little under the limit so welding noise cannot push it over.
 REDUCTION_TARGET = 1000
+REDUCTION_PASSES = 12
+#: How straight a border must run for a vertex to slide along it, per pass: strict
+#: first, then a little looser so a gently curved hem can still be thinned.
+BORDER_STRAIGHTNESS = (0.985, 0.985, 0.94, 0.94, 0.87)
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,8 +137,10 @@ def reduce_guide_mesh(points, faces, pins, *, target=REDUCTION_TARGET, check_can
     surviving guide keeps an original position and its original skin. A
     collapse is refused when it would make the mesh non-manifold (link
     condition), flip or flatten a face, move a pin onto an unpinned vertex, or
-    pull an open border inwards. Returns (kept original indices, faces in kept
-    order, pins in kept order) or raises ValueError when the target is unreachable.
+    pull an open border inwards. An edge refused once is tried again after the
+    mesh around it has changed, for a bounded number of passes. Returns (kept
+    original indices, faces in kept order, pins in kept order) or raises
+    ValueError when the target is unreachable.
     """
     faces = {tuple(face) for face in faces}
     vertex_faces = defaultdict(set)
@@ -159,11 +165,10 @@ def reduce_guide_mesh(points, faces, pins, *, target=REDUCTION_TARGET, check_can
     def length(a, b):
         return math.dist(points[a], points[b])
 
-    heap = []
-    for face in faces:
-        for a, b in _edges_of(face):
-            heap.append((length(a, b), a, b))
-    heapq.heapify(heap)
+    def edge_heap():
+        heap = list({(length(a, b), a, b) for face in faces for a, b in _edges_of(face)})
+        heapq.heapify(heap)
+        return heap
 
     def collapse_ok(u, v):
         if u in pins and v not in pins:
@@ -180,17 +185,18 @@ def reduce_guide_mesh(points, faces, pins, *, target=REDUCTION_TARGET, check_can
                 return False
             a, b = ([points[w][i] - points[u][i] for i in range(3)] for w in ends)
             size = math.hypot(*a) * math.hypot(*b)
-            if size <= 1e-20 or sum(x * y for x, y in zip(a, b)) > -0.985 * size:
+            if size <= 1e-20 or sum(x * y for x, y in zip(a, b)) > -straight * size:
                 return False
         link = neighbours(u) & neighbours(v)
         opposite = {w for face in shared for w in face if w not in (u, v)}
         if link != opposite:
             return False
+        present = {frozenset(face) for face in vertex_faces[v]}
         for face in vertex_faces[u]:
             if v in face:
                 continue
             moved = tuple(v if w == u else w for w in face)
-            if tuple(sorted(moved)) in {tuple(sorted(f)) for f in vertex_faces[v]}:
+            if frozenset(moved) in present:
                 return False
             before, after = _normal(points, face), _normal(points, moved)
             size_before, size_after = math.hypot(*before), math.hypot(*after)
@@ -198,35 +204,42 @@ def reduce_guide_mesh(points, faces, pins, *, target=REDUCTION_TARGET, check_can
                 return False
         return True
 
-    steps = 0
-    while len(alive) > target and heap:
-        steps += 1
-        if steps % 2048 == 0:
-            check_cancelled()
-        _, a, b = heapq.heappop(heap)
-        if a not in alive or b not in alive or not edge_faces(a, b):
-            continue
-        for u, v in ((a, b), (b, a)):
-            if not collapse_ok(u, v):
+    steps, straight = 0, BORDER_STRAIGHTNESS[0]
+    for turn in range(REDUCTION_PASSES):
+        straight = BORDER_STRAIGHTNESS[min(turn, len(BORDER_STRAIGHTNESS) - 1)]
+        heap, collapsed = edge_heap(), 0
+        while len(alive) > target and heap:
+            steps += 1
+            if steps % 2048 == 0:
+                check_cancelled()
+            _, a, b = heapq.heappop(heap)
+            if a not in alive or b not in alive or not edge_faces(a, b):
                 continue
-            for face in list(vertex_faces[u]):
-                for w in face:
-                    vertex_faces[w].discard(face)
-                faces.discard(face)
-                if v in face:
+            for u, v in ((a, b), (b, a)):
+                if not collapse_ok(u, v):
                     continue
-                moved = tuple(v if w == u else w for w in face)
-                faces.add(moved)
-                for w in moved:
-                    vertex_faces[w].add(moved)
-            alive.discard(u)
-            del vertex_faces[u]
-            for other in neighbours(v):
-                heapq.heappush(heap, (length(v, other), *sorted((v, other))))
+                for face in list(vertex_faces[u]):
+                    for w in face:
+                        vertex_faces[w].discard(face)
+                    faces.discard(face)
+                    if v in face:
+                        continue
+                    moved = tuple(v if w == u else w for w in face)
+                    faces.add(moved)
+                    for w in moved:
+                        vertex_faces[w].add(moved)
+                alive.discard(u)
+                del vertex_faces[u]
+                collapsed += 1
+                for other in neighbours(v):
+                    heapq.heappush(heap, (length(v, other), *sorted((v, other))))
+                break
+        # An edge refused earlier may collapse now that its surroundings changed.
+        if len(alive) <= target or (not collapsed and turn >= len(BORDER_STRAIGHTNESS) - 1):
             break
     if len(alive) > target:
         raise ValueError(f"The painted area could not be reduced to {target} cloth guides without "
-                         "breaking its surface. Paint a smaller area.")
+                         f"breaking its surface (it stops at {len(alive):,}). Paint a smaller area.")
     order = sorted(alive)
     index = {v: i for i, v in enumerate(order)}
     return order, [tuple(index[v] for v in face) for face in sorted(faces)], {index[v] for v in pins if v in index}
