@@ -54,7 +54,7 @@ mod authoring {
                     let high = parts.iter().filter_map(|part| part["max_y"].as_f64()).fold(f64::NEG_INFINITY, f64::max);
                     view.height = rule["fixed_above"].as_f64().unwrap_or(low + (high-low)*0.9);
                     let pinned = parts.iter().all(|part| state_u64(part, "pinned_count") > 0);
-                    view.use_pins = rule["pinned_points"].is_array() || (rule.is_null() && pinned);
+                    view.use_pins = rule["pins"].as_bool().unwrap_or(false) || (rule.is_null() && pinned);
                     view.use_height = !rule["fixed_above"].is_null() || (rule.is_null() && !view.use_pins);
                     view.reduce_skinning = rule["reduce_skinning"].as_bool().unwrap_or(false);
                 }
@@ -73,13 +73,22 @@ mod authoring {
                         ui.add(crate::cdmw_ui::numeric::value(&mut view.height).speed(0.01));
                     }
                 });
-                let pinned: u64 = parts.iter().map(|part| state_u64(part, "pinned_count")).sum();
-                ui.add_enabled(pinned > 0, egui::Checkbox::new(&mut view.use_pins,
+                // A part with pins on the model uses those; a part without them keeps the pins
+                // its guides were made with (a reopened draft carries them in the rule).
+                let pinned: u64 = parts.iter().map(|part| match state_u64(part, "pinned_count") {
+                    0 => state_u64(part, "rule_pinned_count"),
+                    live => live,
+                }).sum();
+                let holds = parts.iter().all(|part| state_u64(part, "pinned_count") + state_u64(part, "rule_pinned_count") > 0);
+                ui.add_enabled(holds, egui::Checkbox::new(&mut view.use_pins,
                         crate::localization::tr(format!("Use painted pins ({pinned} vertices)"))))
                     .on_hover_text(crate::localization::tr("Guides at pinned vertices follow the bones. Paint pins with Cloth pins above."))
                     .on_disabled_hover_text(crate::localization::tr("Paint pins with Cloth pins above to use them here."));
-                if pinned == 0 {
+                if !holds {
                     view.use_pins = false;
+                }
+                if parts.iter().any(|part| state_bool(part, "pins_changed")) {
+                    ui.small(crate::localization::tr("The pins changed after these guides were made. Create / update guides to use the new pins."));
                 }
                 ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"))
                     .on_hover_text(crate::localization::tr("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation."));

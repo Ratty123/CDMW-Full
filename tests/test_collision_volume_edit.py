@@ -227,3 +227,35 @@ def test_pac_without_volumes_can_add_none_and_rows_describe_each_volume():
     rows = volume_rows(pabv_volume_set(body(), PATH))
     assert [r["shape"] for r in rows] == ["capsule", "sphere", "box", "mesh"] and not rows[3]["resizable"]
     assert rows[1]["position"] == pytest.approx([0., 1.6, 0.])
+
+
+def test_authored_zero_size_does_not_block_edits_to_other_volumes():
+    data = container(record(4, (0.,), key=0x11111111, flags=0), record(5, (.1, .4), key=0x22222222, flags=0), flags=3)
+    result = apply_pabv_volume_edit(data, PATH, edit(data, changes=[CollisionVolumeChange(1, parameters=(.2, .5))]))
+    after = decode_pabv(result).volumes
+    assert after[0].parameters == (0.,) and after[1].parameters == pytest.approx((.2, .5))
+    with pytest.raises(ValueError, match="greater than zero"):
+        apply_pabv_volume_edit(data, PATH, edit(data, changes=[CollisionVolumeChange(1, parameters=(1e-60, .5))]))
+
+
+def test_a_set_larger_than_the_limit_can_be_edited_but_not_grown():
+    data = container(*(record(4, (.1,), key=0x1000 + i, flags=0) for i in range(130)), flags=3)
+    result = apply_pabv_volume_edit(data, PATH, edit(data, changes=[
+        CollisionVolumeChange(7, position=(0., 1., 0.)), CollisionVolumeChange(129, removed=True)]))
+    after = decode_pabv(result).volumes
+    assert len(after) == 129 and after[7].local_matrix[12:15] == (0., 1., 0.)
+    with pytest.raises(ValueError, match="at most 130"):
+        apply_pabv_volume_edit(data, PATH, edit(data, copies=[CollisionVolumeCopy(0)]))
+
+
+@pytest.mark.parametrize("word", [0, 1, 3, 5])
+def test_pac_set_changes_size_only_when_every_offset_word_is_proven(word):
+    data = bytearray(pac_with_volumes(PAC_VOLUMES))
+    start = _parse_par_sections(bytes(data))[0]["offset"]
+    struct.pack_into("<I", data, start + 5 + 4 * word, 3)
+    data = bytes(data)
+    moved_only = apply_pac_volume_edit(data, pac_edit(data, changes=[CollisionVolumeChange(0, position=(0., 1., 0.))]))
+    assert len(moved_only) == len(data)
+    for value in ({"copies": [CollisionVolumeCopy(0)]}, {"changes": [CollisionVolumeChange(1, removed=True)]}):
+        with pytest.raises(ValueError, match="cannot prove"):
+            apply_pac_volume_edit(data, pac_edit(data, **value))

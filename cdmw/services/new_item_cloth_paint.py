@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
 from cdmw.modding.pac_cloth_paint import ClothPaintSamples, apply_pac_cloth_paint
 
 #: Largest gap between a built vertex and its painted source, as a share of the
@@ -27,7 +28,13 @@ def part_cloth_paint(part) -> list[float]:
 
 
 def mesh_has_cloth_paint(mesh) -> bool:
-    return any(any(value > 0 for value in part_cloth_paint(part)) for part in getattr(mesh, "submeshes", ()) or ())
+    # The model panel asks on every refresh: stop at the first painted vertex and build no lists.
+    for part in getattr(mesh, "submeshes", ()) or ():
+        paint = getattr(part, "cloth_paint", ()) or ()
+        if len(paint) == len(getattr(part, "vertices", ()) or ()) and any(
+                0 < float(value) < math.inf for value in paint):
+            return True
+    return False
 
 
 def _apply_row_matrix(point, matrix: Sequence[float]):
@@ -52,6 +59,9 @@ def apply_import_cloth_paint(result, mesh, matrix: Sequence[float]) -> bool:
     """Rewrite ``result.rebuilt_data`` from the import's paint; False when nothing is painted."""
     if not mesh_has_cloth_paint(mesh):
         return False
+    if not (guides := decode_pac_cloth_guides(result.rebuilt_data)) or not guides.vertices:
+        raise ValueError("The template has no cloth guides for the painted cloth to follow. Set Painted cloth to "
+                         "\"Gets cloth guides of its own\", or choose a template with cloth.")
     samples = import_cloth_paint_samples(mesh, matrix)
     lows = [min(p[i] for p in samples.positions) for i in range(3)]
     highs = [max(p[i] for p in samples.positions) for i in range(3)]

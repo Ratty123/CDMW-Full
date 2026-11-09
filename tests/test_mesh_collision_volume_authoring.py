@@ -101,3 +101,26 @@ def test_local_files_are_previewed_but_not_offered_for_editing(collision_session
     assert all(row["role"] != "body" for row in sources)
     with pytest.raises(ValueError, match="Load that collision volume set"):
         command(host, "replacement_collision_volumes", _edit("character/body/reference.pabv", .25, host))
+
+
+def test_a_copy_that_names_nothing_inherits_its_template(collision_session, tmp_path):  # noqa: F811
+    _, session, host = collision_session
+    path, data = _body(host, session, tmp_path)
+    # The editor sends null for whatever a copy shares with its template.
+    command(host, "replacement_collision_volumes", {**archive_context(host), "source": path, "changes": [], "copies": [
+        {"template": 0, "parameters": None, "position": None},
+        {"template": 0, "parameters": None, "position": [0.0, 0.25, 0.0]},
+        {"template": 0, "parameters": [0.125, 1.0], "position": None}]})
+    assert _radii(host)[:1] == [.5] and sorted(_radii(host)).count(.5) >= 1 and .125 in _radii(host)
+    snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+    shipped, = [file for file in prepare_replacement_output(snapshot).companion_files if file.path == path]
+    before, after = decode_pabv(data).volumes, decode_pabv(shipped.data).volumes
+    assert len(after) == 5 and [(v.bone_key, v.parameters, v.local_matrix) for v in after[:2]] == [
+        (v.bone_key, v.parameters, v.local_matrix) for v in before]
+    assert all((v.bone_key, v.usage, v.serialized_shape, v.flags, v.local_matrix[:12]) == (
+        before[0].bone_key, before[0].usage, before[0].serialized_shape, before[0].flags, before[0].local_matrix[:12])
+        for v in after[2:])
+    assert [v.parameters for v in after[2:]] == [pytest.approx((.5, 2.)), pytest.approx((.5, 2.)),
+                                                 pytest.approx((.125, 1.))]
+    assert [v.local_matrix[12:15] for v in after[2:]] == [before[0].local_matrix[12:15], (0., .25, 0.),
+                                                         before[0].local_matrix[12:15]]

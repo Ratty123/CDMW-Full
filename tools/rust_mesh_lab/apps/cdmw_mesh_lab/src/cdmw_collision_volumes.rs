@@ -63,12 +63,12 @@ pub(super) fn draft_from(source: &Value) -> (Vec<VolumeDraft>, Vec<CopyDraft>) {
     }
     let copies = edit["copies"].as_array().into_iter().flatten().filter_map(|copy| {
         let template = copy["template"].as_u64()? as usize;
-        let base = volumes.get(template)?;
         let base_row = rows.get(template)?;
+        // An unnamed value is the template's authored one, whatever the template's own edit.
         Some(CopyDraft {
             template,
             parameters: if copy["parameters"].is_array() { numbers(&copy["parameters"]) } else { numbers(&base_row["parameters"]) },
-            position: if copy["position"].is_array() { position(&copy["position"]) } else { base.position },
+            position: if copy["position"].is_array() { position(&copy["position"]) } else { position(&base_row["position"]) },
         })
     }).collect();
     (volumes, copies)
@@ -93,9 +93,16 @@ pub(super) fn edit_arguments(source: &Value, volumes: &[VolumeDraft], copies: &[
             changes.push(json!({"ordinal": ordinal, "removed": false, "parameters": parameters, "position": moved}));
         }
     }
-    let copies = copies.iter().map(|copy| json!({
-        "template": copy.template, "parameters": copy.parameters, "position": copy.position,
-    })).collect::<Vec<_>>();
+    // A copy names only what differs from its template, so a mesh shape (no sizes)
+    // and an authored value outside the edit limits are copied as they are.
+    let copies = copies.iter().map(|copy| {
+        let row = rows.get(copy.template);
+        let parameters = row.is_none_or(|row| !same(&copy.parameters, &numbers(&row["parameters"])))
+            .then(|| json!(copy.parameters)).filter(|_| !copy.parameters.is_empty());
+        let moved = row.is_none_or(|row| !same(&copy.position, &position(&row["position"])))
+            .then(|| json!(copy.position));
+        json!({"template": copy.template, "parameters": parameters, "position": moved})
+    }).collect::<Vec<_>>();
     json!({"source": source["source"], "changes": changes, "copies": copies})
 }
 
@@ -223,11 +230,13 @@ impl LabApplication {
                 if ui.add_enabled(available, egui::Button::new(crate::localization::tr("Scale all sizes")))
                     .on_hover_text(crate::localization::tr("Multiplies every shape's radius, height and box size; mesh shapes keep their size.")).clicked() {
                     let factor = view.scale;
+                    // An authored zero stays as it is: scaling must not turn it into an edit.
+                    let scaled = |value: &mut f64| if *value > 0.0 { *value = (*value * factor).clamp(1e-4, 100.0); };
                     for draft in view.volumes.iter_mut().filter(|draft| !draft.removed) {
-                        draft.parameters.iter_mut().for_each(|value| *value = (*value * factor).clamp(1e-4, 100.0));
+                        draft.parameters.iter_mut().for_each(scaled);
                     }
                     for copy in &mut view.copies {
-                        copy.parameters.iter_mut().for_each(|value| *value = (*value * factor).clamp(1e-4, 100.0));
+                        copy.parameters.iter_mut().for_each(scaled);
                     }
                 }
             });
@@ -255,7 +264,12 @@ fn draw_values(ui: &mut egui::Ui, shape: &str, parameters: &mut [f64], position:
     for (value, label) in parameters.iter_mut().zip(size_labels(shape)) {
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr(*label));
-            ui.add(crate::cdmw_ui::numeric::value(value).range(0.0001..=100.0).speed(0.001));
+            // The field clamps what it shows; only a real edit may change the draft, so
+            // an authored value outside the range is not rewritten by looking at it.
+            let mut shown = *value;
+            if ui.add(crate::cdmw_ui::numeric::value(&mut shown).range(0.0001..=100.0).speed(0.001)).changed() {
+                *value = shown;
+            }
         });
     }
     if shape == "mesh" {
@@ -265,7 +279,10 @@ fn draw_values(ui: &mut egui::Ui, shape: &str, parameters: &mut [f64], position:
         ui.label(crate::localization::tr("Position"))
             .on_hover_text(crate::localization::tr("Centre in the bone's own space, in metres."));
         for value in position.iter_mut() {
-            ui.add(crate::cdmw_ui::numeric::value(value).range(-1000.0..=1000.0).speed(0.001).compact_width(56.0));
+            let mut shown = *value;
+            if ui.add(crate::cdmw_ui::numeric::value(&mut shown).range(-1000.0..=1000.0).speed(0.001).compact_width(56.0)).changed() {
+                *value = shown;
+            }
         }
     });
 }
@@ -296,6 +313,25 @@ mod tests {
             {"ordinal": 0, "removed": false, "parameters": [0.05, 0.4], "position": null},
             {"ordinal": 1, "removed": true, "parameters": null, "position": null}]));
         assert_eq!(edit["copies"][0]["template"], json!(0));
+    }
+
+    #[test]
+    fn a_copy_names_only_what_differs_from_its_template() {
+        let mut source = source();
+        source["rows"].as_array_mut().unwrap().push(json!({"shape": "mesh", "parameters": [], "position": [0.0, 0.0, 0.0]}));
+        let (volumes, _) = draft_from(&source);
+        let copies = vec![
+            CopyDraft { template: 2, parameters: vec![], position: [0.0, 0.0, 0.0] },
+            CopyDraft { template: 2, parameters: vec![], position: [0.0, 0.1, 0.0] },
+            CopyDraft { template: 0, parameters: vec![0.1, 0.4], position: [0.0, 0.5, 0.0] },
+        ];
+        let edit = edit_arguments(&source, &volumes, &copies);
+        assert_eq!(edit["copies"], json!([
+            {"template": 2, "parameters": null, "position": null},
+            {"template": 2, "parameters": null, "position": [0.0, 0.1, 0.0]},
+            {"template": 0, "parameters": null, "position": null}]));
+        let (_, restored) = draft_from(&json!({"source": "model", "rows": source["rows"], "edit": edit}));
+        assert_eq!(restored, copies);
     }
 
     #[test]

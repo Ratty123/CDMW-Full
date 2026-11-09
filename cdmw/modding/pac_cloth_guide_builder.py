@@ -277,11 +277,13 @@ def _painted_pins(lod0, source, pinned_points, name):
     _, distances = _nearest_values(pinned_points, reference, tolerance)
     if any(distance > tolerance for distance in distances):
         raise ValueError(f"Cloth pins on {name} no longer line up with its vertices. "
-                         "Paint the pins again, then create the guides again.")
+                         "Create the cloth guides again; paint the pins first if they are gone.")
     pins = ClothPaintSamples(tuple(tuple(float(v) for v in p) for p in pinned_points), (1.0,) * len(pinned_points))
     # Mark the LOD0 vertices the pins sit on, then give each source vertex its
     # nearest LOD0 vertex's mark (exact for LOD0, closest match below it).
     _, to_pin = _nearest_values(reference.positions, pins, tolerance)
+    if source is lod0:
+        return [distance <= tolerance for distance in to_pin]
     marks = ClothPaintSamples(reference.positions, tuple(1.0 if d <= tolerance else 0.0 for d in to_pin))
     values, _ = _nearest_values([tuple(float(v) for v in p[:3]) for p in source], marks)
     return [value > 0.5 for value in values]

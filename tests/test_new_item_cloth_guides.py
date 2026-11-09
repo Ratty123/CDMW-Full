@@ -194,3 +194,18 @@ def test_real_static_build_with_a_placement_gets_its_own_guides_on_the_painted_a
     guides = decode_pac_cloth_guides(result.rebuilt_data)
     assert guides is not None and all(p[1] < .55 for p in guides.vertices)
     assert {round(guides.vertices[i][1], 3) for i, b in enumerate(guides.channel_b) if b == 255} == {0.5}
+
+
+def test_following_a_template_without_cloth_points_to_guides_of_its_own():
+    from cdmw.services.new_item_cloth_paint import apply_import_cloth_paint, mesh_has_cloth_paint
+    data = grid_pac()
+    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    with pytest.raises(ValueError, match="Gets cloth guides of its own"):
+        apply_import_cloth_paint(result, imported_from(data), IDENTITY)
+    assert result.rebuilt_data == data and not result.summary_lines
+    mesh = imported_from(data, paint_below=-1.)
+    assert not mesh_has_cloth_paint(mesh)
+    mesh.submeshes[0].cloth_paint[-1] = float("nan")
+    assert not mesh_has_cloth_paint(mesh)
+    mesh.submeshes[0].cloth_paint[-1] = .25
+    assert mesh_has_cloth_paint(mesh)

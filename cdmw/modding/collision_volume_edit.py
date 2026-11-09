@@ -82,6 +82,32 @@ def _pac_layout(data: bytes):
     return model, metadata, lods
 
 
+def _prove_section_offsets(data: bytes) -> None:
+    """A set that changes size moves every later section; prove each offset word that must follow.
+
+    The section table stores sizes only, so the absolute offsets are the 2 x LOD
+    vertex/index words after the LOD count. Each vertex word must be the start of
+    its (decoded) LOD section and each index word must lie inside that section.
+    """
+    from .mesh_parser import _parse_par_sections
+
+    sections = _parse_par_sections(data)
+    start = sections[0]["offset"]
+    lods = data[start + 4]
+    for section in sections:
+        stored, = struct.unpack_from("<I", data, 16 + section["index"] * 8)
+        if stored not in (0, section["size"]):
+            raise ValueError("Copying or removing collision volumes needs decoded PAC sections.")
+    for lod in range(lods):
+        section = sections[lods - lod]
+        vertex_offset, = struct.unpack_from("<I", data, start + 5 + 4 * lod)
+        index_offset, = struct.unpack_from("<I", data, start + 5 + 4 * lods + 4 * lod)
+        if (vertex_offset != section["offset"]
+                or not section["offset"] <= index_offset <= section["offset"] + section["size"]):
+            raise ValueError("Copying or removing collision volumes cannot prove this PAC's "
+                             "vertex and index section offsets. Resize or move volumes instead.")
+
+
 def pac_volume_set(data: bytes) -> VolumeSet:
     model, _, _ = _pac_layout(data)
     block = data[model.file_offset:model.file_end]
@@ -112,8 +138,13 @@ def edited_records(source: VolumeSet, edit: CollisionVolumeEdit) -> list[bytes]:
                 raise ValueError(f"Collision volume {index + 1} ({SHAPE_NAMES[volume.serialized_shape]}) "
                                  f"takes {expected} size value(s).")
             struct.pack_into(f"<{expected}f", record, _PARAMETERS, *parameters)
+            # A value below float32 range stores as zero.
+            if any(value <= 0 for value in struct.unpack_from(f"<{expected}f", record, _PARAMETERS)):
+                raise ValueError(f"Collision volume {index + 1} needs sizes greater than zero.")
         if position is not None:
             struct.pack_into("<3f", record, _TRANSLATION, *position)
+            if not all(math.isfinite(value) for value in struct.unpack_from("<3f", record, _TRANSLATION)):
+                raise ValueError(f"Collision volume {index + 1} needs a finite position.")
         return bytes(record)
 
     changes = {row.ordinal: row for row in edit.changes}
@@ -126,8 +157,9 @@ def edited_records(source: VolumeSet, edit: CollisionVolumeEdit) -> list[bytes]:
             result.append(patched(index, row.parameters, row.position))
     for row in edit.copies:
         result.append(patched(row.template, row.parameters, row.position))
-    if len(result) > VOLUME_LIMIT:
-        raise ValueError(f"Collision volume sets hold at most {VOLUME_LIMIT} volumes.")
+    # A larger shipped set can still be edited; it cannot grow.
+    if len(result) > max(VOLUME_LIMIT, count):
+        raise ValueError(f"Collision volume sets hold at most {max(VOLUME_LIMIT, count)} volumes.")
     if count and not result:
         raise ValueError("Keep at least one collision volume in this set.")
     if source.source != MODEL_SOURCE and source.hashed_keys:
@@ -141,11 +173,6 @@ def _verify(decoded, expected: list[bytes], data: bytes):
     if len(decoded) != len(expected) or any(
             bytes(data[v.file_offset:v.file_end]) != record for v, record in zip(decoded, expected)):
         raise ValueError("Edited collision volumes did not decode back to the requested records.")
-    for volume in decoded:
-        if volume.serialized_shape != 2 and any(value <= 0 for value in volume.parameters):
-            raise ValueError("Edited collision volumes must keep positive sizes.")
-        if not all(math.isfinite(value) for value in volume.local_matrix):
-            raise ValueError("Edited collision volumes must keep finite positions.")
 
 
 def apply_pabv_volume_edit(data: bytes, path: str, edit: CollisionVolumeEdit) -> bytes:
@@ -165,11 +192,13 @@ def apply_pac_volume_edit(data: bytes, edit: CollisionVolumeEdit) -> bytes:
     model, metadata, lods = _pac_layout(data)
     block = struct.pack("<H", len(records)) + b"".join(records)
     delta = len(block) - (model.file_end - model.file_offset)
+    if delta:
+        _prove_section_offsets(data)
     result = bytearray(data[:model.file_offset] + block + data[model.file_end:])
     stored, size = struct.unpack_from("<2I", data, 16)
     struct.pack_into("<2I", result, 16, stored and size + delta, size + delta)
     patched_words = [16, 20]
-    for i in range(2 * lods):
+    for i in range(2 * lods if delta else 0):
         offset = metadata["offset"] + 5 + 4 * i
         struct.pack_into("<I", result, offset, struct.unpack_from("<I", data, offset)[0] + delta)
         patched_words.append(offset)
@@ -189,6 +218,9 @@ def apply_pac_volume_edit(data: bytes, edit: CollisionVolumeEdit) -> bytes:
     sections = _parse_par_sections(result)
     if [s["size"] for s in sections[1:]] != [s["size"] for s in _parse_par_sections(data)[1:]]:
         raise ValueError("The collision volume edit changed the PAC geometry sections.")
+    if delta:
+        # The relocated words must point at the relocated sections.
+        _prove_section_offsets(result)
     return result
 
 

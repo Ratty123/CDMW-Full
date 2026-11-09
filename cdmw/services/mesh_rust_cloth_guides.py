@@ -9,6 +9,7 @@ from cdmw.domain.mesh.cloth_guides import PacClothGuideRule
 from cdmw.modding.pac_cloth import pac_cloth_lods
 from cdmw.modding.pac_cloth_guide_builder import guide_creation_layout
 from cdmw.services.mesh_replacement_import import commit_replacement, initial_replacement_state, mesh_with_part_ids
+from cdmw.services.mesh_rust_cloth_paint import part_pinned_points
 
 
 def authored_cloth_source(authoring, session):
@@ -27,9 +28,17 @@ def authored_cloth_source(authoring, session):
         from cdmw.services.mesh_replacement_output import prepare_replacement_output
         snapshot = authoring.shadow_service.capture_export_snapshot(authoring.shadow_session_id)
         base = replace(state, parts=tuple(replace(p, cloth=None) for p in state.parts))
-        data = prepare_replacement_output(replace(snapshot, replacement_state=base)).data
-        authoring.cloth_guide_output_cache = (key, data, pac_cloth_lods(data)[0].submeshes)
-    return authoring.cloth_guide_output_cache[1:]
+        try:
+            data = prepare_replacement_output(replace(snapshot, replacement_state=base)).data
+            authoring.cloth_guide_output_cache = (key, data, pac_cloth_lods(data)[0].submeshes)
+        except ValueError as exc:
+            # A refused build stays refused until the mesh or the rules change; every
+            # state refresh asks again, so keep the answer instead of rebuilding.
+            authoring.cloth_guide_output_cache = (key, None, str(exc))
+    cached = authoring.cloth_guide_output_cache
+    if cached[1] is None:
+        raise ValueError(cached[2])
+    return cached[1:]
 
 
 def guide_authoring_ui_state(authoring, replacement):
@@ -64,13 +73,19 @@ def guide_authoring_ui_state(authoring, replacement):
                 if not 0 <= index < len(displayed.submeshes):
                     continue
                 points = displayed.submeshes[index].vertices
-                working = session.working_mesh.submeshes
-                pins = getattr(working[part["index"]], "cloth_pin", ()) if 0 <= part["index"] < len(working) else ()
+                live = part_pinned_points(session, part["index"])
+                rule = binding.cloth_guides if binding else None
+                saved_pins = rule.pinned_points if rule else ()
                 rows.append({**part, "lod_vertices": [len(level.submeshes[index].vertices) for level in levels],
-                    "pinned_count": sum(1 for pin in pins or () if pin),
+                    "pinned_count": len(live),
+                    # The rule holds the pins as they were when the guides were made.
+                    "rule_pinned_count": len(saved_pins),
+                    "pins_changed": bool(live and saved_pins and set(live) != set(saved_pins)),
                     "min_y": min((p[1] for p in points), default=0.0),
                     "max_y": max((p[1] for p in points), default=0.0),
-                    "rule": binding.cloth_guides.to_dict() if binding and binding.cloth_guides else None})
+                    # The pin positions stay out of the state payload; the count above is enough.
+                    "rule": {"source_lod": rule.source_lod, "fixed_above": rule.fixed_above,
+                             "reduce_skinning": rule.reduce_skinning, "pins": bool(saved_pins)} if rule else None})
     return {"available": not reason, "reason": reason, "parts": rows,
             "lod_count": len(levels), "guide_limit": 1024,
             "active": any(p.cloth_guides is not None for p in saved.values())}
@@ -100,12 +115,15 @@ def set_guide_rule(authoring, snapshot, args, *, entry, dependencies, stop_event
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
     rules = {}
     if not reset:
-        from cdmw.services.mesh_rust_cloth_paint import part_pinned_points
         _, _, palette, _ = guide_creation_layout(snapshot.original_data)
         session = authoring.shadow_service._session(authoring.shadow_session_id)
         rows = {part["id"]: part for part in ui["parts"]}
+        saved = {p.part_id: p.cloth_guides for p in state.parts if p.cloth_guides}
         for key in keys:
             pins = part_pinned_points(session, rows[key]["index"]) if use_pins else ()
+            if use_pins and not pins and key in saved:
+                # A reopened draft keeps the pins in its rule even when the mesh no longer carries them.
+                pins = saved[key].pinned_points
             if use_pins and not pins:
                 raise ValueError(f"{rows[key].get('name') or key} has no painted pins. Paint pins on it, "
                                  "or pin the guides by height.")

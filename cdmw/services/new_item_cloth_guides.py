@@ -66,6 +66,8 @@ def apply_import_cloth_guides(result, mesh, matrix: Sequence[float], *, profile:
         + (f", reduced from {report.source_vertices:,}" if report.reduced else "")
         + f"; {report.cloth_vertices:,} vertices follow them, {report.rigid_vertices:,} follow bones only"
         + (f"; {report.reduced_skin_vertices:,} reduced to four bones" if report.reduced_skin_vertices else "")
+        + (f"; {report.riding_pieces:,} separate painted piece(s) with nothing holding them follow the nearest cloth"
+           if report.riding_pieces else "")
         + (f"; the template's {report.removed_template_guides:,} cloth guides were removed" if report.removed_template_guides else "")
         + f". Cloth parts: {', '.join(report.cloth_parts)}; profile: {profile or 'the template’s assignment'}."
         + " Not shown in the preview; test in game.")
@@ -89,7 +91,9 @@ def assign_cloth_profile(data: bytes, profile: str, parts: Sequence[str], *, cat
 
     An empty ``profile`` keeps the template's assignment, which must then name a
     profile for every one of those parts. A named profile must exist in the
-    catalogue when one is supplied.
+    catalogue when one is supplied. An owner may also cover parts that are not
+    cloth; the profile acts only on vertices bound to guides, and the painted
+    guides are the only ones this model has.
     """
     from cdmw.modding.pbd_profile_edit import ProfileXml
 

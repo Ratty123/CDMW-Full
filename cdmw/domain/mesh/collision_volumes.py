@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 #: The PAC's own volume set. Any other source is a game-archive path to a .pabv.
 MODEL_SOURCE = "model"
-#: The decoded readers accept at most this many volumes in one set.
+#: A set may not grow past this many volumes (a larger shipped set keeps its own count).
 VOLUME_LIMIT = 128
 #: Dimensions and positions are game units (metres); far outside any shipped value.
 DIMENSION_LIMIT = 100.0

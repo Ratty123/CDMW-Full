@@ -52,6 +52,8 @@ class PaintedGuideReport:
     reduced_skin_vertices: int
     cloth_parts: tuple[str, ...]
     removed_template_guides: int
+    #: Painted pieces nothing holds: they get no guides and follow the nearest held cloth.
+    riding_pieces: int = 0
 
 
 def remove_pac_cloth_guides(data: bytes) -> tuple[bytes, int]:
@@ -230,8 +232,16 @@ def reduce_guide_mesh(points, faces, pins, *, target=REDUCTION_TARGET, check_can
     return order, [tuple(index[v] for v in face) for face in sorted(faces)], {index[v] for v in pins if v in index}
 
 
-def _components_without_pins(faces, count, pins):
-    parent = list(range(count))
+def held_guide_pieces(points, records, faces, pins):
+    """Keep the connected pieces a pin holds; the rest ride the nearest kept guide.
+
+    A painted button, trim strip or tassel is a piece of its own with no
+    attachment line. It gets no guides: its vertices are still cloth and bind to
+    the nearest guide of the cloth it sits on. Returns (points, records, faces,
+    pins, dropped piece count); nothing is dropped when no piece is held, so the
+    caller can say that nothing holds the cloth at all.
+    """
+    parent = list(range(len(points)))
 
     def find(x):
         while parent[x] != x:
@@ -242,22 +252,30 @@ def _components_without_pins(faces, count, pins):
     for a, b, c in faces:
         for x, y in ((a, b), (b, c)):
             parent[find(x)] = find(y)
-    pinned = {find(p) for p in pins}
-    return sorted({find(v) for face in faces for v in face} - pinned)
+    held = {find(p) for p in pins}
+    loose = {find(v) for face in faces for v in face} - held
+    if not held or not loose:
+        return points, records, faces, pins, 0
+    keep = [v for v in range(len(points)) if find(v) in held]
+    index = {old: new for new, old in enumerate(keep)}
+    return ([points[v] for v in keep], [records[v] for v in keep],
+            [tuple(index[v] for v in face) for face in faces if face[0] in index],
+            {index[p] for p in pins}, len(loose))
 
 
 def painted_guide_source(data, samples: ClothPaintSamples, *, max_sample_distance, lod):
     """Welded painted faces at one stored LOD, with pins and one source record per guide.
 
     Returns (points, records, faces, pins, painted part names). A guide is pinned
-    when its vertex shares a face with an unpainted vertex of the same part (the
-    painted area's attachment line) or lies nearest a sample painted as a pin.
+    when its position is on the painted area's attachment line (a face of any
+    covered part joins it to an unpainted vertex) or it lies nearest a sample
+    painted as a pin.
     """
     level = pac_cloth_lods(data)[lod]
     pinned_samples = samples.pins or ()
-    points, records, faces, pins, names = [], [], [], set(), {}
-    weld: dict[tuple[float, float, float], int] = {}
-    seen = set()
+    # The line is gathered across every part first: a seam's records belong to
+    # different parts, and the face that crosses it may be in the other part.
+    prepared, anchor_positions = [], set()
     for index, part in enumerate(level.submeshes):
         if not part.vertices or not part.faces:
             continue
@@ -266,6 +284,7 @@ def painted_guide_source(data, samples: ClothPaintSamples, *, max_sample_distanc
             continue  # a template part the import does not cover
         painted = [blend_for_paint(value) < 63 and distance <= max_sample_distance
                    for value, distance in zip(values, distances)]
+        keys = [tuple(float(x) for x in vertex) for vertex in part.vertices]
         if not any(painted):
             continue
         pin_hits = [False] * len(part.vertices)
@@ -273,16 +292,25 @@ def painted_guide_source(data, samples: ClothPaintSamples, *, max_sample_distanc
             pin_values, _ = _nearest_values(part.vertices, ClothPaintSamples(
                 samples.positions, tuple(1.0 if p else 0.0 for p in pinned_samples)), max_sample_distance)
             pin_hits = [value > 0.5 for value in pin_values]
-        # The attachment line: painted vertices sharing a face with an unpainted one.
-        # Keyed by position, so every duplicate of that vertex across a seam counts.
-        anchor_positions = {tuple(float(x) for x in part.vertices[v]) for face in part.faces
-                            if not all(painted[i] for i in face) for v in face if painted[v]}
+        anchor_positions.update(keys[v] for face in part.faces
+                                if not all(painted[i] for i in face) for v in face if painted[v])
+        prepared.append((index, part, keys, painted, pin_hits))
+    points, records, faces, pins, names = [], [], [], set(), {}
+    weld: dict[tuple[float, float, float], int] = {}
+    seen = set()
+    for index, part, keys, painted, pin_hits in prepared:
         for face in part.faces:
             if not all(painted[i] for i in face):
                 continue
+            face_keys = [keys[vertex] for vertex in face]
+            if len(set(face_keys)) != 3:
+                continue  # welding collapses a sliver; its vertices become guides only through other faces
+            identity = tuple(sorted(face_keys))
+            if identity in seen:
+                continue  # the other side of a double-sided shell
+            seen.add(identity)
             row = []
-            for vertex in face:
-                key = tuple(float(v) for v in part.vertices[vertex])
+            for vertex, key in zip(face, face_keys):
                 if key not in weld:
                     weld[key] = len(points)
                     points.append(key)
@@ -291,12 +319,6 @@ def painted_guide_source(data, samples: ClothPaintSamples, *, max_sample_distanc
                 if pin_hits[vertex] or key in anchor_positions:
                     pins.add(guide)
                 row.append(guide)
-            if len(set(row)) != 3:
-                continue  # welding collapsed a sliver
-            identity = tuple(sorted(row))
-            if identity in seen:
-                continue  # the other side of a double-sided shell
-            seen.add(identity)
             faces.append(tuple(row))
             names.setdefault(part.name or str(index), None)
     return points, records, faces, pins, tuple(names)
@@ -323,18 +345,20 @@ def create_painted_cloth_guides(
         if not faces:
             reasons.append(f"LOD {lod}: no painted faces")
             continue
+        points, records, faces, pins, riding = held_guide_pieces(points, records, faces, pins)
         problem = manifold_problem(faces)
         if problem:
             reasons.append(f"LOD {lod}: {problem}")
             continue
-        candidates.append((lod, points, records, faces, pins, names))
+        candidates.append((lod, points, records, faces, pins, names, riding))
         if len(points) <= GUIDE_LIMIT:
             break
     if not candidates:
         raise ValueError("The painted area cannot become a cloth guide mesh ("
                          + "; ".join(reasons) + "). Paint whole faces of a single-layer surface.")
     fitting = [row for row in candidates if len(row[1]) <= GUIDE_LIMIT]
-    lod, points, records, faces, pins, names = fitting[0] if fitting else min(candidates, key=lambda row: len(row[1]))
+    lod, points, records, faces, pins, names, riding = (
+        fitting[0] if fitting else min(candidates, key=lambda row: len(row[1])))
     source_vertices = len(points)
     reduced = source_vertices > GUIDE_LIMIT
     if reduced:
@@ -347,10 +371,6 @@ def create_painted_cloth_guides(
                          "or paint pins where it attaches.")
     if len(pins) == len(points):
         raise ValueError("Every cloth guide is pinned, so nothing would move. Paint a larger area or fewer pins.")
-    loose = _components_without_pins(faces, len(points), pins)
-    if loose:
-        raise ValueError(f"{len(loose)} painted piece(s) have nothing holding them. Leave the area each "
-                         "hangs from unpainted, or paint pins on each piece.")
     skins = [_skin(stripped, offset, len(palette), True) for offset in records]
     check_cancelled()
     block, _decoded = _guide_block(points, skins, faces, pins)
@@ -376,4 +396,4 @@ def create_painted_cloth_guides(
         guide_count=len(points), pinned_guides=len(pins), source_lod=lod, source_vertices=source_vertices,
         reduced=reduced, cloth_vertices=bind.cloth_vertices, rigid_vertices=bind.rigid_vertices,
         reduced_skin_vertices=bind.reduced_vertices, cloth_parts=bind.cloth_parts or names,
-        removed_template_guides=removed)
+        removed_template_guides=removed, riding_pieces=riding)
