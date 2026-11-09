@@ -31,13 +31,21 @@ _CHART = "actionchart/bin__/upperaction/1_pc/1_phm/ride_upper.paac"
 
 
 class _FakeBaseline:
-    """Stands in for the pinned vanilla baseline: membership is all packaging needs."""
+    """Stands in for the pinned vanilla baseline: membership is all packaging needs.
+
+    It holds no game bytes, so these layout tests pass `base_for=_NO_GAME_BYTES` and every file
+    ships whole; `test_placement_studio_dmm_patch` covers the shared XML written as patches.
+    """
 
     def __init__(self, paths):
         self._paths = set(paths)
 
     def __contains__(self, path):
         return path in self._paths
+
+
+def _NO_GAME_BYTES(_path):
+    return None
 
 
 def _plan() -> Plan:
@@ -131,6 +139,7 @@ class LayoutTests(unittest.TestCase):
             out_root=Path(directory) / manager,
             baseline=_FakeBaseline([_SOCKETS, _CANONICAL, _CHART]),
             created_utc="2026-07-27T12:00:00+00:00",
+            base_for=_NO_GAME_BYTES,
         )
 
     def test_cdumm_nests_payloads_under_files(self) -> None:
@@ -191,6 +200,7 @@ class LayoutTests(unittest.TestCase):
                     build_package(
                         "DMM", _plan(), {_SOCKETS: b"replacement"}, _metadata(),
                         out_root=result.root, manifest={"operations": []}, replace_existing=True,
+                        base_for=_NO_GAME_BYTES,
                     )
                 after = {p.relative_to(result.root): p.read_bytes()
                          for p in result.root.rglob("*") if p.is_file()}
@@ -211,6 +221,7 @@ class BuildAllTests(unittest.TestCase):
                 out_root=Path(directory),
                 baseline=_FakeBaseline([_SOCKETS, _CANONICAL, _CHART]),
                 created_utc="2026-07-27T12:00:00+00:00",
+                base_for=_NO_GAME_BYTES,
             )
             self.assertEqual([r.manager for r in results], ["CDUMM", "DMM"])
             for result in results:

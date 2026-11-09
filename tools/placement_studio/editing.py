@@ -176,6 +176,12 @@ class EditSession:
     def paths(self) -> List[str]:
         return sorted(self._base)
 
+    def original_bytes(self, game_path: str) -> Optional[bytes]:
+        """The vanilla bytes the edits to this file are replayed onto, or None."""
+
+        data = self._replaced_base.get(game_path)
+        return data if data is not None else self._base.get(game_path)
+
     def original_socket(self, game_path: str, name: str) -> Optional[Socket]:
         data = self._base.get(game_path)
         if data is None:

@@ -16,7 +16,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .ops import Plan
 
@@ -139,6 +139,7 @@ def build_readme(
     payload_paths: Sequence[str],
     new_paths: Sequence[str],
     scope=None,
+    patched: Sequence[str] = (),
 ) -> str:
     """A README describing what the mod changes, generated from the operation list.
 
@@ -239,6 +240,17 @@ def build_readme(
             "",
         ]
 
+    if patched:
+        lines += ["Shared files changed by patch", "-----------------------------"]
+        for path in patched:
+            lines.append(f"  {path}.patch")
+        lines += [
+            "",
+            "  These files are shared with other mods (Character Creator, for one), so DMM",
+            "  applies these patches to whatever copy it has assembled instead of replacing it.",
+            "",
+        ]
+
     if new_paths:
         lines += ["New files (not present in vanilla)", "----------------------------------"]
         for path in new_paths:
@@ -335,6 +347,41 @@ def _validate_destination(root: Path, *, replace_existing: bool) -> None:
             raise PackagingError(f"Package destination already exists; confirm replacement or choose another name: {root}")
 
 
+def _baseline_reader(baseline) -> Optional[Callable[[str], Optional[bytes]]]:
+    if baseline is None:
+        return None
+    return lambda path: baseline.read(path) if path in baseline else None
+
+
+def _lower_for_dmm(files: Mapping[str, bytes], manifest: Optional[Mapping[str, object]],
+                   base_for: Optional[Callable[[str], Optional[bytes]]]):
+    """`(files, patched, manifest)` with the shared XML as patches and the manifest to match."""
+
+    from .dmm_patch import PatchError, lower_for_dmm, patch_path
+    from .prepared_move import digest
+
+    if base_for is None:
+        return files, (), manifest
+    try:
+        lowered = lower_for_dmm(files, base_for)
+    except PatchError as exc:
+        raise PackagingError(
+            f"{exc}. DMM merges a full copy of this file with other mods' copies by position, "
+            f"which breaks next to Character Creator, so the mod is not saved this way."
+        ) from None
+    if not lowered.patched or manifest is None:
+        return dict(lowered.files), lowered.patched, manifest
+    rewritten = dict(manifest)
+    if "payload_paths" in rewritten:
+        rewritten["payload_paths"] = sorted(
+            lowered.path_for(str(path)) for path in rewritten["payload_paths"] or ())
+    if "payload_sha256" in rewritten:
+        rewritten["payload_sha256"] = {path: digest(data)
+                                       for path, data in sorted(lowered.files.items())}
+    rewritten["dmm_xml_patches"] = [patch_path(path) for path in lowered.patched]
+    return dict(lowered.files), lowered.patched, rewritten
+
+
 def build_package(
     manager: str,
     plan: Plan,
@@ -350,6 +397,8 @@ def build_package(
     replace_existing: bool = False,
     keep_backup: bool = True,
     managed_folder: bool = False,
+    base_for: Optional[Callable[[str], Optional[bytes]]] = None,
+    dmm_xml_patches: bool = True,
 ) -> PackageResult:
     """Build fresh output; explicitly approved replacement retains the complete old folder.
 
@@ -358,6 +407,13 @@ def build_package(
     and no backup is kept beside it. The operation manifest stays in the package (the
     inspection command checks a package against it) under a .txt name DMM does not read as a
     mod (`preflight.MANIFEST_NAME`).
+
+    For DMM, character descriptors and body socket files the game ships are written as
+    proven `.xml.patch` files (`dmm_patch`), never as full copies: DMM merges full copies of
+    those shared files by position, which put edits on the wrong rows next to Character
+    Creator and crashed the game. `base_for(path)` gives the game's bytes for a path; without
+    it the baseline is asked. An edit no patch can express refuses the whole package.
+    `dmm_xml_patches=False` keeps full copies, for reproducing an existing mod's own layout.
     """
 
     profile = MANAGER_PROFILES.get(manager.upper())
@@ -375,8 +431,11 @@ def build_package(
     _validate_destination(root, replace_existing=replace_existing)
     resolved = root.resolve()
     root.parent.mkdir(parents=True, exist_ok=True)
+    new_paths = derive_new_paths(sorted(files), baseline) if baseline is not None else []
+    patched: Tuple[str, ...] = ()
+    if manager.upper() == "DMM" and dmm_xml_patches:
+        files, patched, manifest = _lower_for_dmm(files, manifest, base_for or _baseline_reader(baseline))
     payload_paths = sorted(files)
-    new_paths = derive_new_paths(payload_paths, baseline) if baseline is not None else []
 
     info = ModPackageInfo(
         title=metadata.title_for(manager.upper()),
@@ -415,6 +474,7 @@ def build_package(
                     payload_paths=payload_paths,
                     new_paths=new_paths,
                     scope=scope,
+                    patched=patched,
                 ),
                 encoding="utf-8",
             )
@@ -478,6 +538,7 @@ def build_all(
     replace_existing: bool = False,
     keep_backup: bool = True,
     managed_folder: bool = False,
+    base_for: Optional[Callable[[str], Optional[bytes]]] = None,
 ) -> List[PackageResult]:
     """Emit every manager layout from one plan — the point of the operation model."""
 
@@ -501,6 +562,7 @@ def build_all(
                 replace_existing=replace_existing,
                 keep_backup=keep_backup,
                 managed_folder=managed_folder,
+                base_for=base_for,
             )
         )
     return results
@@ -595,6 +657,15 @@ def build_for_operations(
             + ", ".join(overlap)
         )
     files = {**files, **extra}
+    baseline_read = _baseline_reader(baseline)
+
+    def base_for(path: str) -> Optional[bytes]:
+        # The replay's own vanilla first: it is what the edits were made on.
+        data = isolated.original_bytes(path)
+        if data is None and baseline_read is not None:
+            data = baseline_read(path)
+        return data
+
     plan = isolated.to_plan(metadata.name or "operation")
     selected = [op for op in session.operations() if op.operation_id in set(wanted)]
     manifest = operation_manifest(selected, verdict.summary, units=units)
@@ -616,5 +687,6 @@ def build_for_operations(
         replace_existing=replace_existing,
         keep_backup=keep_backup,
         managed_folder=managed_folder,
+        base_for=base_for,
     )
     return results, verdict

@@ -23,6 +23,11 @@ from tests.test_placement_studio_operations import (
 )
 
 
+#: DMM gets the body socket file as a patch: a full copy is merged with other mods' copies by
+#: position, which broke next to Character Creator.
+BODY_PATCH = BODY + ".patch"
+
+
 def _request(folder, include, **fields) -> save_mod.SaveRequest:
     return save_mod.SaveRequest(name=fields.pop("name", "Hip sword"), folder=Path(folder),
                                 include=tuple(include), **fields)
@@ -88,7 +93,7 @@ class ReviewFindingTests(unittest.TestCase):
                                                        replace_existing=True),
                                        baseline=_Baseline(FILES))
             self.assertTrue(second.saved, second.problems)
-            self.assertIn(b"-0.080000", (Path(folder) / "Hip sword - DMM" / BODY).read_bytes())
+            self.assertIn(b"-0.080000", (Path(folder) / "Hip sword - DMM" / BODY_PATCH).read_bytes())
 
     def test_adjusting_the_same_point_again_after_a_save_is_still_one_change(self) -> None:
         edits = _edits()
@@ -103,7 +108,7 @@ class ReviewFindingTests(unittest.TestCase):
                                                       replace_existing=True),
                                       baseline=_Baseline(FILES))
             self.assertTrue(again.saved, again.problems)
-            self.assertIn(b"-0.060000", (Path(folder) / "Hip sword - DMM" / BODY).read_bytes())
+            self.assertIn(b"-0.060000", (Path(folder) / "Hip sword - DMM" / BODY_PATCH).read_bytes())
             self.assertIsNotNone(again.backup)
 
     def test_a_hand_re_route_is_listed_but_never_saved(self) -> None:
@@ -144,9 +149,10 @@ class LooseAdjustmentTests(unittest.TestCase):
             self.assertEqual([r.manager for r in outcome.results], ["DMM"])
             root = Path(folder) / "Hip sword - DMM"
             self.assertEqual(outcome.destination, root)
-            written = (root / BODY).read_bytes()
-            self.assertIn(b'Name="Pelvis_L_Socket"', written)
-            self.assertIn(b"-0.080000", written)
+            written = (root / BODY_PATCH).read_bytes()
+            self.assertIn(b'match-Name="Pelvis_L_Socket"', written)
+            self.assertIn(b'attr="Translation" value="-0.080000', written)
+            self.assertFalse((root / BODY).exists())
             self.assertTrue((root / "modinfo.json").is_file())
             self.assertFalse(any(p.name.endswith("- CDUMM") for p in Path(folder).iterdir()))
 
@@ -183,7 +189,7 @@ class LooseAdjustmentTests(unittest.TestCase):
             )
             self.assertTrue(outcome.saved, outcome.problems)
             root = Path(folder) / "Hip sword - DMM"
-            body = root / BODY
+            body = root / BODY_PATCH
             if body.exists():
                 self.assertNotIn(b"0.400000", body.read_bytes())
         self.assertEqual(len(edits.loose_commands()), 1)
@@ -203,7 +209,7 @@ class OtherPanelTests(unittest.TestCase):
             self.assertTrue(outcome.saved, outcome.problems)
             root = Path(folder) / "Hip sword - DMM"
             self.assertEqual((root / papr).read_bytes(), b"tuned")
-            self.assertTrue((root / BODY).is_file())
+            self.assertTrue((root / BODY_PATCH).is_file())
             manifest = json.loads((root / preflight.MANIFEST_NAME).read_text(encoding="utf-8"))
             self.assertEqual(manifest["other_edited_files"], [papr])
 

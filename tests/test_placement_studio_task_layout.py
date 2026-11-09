@@ -105,7 +105,9 @@ def test_an_adjustment_is_listed_and_saved_as_one_dmm_mod(window, monkeypatch, t
 
     assert shown == ["Mod saved"]
     saved = out / "Left hip out - DMM"
-    assert (saved / BODY).is_file()
+    # DMM gets the shared body socket file as a patch, never a full copy.
+    assert (saved / (BODY + ".patch")).is_file()
+    assert not (saved / BODY).exists()
     assert (saved / "modinfo.json").is_file()
     assert "Saved" in window._save_result.text()
     assert window._mod_settings().value("placement_studio/save_folder") == str(out)
