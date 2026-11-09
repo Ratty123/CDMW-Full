@@ -1,4 +1,4 @@
-"""The Edit animation tab, headless: start an edit, change it, preview it, put it in the mod."""
+"""The Edit tab, headless: start an edit, change it, preview it, put it in the mod."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def _rendered(window):
 
 def test_the_tab_sits_after_animations(window) -> None:
     tabs = [window._lower.tabText(i) for i in range(window._lower.count())]
-    assert tabs[:3] == ["Position", "Animations", "Edit animation"]
+    assert tabs[:3] == ["Carry", "Animations", "Edit"]
     assert not window._clip_edit_add_button.isEnabled()
 
 

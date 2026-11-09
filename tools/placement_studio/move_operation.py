@@ -130,6 +130,11 @@ class MovePlan:
     confirmations: Tuple[str, ...] = ()
     earlier_operations: Tuple[str, ...] = ()
     placement_changes: bool = False
+    #: Body attach points the move creates, as `(body socket file, socket)`: a mirrored carry's
+    #: new spot, solved per file (`carry_plan.plan_mirrored_move`).
+    new_body_sockets: Tuple[Tuple[str, Socket], ...] = ()
+    #: The spot a mirrored carry mirrors, or "".
+    mirror_of: str = ""
 
     @property
     def unit(self) -> EquipmentUnit:
@@ -175,8 +180,11 @@ class MovePlan:
         parts = tuple(dict.fromkeys(route.part_name for route in self.routes))
         socket_files = tuple(dict.fromkeys(
             [route.socket_file for route in self.routes if route.socket_file]
+            + [path for path, _socket in self.new_body_sockets]
         ))
-        socket_names = tuple(dict.fromkeys(name for _file, name in self.new_sockets))
+        socket_names = tuple(dict.fromkeys(
+            [name for _file, name in self.new_sockets]
+            + [socket.name for _path, socket in self.new_body_sockets]))
         kind = OP_MOVE_EQUIPMENT if self.placement_changes else OP_REPLACE_ANIMATIONS
         return OperationScope(
             kind=kind,
@@ -209,6 +217,13 @@ class MovePlan:
             "Placement",
             f"  {unit.in_socket or '(nowhere)'} -> {request.destination_socket or '(unchanged)'}"
             f"  [{request.destination_zone or '-'}]",
+        ]
+        if self.mirror_of:
+            lines.append(f"  mirrored from {self.mirror_of}")
+        for path, socket in self.new_body_sockets:
+            lines.append(f"  new attach point {socket.name} on {socket.parent_bone} in "
+                         f"{path.rsplit('/', 1)[-1]}")
+        lines += [
             "",
             "Orientation",
         ]
@@ -511,6 +526,10 @@ def apply_move(
         for warning in plan.confirmations:
             handle.accept_warning(warning)
         handle.mark_orientation_reviewed(plan.request.orientation_reviewed)
+
+        for socket_file, socket in plan.new_body_sockets:
+            handle.add_socket(socket_file, socket)
+            handle.record_orientation(socket.name, f"mirrored from {plan.mirror_of}")
 
         for socket_file, socket_name in plan.new_sockets:
             route = next(

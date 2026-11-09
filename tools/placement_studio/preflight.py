@@ -160,6 +160,8 @@ class ChangedItems:
     created_sockets: Dict[str, Tuple[str, ...]] = field(default_factory=dict)
     animation_paths: Tuple[str, ...] = ()
     other_paths: Tuple[str, ...] = ()
+    #: chart -> the `animation:event` addresses whose `begin` moved.
+    chart_events: Dict[str, Tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def descriptor_files(self) -> Tuple[str, ...]:
@@ -201,9 +203,13 @@ def changed_items(plan) -> ChangedItems:
     created: Dict[str, set] = {}
     animation: set = set()
     other: set = set()
+    events: Dict[str, set] = {}
     for operation in plan.operations:
         path = operation.game_path
         target = operation.target
+        if operation.kind == "paac_event_begin":
+            events.setdefault(path, set()).add(target)
+            continue
         if operation.kind in {"xml_attr", "xml_attr_add", "xml_element_add"}:
             if is_socket_file(path):
                 sockets.setdefault(path, set()).add(target)
@@ -226,6 +232,7 @@ def changed_items(plan) -> ChangedItems:
         created_sockets={k: tuple(sorted(v)) for k, v in sorted(created.items())},
         animation_paths=tuple(sorted(animation)),
         other_paths=tuple(sorted(other)),
+        chart_events={k: tuple(sorted(v)) for k, v in sorted(events.items())},
     )
 
 
@@ -275,6 +282,15 @@ def _check_operation_allowlists(
     for operation in selected:
         scope = operation.scope
         for command in operation.commands:
+            if command.kind == "event_begin":
+                animation, _sep, event = command.target.partition(":")
+                problem = scope.allows_chart_event(command.game_path, int(animation), int(event))
+                if problem:
+                    errors.append(Finding("chart_event_out_of_scope",
+                                          f"{operation.operation_id}: {problem}",
+                                          operation.operation_id,
+                                          {"path": command.game_path, "event": command.target}))
+                continue
             if command.kind == "route":
                 if command.target not in scope.allowed_descriptor_parts:
                     errors.append(
@@ -399,6 +415,20 @@ def _check_changed_allowlists(
                     detail={"path": path, "family": family},
                 )
             )
+
+    # F2: a chart event moved that no selected operation declared.
+    allowed_events = _union(op.scope.allowed_chart_events for op in selected)
+    for path, addresses in changed.chart_events.items():
+        for address in addresses:
+            if f"{path}#{address}" not in allowed_events:
+                errors.append(
+                    Finding(
+                        "chart_event_out_of_scope",
+                        f"Event {address} in {path} moved but is not one the selected "
+                        f"operations declared they would retime",
+                        detail={"path": path, "event": address},
+                    )
+                )
 
     # F2: a character or model mismatch.
     if len(models) > 1:

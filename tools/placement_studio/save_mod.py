@@ -23,7 +23,7 @@ from cdmw.services.active_ui_translation import translate_active_ui_text
 
 from .clip_names import part_label, socket_label
 from .editing import (EditError, OP_EDIT_ANIMATION, OP_MANUAL_ORIENTATION, OP_MOVE_EQUIPMENT,
-                      OP_REPLACE_ANIMATIONS)
+                      OP_REPLACE_ANIMATIONS, OP_RETIME_EVENTS)
 
 #: CDMW exports mods for DMM only; other managers are not updated for the October 2026 DLC.
 MOD_MANAGERS: Tuple[str, ...] = ("DMM",)
@@ -100,8 +100,12 @@ def describe_operation(operation) -> ModChange:
     destination = operation.scope.destination_socket
     subject = part_label(parts[0]) if parts else (operation.label or "Item")
     place = socket_label(destination) if destination else ""
+    retimed = operation.retimed_events()
     if operation.kind == OP_EDIT_ANIMATION:
         title = hint = operation.label or translate_active_ui_text("Edited animation")
+    elif operation.kind == OP_RETIME_EVENTS:
+        title = hint = operation.label or translate_active_ui_text(
+            f"Draw and put-away timing ({len(retimed)} hand-off(s))")
     elif operation.kind == OP_MOVE_EQUIPMENT and destination and clips:
         hint = translate_active_ui_text(f"Move {subject} to {place}")
         title = translate_active_ui_text(
@@ -124,6 +128,11 @@ def describe_operation(operation) -> ModChange:
         detail.append(translate_active_ui_text(f"Re-routed {part_label(part)}  ({part})"))
     if clips:
         detail.append(translate_active_ui_text(f"{len(clips)} animation file(s) replaced"))
+    for chart, address, begin in retimed:
+        animation, _sep, event = address.partition(":")
+        name = chart.rsplit("/", 1)[-1]
+        detail.append(translate_active_ui_text(
+            f"{name}, animation {animation}: the hand-off now happens at {float(begin):.3f} s"))
     return ModChange(operation.operation_id, title, tuple(detail), hint)
 
 
@@ -150,8 +159,8 @@ def describe_unsaveable(commands) -> ModChange:
     detail += [translate_active_ui_text(f"Animation chart now uses {c.text} instead of {c.target}")
                for c in commands if c.kind == "retarget"]
     detail.append(translate_active_ui_text(
-        "These cannot go into a mod: they skip the checks a move makes. Use Carried at to move "
-        "an item, or Export changed files only to keep the files."))
+        "These cannot go into a mod: they skip the checks a move makes. Use Move it on Carry to "
+        "move an item, or Export files… to keep the files."))
     return ModChange(UNSAVEABLE,
                      translate_active_ui_text("Advanced edits that cannot be saved as a mod"),
                      tuple(detail), saveable=False)
@@ -388,14 +397,14 @@ def plain_finding(finding) -> str:
         names = ", ".join(part_label(str(u)) for u in users[:4]) + ("…" if len(users) > 4 else "")
         return translate_active_ui_text(
             f"{socket} is shared by several items ({names}), so changing it would move all of "
-            f"them. Undo that adjustment and move the item with Carried at instead, which "
+            f"them. Undo that adjustment and move the item with Move it on Carry, which "
             f"gives it an attach point of its own.")
     if code == "undefined_socket":
         return translate_active_ui_text(
             "A change points an item at an attach point that no saved file defines.")
     if code == "case_not_handled":
         return translate_active_ui_text(
-            "The weapon moves but its sheath or case does not. Move it again with Carried at so "
+            "The weapon moves but its sheath or case does not. Move it again with Move it on Carry so "
             "both go together.")
     if code == "case_left_behind":
         return translate_active_ui_text(

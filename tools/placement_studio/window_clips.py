@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QProgressBar,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -46,7 +45,8 @@ class ClipBrowserMixin:
 
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
 
         # Shown once a carry position has been picked: the whole point of measuring which
         # draws start where is being able to see only those.
@@ -54,76 +54,49 @@ class ClipBrowserMixin:
         self._clip_carry_box.setToolTip(
             "Show only the take-out and put-away animations that start from where the "
             "selected item is currently carried.\n\n"
-            f"Needs {MATCH_LABEL} to have been run once."
+            f"Needs {MATCH_LABEL} (Animations > Replace draws) to have been run once."
         )
         self._clip_carry_box.toggled.connect(self._refresh_clip_list)
         self._carry_filter_zone = ""
 
-        filters = QHBoxLayout()
-        filters.addWidget(QLabel("Rig:"))
         self._clip_rig_box = QComboBox()
         self._clip_rig_box.setMinimumWidth(110)
         self._clip_rig_box.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self._clip_rig_box.addItem(ANY, ANY)
         self._clip_rig_box.currentIndexChanged.connect(self._refresh_clip_list)
-        filters.addWidget(self._clip_rig_box)
-
-        filters.addWidget(QLabel("Kind:"))
         self._clip_category_box = QComboBox()
         for label in ALL_CATEGORIES:
             self._clip_category_box.addItem(label, label)
         self._clip_category_box.currentIndexChanged.connect(self._refresh_clip_list)
-        filters.addWidget(self._clip_category_box)
 
         self._clip_lod_box = QCheckBox("Distant versions")
         self._clip_lod_box.setToolTip(
             "Also list the simplified copies the game uses when the character is far away. "
-            "Same motion, less detail — usually not what you want to look at."
+            "Same motion, less detail."
         )
         self._clip_lod_box.toggled.connect(self._refresh_clip_list)
-        filters.addStretch(1)
-        layout.addLayout(filters)
-
-        # Two rows. Six controls on one line does not fit the lane: Qt answers an impossible
-        # width by clipping labels rather than wrapping, so `Only draws for this spot` became
-        # `Only draw` and the scan button read `ich draws fi`. What each row holds is chosen so
-        # neither can be squeezed — pickers above, switches below.
-        switches = QHBoxLayout()
-        switches.addWidget(self._clip_lod_box)
-        switches.addWidget(self._clip_carry_box)
-        switches.addStretch(1)
-        layout.addLayout(switches)
-
-        facets = QHBoxLayout()
         self._clip_facets = {}
-        for key, label in (("facial", "Facial"), ("additive", "Additive"), ("equipment", "Equipment"), ("story", "NPC / story")):
+        for key, label in (("facial", "Facial"), ("additive", "Additive"),
+                           ("equipment", "Equipment"), ("story", "NPC / story")):
             box = QCheckBox(label)
             box.setToolTip(f"Include {label.lower()} animation clips")
             box.toggled.connect(self._refresh_clip_list)
             self._clip_facets[key] = box
-            facets.addWidget(box)
-        facets.addStretch(1)
-        layout.addLayout(facets)
 
-        # The scan gets a row to itself. Sharing one with the two checkboxes fitted the pane at
-        # full width and not in the lane it actually lives in — `Only draws for this spot` lost
-        # its last word and the button read `ind which draws fit (~30s`. Qt answers a row it
-        # cannot fit by clipping, so the only reliable fix is to stop asking it to.
-        scan = QHBoxLayout()
-        scan.addWidget(self._carry_match)
-        scan.addStretch(1)
-        layout.addLayout(scan)
-
-        # Search gets its own row: sharing one with two combos and a checkbox left it a
-        # three-character box in a side column.
         self._clip_search = QLineEdit()
-        self._clip_search.setPlaceholderText(
-            "search by name, e.g. sword weapon_out — every word must appear"
-        )
+        self._clip_search.setPlaceholderText("Search, e.g. sword weapon_out")
+        self._clip_search.setToolTip("Every word must appear in the animation's name.")
         self._clip_search.setClearButtonEnabled(True)
         self._clip_search.textChanged.connect(self._refresh_clip_list)
-
         layout.addWidget(self._clip_search)
+
+        from . import ui_kit as kit
+
+        filters = kit.checkbox_menu(
+            "Filters", (self._clip_carry_box, self._clip_lod_box, *self._clip_facets.values()),
+            "Which animations the list includes.")
+        layout.addWidget(kit.row(kit.caption("Rig"), self._clip_rig_box, kit.caption("Kind"),
+                                 self._clip_category_box, None, filters, stretch=False))
 
         self._clip_list = QListWidget()
         self._clip_list.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -134,6 +107,7 @@ class ClipBrowserMixin:
 
         footer = QHBoxLayout()
         self._clip_status = QLabel("Indexing the archives…")
+        self._clip_status.setObjectName("HintLabel")
         footer.addWidget(self._clip_status, 1)
         # Progress rather than a spinner: the walk knows how many packages it will visit, and
         # "half way" is the difference between waiting and wondering whether it has hung.
@@ -142,10 +116,8 @@ class ClipBrowserMixin:
         self._clip_progress.setTextVisible(False)
         self._clip_progress.setRange(0, 0)  # busy until the package total is known
         footer.addWidget(self._clip_progress)
-        self._clip_load_button = QPushButton("Play selected")
-        self._clip_load_button.setToolTip(
-            "Pose the character with this clip. You can also double-click a row."
-        )
+        self._clip_load_button = kit.primary("Play", "Play this animation on the character. "
+                                                     "You can also double-click a row.")
         self._clip_load_button.setEnabled(False)
         self._clip_load_button.clicked.connect(self._load_selected_clip)
         footer.addWidget(self._clip_load_button)

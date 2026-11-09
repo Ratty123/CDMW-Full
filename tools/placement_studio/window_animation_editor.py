@@ -37,7 +37,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -149,119 +148,100 @@ class AnimationEditorMixin:
         self._clip_edit_timer.setInterval(_RENDER_DELAY_MS)
         self._clip_edit_timer.timeout.connect(self._render_clip_edit)
 
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
-        layout.addWidget(_hint(
-            "Change an existing animation or make a new one, watch it on the character as you "
-            "work, then add it to your mod. It replaces one animation in the game."
-        ))
+        from . import ui_kit as kit
 
-        start = QGroupBox("1. Start")
-        start_layout = QVBoxLayout(start)
-        self._clip_edit_title = QLabel("Nothing to edit yet. Play an animation on the Animations "
-                                       "tab, then choose Edit the animation that is playing.")
+        self._clip_edit_title = QLabel("Nothing to edit yet: play an animation, then start from "
+                                       "it here.")
         self._clip_edit_title.setWordWrap(True)
         self._clip_edit_title.setStyleSheet("font-weight: bold;")
-        start_layout.addWidget(self._clip_edit_title)
-        row = QHBoxLayout()
-        self._edit_playing_button = QPushButton("Edit the animation that is playing")
+        self._edit_playing_button = QPushButton("Playing animation")
+        self._edit_playing_button.setToolTip("Edit the animation playing on the character.")
         self._edit_playing_button.clicked.connect(self._start_clip_edit)
-        row.addWidget(self._edit_playing_button)
-        self._new_from_pose_button = QPushButton("Start a new one from this pose")
+        self._new_from_pose_button = QPushButton("This pose")
         self._new_from_pose_button.setToolTip(
             "A new animation that holds the pose on screen. Key the bones that should move.")
         self._new_from_pose_button.clicked.connect(self._start_from_pose)
-        row.addWidget(self._new_from_pose_button)
         self._new_length = _spin(0.1, 60.0, 0.5, 2, " s")
         self._new_length.setValue(2.0)
         self._new_length.setToolTip("How long a new animation is.")
-        row.addWidget(self._new_length)
-        row.addStretch(1)
-        start_layout.addLayout(row)
-        row = QHBoxLayout()
-        self._import_blender_button = QPushButton("Import from Blender…")
+        self._import_blender_button = QPushButton("Import…")
         self._import_blender_button.setToolTip(
             "Read a .glb or .gltf animated in Blender. Export it from here first, so the bone "
             "names match.")
         self._import_blender_button.clicked.connect(self._import_from_blender)
-        row.addWidget(self._import_blender_button)
-        self._export_blender_button = QPushButton("Export for Blender…")
+        self._export_blender_button = QPushButton("Export…")
         self._export_blender_button.setToolTip(
             "Write the animation as a .glb. In Blender: File > Import > glTF 2.0, animate the "
             "joints, then File > Export > glTF 2.0 with animation, and import it here.")
         self._export_blender_button.clicked.connect(self._export_for_blender)
-        row.addWidget(self._export_blender_button)
-        row.addStretch(1)
-        start_layout.addLayout(row)
-        layout.addWidget(start)
+        page = kit.InspectorPage()
+        start = kit.Form()
+        start.add_wide(self._clip_edit_title)
+        start.add("Start from", kit.row(self._edit_playing_button, self._new_from_pose_button,
+                                        self._new_length))
+        start.add("Blender", kit.row(self._import_blender_button, self._export_blender_button))
+        page.add(kit.Section("Animation", start))
 
         self._clip_edit_body = QWidget()
         body = QVBoxLayout(self._clip_edit_body)
         body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(8)
+        body.setSpacing(2)
+        # Under the view, on the playback bar's time scale, while this tab is open.
         self._key_timeline = KeyTimeline()
         self._key_timeline.seek_requested.connect(self._seek_from_timeline)
         self._key_timeline.key_moved.connect(self._move_key_on_timeline)
         self._key_timeline.key_removed.connect(self._remove_key_on_timeline)
-        body.addWidget(self._key_timeline)
-        body.addWidget(self._build_pose_box())
-        body.addWidget(self._build_reach_box())
-        body.addWidget(self._build_timing_box())
-        body.addWidget(self._build_splice_box())
-        body.addWidget(self._build_join_box())
-        layout.addWidget(self._clip_edit_body)
+        self._key_timeline.setVisible(False)
+        self._view_footer.addWidget(self._key_timeline)
+        body.addWidget(kit.section_from_group(self._build_timing_box(), "Timing and mirror"))
+        body.addWidget(kit.section_from_group(self._build_pose_box(), expanded=False))
+        body.addWidget(kit.section_from_group(self._build_reach_box(), expanded=False))
+        body.addWidget(kit.section_from_group(self._build_splice_box(), "Borrow body parts",
+                                              expanded=False))
+        body.addWidget(kit.section_from_group(self._build_join_box(), "Join another animation",
+                                              expanded=False))
+        page.add(self._clip_edit_body)
 
-        result = QGroupBox("7. Use it")
-        result_layout = QVBoxLayout(result)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Replaces:"))
         self._clip_edit_target_label = QLabel("")
         self._clip_edit_target_label.setWordWrap(True)
-        row.addWidget(self._clip_edit_target_label, 1)
         self._clip_edit_target_button = QPushButton("Use the selected animation")
         self._clip_edit_target_button.setToolTip(
             "Replace the animation selected in the Animations tab's list instead. The game keeps "
             "asking for that file and gets this motion.")
         self._clip_edit_target_button.clicked.connect(self._choose_clip_edit_target)
-        row.addWidget(self._clip_edit_target_button)
-        result_layout.addLayout(row)
-        row = QHBoxLayout()
         self._clip_edit_add_button = QPushButton("Add to Your mod")
         self._clip_edit_add_button.setDefault(True)
         self._clip_edit_add_button.clicked.connect(self._add_clip_edit_to_mod)
-        row.addWidget(self._clip_edit_add_button)
         self._clip_edit_export_button = QPushButton("Export .paa…")
         self._clip_edit_export_button.setToolTip("Write the animation file on its own.")
         self._clip_edit_export_button.clicked.connect(self._export_clip_edit)
-        row.addWidget(self._clip_edit_export_button)
-        row.addStretch(1)
         self._clip_edit_undo_button = QPushButton("Undo edit")
         self._clip_edit_undo_button.clicked.connect(self._undo_clip_edit)
-        row.addWidget(self._clip_edit_undo_button)
         self._clip_edit_reset_button = QPushButton("Reset edits")
         self._clip_edit_reset_button.setToolTip("Back to the animation you started from.")
         self._clip_edit_reset_button.clicked.connect(self._reset_clip_edit)
-        row.addWidget(self._clip_edit_reset_button)
-        result_layout.addLayout(row)
         self._clip_edit_status = _hint("")
-        result_layout.addWidget(self._clip_edit_status)
-        layout.addWidget(result)
-        layout.addStretch(1)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setWidget(page)
-        self._animation_editor_page = scroll
+        footer = QWidget()
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setSpacing(4)
+        footer_layout.addWidget(kit.row(kit.caption("Replaces"), self._clip_edit_target_label,
+                                        None, self._clip_edit_target_button, stretch=False))
+        footer_layout.addWidget(kit.row(self._clip_edit_undo_button, self._clip_edit_reset_button,
+                                        self._clip_edit_export_button, None,
+                                        self._clip_edit_add_button, stretch=False))
+        footer_layout.addWidget(self._clip_edit_status)
+        self._clip_edit_target_label.setWordWrap(True)
+        self._clip_edit_add_button.setObjectName("EditorPrimaryButton")
+        page.set_footer(footer)
+        self._animation_editor_page = page
         self._refresh_clip_edit_controls()
-        return scroll
+        return page
 
     def _build_pose_box(self) -> QGroupBox:
         box = QGroupBox("2. Pose a bone")
         layout = QVBoxLayout(box)
-        layout.addWidget(_hint(
+        box.setToolTip((
             "Pick a bone here or click its joint in the view, move the playhead on the timeline "
             "above to a moment, and turn or move the bone. That sets a key there, on top of what "
             "the animation already does. Between keys the bone eases from one to the next; "
@@ -330,7 +310,7 @@ class AnimationEditorMixin:
     def _build_reach_box(self) -> QGroupBox:
         box = QGroupBox("3. Reach with a hand or foot")
         layout = QVBoxLayout(box)
-        layout.addWidget(_hint(
+        box.setToolTip((
             "Move a hand or foot and the arm or leg bends to get it there. Plant it to keep it "
             "where it is while the body moves, such as a foot on the ground or a hand on a hilt; "
             "Let go gives it back to the animation."
@@ -404,7 +384,7 @@ class AnimationEditorMixin:
     def _build_join_box(self) -> QGroupBox:
         box = QGroupBox("6. Join another animation after this one")
         layout = QVBoxLayout(box)
-        layout.addWidget(_hint(
+        box.setToolTip((
             "Play the animation selected in the Animations tab's list straight after this one. "
             "The two blend over the fade, and the character carries on from where this one "
             "stops, facing the way it faces."
@@ -472,7 +452,7 @@ class AnimationEditorMixin:
     def _build_splice_box(self) -> QGroupBox:
         box = QGroupBox("5. Borrow body parts from another animation")
         layout = QVBoxLayout(box)
-        layout.addWidget(_hint(
+        box.setToolTip((
             "Take one part of the body from the animation selected in the Animations tab's "
             "list, for example the arms of a two-hand draw on a one-hand weapon's legs."
         ))

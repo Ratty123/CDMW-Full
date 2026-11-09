@@ -1,4 +1,4 @@
-"""A key timeline for the Edit animation tab: see the keys, scrub, drag keys to retime them.
+"""A key timeline for the Edit tab: see the keys, scrub, drag keys to retime them.
 
 One lane per thing being keyed (the selected bone's pose keys, the selected hand or foot's
 reach keys), seconds along the top, the playhead across everything, and a shaded band for

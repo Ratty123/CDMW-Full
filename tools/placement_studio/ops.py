@@ -79,6 +79,11 @@ class Operation:
                 f"[{self.tier}] {self.game_path} :: {self.target} "
                 f"{self.detail.get('attr')}: {self.detail.get('old')!r} -> {self.detail.get('new')!r}"
             )
+        if self.kind == "paac_event_begin":
+            return (
+                f"[{self.tier}] {self.game_path} :: event {self.target} begin "
+                f"{self.detail.get('old')} -> {self.detail.get('new')}"
+            )
         if self.kind == "paac_retarget":
             sites = self.detail.get("offsets") or []
             return (
@@ -376,15 +381,16 @@ def derive_file(
         renames: Dict[Tuple[str, str], List[int]] = {}
         for old, new, offset in paac.diff_socket_renames(vanilla, modded):
             renames.setdefault((old, new), []).append(offset)
-        if renames:
-            rebuilt = vanilla
-            for (old, new), offsets in renames.items():
-                rebuilt = paac.retarget(rebuilt, old, new, offsets=offsets)
-            if rebuilt == modded:
+        rebuilt = vanilla
+        for (old, new), offsets in renames.items():
+            rebuilt = paac.retarget(rebuilt, old, new, offsets=offsets)
+        retimes = _event_begin_operations(path, rebuilt, modded) if rebuilt != modded else []
+        if renames or retimes:
+            if rebuilt == modded or retimes:
                 return [
                     Operation("C", "paac_retarget", path, old, {"old": old, "new": new, "offsets": offsets})
                     for (old, new), offsets in sorted(renames.items())
-                ]
+                ] + retimes
 
     # Whole-file: substitution from an existing payload (Tier D) if the bytes already
     # exist somewhere in vanilla, otherwise an opaque carry.
@@ -405,6 +411,48 @@ def derive_file(
                 "payload_kind": "animation" if is_animation_payload(path) else "file",
             },
         )
+    ]
+
+
+def _event_begin_operations(path: str, vanilla: bytes, modded: bytes) -> List[Operation]:
+    """Frame-event `begin` changes that explain every byte between two charts, or nothing.
+
+    A retimed draw or sheathe changes four bytes per event (`carry_timing`). Anything else
+    that differs leaves the chart to the whole-file operations below.
+    """
+
+    from cdmw.core.action_chart_binary import (ActionChartError, ChartValueEdit,
+                                               apply_chart_value_edits, decode_action_chart)
+
+    try:
+        before = decode_action_chart(vanilla, virtual_path=path)
+        after = decode_action_chart(modded, virtual_path=path)
+    except (ActionChartError, ValueError, IndexError):
+        return []
+    if len(before.animations) != len(after.animations):
+        return []
+    found: List[Tuple[int, int, float, float]] = []
+    for old_entry, new_entry in zip(before.animations, after.animations):
+        if len(old_entry.events) != len(new_entry.events):
+            return []
+        for position, (old, new) in enumerate(zip(old_entry.events, new_entry.events)):
+            if old.begin != new.begin:
+                found.append((old_entry.index, position, old.begin, new.begin))
+    if not found:
+        return []
+    try:
+        rebuilt = apply_chart_value_edits(vanilla, [
+            ChartValueEdit("event.begin", new, animation=animation, item=event)
+            for animation, event, _old, new in found], virtual_path=path)
+    except (ActionChartError, ValueError):
+        return []
+    if rebuilt != modded:
+        return []
+    return [
+        Operation("C", "paac_event_begin", path, f"{animation}:{event}",
+                  {"animation": animation, "event": event, "old": round(old, 6),
+                   "new": round(new, 6)})
+        for animation, event, old, new in found
     ]
 
 
@@ -663,6 +711,14 @@ def replay(plan: Plan, baseline: Baseline) -> Dict[str, bytes]:
                     str(op.detail["new"]),
                     offsets=[int(x) for x in (op.detail.get("offsets") or [])],
                 )
+        begins = [op for op in operations if op.kind == "paac_event_begin"]
+        if begins:
+            from cdmw.core.action_chart_binary import ChartValueEdit, apply_chart_value_edits
+
+            data = apply_chart_value_edits(data, [
+                ChartValueEdit("event.begin", float(op.detail["new"]),
+                               animation=int(op.detail["animation"]), item=int(op.detail["event"]))
+                for op in begins], virtual_path=path)
         output[path] = data
 
     # Aliases mirror their canonical descriptor after it has been built.

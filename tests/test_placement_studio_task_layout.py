@@ -1,4 +1,4 @@
-"""The task layout: Position, Animations, Armour, Your mod, Advanced, Help.
+"""The task layout: Carry, Animations, Edit, Armour, Your mod, Advanced.
 
 Headless construction over the synthetic placement files, so the wiring between the moved
 controls is exercised by a real window rather than read off the source.
@@ -36,10 +36,42 @@ def window(monkeypatch, tmp_path):
 
 def test_the_tabs_are_named_for_the_jobs(window) -> None:
     tabs = [window._lower.tabText(i) for i in range(window._lower.count())]
-    assert tabs == ["Position", "Animations", "Edit animation", "Armour", "Your mod", "Advanced", "Help"]
+    assert tabs == ["Carry", "Animations", "Edit", "Armour", "Your mod", "Advanced"]
     advanced = [window._advanced_tabs.tabText(i) for i in range(window._advanced_tabs.count())]
     assert advanced[:4] == ["Attach points", "Driven bones", "Rig behaviour", "Action charts"]
     assert advanced[4].startswith("File changes")
+    # Advanced's pages are picked from a dropdown that follows the hidden tabs, renames too.
+    pages = window._advanced_page_box
+    assert [pages.itemText(i) for i in range(pages.count())] == advanced
+    pages.setCurrentIndex(3)
+    assert window._advanced_tabs.currentIndex() == 3
+
+
+def test_the_help_button_opens_the_manual_at_this_topic(window) -> None:
+    from PySide6.QtWidgets import QWidget
+
+    opened = []
+    host = QWidget()
+    host.show_documentation_dialog = lambda topic_id="": opened.append(topic_id)
+    window.setParent(host)
+    try:
+        window._help_button.click()
+    finally:
+        window.setParent(None)
+    assert opened == ["placement_studio"]
+    window._help_button.click()  # standalone: no manual to open, says where it is instead
+    assert "Documentation" in window.statusBar().currentMessage()
+
+
+def test_the_view_shows_tools_above_and_a_show_menu_below(window) -> None:
+    assert set(window._mode_buttons) == {"off", "move", "rotate", "tilt"}
+    window._role_switch.buttons["stowed"].click()
+    assert window._mesh_role_box.currentData() == "stowed"
+    window._mesh_role_box.setCurrentIndex(window._mesh_role_box.findData("held"))
+    assert window._role_switch.value() == "held"
+    action = window._show_actions["Labels"]
+    action.setChecked(False)
+    assert not window._show_labels.isChecked()
 
 
 def test_fine_tune_starts_on_a_point_and_avoids_a_shared_one(window) -> None:
@@ -105,7 +137,9 @@ def test_an_adjustment_is_listed_and_saved_as_one_dmm_mod(window, monkeypatch, t
 
     assert shown == ["Mod saved"]
     saved = out / "Left hip out - DMM"
-    assert (saved / BODY).is_file()
+    # DMM gets the shared body socket file as a patch, never a full copy.
+    assert (saved / (BODY + ".patch")).is_file()
+    assert not (saved / BODY).exists()
     assert (saved / "modinfo.json").is_file()
     assert "Saved" in window._save_result.text()
     assert window._mod_settings().value("placement_studio/save_folder") == str(out)
@@ -202,13 +236,3 @@ def test_a_chain_switched_off_can_be_turned_back_up(window) -> None:
     window._apply_strength(int(shipped))
     assert window._selected_chain().strength == pytest.approx(shipped, abs=1)
     assert window.constraint_mod_files() == {}
-
-
-def test_the_help_page_describes_the_tabs_that_exist(window) -> None:
-    from tools.placement_studio.glossary import as_html
-
-    html = as_html()
-    for name in ("Position", "Animations", "Edit animation", "Armour", "Your mod", "Advanced"):
-        assert name in html
-    for gone in ("Hangs on", "Pending changes", "Build packages", "Swap animations"):
-        assert gone not in html

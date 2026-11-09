@@ -196,7 +196,7 @@ def test_a_move_drag_moves_the_item_by_the_world_delta(name, path) -> None:
 # ── the window: what a person clicks ────────────────────────────────
 
 def _move_to_back(window, monkeypatch):
-    """What Carried at does once its worker is done, with the result dialog stubbed."""
+    """What a move to another spot does once its worker is done, with the result dialog stubbed."""
 
     from PySide6.QtWidgets import QMessageBox
 

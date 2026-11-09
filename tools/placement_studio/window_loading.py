@@ -198,7 +198,7 @@ class StudioLoadingMixin:
 
     def _request_archive_content(self, weapons):
         from .archive_loading import ArchiveRequest, prepare_archive_content
-        from .armour import CHART_SLOT, WEAPON_PREFAB_SLOT
+        from .armour import CHART_SLOT, WEAPON_PREFAB_SLOT, chart_models
         from .corpus import game_root
         session, index = self._session, getattr(self, '_armour_index', None)
         if self._model_loading or session is None or index is None:
@@ -217,6 +217,10 @@ class StudioLoadingMixin:
             tuple((piece.path, piece.source) for piece in index.pieces(model, CHART_SLOT)
                   if piece.path not in paths),
             frozenset(self._weapon_mesh_entries), weapons,
+            tuple((owner, tuple((piece.path, piece.source)
+                                for piece in index.pieces(owner, CHART_SLOT)
+                                if piece.path not in paths))
+                  for owner in chart_models(model)[1:]),
         )
         self._archive_task.submit(lambda cancelled, progress:
                                  (session, request, prepare_archive_content(request, cancelled, progress)))
@@ -260,9 +264,12 @@ class StudioLoadingMixin:
             self._armour_status.setToolTip('\n'.join(errors))
 
     def _stop_loading(self):
-        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task"):
+        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task", "_timing_task"):
             task = getattr(self, name, None)
             if task is not None:
                 task.shutdown()
+        viewport = getattr(self, "_viewport", None)
+        if viewport is not None and hasattr(viewport, "stop_rendering"):
+            viewport.stop_rendering()
         self._mesh_part_cache.clear()
         self._mesh_cache_context = ()

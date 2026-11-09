@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QTextBrowser,
     QTreeWidget,
     QTreeWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -42,7 +43,7 @@ from .clip_names import part_label, socket_label
 from .editing import EditSession
 from .model import PlacementBinding, Vec3
 from .session import PlacementSession
-from .glossary import as_html as glossary_html, tip
+from .glossary import tip
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
@@ -58,18 +59,29 @@ from .window_rig_behaviour import RigBehaviourMixin
 from .window_rig_tabs import RigTabsMixin
 from .window_save import SaveModMixin
 from .window_tasks import TaskPanelMixin
+from .window_timing import TimingPanelMixin
+from .window_carry_guide import CarryGuideMixin
 
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
 
     Exposes `points` as an (N, 3) array for the fast projection path, and `vertices` lazily
     for the few callers — bounds, clipping — that still want objects.
+
+    A pose can also arrive as the work to do rather than its result: `compute` returns the
+    points on first use, and `pose_key` names the pose so an unchanged one is recognised
+    without skinning it. Skinning a dressed body is a dozen NumPy passes over every vertex,
+    and on the UI thread beside a busy loader it was most of what froze playback; deferred,
+    the viewport's layer worker does it while it plans the frame.
     """
 
-    __slots__ = ("points", "triangles", "name", "groups", "_vertices")
+    __slots__ = ("_points", "_compute", "pose_key", "triangles", "name", "groups", "_vertices")
 
-    def __init__(self, points, triangles, name: str = "posed body", groups=None) -> None:
-        self.points = points
+    def __init__(self, points=None, triangles=(), name: str = "posed body", groups=None, *,
+                 compute=None, pose_key=None) -> None:
+        self._points = points
+        self._compute = compute if points is None else None
+        self.pose_key = pose_key
         self.triangles = triangles
         self.name = name
         #: One index per triangle naming which worn piece it came from, or None when the set
@@ -77,6 +89,21 @@ class PosedMesh:
         #: for drawing, so this is the only surviving record of where a helmet ends.
         self.groups = groups
         self._vertices = None
+
+    @property
+    def points(self):
+        compute = self._compute
+        if self._points is None and compute is not None:
+            # Two threads asking at once both compute the same array; either result is right.
+            self._points = compute()
+            self._compute = None
+        return self._points
+
+    @property
+    def deferred(self) -> bool:
+        """Whether the points are still to be computed."""
+
+        return self._points is None and self._compute is not None
 
     @property
     def vertices(self):
@@ -117,7 +144,8 @@ fit_popup = _fit_popup
 class PlacementStudioWindow(
     StudioLoadingMixin, EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
     CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
-    RigTabsMixin, TaskPanelMixin, SaveModMixin, AnimationEditorMixin, QMainWindow
+    RigTabsMixin, TaskPanelMixin, SaveModMixin, AnimationEditorMixin, TimingPanelMixin,
+    CarryGuideMixin, QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
@@ -157,19 +185,21 @@ class PlacementStudioWindow(
         self._init_loading(background_loading)
         self._build_ui()
         self._load_models()
+        self._start_armour_index()
 
-    def _build_help_tab(self) -> QWidget:
-        """A glossary and a walkthrough, in the window rather than in a document.
+    def _open_manual(self) -> None:
+        """Open the app's manual at this tool's topic; the manual is translated and kept in step
+        with the Wiki, which an in-tab glossary was not."""
 
-        Every term here is one a modder meets in the first minute — `Part`, `Carry`, child
-        socket — and none of them explain themselves. Keeping the answers a tab away rather
-        than in a README means they are read.
-        """
-
-        view = QTextBrowser()
-        view.setOpenExternalLinks(False)
-        view.setHtml(glossary_html())
-        return view
+        widget = self.parentWidget()
+        while widget is not None:
+            opener = getattr(widget, "show_documentation_dialog", None)
+            if callable(opener):
+                opener(topic_id="placement_studio")
+                return
+            widget = widget.parentWidget()
+        self.statusBar().showMessage(
+            "Open Help > Documentation > Placement & Animations in the main window.")
 
     # ── editing helpers ─────────────────────────────────────────────
 
@@ -294,24 +324,34 @@ class PlacementStudioWindow(
         self._build_edit_controls()
         header = self._build_header()
 
+        # Under the view: tab-specific strips such as the timing plot (Animations > Timing).
+        self._view_footer = QVBoxLayout()
+        self._view_footer.setContentsMargins(8, 4, 8, 0)
         self._lower = QTabWidget()
-        self._lower.addTab(self._build_position_tab(), "Position")
-        self._lower.setTabToolTip(0, "Where the item is carried, and fine-tuning its position.")
-        self._lower.addTab(self._build_animation_tab(), "Animations")
-        self._lower.setTabToolTip(1, "Give the weapon other animations, and watch any clip.")
-        self._lower.addTab(self._build_animation_editor_tab(), "Edit animation")
-        self._lower.setTabToolTip(
-            2, "Change an animation or make a new one: pose bones, reach and plant hands and "
-               "feet, retime, mirror, borrow body parts, join animations, or work in Blender.")
-        self._lower.addTab(self._build_armour_tab(), "Armour")
-        self._lower.setTabToolTip(3, "Dress the character, to check an item against real gear.")
-        self._lower.addTab(self._build_mod_tab(), "Your mod")
-        self._lower.setTabToolTip(4, "Every change, and saving them as a mod for DMM.")
-        self._lower.addTab(self._build_advanced_tab(mono), "Advanced")
-        self._lower.setTabToolTip(
-            5, "Attach points, Driven bones, Rig behaviour, action charts and file changes.")
-        self._lower.addTab(self._build_help_tab(), "Help")
-        self._lower.setTabToolTip(6, "Getting started, and what the words mean.")
+        self._lower.setDocumentMode(True)
+        tabs = (
+            (self._build_position_tab(), "Carry",
+             "Where the weapon hangs, fine-tuning its attach point, and checking the fit."),
+            (self._build_animation_tab(), "Animations",
+             "Browse and play animations, replace a weapon's draws, and fix their timing."),
+            (self._build_animation_editor_tab(), "Edit",
+             "Edit an animation or make a new one: pose bones, reach and plant hands and feet, "
+             "retime, mirror, borrow body parts, join animations, or work in Blender."),
+            (self._build_armour_tab(), "Armour", "Dress the character, to check an item against real gear."),
+            (self._build_mod_tab(), "Your mod", "Every change, and saving them as a mod for DMM."),
+            (self._build_advanced_tab(mono), "Advanced",
+             "Attach points, Driven bones, Rig behaviour, action charts and file changes."),
+        )
+        for index, (widget, label, tooltip) in enumerate(tabs):
+            self._lower.addTab(widget, label)
+            self._lower.setTabToolTip(index, tooltip)
+        help_button = QToolButton()
+        help_button.setObjectName("EditorToolButton")
+        help_button.setText("?")
+        help_button.setToolTip("Open the manual at Placement & Animations.")
+        help_button.clicked.connect(self._open_manual)
+        self._help_button = help_button
+        self._lower.setCornerWidget(help_button, Qt.TopRightCorner)
 
         # Both rig panels need a four-second archive walk, so they load when first opened
         # rather than at startup, and re-target whenever the character changes.
@@ -328,24 +368,26 @@ class PlacementStudioWindow(
         centre_layout = QVBoxLayout(centre)
         centre_layout.setContentsMargins(0, 0, 0, 0)
         centre_layout.setSpacing(0)
+        centre_layout.addWidget(self._build_view_tools())
         centre_layout.addWidget(self._viewport, 1)
-        centre_layout.addWidget(self._build_view_strip())
+        centre_layout.addLayout(self._view_footer)
         playback = self._build_playback_row()
+        playback.layout().addWidget(self._build_show_button())
         playback.setContentsMargins(8, 2, 8, 4)
         centre_layout.addWidget(playback)
 
         # Minimum widths, not just initial sizes: without them the panes collapsed into
         # unreadable slivers whenever the window was resized.
         centre.setMinimumWidth(480)
-        self._lower.setMinimumWidth(440)
+        self._lower.setMinimumWidth(420)
 
         body = QSplitter(Qt.Horizontal)
         body.addWidget(centre)
         body.addWidget(self._lower)
         body.setChildrenCollapsible(False)
-        body.setSizes([900, 560])
-        body.setStretchFactor(0, 3)
-        body.setStretchFactor(1, 2)
+        body.setSizes([1000, 460])
+        body.setStretchFactor(0, 1)
+        body.setStretchFactor(1, 0)
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -821,12 +863,15 @@ class PlacementStudioWindow(
 
         import numpy as np
 
-        blocks = [deform(mesh, matrices) for mesh in meshes]
-        if not blocks:
-            return None
-        points = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+        posed = tuple(meshes)
+
+        def skin():
+            blocks = [deform(mesh, matrices) for mesh in posed]
+            return np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+
         return PosedMesh(
-            points=points, triangles=self._skinned_faces, groups=self._skinned_groups
+            triangles=self._skinned_faces, groups=self._skinned_groups,
+            compute=skin, pose_key=(tuple(map(id, posed)), matrices),
         )
 
     def _bind_body(self):
@@ -1070,8 +1115,7 @@ class PlacementStudioWindow(
         if self._session is None:
             return
         message = (
-            "Choose where the weapon is carried on the Position tab, change its animations on "
-            "the Animations tab, then save it under Your mod. Help explains every step."
+            "Pick a spot under Carry, give it draws under Animations, then save under Your mod."
         )
         note = getattr(self._baseline, "note", "")
         if note:

@@ -18,14 +18,25 @@ def _release(thread):
     thread.deleteLater()
 
 
+def others_busy(*, excluding: str = "") -> bool:
+    """Whether a task other than those named `excluding` is running right now.
+
+    A running task is Python on another thread, so the UI thread will queue for the GIL;
+    the viewport uses this to move its playback frames off the UI thread only then.
+    """
+
+    return any(thread.owner != excluding and thread.isRunning() for thread in tuple(_retained))
+
+
 class _Task(QThread):
     completed = Signal(int, object, str)
     progress = Signal(int, int, int)
 
-    def __init__(self, generation, work):
+    def __init__(self, generation, work, owner=""):
         super().__init__()  # Never parent a running native thread to a closing widget.
         self.generation = generation
         self.work = work
+        self.owner = owner
         self.cancelled = Event()
 
     def run(self):
@@ -73,12 +84,17 @@ class LatestTask(QObject):
         self._closed = True
         self.cancel()
 
+    def wait(self, msecs: int) -> bool:
+        """Block until the running work returns, at most `msecs`; True when nothing runs."""
+        thread = self._thread
+        return thread is None or thread.wait(msecs)
+
     def _start_pending(self):
         if self._thread is not None or self._pending is None or self._closed:
             return
         generation, work = self._pending
         self._pending = None
-        thread = self._thread = _Task(generation, work)
+        thread = self._thread = _Task(generation, work, self.objectName())
         _retained.add(thread)
         thread.completed.connect(self._completed)
         thread.progress.connect(self._progress)

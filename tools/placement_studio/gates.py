@@ -574,6 +574,8 @@ def cmd_package(args: argparse.Namespace) -> int:
             out_root=out_root / f"{metadata.name} - {manager}",
             baseline=baseline,
             created_utc=created,
+            # The golden mods ship full copies; this gate checks that their layout reproduces.
+            dmm_xml_patches=False,
         )
         _log(result.describe())
 

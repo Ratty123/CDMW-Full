@@ -728,41 +728,57 @@ class AboutDocumentationEnglishMixin:
                 "id": "placement_studio",
                 "title": "Placement & Animations",
                 "summary": "Move where a weapon is carried, fine-tune it, give it other animations, and save a DMM mod.",
-                "keywords": "placement animations weapon carried position fine-tune attach point socket draw put away armour clipping your mod save dmm edit animation keys timeline reach ik plant foot join blend mirror blender",
+                "keywords": "placement animations weapon carry move it mirror left hand position fine-tune attach point socket draw put away timing hand-off contact armour clipping your mod save dmm edit animation keys timeline reach ik plant foot join blend blender",
                 "html": """
-                <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. The 3D view is on the left; the tabs on the right are <b>Position</b>, <b>Animations</b>, <b>Edit animation</b>, <b>Armour</b>, <b>Your mod</b>, <b>Advanced</b> and <b>Help</b>.</p>
+                <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. Choose the <b>Character</b>, <b>Weapon</b> and <b>Slot</b> at the top. The 3D view is in the middle and the tabs are on the right: <b>Carry</b>, <b>Animations</b>, <b>Edit</b>, <b>Armour</b>, <b>Your mod</b> and <b>Advanced</b>. The <b>?</b> button beside the tabs opens this page.</p>
                 <p><b>Move a weapon somewhere else on the body</b></p>
                 <ol>
-                  <li>Choose the <b>Character</b> and <b>Weapon</b> at the top. The matching slot is picked for you.</li>
-                  <li>On <b>Position</b>, pick a spot in <b>Carried at</b>. The weapon moves there when put away, and gets an attach point of its own so nothing else moves with it.</li>
-                  <li>The view switches to <b>Put away</b>. Try armour on the <b>Armour</b> tab and press <b>Check for clipping</b>.</li>
-                  <li>Optional: on <b>Animations</b>, choose <b>Use another weapon's animations…</b> to give it a draw that reaches the new spot. You see every file it would change, and can watch the result, before anything changes.</li>
+                  <li>Open <b>Carry</b>. <b>Where it hangs</b> shows where the weapon hangs now and which hand holds it.</li>
+                  <li>Pick a spot in <b>Move to</b>. The footer says what the move does; hover over it for every row and file it changes.</li>
+                  <li>Keep <b>Mirror to the other side</b> ticked for a body that holds the weapon in the left hand, such as Damiane or a female Kliff. A new attach point then hangs the weapon on the reflected spot.</li>
+                  <li>Press <b>Move it</b>. The weapon and its case move together, and nothing else that hangs from that spot moves with them.</li>
+                  <li>Optional: open <b>Check the fit</b> and press <b>Check for clipping</b>, or try armour on the <b>Armour</b> tab.</li>
                 </ol>
+                <p><b>Weapon and case rows…</b> lists the rows in this body's descriptor that decide where the weapon and its case hang.</p>
                 <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li><b>Position &gt; Fine-tune</b> already shows the attach point that holds the item the way it is on screen. Use the <b>Move</b> buttons and <b>Step</b>, type an <b>Angle</b> or <b>Position</b>, use the <b>Turn</b> arrows, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> and drag in the view.</li>
-                  <li>To turn the view without moving the item, hold Alt while you drag, or drag with the right mouse button. Let go of Alt to carry on with the item.</li>
-                  <li>The note under the point's name says what else moves with it. An attach point several slots share cannot be saved after a change, because it would move all of them; move the item with <b>Carried at</b> instead.</li>
+                  <li>Under <b>Carry &gt; Fine-tune</b>, choose in <b>Adjust</b> whether to move the item's own attach point or the spot on the body. A note says when other items share that point.</li>
+                  <li>Type a <b>Position</b> or <b>Angle</b>, use the <b>Nudge</b> and <b>Turn</b> arrows with their step, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> above the view and drag the item.</li>
+                  <li>To turn the view without moving the item, hold Alt while you drag, or drag with the right mouse button.</li>
+                  <li>Switch the view between <b>In hand</b> and <b>Put away</b> above the view. The <b>Show</b> menu under the view turns the skeleton, labels, unused points, meshes and solid body on or off.</li>
                 </ul>
+                <p>An attach point several slots share cannot be saved after a change, because it would move all of them; use <b>Move it</b> instead.</p>
+                <p><b>Give it draws that reach the new spot</b></p>
+                <ol>
+                  <li>Open <b>Animations</b> and choose <b>Replace draws</b>.</li>
+                  <li>Press <b>Find which draws fit</b> to see which draws reach each spot, or <b>Use another weapon's animations…</b> to take another weapon's draws and put-aways. You see every file it would change, and can watch the result, before anything changes.</li>
+                </ol>
+                <p><b>Fix when the hand takes the weapon</b></p>
+                <ol>
+                  <li>Open <b>Animations &gt; Timing</b> and press <b>Measure</b>. Each draw and put-away is played to find the moment the hand reaches the weapon.</li>
+                  <li>The list shows <b>Needs a move</b> by default; choose <b>All</b> to see every row. Select a row to see its gap under the view.</li>
+                  <li>Press <b>Move all to contact</b> to move every sure hand-off, or select rows and press <b>Move selected</b>. Near misses move only when you select them.</li>
+                </ol>
+                <p><b>Browse</b> finds and plays any animation in the game. Type in the search line, narrow it by rig and kind, and press <b>Play</b>.</p>
                 <p><b>Change an animation, or make a new one</b></p>
                 <ol>
-                  <li>Play the animation on <b>Animations</b>, open <b>Edit animation</b> and choose <b>Edit the animation that is playing</b>. <b>Start a new one from this pose</b> builds a new animation from the pose on screen instead.</li>
-                  <li>Pick a <b>Bone</b>, or click its joint in the view, move the playhead on the timeline at the top of the tab, and <b>Turn</b> or <b>Move</b> it. Each change keys that bone at that moment, on top of the animation; between keys the bone eases from one to the next. Drag a key on the timeline to move it to another moment, or right-click it to remove it.</li>
-                  <li>To place a hand or foot, use <b>Reach with a hand or foot</b>: <b>Move</b> it and the arm or leg bends to get it there. <b>Plant here</b> holds it where it is, such as a foot on the ground or a hand on a hilt, until <b>Let go here</b>. If the body moves further away than the arm or leg can reach, the limb straightens toward the spot.</li>
-                  <li>Change <b>Speed</b> or the part of the animation used, play it backwards, hold the end, change the <b>Distance travelled</b>, <b>Mirror left and right</b>, or borrow a body part such as the arms from the animation selected on <b>Animations</b>. The character shows each change as you make it.</li>
-                  <li><b>Join another animation after this one</b> plays the animation selected on <b>Animations</b> straight afterwards. The two blend over the <b>Fade</b>, and the character carries on from where the first one stops, facing the way it faces.</li>
-                  <li>To animate in Blender, choose <b>Export for Blender…</b>, import the .glb in Blender, animate the joints, export glTF 2.0 with the animation, and choose <b>Import from Blender…</b>. Bones are matched by name.</li>
-                  <li>Check <b>Replaces</b>, which names the game animation it will replace, then choose <b>Add to Your mod</b>. The game keeps asking for that file and gets the new motion; distance (LOD) copies are not edited.</li>
+                  <li>Play an animation, open <b>Edit</b> and choose <b>Playing animation</b>. <b>This pose</b> starts a new animation from the pose on screen instead.</li>
+                  <li>Under <b>Pose a bone</b>, pick a bone or click its joint in the view, move the playhead on the timeline under the view, and turn or move the bone. Each change sets a key there; between keys the bone eases from one to the next. Drag a key to move it, or right-click it to remove it.</li>
+                  <li>Under <b>Reach with a hand or foot</b>, move a hand or foot and the arm or leg bends to get it there. <b>Plant here</b> holds it in place, such as a foot on the ground, until <b>Let go here</b>.</li>
+                  <li>Under <b>Timing and mirror</b>, change the speed, the part used, the hold at the end and the distance travelled, play it backwards, or mirror left and right.</li>
+                  <li>Under <b>Borrow body parts</b>, take a part such as the arms from the animation selected on <b>Animations</b>. <b>Join another animation</b> plays that animation straight after this one, blended over the fade.</li>
+                  <li>To animate in Blender, choose <b>Export…</b>, animate the joints in Blender, export glTF 2.0 with the animation, and choose <b>Import…</b>. Bones are matched by name.</li>
+                  <li>Check <b>Replaces</b>, which names the game animation it replaces, then choose <b>Add to Your mod</b>. Distance (LOD) copies are not edited.</li>
                 </ol>
                 <p><b>Save the mod</b></p>
                 <ol>
-                  <li>Open <b>Your mod</b>. Every change is listed in plain words; untick anything to leave out, or remove it.</li>
-                  <li>Give the mod a name and choose <b>Straight into DMM's mods folder</b> or <b>A folder I choose</b>, then press <b>Save as mod</b>.</li>
+                  <li>Open <b>Your mod</b>. Every change is listed in plain words; untick anything to leave out, or select it and press <b>Remove</b>.</li>
+                  <li>Give the mod a name, choose <b>DMM's mods folder</b> or <b>A folder I choose</b>, and press <b>Save as DMM mod</b>.</li>
                   <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
                 </ol>
-                <p><b>Advanced</b> holds the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <p><b>Advanced</b> has a dropdown of pages: the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
                 <div class="doc-callout doc-warning"><b>Experimental:</b> edited and new animations, Reach, Plant, joins and retiming, and mods saved from <b>Your mod</b> have not been tested in game yet. Check the result in game before relying on it.</div>
-                <p>Each time the tab opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
+                <p>Each time the tool opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
             },
             {

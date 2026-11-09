@@ -24,8 +24,6 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-from PySide6.QtCore import QTimer
-
 _READING = "Reading the archives once to find the rig files…"
 
 
@@ -42,8 +40,8 @@ class RigTabsMixin:
         self._rig_tab_pages = dict(pages)
         self._rig_tab_shown: dict = {}
         self._rig_files_cache = None
+        #: The worker reading the rig files, while one is.
         self._rig_scan = None
-        self._rig_scan_timer = None
         for tabs in tab_widgets:
             tabs.currentChanged.connect(self._on_lower_tab_changed)
 
@@ -112,7 +110,8 @@ class RigTabsMixin:
             return
         from PySide6.QtWidgets import QProgressBar
 
-        from .rig_files import scan_rig_files
+        from .background import LatestTask
+        from .rig_files import read_rig_files
 
         bar = getattr(self, "_rig_progress", None)
         if bar is None:
@@ -128,46 +127,40 @@ class RigTabsMixin:
         bar.show()
         self.statusBar().showMessage(_READING)
 
-        self._rig_scan = scan_rig_files()
-        timer = QTimer(self)
-        # Zero interval, not zero work: Qt runs the rest of the event loop between
-        # timeouts, so the window keeps painting and responding while the scan advances.
-        timer.setInterval(0)
-        timer.timeout.connect(self._step_rig_file_load)
-        self._rig_scan_timer = timer
-        timer.start()
+        # On a worker, like the Studio's other loaders. Stepped from a UI timer, the walk could
+        # only pause between entries, and one package table parses in a single call, so the
+        # first read froze the window for up to 0.75 s at a time. Inside the app the files
+        # come from its archive catalogue instead, and no table is parsed at all.
+        task = self._rig_scan = LatestTask(self)
+        task.setObjectName("rig_file_read")
+        task.ready.connect(self._rig_files_read)
+        task.progress.connect(self._rig_file_progress)
+        source = getattr(self, "_resident_source", None)
+        task.submit(lambda cancelled, progress: read_rig_files(
+            resident_source=source, should_stop=cancelled, progress=progress))
 
-    def _step_rig_file_load(self) -> None:
-        """Advance the scan by one slice. Runs on the UI thread, briefly, many times."""
-
-        scan = self._rig_scan
-        if scan is None:
-            return
-        try:
-            done, total, files = next(scan)
-        except StopIteration:
-            self._finish_rig_load()
-            return
-        except Exception as error:  # noqa: BLE001 - a missing install is not a crash
-            self._on_rig_load_failed(str(error))
-            return
+    def _rig_file_progress(self, done: int, total: int) -> None:
         bar = getattr(self, "_rig_progress", None)
         if bar is not None and total > 0:
             bar.setRange(0, total)
             bar.setValue(done)
+
+    def _rig_files_read(self, files, error: str) -> None:
         if files is not None:
             self._on_rig_files_loaded(files)
+        elif error:
+            self._on_rig_load_failed(error)
+        else:
+            self._finish_rig_load()
 
     def _finish_rig_load(self) -> None:
         bar = getattr(self, "_rig_progress", None)
         if bar is not None:
             bar.hide()
-        timer = self._rig_scan_timer
-        self._rig_scan_timer = None
+        task = self._rig_scan
         self._rig_scan = None
-        if timer is not None:
-            timer.stop()
-            timer.deleteLater()
+        if task is not None:
+            task.shutdown()
 
     def _on_rig_files_loaded(self, files) -> None:
         self._rig_files_cache = files

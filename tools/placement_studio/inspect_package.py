@@ -13,6 +13,7 @@ producer being wrong.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -173,6 +174,18 @@ def read_contents(root: Path, baseline=None) -> PackageContents:
         by_extension[file.suffix.lower()] = by_extension.get(file.suffix.lower(), 0) + 1
 
         data = file.read_bytes()
+        patched = _read_patch(game_path, data, baseline)
+        if patched is not None:
+            target, changed, added = patched
+            if is_descriptor_file(target):
+                if changed:
+                    descriptor_parts[target] = changed
+            else:
+                if changed:
+                    socket_changes[target] = changed
+                if added:
+                    socket_additions[target] = added
+            continue
         vanilla = None
         if baseline is not None and game_path in baseline:
             vanilla = baseline.read(game_path)
@@ -209,6 +222,37 @@ def read_contents(root: Path, baseline=None) -> PackageContents:
         animation_paths=tuple(sorted(animation_paths)),
         unparsed=tuple(sorted(unparsed)),
     )
+
+
+def _read_patch(game_path: str, data: bytes, baseline):
+    """`(target, changed, added)` for a DMM `.xml.patch` this tab writes, else None.
+
+    With the target in the baseline the patch is applied to it, as DMM would, and the result
+    is compared like a full copy. Without one, the rows and sockets its operations name are
+    what it changes.
+    """
+
+    from . import dmm_patch
+
+    target = dmm_patch.target_of(game_path)
+    if not target or not dmm_patch.patchable(target):
+        return None
+    text = data.decode("utf-8-sig")
+    if baseline is not None and target in baseline:
+        vanilla = baseline.read(target)
+        applied = dmm_patch.apply_patch(dmm_patch.decode_text(vanilla), text).encode("utf-8")
+        if is_descriptor_file(target):
+            return target, _changed_descriptor_rows(target, vanilla, applied), ()
+        changed, added = _changed_sockets(target, vanilla, applied)
+        return target, changed, added
+    changed, added = set(), []
+    for op in dmm_patch.parse_patch(text):
+        if op.kind == "insert":
+            added += [name for name in re.findall(r'\bName="([^"]*)"', op.content)]
+        else:
+            changed.update(value for name, value in op.filters
+                           if name in ("PartName", "Name"))
+    return target, tuple(sorted(changed)), tuple(sorted(added))
 
 
 def _changed_descriptor_rows(game_path: str, vanilla, data: bytes) -> Tuple[str, ...]:

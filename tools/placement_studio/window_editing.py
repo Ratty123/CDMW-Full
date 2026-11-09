@@ -226,7 +226,7 @@ class EditPanelMixin:
         self._redo_button.setShortcut("Ctrl+Y")
         self._redo_button.setToolTip("Redo the change you undid (Ctrl+Y).")
         self._redo_button.clicked.connect(self._redo)
-        self._export_button = QPushButton("Export changed files only…")
+        self._export_button = QPushButton("Export files…")
         self._export_button.setToolTip(
             "Write the changed game files to a folder, without making a mod. For checking "
             "the files or building a mod by hand; to use the changes in game, Save as mod."
@@ -801,7 +801,7 @@ class EditPanelMixin:
         if len(users) > 1:
             self.statusBar().showMessage(
                 f"{socket_name} aims {len(users)} rows ({', '.join(users)}), so turning it "
-                f"here would move all of them. Move the item with Carried at instead, "
+                f"here would move all of them. Move the item with Move it instead, "
                 f"which gives it a point of its own."
             )
             return
@@ -1117,8 +1117,7 @@ class EditPanelMixin:
         # the moment Animation was inserted ahead of it.
         tabs = getattr(self, "_advanced_tabs", None)
         if tabs is not None and tabs.indexOf(self._diff_view) >= 0:
-            tabs.setTabText(tabs.indexOf(self._diff_view),
-                            f"File changes ({len(plan.operations)})")
+            self._set_advanced_page_text(self._diff_view, f"File changes ({len(plan.operations)})")
         self._refresh_mod_list()
 
     def _refresh_edit_panel(self) -> None:

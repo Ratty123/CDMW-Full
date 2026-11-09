@@ -117,6 +117,45 @@ class OnePassTests(unittest.TestCase):
 
         self.assertFalse(read_rig_files().available)
 
+    def test_the_apps_catalogue_replaces_the_walk(self) -> None:
+        """Inside the app the entries come from its archive catalogue; no table is parsed."""
+
+        self._install("walked/rig.papr")
+        asked = []
+
+        class _CatalogueEntry(_Entry):
+            pamt_path = Path("0009/0.pamt")
+
+        class _Catalogue:
+            validated = False
+
+            def matching(self, extensions, *, contains="", stop_event=None):
+                asked.append((extensions, contains))
+                paths = ("c/rig.papr",) if extensions == (".papr",) else (POSE_MODIFIER_PATH,)
+                return [_CatalogueEntry(path) for path in paths if contains in path]
+
+            def validate_sources(self):
+                _Catalogue.validated = True
+
+        class _Source:
+            def open(self, _stop, *, package_root=None):
+                return _Catalogue()
+
+        files = read_rig_files(resident_source=_Source())
+
+        self.assertEqual(self.walks, 0)
+        self.assertEqual(files.constraint_paths, ("c/rig.papr",))
+        self.assertEqual(files.pose_modifier, f"payload:{POSE_MODIFIER_PATH}".encode())
+        self.assertTrue(_Catalogue.validated)
+        self.assertEqual(asked, [((".papr",), ""), ((".xml",), "posemodifierdata")])
+
+    def test_a_cancelled_read_returns_nothing_and_caches_nothing(self) -> None:
+        self._install("a/b/rig.papr")
+
+        self.assertIsNone(read_rig_files(should_stop=lambda: True))
+        self.assertIsNotNone(read_rig_files())
+        self.assertEqual(self.walks, 2)
+
 
 class DefaultsTests(unittest.TestCase):
     def test_an_empty_bundle_needs_no_arguments(self) -> None:
