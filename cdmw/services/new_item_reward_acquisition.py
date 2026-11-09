@@ -3,7 +3,7 @@ from dataclasses import replace
 from cdmw.core.item_reward_table import encode_item_reward_set
 from cdmw.core.item_use_reward import encode_item_use_reward, replace_item_use_reference
 from cdmw.core.iteminfo_row import parse_iteminfo_row
-from cdmw.core.multichangeinfo_table import allocate_multichange_keys
+from cdmw.domain.new_item.allocation import allocate_owned_record_keys
 from cdmw.core.structured_binary_editor import append_table_rows, replace_table_row
 from cdmw.services.new_item_acquisition_index import load_acquisition_index
 from cdmw.services.new_item_recipes import table_keys
@@ -49,9 +49,11 @@ def plan_reward_acquisition(planner):
                 products[edit.entry_index] = product
             else:
                 products.append(product)
-        reward_key = allocate_multichange_keys(reward_keys, 1)[0]
+        # The item's own key block keeps separately built mods from creating the same
+        # reward or use record differently.
+        reward_key = allocate_owned_record_keys(reward_keys, 1, int(spec.item_key))[0]
         reward_keys.add(reward_key)
-        use_key = allocate_multichange_keys(use_keys, 1)[0]
+        use_key = allocate_owned_record_keys(use_keys, 1, int(spec.item_key))[0]
         use_keys.add(use_key)
         owned_reward = source_reward.with_entries(products, key=reward_key, name=f"{spec.internal_name}_reward_{reward_key}")
         owned_use = replace(source_use, key=use_key, name=f"{spec.internal_name}_use_{use_key}", reward_key=reward_key)

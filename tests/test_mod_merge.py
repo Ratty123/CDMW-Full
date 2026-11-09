@@ -193,13 +193,28 @@ def test_conflicting_duplicate_icon_names_block_generic_export(tmp_path):
     assert all(fingerprint(root) == before for root, before in original.items())
 
 
-def test_colliding_generated_recipe_ids_require_resolution(tmp_path):
+def test_colliding_generated_recipe_ids_require_resolution(tmp_path, monkeypatch):
+    # Mods built before per-item record blocks all started at 1990000; merging two of
+    # them must still report the clash.
+    import cdmw.domain.new_item.allocation as allocation
+    monkeypatch.setattr(allocation, "owned_record_block", lambda _item_key: range(0))
     service, snapshot, entries, _plans, folders = make_mods(tmp_path)
     for index, folder in enumerate(folders):
         plan = service.plan(replace(spec(folder.name), item_key=1990000 + index * 100), snapshot)
         service.export_loose(plan, folder, manager="CDUMM" if index == 0 else "DMM")
     merged = prepare_mod_merge(folders, tmp_path / "game", entries=entries)
     assert any("multichangeinfo" in issue and "1990000" in issue for issue in merged.conflicts)
+
+
+def test_separately_built_items_no_longer_share_generated_record_ids(tmp_path):
+    # Two items built into separate mods each took DropSetInfo/MultiChangeInfo 1990000,
+    # and DMM mounted only one of the mods. Each item now owns a block of its own.
+    service, snapshot, entries, _plans, folders = make_mods(tmp_path)
+    for index, folder in enumerate(folders):
+        plan = service.plan(replace(spec(folder.name), item_key=1990000 + index * 100), snapshot)
+        service.export_loose(plan, folder, manager="DMM")
+    merged = prepare_mod_merge(folders, tmp_path / "game", entries=entries)
+    assert not any("multichangeinfo" in issue or "dropsetinfo" in issue for issue in merged.conflicts), merged.conflicts
 
 
 def test_selected_parent_mod_supplies_a_recorded_baseline_in_either_order(tmp_path):

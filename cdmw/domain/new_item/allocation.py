@@ -28,6 +28,9 @@ import re
 from typing import Iterable, Mapping, Optional, Tuple
 
 DEFAULT_ITEM_KEY_RANGE = range(1_990_000, 2_000_000)
+#: First key of the per-item record blocks (drop sets, enhancement transitions).
+OWNED_RECORD_BLOCK_BASE = 100_000_000
+OWNED_RECORD_BLOCK_SIZE = 100
 NAME_KEY_TAG = 0x70
 DESCRIPTION_KEY_TAG = 0x71
 _DIGIT_RUN = re.compile(r"\d{4,}")
@@ -57,6 +60,41 @@ def allocate_item_key(
         if candidate not in taken:
             return candidate
     raise AllocationError(f"no free item key in {key_range.start}..{key_range.stop - 1}")
+
+
+def owned_record_block(item_key: int) -> range:
+    """The record keys a new item takes first in tables it adds rows to (DropSetInfo,
+    MultiChangeInfo).
+
+    Every mod built separately used to start at the same lowest free key, so two items
+    built into different mods each created, say, DropSetInfo 1990000 with different
+    contents, and DMM mounted only one of the mods. A block that follows from the item's
+    own key differs for every item, whichever install or session built it. Shipped keys
+    stay far below it (DropSetInfo tops out near 20,250,408; MultiChangeInfo near
+    1,018,450) and the keys are u32: the slot is the item key modulo 10,000,000, so the
+    highest block ends at 1,099,999,999.
+    """
+
+    slot = int(item_key) % 10_000_000
+    start = OWNED_RECORD_BLOCK_BASE + slot * OWNED_RECORD_BLOCK_SIZE
+    return range(start, start + OWNED_RECORD_BLOCK_SIZE)
+
+
+def allocate_owned_record_keys(used: Iterable[int], count: int, item_key: int, *,
+                               fallback: range = DEFAULT_ITEM_KEY_RANGE) -> Tuple[int, ...]:
+    """`count` free keys from the item's own block, then from `fallback` if it is full."""
+
+    taken = {int(value) for value in used}
+    out = []
+    for candidate in (*owned_record_block(item_key), *fallback):
+        if len(out) == int(count):
+            break
+        if candidate not in taken:
+            out.append(candidate)
+            taken.add(candidate)
+    if len(out) != int(count):
+        raise AllocationError(f"no {count} free record keys for item {item_key}")
+    return tuple(out)
 
 
 def _stem_taken(stem: str, taken: Iterable[str]) -> bool:
@@ -155,6 +193,10 @@ def is_conventional_localization_key(item_key: int, key: str, *, description: bo
 __all__ = [
     "AllocationError",
     "DEFAULT_ITEM_KEY_RANGE",
+    "OWNED_RECORD_BLOCK_BASE",
+    "OWNED_RECORD_BLOCK_SIZE",
+    "allocate_owned_record_keys",
+    "owned_record_block",
     "DESCRIPTION_KEY_TAG",
     "NAME_KEY_TAG",
     "allocate_item_key",

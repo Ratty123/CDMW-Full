@@ -221,6 +221,12 @@ class _Planner(EffectPlanningMixin):
 
     def allocate_owned_keys(self, namespace, symbols, used):
         if self.identity_bindings is None:
+            # A block of the item's own keeps two separately built mods from creating
+            # the same record differently (DMM then mounts only one of them).
+            from cdmw.domain.new_item.allocation import allocate_owned_record_keys
+            item_key = getattr(self.spec, "item_key", None)
+            if item_key:
+                return allocate_owned_record_keys(used, len(symbols), int(item_key))
             return allocate_multichange_keys(used, len(symbols))
         taken = set(used)
         result = []

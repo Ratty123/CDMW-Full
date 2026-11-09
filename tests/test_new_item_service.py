@@ -674,7 +674,9 @@ class PlanTests(_PackageCase):
         rows = {r.key: r for r in parse_multichange_table(files[f"{BIN}/multichangeinfo.pabgb"], files[f"{BIN}/multichangeinfo.pabgh"])}
         self.assertEqual(len(rows), 5)
         new_keys = tuple(plan.manifest["enhancement_rows"].values())
-        self.assertEqual(new_keys, (1990000, 1990001))
+        # The item's own record block, so a separately built mod cannot reuse these keys.
+        from cdmw.domain.new_item.allocation import owned_record_block
+        self.assertEqual(new_keys, tuple(owned_record_block(1990000)[:2]))
         self.assertEqual([rows[k].name for k in new_keys], ["Ziane_Clone_OneHandSword_0", "Ziane_Clone_OneHandSword_1"])
         self.assertEqual([rows[k].item_key for k in new_keys], [1990000, 1990000])
         self.assertEqual(rows[new_keys[0]].raw[rows[new_keys[0]].name_end:], rows[MC_ROW_0].raw[rows[MC_ROW_0].name_end:].replace(struct.pack("<I", TEMPLATE), struct.pack("<I", 1990000), 1))
