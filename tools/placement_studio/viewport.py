@@ -108,6 +108,10 @@ def _same_geometry(old, new) -> bool:
         old_groups is None or new_groups is None or not _np.array_equal(old_groups, new_groups)
     ):
         return False
+    # A deferred pose is compared by the skinning it would run, never by running it.
+    old_pose, new_pose = getattr(old, "pose_key", None), getattr(new, "pose_key", None)
+    if old_pose is not None and new_pose is not None:
+        return old_pose[0] == new_pose[0] and _np.array_equal(old_pose[1], new_pose[1])
     old_points, new_points = getattr(old, "points", None), getattr(new, "points", None)
     if old_points is not None or new_points is not None:
         if old_points is None or new_points is None:
@@ -121,8 +125,8 @@ def _same_geometry(old, new) -> bool:
 class _MeshPaintCache:
     """Brushes, pens and piece tints reused between frames.
 
-    One per painting thread: the UI thread keeps one for frames it draws itself, and the
-    layer worker keeps its own, so neither ever reads a QColor the other is building.
+    UI thread only, like every other Qt object here: the layer worker plans in NumPy and
+    never touches one.
     """
 
     __slots__ = ("shades", "pens", "tint_key", "tints")
@@ -180,22 +184,29 @@ class _MeshPaintCache:
 
 @dataclass(frozen=True, slots=True)
 class _MeshInput:
-    """One mesh, as the face pass needs it: world positions and triangle indices."""
+    """One mesh, as the face pass needs it: world positions and triangle indices.
 
-    world: "_np.ndarray"
+    Colours travel as `QColor.rgba()` integers, never as QColor objects: the face pass runs
+    on a worker, and the worker touches no Qt object at all.
+    """
+
+    #: (N, 3) positions, or a deferred pose whose `points` skin it on first use.
+    world: object
     triangles: Optional["_np.ndarray"]
     triangle_count: int
     groups: Optional["_np.ndarray"]
     is_weapon: bool
-    fill: QColor
+    fill_key: int
+    #: Colour per worn piece, indexed by `groups`, or None for one colour throughout.
+    tint_keys: Optional[Tuple[int, ...]]
 
 
 @dataclass(frozen=True, slots=True)
 class _MeshScene:
-    """Everything `_paint_meshes` reads, taken on the UI thread.
+    """Everything the face pass reads, taken on the UI thread.
 
-    A snapshot rather than the viewport itself, so a worker can paint it while the user
-    keeps changing the live scene. Nothing in it is mutated after it is taken.
+    A snapshot rather than the viewport itself, so a worker can plan it while the user keeps
+    changing the live scene. Nothing in it is mutated after it is taken.
     """
 
     frame: tuple
@@ -205,16 +216,37 @@ class _MeshScene:
     #: Moving or dragging the view: the face budget tightens and the outline goes.
     thin: bool
     body: object
+    #: `rgba -> QColor` for every colour a face can take. Read on the UI thread only.
+    colours: dict
 
 
-def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
-                  cancelled=None):
-    """Body proxy then weapon, depth-sorted back to front. Returns the screen projections.
+@dataclass(frozen=True, slots=True)
+class _FacePlan:
+    """The drawing a face pass worked out, ready for `_paint_plan` to put on screen."""
 
-    The result is `(body_screen, weapon_screen)`: the body's projected vertices for surface
-    picking, or None when no body was drawn, and the weapon's drawn triangles for clicking it.
-    None instead when `cancelled()` turns true part way: a worker stops early once a newer
-    scene has been asked for, rather than holding the GIL for a picture nobody will see.
+    #: The body's projected vertices `(sx, sy, depths)` for surface picking, or None.
+    body_screen: Optional[tuple]
+    #: The weapon's drawn triangles as `(ax, ay, bx, by, cx, cy)`, for clicking it.
+    weapon_screen: list
+    #: Per path, in drawing order: `colour * _SHADE_LEVELS + level`, and its face count.
+    shades: List[int]
+    sizes: List[int]
+    #: Every path as QDataStream bytes; see `_path_stream`.
+    stream: bytes
+    outline: bool
+
+
+_CLIP_KEY = _CLIP_FILL.rgba()
+
+
+def _plan_meshes(scene: _MeshScene, cancelled=None) -> Optional[_FacePlan]:
+    """Project, cull, light and depth-sort the meshes, in NumPy alone.
+
+    Safe on any thread: it reads only the snapshot and builds no Qt object. Painting a
+    QImage on a worker was tried and crashed the app in about a third of long sessions,
+    in whatever the UI thread was painting at the time, so the worker stops here and the
+    UI thread draws the result. None when `cancelled()` turns true part way: a superseded
+    request stops rather than holding the GIL for a picture nobody will see.
 
     Vertices are projected *once per mesh*, not once per triangle that uses them: a body
     proxy has 3,038 vertices but 5,379 triangles, so the naive version did 3x the work.
@@ -227,13 +259,15 @@ def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
     light = _key_light(rgt, upv, forward)
     body_screen = None
     weapon_screen: list = []
-    source_colours = {_CLIP_FILL.rgba(): _CLIP_FILL}
-    clipping_colour = _CLIP_FILL.rgba()
     blocks = []
     for item in scene.meshes:
         if cancelled is not None and cancelled():
             return None
         world = item.world
+        if not isinstance(world, _np.ndarray):
+            world = world.points  # a deferred pose, skinned here: on the worker if planned there
+            if world is None or not len(world):
+                continue
         rel = world - eye_at
         depths = rel @ _np.array((forward.x, forward.y, forward.z))
         inv = scale / _np.where(depths > 0.02, depths, 1.0)
@@ -305,16 +339,10 @@ def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
         # Worn pieces arrive as separate meshes and are merged for drawing; `groups` is the
         # only surviving record of where one ends, and it is what lets a helmet be told
         # from the head under it.
-        fill = item.fill
-        fill_key = fill.rgba()
-        source_colours[fill_key] = fill
-        if item.groups is not None:
-            tints = cache.piece_tints(fill, item.groups)
-            tint_keys = [tint.rgba() for tint in tints]
-            source_colours.update(zip(tint_keys, tints))
-            colours = _np.asarray(tint_keys, dtype=_np.int64)[item.groups[picked]]
+        if item.groups is not None and item.tint_keys is not None:
+            colours = _np.asarray(item.tint_keys, dtype=_np.int64)[item.groups[picked]]
         else:
-            colours = _np.full(len(picked), fill_key, dtype=_np.int64)
+            colours = _np.full(len(picked), item.fill_key, dtype=_np.int64)
 
         corners = _np.stack((ax[picked], ay[picked], bx[picked], by[picked],
                              gx[picked], gy[picked]), axis=1)
@@ -324,7 +352,7 @@ def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
                     _np.stack((i0[picked], i1[picked], i2[picked]), axis=1),
                     _np.fromiter(scene.clipping, dtype=_np.int64),
                 ).any(axis=1)
-                colours[touching] = clipping_colour
+                colours[touching] = _CLIP_KEY
             # Emit every triangle wound the same way round. A filled triangle looks
             # identical either way, but a winding fill *cancels* where two opposed
             # triangles overlap and punches a hole through the weapon — which is why
@@ -335,8 +363,13 @@ def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
             weapon_screen = [tuple(row) for row in corners.tolist()]
         blocks.append((mid[picked], corners, colours * _SHADE_LEVELS + levels))
 
+    # The outline exists only to hide an antialiasing artefact: with NoPen, AA leaves a
+    # sub-pixel gap along every shared edge and the background bleeds through as a
+    # stipple. Antialiasing is already off while anything moves, so there is nothing to
+    # hide then — and stroking every triangle edge costs 0.62 ms of the 1.48 ms paint.
+    outline = not scene.thin
     if not blocks:
-        return body_screen, weapon_screen
+        return _FacePlan(body_screen, weapon_screen, [], [], b"", outline)
     if cancelled is not None and cancelled():
         return None
     mids = _np.concatenate([block[0] for block in blocks])
@@ -384,32 +417,42 @@ def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
     drawn = order[_np.argsort(face_rank, kind="stable")]
     sizes = _np.bincount(face_rank, minlength=len(opened)).tolist()
     path_shades = sorted_shades[_np.sort(opened)].tolist()
+    return _FacePlan(body_screen, weapon_screen, path_shades, sizes,
+                     _path_stream(corners[drawn], sizes), outline)
 
-    # The outline exists only to hide an antialiasing artefact: with NoPen, AA leaves a
-    # sub-pixel gap along every shared edge and the background bleeds through as a
-    # stipple. Antialiasing is already off while anything moves, so there is nothing to
-    # hide then — and stroking every triangle edge costs 0.62 ms of the 1.48 ms paint.
-    outline = not scene.thin
-    for index, (shade, path) in enumerate(zip(path_shades, _triangle_paths(corners[drawn], sizes))):
-        if cancelled is not None and index % 64 == 63 and cancelled():
-            return None
+
+def _paint_plan(painter: QPainter, plan: _FacePlan, colours: dict,
+                cache: _MeshPaintCache) -> None:
+    """Draw a face plan. UI thread only: this is where the Qt work is."""
+
+    for shade, path in zip(plan.shades, _read_paths(plan.stream, plan.sizes)):
         colour, level = divmod(shade, _SHADE_LEVELS)
-        brush = cache.brush(source_colours[colour], colour, level)
-        if outline:
+        brush = cache.brush(colours[colour], colour, level)
+        if plan.outline:
             painter.setBrush(brush)
             painter.setPen(cache.pen(brush))
             painter.drawPath(path)
         else:
             painter.fillPath(path, brush)
-    return body_screen, weapon_screen
 
 
-def _triangle_paths(xy: "_np.ndarray", sizes: Sequence[int]):
-    """Closed triangles as winding-fill paths: the first `sizes[0]` rows, then the next...
+def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
+                  cancelled=None):
+    """Plan and draw in one go; returns `(body_screen, weapon_screen)`, or None if cancelled."""
 
-    `xy` holds one triangle per row as `ax, ay, bx, by, cx, cy`. The paths are read from
-    one QDataStream written in NumPy, and match `moveTo`, `lineTo`, `lineTo`,
-    `closeSubpath` per triangle element for element: the close is a line back to A.
+    plan = _plan_meshes(scene, cancelled)
+    if plan is None:
+        return None
+    _paint_plan(painter, plan, scene.colours, cache)
+    return plan.body_screen, plan.weapon_screen
+
+
+def _path_stream(xy: "_np.ndarray", sizes: Sequence[int]) -> bytes:
+    """Closed triangles as QDataStream bytes for `len(sizes)` paths, `sizes[i]` faces each.
+
+    `xy` holds one triangle per row as `ax, ay, bx, by, cx, cy`. Each path is written as
+    QPainterPath streams itself, and reads back equal to `moveTo`, `lineTo`, `lineTo`,
+    `closeSubpath` per triangle, element for element: the close is a line back to A.
     """
 
     total = len(xy)
@@ -430,11 +473,25 @@ def _triangle_paths(xy: "_np.ndarray", sizes: Sequence[int]):
         parts.append(raw[start * record:(start + faces) * record])
         parts.append((count - 4).to_bytes(4, "big") + _WINDING_FILL.to_bytes(4, "big"))
         start += faces
-    stream = QDataStream(QByteArray(b"".join(parts)))
+    return b"".join(parts)
+
+
+def _read_paths(stream: bytes, sizes: Sequence[int]):
+    """The paths `_path_stream` wrote, one QPainterPath each."""
+
+    if not sizes:
+        return
+    reader = QDataStream(QByteArray(stream))
     for _faces in sizes:
         path = QPainterPath()
-        stream >> path
+        reader >> path
         yield path
+
+
+def _triangle_paths(xy: "_np.ndarray", sizes: Sequence[int]):
+    """Closed triangles as winding-fill paths: the first `sizes[0]` rows, then the next..."""
+
+    return _read_paths(_path_stream(xy, sizes), sizes)
 
 
 def _segment_on_screen(frame: tuple, a: Vec3, b: Vec3, near: float):
@@ -497,15 +554,10 @@ def _paint_ground(painter: QPainter, frame: tuple, extent: float, near: float) -
                 painter.drawLine(segment[0], segment[1])
 
 
-def _render_layer(width: int, height: int, ratio: float, rect: QRect, frame: tuple,
-                  extent: float, near: float, scene: Optional[_MeshScene],
-                  cache: _MeshPaintCache, cancelled=None):
-    """The stationary picture: background, floor and meshes, as one image.
-
-    Safe off the UI thread: it reads only its arguments, and QPainter on a QImage is one of
-    the things Qt allows on any thread. Returns `(image, body_screen, weapon_screen)`, or
-    None when `cancelled()` turned true before the meshes were finished.
-    """
+def _paint_layer(width: int, height: int, ratio: float, rect: QRect, frame: tuple,
+                 extent: float, near: float, plan: Optional[_FacePlan], colours: dict,
+                 cache: _MeshPaintCache, antialias: bool = True) -> QImage:
+    """The stationary picture as one image: background, floor and a face plan. UI thread."""
 
     image = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
     image.setDevicePixelRatio(ratio)
@@ -513,18 +565,36 @@ def _render_layer(width: int, height: int, ratio: float, rect: QRect, frame: tup
     # pixel; initialize it before compositing onto the widget.
     image.fill(Qt.transparent)
     layer = QPainter(image)
-    screens = (None, [])
     try:
-        layer.setRenderHint(QPainter.Antialiasing, True)
+        layer.setRenderHint(QPainter.Antialiasing, antialias)
         layer.fillRect(rect, _BACKGROUND)
         _paint_ground(layer, frame, extent, near)
-        if scene is not None and scene.meshes:
-            screens = _paint_meshes(layer, scene, cache, cancelled)
+        if plan is not None:
+            _paint_plan(layer, plan, colours, cache)
     finally:
         layer.end()
-    if screens is None:
-        return None
-    return image, screens[0], screens[1]
+    return image
+
+
+def _render_layer(width: int, height: int, ratio: float, rect: QRect, frame: tuple,
+                  extent: float, near: float, scene: Optional[_MeshScene],
+                  cache: _MeshPaintCache, cancelled=None, antialias: bool = True):
+    """Plan and paint a layer in one go, on the UI thread.
+
+    Returns `(image, body_screen, weapon_screen)`, or None when `cancelled()` turned true
+    before the plan was finished.
+    """
+
+    plan = None
+    if scene is not None and scene.meshes:
+        plan = _plan_meshes(scene, cancelled)
+        if plan is None:
+            return None
+    image = _paint_layer(width, height, ratio, rect, frame, extent, near, plan,
+                         scene.colours if scene is not None else {}, cache, antialias)
+    if plan is None:
+        return image, None, []
+    return image, plan.body_screen, plan.weapon_screen
 
 
 @dataclass(slots=True)
@@ -666,8 +736,10 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._layer_shown_once = False
         #: Layer key a worker is drawing right now, if any.
         self._pending_layer = None
+        #: `(key, image)` of the last playback frame a worker drew; see `_moving_in_background`.
+        self._moving_layer = None
+        self._frame_complete = True
         self._layer_task = None
-        self._layer_cache = _MeshPaintCache()
         #: Layers with new geometry are drawn off the UI thread. Turned off for good if a
         #: worker ever fails, so a broken worker costs speed rather than the picture.
         self.background_layers = True
@@ -989,11 +1061,16 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         started = time.perf_counter()
+        self._frame_complete = True
         try:
             self._paint_frame()
         finally:
             self.last_paint_seconds = time.perf_counter() - started
-            self.frame_painted.emit(self.last_paint_seconds)
+            # Playback asks for its next pose when a frame has painted. A playback frame still
+            # still being planned on the worker is not one yet: asking then would pose again before the
+            # last pose was ever shown.
+            if self._frame_complete:
+                self.frame_painted.emit(self.last_paint_seconds)
 
     def _paint_frame(self) -> None:
         painter = QPainter(self)
@@ -1029,9 +1106,15 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # One image, at most 16 MiB. Moving frames and larger viewports draw
         # directly; neither needs an extra image allocation or a reduced resolution.
         if self._moving or self._dragging_view or width * height > 4 * 1024 * 1024:
-            self._scene_background = None
+            idle, self._scene_background = self._scene_background, None
             self._shown_layer = None
+            if self._moving_in_background(width, height):
+                if self._moving_layer is None and idle is not None:
+                    self._moving_layer = idle  # the still picture, until the first pose lands
+                self._draw_moving_layer(painter, width, height, ratio)
+                return
             self._pending_layer = None
+            self._moving_layer = None
             painter.fillRect(self.rect(), _BACKGROUND)
             self._draw_ground(painter)
             if self._show_meshes:
@@ -1045,10 +1128,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
         held = self._scene_background
         if held is None or held[0] != key:
             # New geometry under an unchanged camera — a body arriving, an armour piece, a
-            # weapon being placed — is drawn by a worker while the picture already on screen
-            # stays up. On the UI thread that draw measured 40 ms alone and 2.7 s while the
-            # loaders ran Python, because every NumPy pass in it gives the GIL away and then
-            # queues to get it back. A camera change still draws here and now: the old
+            # weapon being placed — is planned by a worker while the picture already on
+            # screen stays up, and painted here when the plan lands. On the UI thread the
+            # whole draw measured 40 ms alone and 2.7 s while the loaders ran Python, because
+            # every NumPy pass in it gives the GIL away and then queues to get it back; the
+            # Qt part left here keeps the GIL and costs about 20 ms. A camera change still draws here and now: the old
             # picture would be from the wrong side, and orbiting has to answer at once.
             #
             # A resize is the exception among view changes. Switching tabs or filling a
@@ -1090,6 +1174,41 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._shown_layer = self._scene_background[0]
         self._layer_shown_once = True
 
+    def _moving_in_background(self, width: int, height: int) -> bool:
+        """Whether this playback frame is planned (and skinned) on the worker.
+
+        Only while another task is running Python. Alone, a playback frame costs 7 ms here and
+        shows the body and the bones of the same pose. Beside a busy loader it cost 0.6 s or
+        more, every frame, and the window answered nothing in between; planned on the worker
+        the window stays live, and the body trails the bones by at most one frame.
+        """
+
+        from .background import others_busy
+
+        return (
+            self._moving and not self._dragging_view and self.background_layers
+            and self._show_meshes and width * height <= 4 * 1024 * 1024
+            and (self._body is not None or self._weapon is not None)
+            and others_busy(excluding="viewport_layer")
+        )
+
+    def _draw_moving_layer(self, painter: QPainter, width: int, height: int, ratio: float) -> None:
+        camera = self._camera
+        key = ("moving", (width, height, ratio, camera.yaw, camera.pitch, camera.distance,
+                          camera.fov, camera.target.x, camera.target.y, camera.target.z,
+                          self._solid), self._mesh_generation)
+        held = self._moving_layer
+        if held is None or held[0] != key:
+            self._request_layer(key, width, height, ratio, self._mesh_scene(), antialias=False)
+        if held is None:
+            painter.fillRect(self.rect(), _BACKGROUND)
+            self._draw_ground(painter)
+        elif held[1].width() == width and held[1].height() == height:
+            painter.drawImage(0, 0, held[1])
+        else:
+            self._draw_resized(painter, held[1])
+        self._frame_complete = held is not None and held[0] == key
+
     def _draw_resized(self, painter: QPainter, image: QImage) -> None:
         """An older layer drawn at the current size.
 
@@ -1111,8 +1230,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
         painter.restore()
 
     def _request_layer(self, key, width: int, height: int, ratio: float,
-                       scene: _MeshScene) -> None:
-        """Draw the layer for `key` on a worker; `_layer_ready` puts it on screen."""
+                       scene: _MeshScene, *, antialias: bool = True) -> None:
+        """Plan the layer for `key` on a worker; `_layer_ready` paints it and shows it.
+
+        The worker does the NumPy part only, skinning included; every Qt call stays here.
+        """
 
         if self._pending_layer == key:
             return
@@ -1123,16 +1245,16 @@ class SkeletonViewport(GizmoMixin, QWidget):
             self._layer_task = LatestTask(self)
             self._layer_task.setObjectName("viewport_layer")
             self._layer_task.ready.connect(self._layer_ready)
-        rect, frame, cache = QRect(self.rect()), self._view_frame(), self._layer_cache
-        extent, near = self.GROUND_EXTENT, self._NEAR
+        paint = (width, height, ratio, QRect(self.rect()), self._view_frame(),
+                 self.GROUND_EXTENT, self._NEAR)
 
         def work(cancelled, _progress):
             if cancelled():
                 return None
-            layer = _render_layer(
-                width, height, ratio, rect, frame, extent, near, scene, cache, cancelled
-            )
-            return None if layer is None else (key, scene, layer)
+            plan = _plan_meshes(scene, cancelled) if scene.meshes else None
+            if plan is None and scene.meshes:
+                return None
+            return key, scene, paint, antialias, plan
 
         self._layer_task.submit(work)
 
@@ -1144,11 +1266,17 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 self._pending_layer = None
                 self.update()
             return
-        key, scene, (image, body_screen, weapon_screen) = result
+        key, scene, paint, antialias, plan = result
         if key != self._pending_layer:
-            return  # the scene moved on while it was drawn; a newer request is queued
+            return  # the scene moved on while it was planned; a newer request is queued
         self._pending_layer = None
-        self._scene_background = key, image
+        image = _paint_layer(*paint, plan, scene.colours, self._paint_cache, antialias)
+        body_screen = plan.body_screen if plan is not None else None
+        weapon_screen = plan.weapon_screen if plan is not None else []
+        if key[0] == "moving":
+            self._moving_layer = key, image
+        else:
+            self._scene_background = key, image
         self._keep_screens(scene, body_screen, weapon_screen)
         self.update()
 
@@ -1165,14 +1293,18 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         if self._layer_task is not None:
             self._layer_task.shutdown()
+            # A plan is NumPy for a fraction of a second. Waiting for it here keeps a worker
+            # from still running Python while the window, or the interpreter, is torn down.
+            self._layer_task.wait(2000)
             self._layer_task = None
         self.background_layers = False
         self._pending_layer = None
 
     def _mesh_scene(self) -> _MeshScene:
-        """What `_paint_meshes` needs, taken now, so it can be painted on another thread."""
+        """What the face pass needs, taken now, so it can be planned on another thread."""
 
         inputs = []
+        colours = {_CLIP_KEY: _CLIP_FILL}
         for mesh, fill, tris, is_weapon in (
             (self._body, _BODY_SOLID if self._solid else _BODY_FILL, self._body_tris, False),
             (self._weapon, _WEAPON_FILL, self._weapon_tris, True),
@@ -1182,16 +1314,28 @@ class SkeletonViewport(GizmoMixin, QWidget):
             # Rigid meshes need the same coordinate array for lighting. Reuse it for
             # projection too, instead of walking every Vec3 in Python first. Posed
             # bodies already supply an array; unchanged rigid vertices use the cache.
-            world = self._world_points(mesh, getattr(mesh, "points", None))
-            if world is None or not len(world):
-                continue
+            # A deferred pose goes in as it is, so whoever paints it does the skinning.
+            if getattr(mesh, "deferred", False):
+                world = mesh
+            else:
+                world = self._world_points(mesh, getattr(mesh, "points", None))
+                if world is None or not len(world):
+                    continue
+            groups = None if is_weapon else getattr(mesh, "groups", None)
+            colours[fill.rgba()] = fill
+            tint_keys = None
+            if groups is not None:
+                tints = self._paint_cache.piece_tints(fill, groups)
+                tint_keys = tuple(tint.rgba() for tint in tints)
+                colours.update(zip(tint_keys, tints))
             inputs.append(_MeshInput(
                 world=world,
                 triangles=tris,
                 triangle_count=len(mesh.triangles),
-                groups=None if is_weapon else getattr(mesh, "groups", None),
+                groups=groups,
                 is_weapon=is_weapon,
-                fill=fill,
+                fill_key=fill.rgba(),
+                tint_keys=tint_keys,
             ))
         return _MeshScene(
             frame=self._view_frame(),
@@ -1200,6 +1344,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
             moving=self._moving,
             thin=self._moving or self._dragging_view,
             body=self._body,
+            colours=colours,
         )
 
     #: Half-width of the room, in metres. Fixed on purpose: a stage that resized itself per

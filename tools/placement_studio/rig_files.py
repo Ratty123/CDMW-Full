@@ -66,6 +66,8 @@ def scan_rig_files(
     game_root: Optional[Path] = None,
     *,
     refresh: bool = False,
+    resident_source=None,
+    should_stop=None,
 ) -> Iterator[Tuple[int, int, Optional[RigFiles]]]:
     """Walk the archives a slice at a time, yielding `(done, total, result)`.
 
@@ -75,6 +77,13 @@ def scan_rig_files(
     at a 12-second gap between UI heartbeats. Stepping it from the event loop keeps the
     window alive between slices, and bounds each slice by entry count so one large package
     cannot stall it.
+
+    The Studio now runs it on a worker instead (`read_rig_files`). Stepped from the event
+    loop, a slice could only end between entries, and one package table is parsed in a
+    single call, so a first read still stalled the window for up to 0.75 s at a time. With
+    the app's archive catalogue (`resident_source`) nothing is parsed at all: the `.papr`
+    entries and the descriptor are looked up in the catalogue the app already holds.
+    `should_stop` ends the walk early, yielding nothing more.
     """
 
     global _CACHE
@@ -101,10 +110,27 @@ def scan_rig_files(
     done = 0
     since_yield = 0
     slice_started = time.perf_counter()
-    # Iteration stays with `corpus._iter_archive_entries`, the one place that knows how to
-    # walk the package tables. Progress comes from watching the package name change, so
-    # this needs no second traversal and no duplicate of that logic.
-    for package, entry in corpus._iter_archive_entries(root):
+    catalogue = (
+        resident_source.open(should_stop, package_root=root) if resident_source is not None else None
+    )
+    if catalogue is not None:
+        # The catalogue keeps the mount winner per path, which is what the walk's "first one
+        # seen" kept too. Its entries read with the same reader.
+        entries = (
+            (entry.pamt_path.parent.name, entry)
+            for entry in (
+                *catalogue.matching((".papr",), stop_event=should_stop),
+                *catalogue.matching((".xml",), contains="posemodifierdata", stop_event=should_stop),
+            )
+        )
+    else:
+        # Iteration stays with `corpus._iter_archive_entries`, the one place that knows how
+        # to walk the package tables. Progress comes from watching the package name change,
+        # so this needs no second traversal and no duplicate of that logic.
+        entries = corpus._iter_archive_entries(root)
+    for package, entry in entries:
+        if should_stop is not None and should_stop():
+            return
         if package != seen_package:
             seen_package = package
             done += 1
@@ -123,6 +149,8 @@ def scan_rig_files(
             yield (done, total, None)
             slice_started = time.perf_counter()
 
+    if catalogue is not None:
+        catalogue.validate_sources()
     files = RigFiles(
         constraint_paths=tuple(sorted(constraints)),
         constraints=constraints,
@@ -134,13 +162,29 @@ def scan_rig_files(
     yield (max(done, total), max(done, total), files)
 
 
-def read_rig_files(game_root: Optional[Path] = None, *, refresh: bool = False) -> RigFiles:
-    """The whole walk in one call. Blocks; use `scan_rig_files` on a UI thread."""
+def read_rig_files(
+    game_root: Optional[Path] = None,
+    *,
+    refresh: bool = False,
+    resident_source=None,
+    should_stop=None,
+    progress=None,
+) -> Optional[RigFiles]:
+    """The whole walk in one call. Blocks, so the Studio calls it on a worker.
+
+    `progress(done, total)` follows the packages walked. None when `should_stop` ended it.
+    """
 
     files: Optional[RigFiles] = None
-    for _done, _total, result in scan_rig_files(game_root, refresh=refresh):
+    for done, total, result in scan_rig_files(
+        game_root, refresh=refresh, resident_source=resident_source, should_stop=should_stop
+    ):
         if result is not None:
             files = result
+        elif progress is not None:
+            progress(done, total)
+    if files is None and should_stop is not None and should_stop():
+        return None
     assert files is not None  # the generator always yields a result last
     return files
 

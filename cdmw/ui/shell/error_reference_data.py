@@ -94079,7 +94079,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the archives: {error}",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_armour.py": 255
+      "tools/placement_studio/window_armour.py": 257
     }
   },
   {
@@ -94087,7 +94087,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the archives: {message}",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/window_rig_tabs.py": 187
+      "tools/placement_studio/window_rig_tabs.py": 180
     }
   },
   {
@@ -95056,7 +95056,7 @@ MESSAGE_REFERENCE = [
     "message": "Installation changed while loading the clip index",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/clips.py": 231
+      "tools/placement_studio/clips.py": 249
     }
   },
   {
@@ -95072,7 +95072,7 @@ MESSAGE_REFERENCE = [
     "message": "Installation changed while scanning clips; refresh required",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/clips.py": 272
+      "tools/placement_studio/clips.py": 290
     }
   },
   {
@@ -96033,7 +96033,7 @@ MESSAGE_REFERENCE = [
     "message": "No game install — armour unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/window_armour.py": 97
+      "tools/placement_studio/window_armour.py": 99
     }
   },
   {
@@ -99151,7 +99151,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} has no source to read from",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/clips.py": 562
+      "tools/placement_studio/clips.py": 580
     }
   },
   {
@@ -99159,7 +99159,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path}: archive read returned nothing ({message})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/clips.py": 567
+      "tools/placement_studio/clips.py": 585
     }
   },
   {

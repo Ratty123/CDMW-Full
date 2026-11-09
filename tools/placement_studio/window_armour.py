@@ -82,7 +82,9 @@ class ArmourPickerMixin:
         layout.addWidget(self._armour_status, 1)
         layout.addWidget(clear)
         page.set_footer(footer)
-        self._start_armour_index()
+        # The index starts once the window is built (`PlacementStudioWindow.__init__`). Started
+        # here, it ran Python beside the rest of construction, and building the window took
+        # about twice as long while the two queued for the GIL.
         return page
 
     # ── indexing ────────────────────────────────────────────────────

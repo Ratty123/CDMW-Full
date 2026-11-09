@@ -67,12 +67,21 @@ class PosedMesh:
 
     Exposes `points` as an (N, 3) array for the fast projection path, and `vertices` lazily
     for the few callers — bounds, clipping — that still want objects.
+
+    A pose can also arrive as the work to do rather than its result: `compute` returns the
+    points on first use, and `pose_key` names the pose so an unchanged one is recognised
+    without skinning it. Skinning a dressed body is a dozen NumPy passes over every vertex,
+    and on the UI thread beside a busy loader it was most of what froze playback; deferred,
+    the viewport's layer worker does it while it plans the frame.
     """
 
-    __slots__ = ("points", "triangles", "name", "groups", "_vertices")
+    __slots__ = ("_points", "_compute", "pose_key", "triangles", "name", "groups", "_vertices")
 
-    def __init__(self, points, triangles, name: str = "posed body", groups=None) -> None:
-        self.points = points
+    def __init__(self, points=None, triangles=(), name: str = "posed body", groups=None, *,
+                 compute=None, pose_key=None) -> None:
+        self._points = points
+        self._compute = compute if points is None else None
+        self.pose_key = pose_key
         self.triangles = triangles
         self.name = name
         #: One index per triangle naming which worn piece it came from, or None when the set
@@ -80,6 +89,21 @@ class PosedMesh:
         #: for drawing, so this is the only surviving record of where a helmet ends.
         self.groups = groups
         self._vertices = None
+
+    @property
+    def points(self):
+        compute = self._compute
+        if self._points is None and compute is not None:
+            # Two threads asking at once both compute the same array; either result is right.
+            self._points = compute()
+            self._compute = None
+        return self._points
+
+    @property
+    def deferred(self) -> bool:
+        """Whether the points are still to be computed."""
+
+        return self._points is None and self._compute is not None
 
     @property
     def vertices(self):
@@ -161,6 +185,7 @@ class PlacementStudioWindow(
         self._init_loading(background_loading)
         self._build_ui()
         self._load_models()
+        self._start_armour_index()
 
     def _open_manual(self) -> None:
         """Open the app's manual at this tool's topic; the manual is translated and kept in step
@@ -838,12 +863,15 @@ class PlacementStudioWindow(
 
         import numpy as np
 
-        blocks = [deform(mesh, matrices) for mesh in meshes]
-        if not blocks:
-            return None
-        points = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+        posed = tuple(meshes)
+
+        def skin():
+            blocks = [deform(mesh, matrices) for mesh in posed]
+            return np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+
         return PosedMesh(
-            points=points, triangles=self._skinned_faces, groups=self._skinned_groups
+            triangles=self._skinned_faces, groups=self._skinned_groups,
+            compute=skin, pose_key=(tuple(map(id, posed)), matrices),
         )
 
     def _bind_body(self):

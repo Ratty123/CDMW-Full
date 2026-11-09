@@ -107,10 +107,19 @@ class ClipEntry:
         return any(folder in self.path.lower() for folder in ("/00_mon/", "/02_mission/"))
 
 
-class ClipIndex:
-    """Every clip found, queryable without touching the archives again."""
+_LOD, _FACIAL, _ADDITIVE, _EQUIPMENT, _STORY = 1, 2, 4, 8, 16
 
-    __slots__ = ("_entries", "_rigs", "_paths")
+
+class ClipIndex:
+    """Every clip found, queryable without touching the archives again.
+
+    `filter` runs on the UI thread every time the clip list changes, over some 177,000
+    clips. Reading each clip's facets through its properties lower-cased the path four or
+    five times a clip and cost about 0.2 s a call, so the facets, the lower-cased paths and
+    the clips per rig are worked out once here, on the worker that builds the index.
+    """
+
+    __slots__ = ("_entries", "_rigs", "_paths", "_lowered", "_flags", "_by_rig")
 
     def __init__(self, entries: Iterable[ClipEntry] = ()) -> None:
         unique = {}
@@ -119,6 +128,17 @@ class ClipIndex:
         self._entries: tuple[ClipEntry, ...] = tuple(unique.values())
         self._rigs = tuple(sorted({entry.rig for entry in self._entries if entry.rig}))
         self._paths = None
+        self._lowered = tuple(entry.path.lower() for entry in self._entries)
+        self._flags = tuple(
+            (_LOD if entry.is_lod else 0) | (_FACIAL if entry.facial else 0)
+            | (_ADDITIVE if entry.additive else 0) | (_EQUIPMENT if entry.equipment else 0)
+            | (_STORY if entry.story else 0)
+            for entry in self._entries
+        )
+        by_rig: dict = {}
+        for position, entry in enumerate(self._entries):
+            by_rig.setdefault(entry.rig, []).append(position)
+        self._by_rig = {rig: tuple(positions) for rig, positions in by_rig.items()}
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -164,24 +184,22 @@ class ClipIndex:
         needles = [part for part in text.lower().split() if part]
         found: List[ClipEntry] = []
         total = 0
-        for entry in self._entries:
-            if not include_lod and entry.is_lod:
+        excluded = (
+            (0 if include_lod else _LOD) | (0 if include_facial else _FACIAL)
+            | (0 if include_additive else _ADDITIVE) | (0 if include_equipment else _EQUIPMENT)
+            | (0 if include_story else _STORY)
+        )
+        entries, flags, lowered = self._entries, self._flags, self._lowered
+        positions = range(len(entries)) if rig == ANY else self._by_rig.get(rig, ())
+        for position in positions:
+            if flags[position] & excluded:
                 continue
-            if not include_facial and entry.facial:
-                continue
-            if not include_additive and entry.additive:
-                continue
-            if not include_equipment and entry.equipment:
-                continue
-            if not include_story and entry.story:
-                continue
-            if rig != ANY and entry.rig != rig:
-                continue
+            entry = entries[position]
             if category != ANY and entry.category != category:
                 continue
             if needles:
-                lowered = entry.path.lower()
-                if not all(needle in lowered for needle in needles):
+                path = lowered[position]
+                if not all(needle in path for needle in needles):
                     continue
             total += 1
             if limit is None or len(found) < limit:
