@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import math
 import time
-from operator import itemgetter as _itemgetter
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as _np
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtCore import QByteArray, QDataStream, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 from cdmw.services.active_ui_translation import translate_active_ui_text
@@ -80,7 +79,452 @@ def _key_light(right: Vec3, up: Vec3, forward: Vec3) -> "_np.ndarray":
 #: was gathered into lists.
 _MOVING_FACE_BUDGET = 4000
 
+#: Faces per depth slab; see the slab comment in `_paint_meshes`.
+_SLAB_FACES = 128
 
+#: One QPainterPath element as QDataStream writes it: the element type (0 moves, 1 draws a
+#: line) and the point, big-endian, which is the stream's default byte order.
+_PATH_ELEMENT = _np.dtype([("type", ">i4"), ("x", ">f8"), ("y", ">f8")])
+_WINDING_FILL = int(Qt.WindingFill.value)
+
+
+def _same_geometry(old, new) -> bool:
+    """Whether two meshes would draw the same picture.
+
+    `_refresh_meshes` hands over a fresh mesh object on every call, also when nothing moved:
+    a new rest-pose body for a selection change, a new weapon for an unchanged attachment
+    matrix. Comparing the contents costs far less than the redraw it saves. Never touches a
+    posed body's `vertices`, which would build one Vec3 object per vertex, some 15,000.
+    """
+
+    if old is new:
+        return True
+    if old is None or new is None or type(old) is not type(new):
+        return False
+    if old.triangles is not new.triangles and old.triangles != new.triangles:
+        return False
+    old_groups, new_groups = getattr(old, "groups", None), getattr(new, "groups", None)
+    if old_groups is not new_groups and (
+        old_groups is None or new_groups is None or not _np.array_equal(old_groups, new_groups)
+    ):
+        return False
+    old_points, new_points = getattr(old, "points", None), getattr(new, "points", None)
+    if old_points is not None or new_points is not None:
+        if old_points is None or new_points is None:
+            return False
+        return old_points is new_points or (
+            old_points.shape == new_points.shape and _np.array_equal(old_points, new_points)
+        )
+    return old.vertices == new.vertices
+
+
+class _MeshPaintCache:
+    """Brushes, pens and piece tints reused between frames.
+
+    One per painting thread: the UI thread keeps one for frames it draws itself, and the
+    layer worker keeps its own, so neither ever reads a QColor the other is building.
+    """
+
+    __slots__ = ("shades", "pens", "tint_key", "tints")
+
+    def __init__(self) -> None:
+        self.shades: Dict[tuple, QColor] = {}
+        self.pens: Dict[int, QPen] = {}
+        self.tint_key: Optional[tuple] = None
+        self.tints: list = []
+
+    def piece_tints(self, base: QColor, groups) -> list:
+        """One colour per worn piece, with the body keeping the colour it already had.
+
+        The tints carry the base colour's alpha so the see-through view stays see-through:
+        picking a helmet must not quietly make the head opaque.
+        """
+
+        count = int(groups.max()) + 1 if len(groups) else 1
+        key = (base.rgba(), count)
+        if self.tint_key == key:
+            return self.tints
+        tints = [base]
+        for index in range(1, count):
+            tint = QColor(_PIECE_TINTS[(index - 1) % len(_PIECE_TINTS)])
+            tint.setAlpha(base.alpha())
+            tints.append(tint)
+        self.tint_key = key
+        self.tints = tints
+        return tints
+
+    def brush(self, source: QColor, colour: int, level: int) -> QColor:
+        if len(self.shades) > 512:
+            self.shades.clear()
+            self.pens.clear()
+        key = (colour, level)
+        brush = self.shades.get(key)
+        if brush is None:
+            # 60 = a little over half the base lightness, 168 = two thirds brighter. The old
+            # span was 68..150, which was enough for depth fog but too narrow to model a
+            # shape: the difference between a shoulder and the chest under it landed inside
+            # one step and read as flat.
+            factor = 60 + int(level * (168 - 60) / max(1, _SHADE_LEVELS - 1))
+            brush = QColor(source).lighter(factor)
+            brush.setAlpha(source.alpha())
+            self.shades[key] = brush
+        return brush
+
+    def pen(self, brush: QColor) -> QPen:
+        key = brush.rgba()
+        pen = self.pens.get(key)
+        if pen is None:
+            pen = self.pens[key] = QPen(brush, 1.0)
+        return pen
+
+
+@dataclass(frozen=True, slots=True)
+class _MeshInput:
+    """One mesh, as the face pass needs it: world positions and triangle indices."""
+
+    world: "_np.ndarray"
+    triangles: Optional["_np.ndarray"]
+    triangle_count: int
+    groups: Optional["_np.ndarray"]
+    is_weapon: bool
+    fill: QColor
+
+
+@dataclass(frozen=True, slots=True)
+class _MeshScene:
+    """Everything `_paint_meshes` reads, taken on the UI thread.
+
+    A snapshot rather than the viewport itself, so a worker can paint it while the user
+    keeps changing the live scene. Nothing in it is mutated after it is taken.
+    """
+
+    frame: tuple
+    meshes: Tuple[_MeshInput, ...]
+    clipping: frozenset
+    moving: bool
+    #: Moving or dragging the view: the face budget tightens and the outline goes.
+    thin: bool
+    body: object
+
+
+def _paint_meshes(painter: QPainter, scene: _MeshScene, cache: _MeshPaintCache,
+                  cancelled=None):
+    """Body proxy then weapon, depth-sorted back to front. Returns the screen projections.
+
+    The result is `(body_screen, weapon_screen)`: the body's projected vertices for surface
+    picking, or None when no body was drawn, and the weapon's drawn triangles for clicking it.
+    None instead when `cancelled()` turns true part way: a worker stops early once a newer
+    scene has been asked for, rather than holding the GIL for a picture nobody will see.
+
+    Vertices are projected *once per mesh*, not once per triangle that uses them: a body
+    proxy has 3,038 vertices but 5,379 triangles, so the naive version did 3x the work.
+    Back-facing triangles are dropped by screen winding, which halves the fill and is what
+    makes an opaque body read as solid rather than as a wire ball.
+    """
+
+    rgt, upv, forward, eye, scale, cx, cy = scene.frame
+    eye_at = _np.array((eye.x, eye.y, eye.z))
+    light = _key_light(rgt, upv, forward)
+    body_screen = None
+    weapon_screen: list = []
+    source_colours = {_CLIP_FILL.rgba(): _CLIP_FILL}
+    clipping_colour = _CLIP_FILL.rgba()
+    blocks = []
+    for item in scene.meshes:
+        if cancelled is not None and cancelled():
+            return None
+        world = item.world
+        rel = world - eye_at
+        depths = rel @ _np.array((forward.x, forward.y, forward.z))
+        inv = scale / _np.where(depths > 0.02, depths, 1.0)
+        sx = cx + (rel @ _np.array((rgt.x, rgt.y, rgt.z))) * inv
+        sy = cy - (rel @ _np.array((upv.x, upv.y, upv.z))) * inv
+        behind = depths <= 0.02
+        sx[behind] = 0.0
+        sy[behind] = 0.0
+
+        is_weapon = item.is_weapon
+        cull = not is_weapon
+        if not is_weapon:
+            body_screen = (sx, sy, depths)
+        tri = item.triangles
+        count = item.triangle_count
+        budget = _TRIANGLE_BUDGET // 4 if scene.moving else _TRIANGLE_BUDGET
+        min_area = (
+            0.5 if is_weapon or count <= budget
+            else 0.5 * count / budget
+        )
+        if tri is None:
+            continue
+        # The per-triangle test used to be a Python loop over every face doing a dozen
+        # index lookups each — about half the mesh draw. Selecting in NumPy leaves Qt
+        # objects to be built only for the faces that actually survive.
+        i0, i1, i2 = tri[:, 0], tri[:, 1], tri[:, 2]
+        da, db, dc = depths[i0], depths[i1], depths[i2]
+        ax, ay = sx[i0], sy[i0]
+        bx, by = sx[i1], sy[i1]
+        gx, gy = sx[i2], sy[i2]
+        area = (bx - ax) * (gy - ay) - (gx - ax) * (by - ay)
+        keep = (da > 0.02) & (db > 0.02) & (dc > 0.02)
+        keep &= (area >= min_area) if cull else (_np.abs(area) >= min_area)
+        picked = _np.flatnonzero(keep)
+        # While the playhead runs, keep only the largest faces. On the body the visible
+        # 2,656 triangles carry 94% of their filled area in the largest 1,500, and the
+        # ones dropped are the dense clusters around fingers and seams where neighbours
+        # already overlap. Everything comes back the moment playback stops.
+        if scene.thin and len(picked) > _MOVING_FACE_BUDGET:
+            sizes = _np.abs(area[picked])
+            picked = picked[
+                _np.argpartition(sizes, len(picked) - _MOVING_FACE_BUDGET)[
+                    -_MOVING_FACE_BUDGET:
+                ]
+            ]
+        if not len(picked):
+            continue
+        mid = (da + db + dc) / 3.0
+
+        # Light every surviving face by the direction it *faces*, not by how near it is.
+        # Depth shading brightens the near edge of an arm and the near edge of the chest
+        # identically, so the two merge into one flat patch; surface lighting separates
+        # them and is what makes a limb read as round. The normal is taken from the world
+        # positions, so nothing has to be carried through skinning — and it is turned
+        # towards the eye, which makes it independent of winding. That matters because the
+        # body is back-face culled and the weapon deliberately is not.
+        corner = world[i0[picked]]
+        normals = _np.cross(world[i1[picked]] - corner, world[i2[picked]] - corner)
+        towards = _np.array((eye.x, eye.y, eye.z), dtype=float) - corner
+        normals[_np.einsum("ij,ij->i", normals, towards) < 0.0] *= -1.0
+        length = _np.linalg.norm(normals, axis=1)
+        length[length == 0.0] = 1.0
+        lit = _np.clip((normals @ light) / length, 0.0, 1.0)
+        shade = _LIGHT_AMBIENT + (1.0 - _LIGHT_AMBIENT) * lit
+        levels = _np.clip(
+            (shade * (_SHADE_LEVELS - 1)).astype(_np.int32), 0, _SHADE_LEVELS - 1
+        ).astype(_np.int64)
+
+        # Worn pieces arrive as separate meshes and are merged for drawing; `groups` is the
+        # only surviving record of where one ends, and it is what lets a helmet be told
+        # from the head under it.
+        fill = item.fill
+        fill_key = fill.rgba()
+        source_colours[fill_key] = fill
+        if item.groups is not None:
+            tints = cache.piece_tints(fill, item.groups)
+            tint_keys = [tint.rgba() for tint in tints]
+            source_colours.update(zip(tint_keys, tints))
+            colours = _np.asarray(tint_keys, dtype=_np.int64)[item.groups[picked]]
+        else:
+            colours = _np.full(len(picked), fill_key, dtype=_np.int64)
+
+        corners = _np.stack((ax[picked], ay[picked], bx[picked], by[picked],
+                             gx[picked], gy[picked]), axis=1)
+        if is_weapon:
+            if scene.clipping:
+                touching = _np.isin(
+                    _np.stack((i0[picked], i1[picked], i2[picked]), axis=1),
+                    _np.fromiter(scene.clipping, dtype=_np.int64),
+                ).any(axis=1)
+                colours[touching] = clipping_colour
+            # Emit every triangle wound the same way round. A filled triangle looks
+            # identical either way, but a winding fill *cancels* where two opposed
+            # triangles overlap and punches a hole through the weapon — which is why
+            # un-culled meshes used to be drawn one path at a time. Normalising here
+            # is what lets them share a path with everything else.
+            flipped = area[picked] < 0.0
+            corners[flipped] = corners[flipped][:, [0, 1, 4, 5, 2, 3]]
+            weapon_screen = [tuple(row) for row in corners.tolist()]
+        blocks.append((mid[picked], corners, colours * _SHADE_LEVELS + levels))
+
+    if not blocks:
+        return body_screen, weapon_screen
+    if cancelled is not None and cancelled():
+        return None
+    mids = _np.concatenate([block[0] for block in blocks])
+    corners = _np.concatenate([block[1] for block in blocks])
+    shades = _np.concatenate([block[2] for block in blocks])
+
+    # Back to front. A stable sort on the negated depth is the order the old
+    # `list.sort(reverse=True)` gave, ties included.
+    order = _np.argsort(-mids, kind="stable")
+    total = len(order)
+
+    # Batch same-shade triangles into one path per slab of depth-sorted faces.
+    #
+    # Batching used to key on *runs* of adjacent faces, which worked only because the shade
+    # came from depth: neighbours in a depth-sorted list share a depth, so the runs were
+    # thousands long. Lighting by surface direction breaks that — two faces at the same
+    # depth can face opposite ways — and the naive version measured 1,977 paths a frame
+    # against a few dozen, for 17 ms.
+    #
+    # So faces are collected into one path per shade *within a slab*, and the slab is
+    # flushed before the next begins. Ordering between shades inside a slab is lost, but a
+    # slab is a sixteenth of the depth range — a few centimetres on a character — and the
+    # faces there are almost never the ones that occlude each other. Ordering *between*
+    # slabs, which is what makes an arm sit in front of a chest, is kept exactly.
+    # A fixed 128 faces per slab, not a fraction of the frame, because the artefact this
+    # controls scales with geometry rather than with the picture. Clothing sits directly on
+    # skin, so a coat and the chest under it are near enough coplanar that a mean-depth sort
+    # flips between them — and the body speckles through the coat. Those speckles look
+    # exactly like the weapon clipping this view exists to judge, which makes them worth
+    # paying for: 128 costs 7.6 ms more on an idle repaint than slabs of 2,400 did, and
+    # removes them. Nothing is paid while anything moves, where the face budget caps the
+    # list at 1,500 and a slab is a twelfth of it.
+    #
+    # The grouping is done in NumPy and the paths are read from one QDataStream. Building
+    # them with `moveTo`/`lineTo` was five Python calls per face, some 60,000 a frame, and
+    # under a busy background loader each of those Python steps also queued for the GIL.
+    sorted_shades = shades[order]
+    _distinct, dense = _np.unique(sorted_shades, return_inverse=True)
+    slab_keys = (_np.arange(total) // _SLAB_FACES) * (int(dense.max()) + 1) + dense
+    _keys, opened, member = _np.unique(slab_keys, return_index=True, return_inverse=True)
+    # Paths are drawn slab by slab, and inside a slab in the order their first face came.
+    rank = _np.empty(len(opened), dtype=_np.int64)
+    rank[_np.argsort(opened, kind="stable")] = _np.arange(len(opened))
+    face_rank = rank[member.ravel()]
+    drawn = order[_np.argsort(face_rank, kind="stable")]
+    sizes = _np.bincount(face_rank, minlength=len(opened)).tolist()
+    path_shades = sorted_shades[_np.sort(opened)].tolist()
+
+    # The outline exists only to hide an antialiasing artefact: with NoPen, AA leaves a
+    # sub-pixel gap along every shared edge and the background bleeds through as a
+    # stipple. Antialiasing is already off while anything moves, so there is nothing to
+    # hide then — and stroking every triangle edge costs 0.62 ms of the 1.48 ms paint.
+    outline = not scene.thin
+    for index, (shade, path) in enumerate(zip(path_shades, _triangle_paths(corners[drawn], sizes))):
+        if cancelled is not None and index % 64 == 63 and cancelled():
+            return None
+        colour, level = divmod(shade, _SHADE_LEVELS)
+        brush = cache.brush(source_colours[colour], colour, level)
+        if outline:
+            painter.setBrush(brush)
+            painter.setPen(cache.pen(brush))
+            painter.drawPath(path)
+        else:
+            painter.fillPath(path, brush)
+    return body_screen, weapon_screen
+
+
+def _triangle_paths(xy: "_np.ndarray", sizes: Sequence[int]):
+    """Closed triangles as winding-fill paths: the first `sizes[0]` rows, then the next...
+
+    `xy` holds one triangle per row as `ax, ay, bx, by, cx, cy`. The paths are read from
+    one QDataStream written in NumPy, and match `moveTo`, `lineTo`, `lineTo`,
+    `closeSubpath` per triangle element for element: the close is a line back to A.
+    """
+
+    total = len(xy)
+    elements = _np.empty((total, 4), dtype=_PATH_ELEMENT)
+    elements["type"] = 1
+    elements["type"][:, 0] = 0
+    for slot, (x, y) in enumerate(((0, 1), (2, 3), (4, 5), (0, 1))):
+        elements["x"][:, slot] = xy[:, x]
+        elements["y"][:, slot] = xy[:, y]
+    raw = memoryview(elements.tobytes())
+    record = 4 * _PATH_ELEMENT.itemsize
+    parts = []
+    start = 0
+    for faces in sizes:
+        count = 4 * faces
+        # Element count, the elements, the index of the last subpath's start, the fill rule.
+        parts.append(count.to_bytes(4, "big"))
+        parts.append(raw[start * record:(start + faces) * record])
+        parts.append((count - 4).to_bytes(4, "big") + _WINDING_FILL.to_bytes(4, "big"))
+        start += faces
+    stream = QDataStream(QByteArray(b"".join(parts)))
+    for _faces in sizes:
+        path = QPainterPath()
+        stream >> path
+        yield path
+
+
+def _segment_on_screen(frame: tuple, a: Vec3, b: Vec3, near: float):
+    """Project a line, trimming it to the near plane; see `SkeletonViewport._project_segment`."""
+
+    right, up, forward, eye, scale, cx, cy = frame
+
+    def depth_of(point: Vec3) -> float:
+        return (
+            (point.x - eye.x) * forward.x
+            + (point.y - eye.y) * forward.y
+            + (point.z - eye.z) * forward.z
+        )
+
+    da, db = depth_of(a), depth_of(b)
+    if da <= near and db <= near:
+        return None  # wholly behind the camera
+    if da <= near or db <= near:
+        # Slide the behind-camera end forward to where the line crosses the near plane.
+        t = (near - da) / (db - da)
+        crossing = Vec3(
+            a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t
+        )
+        a, b = (crossing, b) if da <= near else (a, crossing)
+
+    out = []
+    for point in (a, b):
+        rx, ry, rz = point.x - eye.x, point.y - eye.y, point.z - eye.z
+        inv = scale / max(rx * forward.x + ry * forward.y + rz * forward.z, near)
+        out.append(
+            QPointF(
+                cx + (rx * right.x + ry * right.y + rz * right.z) * inv,
+                cy - (rx * up.x + ry * up.y + rz * up.z) * inv,
+            )
+        )
+    return out[0], out[1]
+
+
+def _paint_ground(painter: QPainter, frame: tuple, extent: float, near: float) -> None:
+    """The measured grid; see `SkeletonViewport._draw_ground`."""
+
+    step = 1.0  # one metre squares, always
+    ticks = int(extent / step)
+
+    minor = QPen(_GRID, 1)
+    major = QPen(_GRID.lighter(140), 1)
+    origin = QPen(_STAGE_EDGE, 2)
+    painter.setBrush(Qt.NoBrush)
+    for i in range(-ticks, ticks + 1):
+        offset = i * step
+        # Every fifth line brighter, and the pair through the origin brighter still, so
+        # the plane reads as a measured floor rather than wallpaper.
+        painter.setPen(origin if i == 0 else (major if i % 5 == 0 else minor))
+        for a, b in (
+            (Vec3(-extent, 0.0, offset), Vec3(extent, 0.0, offset)),
+            (Vec3(offset, 0.0, -extent), Vec3(offset, 0.0, extent)),
+        ):
+            segment = _segment_on_screen(frame, a, b, near)
+            if segment is not None:
+                painter.drawLine(segment[0], segment[1])
+
+
+def _render_layer(width: int, height: int, ratio: float, rect: QRect, frame: tuple,
+                  extent: float, near: float, scene: Optional[_MeshScene],
+                  cache: _MeshPaintCache, cancelled=None):
+    """The stationary picture: background, floor and meshes, as one image.
+
+    Safe off the UI thread: it reads only its arguments, and QPainter on a QImage is one of
+    the things Qt allows on any thread. Returns `(image, body_screen, weapon_screen)`, or
+    None when `cancelled()` turned true before the meshes were finished.
+    """
+
+    image = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
+    image.setDevicePixelRatio(ratio)
+    # Fractional display scaling can leave a partially covered edge
+    # pixel; initialize it before compositing onto the widget.
+    image.fill(Qt.transparent)
+    layer = QPainter(image)
+    screens = (None, [])
+    try:
+        layer.setRenderHint(QPainter.Antialiasing, True)
+        layer.fillRect(rect, _BACKGROUND)
+        _paint_ground(layer, frame, extent, near)
+        if scene is not None and scene.meshes:
+            screens = _paint_meshes(layer, scene, cache, cancelled)
+    finally:
+        layer.end()
+    if screens is None:
+        return None
+    return image, screens[0], screens[1]
 
 
 @dataclass(slots=True)
@@ -211,9 +655,22 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # Keyed by the vertex tuple, which also keeps it alive, so the body and the weapon do
         # not evict each other every frame.
         self._points_cache: Dict[int, tuple] = {}
-        self._shade_cache: Dict[tuple, QColor] = {}
-        self._pen_cache: Dict[int, QPen] = {}
+        self._paint_cache = _MeshPaintCache()
+        #: `(key, image)` of the stationary layer: background, floor and meshes. The key is
+        #: `(view, geometry generation)`; see `_draw_scene_background`.
         self._scene_background = None
+        #: Bumped whenever `set_meshes` changes what the meshes would draw.
+        self._mesh_generation = 0
+        #: Key of the layer image the last paint put on screen, or None after a direct draw.
+        self._shown_layer = None
+        self._layer_shown_once = False
+        #: Layer key a worker is drawing right now, if any.
+        self._pending_layer = None
+        self._layer_task = None
+        self._layer_cache = _MeshPaintCache()
+        #: Layers with new geometry are drawn off the UI thread. Turned off for good if a
+        #: worker ever fails, so a broken worker costs speed rather than the picture.
+        self.background_layers = True
         self._show_meshes = True
         # Which rig the camera was last framed for; see `set_scene`.
         self._framed_source: Optional[str] = None
@@ -343,11 +800,18 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 _np.asarray(weapon.triangles, dtype=_np.int32)
                 if weapon is not None and len(getattr(weapon, "triangles", ())) else None
             )
+        clipping_set = set(int(i) for i in clipping)
+        changed = (
+            not _same_geometry(self._body, body)
+            or not _same_geometry(self._weapon, weapon)
+            or clipping_set != self._clipping
+        )
         self._body = body
         self._weapon = weapon
-        self._clipping = set(int(i) for i in clipping)
-        self._scene_background = None
-        self.update()
+        self._clipping = clipping_set
+        if changed:
+            self._mesh_generation += 1
+            self.update()
 
     def set_show_meshes(self, value: bool) -> None:
         self._show_meshes = bool(value)
@@ -540,6 +1004,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         )
         if self._hierarchy is None or not len(self._hierarchy):
             self._scene_background = None
+            self._shown_layer = None
             painter.fillRect(self.rect(), _BACKGROUND)
             painter.setPen(QPen(_TEXT))
             painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("No skeleton loaded"))
@@ -565,33 +1030,177 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # directly; neither needs an extra image allocation or a reduced resolution.
         if self._moving or self._dragging_view or width * height > 4 * 1024 * 1024:
             self._scene_background = None
+            self._shown_layer = None
+            self._pending_layer = None
             painter.fillRect(self.rect(), _BACKGROUND)
             self._draw_ground(painter)
             if self._show_meshes:
                 self._draw_meshes(painter)
             return
         camera = self._camera
-        key = (width, height, ratio, camera.yaw, camera.pitch, camera.distance, camera.fov,
-               camera.target.x, camera.target.y, camera.target.z,
-               self._solid, self._show_meshes, self.GROUND_EXTENT)
-        if self._scene_background is None or self._scene_background[0] != key:
+        view = (width, height, ratio, camera.yaw, camera.pitch, camera.distance, camera.fov,
+                camera.target.x, camera.target.y, camera.target.z,
+                self._solid, self._show_meshes, self.GROUND_EXTENT)
+        key = (view, self._mesh_generation)
+        held = self._scene_background
+        if held is None or held[0] != key:
+            # New geometry under an unchanged camera — a body arriving, an armour piece, a
+            # weapon being placed — is drawn by a worker while the picture already on screen
+            # stays up. On the UI thread that draw measured 40 ms alone and 2.7 s while the
+            # loaders ran Python, because every NumPy pass in it gives the GIL away and then
+            # queues to get it back. A camera change still draws here and now: the old
+            # picture would be from the wrong side, and orbiting has to answer at once.
+            #
+            # A resize is the exception among view changes. Switching tabs or filling a
+            # table reflows the panel and resizes the view, and with a fixed field of view
+            # the new picture is the old one scaled about its centre, exactly. So the old
+            # picture is shown scaled until the new one is drawn.
+            scene = self._mesh_scene() if self._show_meshes else None
+            on_screen = held is not None and held[0] == self._shown_layer
+            same_view = on_screen and held[0][0] == view
+            resized = on_screen and not same_view and held[0][0][2:] == view[2:]
+            if self.background_layers and scene is not None and scene.meshes and (
+                same_view or resized or not self._layer_shown_once
+            ):
+                if not (same_view or resized):
+                    # The very first picture: the floor now, the meshes when they are ready.
+                    image, _body, _weapon = _render_layer(
+                        width, height, ratio, QRect(self.rect()), self._view_frame(),
+                        self.GROUND_EXTENT, self._NEAR, None, self._paint_cache,
+                    )
+                    held = self._scene_background = (view, -1), image
+                    same_view = True
+                self._request_layer(key, width, height, ratio, scene)
+                if same_view:
+                    painter.drawImage(0, 0, held[1])
+                else:
+                    self._draw_resized(painter, held[1])
+                self._shown_layer = held[0]
+                self._layer_shown_once = True
+                return
+            self._pending_layer = None
             self._scene_background = None
-            background = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
-            background.setDevicePixelRatio(ratio)
-            # Fractional display scaling can leave a partially covered edge
-            # pixel; initialize it before compositing onto the widget.
-            background.fill(Qt.transparent)
-            layer = QPainter(background)
-            try:
-                layer.setRenderHint(QPainter.Antialiasing, True)
-                layer.fillRect(self.rect(), _BACKGROUND)
-                self._draw_ground(layer)
-                if self._show_meshes:
-                    self._draw_meshes(layer)
-            finally:
-                layer.end()
-            self._scene_background = key, background
+            image, body_screen, weapon_screen = _render_layer(
+                width, height, ratio, QRect(self.rect()), self._view_frame(),
+                self.GROUND_EXTENT, self._NEAR, scene, self._paint_cache,
+            )
+            self._keep_screens(scene, body_screen, weapon_screen)
+            self._scene_background = key, image
         painter.drawImage(0, 0, self._scene_background[1])
+        self._shown_layer = self._scene_background[0]
+        self._layer_shown_once = True
+
+    def _draw_resized(self, painter: QPainter, image: QImage) -> None:
+        """An older layer drawn at the current size.
+
+        The projection scales with the view's height about its centre (`_view_frame`), so a
+        point drawn at `p` in the old picture belongs at `centre + (p - old centre) * k`, with
+        `k` the ratio of the heights. Only the floor's far edges can be short of the frame.
+        """
+
+        ratio = image.devicePixelRatio() or 1.0
+        old_width, old_height = image.width() / ratio, image.height() / ratio
+        scale = self.height() / old_height if old_height else 1.0
+        painter.fillRect(self.rect(), _BACKGROUND)
+        painter.save()
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.translate(self.width() / 2.0, self.height() / 2.0)
+        painter.scale(scale, scale)
+        painter.translate(-old_width / 2.0, -old_height / 2.0)
+        painter.drawImage(0, 0, image)
+        painter.restore()
+
+    def _request_layer(self, key, width: int, height: int, ratio: float,
+                       scene: _MeshScene) -> None:
+        """Draw the layer for `key` on a worker; `_layer_ready` puts it on screen."""
+
+        if self._pending_layer == key:
+            return
+        self._pending_layer = key
+        if self._layer_task is None:
+            from .background import LatestTask
+
+            self._layer_task = LatestTask(self)
+            self._layer_task.setObjectName("viewport_layer")
+            self._layer_task.ready.connect(self._layer_ready)
+        rect, frame, cache = QRect(self.rect()), self._view_frame(), self._layer_cache
+        extent, near = self.GROUND_EXTENT, self._NEAR
+
+        def work(cancelled, _progress):
+            if cancelled():
+                return None
+            layer = _render_layer(
+                width, height, ratio, rect, frame, extent, near, scene, cache, cancelled
+            )
+            return None if layer is None else (key, scene, layer)
+
+        self._layer_task.submit(work)
+
+    def _layer_ready(self, result, error: str) -> None:
+        if result is None:
+            if error:
+                # Draw on the UI thread from now on; slower, never blank.
+                self.background_layers = False
+                self._pending_layer = None
+                self.update()
+            return
+        key, scene, (image, body_screen, weapon_screen) = result
+        if key != self._pending_layer:
+            return  # the scene moved on while it was drawn; a newer request is queued
+        self._pending_layer = None
+        self._scene_background = key, image
+        self._keep_screens(scene, body_screen, weapon_screen)
+        self.update()
+
+    def _keep_screens(self, scene: Optional[_MeshScene], body_screen, weapon_screen) -> None:
+        """Hit-test data for the picture now on screen, so a click picks what it shows."""
+
+        if body_screen is not None:
+            self._body_screen = body_screen
+            self._body_screen_mesh = scene.body if scene is not None else None
+        self._weapon_screen = weapon_screen
+
+    def stop_rendering(self) -> None:
+        """Drop the layer worker; for the window's close. Later paints draw here instead."""
+
+        if self._layer_task is not None:
+            self._layer_task.shutdown()
+            self._layer_task = None
+        self.background_layers = False
+        self._pending_layer = None
+
+    def _mesh_scene(self) -> _MeshScene:
+        """What `_paint_meshes` needs, taken now, so it can be painted on another thread."""
+
+        inputs = []
+        for mesh, fill, tris, is_weapon in (
+            (self._body, _BODY_SOLID if self._solid else _BODY_FILL, self._body_tris, False),
+            (self._weapon, _WEAPON_FILL, self._weapon_tris, True),
+        ):
+            if mesh is None or not getattr(mesh, "triangles", ()):
+                continue
+            # Rigid meshes need the same coordinate array for lighting. Reuse it for
+            # projection too, instead of walking every Vec3 in Python first. Posed
+            # bodies already supply an array; unchanged rigid vertices use the cache.
+            world = self._world_points(mesh, getattr(mesh, "points", None))
+            if world is None or not len(world):
+                continue
+            inputs.append(_MeshInput(
+                world=world,
+                triangles=tris,
+                triangle_count=len(mesh.triangles),
+                groups=None if is_weapon else getattr(mesh, "groups", None),
+                is_weapon=is_weapon,
+                fill=fill,
+            ))
+        return _MeshScene(
+            frame=self._view_frame(),
+            meshes=tuple(inputs),
+            clipping=frozenset(self._clipping),
+            moving=self._moving,
+            thin=self._moving or self._dragging_view,
+            body=self._body,
+        )
 
     #: Half-width of the room, in metres. Fixed on purpose: a stage that resized itself per
     #: clip meant the floor squares changed size under the character and the walls jumped,
@@ -621,37 +1230,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         stays the same grid from any position.
         """
 
-        right, up, forward, eye, scale, cx, cy = self._view_frame()
-
-        def depth_of(point: Vec3) -> float:
-            return (
-                (point.x - eye.x) * forward.x
-                + (point.y - eye.y) * forward.y
-                + (point.z - eye.z) * forward.z
-            )
-
-        da, db = depth_of(a), depth_of(b)
-        if da <= self._NEAR and db <= self._NEAR:
-            return None  # wholly behind the camera
-        if da <= self._NEAR or db <= self._NEAR:
-            # Slide the behind-camera end forward to where the line crosses the near plane.
-            t = (self._NEAR - da) / (db - da)
-            crossing = Vec3(
-                a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t
-            )
-            a, b = (crossing, b) if da <= self._NEAR else (a, crossing)
-
-        out = []
-        for point in (a, b):
-            rx, ry, rz = point.x - eye.x, point.y - eye.y, point.z - eye.z
-            inv = scale / max(rx * forward.x + ry * forward.y + rz * forward.z, self._NEAR)
-            out.append(
-                QPointF(
-                    cx + (rx * right.x + ry * right.y + rz * right.z) * inv,
-                    cy - (rx * up.x + ry * up.y + rz * up.z) * inv,
-                )
-            )
-        return out[0], out[1]
+        return _segment_on_screen(self._view_frame(), a, b, self._NEAR)
 
     def _draw_ground(self, painter: QPainter) -> None:
         """A measured grid, and nothing else.
@@ -663,26 +1242,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         as the camera moving rather than the scene.
         """
 
-        extent = self.GROUND_EXTENT
-        step = 1.0  # one metre squares, always
-        ticks = int(extent / step)
-
-        minor = QPen(_GRID, 1)
-        major = QPen(_GRID.lighter(140), 1)
-        origin = QPen(_STAGE_EDGE, 2)
-        painter.setBrush(Qt.NoBrush)
-        for i in range(-ticks, ticks + 1):
-            offset = i * step
-            # Every fifth line brighter, and the pair through the origin brighter still, so
-            # the plane reads as a measured floor rather than wallpaper.
-            painter.setPen(origin if i == 0 else (major if i % 5 == 0 else minor))
-            for a, b in (
-                (Vec3(-extent, 0.0, offset), Vec3(extent, 0.0, offset)),
-                (Vec3(offset, 0.0, -extent), Vec3(offset, 0.0, extent)),
-            ):
-                segment = self._project_segment(a, b)
-                if segment is not None:
-                    painter.drawLine(segment[0], segment[1])
+        _paint_ground(painter, self._view_frame(), self.GROUND_EXTENT, self._NEAR)
 
     def _world_points(self, mesh, points):
         """World positions as an (N, 3) array, whatever the mesh keeps them in.
@@ -707,283 +1267,12 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._points_cache[id(vertices)] = (vertices, array)
         return array
 
-    def _piece_tints(self, base: QColor, groups) -> list:
-        """One colour per worn piece, with the body keeping the colour it already had.
-
-        The tints carry the base colour's alpha so the see-through view stays see-through:
-        picking a helmet must not quietly make the head opaque.
-        """
-
-        count = int(groups.max()) + 1 if len(groups) else 1
-        key = (base.rgba(), count)
-        if getattr(self, "_tint_key", None) == key:
-            return self._tint_cache
-        tints = [base]
-        for index in range(1, count):
-            tint = QColor(_PIECE_TINTS[(index - 1) % len(_PIECE_TINTS)])
-            tint.setAlpha(base.alpha())
-            tints.append(tint)
-        self._tint_key = key
-        self._tint_cache = tints
-        return tints
-
     def _draw_meshes(self, painter: QPainter) -> None:
-        """Body proxy then weapon, depth-sorted back to front.
+        """Body proxy then weapon, depth-sorted back to front, drawn here and now."""
 
-        Vertices are projected *once per mesh*, not once per triangle that uses them: a body
-        proxy has 3,038 vertices but 5,379 triangles, so the naive version did 3x the work.
-        Back-facing triangles are dropped by screen winding, which halves the fill and is what
-        makes an opaque body read as solid rather than as a wire ball.
-        """
-
-        rgt, upv, forward, eye, scale, cx, cy = self._view_frame()
-        fx, fy, fz = forward.x, forward.y, forward.z
-        ex, ey, ez = eye.x, eye.y, eye.z
-        light = _key_light(rgt, upv, forward)
-
-        faces: List[Tuple[float, QPolygonF, QColor]] = []
-        source_colours = {_CLIP_FILL.rgba(): _CLIP_FILL}
-        clipping_colour = _CLIP_FILL.rgba()
-        for mesh, fill, cull in (
-            (self._body, _BODY_SOLID if self._solid else _BODY_FILL, True),
-            (self._weapon, _WEAPON_FILL, False),
-        ):
-            if mesh is None or not getattr(mesh, "triangles", ()):
-                continue
-
-            # Rigid meshes need the same coordinate array for lighting. Reuse it for
-            # projection too, instead of walking every Vec3 in Python first. Posed
-            # bodies already supply an array; unchanged rigid vertices use the cache.
-            world = self._world_points(mesh, getattr(mesh, "points", None))
-            if world is None or not len(world):
-                continue
-            rel = world - _np.array((ex, ey, ez))
-            depths = rel @ _np.array((fx, fy, fz))
-            inv = scale / _np.where(depths > 0.02, depths, 1.0)
-            sx = cx + (rel @ _np.array((rgt.x, rgt.y, rgt.z))) * inv
-            sy = cy - (rel @ _np.array((upv.x, upv.y, upv.z))) * inv
-            behind = depths <= 0.02
-            sx[behind] = 0.0
-            sy[behind] = 0.0
-
-            clipping = self._clipping
-            is_weapon = mesh is self._weapon
-            if not is_weapon:
-                self._body_screen = (sx, sy, depths)
-            tri = self._weapon_tris if is_weapon else self._body_tris
-            if is_weapon:
-                self._weapon_screen = []
-            count = len(mesh.triangles)
-            budget = _TRIANGLE_BUDGET // 4 if self._moving else _TRIANGLE_BUDGET
-            min_area = (
-                0.5 if is_weapon or count <= budget
-                else 0.5 * count / budget
-            )
-            if tri is None:
-                continue
-            # The per-triangle test used to be a Python loop over every face doing a dozen
-            # index lookups each — about half the mesh draw. Selecting in NumPy leaves Qt
-            # objects to be built only for the faces that actually survive.
-            sxa = _np.asarray(sx)
-            sya = _np.asarray(sy)
-            dpa = _np.asarray(depths)
-            i0, i1, i2 = tri[:, 0], tri[:, 1], tri[:, 2]
-            da, db, dc = dpa[i0], dpa[i1], dpa[i2]
-            ax, ay = sxa[i0], sya[i0]
-            bx, by = sxa[i1], sya[i1]
-            gx, gy = sxa[i2], sya[i2]
-            area = (bx - ax) * (gy - ay) - (gx - ax) * (by - ay)
-            keep = (da > 0.02) & (db > 0.02) & (dc > 0.02)
-            keep &= (area >= min_area) if cull else (_np.abs(area) >= min_area)
-            picked = _np.flatnonzero(keep)
-            # While the playhead runs, keep only the largest faces. On the body the visible
-            # 2,656 triangles carry 94% of their filled area in the largest 1,500, and the
-            # ones dropped are the dense clusters around fingers and seams where neighbours
-            # already overlap. Everything comes back the moment playback stops.
-            if (self._moving or self._dragging_view) and len(picked) > _MOVING_FACE_BUDGET:
-                sizes = _np.abs(area[picked])
-                picked = picked[
-                    _np.argpartition(sizes, len(picked) - _MOVING_FACE_BUDGET)[
-                        -_MOVING_FACE_BUDGET:
-                    ]
-                ]
-            mid = (da + db + dc) / 3.0
-
-            # Light every surviving face by the direction it *faces*, not by how near it is.
-            # Depth shading brightens the near edge of an arm and the near edge of the chest
-            # identically, so the two merge into one flat patch; surface lighting separates
-            # them and is what makes a limb read as round. The normal is taken from the world
-            # positions, so nothing has to be carried through skinning — and it is turned
-            # towards the eye, which makes it independent of winding. That matters because the
-            # body is back-face culled and the weapon deliberately is not.
-            levels: Optional[list] = None
-            if world is not None and len(picked):
-                corner = world[i0[picked]]
-                normals = _np.cross(
-                    world[i1[picked]] - corner, world[i2[picked]] - corner
-                )
-                towards = _np.array((ex, ey, ez), dtype=float) - corner
-                normals[_np.einsum("ij,ij->i", normals, towards) < 0.0] *= -1.0
-                length = _np.linalg.norm(normals, axis=1)
-                length[length == 0.0] = 1.0
-                lit = _np.clip((normals @ light) / length, 0.0, 1.0)
-                shade = _LIGHT_AMBIENT + (1.0 - _LIGHT_AMBIENT) * lit
-                levels = _np.clip(
-                    (shade * (_SHADE_LEVELS - 1)).astype(_np.int32), 0, _SHADE_LEVELS - 1
-                ).tolist()
-
-            # Worn pieces arrive as separate meshes and are merged for drawing; `groups` is the
-            # only surviving record of where one ends, and it is what lets a helmet be told
-            # from the head under it.
-            groups = None if is_weapon else getattr(mesh, "groups", None)
-            tints = None if groups is None else self._piece_tints(fill, groups)
-            piece = None if groups is None else groups[picked].tolist()
-            fill_key = fill.rgba()
-            source_colours[fill_key] = fill
-            tint_keys = None if tints is None else [tint.rgba() for tint in tints]
-            if tints is not None:
-                source_colours.update(zip(tint_keys, tints))
-
-            # Gather every per-face column into plain Python lists in one vectorised step.
-            # Reading them as `ax[index]` inside the loop meant eight *numpy scalar* lookups
-            # per triangle, and a numpy scalar costs some 30x what a list element does: the
-            # whole face pass ran at 4.2 us per triangle, which is what made drawing a real
-            # body unaffordable and forced the thinning that left it full of holes.
-            ax_l, ay_l = ax[picked].tolist(), ay[picked].tolist()
-            bx_l, by_l = bx[picked].tolist(), by[picked].tolist()
-            gx_l, gy_l = gx[picked].tolist(), gy[picked].tolist()
-            mid_l = mid[picked].tolist()
-            area_l = None if cull else area[picked].tolist()
-            corners = None
-            if is_weapon and clipping:
-                corners = _np.stack((i0[picked], i1[picked], i2[picked]), axis=1).tolist()
-
-            if not is_weapon:
-                colours = ([fill_key] * len(mid_l) if tint_keys is None else
-                           [tint_keys[group] for group in piece])
-                shade_levels = levels if levels is not None else [_SHADE_LEVELS - 1] * len(mid_l)
-                # Body faces already have a single winding and no weapon hit-test work.
-                # Build their identical tuples in C instead of visiting every column from Python.
-                faces.extend(zip(mid_l, ax_l, ay_l, bx_l, by_l, gx_l, gy_l, colours, shade_levels))
-                continue
-
-            for order in range(len(mid_l)):
-                colour = fill_key if tint_keys is None else tint_keys[piece[order]]
-                if corners is not None:
-                    if not clipping.isdisjoint(corners[order]):
-                        colour = clipping_colour
-                level = (_SHADE_LEVELS - 1) if levels is None else levels[order]
-                pax, pay = ax_l[order], ay_l[order]
-                pbx, pby = bx_l[order], by_l[order]
-                pgx, pgy = gx_l[order], gy_l[order]
-                if area_l is not None and area_l[order] < 0.0:
-                    # Emit every triangle wound the same way round. A filled triangle looks
-                    # identical either way, but a winding fill *cancels* where two opposed
-                    # triangles overlap and punches a hole through the weapon — which is why
-                    # un-culled meshes used to be drawn one path at a time. Normalising here
-                    # is what lets them share a path with everything else.
-                    pbx, pby, pgx, pgy = pgx, pgy, pbx, pby
-                if is_weapon:
-                    self._weapon_screen.append((pax, pay, pbx, pby, pgx, pgy))
-                # Plain floats, not a QPolygonF. Constructing one polygon and three QPointF
-                # per triangle measured 3.05 ms against 1.18 ms for writing the same
-                # coordinates straight into a reused path — 2.6x the cost of the fill it
-                # feeds. The path is built once per shade run below.
-                faces.append((mid_l[order], pax, pay, pbx, pby, pgx, pgy, colour, level))
-
-        # `itemgetter` sorts in C; a `lambda item: -item[0]` calls back into Python once per
-        # triangle, which at these counts is a measurable slice of the frame on its own.
-        faces.sort(key=_itemgetter(0), reverse=True)
-        if not faces:
-            return
-
-        if len(self._shade_cache) > 512:
-            self._shade_cache.clear()
-            self._pen_cache.clear()
-        shades, pens = self._shade_cache, self._pen_cache
-
-        def brush_for(colour: int, level: int) -> QColor:
-            key = (colour, level)
-            brush = shades.get(key)
-            if brush is None:
-                # 60 = a little over half the base lightness, 168 = two thirds brighter. The
-                # old span was 68..150, which was enough for depth fog but too narrow to model
-                # a shape: the difference between a shoulder and the chest under it landed
-                # inside one step and read as flat.
-                factor = 60 + int(level * (168 - 60) / max(1, _SHADE_LEVELS - 1))
-                source = source_colours[colour]
-                brush = QColor(source).lighter(factor)
-                brush.setAlpha(source.alpha())
-                shades[key] = brush
-            return brush
-
-        # The outline exists only to hide an antialiasing artefact: with NoPen, AA leaves a
-        # sub-pixel gap along every shared edge and the background bleeds through as a
-        # stipple. Antialiasing is already off while anything moves, so there is nothing to
-        # hide then — and stroking every triangle edge costs 0.62 ms of the 1.48 ms paint.
-        outline = not (self._moving or self._dragging_view)
-
-        def flush(path: Optional[QPainterPath], brush: Optional[QColor]) -> None:
-            if path is None or brush is None:
-                return
-            if outline:
-                painter.setBrush(brush)
-                key = brush.rgba()
-                pen = pens.get(key)
-                if pen is None:
-                    pen = pens[key] = QPen(brush, 1.0)
-                painter.setPen(pen)
-                painter.drawPath(path)
-            else:
-                painter.fillPath(path, brush)
-
-        # Batch same-shade triangles into one path per slab of depth-sorted faces.
-        #
-        # Batching used to key on *runs* of adjacent faces, which worked only because the shade
-        # came from depth: neighbours in a depth-sorted list share a depth, so the runs were
-        # thousands long. Lighting by surface direction breaks that — two faces at the same
-        # depth can face opposite ways — and the naive version measured 1,977 paths a frame
-        # against a few dozen, for 17 ms.
-        #
-        # So faces are collected into one path per shade *within a slab*, and the slab is
-        # flushed before the next begins. Ordering between shades inside a slab is lost, but a
-        # slab is a sixteenth of the depth range — a few centimetres on a character — and the
-        # faces there are almost never the ones that occlude each other. Ordering *between*
-        # slabs, which is what makes an arm sit in front of a chest, is kept exactly.
-        # A fixed 128 faces per slab, not a fraction of the frame, because the artefact this
-        # controls scales with geometry rather than with the picture. Clothing sits directly on
-        # skin, so a coat and the chest under it are near enough coplanar that a mean-depth sort
-        # flips between them — and the body speckles through the coat. Those speckles look
-        # exactly like the weapon clipping this view exists to judge, which makes them worth
-        # paying for: 128 costs 7.6 ms more on an idle repaint than slabs of 2,400 did, and
-        # removes them. Nothing is paid while anything moves, where the face budget caps the
-        # list at 1,500 and a slab is a twelfth of it.
-        slab = 128
-        buckets: Dict[tuple, QPainterPath] = {}
-        brushes: Dict[tuple, QColor] = {}
-        pending = 0
-
-        for depth, pax, pay, pbx, pby, pgx, pgy, colour, level in faces:
-            # 0 = turned away from the light, _SHADE_LEVELS-1 = facing it square on.
-            key = (colour, level)
-            path = buckets.get(key)
-            if path is None:
-                path = QPainterPath()
-                path.setFillRule(Qt.WindingFill)
-                buckets[key] = path
-                brushes[key] = brush_for(colour, level)
-            path.moveTo(pax, pay)
-            path.lineTo(pbx, pby)
-            path.lineTo(pgx, pgy)
-            path.closeSubpath()
-            pending += 1
-            if pending >= slab:
-                for done, built in buckets.items():
-                    flush(built, brushes[done])
-                buckets.clear()
-                pending = 0
-        for done, built in buckets.items():
-            flush(built, brushes[done])
+        scene = self._mesh_scene()
+        body_screen, weapon_screen = _paint_meshes(painter, scene, self._paint_cache)
+        self._keep_screens(scene, body_screen, weapon_screen)
 
     def _draw_bones(self, painter: QPainter) -> None:
         """Every bone segment, batched by colour into two paths.
@@ -1183,8 +1472,12 @@ class SkeletonViewport(GizmoMixin, QWidget):
         if self._body is None or self._body_screen is None:
             return None
         sx, sy, depths = self._body_screen
-        points = getattr(self._body, "points", None)
-        vertices = self._body.vertices
+        # The body the projection was made from, which is the one on screen: a new body can
+        # be waiting for its layer to finish drawing.
+        body = getattr(self, "_body_screen_mesh", None) or self._body
+        points = getattr(body, "points", None)
+        # A posed body builds its Vec3 tuple on first access; only a plain mesh needs it.
+        vertices = body.vertices if points is None else ()
         count = len(points) if points is not None else len(vertices)
         if count == 0 or len(sx) < count:
             return None

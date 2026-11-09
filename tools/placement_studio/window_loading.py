@@ -268,5 +268,8 @@ class StudioLoadingMixin:
             task = getattr(self, name, None)
             if task is not None:
                 task.shutdown()
+        viewport = getattr(self, "_viewport", None)
+        if viewport is not None and hasattr(viewport, "stop_rendering"):
+            viewport.stop_rendering()
         self._mesh_part_cache.clear()
         self._mesh_cache_context = ()
