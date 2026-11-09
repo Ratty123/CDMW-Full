@@ -61,7 +61,9 @@ def collision_volume_ui_state(authoring, replacement) -> dict[str, object]:
     if cached is not None and cached[0] == key:
         return cached[1]
     result = _collision_volume_ui_state(authoring, session, replacement)
-    authoring.collision_volume_cache = (key, result)
+    # The key names the source bytes by id(); holding them keeps an id from being reused.
+    held = (session.original_data, *(value[1] for value in authoring.cloth_collision_sources.values()))
+    authoring.collision_volume_cache = (key, result, held)
     return result
 
 
