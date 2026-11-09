@@ -49,6 +49,10 @@ def _next_steps() -> str:
 class SaveModMixin:
     """The Your mod tab. Mixed into `PlacementStudioWindow`."""
 
+    def _init_mod_state(self) -> None:
+        #: Changes left out of the mod, by key; kept while the tab is not built.
+        self._mod_unchecked: set = set()
+
     def _build_mod_tab(self) -> QWidget:
         from . import ui_kit as kit
 
@@ -111,7 +115,6 @@ class SaveModMixin:
         form.add_wide(self._save_result)
         page.set_footer(form)
 
-        self._mod_unchecked: set = set()
         self._mod_page = page
         self._refresh_mod_list()
         return page
@@ -130,8 +133,11 @@ class SaveModMixin:
                                         rig_behaviour=behaviour)
 
     def _refresh_mod_list(self) -> None:
-        listing = getattr(self, "_mod_list", None)
+        listing = self._built_attr("_mod_list")
         if listing is None:
+            if not self._tab_built("mod"):
+                # The header button and the tab's count still follow every change.
+                self._update_mod_summary()
             return
         changes = self._mod_changes()
         listing.blockSignals(True)
@@ -168,8 +174,12 @@ class SaveModMixin:
 
         changes = self._mod_changes() if changes is None else changes
         included = [c for c in changes if c.saveable and c.key not in self._mod_unchecked]
-        self._save_mod_button.setEnabled(bool(included))
-        self._mod_name_edit.setPlaceholderText(save_mod.suggested_name(included or changes))
+        save_button = self._built_attr("_save_mod_button")
+        if save_button is not None:
+            save_button.setEnabled(bool(included))
+        name_edit = self._built_attr("_mod_name_edit")
+        if name_edit is not None:
+            name_edit.setPlaceholderText(save_mod.suggested_name(included or changes))
         count = len(changes)
         # Whole sentences per count, never an English plural suffix: translations of
         # "change{s}" would carry the English "s" into every language.
@@ -183,8 +193,9 @@ class SaveModMixin:
         if button is not None:
             button.setText(summary)
         tabs = getattr(self, "_lower", None)
-        if tabs is not None and tabs.indexOf(self._mod_page) >= 0:
-            tabs.setTabText(tabs.indexOf(self._mod_page),
+        page = self._tab_page("mod") or self._built_attr("_mod_page")
+        if tabs is not None and page is not None and tabs.indexOf(page) >= 0:
+            tabs.setTabText(tabs.indexOf(page),
                             "Your mod" if not count else f"Your mod ({count})")
 
     def _on_mod_item_changed(self, item, _column: int) -> None:

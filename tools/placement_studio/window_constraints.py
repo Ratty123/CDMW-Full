@@ -114,12 +114,15 @@ def _chain_detail_rows(chain) -> list[tuple[str, str, str, str]]:
 class SecondaryMotionMixin:
     """The `.papr` chain editor. Mixed into `PlacementStudioWindow`."""
 
-    def _build_secondary_motion_tab(self) -> QWidget:
+    def _init_constraint_state(self) -> None:
+        """The rig being edited, which Your mod reads whether or not the page is built."""
+
         self._rig_constraints: Optional[RigConstraints] = None
         self._rig_constraints_original: Optional[RigConstraints] = None
         self._rig_constraints_bytes: bytes = b""
         self._constraint_updating = False
 
+    def _build_secondary_motion_tab(self) -> QWidget:
         panel = QWidget()
         outer = QVBoxLayout(panel)
         outer.setContentsMargins(8, 8, 8, 8)

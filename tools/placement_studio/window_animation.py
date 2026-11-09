@@ -76,8 +76,19 @@ class AnimationTabMixin:
         # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
         # the clip index the first time it is opened.
         self._animation_page = page
-        self._lower.currentChanged.connect(lambda _index: self._sync_view_footer())
         return page
+
+    def _animations_tab_built(self) -> None:
+        """Catch the new page up on what the clip index did while the tab was closed."""
+
+        if self.clip_index_ready:
+            self._populate_clip_rigs()
+        if self._clip_list_stale:
+            note = self._clip_note_pending
+            self._refresh_clip_list()
+            if note:
+                self._clip_status.setText(note)
+                self._clip_note_pending = note
 
     def _build_replace_draws_page(self) -> QWidget:
         from . import ui_kit as kit
@@ -111,12 +122,12 @@ class AnimationTabMixin:
 
         from .layout_util import is_current_page
 
-        timeline = getattr(self, "_key_timeline", None)
+        timeline = self._built_attr("_key_timeline")
         if timeline is not None:
             timeline.setVisible(self._lower.currentWidget()
-                                is getattr(self, "_animation_editor_page", None))
-        plot = getattr(self, "_timing_plot", None)
-        stack = getattr(self, "_animation_stack", None)
+                                is self._built_attr("_animation_editor_page"))
+        plot = self._built_attr("_timing_plot")
+        stack = self._built_attr("_animation_stack")
         if plot is None or stack is None:
             return
         plot.setVisible(stack.currentIndex() == 2 and is_current_page(self._animation_page)
@@ -284,7 +295,7 @@ class AnimationTabMixin:
                     if task is not None:
                         task.cancel()
                     self._chart_sources_requested = sources
-                self._chart_socket_box.setEnabled(True)
+                self._set_chart_pickers_enabled(socket=True)
             return True
         if not getattr(self, '_background_loading', False):
             self._chart_index_cache, self._animation_sets_cache = prepare_charts(
@@ -299,8 +310,7 @@ class AnimationTabMixin:
             self._chart_task.setObjectName('chart_preparation')
             self._chart_task.ready.connect(self._charts_prepared)
         self._chart_sources_requested = sources
-        self._retarget_button.setEnabled(False)
-        self._chart_socket_box.setEnabled(False)
+        self._set_chart_pickers_enabled(socket=False, retarget=False)
         self._chart_task.submit(lambda cancelled, progress:
                                 (sources, prepare_charts(sources, cancelled, progress)))
         return False
@@ -319,14 +329,24 @@ class AnimationTabMixin:
             return
         self._chart_index_cache, self._animation_sets_cache = result
         self._chart_sources_ready = sources
-        self._chart_socket_box.setEnabled(True)
+        self._set_chart_pickers_enabled(socket=True)
         self._refresh_animation()
+
+    def _set_chart_pickers_enabled(self, *, socket=None, retarget=None) -> None:
+        """Advanced > Action charts' pickers, once that page is built (it catches up then)."""
+
+        for name, enabled in (("_chart_socket_box", socket), ("_retarget_button", retarget)):
+            widget = self._built_attr(name)
+            if widget is not None and enabled is not None:
+                widget.setEnabled(enabled)
 
     def _refresh_animation(self) -> None:
         if self._edits is None:
             return
         if not self._ensure_chart_indexes():
             return
+        if not self._tab_built("advanced"):
+            return  # the charts are ready; Advanced lists them when it is built
         index = self._chart_index()
         model = self._session.model if self._session else ""
 

@@ -1113,12 +1113,15 @@ class EditPanelMixin:
             operation_scope_html(operations, loose)
             + pending_changes_html(header, lines)
         )
-        # Address the tab by its widget: a hardcoded index silently renamed the wrong tab
-        # the moment Animation was inserted ahead of it.
-        tabs = getattr(self, "_advanced_tabs", None)
-        if tabs is not None and tabs.indexOf(self._diff_view) >= 0:
-            self._set_advanced_page_text(self._diff_view, f"File changes ({len(plan.operations)})")
+        self._refresh_diff_title(len(plan.operations))
         self._refresh_mod_list()
+
+    def _refresh_diff_title(self, count: int) -> None:
+        # Address the tab by its widget: a hardcoded index silently renamed the wrong tab
+        # the moment Animation was inserted ahead of it. Advanced sets it when it is built.
+        tabs = self._built_attr("_advanced_tabs")
+        if tabs is not None and tabs.indexOf(self._diff_view) >= 0:
+            self._set_advanced_page_text(self._diff_view, f"File changes ({count})")
 
     def _refresh_edit_panel(self) -> None:
         editable = bool(self._selected_socket) and bool(self._socket_file_of(self._selected_socket))

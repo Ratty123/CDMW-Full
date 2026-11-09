@@ -209,7 +209,7 @@ class TaskPanelMixin:
         """Show the live drag mode on both tabs' buttons; the mode combo is the record."""
 
         for buttons in (getattr(self, "_mode_buttons", {}),
-                        getattr(self, "_advanced_mode_buttons", {})):
+                        self._built_attr("_advanced_mode_buttons", {})):
             for value, button in buttons.items():
                 button.blockSignals(True)
                 button.setChecked(value == mode)
@@ -306,6 +306,27 @@ class TaskPanelMixin:
 
 
     # ── Advanced ────────────────────────────────────────────────────
+
+    def _init_advanced_state(self) -> None:
+        self._init_constraint_state()
+        self._init_behaviour_state()
+
+    def _advanced_tab_built(self) -> None:
+        """Wire the new pages in, and catch them up on what changed while Advanced was closed."""
+
+        self._rig_tab_pages.update(
+            {"constraints": self._constraints_page, "behaviour": self._behaviour_page})
+        self._advanced_tabs.currentChanged.connect(self._on_lower_tab_changed)
+        self._sync_mode_buttons(str(self._mode_box.currentData() or "off"))
+        if self._edits is not None:
+            self._refresh_diff_title(len(self._edits.to_plan().operations))
+        self._refresh_animation()
+        requested = getattr(self, "_chart_sources_requested", None)
+        if requested is not None and requested != getattr(self, "_chart_sources_ready", None):
+            # The charts are still being read; the pickers wait for them, as they did when
+            # they were built at startup.
+            self._chart_socket_box.setEnabled(False)
+            self._retarget_button.setEnabled(False)
 
     def _build_advanced_tab(self, mono) -> QWidget:
         page = QWidget()

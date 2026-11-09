@@ -73,11 +73,14 @@ _NO_DESCRIPTOR = (
 class RigBehaviourMixin:
     """The `posemodifierdata.xml` editor. Mixed into `PlacementStudioWindow`."""
 
-    def _build_rig_behaviour_tab(self) -> QWidget:
+    def _init_behaviour_state(self) -> None:
+        """The settings being edited, which Your mod reads whether or not the page is built."""
+
         self._behaviour: Optional[RigBehaviour] = None
         self._behaviour_original: Optional[RigBehaviour] = None
         self._behaviour_updating = False
 
+    def _build_rig_behaviour_tab(self) -> QWidget:
         panel = QWidget()
         outer = QVBoxLayout(panel)
         outer.setContentsMargins(8, 8, 8, 8)

@@ -48,16 +48,24 @@ class _ArmourWorker(QObject):
 class ArmourPickerMixin:
     """Per-slot armour selection. Mixed into `PlacementStudioWindow`."""
 
-    def _build_armour_tab(self) -> QWidget:
+    def _init_armour_state(self) -> None:
+        """What the loaders fill before the Armour tab is ever opened: the index, the archive
+        read, and the status line they report to."""
+
         self._armour_index = ArmourIndex()
         self._armour_thread = None
         self._armour_worker = None
         self._archive_load = None
         self._archive_load_timer = None
+        #: slot -> its dropdown; empty until the tab is built.
         self._armour_boxes: dict = {}
         self._weapon_socket_entries: dict = {}
         self._weapon_mesh_entries: dict = {}
+        self._armour_status = QLabel("Indexing armour…")
+        self._armour_status.setObjectName("HintLabel")
+        self._armour_status.setWordWrap(True)
 
+    def _build_armour_tab(self) -> QWidget:
         from . import ui_kit as kit
 
         page = kit.InspectorPage()
@@ -70,9 +78,7 @@ class ArmourPickerMixin:
             form.add(label, box)
             self._armour_boxes[slot] = box
         page.add(kit.Section("Worn", form))
-        self._armour_status = QLabel("Indexing armour…")
-        self._armour_status.setObjectName("HintLabel")
-        self._armour_status.setWordWrap(True)
+        self._fill_armour_boxes()
         clear = QPushButton("Undress")
         clear.setToolTip("Clear every slot back to the bare body")
         clear.clicked.connect(self._clear_armour)
@@ -127,10 +133,18 @@ class ArmourPickerMixin:
 
     def _populate_armour(self) -> None:
         model = self._session.model if self._session is not None else ""
-        total = 0
+        total = sum(len(self._armour_index.pieces(model, slot)) for slot, _label in SLOTS)
+        self._fill_armour_boxes()
+        self._armour_status.setText(
+            f"{total} piece(s) for {model or 'this model'} — pick a slot to dress the rig"
+        )
+
+    def _fill_armour_boxes(self) -> None:
+        """List each slot's pieces; nothing to do while the tab is not built."""
+
+        model = self._session.model if self._session is not None else ""
         for slot, box in self._armour_boxes.items():
             pieces = self._armour_index.pieces(model, slot)
-            total += len(pieces)
             box.blockSignals(True)
             box.clear()
             box.addItem(NONE_LABEL, "")
@@ -138,9 +152,6 @@ class ArmourPickerMixin:
                 box.addItem(piece.name, piece.path)
             box.setEnabled(bool(pieces))
             box.blockSignals(False)
-        self._armour_status.setText(
-            f"{total} piece(s) for {model or 'this model'} — pick a slot to dress the rig"
-        )
 
     # ── selection ───────────────────────────────────────────────────
 
