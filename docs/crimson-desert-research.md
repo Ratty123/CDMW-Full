@@ -480,6 +480,30 @@ brightness multiplier: the inspected lightning pixel shader uses
 `_emissiveIntensityExponent` as a power on sampled mask channels. An additive
 effect can emit visible light with zero base opacity.
 
+Ver2 equipment surface response (static DXIL analysis, 9 November 2026). The
+shipped G-buffer pixel shaders of `SkinnedMeshStandard_Ver2`, `Cloth_Ver2`,
+`Emissive_Ver2`, `Fur_Ver2`, `TornCloth_Ver2`, `AmplifiedGlare_Ver2`, `Sail_Ver2`
+and `SkinnedMeshStaticStandard` share one surface path. Their textures are
+bindless indices in the material constant buffers. Data-flow from each sampled
+channel to the render targets shows:
+
+- Roughness (high byte of `SV_Target0.z`) and metalness come only from the
+  colour-blend layers: layer R's `_detailMaterialMaskR` G and B channels, weighted
+  by `_dyeingGlobalOpacity` byte 0 and gated by `_colorBlendingFlag` bit 2, then
+  layers G and B over it through `_colorBlendingMaskTexture`, the grime
+  `_grime*MaterialTexture*` layers, and `_scratchRoughness`/`_scratchMetallic`
+  where `_detailMaskTexture` R is non-zero. Wetness lowers roughness by up to 70%.
+- `_materialTexture`, although declared by the Ver2 material files, is not read
+  by these shaders. An unbound texture samples as zero, so a Ver2 material with
+  its layers removed renders at roughness 0, which is mirror-like.
+- Layer UVs are `rotate((uv - 0.5 - offset) / scale) + 0.5` with the angle
+  `byte * 2π/255 - π` from `_dyeingPropertyBlend`; no byte gives exactly zero
+  (±0.7°), so only a uniform layer value reproduces exactly on the mesh UVs.
+
+Mesh Editor's imported materials use this to set Roughness and Metallic as a
+uniform layer R. In-game appearance has not yet been checked; other shader
+families were not traced.
+
 Sources: [renderer contract][renderer-contract], [rendering ownership][rendering-notes],
 [shader compatibility guide][shader-controls], [effect consumer reference][effect-preview].
 

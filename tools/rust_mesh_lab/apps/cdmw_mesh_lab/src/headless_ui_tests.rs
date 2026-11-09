@@ -5503,6 +5503,63 @@ fn integrated_replacement_mapping_points_out_the_models_own_textures() -> TestRe
     Ok(())
 }
 
+const REPLACEMENT_SURFACE_HINT: &str = "Roughness and Metallic set the whole imported surface. At 0% roughness it shines like a mirror.";
+
+#[test]
+fn integrated_replacement_imported_materials_send_roughness_and_metallic() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1,
+        "surface": {"roughness": 0.62, "metallic": null, "reason": ""},
+    }));
+    ui.settle_layout();
+    // Only Imported Materials & Textures owns the surface of the import.
+    assert!(ui.label_rect("Roughness").is_none());
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal(REPLACEMENT_SURFACE_HINT)?;
+    // Starting values come from the model; a missing value starts at 0%.
+    ui.type_number_in_row("Metallic", 0.0, "40")?;
+    let apply = ui.actions_from_click("Apply Replacement")?;
+    assert!(apply.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+            if arguments["materials"] == "imported"
+                && arguments["roughness"] == json!(0.62)
+                && arguments["metallic"] == json!(0.4)
+    )), "{apply:?}");
+    ui.click("Keep Original Materials")?;
+    let original = ui.actions_from_click("Apply Replacement")?;
+    assert!(original.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+            if arguments["materials"] == "original" && arguments.get("roughness").is_none()
+    )), "{original:?}");
+    Ok(())
+}
+
+#[test]
+fn integrated_replacement_surface_is_disabled_for_unsupported_materials() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1,
+        "surface": {"roughness": 0.5, "metallic": 0.5,
+            "reason": "Roughness and Metallic need a Ver2 equipment material, which this item does not use."},
+    }));
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal("Roughness")?;
+    assert!(ui.label_rect(REPLACEMENT_SURFACE_HINT).is_none());
+    let apply = ui.actions_from_click("Apply Replacement")?;
+    assert!(apply.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+            if arguments["materials"] == "imported" && arguments.get("roughness").is_none()
+    )), "{apply:?}");
+    Ok(())
+}
+
 #[test]
 fn integrated_replacement_mapping_explains_scope_and_part_destinations() -> TestResult {
     for entire_mesh in [true, false] {

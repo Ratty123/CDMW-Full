@@ -109,7 +109,56 @@ def imported_material_status(pending):
     files.update(str(texture).casefold()
                  for binding in getattr(pending.source, "material_bindings", ()) or ()
                  for _role, texture in getattr(binding, "texture_slots", ()) or ())
-    return {"error": pending.material_error, "textures": len(files)}
+    status = {"error": pending.material_error, "textures": len(files)}
+    if not pending.material_error:
+        from cdmw.services.mesh_replacement_materials import imported_surface_defaults
+        status["surface"] = {**imported_surface_defaults(pending), "reason": imported_surface_support(pending)}
+    return status
+
+
+def imported_surface_support(pending):
+    """Reason the Roughness/Metallic layer cannot apply to the targets, or ""."""
+    try:
+        check_imported_surface_support(pending)
+    except ValueError as exc:
+        return str(exc)
+    return ""
+
+
+def check_imported_surface_support(pending):
+    """Raise when a target material cannot take the Roughness/Metallic layer."""
+    from cdmw.core.pac_xml_surface_layer import unsupported_surface_shaders, wrapper_shaders
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_replacement_materials import (
+        _sidecar_text, material_binding_name, material_binding_names)
+
+    original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
+    names = {material_binding_name(original.submeshes[part.target_index], bindings)
+             for part in pending.state.parts if part.part_id in pending.target_part_ids}
+    target = pending.state.target_path.replace("\\", "/").casefold()
+    pac_xml = target.replace("/model/", "/modelproperty/", 1) + "_xml"
+    sidecars = [file for file in pending.state.dependencies if file.path.casefold().endswith(".pac_xml")]
+    sidecar = next((file for file in sidecars if file.path.replace("\\", "/").casefold() == pac_xml),
+                   sidecars[0] if len(sidecars) == 1 else None)
+    text = _sidecar_text(sidecar.data) if sidecar is not None else ""
+    if not text or not wrapper_shaders(text, names):
+        raise ValueError("Roughness and Metallic need the item's equipment material file.")
+    if unsupported_surface_shaders(text, names):
+        raise ValueError("Roughness and Metallic need a Ver2 equipment material, which this item does not use.")
+
+
+def _surface_argument(args):
+    """Optional (roughness, metallic) for Imported Materials & Textures, each 0..1."""
+    if "roughness" not in args and "metallic" not in args:
+        return None
+    values = []
+    for key in ("roughness", "metallic"):
+        value = float(args.get(key, 0.0) or 0.0)
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Roughness and Metallic must be between 0% and 100%.")
+        values.append(value)
+    return tuple(values)
 
 
 def run_replacement_command(authoring, command, args, stop_event):
@@ -171,7 +220,10 @@ def run_replacement_command(authoring, command, args, stop_event):
         files = None
         if choice == "imported":
             from cdmw.services.mesh_replacement_materials import prepare_imported_materials
-            files = prepare_imported_materials(pending, targets, authoring.root, stop_event)
+            surface = _surface_argument(args)
+            if surface is not None and any(surface):
+                check_imported_surface_support(pending)
+            files = prepare_imported_materials(pending, targets, authoring.root, stop_event, surface=surface)
         weights = str(args.get("weights", "") or "") or None
         skin_notes = []
         mesh, state = compose_import(pending, targets, material_choice=choice, companion_files=files,

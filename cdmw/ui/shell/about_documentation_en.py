@@ -614,6 +614,7 @@ class AboutDocumentationEnglishMixin:
                 <p>View hides geometry only in the viewport; Mod or Include controls output inclusion. Use Output Preview to inspect the prepared result. Mesh islands addresses disconnected pieces within a part. Unsupported lower-LOD mappings block exclusion rather than guessing which triangles should disappear.</p>
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
+                <p>With Imported Materials &amp; Textures, Roughness and Metallic set one surface for the whole import. They start from the model's own roughness and metallic maps or values when its MTL or glTF has them, and otherwise at 0%. The game takes no roughness from the colour texture, so at 0% the surface shines like a mirror; raise Roughness for a duller finish. They work on the Ver2 equipment materials that armour uses; hover them to see why they are unavailable on other items.</p>
                 <p>Import Replacement reads OBJ, DAE, glTF, GLB and FBX. FBX is converted with the Blender chosen for Create New Item; the first FBX asks for blender.exe.</p>
                 <p>A rigged model shows a Weights choice before Apply Replacement:</p>
                 <ul>

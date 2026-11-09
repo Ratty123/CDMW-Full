@@ -168,11 +168,13 @@ def capture_replacement_dependencies(entry, context, stop_event=None):
     return tuple(result)
 
 
-def prepare_imported_materials(pending, targets, resource_root, stop_event=None):
+def prepare_imported_materials(pending, targets, resource_root, stop_event=None, *, surface=None):
     """Use retained routing/conversion, but refuse every unresolved result.
 
     Only explicitly mapped target materials enter the retained generator.
     Global donor resets and pruning are disabled, including selected-part use.
+    ``surface`` is an optional (roughness, metallic) pair in 0..1; when either
+    is above 0 the replaced wrappers get it as a uniform layer R.
     """
     from cdmw.core.archive_mesh_import_build_state import MeshImportBuildState
     from cdmw.core.archive_mesh_import_build_stages import resolve_mesh_import_sidecars, collect_mesh_import_references
@@ -275,6 +277,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
             renames[old] = new
             files[new.casefold()] = ReplacementFile(new, bytes(payload.payload_data))
         merged = False
+        merged_keys = []
         for payload in payloads:
             if Path(payload.target_path).suffix.lower() not in {".pac_xml", ".pami"}:
                 continue
@@ -291,6 +294,81 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
             if changed:
                 files[str(payload.target_path).casefold()] = ReplacementFile(str(payload.target_path), text.encode("utf-8"),
                                                                              archive_location(item) if item else None)
+                merged_keys.append(str(payload.target_path).casefold())
         if not merged:
             raise ValueError("Imported materials have no proven target sidecar wrapper mapping.")
+        if surface is not None and any(float(value) > 0 for value in surface):
+            _apply_imported_surface(files, merged_keys, names, pending.state.target_path, surface)
         return _prune_unreferenced_generated_files(files)
+
+
+def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
+    """Write the chosen roughness/metalness as the replaced wrappers' layer R."""
+    from cdmw.core.pac_xml_surface_layer import apply_surface_layer, surface_byte, surface_layer_dds
+
+    roughness, metallic = (surface_byte(value) for value in surface)
+    model = target_path.replace("\\", "/")
+    folder = "character/texture" if "/character/" in f"/{model}" else str(Path(model).parent).replace("\\", "/")
+    path = f"{folder}/{Path(model).stem}_cdmw_surface_{roughness:03d}_{metallic:03d}.dds"
+    applied = 0
+    for key in sidecar_keys:
+        if not key.endswith(".pac_xml"):
+            continue
+        file = files[key]
+        text, changed = apply_surface_layer(_sidecar_text(file.data), names, path)
+        if changed:
+            files[key] = replace(file, data=text.encode("utf-8"))
+            applied += changed
+    if not applied:
+        raise ValueError("Roughness and Metallic found no replaced equipment material to apply to.")
+    files[path.casefold()] = ReplacementFile(path, surface_layer_dds(roughness / 255, metallic / 255))
+
+
+def _image_channel_means(path, channels):
+    from PIL import Image
+    with Image.open(path) as image:
+        image.thumbnail((256, 256))
+        rgb = image.convert("RGB")
+    stats = [sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram())) / max(1, rgb.width * rgb.height)
+             for c in "RGB"]
+    return tuple(stats["RGB".index(c)] / 255 for c in channels)
+
+
+def imported_surface_defaults(pending):
+    """The imported model's own roughness and metalness, averaged, as slider starting values.
+
+    Uses OBJ map_Pr/map_Pm (or Pr/Pm) and glTF roughness/metalness or packed
+    metallic-roughness maps. Missing values stay None (the slider starts at 0).
+    """
+    used = {str(part.material or part.name or "").casefold() for part in pending.source.mesh.submeshes}
+    found = {"roughness": [], "metallic": []}
+    source = Path(pending.source_path)
+    try:
+        if source.suffix.lower() == ".obj":
+            from cdmw.modding.scene_texture_discovery import _obj_material_parameters, _obj_material_texture_slots
+            slots = {name.casefold(): value for name, value in _obj_material_texture_slots(source).items()}
+            factors = {name.casefold(): value for name, value in _obj_material_parameters(source).items()}
+            for material in used:
+                kinds = {slot.slot_kind: slot.path for slot in slots.get(material, ())}
+                values = {parameter.parameter_name: parameter.numeric_value for parameter in factors.get(material, ())}
+                for key, kind, factor, channel in (("roughness", "roughness", "_roughnessFactor", "G"),
+                                                   ("metallic", "metalness", "_metallicFactor", "B")):
+                    if kind in kinds and Path(kinds[kind]).is_file():
+                        found[key].append(_image_channel_means(kinds[kind], "R")[0])
+                    elif "material" in kinds and Path(kinds["material"]).is_file():
+                        found[key].append(_image_channel_means(kinds["material"], channel)[0])
+                    elif values.get(factor) is not None:
+                        found[key].append(float(values[factor]))
+        else:
+            for binding in getattr(pending.source, "material_bindings", ()) or ():
+                if str(binding.material_name or "").casefold() not in used:
+                    continue
+                kinds = {str(role).casefold(): texture for role, texture in binding.texture_slots}
+                for key, kind, channel in (("roughness", "roughness", "G"), ("metallic", "metalness", "B")):
+                    if kind in kinds and Path(kinds[kind]).is_file():
+                        found[key].append(_image_channel_means(kinds[kind], "R")[0])
+                    elif "material" in kinds and Path(kinds["material"]).is_file():
+                        found[key].append(_image_channel_means(kinds["material"], channel)[0])
+    except (OSError, ValueError):
+        return {"roughness": None, "metallic": None}
+    return {key: (round(sum(values) / len(values), 3) if values else None) for key, values in found.items()}

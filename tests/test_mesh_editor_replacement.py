@@ -225,8 +225,11 @@ def test_mapping_reports_imported_material_status(editor, tmp_path):
         bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
                       "0000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"))
     status = imported_material_status(prepare_import(snapshot, present))
-    assert status == {"error": "", "textures": 1}
+    assert {key: status[key] for key in ("error", "textures")} == {"error": "", "textures": 1}
+    # This target has no captured equipment material, so Roughness/Metallic say why.
+    assert status["surface"] == {"roughness": None, "metallic": None,
+                                 "reason": "Roughness and Metallic need the item's equipment material file."}
 
     (tmp_path / "plain").mkdir()
     plain = imported_material_status(prepare_import(snapshot, source_obj(tmp_path / "plain")))
-    assert plain == {"error": "", "textures": 0}
+    assert {key: plain[key] for key in ("error", "textures")} == {"error": "", "textures": 0}
