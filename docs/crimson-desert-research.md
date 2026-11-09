@@ -1862,8 +1862,22 @@ and `build_prefab_socket_name_patch`.
   has lanterns only, so her hip carries are rigid even in vanilla. A
   `.xml.patch` with `<insert into="Vector" match-Name="_instanceDescs">` adds an item.
   A body's `_socketName` may name a bone. To make a mirrored carry swing, mirror
-  Kliff's item the same way as its socket, by conjugating with S. Built 2026-11-09;
-  not yet seen in game.
+  Kliff's item the same way as its socket, by conjugating with S. Seen working in
+  game on 2026-11-09.
+- **Damiane's own 1H moveset is the rapier.** Played as Damiane (Crimson Live
+  Edit's character switch, Ctrl+Alt+1/2/3; TagSwap did not switch on 3576), her 1H
+  sword is `MainWeapon_Sword_L` in `LHand_Socket` with the shield as
+  `MainWeapon_Shield_R`. Her draws are in `2_phw/rapier_upper.paac` (stand, alert,
+  sit), her sheathes in Kliff's `basic_upper_weaponin.paac` anims 22 to 25, and her
+  riding pair in `ride_weapon_upper` / `ride_upper`
+  (`cd_phw_rd_prh_00_01_rpr_*`). Kliff's back draws, mirrored and retimed (20
+  events), gave her a working left-hand back carry. With two swords she draws
+  through Kliff's `dualweapon_upper` entries; no chart plays the unused dual-rapier
+  clips. Female Kliff (Character Creator or Heroine of Pywel) uses the same files,
+  so one set of edits covers both.
+- **Heroine of Pywel** adds female Kliff's axe rows with a partial descriptor file,
+  so the carry's axe rows for it ship as a partial file too (Section 12.3); every
+  other carry patch applies unchanged on its files.
 
 What this suggests for Placement & Animations (not implemented):
 
@@ -3009,6 +3023,25 @@ so a full copy's edits landed on the wrong rows and the game crashed at load. A
   (seen when a patch aimed at Character Creator's added rows ran without it);
 - identical files shipped by two enabled mods still raise `[RUNTIME_CONFLICT]`, and
   the last-loaded mod wins.
+
+Further rules, seen 2026-11-09 next to Heroine of Pywel 2.4.1 (DMM 4.7.4, and the
+same engine strings in 4.8.1):
+
+- DMM applies every mod's `.xml.patch` before any partial file
+  (`<file>__<mod>.xml`, Heroine of Pywel's form), whatever the load order. A patch
+  therefore cannot edit rows that a partial file adds; it reports them as missing.
+- A partial file keys `PartInOutSocket` rows by `PartName` and overwrites only the
+  attributes it carries, so a later partial row with fewer attributes leaves the
+  rest standing.
+- A row is deleted only by a partial file holding an exact copy of it with
+  `__delete="true"`; `__delete="1"` added the row instead. To change rows another
+  mod adds through a partial file, ship a partial file too (delete the exact row,
+  then add the new one).
+- `<insert into="Vector" match-Name="...">` picks one of several same-named
+  elements (DMM changelog 1.5.5); it was used to add an item to
+  `physicsattachment` files (Section 7.5).
+- A wrong `SocketList Count` after inserts was harmless in game. DMM 3.1.1 also
+  says it fixes socket-list counts in merged files.
 
 Reviewed on 2026-10-21 against `b0c6ad68248b` plus the scoped DMM export patch.
 [Owned-fixture interface checks](../tests/test_new_item_mod_name.py) confirm DMM
