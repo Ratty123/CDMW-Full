@@ -1007,7 +1007,23 @@ step says so. When the import found the model's own textures it suggests
 **Imported Materials & Textures**; when its MTL or textures are missing it
 disables that choice and shows a warning, with the exact missing file on hover.
 `replacement_ui_state()` sends this as `pending.materials`
-(`{"error", "textures"}`).
+(`{"error", "textures", "surface"}`).
+
+Imported materials drop the target's detail, grime, colour-blend and height layers
+and replace its normal map with a flat one when the import has none. On the Ver2
+equipment shaders that leaves roughness and metalness at 0: their G-buffer pixel
+shaders read roughness (G) and metalness (B) only from the layer material textures,
+never from `_materialTexture`, and an unbound texture samples as zero. **Roughness**
+and **Metallic** under **Imported Materials & Textures** restore a surface: Apply
+binds a generated 4x4 B8G8R8A8 texture as `_detailMaterialMaskR` (layer R has no
+mask), sets `_colorBlendingFlag` bit 2 and `_dyeingGlobalOpacity` byte 0 to 255
+(`cdmw/core/pac_xml_surface_layer.py`). The value is uniform because layer UVs are
+always rotated by at least 0.7 degrees. Both at 0% leaves the output unchanged.
+`pending.materials.surface` carries the starting values (`roughness`, `metallic`,
+from OBJ `map_Pr`/`map_Pm`/`Pr`/`Pm` or glTF metallic-roughness maps, else null)
+and `reason`, which disables the sliders for wrappers outside the traced shader
+families (`SURFACE_LAYER_SHADERS`). `replacement_apply` takes `roughness` and
+`metallic` in 0..1. In-game appearance is not yet verified.
 
 Imported materials follow the selected part's exact sidecar binding, even when its
 embedded material label differs from the part name or uses different letter case.

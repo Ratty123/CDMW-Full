@@ -1,6 +1,8 @@
 from dataclasses import replace
 from pathlib import Path
+import io
 import re
+import struct
 from types import SimpleNamespace
 
 from PIL import Image
@@ -30,7 +32,7 @@ def entry(root, path, data):
     return ArchiveEntry(path, root / "0009/0.pamt", source, 0, len(data), len(data), 0, 0)
 
 
-def material_fixture(root, snapshot, *, layered=False, normal=False):
+def material_fixture(root, snapshot, *, layered=False, normal=False, shader=""):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
@@ -43,7 +45,9 @@ def material_fixture(root, snapshot, *, layered=False, normal=False):
         layer = (lambda i: f'<MaterialParameterTexture _name="_normalTexture" Index="1"><ResourceReferencePath_ITexture '
                  f'_path="character/texture/original{i}_n.dds"/></MaterialParameterTexture>')
     xml = ('<Root>' + ''.join(
-        f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}"><Material><Vector Name="_parameters">'
+        f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}">'
+        + (f'<Material Name="_resourceMaterial" _materialName="{shader}">' if shader else '<Material>')
+        + '<Vector Name="_parameters">'
         f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original{i}.dds"/>'
         f'</MaterialParameterTexture>{layer(i)}</Vector></Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
     target = entry(root, snapshot.mesh.path, snapshot.original_data)
@@ -114,6 +118,72 @@ def test_imported_materials_replace_the_targets_normal_map(editor, tmp_path, own
     assert "original1_n.dds" in untouched
     bound = {path.casefold() for path in re.findall(r'_path="([^"]+)"', replaced)}
     assert all(file.path.casefold() in bound for file in files if file.path.endswith(".dds"))
+
+
+def _surface_pending(editor, tmp_path, shader="SkinnedMeshCloth_Ver2"):
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader=shader)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    return prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies), key
+
+
+def test_imported_materials_write_roughness_and_metallic_as_layer_r(editor, tmp_path):
+    """Ver2 equipment shaders read roughness (G) and metalness (B) from
+    _detailMaterialMaskR, weighted by _dyeingGlobalOpacity byte 0 and enabled
+    by _colorBlendingFlag bit 2. Without it the imported surface is mirror-like."""
+    from cdmw.services.mesh_rust_replacement import imported_surface_support
+    pending, key = _surface_pending(editor, tmp_path)
+    assert imported_surface_support(pending) == ""
+    files = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.8, 0.25))
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    layer = re.search(r'_name="_detailMaterialMaskR"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"', replaced)
+    assert layer and 'StringItemID="_detailMaterialMaskR" ItemID="3806852434362366"' in replaced
+    assert re.search(r'_name="_colorBlendingFlag" _value="4"', replaced)
+    assert re.search(r'_name="_dyeingGlobalOpacity" _value="255"', replaced)
+    assert "_detailMaterialMaskR" not in untouched and "_colorBlendingFlag" not in untouched
+    texture = next(file for file in files if file.path == layer.group(1))
+    with Image.open(io.BytesIO(texture.data)) as image:
+        assert image.size == (4, 4) and image.convert("RGBA").getpixel((0, 0)) == (0, 204, 64, 255)
+    assert struct.unpack_from("<I", texture.data, 28)[0] == 3  # full mip chain for 4x4
+
+
+def test_zero_roughness_and_metallic_leave_imported_materials_unchanged(editor, tmp_path):
+    pending, key = _surface_pending(editor, tmp_path)
+    plain = prepare_imported_materials(pending, (key,), tmp_path)
+    zero = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.0, 0.0))
+    assert [(file.path, file.data) for file in plain] == [(file.path, file.data) for file in zero]
+
+
+def test_roughness_and_metallic_refuse_materials_outside_the_traced_shaders(editor, tmp_path):
+    from cdmw.services.mesh_rust_replacement import imported_surface_support
+    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshHair")
+    assert "Ver2 equipment material" in imported_surface_support(pending)
+    with pytest.raises(ValueError, match="Ver2 equipment material"):
+        prepare_imported_materials(pending, (key,), tmp_path, surface=(0.5, 0.0))
+    # Without a surface choice the import itself still works.
+    assert prepare_imported_materials(pending, (key,), tmp_path)
+
+
+@pytest.mark.parametrize("mtl, expected", [
+    ("Pr 0.7\nPm 0.2\n", {"roughness": 0.7, "metallic": 0.2}),
+    ("map_Pr rough.png\nmap_Pm metal.png\n", {"roughness": round(180 / 255, 3), "metallic": round(60 / 255, 3)}),
+    ("", {"roughness": None, "metallic": None}),
+])
+def test_imported_surface_defaults_read_the_models_own_values(editor, tmp_path, mtl, expected):
+    from cdmw.services.mesh_replacement_materials import imported_surface_defaults
+    Image.new("RGB", (4, 4), (180, 180, 180)).save(tmp_path / "rough.png")
+    Image.new("RGB", (4, 4), (60, 60, 60)).save(tmp_path / "metal.png")
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshCloth_Ver2")
+    model.with_suffix(".mtl").write_text("newmtl imported\nKd 1 1 1\nmap_Kd color.dds\n" + mtl)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    assert imported_surface_defaults(pending) == expected
 
 
 def _snapshot_with_material_labels(snapshot, labels):
