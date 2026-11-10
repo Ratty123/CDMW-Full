@@ -659,8 +659,17 @@ def build_snapshot(
     pappt = parse_pappt(bytes(read(pappt_entry)), name=PAPPT_PATH)
     pappt_base = pappt
     parts, heads = pappt.index(), {record.stem: record for record in pappt.head_records}
-    for path in sorted(path for path in by_path
-                       if path.startswith('character/bin__/partprefabtable_dlc_') and path.endswith('.pappt')):
+    # Over the resident catalogue `by_path` is a view of the mapped index, and walking its
+    # keys decodes every path in the game (2.1 million, 28 s on 2026-11-10). The `.pappt`
+    # extension group names the same candidates directly; `by_path` still decides which
+    # of them the selected item-data sources accept.
+    pappt_candidates = (
+        (str(entry.path).replace("\\", "/").strip("/").lower() for entry in entries_by_extension.get(".pappt", ()))
+        if entries_by_extension else by_path
+    )
+    for path in sorted({path for path in pappt_candidates
+                        if path.startswith('character/bin__/partprefabtable_dlc_') and path.endswith('.pappt')
+                        and by_path.get(path) is not None}):
         raise_if_cancelled(stop_event)
         layer = parse_pappt(bytes(read(by_path[path])), name=path)
         parts = {**parts, **layer.index()}

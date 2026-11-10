@@ -503,6 +503,40 @@ def test_parsed_item_tables_are_reused_with_independent_planning_caches(catalogu
         service.build_snapshot((), read_entry=_read, resident_catalogue=index)
 
 
+def test_dlc_part_tables_are_found_without_walking_every_catalogue_path(tmp_path):
+    # Looking for `partprefabtable_dlc_*.pappt` by walking the snapshot's path view decoded
+    # every path in the game: 28 s of a 47 s Create New Item open on 2026-11-10.
+    from cdmw.core.pappt_format import encode_pappt, parse_pappt
+
+    root = tmp_path / "packages"
+    files = synthetic_files()
+    files.update({f"unrelated/textures/image_{index}.dds": b"x" for index in range(200)})
+    path = "character/bin__/partprefabtable.pappt"
+    dlc_path = "character/bin__/partprefabtable_dlc_01.pappt"
+    original = parse_pappt(files[path])
+    assert len(original.records) > 1
+    files[path] = encode_pappt(replace(original, records=original.records[:1]))
+    entries = parse_archive_pamt(build_package(root, files))
+    entries += parse_archive_pamt(build_package(root / "dlc/dlc_01", {
+        dlc_path: encode_pappt(replace(original, records=original.records[1:]))}))
+    index = write_resident_index(root, entries, tmp_path / "generation").open()
+    walked = []
+    keys = ResidentArchiveIndex._keys
+
+    def recording(self, kind, **filters):
+        for key in keys(self, kind, **filters):
+            if kind == "path":
+                walked.append(key)
+            yield key
+
+    with patch.object(ResidentArchiveIndex, "_keys", recording):
+        snapshot = NewItemService().build_snapshot((), read_entry=_read, resident_catalogue=index)
+    assert snapshot.pappt.index() == original.index()
+    assert snapshot.payload(dlc_path) == encode_pappt(replace(original, records=original.records[1:]))
+    # A truthiness check may take the first key; only a full walk reaches the last one.
+    assert "unrelated/textures/image_199.dds" not in walked
+
+
 def test_resident_index_rejects_wrong_generation_and_truncated_records(catalogue):
     _root, _entries, source = catalogue
     with pytest.raises(ValueError, match="generation changed"):
