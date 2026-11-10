@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectLineVertex, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
+    EffectLineVertex, LightingDepthSettings, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -935,6 +935,14 @@ impl PreviewApplication {
     }
 
     fn start_capture(&mut self, value: &Value) {
+        // A texture-delayed capture retains the requested icon background even
+        // if its host restores ordinary display options while it is waiting.
+        let mut capture_request = value.clone();
+        if let Some(fields) = capture_request.as_object_mut() {
+            fields.entry("transparent_background").or_insert_with(||
+                json!(self.state.presentation["display"]["icon_capture_mode"].as_bool().unwrap_or(false)));
+        }
+        let value = &capture_request;
         if self.texture_uploads.pending && !self.capture_in_flight && self.deferred_capture.is_none() {
             self.deferred_capture = Some((self.scene_revision, value.clone()));
             return;
@@ -1013,7 +1021,8 @@ impl PreviewApplication {
                     });
                     renderer.set_camera_with_basis(matrix, right, up);
                     renderer
-                        .capture_frame(width, height, isolated)
+                        .capture_frame_with_background(width, height, isolated,
+                            value["transparent_background"].as_bool().unwrap_or(false))
                         .map_err(|e| anyhow::anyhow!(e.to_string()))
                 });
             self.camera = saved_camera;
@@ -1392,6 +1401,10 @@ impl PreviewApplication {
                 renderer.set_clear_colour(background);
             }
             renderer.set_overlay_colours(wire, vertex);
+            renderer.set_lighting_depth_settings(LightingDepthSettings {
+                shadows: quality.get("preview_shadows").and_then(Value::as_bool).unwrap_or(true),
+                ambient_occlusion: quality.get("preview_ambient_occlusion").and_then(Value::as_bool).unwrap_or(true),
+            });
             renderer.set_lighting_preset(
                 match display.get("lighting_preset").and_then(Value::as_str) {
                     Some("showcase") => LightingPreset::Showcase,

@@ -491,6 +491,19 @@ not resolve, launch, hash, or read a Vortice executable or report.
 
 ## Materials in CDMW previews
 
+Textured and Game Outdoor rendering share a 2048-pixel key-light shadow map and a 12-tap
+scene-depth ambient-occlusion pass in window and headless recorders. Shadows affect only
+the key contribution, use base alpha for cutouts, and skip blended/glass casters. The
+light camera fits visible material bounds, including editable transforms and isolated
+captures. The current wgpu bias is constant 2 / slope 1.5, with a radius-scaled receiver
+offset and 5x5 comparison sampling. Devices limited to 16 sampled textures retain
+unshadowed rendering; 17 enables shadows and 32 supports shadows with GPU layers.
+Ambient occlusion reconstructs world position and normals from per-sample depth,
+supports orthographic projection, preserves destination alpha, and runs before soft
+particles. Both controls default on and leave diagnostic modes unchanged. Icon captures
+use transparent clear alpha, including the Dark preset. These are preview effects, not a
+game-lighting validation.
+
 The authoring Parts panel also exposes **Translucency (experimental)** for original
 PAC parts and imported replacements. Apply/Restore send selected stable part IDs
 to the host, which validates the material sidecar, preserves undo and drafts,

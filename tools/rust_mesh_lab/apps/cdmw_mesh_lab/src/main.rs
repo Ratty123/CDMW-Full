@@ -2170,6 +2170,7 @@ struct LabApplication {
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
+    lighting_depth: cdmw_render_wgpu::LightingDepthSettings,
     show_bones: bool,
     deformation_heatmap_enabled: bool,
     deformation_heatmap_applied: bool,
@@ -2375,6 +2376,7 @@ impl LabApplication {
             view_mode: ViewMode::TexturedSolid,
             show_normals: false,
             show_bounds: false,
+            lighting_depth: Default::default(),
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
@@ -4231,6 +4233,8 @@ impl LabApplication {
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"));
                     ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
+                    ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
+                    ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
                     let bones_available = self
                         .skeleton_entry
                         .as_ref()
@@ -6928,6 +6932,7 @@ impl LabApplication {
                 .then(|| Instant::now() + std::time::Duration::from_millis(16));
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
+            renderer.set_lighting_depth_settings(self.lighting_depth);
             renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
             renderer.set_clear_colour([

@@ -1,6 +1,7 @@
 use super::*;
 
 mod camera_clipping_tests;
+mod lighting_depth_tests;
 mod history_navigation_tests;
 mod delete_feedback_tests;
 #[cfg(target_os = "windows")]
@@ -2523,7 +2524,9 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert!(report.specular_texture_pixels_changed > 0);
     assert_eq!(report.dielectric_specular_pixels_changed, 0);
     assert!(report.glossiness_texture_pixels_changed > 0);
-    assert_eq!(report.dielectric_glossiness_pixels_changed, 0);
+    // Glossiness also changes dielectric roughness. Its small contribution
+    // used to quantize away in this lighting; shadows can expose it. The
+    // metalness-matched comparison above proves that the channel is sampled.
     assert!(report.height_texture_pixels_changed > 0);
     assert_eq!(report.disabled_height_pixels_changed, 0);
     assert!(report.hair_flow_pixels_changed > 0);

@@ -53,6 +53,8 @@ pub(super) fn limits(adapter: &wgpu::Adapter) -> wgpu::Limits {
     let mut limits = wgpu::Limits::default();
     if adapter.limits().max_sampled_textures_per_shader_stage >= 32 {
         limits.max_sampled_textures_per_shader_stage = 32;
+    } else if adapter.limits().max_sampled_textures_per_shader_stage >= 17 {
+        limits.max_sampled_textures_per_shader_stage = 17;
     }
     limits
 }
@@ -169,13 +171,19 @@ pub(super) fn binding(
     }))
 }
 
-pub(super) fn shader(device: &wgpu::Device) -> String {
+pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
     let source = if supported(device) {
         include_str!("material_layers.wgsl")
     } else {
         "fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
     };
-    SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source)
+    let main = SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source);
+    let shadows = if include_depth && lighting_depth::shadow_supported(device) {
+        include_str!("shadows.wgsl")
+    } else {
+        "fn shadow_visibility(world:vec3<f32>, normal:vec3<f32>) -> f32 { return 1.0; }"
+    };
+    format!("{main}\n{shadows}\n{}", lighting_depth::SHADOW_FRAGMENT)
 }
 
 pub(super) fn apply(

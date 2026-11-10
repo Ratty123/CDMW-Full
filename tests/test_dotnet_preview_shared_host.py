@@ -30,6 +30,26 @@ from cdmw.ui.preview.profile import DotNetPreviewProfile
 
 _APP = QApplication.instance() or QApplication([])
 
+
+def test_depth_toggles_and_icon_alpha_travel_in_live_presentation(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    try:
+        assert host.load_package(package)
+        assert host.set_render_tuning(SimpleNamespace(preview_shadows=False, preview_ambient_occlusion=True))
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["quality"]["preview_shadows"] is False
+        assert payload["display"]["quality"]["preview_ambient_occlusion"] is True
+        assert host.set_icon_capture_mode(True)
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["icon_capture_mode"] is True
+        assert host.set_icon_capture_mode(False)
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["icon_capture_mode"] is False
+    finally:
+        controller.shutdown()
+        shiboken6.delete(host)
+
 #: Controllers built without a parent, so nothing outside this module owns them.
 _UNPARENTED: list[DotNetPreviewSessionController] = []
 

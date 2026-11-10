@@ -19,6 +19,9 @@ mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
 mod material_layers;
 mod texture_upload;
+mod lighting_depth;
+pub use lighting_depth::LightingDepthSettings;
+pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use texture_upload::run_headless_texture_upload_comparison;
 pub use material_layers::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet, material_layers_supported};
 
@@ -980,6 +983,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             + camera_up * select(0.45, 0.20, neutral_studio),
         view_direction);
     let key_half_vector = safe_normalize(key_direction + view_direction, view_direction);
+    let key_shadow = shadow_visibility(input.world_position, surface_normal);
     let fill_half_vector = safe_normalize(fill_direction + view_direction, view_direction);
     let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio));
     let fill_light = wrapped_ndotl(surface_normal, fill_direction, select(0.82, 0.40, neutral_studio));
@@ -1005,7 +1009,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
     let shaped_light = ambient_floor * 0.84
         + select(0.62, 0.95, neutral_studio)
-            * (key_light * 0.72 + fill_light * 0.18 + rim_light * 0.10);
+            * (key_light * key_shadow * 0.72 + fill_light * 0.18 + rim_light * 0.10);
     let diffuse_depth = mix(1.0, shaped_light, depth_authority);
     // The Vortice path retains a small source-coloured body term beneath its
     // HDR studio reflections. Rust uses a bounded procedural environment, so a
@@ -1170,7 +1174,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             1.0,
             has_source_metalness,
         );
-        specular = metal_cook_torrance * metal_ndotl
+        specular = metal_cook_torrance * metal_ndotl * key_shadow
             * select(metal_direct_specular_scale, 1.0, gltf_pbr);
         if !gltf_pbr { specular = min(specular, vec3<f32>(0.85)); }
     } else {
@@ -1178,7 +1182,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let key_specular = pow(max(dot(surface_normal, key_half_vector), 0.0), specular_power);
         let fill_specular = pow(max(dot(surface_normal, fill_half_vector), 0.0), max(specular_power * 0.55, 4.0));
         specular = f0
-            * (key_specular + fill_specular * 0.16)
+            * (key_specular * key_shadow + fill_specular * 0.16)
             * (0.20 + 0.80 * (1.0 - roughness))
             * 0.62;
         if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
@@ -1203,7 +1207,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             let secondary_band = pow(
                 sqrt(clamp(1.0 - secondary_alignment * secondary_alignment, 0.0, 1.0)),
                 secondary_exponent);
-            specular = key_light
+            specular = key_light * key_shadow
                 * (f0 * primary_band + material_reference_albedo * secondary_band * 0.55)
                 * (0.20 + 0.80 * (1.0 - roughness))
                 * 0.62;
@@ -1327,7 +1331,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let leather_band = pow(max(dot(surface_normal, key_half_vector), 0.0), 12.0);
     let leather_sheen = select(
         vec3<f32>(0.0),
-        vec3<f32>(0.16, 0.085, 0.045) * leather_band * category_feedback,
+        vec3<f32>(0.16, 0.085, 0.045) * leather_band * category_feedback * key_shadow,
         is_leather);
     let cloth_sheen = select(
         vec3<f32>(0.0),
@@ -1337,7 +1341,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         vec3<f32>(0.0),
         material_reference_albedo
             * vec3<f32>(0.10, 0.035, 0.025)
-            * (1.0 - key_light)
+            * (1.0 - key_light) * key_shadow
             * category_feedback
             * skin_subsurface_multiplier,
         is_skin);
@@ -2098,6 +2102,7 @@ pub struct GpuMeshBuffers {
     bounds_lines: wgpu::Buffer,
     material_ranges: Vec<GpuMaterialRange>,
     sort_triangles: Vec<material_transparency::SortTriangle>,
+    lighting_bounds: lighting_depth::SceneBounds,
     triangle_index_count: u32,
     wire_index_count: u32,
     vertex_count: u32,
@@ -2592,6 +2597,7 @@ impl GpuMeshBuffers {
         });
         let (material_indices, material_ranges) = material_index_batches(snapshot)?;
         let sort_triangles = material_transparency::sort_triangles(&vertices, &material_indices);
+        let lighting_bounds = lighting_depth::SceneBounds::from_vertices(&vertices, &snapshot.indices, &snapshot.triangle_materials);
         let triangle_index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab triangle indices"),
             contents: bytemuck::cast_slice(&material_indices),
@@ -2623,6 +2629,7 @@ impl GpuMeshBuffers {
             bounds_lines,
             material_ranges,
             sort_triangles,
+            lighting_bounds,
             triangle_index_count: u32::try_from(snapshot.indices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
             wire_index_count: u32::try_from(wire_indices.len())
@@ -2706,6 +2713,7 @@ impl GpuMeshBuffers {
             ));
         }
         queue.write_buffer(&self.vertex, 0, bytemuck::cast_slice(&vertices));
+        self.lighting_bounds = lighting_depth::SceneBounds::from_vertices(&vertices, &snapshot.indices, &snapshot.triangle_materials);
         for triangle in &mut self.sort_triangles {
             triangle.refresh(&vertices);
         }
@@ -2930,6 +2938,9 @@ pub struct WindowRenderer {
     guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
     emission_bloom: emission_bloom::EmissionBloom,
+    shadow_resources: lighting_depth::ShadowResources,
+    ambient_occlusion: lighting_depth::AmbientOcclusion,
+    lighting_depth_settings: LightingDepthSettings,
     face_selection: selection_overlay::FaceSelectionRenderer,
     refit_warning: selection_overlay::FaceSelectionRenderer,
     part_hover: selection_overlay::FaceSelectionRenderer,
@@ -2976,6 +2987,10 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    pub fn set_lighting_depth_settings(&mut self, settings: LightingDepthSettings) {
+        self.lighting_depth_settings = settings;
+    }
+
     pub fn supports_material_layers(&self) -> bool { material_layers::supported(&self.device) }
 
     pub fn add_material_layers(&mut self, layers: &MaterialLayerSet) -> Result<(), RenderError> {
@@ -3397,6 +3412,9 @@ impl WindowRenderer {
             guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
             emission_bloom: pipelines.emission_bloom,
+            shadow_resources: pipelines.shadow_resources,
+            ambient_occlusion: pipelines.ambient_occlusion,
+            lighting_depth_settings: LightingDepthSettings::default(),
             face_selection,
             refit_warning,
             part_hover,
@@ -4131,6 +4149,9 @@ impl WindowRenderer {
         output_height: u32,
         viewport: Option<[f32; 4]>,
     ) {
+        let shadow = self.mesh.as_ref().map(|mesh| self.shadow_resources.frame(
+            &self.device, encoder, mesh, &self.default_material_binding, &self.active_material_bindings,
+            &self.camera_uniform, self.view_mode, self.lighting_depth_settings));
         let transparency = self.mesh.as_ref().and_then(|mesh| {
             material_transparency::prepare(
                 &self.device,
@@ -4153,7 +4174,7 @@ impl WindowRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(if self.camera_uniform.lighting_preset == 2 {
-                            clear_colour_for_target([0.006, 0.008, 0.012, 1.0], self.config.format.is_srgb())
+                            clear_colour_for_target([0.006, 0.008, 0.012, self.clear_colour.a as f32], self.config.format.is_srgb())
                         } else { self.clear_colour }),
                         store,
                     },
@@ -4207,6 +4228,7 @@ impl WindowRenderer {
                     self.view_mode,
                     self.view_mode == ViewMode::XRay,
                 );
+                if let Some(shadow) = &shadow { pass.set_bind_group(3, &shadow.binding, &[]); }
                 draw_mesh(
                     &mut pass,
                     mesh,
@@ -4274,6 +4296,11 @@ impl WindowRenderer {
                 }
             }
         }
+        if let Some(shadow) = &shadow {
+            let (color,resolve) = multisample.map_or((view,None),|target| (&target.view,Some(view)));
+            self.ambient_occlusion.record(&self.device,encoder,color,resolve,depth,&self.camera_uniform,shadow.radius,
+                [output_width,output_height],viewport,self.view_mode,self.lighting_depth_settings);
+        }
         effect_depth::render(
             self,
             encoder,
@@ -4284,10 +4311,10 @@ impl WindowRenderer {
             output_height,
             viewport,
         );
-        if let Some(mesh) = &self.mesh {
+        if let Some(mesh) = &self.mesh && let Some(shadow) = &shadow {
             self.emission_bloom.record(&self.device, encoder, view, [output_width, output_height], viewport,
                 mesh, &self.default_material_binding, &self.active_material_bindings,
-                &self.camera_bind_group, &self.camera_uniform, self.view_mode);
+                &self.camera_bind_group, &self.camera_uniform, self.view_mode, &shadow.binding);
         }
     }
 
@@ -4296,6 +4323,12 @@ impl WindowRenderer {
         width: u32,
         height: u32,
         material: Option<u32>,
+    ) -> Result<PendingFrameCapture, RenderError> {
+        self.capture_frame_with_background(width,height,material,false)
+    }
+
+    pub fn capture_frame_with_background(
+        &mut self, width:u32, height:u32, material:Option<u32>, transparent:bool,
     ) -> Result<PendingFrameCapture, RenderError> {
         self.check_health()?;
         if width == 0 || height == 0 || width > 2048 || height > 2048 {
@@ -4342,6 +4375,8 @@ impl WindowRenderer {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let saved_clear_colour = self.clear_colour;
+        if transparent { self.clear_colour = wgpu::Color::TRANSPARENT; }
         self.record_scene(
             &mut encoder,
             &view,
@@ -4351,6 +4386,7 @@ impl WindowRenderer {
             height,
             None,
         );
+        self.clear_colour = saved_clear_colour;
         if let Some(ranges) = saved_ranges {
             self.mesh.as_mut().expect("resident mesh").material_ranges = ranges;
         }
@@ -4701,13 +4737,25 @@ pub async fn run_headless_layered_material_capture(
         .ok_or_else(|| RenderError::InvalidSnapshot("layer capture returned no frame".into()))
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn run_headless_layered_material_capture_with_depth(
+    snapshot: &DrawSnapshot, textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>], layers: &[MaterialLayerSet],
+    settings: LightingDepthSettings, options: HeadlessMaterialCaptureOptions,
+    output: HeadlessMaterialCaptureOutput<'_>,
+) -> Result<HeadlessMaterialCaptureReport, RenderError> {
+    material_capture_batch(snapshot, textures, factors, layers,
+        &[HeadlessMaterialCaptureRequest { options, output }], None, &[], settings)
+        .await?.pop().ok_or_else(|| RenderError::InvalidSnapshot("depth capture returned no frame".into()))
+}
+
 pub async fn run_headless_material_capture_batch(
     snapshot: &DrawSnapshot,
     textures: &[HeadlessMaterialTexture<'_>],
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[]).await
+    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[], LightingDepthSettings::default()).await
 }
 
 pub async fn run_headless_layered_material_capture_batch(
@@ -4717,7 +4765,7 @@ pub async fn run_headless_layered_material_capture_batch(
     layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[]).await
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[], LightingDepthSettings::default()).await
 }
 
 /// Digests must have been verified by the owning reader against each immutable DDS.
@@ -4730,7 +4778,7 @@ pub async fn run_headless_verified_layered_material_capture_batch(
     verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     if verified_sha256.len() != textures.len() { return Err(RenderError::ResourceLimit); }
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256).await
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256, LightingDepthSettings::default()).await
 }
 
 /// Offscreen production shader/upload proof. Timings include CPU deformation,
@@ -4745,7 +4793,7 @@ pub async fn run_headless_motion_capture(
 ) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
     if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
     let mut run = MotionCapture { update, frame_count, timings: vec![] };
-    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[]).await?;
+    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[], LightingDepthSettings::default()).await?;
     Ok((reports.remove(0), run.timings))
 }
 
@@ -4763,6 +4811,7 @@ async fn material_capture_batch(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     mut motion: Option<&mut MotionCapture<'_>>,
     verified_sha256: &[&str],
+    depth_settings: LightingDepthSettings,
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     let batch_started = std::time::Instant::now();
     let Some(first_request) = requests.first() else {
@@ -4937,13 +4986,14 @@ async fn material_capture_batch(
             resource: camera_buffer.as_entire_binding(),
         }],
     });
-    let pipelines = create_pipelines_with_sample_count(
+    let mut pipelines = create_pipelines_with_sample_count(
         &device,
         format,
         &texture_layout,
         &camera_layout,
         sample_count,
     );
+    pipelines.lighting_depth_settings = depth_settings;
     if let Some(error) = error_scope.pop().await {
         return Err(RenderError::Device(format!(
             "material capture setup validation failed: {error}"
@@ -7129,6 +7179,8 @@ fn record_headless_pass(
     effect_lines: Option<&GpuOverlayLines>,
     size: [u32; 2],
 ) {
+    let shadow = pipelines.shadow_resources.frame(device, encoder, mesh, default_material_bind_group,
+        active_material_bindings, camera_uniform, mode, pipelines.lighting_depth_settings);
     let transparency = material_transparency::prepare(
         device,
         mesh,
@@ -7145,11 +7197,7 @@ fn record_headless_pass(
                 load: wgpu::LoadOp::Clear(clear_colour_for_target(
                     if camera_uniform.lighting_preset == 2 { [0.006, 0.008, 0.012, 1.0] }
                     else { [0.025, 0.03, 0.04, 1.0] }, camera_uniform.output_is_srgb != 0)),
-                store: if resolve_target.is_some() {
-                    wgpu::StoreOp::Discard
-                } else {
-                    wgpu::StoreOp::Store
-                },
+                store: wgpu::StoreOp::Store,
             },
             depth_slice: None,
         })],
@@ -7165,6 +7213,7 @@ fn record_headless_pass(
         occlusion_query_set: None,
         multiview_mask: None,
     });
+    pass.set_bind_group(3, &shadow.binding, &[]);
     draw_mesh(
         &mut pass,
         mesh,
@@ -7193,8 +7242,9 @@ fn record_headless_pass(
         show_bones,
     );
     drop(pass);
+    pipelines.ambient_occlusion.record(device,encoder,color,resolve_target,depth,camera_uniform,shadow.radius,size,None,mode,pipelines.lighting_depth_settings);
     pipelines.emission_bloom.record(device, encoder, resolve_target.unwrap_or(color), size, None,
-        mesh, default_material_bind_group, active_material_bindings, camera_bind_group, camera_uniform, mode);
+        mesh, default_material_bind_group, active_material_bindings, camera_bind_group, camera_uniform, mode, &shadow.binding);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -7639,6 +7689,9 @@ fn changed_pixel_count(reference: &[u8], candidate: &[u8]) -> Result<usize, Rend
 
 struct Pipelines {
     sample_count: u32,
+    shadow_resources: lighting_depth::ShadowResources,
+    ambient_occlusion: lighting_depth::AmbientOcclusion,
+    lighting_depth_settings: LightingDepthSettings,
     emission_bloom: emission_bloom::EmissionBloom,
     solid: wgpu::RenderPipeline,
     blended: wgpu::RenderPipeline,
@@ -7877,18 +7930,18 @@ fn create_pipelines_with_sample_count(
 ) -> Pipelines {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Mesh Lab shader"),
-        source: wgpu::ShaderSource::Wgsl(material_layers::shader(device).into()),
+        source: wgpu::ShaderSource::Wgsl(material_layers::shader(device, true).into()),
     });
     let layer_layout = material_layers::layout(device);
-    let mut layouts = vec![Some(texture_layout), Some(camera_layout)];
-    if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
+    let shadow_layout = lighting_depth::shadow_layout(device);
+    let layouts = vec![Some(texture_layout), Some(camera_layout), layer_layout.as_ref(), Some(&shadow_layout)];
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Mesh Lab pipeline layout"),
         bind_group_layouts: &layouts,
         immediate_size: 0,
     });
     let glass = if device.features().contains(wgpu::Features::DUAL_SOURCE_BLENDING) {
-        let main_shader = material_layers::shader(device);
+        let main_shader = material_layers::shader(device, true);
         let source = format!("enable dual_source_blending;\n{main_shader}\n{}", r#"
 struct GlassOutput {
     @location(0) @blend_src(0) surface: vec4<f32>,
@@ -7917,6 +7970,9 @@ fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -
     };
     Pipelines {
         sample_count,
+        shadow_resources: lighting_depth::ShadowResources::new(device, texture_layout, camera_layout, &shader),
+        ambient_occlusion: lighting_depth::AmbientOcclusion::new(device, format, sample_count),
+        lighting_depth_settings: LightingDepthSettings::default(),
         emission_bloom: emission_bloom::EmissionBloom::new(device, format, &layout, &shader),
         glass,
         solid: create_pipeline(
@@ -10325,6 +10381,7 @@ mod emission_bloom {
             camera: &wgpu::BindGroup,
             uniform: &CameraUniform,
             mode: ViewMode,
+            shadow: &wgpu::BindGroup,
         ) {
             if !matches!(mode, ViewMode::TexturedSolid | ViewMode::GameOutdoor)
                 || mesh.vertex_count == 0
@@ -10386,6 +10443,7 @@ mod emission_bloom {
                 }
                 pass.set_vertex_buffer(0, mesh.vertex.slice(..));
                 pass.set_bind_group(1, camera, &[]);
+                pass.set_bind_group(3, shadow, &[]);
                 draw_textured_solid(
                     &mut pass,
                     mesh,

@@ -551,6 +551,24 @@ struct HeadlessUi {
     last_actions: Vec<UiAction>,
 }
 
+#[test]
+fn lighting_depth_controls_toggle_without_editing_mesh() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?,egui::vec2(1400.0,1000.0));
+    let original = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+    assert!(ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion);
+    ui.click_tool_button("Viewport")?;
+    ui.click("Shadows")?;
+    assert!(!ui.application.lighting_depth.shadows);
+    assert!(ui.application.lighting_depth.ambient_occlusion);
+    ui.click("Ambient occlusion")?;
+    assert!(!ui.application.lighting_depth.ambient_occlusion);
+    ui.click("Shadows")?;
+    ui.click("Ambient occlusion")?;
+    assert!(ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion);
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(),original);
+    Ok(())
+}
+
 fn seed_vertex_inspection(ui: &mut HeadlessUi, count: u64) {
     ui.application.cdmw_state["vertex_parameters"] = json!({"capability":"vertex_parameters_v1"});
     ui.application.cdmw_state["session_id"] = json!("vertex-ui-test");

@@ -1572,6 +1572,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("preview/shininess_min", preview_settings.shininess_min)
         self.settings.setValue("preview/shininess_max", preview_settings.shininess_max)
         self.settings.setValue("preview/height_shininess_boost", preview_settings.height_shininess_boost)
+        self.settings.setValue("preview/preview_shadows", preview_settings.preview_shadows)
+        self.settings.setValue("preview/preview_ambient_occlusion", preview_settings.preview_ambient_occlusion)
         self.settings.setValue("preview/d3d11_ao_strength", preview_settings.d3d11_ao_strength)
         self.settings.setValue("preview/d3d11_roughness_bias", preview_settings.d3d11_roughness_bias)
         self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
@@ -1999,6 +2001,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                     "preview/height_shininess_boost",
                     defaults.height_shininess_boost,
                 ),
+                preview_shadows=self._read_bool("preview/preview_shadows", defaults.preview_shadows),
+                preview_ambient_occlusion=self._read_bool("preview/preview_ambient_occlusion", defaults.preview_ambient_occlusion),
                 d3d11_ao_strength=self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength),
                 d3d11_roughness_bias=self._read_float("preview/d3d11_roughness_bias", defaults.d3d11_roughness_bias),
                 d3d11_metalness_scale=self._read_float(
@@ -2116,6 +2120,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             ModelPreviewRenderSettings(
                 use_textures_by_default=self.model_preview_use_textures_checkbox.isChecked(),
                 high_quality_by_default=self.model_preview_high_quality_checkbox.isChecked(),
+                preview_shadows=stored.preview_shadows,
+                preview_ambient_occlusion=stored.preview_ambient_occlusion,
                 visible_texture_mode=str(
                     self.visible_texture_mode_combo.currentData() or ModelPreviewRenderSettings().visible_texture_mode
                 ),

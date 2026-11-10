@@ -62,7 +62,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     });
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("selection proof occluder"),
-        source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device).into()),
+        source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device, false).into()),
     });
     let layer_layout = material_layers::layout(&device);
     let mut layouts = vec![Some(&texture_layout), Some(&camera_layout)];
@@ -344,7 +344,7 @@ impl FaceSelectionRenderer {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("CDMW face selection shader"),
-            source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device).into()),
+            source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device, false).into()),
         });
         let layer_layout = material_layers::layout(device);
         let mut layouts = vec![Some(texture_layout), Some(camera_layout)];

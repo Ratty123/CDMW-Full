@@ -705,13 +705,14 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
     def set_icon_capture_mode(self, enabled: bool) -> bool:
         self._icon_capture_mode = bool(enabled)
         display = dict(self._presentation_state.get("display", {}))
+        display["icon_capture_mode"] = bool(enabled)
         display["grid_visible"] = False if enabled else display.get("grid_visible", False)
         display["gizmo_visible"] = False if enabled else display.get("gizmo_visible", False)
         self._presentation_state["display"] = display
         shared_patch = (
-            {"display": {"grid_visible": False, "gizmo_visible": False}}
+            {"display": {"grid_visible": False, "gizmo_visible": False, "icon_capture_mode": True}}
             if enabled
-            else None
+            else {"display": {"icon_capture_mode": False}}
         )
         return self._remember_presentation_state(shared_patch)
 

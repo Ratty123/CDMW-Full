@@ -2737,6 +2737,8 @@ impl LabApplication {
                     crate::localization::tr("Shows short, sampled cyan lines pointing along vertex normals. These are direction guides, not bones or geometry."),
                 );
             ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
+            ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
+            ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
             let bones_ready = !self.skeleton_overlay_lines.is_empty();
             ui.add_enabled(
                 bones_ready,

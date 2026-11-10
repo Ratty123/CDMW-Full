@@ -1785,6 +1785,8 @@ D3D11_TEXTURE_ADDRESS_MODE_LABELS: Dict[str, str] = {
 class ModelPreviewRenderSettings:
     use_textures_by_default: bool = False
     high_quality_by_default: bool = True
+    preview_shadows: bool = True
+    preview_ambient_occlusion: bool = True
     alignment_use_final_output_preview: bool = False
     visible_texture_mode: str = "mesh_base_first"
     render_diagnostic_mode: str = "lit"

@@ -21,6 +21,8 @@ def render_tuning_payloads(
         getattr(settings, "camera_pan_modifier", None),
     )
     quality = {
+        "preview_shadows": bool(getattr(settings, "preview_shadows", True)),
+        "preview_ambient_occlusion": bool(getattr(settings, "preview_ambient_occlusion", True)),
         "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
         "d3d11_mip_lod_bias": float(getattr(settings, "d3d11_mip_lod_bias", -2.0)),
         "d3d11_background_color": str(getattr(settings, "d3d11_background_color", "") or ""),

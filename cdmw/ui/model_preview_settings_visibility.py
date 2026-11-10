@@ -48,20 +48,20 @@ DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
 
 # Archive Browser and embedded Mesh Editor previews share the resident camera
 # input contract. Archive Browser has no placement Gizmo, so its modal exposes
-# only camera input; renderer and texture actions stay on their owning surfaces.
+# camera input and lighting depth; texture actions stay on their owning surfaces.
 ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": (),
+    "Quality / Lighting": ("preview_shadows", "preview_ambient_occlusion"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": (),
 }
 
 # The shared dialog owns camera input and placement-Gizmo preferences. Material,
-# sampler, lighting, topology, and display controls stay on their resident
+# sampler, topology, and other display controls stay on their resident
 # .NET/Builder surfaces.
 DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": (),
+    "Quality / Lighting": ("preview_shadows", "preview_ambient_occlusion"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS,
 }
@@ -139,14 +139,16 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
             "reset_tool_pbd_cloth_preview": dialog.reset_tool_pbd_cloth_button,
         },
         "Quality / Lighting": {
-            field: (
+            "preview_shadows": dialog.preview_shadows_checkbox,
+            "preview_ambient_occlusion": dialog.preview_ambient_occlusion_checkbox,
+            **{field: (
                 dialog.force_nearest_no_mipmaps_checkbox
                 if field == "force_nearest_no_mipmaps"
                 else dialog.disable_lighting_checkbox
                 if field == "disable_lighting"
                 else sliders[field]
             )
-            for field in _QUALITY_LIGHTING_SETTING_FIELDS
+            for field in _QUALITY_LIGHTING_SETTING_FIELDS},
         },
         "Controls": {
             "orbit_sensitivity": sliders["orbit_sensitivity"],
@@ -197,6 +199,8 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog._preview_target == dialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE
     )
     dotnet = mesh_editor_dotnet or archive_dotnet
+    dialog._set_form_field_visible(dialog.preview_shadows_checkbox, dotnet)
+    dialog._set_form_field_visible(dialog.preview_ambient_occlusion_checkbox, dotnet)
     legacy = False
     supported_by_tab = supported_preview_settings_by_tab(dialog)
     diagnostics_index = dialog.tabs.indexOf(dialog._diagnostics_tab)
@@ -265,10 +269,13 @@ def sync_renderer_specific_controls(dialog: object) -> None:
                 dialog._set_form_field_visible(widget, supported)
                 widget.setProperty("previewSettingKey", field)
                 if supported:
-                    tooltip = (
-                        f"Preview: {_DOTNET_SETTING_EFFECTS[field]}. "
-                        "Changes are sent live to the resident preview."
-                    )
+                    if field in {"preview_shadows", "preview_ambient_occlusion"}:
+                        tooltip = "Adds depth in Textured and Game Outdoor views."
+                    else:
+                        tooltip = (
+                            f"Preview: {_DOTNET_SETTING_EFFECTS[field]}. "
+                            "Changes are sent live to the resident preview."
+                        )
                     widget.setProperty("dotnetEffectTooltip", tooltip)
                     widget.setToolTip(tooltip)
     else:
