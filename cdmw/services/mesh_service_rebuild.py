@@ -799,6 +799,9 @@ class MeshRebuildServiceMixin:
             output_path=output_path,
             original_mesh=snapshot.base_mesh,
         )
+        if snapshot.asset_part_inclusion:
+            from cdmw.services.mesh_item_set_output import apply_part_inclusion
+            result = apply_part_inclusion(result, snapshot)
         override_entries = _service_call("_developer_override_report_entries",
             developer_override_reason,
             overridden_blockers,

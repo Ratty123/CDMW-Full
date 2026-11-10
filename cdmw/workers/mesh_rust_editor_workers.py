@@ -78,6 +78,7 @@ class MeshRustSessionPrepareWorker(QObject):
         theme: dict[str, object] | None = None,
         hair_start_mode: str = "",
         item_set_contexts: tuple = (),
+        edit_item_set: bool = False,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -96,6 +97,7 @@ class MeshRustSessionPrepareWorker(QObject):
         self.theme = dict(theme or {})
         self.hair_start_mode = hair_start_mode
         self.item_set_contexts = tuple(item_set_contexts)
+        self.edit_item_set = bool(edit_item_set)
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -137,6 +139,7 @@ class MeshRustSessionPrepareWorker(QObject):
                 progress=self._report_progress,
                 **({"hair_start_mode": self.hair_start_mode} if self.hair_start_mode else {}),
                 **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
+                **({"edit_item_set": True} if self.edit_item_set else {}),
             )
             if (
                 self._stop_event.is_set()

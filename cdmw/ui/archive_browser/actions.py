@@ -501,6 +501,10 @@ class ArchiveBrowserActionMixin:
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
             set_bridge = getattr(self, "archive_remote_bridge", None)
             if set_bridge is not None and set_bridge.item_set_contains(entry):
+                open_set_action = menu.addAction(menu_icons["mesh"], "Open set in Mesh Editor")
+                from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+                open_set_action.triggered.connect(lambda _checked=False, target=entry:
+                    QTimer.singleShot(0, lambda: prepare_item_set_for_editor(self.shell, target, edit_set=True)))
                 preview_file_action = menu.addAction("Preview only this file")
                 preview_file_action.triggered.connect(set_bridge.preview_only_current_file)
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")

@@ -2914,6 +2914,9 @@ impl LabApplication {
     fn cdmw_output_summary(&self) -> (&'static str, &'static str) {
         let policy = state_str(&self.cdmw_state, "output_policy").unwrap_or("exact_game_asset");
         let ready = state_bool(&self.cdmw_state, "output_destination_ready");
+        if self.cdmw_has_item_set() {
+            return ("Item set", "Item set · original game files");
+        }
         if self.cdmw_has_archive_refit() {
             return ("Archive Refit", "Archive Refit · original game files");
         }
@@ -2977,7 +2980,7 @@ impl LabApplication {
                 });
             }
             if ui
-                .add_enabled(!archive_refit && !replacement, Button::new(crate::localization::tr("Free Edit")).selected(free_edit))
+                .add_enabled(!archive_refit && !replacement && !self.cdmw_has_item_set(), Button::new(crate::localization::tr("Free Edit")).selected(free_edit))
                 .on_hover_text(crate::localization::tr("Allows adding and removing geometry. Choose a folder for a new OBJ package."))
                 .on_disabled_hover_text(crate::localization::tr("Archive Refit keeps each original game file. Finish this session, then open a separate mesh for Free Edit."))
                 .clicked()
@@ -3024,10 +3027,14 @@ impl LabApplication {
     }
 
     pub(super) fn cdmw_has_archive_refit(&self) -> bool {
-        self.cdmw_state
+        !self.cdmw_has_item_set() && self.cdmw_state
             .get("archive_refit_assets")
             .and_then(Value::as_array)
             .is_some_and(|assets| !assets.is_empty())
+    }
+
+    pub(super) fn cdmw_has_item_set(&self) -> bool {
+        self.cdmw_state["replacement"]["item_set"] == true
     }
 
     fn draw_cdmw_selection_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -4824,7 +4831,7 @@ impl LabApplication {
             });
             if busy && !self.cdmw_pending_request.as_ref().is_some_and(|request| request.origin == Some(CdmwRequestOrigin::WeaponPlacement)) {
                 ui.small(crate::localization::tr("Updating parts…"));
-            } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+            } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") && !self.cdmw_has_item_set() {
                 ui.add_enabled_ui(!busy, |ui| ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
                     self.draw_cdmw_output_policy(ui, actions, true)
                 })).inner
@@ -4841,9 +4848,51 @@ impl LabApplication {
                 let widths = cdmw_list_columns(ui, "Physics");
                 let headers = cdmw_list_header(ui, widths, "Part", "Physics");
                 let layer_visible = self.cdmw_layer_visible_submeshes();
+                let replacement = self.cdmw_state["replacement"].clone();
+                let set_parts = replacement["parts"].as_array().cloned().unwrap_or_default();
+                let groups = replacement["groups"].as_array().cloned().unwrap_or_default();
+                if let Some(files) = replacement["reference_only"].as_array().filter(|files| !files.is_empty()) {
+                    let names = files.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+                    ui.label(crate::localization::tr(format!("Session limit: these files are references with reduced detail: {names}")));
+                }
+                let mut parts = parts;
+                let group_for = |index: u32| set_parts.iter()
+                    .find(|part| part["index"].as_u64() == Some(u64::from(index)))
+                    .and_then(|part| groups.iter().position(|group| group["id"] == part["asset_id"]));
+                if replacement["item_set"] == true {
+                    parts.sort_by_key(|(index, _, _)| (group_for(*index), *index));
+                }
                 ui.add_enabled_ui(!busy && editing, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
+                    let mut previous_group = None;
                     for (index, name, material) in &parts {
+                        let group_index = group_for(*index);
+                        if group_index != previous_group {
+                            previous_group = group_index;
+                            if let Some(group) = group_index.and_then(|index| groups.get(index)) {
+                                let rows: Vec<_> = set_parts.iter().filter(|row| row["asset_id"] == group["id"]).collect();
+                                let indices: Vec<_> = rows.iter().filter_map(|row| row["index"].as_u64().map(|i| i as u32)).collect();
+                                let mut shown = indices.iter().all(|index| !self.cdmw_hidden_parts.contains(index));
+                                let mut included = rows.iter().all(|row| row["included"] != false);
+                                ui.horizontal(|ui| {
+                                    cdmw_list_cell(ui, widths[0] + widths[1] + ui.spacing().item_spacing.x, |ui| {
+                                        ui.strong(group["name"].as_str().unwrap_or_default());
+                                    });
+                                    cdmw_list_cell(ui, widths[2], |ui| {
+                                        if ui.checkbox(&mut shown, "").labelled_by(headers[0]).changed() {
+                                            actions.push(UiAction::SetPartVisibility { indices: indices.clone(), visible: shown });
+                                        }
+                                    });
+                                    cdmw_list_cell(ui, widths[3], |ui| {
+                                        if ui.checkbox(&mut included, "").labelled_by(headers[1]).changed() {
+                                            actions.push(UiAction::CdmwCommand { command: "replacement_include",
+                                                arguments: json!({"part_ids": rows.iter().map(|row| &row["id"]).collect::<Vec<_>>(), "included": included}),
+                                                label: "Change output inclusion" });
+                                        }
+                                    });
+                                });
+                            }
+                        }
                         ui.push_id(index, |ui| ui.horizontal(|ui| {
                             let in_visible_layer = layer_visible.as_ref().is_none_or(|visible| visible.contains(index));
                             let mut shown = !self.cdmw_hidden_parts.contains(index);
@@ -4895,7 +4944,7 @@ impl LabApplication {
                                     && let Some(binding) = replacement.get("parts").and_then(Value::as_array)
                                         .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(u64::from(*index)))) {
                                     let mut included = binding["included"].as_bool().unwrap_or(true);
-                                    let enabled = replacement["available"].as_bool().unwrap_or(false)
+                                    let enabled = (replacement["available"].as_bool().unwrap_or(false) || replacement["item_set"] == true)
                                         && replacement["comparison"].as_str().unwrap_or("edit") == "edit";
                                     ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
                                         if ui.add_enabled(enabled, egui::Checkbox::without_text(&mut included)).labelled_by(headers[1])
@@ -4927,7 +4976,8 @@ impl LabApplication {
         if !state_bool(&self.cdmw_state, "authoring_enabled") {
             return Some("This session is read-only");
         }
-        if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+        if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild")
+            && self.cdmw_state["replacement"]["item_set"] != true {
             if action == "delete" {
                 if self.cdmw_has_archive_refit()
                     || state_str(&self.cdmw_state, "output_policy") == Some("replacement_game_asset") {

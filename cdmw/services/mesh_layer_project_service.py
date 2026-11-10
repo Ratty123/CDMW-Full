@@ -195,7 +195,16 @@ def save_mesh_layer_project(
         if vertex_count is None or face_count is None:
             raise RuntimeError("Native Mesh Editor snapshot counts were missing")
         metadata: dict[str, object] = {}
-        if replacement_state is not None:
+        from cdmw.services.mesh_asset_context import is_item_set, ASSET_ATTRIBUTE, ORIGIN_ATTRIBUTE
+        if is_item_set(archive_refit_context):
+            attrs = dict(summary_item.get("extra_attrs") or {})
+            asset = next((item for item in archive_refit_context.assets if item.asset_id == attrs.get(ASSET_ATTRIBUTE)), None)
+            origin = next((part for i, part in enumerate(asset.source.mesh.submeshes)
+                           if asset.source_part_id(i) == attrs.get(ORIGIN_ATTRIBUTE)), None) if asset else None
+            if origin is None:
+                raise RuntimeError("Item set draft snapshot lost its source identity")
+            metadata = _submesh_snapshot_metadata(origin)
+        elif replacement_state is not None:
             # Native summaries carry live geometry/material identity, but omit
             # the immutable PAC record layout. Match that metadata by part ID,
             # since native and Python part orders need not agree.
@@ -392,6 +401,11 @@ def load_mesh_layer_project(
             ):
                 raise RuntimeError("native snapshot restore failed")
             refit_context = load_archive_refit_context(payload.get("archive_refit"), target.parent)
+            from cdmw.services.mesh_asset_context import is_item_set, item_set_bindings, PART_ATTRIBUTE
+            if is_item_set(refit_context):
+                item_set_bindings(restore_target, refit_context)
+                if not refit_context.excluded_part_ids.issubset({getattr(part, PART_ATTRIBUTE) for part in restore_target.submeshes}):
+                    raise ValueError("Item set draft inclusion lost its part identity")
             from cdmw.services.mesh_replacement_draft import load_replacement_state
             from cdmw.domain.mesh.replacement import bound_part_indices
             from cdmw.domain.mesh.hair import hair_state_from_payload

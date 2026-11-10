@@ -143,7 +143,8 @@ def test_switch_uses_captured_context_and_existing_close_confirmation(tmp_path):
     app.processEvents()
 
 
-def test_set_context_survives_queued_editor_close(tmp_path):
+@pytest.mark.parametrize("edit_set", [False, True])
+def test_set_context_survives_queued_editor_close(tmp_path, edit_set):
     from tests.test_mesh_rust_editor_selection import _tab
     from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
     app = _app()
@@ -151,13 +152,15 @@ def test_set_context_survives_queued_editor_close(tmp_path):
     entry = ArchiveCatalogueService.compatibility_entry(_dto(1, "piece.pac"))
     context = ArchiveWorkflowDependencyContext(entry, (entry,), {entry.path: entry}, {entry.basename: (entry,)}, True)
     with patch.object(tab, "close_standalone_session", return_value=False):
-        tab.open_archive_session(entry, archive_dependencies=context, item_set_contexts=(context,))
+        tab.open_archive_session(entry, archive_dependencies=context, item_set_contexts=(context,), edit_item_set=edit_set)
     assert tab.archive_session_open_pending["item_set_contexts"] == (context,)
     with patch.object(tab, "_start_archive_session_load_when_indexes_ready"):
         tab._resume_queued_archive_session_open()
     assert tab.item_set_contexts == (context,)
+    assert tab.edit_item_set is edit_set
     tab.close_standalone_session()
     assert tab.item_set_contexts == ()
+    assert not tab.edit_item_set
     tab.deleteLater()
     app.processEvents()
 
@@ -199,10 +202,40 @@ def test_set_editor_does_not_borrow_combined_browser_material_owners(tmp_path):
     entry = _entry(tmp_path, "upper.pac")
     shell = _LaunchHarness(entry, _package(tmp_path / "combined", entry, textured=True))
     context = ArchiveWorkflowDependencyContext(entry, (entry,), {entry.path: entry}, {entry.basename: (entry,)}, True)
-    shell._open_archive_mesh_editor_with_dependencies(entry, context, item_set_contexts=(context,))
+    shell._open_archive_mesh_editor_with_dependencies(entry, context, item_set_contexts=(context,), edit_item_set=True)
     _, arguments = shell.opened[0]
     assert arguments["item_set_contexts"] == (context,)
+    assert arguments["edit_item_set"] is True
     assert arguments["archive_dependencies"] is context
     assert arguments["material_package_path"] == ""
     assert arguments["material_preview_model"] is None
     assert not arguments["material_context_verified_for_rust"]
+
+
+def test_set_button_opens_captured_members_and_shutdown_discards_preparation():
+    from cdmw.ui.archive_browser.item_set_components import ItemSetComponentsWidget
+    from cdmw.ui.mesh_editor.item_set_preparation import open_current_item_set
+    app = _app()
+    service, tab = _Service(), QObject()
+    upper, lower = _dto(1, "upper.pac"), _dto(2, "lower.pac")
+    opened = []
+    shell = SimpleNamespace(mesh_editor_tab=tab, _shutting_down=False,
+        archive=SimpleNamespace(archive_catalogue_service=service,
+            archive_remote_bridge=SimpleNamespace(item_set_members=(upper, lower), item_set_contains=lambda entry: True)),
+        set_status_message=lambda *_args, **_kwargs: None,
+        _open_archive_mesh_editor_with_dependencies=lambda *args, **kwargs: opened.append((args, kwargs)))
+    widget = ItemSetComponentsWidget()
+    widget.editSetRequested.connect(lambda: open_current_item_set(shell))
+    widget.edit_set_button.click()
+    _complete(service, 1, upper)
+    _complete(service, 3, lower)
+    assert len(opened) == 1 and opened[0][1]["edit_item_set"] is True
+    assert len(opened[0][1]["item_set_contexts"]) == 2
+    widget.edit_set_button.click()
+    shell._shutting_down = True
+    _complete(service, 5, upper)
+    _complete(service, 7, lower)
+    assert len(opened) == 1
+    widget.deleteLater()
+    tab.deleteLater()
+    app.processEvents()

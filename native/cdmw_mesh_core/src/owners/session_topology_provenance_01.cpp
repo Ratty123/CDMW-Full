@@ -28,6 +28,10 @@ bool mesh_editor_is_rebuildable_topology_action(const std::string& action) {
         || action == "remove_doubles";
 }
 
+bool mesh_editor_is_item_set_partition(const std::string& action) {
+    return action == "separate" || action == "split" || action == "duplicate" || action == "merge";
+}
+
 // Kahan-compensated sum. The Python owner normalizes with math.fsum, and a naive
 // accumulation here would disagree with it on the exactness check below.
 double mesh_editor_compensated_sum(const std::vector<double>& values) {
@@ -388,13 +392,16 @@ void mesh_editor_prepare_topology_provenance(
             prepared_ms += result.topology_provenance_ms;
             continue;
         }
-        if (result.append_submesh) {
+        const auto previous = native_session.find(result.append_submesh && result.source_index >= 0
+            ? result.source_index : result.index);
+        const bool item_set = previous != native_session.end()
+            && previous->second.extra_attrs.get("_cdmw_mesh_asset_id") != nullptr;
+        if (result.append_submesh && !item_set) {
             // An appended part is a new submesh with no original of its own.
             result.topology_rebuild_valid = false;
             result.topology_blocker = MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE;
             continue;
         }
-        const auto previous = native_session.find(result.index);
         if (previous == native_session.end()) {
             result.topology_rebuild_valid = false;
             result.topology_blocker = MESH_TOPOLOGY_BLOCKER_PROVENANCE_REQUIRED;
@@ -402,7 +409,8 @@ void mesh_editor_prepare_topology_provenance(
         }
         result.topology_original_vertex_count = previous->second.topology_original_vertex_count;
         result.topology_original_face_count = previous->second.topology_original_face_count;
-        if (!mesh_editor_is_rebuildable_topology_action(result.action)) {
+        const bool item_set_partition = item_set && mesh_editor_is_item_set_partition(result.action);
+        if (!mesh_editor_is_rebuildable_topology_action(result.action) && !item_set_partition) {
             result.topology_rebuild_valid = false;
             result.topology_blocker = MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE;
             continue;

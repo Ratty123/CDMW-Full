@@ -275,6 +275,13 @@ set mode and reloads that file alone. Clearing/changing the scope restores any
 previous manual component selection. Cancellation, workspace destruction and
 shutdown reject late set-discovery replies.
 
+**Open set in Mesh Editor**, in Set components or the file menu, captures every
+worn file's own dependencies and opens one editable set. The editor groups parts
+by source file, with independent View and Include controls. Its exact output keeps
+each changed piece in its original PAC; topology edits and paste cannot cross file
+owners. Files that exceed the editor's session limits remain named, reduced-detail
+references. **Open in Mesh Editor** retains the selected-file editing workflow.
+
 ## Scanner failures and recovery
 
 The older application scanner, shadow mode and **Use Legacy This Session** action

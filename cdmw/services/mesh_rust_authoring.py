@@ -6653,6 +6653,10 @@ def _rust_skin_weight_capability(
     session: object, *, cache: RustMeshStateCache | None = None,
 ) -> _RustSkinWeightCapability:
     """Return the exact writer capability from source layout and current rows."""
+    from cdmw.services.mesh_asset_context import is_item_set
+    if is_item_set(getattr(session, "archive_refit_context", None)):
+        from cdmw.services.mesh_item_set_weights import item_set_weight_capability
+        return item_set_weight_capability(session)
 
     if str(getattr(session, "mesh_format", "") or "").strip().lower() != "pac":
         return _RustSkinWeightCapability(False, "Skin-weight editing is currently proven only for PAC LOD 0.")
@@ -7637,6 +7641,8 @@ class RustMeshAuthoringSession:
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()
     item_set_contexts: tuple = ()
+    bounded_item_set_references: dict = field(default_factory=dict, repr=False)
+    prepared_item_set_materials: object | None = field(default=None, repr=False)
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -7664,6 +7670,7 @@ class RustMeshAuthoringSession:
         stop_event: threading.Event | None = None,
         hair_start_mode: str = "",
         item_set_contexts: tuple = (),
+        edit_item_set: bool = False,
         progress: Callable[[str], None] | None = None,
     ) -> "RustMeshAuthoringSession":
         def report(message: str) -> None:
@@ -7705,6 +7712,7 @@ class RustMeshAuthoringSession:
             raise
         try:
             report("Preparing mesh materials...")
+            bounded_item_set_references, prepared_item_set_materials = {}, None
             shadow_mesh.active_lod_index = authoritative_view.lod_index
             if geometry_layer_seed.get("archive_refit_context") is None:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
@@ -7713,6 +7721,21 @@ class RustMeshAuthoringSession:
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
+            (
+                authoritative_morph_root,
+                morph_profile_base_fingerprint,
+            ) = _copy_shadow_morph_profiles(authoritative_service.settings, session_root)
+            if edit_item_set and geometry_layer_seed.get("archive_refit_context") is None:
+                from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
+                shadow_mesh, set_context, item_set_contexts, bounded_item_set_references, prepared_item_set_materials = prepare_editable_item_set(
+                    authoritative_service, authoritative_session_id, shadow_mesh,
+                    tuple(item_set_contexts), stop_event, report, session_root, root_identity)
+                geometry_layer_seed["archive_refit_context"] = set_context
+                geometry_layer_seed["layers"] = [{"layer_id": "base", "name": "Base mesh", "base": True,
+                    "visible": True, "submesh_indices": tuple(range(len(shadow_mesh.submeshes)))}]
+                geometry_layer_seed["active_layer_id"] = "base"
+                geometry_layer_seed["copy_counter"] = 0
+                neutral_appearance = None
             replacement_state = authoritative_session.replacement_state
             if replacement_state is not None and replacement_state.neutral_appearance is not None:
                 neutral_appearance = replacement_state.neutral_appearance
@@ -7725,6 +7748,14 @@ class RustMeshAuthoringSession:
             refit_context = geometry_layer_seed.get("archive_refit_context")
             if refit_context is not None:
                 from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
+                from cdmw.services.mesh_asset_context import is_item_set
+                if is_item_set(refit_context):
+                    neutral_appearance = None
+                    if item_set_contexts:
+                        editable = {asset.entry.identity for asset in refit_context.assets}
+                        references = tuple(context for context in item_set_contexts[1:]
+                                           if context.selected_entry.identity not in editable)
+                        item_set_contexts = (item_set_contexts[0], *references) if references else ()
                 if not refit_context.neutral_coordinates:
                     shadow_mesh = transform_archive_refit_mesh(shadow_mesh, refit_context, to_neutral=True)
                     geometry_layer_seed["archive_refit_context"] = replace(refit_context, neutral_coordinates=True)
@@ -7735,13 +7766,6 @@ class RustMeshAuthoringSession:
                     "Mesh session preparation was cancelled"
                 )
             _detach_shadow_layer_project(shadow_mesh, session_root)
-            (
-                authoritative_morph_root,
-                morph_profile_base_fingerprint,
-            ) = _copy_shadow_morph_profiles(
-                authoritative_service.settings,
-                session_root,
-            )
             session_id = f"rust-mesh:{uuid4()}"
             shadow_service = MeshService(
                 settings=_ShadowSettings(session_root / "settings.ini"),
@@ -7813,6 +7837,8 @@ class RustMeshAuthoringSession:
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
                 item_set_contexts=tuple(item_set_contexts),
+                bounded_item_set_references=bounded_item_set_references,
+                prepared_item_set_materials=prepared_item_set_materials,
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )
             if authoritative_morph_root is not None:
@@ -8051,6 +8077,10 @@ class RustMeshAuthoringSession:
         action: str,
         params: Mapping[str, object],
     ) -> None:
+        from cdmw.services.mesh_asset_context import is_item_set
+        if (is_item_set(self.shadow_service._session(self.shadow_session_id).archive_refit_context)
+                and action in {"separate", "split", "merge", "duplicate", "delete"}):
+            return  # The service checks file ownership; the exact writer checks lineage.
         view = self.shadow_service.session_view(self.shadow_session_id)
         capability_key = (
             "uv_auto_unwrap"
@@ -8210,6 +8240,10 @@ class RustMeshAuthoringSession:
             allowed=allowed,
             command=command,
         )
+        from cdmw.services.mesh_asset_context import is_item_set
+        if is_item_set(self.shadow_service._session(self.shadow_session_id).archive_refit_context):
+            from cdmw.services.mesh_item_set_weights import edit_item_set_weights
+            return edit_item_set_weights(self, command, args, selection)
         delta = (
             _finite_command_float(args.get("delta"), "rig weight delta")
             if command == "rig_adjust_weight"
@@ -8451,20 +8485,24 @@ class RustMeshAuthoringSession:
         if progress is not None:
             progress("Preparing material textures for Mesh Editor...")
         with material_mesh as prepared_material_mesh:
-            textures = _mesh_texture_payloads(
-                self.root,
-                prepared_material_mesh,
-                expected_root_identity=self.root_identity,
-                stop_event=stop_event,
-                synthesis_state=material_synthesis,
-                material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
-            )
+            if self.prepared_item_set_materials is not None:
+                textures, material_presentations, material_synthesis = self.prepared_item_set_materials
+                self.prepared_item_set_materials = None
+            else:
+                textures = _mesh_texture_payloads(
+                    self.root,
+                    prepared_material_mesh,
+                    expected_root_identity=self.root_identity,
+                    stop_event=stop_event,
+                    synthesis_state=material_synthesis,
+                    material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
+                )
+                material_presentations = _mesh_material_presentations(
+                    prepared_material_mesh,
+                    generated_overrides=material_synthesis.presentation_overrides,
+                )
             if prepared_material_mesh is not mesh:
                 textures = retain_replacement_material_textures(self, mesh, prepared_material_mesh, textures, stop_event)
-            material_presentations = _mesh_material_presentations(
-                prepared_material_mesh,
-                generated_overrides=material_synthesis.presentation_overrides,
-            )
             self.material_synthesis_budget_parts = (
                 len(material_synthesis.budget_skipped),
                 sum(
@@ -8781,9 +8819,14 @@ class RustMeshAuthoringSession:
                         bone["index"], bone["position"],
                     ))
             with shadow_session.export_lock:
-                state["rig_influence"] = cached_selected_bone_influence(
-                    shadow_session, selected_bone_index, weight_edit_capability.palette, self.state_cache,
-                )
+                from cdmw.services.mesh_asset_context import is_item_set
+                if is_item_set(shadow_session.archive_refit_context):
+                    from cdmw.services.mesh_item_set_weights import item_set_weight_display
+                    state["rig_influence"] = item_set_weight_display(shadow_session, state["skeleton"], selected_bone_index)
+                else:
+                    state["rig_influence"] = cached_selected_bone_influence(
+                        shadow_session, selected_bone_index, weight_edit_capability.palette, self.state_cache,
+                    )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             state["skeleton"] = {
                 "available": False,
@@ -9470,7 +9513,12 @@ class RustMeshAuthoringSession:
             raise RustMeshValidationError(
                 "Finish or cancel neutral face editing before loading a different source mesh."
             )
-        if shadow_session.archive_refit_context is not None and command in {
+        from cdmw.services.mesh_asset_context import is_item_set
+        if is_item_set(shadow_session.archive_refit_context) and command in {"import_editable_package", "refit_load_mesh"}:
+            raise RustMeshValidationError("Open one piece separately before loading a Refit source"
+                                          if command == "refit_load_mesh" else
+                                          "Open one piece separately before importing a replacement")
+        if shadow_session.archive_refit_context is not None and not is_item_set(shadow_session.archive_refit_context) and command in {
             "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
         }:
             raise RustMeshValidationError("Archive Refit preserves each source Part and topology; finish this refit before changing topology")
@@ -9866,10 +9914,16 @@ class RustMeshAuthoringSession:
         if context is not None and context.neutral_coordinates:
             from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
             candidate = transform_archive_refit_mesh(mesh, context, to_neutral=False)
-            source_lods = [
-                [part for asset in context.assets for part in asset.source.mesh.submeshes],
-                *_mesh_lods(context.assets[0].source.mesh)[1:],
-            ]
+            from cdmw.services.mesh_asset_context import is_item_set, ORIGIN_ATTRIBUTE
+            if is_item_set(context):
+                sources = {asset.source_part_id(i): part for asset in context.assets
+                           for i, part in enumerate(asset.source.mesh.submeshes)}
+                source_lods = [[sources[getattr(part, ORIGIN_ATTRIBUTE)] for part in candidate.submeshes]]
+            else:
+                source_lods = [
+                    [part for asset in context.assets for part in asset.source.mesh.submeshes],
+                    *_mesh_lods(context.assets[0].source.mesh)[1:],
+                ]
         elif context is not None or self.neutral_appearance is None or self.neutral_source_mesh is None:
             return mesh
         else:

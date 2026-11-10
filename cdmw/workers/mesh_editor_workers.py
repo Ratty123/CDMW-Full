@@ -544,6 +544,12 @@ class MeshDirectOutputWorker(QObject):
                 if components[0][0].identity != self.entry.identity:
                     raise RuntimeError("Archive Refit output target no longer matches the loaded source")
             body = self._fit_body_flags(snapshot, components)
+            from cdmw.services.mesh_asset_context import is_item_set
+            editing_set = is_item_set(snapshot.archive_refit_context)
+            if editing_set:
+                from cdmw.services.mesh_item_set_editing import item_set_omitted_assets
+                omitted = item_set_omitted_assets(snapshot)
+                body = tuple(entry.identity in omitted for entry, _component in components)
             omitted_paths = [entry.path for (entry, _component), omit in zip(components, body) if omit]
             requests = []
             additions = []
@@ -559,6 +565,8 @@ class MeshDirectOutputWorker(QObject):
                 if not index:
                     report = component_report
                 if body[index]:
+                    continue
+                if editing_set and rebuilt.data == component.original_data:
                     continue
                 if getattr(component, "replacement_state", None) is not None:
                     from cdmw.services.mesh_replacement_import import archive_entry, archive_location
@@ -621,6 +629,8 @@ class MeshDirectOutputWorker(QObject):
                         requests.append(ArchivePatchRequest(inherited, data))
                     included.add(normalize(inherited.path))
             if not requests and not additions:
+                if editing_set:
+                    raise ValueError("The included item set files have no changes to write")
                 raise ValueError("Only the body is left to write. Turn on Include the body to build it.")
             layers = self._layer_visibility(requests, additions) if self.keep_layers else None
             if self.stop_event.is_set():

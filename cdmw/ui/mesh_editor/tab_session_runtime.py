@@ -66,6 +66,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_source_identity: object | None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
         item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
+        edit_item_set: bool = False,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> None:
@@ -101,6 +102,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "material_source_identity": material_source_identity,
             "archive_dependencies": archive_dependencies,
             "item_set_contexts": item_set_contexts,
+            "edit_item_set": bool(edit_item_set),
             "prepared_result": prepared_result,
             "draft_request": draft_request,
         }
@@ -151,6 +153,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_source_identity: object | None = None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
         item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
+        edit_item_set: bool = False,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> int | None:
@@ -211,6 +214,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 material_source_identity=material_source_identity,
                 archive_dependencies=archive_dependencies,
                 item_set_contexts=item_set_contexts,
+                edit_item_set=edit_item_set,
                 prepared_result=prepared_result,
                 draft_request=draft_request,
             )
@@ -235,6 +239,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "resume_manifest_path": resume_path,
             "archive_dependencies": archive_dependencies,
             "item_set_contexts": item_set_contexts,
+            "edit_item_set": bool(edit_item_set),
             "material_companion_entry": copy.deepcopy(material_companion_entry),
             "material_package_path": material_package_path,
             "draft_request": draft_request,
@@ -242,6 +247,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.archive_session_load_entry = entry
         self.archive_session_dependencies = archive_dependencies
         self.item_set_contexts = item_set_contexts
+        self.edit_item_set = bool(edit_item_set)
         self.archive_session_load_material_model = (
             material_preview_model
             if material_preview_model is not None
@@ -741,6 +747,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if preparation is not None:
             preparation.cancel()
         self.item_set_contexts = ()
+        self.edit_item_set = False
         pending_open = getattr(self, "archive_session_open_pending", None)
         pending_lease = (
             pending_open.get("material_package_lease")

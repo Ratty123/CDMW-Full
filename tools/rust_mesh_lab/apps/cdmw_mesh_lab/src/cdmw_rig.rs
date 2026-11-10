@@ -652,7 +652,12 @@ impl LabApplication {
             format!("Edit selection: {count} vertices")
         }));
         if weight_edit_enabled {
-            ui.small(crate::localization::tr("Weight editing ready")).on_hover_text(crate::localization::tr(format!("{palette_size} PAC palette slots mapped to {} rig bones. Weight edits apply only to the explicit vertex selection.", bones.len())));
+            let detail = if state_bool(&weight_capability, "per_asset") {
+                crate::localization::tr("Each source file uses its own PAC bone palette. Weight edits apply only to the explicit vertex selection.")
+            } else {
+                crate::localization::tr(format!("{palette_size} PAC palette slots mapped to {} rig bones. Weight edits apply only to the explicit vertex selection.", bones.len()))
+            };
+            ui.small(crate::localization::tr("Weight editing ready")).on_hover_text(detail);
         } else {
             ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(weight_edit_reason));
         }

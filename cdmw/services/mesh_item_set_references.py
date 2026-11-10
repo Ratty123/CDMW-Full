@@ -14,6 +14,8 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
     if len(contexts) > 33:
         raise ValueError("A set preview supports at most 32 additional model files.")
     source = session.authoritative_service._session(session.authoritative_session_id)
+    from cdmw.services.mesh_asset_context import is_item_set
+    editing_set = is_item_set(session.shadow_service._session(session.shadow_session_id).archive_refit_context)
     selected = contexts[0].selected_entry
     if (str(source.base_mesh.path).casefold() != selected.path.casefold()
             or (selected.prepared_sha256 and selected.prepared_sha256.casefold()
@@ -26,13 +28,17 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
         entry = context.selected_entry
         if progress is not None:
             progress("Preparing reference meshes...")
-        prepared = prepare_archive_refit_source(
-            {"_archive_entry": entry, "_archive_dependencies": context}, stop_event)
+        bounded = getattr(session, "bounded_item_set_references", {}).get(entry.identity)
+        prepared = ({} if bounded is not None else prepare_archive_refit_source(
+            {"_archive_entry": entry, "_archive_dependencies": context}, stop_event))
         try:
-            mesh = prepared["_archive_snapshot"].mesh
+            mesh = bounded if bounded is not None else prepared["_archive_snapshot"].mesh
             appearance = prepared.get("_archive_neutral_appearance")
             if appearance is not None:
                 mesh = appearance.to_neutral(mesh)
+            if editing_set and bounded is None:
+                from cdmw.services.mesh_item_set_budget import _reference_mesh
+                mesh = _reference_mesh(mesh)
             document = authoring._atomic_write_payload(
                 session.root, f"reference-{index:02d}.bin",
                 authoring.PreparedMeshDocument(authoring.encode_mesh_document(
@@ -43,7 +49,7 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
                 expected_root_identity=session.root_identity,
             )
             synthesis = authoring._RustMaterialSynthesisState()
-            textures = authoring._mesh_texture_payloads(
+            textures = [] if editing_set else authoring._mesh_texture_payloads(
                 session.root, mesh, expected_root_identity=session.root_identity,
                 stop_event=stop_event, synthesis_state=synthesis,
             )
@@ -57,4 +63,5 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
             # DDS files are owned copies by now; release the temporary cache lease.
             prepared.clear()
         session._raise_if_cancelled(stop_event)
+    getattr(session, "bounded_item_set_references", {}).clear()
     return rows

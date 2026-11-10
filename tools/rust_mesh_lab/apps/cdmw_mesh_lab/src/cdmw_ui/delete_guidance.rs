@@ -34,6 +34,7 @@ impl LabApplication {
                 if state_bool(&self.cdmw_state, "authoring_enabled")
                     && !self.cdmw_busy()
                     && !self.cdmw_has_archive_refit()
+                    && !self.cdmw_has_item_set()
                     && state_str(&self.cdmw_state, "output_policy") == Some("exact_game_asset")
                     && ui.button(crate::localization::tr("Choose Free Edit...")).clicked()
                 {

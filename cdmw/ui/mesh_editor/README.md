@@ -469,6 +469,30 @@ checkboxes affect display only. **Switch editable piece** lists the set's files
 and uses the existing close/reopen confirmation, including unsaved edits.
 Selection, editing, drafts and output still belong to the selected PAC.
 
+**Open set in Mesh Editor** instead opens the worn pieces together for editing.
+The Parts list groups them by source file. **View** changes display; **Include**
+controls Build Mod output, independently, for a part or a complete file. Transform,
+sculpt, smooth, weight and normal edits can span files. Weight commands and their
+colours resolve each file's own bone palette. Topology changes, including Loop Cut,
+split, merge and Geometry Layers paste, must stay inside one source file.
+
+Each asset retains its captured dependencies, original PAC bytes and stable part
+identities. Splits, deletions and reordered parts cannot redirect another file's
+output. Build Mod rebuilds each included changed asset through its own exact writer;
+unchanged files are omitted. Removed or excluded sections retain the existing
+hidden-section representation. Deleting all geometry from a file, changing its rig,
+or pasting across file owners is refused. Turn off a file's Include checkbox to
+omit it. Hair Tools and replacement import still require opening one PAC separately.
+
+Set drafts retain per-file source hashes, source rig metadata, part ownership and
+Include choices; their identity is the sorted list of source hashes. Existing
+single-PAC and Morph & Refit drafts retain their formats. Loading an oversized set
+keeps the selected file and the greatest number of other files that fit the measured
+512 MiB geometry/texture and 768 MiB session limits, reserving the manifest's bounded
+space. The remaining files are named as references with reduced geometry and no
+textures. If the selected file and those references cannot fit, opening is refused.
+These are source and owned-fixture checks; set output has not been checked in game.
+
 Each file gets its own prepared dependency snapshot before launch. The Rust
 preparation worker loads reference geometry and materials with the same bounded
 source loader as Archive Refit, then copies immutable payloads into the owned

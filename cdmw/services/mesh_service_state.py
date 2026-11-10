@@ -186,6 +186,8 @@ class MeshExportSnapshot:
     archive_refit_context: object | None = None
     replacement_state: MeshReplacementState | None = None
     hair_state: HairAuthoringState | None = None
+    # Per-source PAC sections, interpreted only after validated exact geometry.
+    asset_part_inclusion: tuple[bool, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +262,7 @@ class _MeshEditSession:
     geometry_layer_revision: int = 0
     morph_session_revision: int = 0
     native_clipboard_ready: bool = False
+    item_set_clipboard_assets: frozenset[str] = frozenset()
     mesh_layer_project_path: Path | None = None
     mesh_layer_workspace_manifest_path: Path | None = None
     mesh_layer_workspace_mode: str = ""

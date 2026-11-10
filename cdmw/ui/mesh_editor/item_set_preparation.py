@@ -23,6 +23,7 @@ class ItemSetEditorPreparation(QObject):
         self._generation = 0
         self._members: tuple[ArchiveEntryDto, ...] = ()
         self._contexts: list[ArchiveWorkflowDependencyContext] = []
+        self.edit_set = False
         self._provider = ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False)
         self._provider.ready.connect(self._prepared)
         self._provider.failed.connect(self._failed)
@@ -89,7 +90,7 @@ class ItemSetEditorPreparation(QObject):
             self.failed.emit("The archive catalogue changed while preparing the item set.")
 
 
-def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry) -> bool:
+def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry, *, edit_set: bool = False) -> bool:
     """Capture browser membership before any selection or catalogue can change."""
     bridge = getattr(shell.archive, "archive_remote_bridge", None)
     contains = getattr(bridge, "item_set_contains", None)
@@ -103,17 +104,19 @@ def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry) -> bool:
     if preparation is None:
         preparation = ItemSetEditorPreparation(shell.archive.archive_catalogue_service, tab)
         tab.item_set_preparation = preparation
-        preparation.ready.connect(lambda contexts: open_prepared_item_piece(shell, contexts))
+        preparation.ready.connect(lambda contexts: open_prepared_item_piece(shell, contexts, edit_set=preparation.edit_set))
         preparation.failed.connect(lambda message: shell.set_status_message(message, error=True))
+    preparation.edit_set = bool(edit_set)
     preparation.start(entry, tuple(bridge.item_set_members))
     return True
 
 
-def open_prepared_item_piece(shell: object, contexts: tuple) -> None:
+def open_prepared_item_piece(shell: object, contexts: tuple, *, edit_set: bool = False) -> None:
     if not contexts or getattr(shell, "_shutting_down", False):
         return
     shell._open_archive_mesh_editor_with_dependencies(
         contexts[0].selected_entry, contexts[0], item_set_contexts=contexts,
+        **({"edit_item_set": True} if edit_set else {}),
     )
 
 
@@ -121,3 +124,10 @@ def switch_item_piece(shell: object, index: int) -> None:
     contexts = tuple(getattr(shell.mesh_editor_tab, "item_set_contexts", ()))
     if isinstance(index, int) and 0 < index < len(contexts):
         open_prepared_item_piece(shell, (contexts[index], *contexts[:index], *contexts[index + 1:]))
+
+
+def open_current_item_set(shell: object) -> None:
+    bridge = getattr(shell.archive, "archive_remote_bridge", None)
+    members = tuple(getattr(bridge, "item_set_members", ()))
+    if members:
+        prepare_item_set_for_editor(shell, ArchiveCatalogueService.compatibility_entry(members[0]), edit_set=True)

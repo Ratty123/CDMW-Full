@@ -659,6 +659,8 @@ class ArchivePreviewLayoutMixin:
         preview_with_components = QSplitter(Qt.Horizontal)
         self.archive_item_set_components = ItemSetComponentsWidget()
         self.archive_item_set_components.visibilityChanged.connect(self._archive_item_set_visibility_changed)
+        from cdmw.ui.mesh_editor.item_set_preparation import open_current_item_set
+        self.archive_item_set_components.editSetRequested.connect(lambda: open_current_item_set(self.shell))
         self.archive_item_set_components.highlightRequested.connect(
             self.archive_d3d11_preview_host.set_highlighted_source_submeshes
         )

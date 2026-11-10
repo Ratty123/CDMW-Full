@@ -881,6 +881,11 @@ class _MeshServiceSessionLayerCore(
                 raise RuntimeError(message or "native Mesh Editor copy failed")
             session.native_editor_selection_signature = _mesh_edit_selection_signature(effective_selection)
             session.native_clipboard_ready = True
+            from cdmw.services.mesh_asset_context import is_item_set
+            if is_item_set(session.archive_refit_context):
+                from cdmw.services.mesh_item_set_editing import selected_asset_ids
+                owners, _indices = selected_asset_ids(self.working_mesh(session_id), session.archive_refit_context, effective_selection)
+                session.item_set_clipboard_assets = frozenset(owners)
             return self._result(session, "copy", metrics=_native_editor_metrics(report))
 
     def paste_selection(self, session_id: str) -> MeshEditResult:
@@ -1573,6 +1578,13 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         mesh = session.working_mesh
+        from cdmw.services.mesh_asset_context import is_item_set, item_set_bindings
+        if is_item_set(session.archive_refit_context):
+            context = session.archive_refit_context
+            bindings = item_set_bindings(mesh, context)
+            if any(asset.part_indices != bindings[asset.asset_id] for asset in context.assets):
+                session.archive_refit_context = replace(context, assets=tuple(
+                    replace(asset, part_indices=bindings[asset.asset_id]) for asset in context.assets))
         if not clone:
             return mesh
         return _clone_mesh_for_service_native_snapshot(
@@ -1868,6 +1880,18 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         command_mode: str,
     ) -> MeshEditResult:
         service_started = time.perf_counter()
+        from cdmw.services.mesh_asset_context import is_item_set
+        asset_context_before = session.archive_refit_context
+        if is_item_set(session.archive_refit_context) and _command_may_change_topology(action, command, selection):
+            from cdmw.services.mesh_item_set_editing import guard_item_set_topology
+            from cdmw.services.mesh_asset_context import PART_ATTRIBUTE
+            mesh_before = self.working_mesh(session.session_id)
+            guard_item_set_topology(session, mesh_before, action, selection, command.params)
+            # Capture ownership before deletion/reordering can change an index.
+            session.edit_operations = tuple(
+                replace(row, metadata={**row.metadata, "asset_part_id": getattr(mesh_before.submeshes[row.submesh_index], PART_ATTRIBUTE)})
+                if "asset_part_id" not in row.metadata and 0 <= row.submesh_index < len(mesh_before.submeshes)
+                else row for row in mesh_edit_operations_from_dicts(session.edit_operations))
         geometry_layers_before = session.geometry_layers
         active_geometry_layer_before = session.active_geometry_layer_id
         geometry_layer_copy_counter_before = session.geometry_layer_copy_counter
@@ -1923,6 +1947,21 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         result = self._finish_geometry_command(execution)
         if result.ok and result.topology_changed:
             self._record_topology_edit_operations(session, action, command, result)
+            if is_item_set(session.archive_refit_context):
+                from cdmw.services.mesh_asset_context import PART_ATTRIBUTE, item_set_bindings
+                mesh = self.working_mesh(session.session_id)
+                item_set_bindings(mesh, session.archive_refit_context)
+                live_ids = {getattr(part, PART_ATTRIBUTE) for part in mesh.submeshes}
+                context = session.archive_refit_context
+                if not context.excluded_part_ids.issubset(live_ids):
+                    if session.undo_stack:
+                        session.undo_stack[-1].archive_refit_context = asset_context_before
+                        session.undo_stack[-1].restore_archive_refit_context = True
+                    session.archive_refit_context = replace(context, excluded_part_ids=context.excluded_part_ids & live_ids)
+                session.edit_operations = tuple(
+                    replace(row, metadata={**row.metadata, "asset_part_id": getattr(mesh.submeshes[row.submesh_index], PART_ATTRIBUTE)})
+                    if "asset_part_id" not in row.metadata and 0 <= row.submesh_index < len(mesh.submeshes)
+                    else row for row in mesh_edit_operations_from_dicts(session.edit_operations))
         if result.ok and result.topology_changed and topology_before is not None:
             after_count = (
                 len(result.submesh_counts)

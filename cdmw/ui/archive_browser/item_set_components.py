@@ -15,6 +15,7 @@ def _path_key(value: object) -> str:
 class ItemSetComponentsWidget(QWidget):
     visibilityChanged = Signal(object)
     highlightRequested = Signal(object)
+    editSetRequested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -39,6 +40,9 @@ class ItemSetComponentsWidget(QWidget):
         buttons.addWidget(self.show_all_button)
         buttons.addWidget(self.isolate_button)
         layout.addLayout(buttons)
+        self.edit_set_button = QPushButton("Open set in Mesh Editor")
+        self.edit_set_button.clicked.connect(self.editSetRequested.emit)
+        layout.addWidget(self.edit_set_button)
         self.tree.itemChanged.connect(self._item_changed)
         self.tree.currentItemChanged.connect(self._current_changed)
         self.show_all_button.clicked.connect(lambda: self.set_hidden_indices(()))
