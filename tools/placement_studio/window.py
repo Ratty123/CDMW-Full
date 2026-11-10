@@ -137,6 +137,49 @@ _DANGLING = QColor(235, 140, 120, 72)
 _CHILD = QColor(190, 170, 235, 72)
 
 
+#: Which tab builds each attribute that is created only when that tab is built. Reading one
+#: before then builds the tab (`PlacementStudioWindow.__getattr__`); state that loaders and
+#: other tabs write while a tab is closed is created up front by the `_init_*_state` methods
+#: instead. `tests/test_placement_studio_lazy_tabs.py` checks this list against the builders.
+_LAZY_TAB_NAMES = {
+    "animations": (
+        "_animation_page _animation_stack _animation_switch _clip_category_box _clip_facets "
+        "_clip_list _clip_load_button _clip_lod_box _clip_rig_box _clip_search "
+        "_timing_filter _timing_measure _timing_move _timing_move_all _timing_plot "
+        "_timing_status _timing_table"
+    ),
+    "edit": (
+        "_animation_editor_page _clip_edit_add_button _clip_edit_body "
+        "_clip_edit_export_button _clip_edit_reset_button _clip_edit_status "
+        "_clip_edit_target_button _clip_edit_target_label _clip_edit_title "
+        "_clip_edit_undo_button _edit_distance _edit_hold _edit_mirror _edit_playing_button "
+        "_edit_reverse _edit_speed _edit_trim_end _edit_trim_start _export_blender_button "
+        "_import_blender_button _join_add _join_blend _join_list _join_remove _key_timeline "
+        "_new_from_pose_button _new_length _pose_bone_box _pose_clear_bone _pose_keys "
+        "_pose_move _pose_remove_key _pose_smooth _pose_turn _reach_clear _reach_end_box "
+        "_reach_keep_angle _reach_keys _reach_move _reach_plant _reach_release "
+        "_reach_remove_key _reach_weight _splice_add _splice_list _splice_region "
+        "_splice_remove _splice_weight"
+    ),
+    "armour": "",
+    "mod": (
+        "_discard_change_button _mod_author_edit _mod_empty _mod_list _mod_name_edit _mod_page "
+        "_mod_version_edit _save_mod_button _save_result _save_to_dmm _save_to_folder "
+        "_start_over_button"
+    ),
+    "advanced": (
+        "_advanced_mode_buttons _advanced_page_box _advanced_tabs _behaviour_apply "
+        "_behaviour_badge _behaviour_disabled _behaviour_guide_button _behaviour_header "
+        "_behaviour_page _behaviour_pending _behaviour_reset _behaviour_rig _behaviour_scalers "
+        "_behaviour_section _behaviour_table _behaviour_value _behaviour_what _chain_detail "
+        "_chain_off _chain_reset _chain_slider _chain_softer _chain_stiffer _chain_table "
+        "_chain_value _chart_socket_box _chart_view _constraint_badge _constraint_guide_button "
+        "_constraint_header _constraint_pending _constraints_page _guide _retarget_box "
+        "_retarget_button _socket_clips_label _socket_clips_list"
+    ),
+}
+_LAZY_TAB_ATTRS = {name: key for key, names in _LAZY_TAB_NAMES.items() for name in names.split()}
+
 #: Re-exported: `window.py` is where these were, and tests and tabs import them from here.
 _let_header_shrink = let_header_shrink
 fit_popup = _fit_popup
@@ -329,22 +372,37 @@ class PlacementStudioWindow(
         self._view_footer.setContentsMargins(8, 4, 8, 0)
         self._lower = QTabWidget()
         self._lower.setDocumentMode(True)
+        # First, so every later listener on a tab change finds the page it is about built.
+        self._lower.currentChanged.connect(self._realise_current_tab)
+        # The strips under the view (Animations > Timing, Edit) follow the open tab.
+        self._lower.currentChanged.connect(lambda _index: self._sync_view_footer())
+        # What loaders and other tabs write to while a tab is still closed exists from the
+        # start; the rest of each tab is built when it is first opened (`_ensure_tab`).
+        self._init_clip_state()
+        self._init_timing_state()
+        self._init_animation_editor_state()
+        self._init_armour_state()
+        self._init_mod_state()
+        self._init_advanced_state()
         tabs = (
             (self._build_position_tab(), "Carry",
              "Where the weapon hangs, fine-tuning its attach point, and checking the fit."),
-            (self._build_animation_tab(), "Animations",
+            (self._lazy_tab("animations", self._build_animation_tab), "Animations",
              "Browse and play animations, replace a weapon's draws, and fix their timing."),
-            (self._build_animation_editor_tab(), "Edit",
+            (self._lazy_tab("edit", self._build_animation_editor_tab), "Edit",
              "Edit an animation or make a new one: pose bones, reach and plant hands and feet, "
              "retime, mirror, borrow body parts, join animations, or work in Blender."),
-            (self._build_armour_tab(), "Armour", "Dress the character, to check an item against real gear."),
-            (self._build_mod_tab(), "Your mod", "Every change, and saving them as a mod for DMM."),
-            (self._build_advanced_tab(mono), "Advanced",
+            (self._lazy_tab("armour", self._build_armour_tab), "Armour",
+             "Dress the character, to check an item against real gear."),
+            (self._lazy_tab("mod", self._build_mod_tab), "Your mod",
+             "Every change, and saving them as a mod for DMM."),
+            (self._lazy_tab("advanced", lambda: self._build_advanced_tab(mono)), "Advanced",
              "Attach points, Driven bones, Rig behaviour, action charts and file changes."),
         )
         for index, (widget, label, tooltip) in enumerate(tabs):
             self._lower.addTab(widget, label)
             self._lower.setTabToolTip(index, tooltip)
+        self._lazy_tabs_ready = True
         help_button = QToolButton()
         help_button.setObjectName("EditorToolButton")
         help_button.setText("?")
@@ -354,11 +412,9 @@ class PlacementStudioWindow(
         self._lower.setCornerWidget(help_button, Qt.TopRightCorner)
 
         # Both rig panels need a four-second archive walk, so they load when first opened
-        # rather than at startup, and re-target whenever the character changes.
-        self._init_rig_tabs(
-            {"constraints": self._constraints_page, "behaviour": self._behaviour_page},
-            (self._lower, self._advanced_tabs),
-        )
+        # rather than at startup, and re-target whenever the character changes. Their pages
+        # join once Advanced is built (`_advanced_tab_built`).
+        self._init_rig_tabs({}, (self._lower,))
         # The clip index is deferred the same way, and for the same reason.
         self._init_clip_tab()
         self._init_animation_editor()
@@ -416,6 +472,90 @@ class PlacementStudioWindow(
         reset.setShortcut("R")
         reset.triggered.connect(self._viewport.reset_view)
         self.addAction(reset)
+
+    # ── tabs built on first open ────────────────────────────────────
+    #
+    # Building every tab up front was about 0.25 s of Qt work on the UI thread before the
+    # window could paint, most of it for tabs a session may never open. A closed tab is a
+    # placeholder; its page is built the first time it is shown, or the first time anything
+    # reads one of its widgets (`__getattr__`), so a caller that was missed still gets the
+    # page it expects rather than an AttributeError. Callers that run while a tab is closed
+    # (loaders, the header, other tabs) check `_tab_built` instead and leave the work to the
+    # tab's `_<key>_tab_built` hook.
+
+    def _lazy_tab(self, key: str, builder) -> QWidget:
+        placeholder = QWidget()
+        self.__dict__.setdefault("_lazy_tabs", {})[key] = [builder, placeholder]
+        self.__dict__.setdefault("_lazy_built", set())
+        return placeholder
+
+    def _tab_built(self, key: str) -> bool:
+        tabs = self.__dict__.get("_lazy_tabs", {})
+        return key not in tabs or key in self.__dict__.get("_lazy_built", ())
+
+    def _tab_page(self, key: str) -> Optional[QWidget]:
+        """The tab's page as `_lower` holds it now: the built page or its placeholder."""
+
+        entry = self.__dict__.get("_lazy_tabs", {}).get(key)
+        return entry[1] if entry is not None else None
+
+    def _built_attr(self, name: str, default=None):
+        """An attribute of a lazily built tab, or `default` while that tab is not built."""
+
+        return self.__dict__.get(name, default)
+
+    def _realise_current_tab(self, index: int) -> None:
+        page = self._lower.widget(index)
+        for key, (_builder, held) in self.__dict__.get("_lazy_tabs", {}).items():
+            if held is page and key not in self._lazy_built:
+                self._ensure_tab(key)
+                return
+
+    def _ensure_tab(self, key: str) -> None:
+        """Build a tab's page now, in its placeholder's place, unless it is built already."""
+
+        entry = self.__dict__.get("_lazy_tabs", {}).get(key)
+        if entry is None or key in self._lazy_built:
+            return
+        builder, placeholder = entry
+        # Marked first: a builder that asks for one of its own widgets before creating it
+        # gets the AttributeError it always got, not a second build.
+        self._lazy_built.add(key)
+        try:
+            page = builder()
+        except BaseException:
+            self._lazy_built.discard(key)
+            raise
+        tabs = self._lower
+        index = tabs.indexOf(placeholder)
+        current = tabs.currentIndex()
+        # The label and tooltip as they are now: translated, and carrying any count written
+        # into them while the tab was closed.
+        text, tooltip = tabs.tabText(index), tabs.tabToolTip(index)
+        blocked = tabs.blockSignals(True)
+        try:
+            tabs.removeTab(index)
+            tabs.insertTab(index, page, text)
+            tabs.setTabToolTip(index, tooltip)
+            tabs.setCurrentIndex(current)
+        finally:
+            tabs.blockSignals(blocked)
+        entry[1] = page
+        placeholder.deleteLater()
+        hook = getattr(self, f"_{key}_tab_built", None)
+        if hook is not None:
+            hook()
+
+    def __getattr__(self, name: str):
+        # Reached only when normal lookup fails, so a built tab's widgets cost nothing here.
+        key = _LAZY_TAB_ATTRS.get(name)
+        state = self.__dict__
+        if (key is not None and state.get("_lazy_tabs_ready")
+                and key not in state.get("_lazy_built", ())):
+            self._ensure_tab(key)
+            if name in state:
+                return state[name]
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
     def _on_role_changed(self, _index: int) -> None:
         """In hand or put away: redraw, and point Fine-tune at the matching attach point."""

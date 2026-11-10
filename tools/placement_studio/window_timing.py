@@ -150,6 +150,17 @@ class GapPlot(QWidget):
 class TimingPanelMixin:
     """Draw and put-away timing. Mixed into `PlacementStudioWindow`."""
 
+    def _init_timing_state(self) -> None:
+        """The measurement and the moves in Your mod, kept whether or not the page is built."""
+
+        self._timing_rows: List[carry_timing.Retime] = []
+        self._timing_all_rows: List[carry_timing.Retime] = []
+        self._timing_signature = None
+        self._timing_task = None
+        #: part -> the timing operation in Your mod, and every move it holds.
+        self._timing_ops: Dict[str, str] = {}
+        self._timing_moves: Dict[str, Dict[str, float]] = {}
+
     def _build_handoff_timing_page(self) -> QWidget:
         """Animations > Timing: what was measured, and the moves. The plot sits under the view."""
 
@@ -218,14 +229,6 @@ class TimingPanelMixin:
         self._timing_plot = GapPlot()
         self._timing_plot.setMaximumHeight(150)
         self._timing_plot.setVisible(False)
-
-        self._timing_rows: List[carry_timing.Retime] = []
-        self._timing_all_rows: List[carry_timing.Retime] = []
-        self._timing_signature = None
-        self._timing_task = None
-        #: part -> the timing operation in Your mod, and every move it holds.
-        self._timing_ops: Dict[str, str] = {}
-        self._timing_moves: Dict[str, Dict[str, float]] = {}
         return page
 
     # ── measuring ───────────────────────────────────────────────────

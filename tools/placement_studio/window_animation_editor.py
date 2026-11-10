@@ -131,7 +131,9 @@ class AnimationEditorMixin:
 
     # ── construction ────────────────────────────────────────────────
 
-    def _build_animation_editor_tab(self) -> QWidget:
+    def _init_animation_editor_state(self) -> None:
+        """The edit in progress, which other tabs ask about before this one is ever built."""
+
         self._clip_edit = None
         self._clip_edit_entry = None
         self._clip_edit_label = ""
@@ -148,6 +150,7 @@ class AnimationEditorMixin:
         self._clip_edit_timer.setInterval(_RENDER_DELAY_MS)
         self._clip_edit_timer.timeout.connect(self._render_clip_edit)
 
+    def _build_animation_editor_tab(self) -> QWidget:
         from . import ui_kit as kit
 
         self._clip_edit_title = QLabel("Nothing to edit yet: play an animation, then start from "
@@ -600,7 +603,7 @@ class AnimationEditorMixin:
         if viewport is None:
             return
         on = (getattr(self, "_clip_edit", None) is not None
-              and is_current_page(getattr(self, "_animation_editor_page", None)))
+              and is_current_page(self._built_attr("_animation_editor_page")))
         viewport.set_bone_picking(on)
         if on:
             viewport.set_picked_bone(self._pose_bone_box.currentText())
@@ -922,7 +925,8 @@ class AnimationEditorMixin:
 
         if self._clip_edit is None:
             return
-        item = self._clip_list.currentItem() if hasattr(self, "_clip_list") else None
+        listing = self._built_attr("_clip_list")
+        item = listing.currentItem() if listing is not None else None
         entry = item.data(Qt.UserRole) if item is not None else None
         if entry is None:
             self.statusBar().showMessage(
@@ -1073,7 +1077,8 @@ class AnimationEditorMixin:
 
         if self._clip_edit is None:
             return
-        item = self._clip_list.currentItem() if hasattr(self, "_clip_list") else None
+        listing = self._built_attr("_clip_list")
+        item = listing.currentItem() if listing is not None else None
         entry = item.data(Qt.UserRole) if item is not None else None
         if entry is None:
             self.statusBar().showMessage(
@@ -1196,7 +1201,7 @@ class AnimationEditorMixin:
             return
         from .layout_util import is_current_page
 
-        if not is_current_page(getattr(self, "_animation_editor_page", None)):
+        if not is_current_page(self._built_attr("_animation_editor_page")):
             return
         bone = next((b for b in skeleton.bones if b.name_hash == name_hash), None)
         if bone is None:
@@ -1320,7 +1325,8 @@ class AnimationEditorMixin:
     # ── using the result ────────────────────────────────────────────
 
     def _choose_clip_edit_target(self) -> None:
-        item = self._clip_list.currentItem() if hasattr(self, "_clip_list") else None
+        listing = self._built_attr("_clip_list")
+        item = listing.currentItem() if listing is not None else None
         entry = item.data(Qt.UserRole) if item is not None else None
         if entry is None or not str(entry.path).startswith("character/"):
             self.statusBar().showMessage(

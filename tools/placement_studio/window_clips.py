@@ -37,16 +37,21 @@ _LIST_LIMIT = 800
 class ClipBrowserMixin:
     """Clip search and load. Mixed into `PlacementStudioWindow`."""
 
-    def _build_clip_browser(self) -> QWidget:
+    def _init_clip_state(self) -> None:
+        """The index, and the controls it reports to, before the Animations tab is built.
+
+        Carry starts the index too (to offer draws for a new spot), so its status, progress
+        and the carry filter exist from the start; the list itself waits for the tab.
+        """
+
         self._clip_index = ClipIndex()
         self._clip_scan = None
         self._clip_scan_timer = None
         self._clip_index_started = False
-
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(6)
+        #: A list refresh asked for while the tab was not built, and the index note that
+        #: stood in the status line after it; both are honoured when the tab is built.
+        self._clip_list_stale = False
+        self._clip_note_pending = ""
 
         # Shown once a carry position has been picked: the whole point of measuring which
         # draws start where is being able to see only those.
@@ -58,6 +63,21 @@ class ClipBrowserMixin:
         )
         self._clip_carry_box.toggled.connect(self._refresh_clip_list)
         self._carry_filter_zone = ""
+
+        self._clip_status = QLabel("Indexing the archives…")
+        self._clip_status.setObjectName("HintLabel")
+        # Progress rather than a spinner: the walk knows how many packages it will visit, and
+        # "half way" is the difference between waiting and wondering whether it has hung.
+        self._clip_progress = QProgressBar()
+        self._clip_progress.setMaximumWidth(140)
+        self._clip_progress.setTextVisible(False)
+        self._clip_progress.setRange(0, 0)  # busy until the package total is known
+
+    def _build_clip_browser(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
 
         self._clip_rig_box = QComboBox()
         self._clip_rig_box.setMinimumWidth(110)
@@ -106,15 +126,7 @@ class ClipBrowserMixin:
         layout.addWidget(self._clip_list, 1)
 
         footer = QHBoxLayout()
-        self._clip_status = QLabel("Indexing the archives…")
-        self._clip_status.setObjectName("HintLabel")
         footer.addWidget(self._clip_status, 1)
-        # Progress rather than a spinner: the walk knows how many packages it will visit, and
-        # "half way" is the difference between waiting and wondering whether it has hung.
-        self._clip_progress = QProgressBar()
-        self._clip_progress.setMaximumWidth(140)
-        self._clip_progress.setTextVisible(False)
-        self._clip_progress.setRange(0, 0)  # busy until the package total is known
         footer.addWidget(self._clip_progress)
         self._clip_load_button = kit.primary("Play", "Play this animation on the character. "
                                                      "You can also double-click a row.")
@@ -143,7 +155,7 @@ class ClipBrowserMixin:
         # time a tab is inserted.
         from .layout_util import is_current_page
 
-        if is_current_page(getattr(self, "_animation_page", None)):
+        if is_current_page(self._built_attr("_animation_page")):
             self._ensure_clip_index()
 
     def _ensure_clip_index(self, *, wait: bool = False) -> None:
@@ -208,6 +220,7 @@ class ClipBrowserMixin:
         self._on_clip_index_ready(index)
         if note:
             self._clip_status.setText(note)
+            self._clip_note_pending = note
 
     def _on_clip_index_ready(self, index) -> None:
         """Publish a complete prepared index on the owning UI thread."""
@@ -241,6 +254,8 @@ class ClipBrowserMixin:
     def _populate_clip_rigs(self) -> None:
         """Default to the rig this session actually loaded — that is what will play."""
 
+        if not self._tab_built("animations"):
+            return  # `_animations_tab_built` fills it
         session_rig = ""
         if self._session is not None:
             for rig in self._clip_index.rigs():
@@ -269,6 +284,14 @@ class ClipBrowserMixin:
     def _refresh_clip_list(self) -> None:
         from .clips import summarise
 
+        if not self._tab_built("animations"):
+            # Done when the tab is built. A later refresh replaces whatever note stood in
+            # the status line, as it would have done on a built list.
+            self._clip_list_stale = True
+            self._clip_note_pending = ""
+            return
+        self._clip_list_stale = False
+        self._clip_note_pending = ""
         # The carry filter is applied after the index's own filter, and before the limit, so
         # "8 draws from the back" is never truncated away by 800 unrelated locomotion clips.
         wanted = self._carry_zone_filter()
