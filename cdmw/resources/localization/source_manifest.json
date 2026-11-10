@@ -25427,6 +25427,16 @@
       ]
     },
     {
+      "key": "Can I edit a model in Blender and bring it back?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Can replace target appearance descriptor: {value_0}",
       "origins": [
         {
@@ -29707,6 +29717,16 @@
       ]
     },
     {
+      "key": "Choose Apply placement after changing the imported model or its placement, then rebuild the plan. Apply staged effect changes too. Select each edited component to check its state; Build plan does not apply those edits for you.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Choose Archive DDS...",
       "origins": [
         {
@@ -29943,6 +29963,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 1192,
           "sink": "set_part_editor_state"
+        }
+      ]
+    },
+    {
+      "key": "Choose Finish and return to Create New Item. CDMW accepts the edit and reapplies placement if it was already applied. If the edit stays open, finish it, then choose Use Mesh Editor changes in Create New Item.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -31238,6 +31268,16 @@
           "path": "cdmw/ui/new_item/shop_picker.py",
           "line": 137,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Choose a shop, recipe or reward under Distribution. Export a DMM mod folder, or send a .cdmw package through Mod Management's Send to DMM. Enable the mod and any item registrations entry, then mount in DMM; the item is not added straight to your inventory.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -41070,6 +41110,11 @@
           "sink": "python-return:_build_start_sections"
         },
         {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        },
+        {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 20,
           "sink": "CompactToolSpec"
@@ -41153,6 +41198,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3554,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Create New Item does not simulate cloth movement. Keep Template cloth / physics on for a cloth-painted import, apply placement and review the cloth warnings. Painted cloth and generated guides are experimental and have not been checked in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -46427,6 +46482,16 @@
       ]
     },
     {
+      "key": "Direct archive patching and overlay installation are currently unavailable. Browsing, preview and extraction are read-only; use supported DMM mod outputs for edits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.",
       "origins": [
         {
@@ -47312,6 +47377,16 @@
       ]
     },
     {
+      "key": "Do Wearable by and fitting references fit my model automatically?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Docking prefab switch",
       "origins": [
         {
@@ -47503,6 +47578,16 @@
           "path": "cdmw/ui/texture_workflow/editor_status_state.py",
           "line": 64,
           "sink": "python-return:texture_editor_tool_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Does Finish Edit Mesh install my changes?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -63407,6 +63492,16 @@
       ]
     },
     {
+      "key": "For a model opened from Archive Browser, Finish Edit Mesh accepts the edit and saves a draft. Use Build Mod to write the mod, then enable and mount it in DMM. Free Edit uses its separate package export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "For a new item, choose",
       "origins": [
         {
@@ -65753,6 +65848,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 934,
           "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
@@ -71232,6 +71332,36 @@
       ]
     },
     {
+      "key": "How do I bring Mesh Editor changes back to my new item?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "How do I continue a saved mesh edit?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "How do I export a new item and find it in game?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "How far each Move button and each drag step moves it. 2 cm is a normal adjustment; 10 cm is large enough to push an item through the body.",
       "origins": [
         {
@@ -71493,6 +71623,16 @@
           "path": "cdmw/ui/new_item/glow_animation_editor.py",
           "line": 54,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "How should I choose a new-item template?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -74348,6 +74488,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 384,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "In Body underneath, keep the body or clothing layers that the selected component no longer needs to cut. Use a DMM mod folder; .cdmw packages cannot carry these changes. Other equipped items can still hide those layers, so check in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -80487,6 +80637,16 @@
       ]
     },
     {
+      "key": "Keep Imported Weights needs the model's matching game rig. Reduce to Six Influences trims compatible weights to the game's limit. Transfer from Original copies weights from the original surface; check the result in Rig & Weights.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Keep Original",
       "origins": [
         {
@@ -80638,6 +80798,16 @@
           "path": "cdmw/ui/new_item/skinning_dialog.py",
           "line": 33,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Keep imported weights needs the template's own skeleton, with unchanged rest bones. Use Export rig GLB… to get that rig, or import with Transfer from template to copy its weights. Check the fit afterward.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -89488,6 +89658,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 384,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
@@ -100381,7 +100556,7 @@
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 188,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -104092,6 +104267,16 @@
       ]
     },
     {
+      "key": "No. Wearable by changes who may equip the item. A fitting reference is only a visual guide and is not included in your export. Fit your own model and test it in game; automatic fitting and compatibility are not verified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Nod",
       "origins": [
         {
@@ -106342,16 +106527,6 @@
       ]
     },
     {
-      "key": "Only for supported workflows. Ordinary browsing, preview, and extraction are read-only; patch actions require explicit confirmation and use backup/restore support where implemented.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1032,
-          "sink": "python-return:_build_environment_sections"
-        }
-      ]
-    },
-    {
       "key": "Only in compare XML",
       "origins": [
         {
@@ -106858,6 +107033,16 @@
           "path": "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
           "line": 422,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Open Drafts & Mods and choose Continue Editing on the draft or built mod. Finish your changes before closing; edits still open in the editor and Undo/Redo history are not saved.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -115401,7 +115586,7 @@
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 137,
+          "line": 136,
           "sink": "setText"
         },
         {
@@ -117801,17 +117986,17 @@
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 137,
+          "line": 136,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 176,
+          "line": 175,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 181,
+          "line": 180,
           "sink": "setText"
         },
         {
@@ -117951,7 +118136,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 229,
+          "line": 220,
           "sink": "showMessage"
         }
       ]
@@ -153647,6 +153832,16 @@
       ]
     },
     {
+      "key": "Should I use Mesh Editor or Create New Item?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Shoulder contour",
       "origins": [
         {
@@ -160387,6 +160582,16 @@
       ]
     },
     {
+      "key": "Start with the same equipment family and test its original model with one shop route first. The template supplies game behaviour and dependencies, not an automatic fit for any imported shape.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Starter Color / Albedo",
       "origins": [
         {
@@ -166153,6 +166358,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 183,
           "sink": "python-return:_build_workflow_core_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
@@ -177846,7 +178056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/localization.py",
-          "line": 1168,
+          "line": 1169,
           "sink": "ValueError"
         }
       ]
@@ -177856,7 +178066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/localization.py",
-          "line": 1183,
+          "line": 1184,
           "sink": "ValueError"
         }
       ]
@@ -182487,6 +182697,16 @@
       ]
     },
     {
+      "key": "Use Export… to save GLB, FBX or OBJ with its companion files, then Open Package in CDMW... to return it. Keep the companions together. Exact return needs stable vertex and joint identities; topology edits can prevent it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Use Extract Root",
       "origins": [
         {
@@ -182548,6 +182768,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 1052,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Use Mesh Editor to change an existing game model. Use Create New Item to make a separate item with its own identity, appearance and way to obtain it; you can open its imported model in Mesh Editor.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -185602,6 +185832,16 @@
       ]
     },
     {
+      "key": "View only hides a part in the preview. Use Mod or Include to leave it out of an eligible game-model export, then check Output Preview. In Create New Item, untick the whole component or delete the unwanted faces.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "View:",
       "origins": [
         {
@@ -188532,6 +188772,16 @@
       ]
     },
     {
+      "key": "Which Mesh Editor import weight option should I choose?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Which animations the list includes.",
       "origins": [
         {
@@ -188772,6 +189022,16 @@
       ]
     },
     {
+      "key": "Why are my imported skin weights refused?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Why did output brightness or detail change?",
       "origins": [
         {
@@ -188782,7 +189042,47 @@
       ]
     },
     {
+      "key": "Why does Build plan report unapplied changes?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Why does a hidden part still appear in the export?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
       "key": "Why does search not find my topic?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Why doesn't painted cloth move in the preview?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1032,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Why is skin missing after I shorten a garment?",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -197756,7 +198056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/localization.py",
-          "line": 856,
+          "line": 857,
           "sink": "emit"
         },
         {
@@ -198922,7 +199222,7 @@
       ]
     },
     {
-      "key": "faq questions answers native dds ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
+      "key": "faq questions answers mesh editor create new item blender rig weights template finish build mod placement components body cloth wearable dmm native dds ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -215701,7 +216001,7 @@
         },
         {
           "path": "cdmw/ui/localization.py",
-          "line": 1486,
+          "line": 1487,
           "sink": "python-return:translate_composed_label"
         },
         {

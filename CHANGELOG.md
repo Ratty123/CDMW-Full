@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
-- The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself.
+- The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself. Help and the Wiki now group the FAQ by tool, with concise answers about Mesh Editor exports, Blender, weights and saved work, plus Create New Item templates, fitting, placement, installation, body cuts and cloth limits.
 
 ## [0.12.0-alpha.4] - 2026-11-10
 
