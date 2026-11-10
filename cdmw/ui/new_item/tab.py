@@ -567,6 +567,7 @@ class NewItemStudioTab(QWidget):
         controller.model_placement_changed.connect(self._refresh_summary)
         controller.model_part_edit_finished.connect(self._model_part_edit_finished)
         controller.model_part_edit_failed.connect(self._model_part_edit_failed)
+        self.model_panel.keep_physics.toggled.connect(self._refresh_model_part_edit_note)
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
@@ -1209,6 +1210,29 @@ class NewItemStudioTab(QWidget):
         if started and self.controller.busy:
             self.model_panel.set_part_editor_state(True, "Preparing the Mesh Editor changes...")
 
+    def _refresh_model_part_edit_note(self, *_args) -> None:
+        """Say the Mesh Editor return note again after Template cloth / physics changed.
+
+        The note asks for the checkbox while it is off. Once it is ticked the request
+        must go, or the panel shows an instruction that was already followed.
+        """
+
+        base = getattr(self, "_model_part_edit_note", "")
+        shown = getattr(self, "_model_part_edit_note_shown", "")
+        source = self._model_part_editor_source
+        if not base or source is None or source is not self.controller.model_import:
+            return
+        if getattr(self.model_panel, "part_editor_message", None) != shown:
+            return  # another state replaced the note since
+        from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
+        mesh = getattr(getattr(source, "scene", None), "mesh", None)
+        message = base
+        if mesh is not None and mesh_has_cloth_paint(mesh) and not self.model_panel.keep_physics.isChecked():
+            message += " The model has cloth paint: turn on Template cloth / physics to use it."
+        if message != shown:
+            self.model_panel.set_part_editor_state(True, message)
+            self._model_part_edit_note_shown = message
+
     def _model_part_edit_finished(self, source: object) -> None:
         if source is not self._model_part_editor_source:
             return
@@ -1218,10 +1242,14 @@ class NewItemStudioTab(QWidget):
         self._reapply_after_model_part_edit = False
         message = (f"Using the Mesh Editor edit with {part_count} part(s). Applying the placement again…" if reapply
                    else f"Using the Mesh Editor edit with {part_count} part(s). Apply placement to build it.")
+        # The cloth hint depends on a checkbox the reader may tick next; keep the two
+        # halves so the note can be said again without it (`_refresh_model_part_edit_note`).
+        self._model_part_edit_note = message
         from cdmw.services.new_item_cloth_paint import mesh_has_cloth_paint
         if mesh is not None and mesh_has_cloth_paint(mesh) and not self.model_panel.keep_physics.isChecked():
             message += " The model has cloth paint: turn on Template cloth / physics to use it."
         self.model_panel.set_part_editor_state(True, message)
+        self._model_part_edit_note_shown = message
         if not reapply:
             return
         if self.controller.busy:

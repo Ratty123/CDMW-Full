@@ -1,5 +1,7 @@
 """Painted cloth binds imported vertices to the template's existing guides."""
 
+import struct
+
 import pytest
 
 from cdmw.modding.mesh_parser import _decode_pac_skin_influences
@@ -73,6 +75,30 @@ def test_switching_a_cloth_vertex_back_to_bones_keeps_its_skin():
     result, _report = apply_pac_cloth_paint(data, {1: samples(levels[0].submeshes[1], 1.0)})
     for offset in levels[0].submeshes[0].source_vertex_offsets:
         assert _decode_pac_skin_influences(result, offset) == _decode_pac_skin_influences(data, offset)
+
+
+@pytest.mark.parametrize("total", [254, 255, 256])
+def test_a_template_part_the_import_did_not_replace_keeps_its_shipped_bindings(total):
+    """The game's own cloth stores guide weights that total 254, 255 or 256. A part with
+    no painted source nearby keeps them, and must not fail the check on what was written."""
+    data = bytearray(cloth_template())
+    shipped, painted = pac_cloth_lods(bytes(data))[0].submeshes
+    offset = shipped.source_vertex_offsets[0]
+    data[offset + 32:offset + 36] = bytes((total - 100, 60, 40, 0))
+    data = bytes(data)
+    result, report = apply_pac_cloth_paint(data, {}, default=samples(painted, 1.0), max_sample_distance=.01)
+    assert report.kept_template_parts == 1 and report.cloth_parts == (painted.name,)
+    for level in pac_cloth_lods(data):
+        for kept_offset in level.submeshes[0].source_vertex_offsets:
+            assert result[kept_offset:kept_offset + 40] == data[kept_offset:kept_offset + 40]
+        for written in level.submeshes[1].source_vertex_offsets:
+            assert sum(decode_pac_cloth_binding(result, written)[2]) == 255
+    # A kept binding that names a guide the model does not hold is still refused.
+    broken = bytearray(data)
+    group, = struct.unpack_from("<I", broken, offset + 24)
+    struct.pack_into("<I", broken, offset + 24, (group & ~(1023 << 10)) | (1023 << 10))
+    with pytest.raises(ValueError, match="did not decode back"):
+        apply_pac_cloth_paint(bytes(broken), {}, default=samples(painted, 1.0), max_sample_distance=.01)
 
 
 def test_paint_that_does_not_line_up_is_refused():

@@ -47,6 +47,9 @@ class MeshImportPreviewResult:
     skeleton_edit: Any = None
     #: New Item: what cloth paint bound to the template's guides (ClothPaintReport), or None
     cloth_paint_report: Any = None
+    #: New Item: the cloth profile for parts that got cloth guides of their own, as
+    #: ``(profile name or "" for the template's, cloth part names)``, or None
+    cloth_profile_edit: Any = None
 
 @dataclass(slots=True)
 class ArchiveLooseExportResult:

@@ -16,6 +16,13 @@ from tests.test_pac_cloth_painted_guides import grid_pac
 
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 
+
+def built(data):
+    """The result Apply placement really hands on. A stand-in object takes any attribute,
+    which hid a field the real class did not have."""
+    from cdmw.domain.archives.mesh_contracts import MeshImportPreviewResult
+    return MeshImportPreviewResult(rebuilt_data=data, parsed_mesh=None, preview_model=None, summary_lines=[])
+
 SIDECAR = b"""<SkinnedMeshPropertyCommon ReflectObjectXMLDataVersion="9"/>
 <ModelPropertyList>
 \t<ModelProperty Index="0" Version="Reflection">
@@ -58,21 +65,21 @@ def test_pins_follow_copies_transforms_and_samples():
 
 def test_service_builds_own_guides_and_records_the_profile_choice():
     data = grid_pac()
-    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    result = built(data)
     assert apply_import_cloth_guides(result, imported_from(data), IDENTITY, profile="Cloth_Skirt")
     guides = decode_pac_cloth_guides(result.rebuilt_data)
     assert guides is not None and result.cloth_paint_report.guide_count == len(guides.vertices)
     assert result.cloth_profile_edit == ("Cloth_Skirt", ("skirt",))
     assert "new cloth guides" in result.summary_lines[-1] and "test in game" in result.summary_lines[-1]
     unpainted = imported_from(data, paint_below=-1)
-    untouched = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    untouched = built(data)
     assert not apply_import_cloth_guides(untouched, unpainted, IDENTITY)
     assert untouched.rebuilt_data == data and not untouched.summary_lines
 
 
 def test_service_refuses_paint_with_nothing_holding_it():
     data = grid_pac()
-    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    result = built(data)
     with pytest.raises(ValueError, match="Nothing holds the painted cloth"):
         apply_import_cloth_guides(result, imported_from(data, paint_below=2.0), IDENTITY)
     assert result.rebuilt_data == data
@@ -189,7 +196,7 @@ def test_real_static_build_with_a_placement_gets_its_own_guides_on_the_painted_a
         submesh_mappings=[StaticSubmeshMapping(0, "skirt", [0], 0)])
     output, report = build_static_mesh_replacement(raw, original, mesh, options)
     assert not report.errors
-    result = SimpleNamespace(rebuilt_data=output, summary_lines=[])
+    result = built(output)
     assert apply_import_cloth_guides(result, mesh, placement.matrix(origin=origin), profile="wing")
     guides = decode_pac_cloth_guides(result.rebuilt_data)
     assert guides is not None and all(p[1] < .55 for p in guides.vertices)
@@ -199,7 +206,7 @@ def test_real_static_build_with_a_placement_gets_its_own_guides_on_the_painted_a
 def test_following_a_template_without_cloth_points_to_guides_of_its_own():
     from cdmw.services.new_item_cloth_paint import apply_import_cloth_paint, mesh_has_cloth_paint
     data = grid_pac()
-    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    result = built(data)
     with pytest.raises(ValueError, match="Gets cloth guides of its own"):
         apply_import_cloth_paint(result, imported_from(data), IDENTITY)
     assert result.rebuilt_data == data and not result.summary_lines

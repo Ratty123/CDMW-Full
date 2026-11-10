@@ -52,8 +52,39 @@ def _audit_collision_only(path, data, mesh, material):
         raise IndependentItemError(f'{path}: {exc}') from exc
 
 
-def audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, *, stop_event=None):
-    """Keep the original physics graph together; a new mesh gets only its collision shape."""
+def audit_painted_cloth(path, mesh, material, snapshot, require):
+    """A cloth-painted replacement carries cloth of its own; require it to be complete.
+
+    Its bindings were written for this mesh, not copied by index from the template,
+    so the collision-only rule does not apply. What must hold instead: the guide mesh
+    decodes, every cloth vertex names guides that exist, and each cloth part has a
+    profile the game's catalogue resolves. The catalogue and the profile documents
+    become pinned dependencies of the package. Jiggle amounts the import took from
+    the nearest template vertices stay, as they do in a DMM mod folder of the same
+    item: they are a per-vertex strength, not an index into the template.
+    """
+    from cdmw.services.new_item_cloth_check import CATALOGUE_PATH, painted_cloth_parts, verify_painted_cloth
+
+    try:
+        if not painted_cloth_parts(mesh).cloth_parts:
+            return  # painted in the editor, but nothing of the paint reached this model
+        # A game without the catalogue resolves no profile, which the check then says.
+        catalogue = snapshot.payload(CATALOGUE_PATH) if snapshot.has_entry(CATALOGUE_PATH) else b'<PbdConfig/>'
+        check = verify_painted_cloth(mesh, material, catalogue=catalogue)
+    except (UnicodeError, ValueError) as exc:
+        raise IndependentItemError(f'{path}: {exc}') from exc
+    # Pinning refuses a document the game does not ship, like any unresolved dependency.
+    require(CATALOGUE_PATH)
+    for document in check.profile_paths:
+        require(document)
+
+
+def audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, *, stop_event=None, cloth_painted=False):
+    """Keep the original physics graph together; a new mesh gets only its collision shape.
+
+    ``cloth_painted`` marks a replacement whose cloth was painted for it. That cloth is
+    audited with the mesh (:func:`audit_painted_cloth`); here only the collision file is.
+    """
     from cdmw.core.archive_hkx_copy import validate_hkx_copy_source
     from cdmw.models import PbdProfileContext
     from cdmw.services.mesh_physics_profiles import _capture_document, _resolve_documents
@@ -72,7 +103,13 @@ def audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, *,
     if data != snapshot.payload(physics):
         raise IndependentItemError('Independent packages can only copy unchanged template physics.')
     if outputs[model] != snapshot.payload(source):
-        _audit_collision_only(path, data, outputs[model], outputs.get(xml_path(model)))
+        if cloth_painted:
+            try:
+                validate_hkx_copy_source(data)
+            except ValueError as exc:
+                raise IndependentItemError(f'{path}: {exc}') from exc
+        else:
+            _audit_collision_only(path, data, outputs[model], outputs.get(xml_path(model)))
         return
     try:
         validate_hkx_copy_source(data)

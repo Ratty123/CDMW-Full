@@ -173,6 +173,20 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 if role == 'pac':
                     mesh_bindings[target] = [(original, part.prefab_path) for part in family.parts
                                              if original in part.pac_paths]
+    # Output models whose cloth was painted for them. Their cloth is verified as
+    # their own instead of being refused as template cloth on a replacement mesh.
+    painted_models = set()
+    if plan.independent_inputs is not None:
+        primary_input, variant_inputs, _icon = plan.independent_inputs
+        if plan.spec.variants is not None:
+            painted = {(str(prefab).replace('\\', '/').casefold(), str(model).replace('\\', '/').casefold())
+                       for (prefab, model), value in dict(variant_inputs or {}).items()
+                       if getattr(value, 'cloth_painted', False)}
+            painted_models = {variant['output_model'].lower() for variant in plan.manifest.get('variants', ())
+                              if 'output_model' in variant
+                              and (variant['prefab_path'].casefold(), variant['model_path'].casefold()) in painted}
+        elif getattr(primary_input, 'cloth_painted', False):
+            painted_models = {target for role, _original, target in family.renamed(plan.spec.stem) if role == 'pac'}
     for resource in family.files:
         if resource.exists:
             require(resource.path, role='authoring-root', evidence='Retained template-family validation input')
@@ -254,7 +268,8 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 audit_physics_copy(path, data, outputs, mesh_bindings, snapshot,
                     lambda raw: require(raw, role='authoring-validation',
                                         evidence='Unchanged template physics and mesh binding validation'),
-                    stop_event=stop_event)
+                    stop_event=stop_event,
+                    cloth_painted='character/model/' + path[len('character/bin__/meshphysics/'):-4] + '.pac' in painted_models)
                 metadata[path][2] = 'unchanged-template-physics-copy'
                 unresolved.add(f'Private physics outgoing runtime references and lifetime remain unverified: {path}')
             else:
@@ -326,6 +341,11 @@ def audit_references(plan, snapshot, *, stop_event=None):
                         validate_variant_rig(snapshot, target, data, prefab_path=prefab, rigs=rigs)
                     except ValueError as exc:
                         raise IndependentItemError(f'Incompatible owned mesh {path}: {exc}') from exc
+                if path in painted_models:
+                    from cdmw.services.independent_item_physics import audit_painted_cloth
+                    from cdmw.services.new_item_variants import xml_path
+                    # In a painted model the profile is a resource the material file names.
+                    audit_painted_cloth(path, data, outputs.get(xml_path(path)), snapshot, require)
             metadata[path][2] = 'verified-owned-mesh-rig' if owned else 'borrowed-mesh-with-sidecar'
             unresolved.add(f'Mesh skeleton, animation, and implicit physics runtime lookup remain unverified: {path}')
             from cdmw.services.new_item_variants import xml_path

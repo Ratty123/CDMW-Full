@@ -145,6 +145,7 @@ def apply_pac_cloth_paint(
     cloth = rigid = reduced = 0
     cloth_parts: dict[str, None] = {}
     matched, kept = set(), set()
+    written: set[int] = set()
     for level in levels:
         for index, part in enumerate(level.submeshes):
             if not part.source_vertex_offsets:
@@ -194,6 +195,7 @@ def apply_pac_cloth_paint(
                 result[offset + 28:offset + 32] = bytes(weight for _, weight in live)
                 result[offset + 32:offset + 36] = bytes(weights)
                 result[offset + 39] = (data[offset + 39] & 0xC0) | blend
+                written.add(offset)
                 cloth += 1
                 cloth_parts.setdefault(part.name or str(index), None)
     if max_sample_distance is not None and not matched:
@@ -206,6 +208,13 @@ def apply_pac_cloth_paint(
         for part in level.submeshes:
             for offset in part.source_vertex_offsets:
                 binding = decode_pac_cloth_binding(output, offset)
-                if binding is not None and (any(i >= len(guides.vertices) for i in binding[1]) or sum(binding[2]) != 255):
+                if binding is None:
+                    if offset in written:
+                        raise ValueError("A painted cloth binding did not decode back to the template's guides.")
+                    continue
+                # Every binding must name guides that exist. The weight total is checked
+                # only where this call wrote it: a template part the import did not replace
+                # keeps its shipped bindings, and the game's own total 254, 255 or 256.
+                if any(i >= len(guides.vertices) for i in binding[1]) or (offset in written and sum(binding[2]) != 255):
                     raise ValueError("A painted cloth binding did not decode back to the template's guides.")
     return output, ClothPaintReport(cloth, rigid, reduced, len(guides.vertices), len(kept), tuple(cloth_parts))

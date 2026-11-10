@@ -1259,6 +1259,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         """Show the two ends of the cross-tab part-edit handoff."""
 
         self._part_editor_active = bool(active)
+        #: the note as last set here, so its author can tell whether it is still showing
+        self.part_editor_message = str(message or "")
         self.open_part_editor_button.setText("Return to Mesh Editor" if active else "Open in Mesh Editor")
         self.use_part_editor_button.setVisible(active)
         self.part_editor_status.setVisible(bool(message))

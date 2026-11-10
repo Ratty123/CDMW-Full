@@ -27468,7 +27468,7 @@ MESSAGE_REFERENCE = [
     "message": "Copied template physics requires unchanged cloth and model-property bindings.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 81
+      "cdmw/services/independent_item_physics.py": 118
     }
   },
   {
@@ -27668,7 +27668,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible owned mesh {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 328
+      "cdmw/services/independent_item_references.py": 343
     }
   },
   {
@@ -27700,7 +27700,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages can only copy unchanged template physics.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 73
+      "cdmw/services/independent_item_physics.py": 104
     }
   },
   {
@@ -28037,7 +28037,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned texture {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_references.py": 349
+      "cdmw/services/independent_item_references.py": 369
     }
   },
   {
@@ -28493,7 +28493,7 @@ MESSAGE_REFERENCE = [
     "message": "Owned physics has no unambiguous template mesh binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 68
+      "cdmw/services/independent_item_physics.py": 99
     }
   },
   {
@@ -28501,7 +28501,7 @@ MESSAGE_REFERENCE = [
     "message": "Owned physics must accompany its exact model path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 63
+      "cdmw/services/independent_item_physics.py": 94
     }
   },
   {
@@ -29263,7 +29263,7 @@ MESSAGE_REFERENCE = [
     "message": "The complete effect reference layout is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 302
+      "cdmw/services/independent_item_references.py": 317
     }
   },
   {
@@ -29271,7 +29271,7 @@ MESSAGE_REFERENCE = [
     "message": "The complete prefab reference layout is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 271
+      "cdmw/services/independent_item_references.py": 286
     }
   },
   {
@@ -29503,7 +29503,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned mesh has no verified target binding: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 317
+      "cdmw/services/independent_item_references.py": 332
     }
   },
   {
@@ -29511,7 +29511,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned texture format is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 342
+      "cdmw/services/independent_item_references.py": 362
     }
   },
   {
@@ -30191,7 +30191,7 @@ MESSAGE_REFERENCE = [
     "message": "The template cloth dependency could not be verified: {context.problem}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 92
+      "cdmw/services/independent_item_physics.py": 129
     }
   },
   {
@@ -30199,7 +30199,7 @@ MESSAGE_REFERENCE = [
     "message": "The template cloth dependency could not be verified: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_physics.py": 92
+      "cdmw/services/independent_item_physics.py": 129
     }
   },
   {
@@ -30207,7 +30207,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has an unresolved part binding: {part.stem}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 181
+      "cdmw/services/independent_item_references.py": 195
     }
   },
   {
@@ -30439,7 +30439,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown model property root",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 282
+      "cdmw/services/independent_item_references.py": 297
     }
   },
   {
@@ -30447,7 +30447,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown model resource boundary: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 292
+      "cdmw/services/independent_item_references.py": 307
     }
   },
   {
@@ -30560,7 +30560,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent resource format: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 352
+      "cdmw/services/independent_item_references.py": 372
     }
   },
   {
@@ -30705,7 +30705,7 @@ MESSAGE_REFERENCE = [
     "message": "Unverified model property layout: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 284
+      "cdmw/services/independent_item_references.py": 299
     }
   },
   {
@@ -30961,7 +30961,7 @@ MESSAGE_REFERENCE = [
     "message": "XML entities are unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 279
+      "cdmw/services/independent_item_references.py": 294
     }
   },
   {
@@ -31379,7 +31379,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 721
+      "cdmw/services/new_item_service.py": 727
     }
   },
   {
@@ -31733,7 +31733,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1154
+      "cdmw/ui/new_item/tab.py": 1155
     }
   },
   {
@@ -32270,7 +32270,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1524
+      "cdmw/ui/new_item/panels_model.py": 1526
     }
   },
   {
@@ -32302,7 +32302,7 @@ MESSAGE_REFERENCE = [
     "message": "DLC ItemInfo identity differs from its directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 726
+      "cdmw/services/new_item_snapshot.py": 735
     }
   },
   {
@@ -32334,7 +32334,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_service.py": 621
+      "cdmw/services/new_item_service.py": 627
     }
   },
   {
@@ -32656,7 +32656,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1325
+      "cdmw/ui/new_item/tab.py": 1353
     }
   },
   {
@@ -32905,7 +32905,7 @@ MESSAGE_REFERENCE = [
     "message": "Installing a new item into the game archives requires explicit confirmation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_service.py": 650
+      "cdmw/services/new_item_service.py": 656
     }
   },
   {
@@ -33609,7 +33609,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo row {entry.row_id} did not decode: {exc} Source: {pair.payload_entry.path} ({pair.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 720
+      "cdmw/services/new_item_snapshot.py": 729
     }
   },
   {
@@ -33705,7 +33705,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 714
+      "cdmw/services/new_item_service.py": 720
     }
   },
   {
@@ -34147,7 +34147,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 703
+      "cdmw/ui/new_item/tab.py": 704
     }
   },
   {
@@ -34340,7 +34340,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay installation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 849
+      "cdmw/ui/new_item/panels_output.py": 851
     }
   },
   {
@@ -34894,7 +34894,7 @@ MESSAGE_REFERENCE = [
     "message": "StoreInfo did not decode: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 676
+      "cdmw/services/new_item_snapshot.py": 685
     }
   },
   {
@@ -35248,8 +35248,8 @@ MESSAGE_REFERENCE = [
     "message": "The archive mutation service is not available in this window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 658,
-      "cdmw/ui/new_item/tab.py": 1331,
+      "cdmw/services/new_item_service.py": 664,
+      "cdmw/ui/new_item/tab.py": 1359,
       "cdmw/workers/new_item_workers.py": 342
     }
   },
@@ -35314,6 +35314,7 @@ MESSAGE_REFERENCE = [
     "message": "The cloth profile {profile} is not in the game's profile catalogue.",
     "recovery": "internal",
     "sources": {
+      "cdmw/services/new_item_cloth_check.py": 102,
       "cdmw/services/new_item_cloth_guides.py": 122
     }
   },
@@ -35578,7 +35579,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon could not be made from that selection: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 449
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 450
     }
   },
   {
@@ -35687,6 +35688,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The material file has no entry for cloth part(s): {', '.join(sorted(missing))}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/new_item_cloth_check.py": 83
+    }
+  },
+  {
+    "area": "items",
     "message": "The material preview ended without a package.",
     "recovery": "internal",
     "sources": {
@@ -35698,7 +35707,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 837
+      "cdmw/ui/new_item/panels_output.py": 839
     }
   },
   {
@@ -35778,7 +35787,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan changes nothing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 655
+      "cdmw/services/new_item_service.py": 661
     }
   },
   {
@@ -35794,7 +35803,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 840
+      "cdmw/services/new_item_service.py": 846
     }
   },
   {
@@ -35810,7 +35819,7 @@ MESSAGE_REFERENCE = [
     "message": "The previous archive group escapes the mod package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 589
+      "cdmw/services/new_item_service.py": 595
     }
   },
   {
@@ -36093,6 +36102,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/services/new_item_cloth_guides.py": 118
+    }
+  },
+  {
+    "area": "items",
+    "message": "The template gives {', '.join(sorted(empty))} no cloth profile, so the new cloth would not move. Choose a cloth profile.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/new_item_cloth_check.py": 85
     }
   },
   {
@@ -38176,7 +38193,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no English localisation table",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 752
+      "cdmw/services/new_item_snapshot.py": 761
     }
   },
   {
@@ -38296,7 +38313,7 @@ MESSAGE_REFERENCE = [
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 447
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 448
     }
   },
   {
@@ -38321,6 +38338,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no material file to give its new cloth a profile",
     "recovery": "internal",
     "sources": {
+      "cdmw/services/new_item_cloth_check.py": 119,
       "cdmw/services/new_item_planning.py": 1214
     }
   },
@@ -38562,7 +38580,7 @@ MESSAGE_REFERENCE = [
     "message": "{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 653
+      "cdmw/services/new_item_service.py": 659
     }
   },
   {
@@ -38690,7 +38708,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1048
+      "cdmw/ui/new_item/tab.py": 1049
     }
   },
   {
@@ -38698,7 +38716,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1038
+      "cdmw/ui/new_item/tab.py": 1039
     }
   },
   {
@@ -38727,10 +38745,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{name} has cloth vertices at LOD {lod} that follow cloth guides the model does not have (it has {count}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_cloth_check.py": 52
+    }
+  },
+  {
+    "area": "items",
     "message": "{name} has conflicting base/DLC identities for key {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 709,
+      "cdmw/services/new_item_snapshot.py": 718,
       "cdmw/services/new_item_tables.py": 35
     }
   },
@@ -38739,7 +38765,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} has duplicate row {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 703
+      "cdmw/services/new_item_snapshot.py": 712
     }
   },
   {
@@ -75528,7 +75554,7 @@ MESSAGE_REFERENCE = [
     "message": "A painted cloth binding did not decode back to the template's guides.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 210
+      "cdmw/modding/pac_cloth_paint.py": 219
     }
   },
   {
@@ -77282,7 +77308,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint does not line up with any part of the built model. Apply placement again, then rebuild.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 200
+      "cdmw/modding/pac_cloth_paint.py": 202
     }
   },
   {
@@ -77290,7 +77316,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint for {part.name or index} does not line up with the built model ({max(distances)} from the nearest painted point). Apply placement again, then rebuild.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 165
+      "cdmw/modding/pac_cloth_paint.py": 166
     }
   },
   {
@@ -77298,7 +77324,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint lines up with only some levels of detail of a part. Rebuild the model.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_paint.py": 203
+      "cdmw/modding/pac_cloth_paint.py": 205
     }
   },
   {
@@ -78547,7 +78573,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_send.py": 127
+      "cdmw/services/dmm_send.py": 133
     }
   },
   {
@@ -83822,7 +83848,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 183,
+      "cdmw/services/dmm_send.py": 226,
       "cdmw/services/dmm_send_process.py": 71
     }
   },
@@ -85736,7 +85762,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 97
+      "cdmw/services/dmm_send.py": 102
     }
   },
   {
@@ -86400,7 +86426,7 @@ MESSAGE_REFERENCE = [
     "message": "The shop and item group tables could not all become DMM operations: {detail}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 220
+      "cdmw/services/dmm_dlc_tables.py": 226
     }
   },
   {
@@ -108092,7 +108118,7 @@ SOURCE_COVERAGE = {
     "raise": 13
   },
   "cdmw/modding/pac_cloth_paint.py": {
-    "raise": 11
+    "raise": 12
   },
   "cdmw/modding/pac_cloth_painted_guides.py": {
     "raise": 13
@@ -108551,7 +108577,7 @@ SOURCE_COVERAGE = {
     "raise": 63
   },
   "cdmw/services/independent_item_physics.py": {
-    "raise": 13
+    "raise": 15
   },
   "cdmw/services/independent_item_references.py": {
     "raise": 18
@@ -108918,6 +108944,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "finding": 7,
     "raise": 13
+  },
+  "cdmw/services/new_item_cloth_check.py": {
+    "raise": 5
   },
   "cdmw/services/new_item_cloth_guides.py": {
     "raise": 4

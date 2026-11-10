@@ -2703,6 +2703,45 @@ that is not in the catalogue is refused. The plan summary reports the guide and
 pin counts, the source LOD, any reduction and the cloth parts. Guides built this
 way are not shown in the preview and have not been checked in game.
 
+**Painted cloth in the plan and in item packages:** the Builder result
+(`MeshImportPreviewResult`) carries the paint report in `cloth_paint_report` and the
+profile choice in `cloth_profile_edit`; `model_files_from_import` turns them into
+`ModelFiles.cloth_painted` and `ModelFiles.cloth_profile`, and the planner writes the
+profile into the material sidecar of the cloth parts. An item package (`.cdmw`)
+refuses template cloth, jiggle or simulation assignments on a replacement mesh,
+because those were copied by index from the template. A cloth-painted model is the
+exception: the audit in `cdmw/services/independent_item_references.py` learns which
+output models were painted from the plan's own inputs and checks them with
+`cdmw/services/new_item_cloth_check.py` instead. Every cloth vertex of every LOD must
+name guides the PAC holds, each cloth part's material owner must name a cloth
+profile, and that name must resolve to exactly one document in the game's catalogue.
+The catalogue and the profile document become pinned dependencies of the package.
+Jiggle amounts taken from the nearest template vertices stay, as they do in a DMM
+folder of the same item. A package keeps the `cloth_painted` flag, and its material
+file keeps the profile, so the item plans again from the package (Apply, Send to
+DMM, Continue) without the paint. An unpainted replacement with **Template cloth /
+physics** on is still refused by packages.
+
+Template parts the import did not replace keep their shipped cloth bindings in
+**Follows the template's cloth**. The game stores those guide weights with totals of
+254, 255 or 256 (142 of 144 sampled armour models with cloth carry all three), so
+the bind checks the total of 255 only on the bindings it wrote, and guide indices
+on all of them.
+
+Evidence, 2026-11-10 (source and read-only game files, nothing run in game): one
+imported seven-part garment was painted in a Mesh Editor service session, returned
+to Create New Item through the real controller, applied, planned and written as a
+DMM folder and as a `.cdmw`; the package was then planned again, sent to DMM and
+continued in a fresh controller. This ran on a template without cloth guides and on
+one that ships them, with a painted boundary, with painted pins only, with a
+catalogue profile and with the template's profile, and in both Painted cloth modes,
+with the controller's tasks inline and on worker threads. Every model the import
+replaced was read back from the plan and from the written files and passed the
+checks above; so did the untouched template components whose guides the reader
+decodes. A template the game ships with a dangling texture reference cannot become
+a package with or without a model; its DMM folder is unaffected. Whether the game
+simulates the painted cloth is still unproven.
+
 **Mesh Editor round trip:** **Open in Mesh Editor** prepares the session in
 `cdmw/workers/new_item_mesh_session.py`, which names a Free Edit folder up front and
 sets the session's `handoff_target` to `new_item`. Mesh Editor reads it from the state

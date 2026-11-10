@@ -78,7 +78,10 @@ def test_apply_button_publishes_selected_variant_and_unblocks_plan(studio, monke
     source = _import(tab)
     controller, panel = tab.controller, tab.model_panel
     release = threading.Event()
-    built = ModelFiles(b"placed fixture PAC")
+    # A real PAC: with Template cloth / physics off the plan strips physics from every
+    # LOD of the built model, which a placeholder payload cannot be read for.
+    from tests.test_new_item_service import imported_pac
+    built = ModelFiles(imported_pac(100))
 
     def build(*_args, **_kwargs):
         assert release.wait(3)
@@ -103,6 +106,62 @@ def test_apply_button_publishes_selected_variant_and_unblocks_plan(studio, monke
         assert controller.start_plan()
         _finish(app, controller)
     assert controller.has_current_plan
+
+
+def test_painted_cloth_controls_choose_own_guides_and_reach_the_build(studio, monkeypatch):
+    """The real panel: paint shows the Painted cloth row, its choices reach Apply placement,
+    and changing one drops a model that was built with the other."""
+    app, tab = studio
+    source = _import(tab)
+    controller, panel = tab.controller, tab.model_panel
+    source.scene.mesh.submeshes[0].cloth_paint = [1.0, 1.0, 0.0]
+    controller.model_import_changed.emit(source)  # a Mesh Editor return publishes the edit this way
+    assert panel.keep_physics.isVisibleTo(panel) and not panel.cloth_guides_row.isVisibleTo(panel)
+    assert "Turn on Template cloth / physics" in panel.cloth_paint_note.plain_text()
+
+    panel.keep_physics.setChecked(True)
+    assert controller.draft.keep_template_physics and panel.cloth_guides_row.isVisibleTo(panel)
+    assert "move with the template's cloth" in panel.cloth_paint_note.plain_text()
+    assert not source.own_cloth_guides and not panel.cloth_profile.isEnabled()
+
+    panel.cloth_guides_mode.setCurrentIndex(panel.cloth_guides_mode.findData("own"))
+    assert source.own_cloth_guides and panel.cloth_profile.isEnabled()
+    assert "cloth guides of their own" in panel.cloth_paint_note.plain_text()
+    assert panel.cloth_profile.itemData(0) == "" and source.cloth_profile == ""
+    panel.cloth_profile.addItem("Cloak", "Cloak")  # the fixture game ships no profile catalogue
+    panel.cloth_profile.setCurrentIndex(panel.cloth_profile.findData("Cloak"))
+    assert source.cloth_profile == "Cloak"
+
+    seen = []
+
+    def build(_entry, built_source, _placement, **kwargs):
+        seen.append((built_source.own_cloth_guides, built_source.cloth_profile, kwargs["keep_template_physics"]))
+        return ModelFiles(b"placed fixture PAC", cloth_painted=True)
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build)
+    panel.apply_button.click()
+    _finish(app, controller)
+    assert seen == [(True, "Cloak", True)]
+    assert controller.model_result is not None and "Applied:" in panel.apply_status.plain_text()
+
+    # The build differs with the other choice, so the built model must not survive it.
+    panel.cloth_profile.setCurrentIndex(0)
+    assert controller.model_result is None and source.cloth_profile == ""
+    panel.apply_button.click()
+    _finish(app, controller)
+    assert seen[-1] == (True, "", True) and controller.model_result is not None
+    panel.cloth_guides_mode.setCurrentIndex(panel.cloth_guides_mode.findData("template"))
+    assert controller.model_result is None and not source.own_cloth_guides
+
+    # A build error is said where the reader is looking, word for word.
+    def refuse(*_args, **_kwargs):
+        raise ValueError("Nothing holds the painted cloth.")
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", refuse)
+    panel.apply_button.click()
+    _finish(app, controller)
+    assert controller.model_result is None
+    assert "The placement could not be built: Nothing holds the painted cloth." in panel.apply_status.plain_text()
 
 
 def test_apply_backend_activity_reaches_current_tool_log_before_completion(studio, monkeypatch):

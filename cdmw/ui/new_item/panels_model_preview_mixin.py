@@ -339,6 +339,7 @@ class ModelPanelPreviewMixin:
             self.operation_label.setText("Building the item's mesh…")
         elif busy and lane == "model_part_edit":
             self.part_editor_status.setVisible(True)
+            self.part_editor_message = "Preparing the Mesh Editor changes..."
             self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
             self.operation_label.setText("Preparing Mesh Editor changes…")
         elif busy and lane == "model_skinning":

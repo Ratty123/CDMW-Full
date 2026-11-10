@@ -238,6 +238,39 @@ def test_variant_collision_retry_preserves_inherited_rule_suffix(tmp_path, colli
         assert matching_postfixes(POSTFIX, source) == matching_postfixes(POSTFIX, target) == ('_R',)
 
 
+@pytest.mark.parametrize('route', ['variant', 'family'])
+@pytest.mark.parametrize('painted', [True, False])
+def test_kept_physics_on_a_replacement_needs_cloth_painted_for_it(tmp_path, collision, route, painted, monkeypatch):
+    """Template cloth / physics stays on for a painted model. Its simulation bindings were
+    written for it, so the package checks them as its own; the same bytes on an unpainted
+    replacement are the template's, copied by index, and stay refused."""
+    from cdmw.services import independent_item_physics as physics_audit
+
+    audited = []
+    real = physics_audit.audit_painted_cloth
+    monkeypatch.setattr(physics_audit, 'audit_painted_cloth',
+                        lambda path, *args, **kwargs: (audited.append(path), real(path, *args, **kwargs))[1])
+    service, snapshot = physics_game(tmp_path, collision)
+    model = ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)}, cloth_painted=painted)
+    if route == 'variant':
+        choice = replace(selections(snapshot)[0], custom_model=True, keep_template_physics=True)
+        spec, models = replace(shop_spec('PaintedPhysics'), variants=(choice,)), {'variant_models': {choice.identity: model}}
+    else:
+        spec = replace(shop_spec('PaintedPhysics'), model_source=ModelSource.IMPORTED, keep_template_physics=True)
+        models = {'model': model}
+    if not painted:
+        with pytest.raises(IndependentItemError, match='replacement model'):
+            service.plan(spec, snapshot, capture_independent=True, **models)
+        assert audited == []
+        return
+    plan = service.plan(spec, snapshot, capture_independent=True, **models)
+    owned = [path for path in plan.new_paths if path.endswith('.hkx')]
+    assert [plan.loose_files[path] for path in owned] == [collision]
+    assert audited == ['character/model/' + owned[0][len('character/bin__/meshphysics/'):-4] + '.pac']
+    package = from_plan(plan, uuid4().hex)
+    assert read_package(package_bytes(package)) == package
+
+
 def test_recipient_cloth_profile_changes_refuse(tmp_path, collision):
     service, source = physics_game(tmp_path / 'author', collision)
     choice = replace(shop_spec('Physics'), variants=(selections(source)[0],))

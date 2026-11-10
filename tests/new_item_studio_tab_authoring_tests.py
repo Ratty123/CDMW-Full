@@ -177,7 +177,9 @@ class _TabAuthoringMixin:
 
         controller = SimpleNamespace(
             model_import=SimpleNamespace(usage=nullcontext, label="Sword", bake=object(),
-                                         mesh_generation=0, flip_texture_v=False),
+                                         mesh_generation=0, flip_texture_v=False,
+                                         own_cloth_guides=False, cloth_profile=""),
+            _weights_need_sampling_at=lambda _source, _placement: False,
             draft=SimpleNamespace(model_source=ModelSource.IMPORTED, keep_template_physics=False),
             template_entries=lambda: (SimpleNamespace(basename="sword.pac"),),
             template_primary_entry=lambda: SimpleNamespace(basename="sword.pac"), _active_variant=("selected.prefab", "sword.pac"),

@@ -16,6 +16,13 @@ from tests.test_pac_cloth_paint import cloth_template
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 
 
+def built(data):
+    """The result Apply placement really hands on. A stand-in object takes any attribute,
+    which hid a field the real class did not have."""
+    from cdmw.domain.archives.mesh_contracts import MeshImportPreviewResult
+    return MeshImportPreviewResult(rebuilt_data=data, parsed_mesh=None, preview_model=None, summary_lines=[])
+
+
 def imported(vertices, paint):
     part = SubMesh(name="dress", material="cloth", vertices=list(vertices),
                    faces=[(0, 1, 2), (1, 3, 2)][:max(1, len(vertices) - 2)])
@@ -52,12 +59,12 @@ def test_paint_survives_copies_and_transforms():
 def test_service_rewrites_the_built_pac_and_reports_it():
     data = cloth_template()
     dress = pac_cloth_lods(data)[0].submeshes[1]
-    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    result = built(data)
     assert apply_import_cloth_paint(result, imported(dress.vertices, [1.] * len(dress.vertices)), IDENTITY)
     for offset in dress.source_vertex_offsets:
         assert decode_pac_cloth_binding(result.rebuilt_data, offset)[0] == 0
     assert "Cloth paint:" in result.summary_lines[-1] and "test in game" in result.summary_lines[-1]
-    untouched = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    untouched = built(data)
     assert not apply_import_cloth_paint(untouched, imported(dress.vertices, [0.] * len(dress.vertices)), IDENTITY)
     assert untouched.rebuilt_data == data and not untouched.summary_lines
 
@@ -65,7 +72,7 @@ def test_service_rewrites_the_built_pac_and_reports_it():
 def test_misplaced_paint_is_refused_instead_of_painting_the_wrong_vertices():
     data = cloth_template()
     dress = pac_cloth_lods(data)[0].submeshes[1]
-    result = SimpleNamespace(rebuilt_data=data, summary_lines=[])
+    result = built(data)
     far = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 50., 0., 0., 1.)
     with pytest.raises(ValueError, match="does not line up with"):
         apply_import_cloth_paint(result, imported(dress.vertices, [1.] * len(dress.vertices)), far)
@@ -97,7 +104,7 @@ def test_real_static_build_with_the_new_item_placement_lines_up_with_the_hook_ma
     )
     output, report = build_static_mesh_replacement(raw, original, mesh, options)
     assert not report.errors
-    result = SimpleNamespace(rebuilt_data=output, summary_lines=[])
+    result = built(output)
     assert apply_import_cloth_paint(result, mesh, placement.matrix(origin=origin))
     bound = [decode_pac_cloth_binding(result.rebuilt_data, offset)
              for level in pac_cloth_lods(result.rebuilt_data) for offset in level.submeshes[1].source_vertex_offsets]
@@ -358,8 +365,7 @@ def _placed_with_influences(tmp_path, monkeypatch, paint, *, own_guides=False, s
     part.bone_indices = [(0, 1, 2, 3, 4)] * len(part.vertices)  # five bones, as a template transfer gives
     part.bone_weights = [(.2,) * 5] * len(part.vertices)
     monkeypatch.setattr("cdmw.services.preview_workflow_service.build_mesh_import_preview",
-                        lambda *_a, **_k: SimpleNamespace(rebuilt_data=data, summary_lines=[], palette_extension=None,
-                                                          skeleton_edit=None, cloth_paint_report=None))
+                        lambda *_a, **_k: built(data))
     source = ModelImportSource(tmp_path / "s.obj", tmp_path / "s.obj", SceneImportResult(mesh=mesh), None, None)
     entry = ArchiveEntry("character/model/test/target.pac", Path("0.pamt"), Path("0.paz"), 0, 0, 0, 0, 0)
     source.own_cloth_guides = own_guides
@@ -590,6 +596,39 @@ def test_returning_painted_edit_asks_for_template_cloth_when_it_is_off():
     assert "turn on Template cloth / physics" in message
     message, _applied, _ = _finished_tab(painted=True, keep_physics=True, reapply=False)
     assert "Template cloth" not in message
+
+
+def test_the_return_note_stops_asking_for_template_cloth_once_it_is_ticked():
+    """The note is written when the edit returns; the checkbox it asks for is ticked afterwards."""
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+
+    checked = [False]
+    source = SimpleNamespace(scene=SimpleNamespace(
+        mesh=imported(((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), (1., 1., 1.))))
+    panel = SimpleNamespace(keep_physics=SimpleNamespace(isChecked=lambda: checked[0]), part_editor_message="")
+    panel.set_part_editor_state = lambda active, message="": setattr(panel, "part_editor_message", message)
+    fake = SimpleNamespace(
+        _model_part_editor_source=source, _reapply_after_model_part_edit=False, model_panel=panel,
+        controller=SimpleNamespace(busy=False, model_import=source, start_model_apply=lambda: None))
+    NewItemStudioTab._model_part_edit_finished(fake, source)
+    assert "turn on Template cloth / physics" in panel.part_editor_message
+    checked[0] = True
+    NewItemStudioTab._refresh_model_part_edit_note(fake, True)
+    assert "Template cloth" not in panel.part_editor_message
+    assert "Apply placement to build it" in panel.part_editor_message
+    checked[0] = False
+    NewItemStudioTab._refresh_model_part_edit_note(fake, False)
+    assert "turn on Template cloth / physics" in panel.part_editor_message
+    # A different state took the note's place: ticking the box must not bring the old one back.
+    panel.set_part_editor_state(True, "Wait for the current Mesh Editor task to finish.")
+    checked[0] = True
+    NewItemStudioTab._refresh_model_part_edit_note(fake, True)
+    assert panel.part_editor_message == "Wait for the current Mesh Editor task to finish."
+    # Another model was imported since: its row has no return note to refresh.
+    fake.controller.model_import = object()
+    panel.part_editor_message = fake._model_part_edit_note_shown
+    NewItemStudioTab._refresh_model_part_edit_note(fake, False)
+    assert panel.part_editor_message == fake._model_part_edit_note_shown
 
 
 def test_material_routing_keeps_the_cloth_painted_flag():
