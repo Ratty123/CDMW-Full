@@ -14,6 +14,61 @@ fn offscreen_fixed_studio_depth_preserves_diagnostics() -> TestResult {
     verify_depth(LightingPreset::StudioFixed)
 }
 
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_all_hidden_parts_keep_lighting_depth_background() -> TestResult {
+    let mut snapshot = triangle_application()?.mesh.as_ref().unwrap().draw_snapshot();
+    snapshot.positions.clear();
+    snapshot.normals.clear();
+    snapshot.uvs.clear();
+    snapshot.shader_masks.clear();
+    snapshot.indices.clear();
+    snapshot.triangle_materials.clear();
+    snapshot.selected_vertices.clear();
+    let folder = tempdir()?;
+    for preset in [LightingPreset::NeutralStudio, LightingPreset::StudioFixed] {
+        let lit = folder.path().join("empty-lit.bmp");
+        let base = folder.path().join("empty-base.bmp");
+        let parts = folder.path().join("empty-parts.bmp");
+        let result = pollster::block_on(
+            cdmw_render_wgpu::run_headless_layered_material_capture_with_lighting(
+                &snapshot,
+                &[],
+                &[],
+                &[],
+                preset,
+                LightingDepthSettings::default(),
+                HeadlessMaterialCaptureOptions {
+                    width: 64,
+                    height: 64,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &lit,
+                    base_color_bmp: &base,
+                    part_id_bmp: &parts,
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ),
+        );
+        // Capture validation intentionally rejects a blank model after rendering
+        // and writing its images. GPU errors and panics must not reach this check.
+        assert!(matches!(result, Err(cdmw_render_wgpu::RenderError::Device(message))
+            if message == "material capture contained only the clear color"));
+        for path in [lit, base, parts] {
+            let image = std::fs::read(path)?;
+            let pixels = &image[54..];
+            assert_eq!(pixels.len(), 64 * 64 * 4);
+            let background = &pixels[..4];
+            assert_eq!(background[3], 255);
+            assert!(pixels.chunks_exact(4).all(|pixel| pixel == background));
+        }
+    }
+    Ok(())
+}
+
 fn verify_depth(preset: LightingPreset) -> TestResult {
     let mut snapshot = triangle_application()?
         .mesh

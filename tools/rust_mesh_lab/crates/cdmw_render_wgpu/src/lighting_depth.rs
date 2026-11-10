@@ -508,6 +508,10 @@ impl ShadowResources {
             occlusion_query_set: None,
             multiview_mask: None,
         });
+        // Still clear the old depth when every part has been hidden.
+        if mesh.vertex_count == 0 || mesh.triangle_index_count == 0 {
+            return;
+        }
         pass.set_pipeline(if studio {
             &self.studio_depth_pipeline
         } else {
