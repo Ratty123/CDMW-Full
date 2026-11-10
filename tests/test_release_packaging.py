@@ -56,6 +56,45 @@ ConvertTo-Json -InputObject @($script:stopped.ToArray()) -Compress
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_pyinstaller_dependency_search_excludes_ambient_tools_and_restores_path(tmp_path, exit_code):
+    foreign = tmp_path / "unrelated-tools"
+    foreign.mkdir()
+    (foreign / "icuuc.dll").write_bytes(b"unrelated ICU runtime")
+    observed = tmp_path / "packaging-environment.json"
+    probe = tmp_path / "observe-packaging.py"
+    probe.write_text(
+        "import json, os, pathlib, sys\n"
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'path': os.environ['PATH'], "
+        "'base': sys.base_prefix, 'system': os.environ['SystemRoot']}))\n"
+        "sys.exit(int(sys.argv[2]))\n",
+        encoding="utf-8",
+    )
+    quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+    script = f"""
+. {quote(BUILDER)} -DescribeOnly | Out-Null
+$env:PATH = {quote(foreign)} + ';' + $env:PATH
+$expectedPath = $env:PATH
+$failed = $false
+try {{
+    Invoke-PyInstallerBuild -PythonExe {quote(sys.executable)} -Arguments @({quote(probe)}, {quote(observed)}, '{exit_code}') -BuildMode onefile -Profile release
+}} catch {{ $failed = $true }}
+if ($env:PATH -cne $expectedPath) {{ throw 'Caller PATH was not restored' }}
+ConvertTo-Json -Compress @{{ failed = $failed }}
+"""
+    run = subprocess.run([POWERSHELL, "-NoProfile", "-Command", script], cwd=ROOT, capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout.strip().splitlines()[-1])["failed"] == bool(exit_code)
+    result = json.loads(observed.read_text(encoding="utf-8"))
+    paths = {Path(path) for path in result["path"].split(";")}
+    assert foreign not in paths
+    assert paths == {
+        Path(result["system"]) / "System32", Path(result["system"]),
+        Path(sys.executable).parent, Path(result["base"]), Path(result["base"]) / "DLLs",
+    }
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
 @pytest.mark.parametrize("mode", ["onefile", "onedir"])
 @pytest.mark.parametrize("profile", ["release", "fast", "debug"])
 def test_builder_and_gui_agree_on_output_name(mode, profile):

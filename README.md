@@ -249,6 +249,8 @@ To build a portable executable:
 ```
 
 Output: `dist\CDMW.exe`.
+Packaging resolves runtime DLLs from Windows and the selected Python environment;
+unrelated tools on the caller's `PATH` cannot supply replacement libraries.
 Run `build.bat help` for other build modes. Follow the [test guide](tests/README.md)
 for focused validation; source tests and packaging checks are separate from
 visible UI and in-game testing.

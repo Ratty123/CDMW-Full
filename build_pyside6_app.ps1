@@ -696,9 +696,24 @@ function Invoke-PyInstallerBuild {
 
     $previousMode = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_MODE", "Process")
     $previousProfile = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", "Process")
+    $previousPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
     try {
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $BuildMode, "Process")
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $Profile, "Process")
+        $pythonBase = (& $PythonExe -I -c "import sys; print(sys.base_prefix)").Trim()
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $pythonBase -PathType Container)) {
+            throw "Cannot resolve the selected Python runtime for packaging."
+        }
+        # Dependency discovery must not bundle a same-named DLL from unrelated
+        # tools on the caller's PATH (for example a non-Windows ICU library).
+        $packagingPath = @(
+            [Environment]::GetFolderPath("System"),
+            [Environment]::GetFolderPath("Windows"),
+            (Split-Path -Parent ([IO.Path]::GetFullPath($PythonExe))),
+            $pythonBase,
+            (Join-Path $pythonBase "DLLs")
+        ) | Select-Object -Unique
+        [Environment]::SetEnvironmentVariable("PATH", ($packagingPath -join [IO.Path]::PathSeparator), "Process")
         & $PythonExe @Arguments
         if ($LASTEXITCODE -ne 0) {
             throw "PyInstaller failed with exit code $LASTEXITCODE."
@@ -706,6 +721,7 @@ function Invoke-PyInstallerBuild {
     } finally {
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $previousMode, "Process")
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $previousProfile, "Process")
+        [Environment]::SetEnvironmentVariable("PATH", $previousPath, "Process")
     }
 }
 
