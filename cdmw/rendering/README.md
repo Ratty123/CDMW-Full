@@ -27,6 +27,19 @@ packages carry the corresponding six-float affine to Rust. Transforms are scoped
 to the exact component and material wrapper; old graph-v4 packages retain
 identity sampling when the optional field is absent.
 
+Full preview packages bind one to three distinct RGB detail channels sharing a
+mask directly on the GPU. Authored DDS mips stay compressed; dye uses linear
+luminance measured from a mip no larger than 64 pixels. The shader applies the
+affine, blends normals and reads layer occlusion, roughness and metal directly.
+Colour seeds can supply channels without a detail layer. Technical detail masks
+use sequential overlays with authored channel flags and opacity, preserving base
+colour when only normals are enabled. An absent dye has zero strength; an
+explicit white dye remains white. Older packages lacking these sequential controls
+keep their CPU route until regenerated. Unsupported graphs or
+adapters retain CPU composition, including repeat-wrapped affine sampling.
+Grime remains in the conserved graph but is hidden on both preview routes;
+`CDMW_PREVIEW_DRAW_GRIME=1` restores it for internal comparisons.
+
 Texture preparation composes independent materials on up to four CPU workers.
 The Rust compositor decodes independent source DDS files on up to four workers,
 after the owning reader validates their bytes and admits their decoded sizes

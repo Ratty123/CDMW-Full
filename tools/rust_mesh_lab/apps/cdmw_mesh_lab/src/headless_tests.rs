@@ -13,6 +13,88 @@ use tempfile::tempdir;
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?.mesh.as_ref().unwrap().draw_snapshot();
+    snapshot.positions = vec![[-1.0,-1.0,0.0],[1.0,-1.0,0.0],[1.0,1.0,0.0],[-1.0,1.0,0.0]];
+    snapshot.normals = vec![[0.0,0.0,1.0];4];
+    snapshot.uvs = vec![[0.5,0.5];4];
+    snapshot.shader_masks = vec![[1.0,1.0,0.0];4];
+    snapshot.indices = vec![0,1,2,0,2,3];
+    snapshot.triangle_materials = vec![0,0];
+    let texture = |pixels: &[u8], width, role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(width,1,pixels,role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes,role)?.source_sha256;
+        Ok(LayerTexture { bytes: Arc::from(bytes), role, source_sha256: sha })
+    };
+    let source = texture(&[255,0,0,255, 0,0,255,255],2,TextureRole::BaseColor)?;
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1,1,&[0,255,0,255],TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture { bytes: &base, role: TextureRole::BaseColor, material_indices_by_lod: &ownership }];
+    let temporary = tempdir()?;
+    let reference = |r: [f32;3], g: [f32;3], weights: [f32;3]| {
+        let sum = weights.iter().sum::<f32>();
+        let w = if sum < 1e-5 { [1.0,0.0,0.0] } else { weights.map(|x| x/sum) };
+        [r[0]*w[0]+g[0]*w[1],r[1]*w[0]+g[1]*w[1],r[2]*w[0]+g[2]*w[1]]
+    };
+    for (name, mode, flags, mask, second, tint, affine, expected) in [
+        ("two layers",1,15,[128,128,0,255],true,[1.0,1.0,1.0,0.0],[0.0;4],reference([1.0,0.0,0.0],[0.0,0.0,1.0],[128.0,128.0,0.0])),
+        ("zero mask",1,15,[0,0,0,255],true,[1.0,1.0,1.0,0.0],[0.0;4],[1.0,0.0,0.0]),
+        ("white dye",1,15,[255,0,0,255],false,[1.0,1.0,1.0,1.0],[0.0;4],[1.0,1.0,1.0]),
+        ("rotated repeat",1,15,[255,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0,1.0,-1.0,0.0],[0.0,0.0,1.0]),
+        ("absent channel",1,15,[128,128,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[0.5,0.5,0.0]),
+        ("normal only",2,10,[255,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[0.0,1.0,0.0]),
+        ("sequential colour",2,1,[128,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[128.0/255.0,127.0/255.0,0.0]),
+    ] {
+        let mut layer = MaterialLayerSet { lod_index:0,material_index:0,
+            uniform: LayerUniform { base_color:[1.0;4],control:[mode,0,0,0],..Default::default() },textures:std::array::from_fn(|_|None) };
+        layer.textures[0]=Some(texture(&mask,1,TextureRole::LayerMask)?);
+        layer.textures[1]=Some(source.clone());
+        layer.uniform.layers[0]=LayerEntryUniform { dye:tint,affine,offset:[0.25,0.5,flags as f32,0.0],properties:[1.0,0.2126,1.0,0.0] };
+        if second {
+            layer.textures[4]=Some(source.clone());
+            layer.uniform.layers[1]=LayerEntryUniform { dye:[1.0,1.0,1.0,0.0],affine:[0.0;4],offset:[0.75,0.5,0.0,0.0],properties:[1.0,0.0722,1.0,0.0] };
+        }
+        let path = temporary.path().join(format!("{name}.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(&snapshot,&textures,&[],&[layer],
+            HeadlessMaterialCaptureOptions {width:96,height:96,..Default::default()},
+            HeadlessMaterialCaptureOutput {textured_bmp:&temporary.path().join(format!("{name}-lit.bmp")),base_color_bmp:&path,
+                part_id_bmp:&temporary.path().join(format!("{name}-parts.bmp")),normal_map:None,material_response:None,layer_mask:None}))?;
+        let bytes = std::fs::read(path)?;
+        let pixel = &bytes[54+(48*96+48)*4..][..4];
+        for (channel, expected) in expected.into_iter().enumerate() {
+            let srgb = f32::from(pixel[2-channel])/255.0;
+            let linear = if srgb<=0.04045 {srgb/12.92} else {((srgb+0.055)/1.055).powf(2.4)};
+            assert!((linear-expected).abs()<=0.01,"{name}: channel {channel}, {linear} != {expected}");
+        }
+    }
+    let mut skin_lit = Vec::new();
+    for red in [0,196] {
+        let mut layer = MaterialLayerSet { lod_index:0,material_index:0,
+            uniform:LayerUniform {base_color:[1.0;4],control:[1,1,0,0],..Default::default()},textures:std::array::from_fn(|_|None) };
+        layer.textures[0]=Some(texture(&[255,0,0,255],1,TextureRole::LayerMask)?);
+        layer.textures[1]=Some(source.clone());
+        layer.textures[3]=Some(texture(&[red,140,254,255],1,TextureRole::Material)?);
+        layer.uniform.layers[0]=LayerEntryUniform {dye:[0.0;4],affine:[0.0;4],offset:[0.25,0.5,0.0,0.0],properties:[1.0,1.0,1.0,0.0]};
+        let lit = temporary.path().join(format!("skin-{red}-lit.bmp"));
+        let response = temporary.path().join(format!("skin-{red}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(&snapshot,&textures,&[],&[layer],
+            HeadlessMaterialCaptureOptions {width:96,height:96,..Default::default()},
+            HeadlessMaterialCaptureOutput {textured_bmp:&lit,base_color_bmp:&temporary.path().join(format!("skin-{red}-base.bmp")),
+                part_id_bmp:&temporary.path().join(format!("skin-{red}-parts.bmp")),normal_map:None,material_response:Some(&response),layer_mask:None}))?;
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54+(48*96+48)*4..][..4];
+        assert!(pixel[2] <= 1, "skin must ignore metal B=254");
+        assert!(pixel[1].abs_diff(140) <= 1,"skin roughness must be the authored G channel");
+        skin_lit.push(std::fs::read(lit)?);
+    }
+    assert_eq!(skin_lit[0],skin_lit[1],"skin occlusion stays one regardless of packed R");
+    Ok(())
+}
+
+#[test]
 fn shader_controls_legacy_documents_have_unknown_vertex_masks() -> TestResult {
     let document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("synthetic.dds"), MeshFormat::Pam)?;
     let mut payload = serde_json::to_value(&document)?;

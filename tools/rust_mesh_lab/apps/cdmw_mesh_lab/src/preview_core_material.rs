@@ -790,6 +790,8 @@ pub(crate) struct PreviewCoreMaterialCompositionMetrics {
     pub decoded_source_bytes: u64,
     pub decoded_rgba8_bytes: u64,
     pub decoded_source_sha256: Vec<String>,
+    pub validated_source_sha256: Vec<String>,
+    pub gpu_layer_material_count: u64,
 }
 
 impl PreviewCoreMaterialCompositionMetrics {
@@ -999,6 +1001,23 @@ impl ImageCache {
             })
     }
 
+    fn transformed(
+        &mut self, reference: &FileReference, width: u32, height: u32,
+        layer: &PreviewCoreMaterialLayer,
+    ) -> Result<ImagePixels, SessionError> {
+        let affine = layer.sampling_transform();
+        if affine == [1.0, 0.0, 0.0, 1.0, 0.0, 0.0] {
+            return self.resized(reference, width, height);
+        }
+        let bytes = u64::from(width) * u64::from(height) * 4;
+        if self.resized_bytes.saturating_add(bytes) > MAX_RESIZED_MATERIAL_BYTES {
+            return Err(SessionError::InvalidPayload("Transformed material sources exceed the 512 MiB limit".into()));
+        }
+        let pixels = sample_affine_repeat(self.image(reference)?, width, height, affine)?;
+        // This buffer is transient for one layer; retained cache bytes are unchanged.
+        Ok(ImagePixels(Arc::new(DecodedRgba8 { width, height, pixels })))
+    }
+
     fn resized(
         &mut self,
         reference: &FileReference,
@@ -1044,6 +1063,39 @@ impl ImageCache {
         self.resized.insert(key, resized.clone());
         Ok(resized)
     }
+}
+
+fn sample_affine_repeat(image: &DecodedRgba8, width: u32, height: u32, a: [f32; 6]) -> Result<Vec<u8>, SessionError> {
+    let mut result = vec![0; checked_pixel_count(width, height)?.saturating_mul(4)];
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+            let sx = (a[0]*u + a[2]*v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
+            let sy = (a[1]*u + a[3]*v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
+            let ix = sx.floor() as i64;
+            let iy = sy.floor() as i64;
+            let tx = sx - sx.floor();
+            let ty = sy - sy.floor();
+            let at = |dx: i64, dy: i64, c: usize| {
+                let x = (ix+dx).rem_euclid(i64::from(image.width)) as usize;
+                let y = (iy+dy).rem_euclid(i64::from(image.height)) as usize;
+                f32::from(image.pixels[(y*image.width as usize+x)*4+c])
+            };
+            for c in 0..4 {
+                result[((y*width+x)*4) as usize+c] = mix(mix(at(0,0,c), at(1,0,c), tx), mix(at(0,1,c),at(1,1,c),tx),ty).round().clamp(0.0,255.0) as u8;
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[test]
+fn affine_resampling_wraps_offsets_and_rotation() {
+    let image = DecodedRgba8 { width: 2, height: 1, pixels: vec![255,0,0,255, 0,0,255,255] };
+    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,0.0,0.0,0.0,0.25,0.5]).unwrap(), [255,0,0,255]);
+    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,1.0,-1.0,0.0,0.25,-0.5]).unwrap(), [0,0,255,255]);
+    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,0.0,0.0,0.0,-0.25,0.5]).unwrap(), [0,0,255,255]);
 }
 
 #[cfg(test)]
@@ -1198,7 +1250,7 @@ fn compose_base_color(
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
-        let overlay = cache.resized(reference, width, height)?;
+        let overlay = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1448,7 +1500,7 @@ fn compose_material_response(
         let Some(reference) = layer.material.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1588,7 +1640,7 @@ fn compose_normal(
         let Some(reference) = layer.normal.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1653,7 +1705,7 @@ fn compose_height(
         let Some(reference) = layer.height.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -2095,6 +2147,8 @@ mod tests {
             height_scale_hint: 0.0,
             tint: [1.0; 4],
             uv_transform: None,
+            blend_flags: None,
+            blend_opacity: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),
             diffuse: None,

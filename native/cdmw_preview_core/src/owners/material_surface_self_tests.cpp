@@ -448,6 +448,23 @@ static void run_exact_layer_owner_stack_contract_self_test() {
                         && layer.mask_parameter == bindings[2].parameter_name)),
             "exact layer companion escaped its sidecar, wrapper, role, or channel");
     }
+    bindings[1].source_path = "cd_common_default_mg.dds";
+    bindings[1].archive_path = "character/texture/cd_common_default_mg.dds";
+    bindings[1].texture_name = "cd_common_default_mg.dds";
+    bindings[2].source_path = "temp_r.dds";
+    bindings[2].archive_path = "character/texture/temp_r.dds";
+    bindings[2].texture_name = "temp_r.dds";
+    bindings[2].packed_channels.clear();
+    const auto constant_selector_layers = compile_material_layers(
+        refs, mesh, &bindings[0], nullptr, nullptr, &bindings[3], nullptr,
+        hints, "mesh_base_first");
+    require_material_contract(constant_selector_layers.size() == 7,
+        "constant exact colour selector lost its authored layers");
+    for (const auto& layer : constant_selector_layers) {
+        if (layer.layer_role != "detail") continue;
+        require_material_contract(layer.mask_source == "temp_r.dds",
+            "generic detail mask displaced an exact constant colour selector");
+    }
 }
 
 static void run_layered_garment_colour_contract_self_test() {

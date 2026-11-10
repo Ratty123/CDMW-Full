@@ -432,6 +432,7 @@ pub struct PreviewApplication {
     snapshot: DrawSnapshot,
     snapshot_scene_roles: Option<Vec<u32>>,
     textures: Vec<CdmwTextureResource>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     effect_texture_indices: HashMap<String, usize>,
     effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
@@ -479,6 +480,7 @@ impl PreviewApplication {
         let snapshot = mesh.draw_snapshot();
         let geometry = PreviewGeometry::from_mesh(&mesh);
         let textures = package.take_textures();
+        let layers = package.take_layers();
         let effect_textures = package.take_effect_textures();
         let presentations = package.take_material_presentations();
         let scene = package
@@ -513,6 +515,7 @@ impl PreviewApplication {
             snapshot,
             snapshot_scene_roles: None,
             textures,
+            layers,
             effect_textures,
             effect_texture_indices: HashMap::new(),
             effect_surfaces,
@@ -681,6 +684,7 @@ impl PreviewApplication {
                         &ownership,
                     )?;
                 }
+                for layers in &self.layers { renderer.add_material_layers(layers)?; }
                 renderer.set_material_lod(self.package.source_lod_index())?;
                 if let Some(roles) = self.snapshot_scene_roles.as_deref() {
                     renderer.set_snapshot_with_scene_roles(&self.snapshot, roles)?;
@@ -769,6 +773,7 @@ impl PreviewApplication {
                 let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
                 let old_textures =
                     std::mem::replace(&mut self.textures, loaded.package.take_textures());
+                let old_layers = std::mem::replace(&mut self.layers, loaded.package.take_layers());
                 let old_effects = std::mem::replace(
                     &mut self.effect_textures,
                     loaded.package.take_effect_textures(),
@@ -810,6 +815,7 @@ impl PreviewApplication {
                     self.snapshot = old_snapshot;
                     self.snapshot_scene_roles = old_roles;
                     self.textures = old_textures;
+                    self.layers = old_layers;
                     self.effect_textures = old_effects;
                     self.presentations = old_presentations;
                     self.state.scene = old_scene;

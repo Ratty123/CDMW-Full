@@ -10,7 +10,7 @@ pub(super) fn verify(
     camera_binding: &wgpu::BindGroup,
     camera: &mut CameraUniform,
     camera_buffer: &wgpu::Buffer,
-    default_binding: &wgpu::BindGroup,
+    default_binding: &GpuMaterialBinding,
     make_binding: impl Fn(&[u8], Option<&[u8]>, MaterialPreviewFactors) -> Result<GpuMaterialBinding, RenderError>,
 ) -> Result<(), RenderError> {
     let saved_camera = *camera;

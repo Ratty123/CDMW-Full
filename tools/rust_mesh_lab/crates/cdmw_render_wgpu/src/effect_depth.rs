@@ -121,7 +121,7 @@ pub(super) fn render(
     effect_mesh::draw_combined(renderer, &mut pass, &binding);
     renderer.face_selection.draw(
         &mut pass,
-        &renderer.default_material_binding.bind_group,
+        &renderer.default_material_binding,
         &renderer.camera_bind_group,
         renderer.face_selection_xray,
     );

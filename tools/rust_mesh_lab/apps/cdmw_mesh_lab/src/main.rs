@@ -32,6 +32,7 @@ mod loader;
 mod localization;
 mod new_item_ui;
 mod preview_core_material;
+mod preview_gpu_layers;
 mod preview_effects;
 mod preview_effect_lightning;
 mod preview_effect_spawn;
@@ -729,6 +730,7 @@ fn capture_cdmw_session(
         .unwrap_or_default()
         .to_owned();
     let textures = package.take_textures();
+    let layers = package.take_layers();
     let presentations = package.take_material_presentations();
     let owned_factors = presentations
         .iter()
@@ -754,10 +756,11 @@ fn capture_cdmw_session(
             material_indices_by_lod: ownership,
         })
         .collect::<Vec<_>>();
-    let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
+    let report = pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
         &snapshot,
         &texture_uploads,
         &factor_uploads,
+        &layers,
         HeadlessMaterialCaptureOptions {
             width: size,
             height: size,
@@ -933,7 +936,8 @@ fn capture_cdmw_audit_session(
     }
     let base_camera = material_audit_base_camera(&snapshot);
     let textures = package.take_textures();
-    let mut runtime_dds_metrics = material_audit_runtime_dds_metrics(&textures)?;
+    let layers = package.take_layers();
+    let mut runtime_dds_metrics = material_audit_runtime_dds_metrics(&textures, &layers)?;
     let expected_physical_upload_count = runtime_dds_metrics
         .get("resource_count")
         .and_then(Value::as_u64)
@@ -1037,10 +1041,11 @@ fn capture_cdmw_audit_session(
         .collect::<Vec<_>>();
     let renderer_start_offset_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
     let renderer_started = Instant::now();
-    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture_batch(
+    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture_batch(
         &snapshot,
         &texture_uploads,
         &factor_uploads,
+        &layers,
         &requests,
     ))
     .context("CDMW material audit capture failed")?;
@@ -1191,6 +1196,8 @@ fn material_audit_source_dds_metrics(
             == measured.decoded_source_sha256.len();
     let full_decode_complete = graph.quality != "full"
         || measured.source_dds_decode_count == measured.unique_source_dds_count;
+    let full_validation_complete = graph.quality != "full"
+        || measured.validated_source_sha256.len() as u64 == graph.unique_resource_count;
     json!({
         "available": true,
         "quality": graph.quality,
@@ -1200,7 +1207,7 @@ fn material_audit_source_dds_metrics(
         "unique_source_dds_bytes": graph.unique_resource_bytes,
         "reused_logical_reference_count": graph.source_edge_count.saturating_sub(graph.unique_resource_count),
         "decode_cache_key": "sha256",
-        "measurement": "actual_rust_source_dds_decode_events_v1",
+        "measurement": "actual_rust_source_dds_preparation_v2",
         "observed_source_reference_count": measured.source_reference_count,
         "observed_unique_source_dds_count": measured.unique_source_dds_count,
         "observed_source_dds_decode_count": measured.source_dds_decode_count,
@@ -1209,10 +1216,13 @@ fn material_audit_source_dds_metrics(
         "decoded_source_sha256": measured.decoded_source_sha256,
         "each_source_binary_decoded_at_most_once": each_source_binary_decoded_at_most_once,
         "full_source_decode_complete": full_decode_complete,
+        "full_source_validation_complete": full_validation_complete,
+        "validated_source_dds_count": measured.validated_source_sha256.len(),
+        "gpu_layer_material_count": measured.gpu_layer_material_count,
     })
 }
 
-fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Result<Value> {
+fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource], layers: &[cdmw_render_wgpu::MaterialLayerSet]) -> Result<Value> {
     let mut logical_keys = BTreeMap::<(String, String), usize>::new();
     let mut binaries = BTreeMap::<String, (usize, usize)>::new();
     let mut logical_resource_bytes = 0_u64;
@@ -1231,6 +1241,15 @@ fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Resu
         logical_resource_bytes = logical_resource_bytes
             .checked_add(u64::try_from(resource.bytes.len())?)
             .context("runtime DDS byte count overflow")?;
+    }
+    let mut logical_resource_count = resources.len();
+    for texture in layers.iter().flat_map(|layer| layer.textures.iter().flatten()) {
+        let metadata = cdmw_texture::inspect_dds(&texture.bytes, texture.role)?;
+        let sha = texture.source_sha256.to_ascii_lowercase();
+        *logical_keys.entry((sha.clone(), format!("{:?}", texture.role))).or_default() += 1;
+        binaries.entry(sha).or_insert((texture.bytes.len(), texture.bytes.len() - metadata.payload_offset));
+        logical_resource_bytes += texture.bytes.len() as u64;
+        logical_resource_count += 1;
     }
     let logical_duplicate_binding_count = logical_keys
         .values()
@@ -1251,13 +1270,13 @@ fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Resu
             })?;
     Ok(json!({
         "resource_count": binaries.len(),
-        "logical_resource_count": resources.len(),
+        "logical_resource_count": logical_resource_count,
         "logical_binding_key_count": logical_keys.len(),
         "logical_duplicate_binding_count": logical_duplicate_binding_count,
         "unique_upload_key_count": binaries.len(),
         "duplicate_upload_key_count": 0,
         "unique_binary_count": binaries.len(),
-        "reused_logical_resource_count": resources.len().saturating_sub(binaries.len()),
+        "reused_logical_resource_count": logical_resource_count.saturating_sub(binaries.len()),
         "logical_resource_bytes": logical_resource_bytes,
         "uploaded_resource_bytes": unique_binary_bytes,
         "reported_gpu_resident_bytes": reported_gpu_resident_bytes,
@@ -7802,6 +7821,8 @@ mod tests {
                 decoded_source_bytes: 512,
                 decoded_rgba8_bytes: 768,
                 decoded_source_sha256: vec!["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+                validated_source_sha256: vec!["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+                gpu_layer_material_count: 0,
             },
         );
         assert_eq!(source["reused_logical_reference_count"], 6);
@@ -7821,7 +7842,7 @@ mod tests {
             resource(cdmw_texture::TextureRole::BaseColor),
             resource(cdmw_texture::TextureRole::LayerMask),
         ];
-        let metrics = material_audit_runtime_dds_metrics(&distinct_interpretations)
+        let metrics = material_audit_runtime_dds_metrics(&distinct_interpretations, &[])
             .expect("distinct role interpretations");
         assert_eq!(metrics["logical_resource_count"], 2);
         assert_eq!(metrics["resource_count"], 1);
@@ -7836,7 +7857,7 @@ mod tests {
             resource(cdmw_texture::TextureRole::BaseColor),
         ];
         let duplicate_metrics =
-            material_audit_runtime_dds_metrics(&duplicate).expect("shared physical upload");
+            material_audit_runtime_dds_metrics(&duplicate, &[]).expect("shared physical upload");
         assert_eq!(duplicate_metrics["resource_count"], 1);
         assert_eq!(duplicate_metrics["logical_duplicate_binding_count"], 1);
     }

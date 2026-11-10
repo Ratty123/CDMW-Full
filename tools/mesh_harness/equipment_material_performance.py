@@ -1430,9 +1430,9 @@ def _validate_repeated_audit_report(
         and capture_contract_ok
         and report.get("dds_resources_uploaded_once_for_capture_set") is True
         and source.get("available") is True
-        and source.get("measurement") == "actual_rust_source_dds_decode_events_v1"
+        and source.get("measurement") == "actual_rust_source_dds_preparation_v2"
         and source.get("each_source_binary_decoded_at_most_once") is True
-        and source.get("full_source_decode_complete") is True
+        and source.get("full_source_validation_complete") is True
         and copied_source_count >= 0
         and unique_source_count >= 0
         and copied_source_count <= unique_source_count
@@ -1785,8 +1785,8 @@ def _instrumented_asset_failures(
         if (
             source.get("available") is not True
             or source.get("measurement")
-            != "actual_rust_source_dds_decode_events_v1"
-            or source.get("full_source_decode_complete") is not True
+            != "actual_rust_source_dds_preparation_v2"
+            or source.get("full_source_validation_complete") is not True
         ):
             fail(f"{quality}_decode_measurement", "actual source decode proof is missing")
         if (

@@ -673,7 +673,7 @@ def _preview_core_layer_tint(value: object) -> list[float]:
 
 
 def _preview_core_layer_parameter_index(parameters):
-    """Keep transforms tied to the exact component and material wrapper."""
+    """Keep layer sampling and blend controls tied to their exact wrapper."""
     result = {}
     for parameter in parameters:
         if not isinstance(parameter, Mapping):
@@ -682,6 +682,9 @@ def _preview_core_layer_parameter_index(parameters):
         if name.casefold().lstrip("_") not in {
             "dyeingtransformproperty0", "dyeingtransformproperty1",
             "dyeingtransformproperty3", "dyeingpropertyblend",
+            "colorblendingflag", "dyeingglobalopacity",
+            "dyeingdetaillayercolormaskr", "dyeingdetaillayercolormaskg",
+            "dyeingdetaillayercolormaskb",
         }:
             continue
         key = (
@@ -770,9 +773,18 @@ def _copy_preview_core_material_layers(
                 parameter_key = (
                     str(raw_layer.get("component_scope_id", "") or ""), owner, wrapper_index,
                 )
-                layer["uv_transform"] = list(pac_layer_uv_transform(
-                    parameter_index.get(parameter_key, ()), channel,
-                ))
+                parameters = parameter_index.get(parameter_key, ())
+                layer["uv_transform"] = list(pac_layer_uv_transform(parameters, channel))
+                if role == "detail" and parameters:
+                    values = {str(name).casefold(): value for name, value in parameters}
+                    shift = {"r": 0, "g": 1, "b": 2}[channel]
+                    flags = _preview_core_int(values.get("_colorblendingflag"), 0xFFFFFFFF)
+                    opacity = _preview_core_int(values.get("_dyeingglobalopacity"), 0xFFFFFFFF)
+                    layer["blend_flags"] = (flags >> (shift * 4)) & 15
+                    layer["blend_opacity"] = ((opacity >> (shift * 8)) & 255) / 255.0
+                    if f"_dyeingdetaillayercolormask{channel}" not in values:
+                        # A native default white is not an authored white dye.
+                        layer["tint"][3] = 0.0
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
                 _cancelled(cancelled)

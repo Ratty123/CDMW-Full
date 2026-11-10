@@ -17,6 +17,8 @@ pub use effect_mesh::{EffectLightningMaterial, EffectMeshAsset, EffectMeshInstan
     EffectMeshParticle, EffectMeshVertex, EffectMeshView, MAX_EFFECT_MESH_TRIANGLES};
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
+mod material_layers;
+pub use material_layers::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet, material_layers_supported};
 
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
@@ -123,7 +125,11 @@ const MATERIAL_TEXTURE_TINT: u32 = 8388608u;
 const MATERIAL_FLIP_V: u32 = 16777216u;
 const MATERIAL_ALPHA_BLEND: u32 = 33554432u;
 const MATERIAL_GLTF_PBR: u32 = 67108864u;
+const MATERIAL_GPU_LAYERS: u32 = 134217728u;
 const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;
+
+struct LayerSurface { color: vec3<f32>, normal: vec3<f32>, orm: vec3<f32>, mask: vec3<f32>, };
+// MATERIAL_LAYER_FUNCTIONS
 
 fn make_vertex_out(
     position: vec3<f32>,
@@ -550,7 +556,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
-    if (material.flags & MATERIAL_TEXTURE_TINT) != 0u {
+    let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u;
+    let layer_surface = evaluate_material_layers(sample_uv, texel);
+    if gpu_layered { texel = vec4<f32>(layer_surface.color, texel.a); }
+    if (material.flags & MATERIAL_TEXTURE_TINT) != 0u && !gpu_layered {
         let texture_tint = max(
             material.texture_tint_and_strength.rgb,
             vec3<f32>(0.0));
@@ -701,6 +710,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         return present_srgb(vec3<f32>(material_alpha), 1.0);
     }
     if camera.view_mode == 7u {
+        if gpu_layered { return present_srgb(layer_surface.mask, 1.0); }
         var layer_mask = texel.a;
         if (material.flags & MATERIAL_LAYER_MASK) != 0u {
             let mask = textureSampleBias(layer_mask_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
@@ -720,6 +730,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let tangent_z = sqrt(max(1.0 - dot(tangent_xy, tangent_xy), 0.0));
         tangent_normal = normalize(vec3<f32>(tangent_xy, tangent_z));
     }
+    if gpu_layered { tangent_normal = layer_surface.normal; }
     if eye_cover {
         tangent_normal = safe_normalize(mix(vec3<f32>(0.0, 0.0, 1.0), tangent_normal, eye_surface_alpha), vec3<f32>(0.0, 0.0, 1.0));
     }
@@ -819,7 +830,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         has_authoritative_roughness || has_source_glossiness;
     let has_source_metalness =
         (material.flags & (MATERIAL_SURFACE | MATERIAL_METALNESS)) != 0u;
-    let has_source_base_color = (material.flags & MATERIAL_BASE_COLOR) != 0u;
+    let has_source_base_color = (material.flags & MATERIAL_BASE_COLOR) != 0u || gpu_layered;
 
     var roughness = 0.66;
     var metalness = 0.0;
@@ -945,7 +956,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if is_skin { occlusion_category_weight = 0.58; }
     if is_hair { occlusion_category_weight = 0.62; }
     if is_cloth || is_leather || is_wood || is_stone { occlusion_category_weight = 0.68; }
-    let occlusion = mix(1.0, raw_occlusion, 0.45 * occlusion_category_weight);
+    var occlusion = mix(1.0, raw_occlusion, 0.45 * occlusion_category_weight);
+    if gpu_layered {
+        roughness = layer_surface.orm.g;
+        metalness = layer_surface.orm.b;
+        occlusion = layer_surface.orm.r;
+    }
 
     let game_outdoor = camera.view_mode == 9u;
     let showcase = camera.lighting_preset == 1u && !game_outdoor;
@@ -1048,7 +1064,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             cloth_high_luma_guard * 0.35,
         );
     }
-    if !showcase && !game_outdoor {
+    if (!showcase && !game_outdoor) || gpu_layered {
         // The sampled base is already decoded by an sRGB texture view. Do not
         // add category tint, a dark-colour lift, or a second gamma-like boost.
         material_reference_albedo = clamp(texel.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
@@ -2251,6 +2267,7 @@ struct MaterialFactorOwnership {
 }
 
 struct DefaultMaterialTextures {
+    layers: Option<Arc<material_layers::GpuLayers>>,
     base_color: wgpu::Texture,
     normal: wgpu::Texture,
     surface: wgpu::Texture,
@@ -2268,6 +2285,8 @@ struct DefaultMaterialTextures {
 
 struct GpuMaterialBinding {
     bind_group: wgpu::BindGroup,
+    layers: Option<Arc<material_layers::GpuLayers>>,
+    flags: u32,
     _uniform_buffer: wgpu::Buffer,
     alpha_blend: bool,
     translucent: bool,
@@ -2933,6 +2952,7 @@ pub struct WindowRenderer {
     default_material_textures: DefaultMaterialTextures,
     material_sampler: wgpu::Sampler,
     material_textures: Vec<GpuMaterialTexture>,
+    material_layers: BTreeMap<(usize, u32), Arc<material_layers::GpuLayers>>,
     material_factors: Vec<MaterialFactorOwnership>,
     active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
     mesh_viewport: Option<[f32; 4]>,
@@ -2952,6 +2972,24 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    pub fn supports_material_layers(&self) -> bool { material_layers::supported(&self.device) }
+
+    pub fn add_material_layers(&mut self, layers: &MaterialLayerSet) -> Result<(), RenderError> {
+        if !self.supports_material_layers() {
+            return Err(RenderError::Texture("adapter requires CPU material composition".into()));
+        }
+        let mut uploaded = std::array::from_fn(|_| None);
+        for (index, texture) in layers.textures.iter().enumerate() {
+            if let Some(texture) = texture {
+                uploaded[index] = Some(self.cached_dds_texture(&texture.bytes, texture.role)?);
+            }
+        }
+        if let Some(binding) = material_layers::binding(&self.device, &self.default_material_textures, &layers.uniform, &uploaded) {
+            self.material_layers.insert((layers.lod_index, layers.material_index), binding);
+        }
+        Ok(())
+    }
+
     pub fn has_material_animation(&self) -> bool {
         self.material_factors.iter().any(|owned| owned.factors.emission_animation
             .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0))
@@ -3025,6 +3063,7 @@ impl WindowRenderer {
         let textures = std::mem::take(&mut self.material_textures);
         let factors = std::mem::take(&mut self.material_factors);
         let bindings = std::mem::take(&mut self.active_material_bindings);
+        let layers = std::mem::take(&mut self.material_layers);
         let effects = self.effect_textures.split_off(1);
         let batches = std::mem::take(&mut self.effect_batches);
         let effect_meshes = std::mem::take(&mut self.effect_mesh.resources);
@@ -3040,6 +3079,7 @@ impl WindowRenderer {
             self.material_textures = textures;
             self.material_factors = factors;
             self.active_material_bindings = bindings;
+            self.material_layers = layers;
             self.effect_textures.truncate(1);
             self.effect_textures.extend(effects);
             self.effect_batches = batches;
@@ -3098,7 +3138,7 @@ impl WindowRenderer {
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("CDMW Rust Mesh Lab device"),
                 required_features,
-                required_limits: wgpu::Limits::default(),
+                required_limits: material_layers::limits(&adapter),
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 memory_hints: wgpu::MemoryHints::MemoryUsage,
                 trace: wgpu::Trace::Off,
@@ -3329,6 +3369,7 @@ impl WindowRenderer {
             default_material_textures,
             material_sampler,
             material_textures: Vec::new(),
+            material_layers: BTreeMap::new(),
             material_factors: Vec::new(),
             active_material_bindings: BTreeMap::new(),
             mesh_viewport: None,
@@ -3930,10 +3971,13 @@ impl WindowRenderer {
         for material in factors.keys() {
             active.entry(*material).or_default();
         }
+        for &(lod, material) in self.material_layers.keys() {
+            if lod == lod_index { active.entry(material).or_default(); }
+        }
         self.active_material_bindings = active
             .into_iter()
             .map(|(material, indices)| {
-                let binding = create_material_bind_group(
+                let mut binding = create_material_bind_group(
                     &self.device,
                     &self.texture_bind_group_layout,
                     &self.material_sampler,
@@ -3942,6 +3986,9 @@ impl WindowRenderer {
                     indices,
                     factors.get(&material).copied().unwrap_or_default(),
                 );
+                if let Some(layers) = self.material_layers.get(&(lod_index, material)) {
+                    material_layers::apply(&self.queue, &mut binding, layers);
+                }
                 (material, binding)
             })
             .collect();
@@ -3950,6 +3997,7 @@ impl WindowRenderer {
 
     pub fn reset_texture(&mut self) {
         self.material_textures.clear();
+        self.material_layers.clear();
         self.reset_material_factors();
     }
 
@@ -4071,7 +4119,7 @@ impl WindowRenderer {
                 self.face_selection.prepare_depth(
                     &mut pass,
                     mesh,
-                    &self.default_material_binding.bind_group,
+                    &self.default_material_binding,
                     &self.camera_bind_group,
                     self.view_mode,
                     self.face_selection_xray,
@@ -4079,7 +4127,7 @@ impl WindowRenderer {
                 self.rig_weights.prepare_depth(
                     &mut pass,
                     mesh,
-                    &self.default_material_binding.bind_group,
+                    &self.default_material_binding,
                     &self.camera_bind_group,
                     self.view_mode,
                     self.view_mode == ViewMode::XRay,
@@ -4087,7 +4135,7 @@ impl WindowRenderer {
                 draw_mesh(
                     &mut pass,
                     mesh,
-                    &self.default_material_binding.bind_group,
+                    &self.default_material_binding,
                     &self.active_material_bindings,
                     &self.camera_bind_group,
                     &self.solid_pipeline,
@@ -4114,25 +4162,25 @@ impl WindowRenderer {
                 if self.effect_batches.is_empty() && self.effect_mesh.is_empty() {
                     self.rig_weights.draw(
                         &mut pass,
-                        &self.default_material_binding.bind_group,
+                        &self.default_material_binding,
                         &self.camera_bind_group,
                         self.view_mode == ViewMode::XRay,
                     );
                     self.face_selection.draw(
                         &mut pass,
-                        &self.default_material_binding.bind_group,
+                        &self.default_material_binding,
                         &self.camera_bind_group,
                         self.face_selection_xray,
                     );
                     self.refit_warning.draw(
                         &mut pass,
-                        &self.default_material_binding.bind_group,
+                        &self.default_material_binding,
                         &self.camera_bind_group,
                         true,
                     );
                     self.part_hover.draw(
                         &mut pass,
-                        &self.default_material_binding.bind_group,
+                        &self.default_material_binding,
                         &self.camera_bind_group,
                         true,
                     );
@@ -4140,7 +4188,7 @@ impl WindowRenderer {
                 if self.show_bones
                     && let Some(lines) = &self.skeleton_lines
                 {
-                    pass.set_bind_group(0, &self.default_material_binding.bind_group, &[]);
+                    material_layers::bind(&mut pass, &self.default_material_binding);
                     pass.set_bind_group(1, &self.camera_bind_group, &[]);
                     draw_overlay_lines(
                         &mut pass,
@@ -4163,7 +4211,7 @@ impl WindowRenderer {
         );
         if let Some(mesh) = &self.mesh {
             self.emission_bloom.record(&self.device, encoder, view, [output_width, output_height], viewport,
-                mesh, &self.default_material_binding.bind_group, &self.active_material_bindings,
+                mesh, &self.default_material_binding, &self.active_material_bindings,
                 &self.camera_bind_group, &self.camera_uniform, self.view_mode);
         }
     }
@@ -4565,13 +4613,36 @@ pub async fn run_headless_material_capture(
         .ok_or_else(|| RenderError::Device("material capture returned no report".to_owned()))
 }
 
+pub async fn run_headless_layered_material_capture(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    options: HeadlessMaterialCaptureOptions,
+    output: HeadlessMaterialCaptureOutput<'_>,
+) -> Result<HeadlessMaterialCaptureReport, RenderError> {
+    run_headless_layered_material_capture_batch(snapshot, textures, factors, layers,
+        &[HeadlessMaterialCaptureRequest { options, output }]).await?.pop()
+        .ok_or_else(|| RenderError::InvalidSnapshot("layer capture returned no frame".into()))
+}
+
 pub async fn run_headless_material_capture_batch(
     snapshot: &DrawSnapshot,
     textures: &[HeadlessMaterialTexture<'_>],
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, requests, None).await
+    material_capture_batch(snapshot, textures, factors, &[], requests, None).await
+}
+
+pub async fn run_headless_layered_material_capture_batch(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    material_capture_batch(snapshot, textures, factors, layers, requests, None).await
 }
 
 /// Offscreen production shader/upload proof. Timings include CPU deformation,
@@ -4586,7 +4657,7 @@ pub async fn run_headless_motion_capture(
 ) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
     if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
     let mut run = MotionCapture { update, frame_count, timings: vec![] };
-    let mut reports = material_capture_batch(snapshot, textures, factors, &[request], Some(&mut run)).await?;
+    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run)).await?;
     Ok((reports.remove(0), run.timings))
 }
 
@@ -4600,6 +4671,7 @@ async fn material_capture_batch(
     snapshot: &DrawSnapshot,
     textures: &[HeadlessMaterialTexture<'_>],
     factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     mut motion: Option<&mut MotionCapture<'_>>,
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
@@ -4637,7 +4709,7 @@ async fn material_capture_batch(
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("CDMW Rust Mesh Lab material capture device"),
             required_features,
-            required_limits: wgpu::Limits::default(),
+            required_limits: material_layers::limits(&adapter),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),
             memory_hints: wgpu::MemoryHints::Performance,
             trace: wgpu::Trace::Off,
@@ -4690,6 +4762,31 @@ async fn material_capture_batch(
             material_indices_by_lod: texture.material_indices_by_lod.to_vec(),
         });
     }
+    let mut layer_bindings = BTreeMap::new();
+    if !layers.is_empty() && !material_layers::supported(&device) {
+        return Err(RenderError::Texture("adapter requires CPU material composition".into()));
+    }
+    for layer in layers.iter().filter(|layer| layer.lod_index == lod_index) {
+        let mut uploaded = std::array::from_fn(|_| None);
+        for (index, texture) in layer.textures.iter().enumerate() {
+            if let Some(texture) = texture {
+                let identity = dds_texture_identity(&texture.bytes, texture.role)?;
+                uploaded[index] = Some(if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
+                    UploadedDdsTexture { texture: Arc::clone(existing), view_format: identity.view_format,
+                        source_sha256: identity.source_sha256, single_channel: identity.single_channel }
+                } else {
+                    let result = upload_dds_texture(&device, &queue, &texture.bytes, texture.role)?;
+                    uploaded_textures.insert(result.source_sha256.clone(), Arc::clone(&result.texture));
+                    result
+                });
+            }
+        }
+        if let Some(binding) = material_layers::binding(&device, &default_material_textures, &layer.uniform, &uploaded) {
+            if layer_bindings.insert(layer.material_index, binding).is_some() {
+                return Err(RenderError::Texture("duplicate material layer ownership".into()));
+            }
+        }
+    }
     let mut material_factors = Vec::with_capacity(factors.len());
     for factor in factors {
         validate_material_factor_ownership(factor.factors, factor.material_indices_by_lod)?;
@@ -4714,10 +4811,11 @@ async fn material_capture_batch(
     for material in resolved_factors.keys() {
         resolved.entry(*material).or_default();
     }
+    for &material in layer_bindings.keys() { resolved.entry(material).or_default(); }
     let active_material_bindings = resolved
         .into_iter()
         .map(|(material, indices)| {
-            let binding = create_material_bind_group(
+            let mut binding = create_material_bind_group(
                 &device,
                 &texture_layout,
                 &material_sampler,
@@ -4726,6 +4824,9 @@ async fn material_capture_batch(
                 indices,
                 resolved_factors.get(&material).copied().unwrap_or_default(),
             );
+            if let Some(layers) = layer_bindings.get(&material) {
+                material_layers::apply(&queue, &mut binding, layers);
+            }
             (material, binding)
         })
         .collect::<BTreeMap<_, _>>();
@@ -4796,7 +4897,7 @@ async fn material_capture_batch(
                 }
                 mesh.refresh_geometry(&queue, &frame, VertexOverlay::Deformation(None), 0, None, 0, GeometryUpdateMode::Interactive)?;
                 let readback = render_headless_readback_at(&device, &queue, format, &mesh,
-                    &default_material_binding.bind_group, &active_material_bindings, &camera_bind_group,
+                    &default_material_binding, &active_material_bindings, &camera_bind_group,
                     &pipelines, &mut camera_uniform, &camera_buffer, ViewMode::TexturedSolid,
                     options.width, options.height, view_projection, None, false, None);
                 let pixels = read_headless_pixels(&device, &readback.0, readback.1, readback.2)?;
@@ -4812,7 +4913,7 @@ async fn material_capture_batch(
                 &queue,
                 format,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 &active_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -4989,7 +5090,7 @@ async fn run_headless_render_smoke_internal(
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("CDMW Rust Mesh Lab headless device"),
             required_features,
-            required_limits: wgpu::Limits::default(),
+            required_limits: material_layers::limits(&adapter),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),
             memory_hints: wgpu::MemoryHints::Performance,
             trace: wgpu::Trace::Off,
@@ -5480,7 +5581,7 @@ async fn run_headless_render_smoke_internal(
         return Err(error);
     }
     glow_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
-        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |bytes, base, factors| {
+        &mut camera_uniform, &camera_buffer, &default_material_binding, |bytes, base, factors| {
             let mut textures = Vec::new();
             for (bytes, role) in std::iter::once((bytes, TextureRole::Emissive))
                 .chain(base.map(|bytes| (bytes, TextureRole::BaseColor))) {
@@ -5492,7 +5593,7 @@ async fn run_headless_render_smoke_internal(
                 &textures, MaterialTextureIndices { emissive: Some(0), base_color: base.map(|_| 1), ..Default::default() }, factors))
         })?;
     shader_controls_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
-        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |mask, base, factors| {
+        &mut camera_uniform, &camera_buffer, &default_material_binding, |mask, base, factors| {
             let mut textures = Vec::new();
             let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
             let mut inputs = vec![(base, TextureRole::BaseColor), (mask, TextureRole::ShaderMask), (mask, TextureRole::ShaderNormal)];
@@ -5514,7 +5615,7 @@ async fn run_headless_render_smoke_internal(
         &camera_bind_group,
         &mut camera_uniform,
         &camera_buffer,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         |factors| {
             let roles: &[TextureRole] =
                 if factors.gltf_metallic_roughness == Some(true) && factors.metalness.is_some() {
@@ -5711,7 +5812,7 @@ async fn run_headless_render_smoke_internal(
                 multisample.as_ref().map(|_| &view),
                 &depth.view,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 &active_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -5731,7 +5832,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &base_only_material_bindings,
         &camera_bind_group,
         &pipelines,
@@ -5745,7 +5846,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &base_only_material_bindings,
         &camera_bind_group,
         &pipelines,
@@ -5759,7 +5860,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &material_proof_mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &base_only_material_bindings,
         &camera_bind_group,
         &pipelines,
@@ -5778,7 +5879,7 @@ async fn run_headless_render_smoke_internal(
                     &queue,
                     format,
                     &material_proof_mesh,
-                    &default_material_binding.bind_group,
+                    &default_material_binding,
                     bindings,
                     &camera_bind_group,
                     &pipelines,
@@ -5831,7 +5932,7 @@ async fn run_headless_render_smoke_internal(
                 &queue,
                 format,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -5850,7 +5951,7 @@ async fn run_headless_render_smoke_internal(
                 &queue,
                 format,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 &layer_mask_fallback_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -5867,7 +5968,7 @@ async fn run_headless_render_smoke_internal(
                 &queue,
                 format,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 &layer_mask_red_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -5884,7 +5985,7 @@ async fn run_headless_render_smoke_internal(
                 &queue,
                 format,
                 &mesh,
-                &default_material_binding.bind_group,
+                &default_material_binding,
                 &layer_mask_blue_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -5900,7 +6001,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &BTreeMap::new(),
         &camera_bind_group,
         &pipelines,
@@ -5914,7 +6015,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &BTreeMap::new(),
         &camera_bind_group,
         &pipelines,
@@ -5928,7 +6029,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &BTreeMap::new(),
         &camera_bind_group,
         &pipelines,
@@ -5944,7 +6045,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &BTreeMap::new(),
         &camera_bind_group,
         &pipelines,
@@ -5959,7 +6060,7 @@ async fn run_headless_render_smoke_internal(
         &queue,
         format,
         &reversed_winding_mesh,
-        &default_material_binding.bind_group,
+        &default_material_binding,
         &BTreeMap::new(),
         &camera_bind_group,
         &pipelines,
@@ -6926,7 +7027,7 @@ fn record_headless_pass(
     resolve_target: Option<&wgpu::TextureView>,
     depth: &wgpu::TextureView,
     mesh: &GpuMeshBuffers,
-    default_material_bind_group: &wgpu::BindGroup,
+    default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
@@ -7011,7 +7112,7 @@ fn render_headless_readback(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     mesh: &GpuMeshBuffers,
-    default_material_bind_group: &wgpu::BindGroup,
+    default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
@@ -7044,7 +7145,7 @@ fn render_headless_readback_with_skeleton(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     mesh: &GpuMeshBuffers,
-    default_material_bind_group: &wgpu::BindGroup,
+    default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
@@ -7085,7 +7186,7 @@ fn render_headless_readback_with_effects(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     mesh: &GpuMeshBuffers,
-    default_material_bind_group: &wgpu::BindGroup,
+    default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
@@ -7125,7 +7226,7 @@ fn render_headless_readback_at(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     mesh: &GpuMeshBuffers,
-    default_material_bind_group: &wgpu::BindGroup,
+    default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
@@ -7685,15 +7786,19 @@ fn create_pipelines_with_sample_count(
 ) -> Pipelines {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Mesh Lab shader"),
-        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(material_layers::shader(device).into()),
     });
+    let layer_layout = material_layers::layout(device);
+    let mut layouts = vec![Some(texture_layout), Some(camera_layout)];
+    if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Mesh Lab pipeline layout"),
-        bind_group_layouts: &[Some(texture_layout), Some(camera_layout)],
+        bind_group_layouts: &layouts,
         immediate_size: 0,
     });
     let glass = if device.features().contains(wgpu::Features::DUAL_SOURCE_BLENDING) {
-        let source = format!("enable dual_source_blending;\n{SHADER}\n{}", r#"
+        let main_shader = material_layers::shader(device);
+        let source = format!("enable dual_source_blending;\n{main_shader}\n{}", r#"
 struct GlassOutput {
     @location(0) @blend_src(0) surface: vec4<f32>,
     @location(0) @blend_src(1) transmission: vec4<f32>,
@@ -8107,7 +8212,7 @@ fn draw_solid<'a>(
 fn draw_textured_solid<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a GpuMeshBuffers,
-    default_material_bind_group: &'a wgpu::BindGroup,
+    default_material_bind_group: &'a GpuMaterialBinding,
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     pipeline: &'a wgpu::RenderPipeline,
     blended_pipeline: &'a wgpu::RenderPipeline,
@@ -8129,8 +8234,8 @@ fn draw_textured_solid<'a>(
         }
         let bind_group = active_material_bindings
             .get(&range.material)
-            .map_or(default_material_bind_group, |binding| &binding.bind_group);
-        pass.set_bind_group(0, bind_group, &[]);
+            .unwrap_or(default_material_bind_group);
+        material_layers::bind(pass, bind_group);
         pass.draw_indexed(
             range.first_index..range.first_index.saturating_add(range.index_count),
             0,
@@ -8145,14 +8250,14 @@ fn draw_textured_solid<'a>(
         // Other blended layers keep their back-to-front order beneath the glass composite.
         pass.set_pipeline(blended_pipeline);
         for batch in transparency.batches.iter().filter(|batch| !is_glass(batch)) {
-            pass.set_bind_group(0, &active_material_bindings[&batch.material].bind_group, &[]);
+            material_layers::bind(pass, &active_material_bindings[&batch.material]);
             pass.draw_indexed(batch.first_index..batch.end_index, 0, batch.part_id..batch.part_id + 1);
         }
         if let Some(glass) = glass {
             for pipeline in [&glass.depth, &glass.color] {
                 pass.set_pipeline(pipeline);
                 for batch in transparency.batches.iter().filter(is_glass) {
-                    pass.set_bind_group(0, &active_material_bindings[&batch.material].bind_group, &[]);
+                    material_layers::bind(pass, &active_material_bindings[&batch.material]);
                     pass.draw_indexed(batch.first_index..batch.end_index, 0, batch.part_id..batch.part_id + 1);
                 }
             }
@@ -8200,7 +8305,7 @@ fn draw_overlay_lines<'a>(
 fn draw_mesh<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a GpuMeshBuffers,
-    default_material_bind_group: &'a wgpu::BindGroup,
+    default_material_bind_group: &'a GpuMaterialBinding,
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &'a wgpu::BindGroup,
     solid_pipeline: &'a wgpu::RenderPipeline,
@@ -8224,7 +8329,7 @@ fn draw_mesh<'a>(
     show_bounds: bool,
     show_bones: bool,
 ) {
-    pass.set_bind_group(0, default_material_bind_group, &[]);
+    material_layers::bind(pass, default_material_bind_group);
     pass.set_bind_group(1, camera_bind_group, &[]);
     // Hiding the last visible part (including the Hair Tools bust) is valid.
     // wgpu rejects empty buffer slices, but independent overlays may still draw.
@@ -9283,7 +9388,8 @@ fn create_default_material_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> DefaultMaterialTextures {
-    DefaultMaterialTextures {
+    let mut defaults = DefaultMaterialTextures {
+        layers: None,
         base_color: create_solid_texture(
             device,
             queue,
@@ -9375,7 +9481,9 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [255, 255, 255, 255],
         ),
-    }
+    };
+    defaults.layers = material_layers::binding(device, &defaults, &LayerUniform::default(), &std::array::from_fn(|_| None));
+    defaults
 }
 
 fn material_translucency_uniform(factors: MaterialPreviewFactors) -> [f32; 4] {
@@ -9599,7 +9707,7 @@ fn create_material_bind_group(
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
         contents: bytemuck::bytes_of(&uniform),
-        usage: wgpu::BufferUsages::UNIFORM,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("CDMW Rust Mesh Lab texture bind group"),
@@ -9681,6 +9789,8 @@ fn create_material_bind_group(
     });
     GpuMaterialBinding {
         bind_group,
+        layers: defaults.layers.clone(),
+        flags: uniform.flags,
         _uniform_buffer: uniform_buffer,
         alpha_blend: factors.alpha_blend == Some(true) || translucent || eye_cover || layered,
         translucent,
@@ -10147,7 +10257,7 @@ mod emission_bloom {
             size: [u32; 2],
             viewport: Option<[f32; 4]>,
             mesh: &GpuMeshBuffers,
-            default_binding: &wgpu::BindGroup,
+            default_binding: &GpuMaterialBinding,
             materials: &BTreeMap<u32, GpuMaterialBinding>,
             camera: &wgpu::BindGroup,
             uniform: &CameraUniform,
@@ -10423,7 +10533,7 @@ mod material_transparency {
         camera_binding: &wgpu::BindGroup,
         camera: &mut CameraUniform,
         camera_buffer: &wgpu::Buffer,
-        default_binding: &wgpu::BindGroup,
+        default_binding: &GpuMaterialBinding,
         make_binding: impl Fn(super::MaterialPreviewFactors) -> GpuMaterialBinding,
     ) -> Result<(), super::RenderError> {
         let saved_camera = *camera;

@@ -4,7 +4,7 @@ use super::*;
 pub(super) fn verify(
     device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat,
     pipelines: &Pipelines, camera_binding: &wgpu::BindGroup,
-    camera: &mut CameraUniform, camera_buffer: &wgpu::Buffer, default_binding: &wgpu::BindGroup,
+    camera: &mut CameraUniform, camera_buffer: &wgpu::Buffer, default_binding: &GpuMaterialBinding,
     make_binding: impl Fn(&[u8], &[u8], MaterialPreviewFactors) -> Result<GpuMaterialBinding, RenderError>,
 ) -> Result<(), RenderError> {
     let saved = *camera;

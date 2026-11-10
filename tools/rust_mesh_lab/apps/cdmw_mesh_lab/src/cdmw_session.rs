@@ -248,6 +248,10 @@ pub struct PreviewCoreMaterialLayer {
     pub tint: [f32; 4],
     #[serde(default)]
     pub uv_transform: Option<[f32; 6]>,
+    #[serde(default)]
+    pub blend_flags: Option<u32>,
+    #[serde(default)]
+    pub blend_opacity: Option<f32>,
     pub diffuse_declared: bool,
     pub diffuse_archive_path: String,
     pub diffuse: Option<FileReference>,
@@ -461,6 +465,7 @@ pub struct LoadedCdmwSessionPackage {
     document: MeshDocument,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     material_composition_metrics:
         crate::preview_core_material::PreviewCoreMaterialCompositionMetrics,
@@ -564,18 +569,20 @@ impl LoadedCdmwSessionPackage {
         check_preview_cancelled(cancelled)?;
         let mut textures = read_texture_resources(&root, &manifest, &document)?;
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
-        let material_composition_metrics =
+        let (material_composition_metrics, layers) =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
-                crate::preview_core_material::compose_preview_core_material_resources_cancellable(
+                crate::preview_gpu_layers::prepare(
                     graph,
                     &manifest.material_presentations,
                     &document,
                     &mut textures,
+                    crate::preview_gpu_layers::supported(),
+                    std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
                     |reference| read_binary_reference(&root, reference),
                     cancelled,
                 )?
             } else {
-                crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default()
+                (crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default(), Vec::new())
             };
         let source_lod_index = manifest_source_lod_index(&manifest)?;
         if source_lod_index >= document.lods.len() {
@@ -589,6 +596,7 @@ impl LoadedCdmwSessionPackage {
             document,
             source_lod_index,
             textures,
+            layers,
             effect_textures,
             material_composition_metrics,
         })
@@ -616,6 +624,10 @@ impl LoadedCdmwSessionPackage {
 
     pub fn take_textures(&mut self) -> Vec<CdmwTextureResource> {
         std::mem::take(&mut self.textures)
+    }
+
+    pub fn take_layers(&mut self) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+        std::mem::take(&mut self.layers)
     }
 
     pub fn take_effect_textures(&mut self) -> Vec<CdmwEffectTextureResource> {
@@ -688,6 +700,7 @@ impl CdmwBridge {
             textures,
             effect_textures: _,
             material_composition_metrics: _,
+            layers: _,
         } = package;
         let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound_tx, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
@@ -1756,6 +1769,8 @@ fn validate_preview_core_material_graph(
                 || layer.shader_rule.len() > 128
                 || layer.evidence_grade.len() > 64
                 || layer.sampling_transform().iter().any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
+                || layer.blend_flags.is_some_and(|value| value > 15)
+                || layer.blend_opacity.is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
                 || [
                     layer.weight,
                     layer.detail_scale,
@@ -4147,6 +4162,12 @@ mod tests {
         let graph: PreviewCoreMaterialGraph = serde_json::from_value(manifest["preview_core_material_graph"].clone()).unwrap();
         let roundtrip: PreviewCoreMaterialGraph = serde_json::from_slice(&serde_json::to_vec(&graph).unwrap()).unwrap();
         assert_eq!(roundtrip.materials[0].layers[0].sampling_transform(), affine);
+        for (field, value) in [("blend_flags", json!(16)), ("blend_opacity", json!(-0.1))] {
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0][field] = value;
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(LoadedCdmwSessionPackage::load_preview(&path).is_err());
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0].as_object_mut().unwrap().remove(field);
+        }
         fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         LoadedCdmwSessionPackage::load_preview(&path).expect("v5 transform");
         for bad in [json!([1e7, 0, 0, 1, 0, 0]), json!([1, 0, 0, 1, 0]) ] {

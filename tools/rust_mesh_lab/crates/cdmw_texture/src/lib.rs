@@ -308,6 +308,31 @@ pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, 
 pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8, TextureError> {
     let plan = plan_2d_upload(bytes, role)?;
     let level = plan.levels.first().ok_or(TextureError::TruncatedPayload)?;
+    decode_planned_mip(bytes, &plan.metadata, level)
+}
+
+/// Alpha-weighted linear luminance, decoding only the first mip at most 64px.
+/// Sources without a small authored mip require the CPU composition route.
+pub fn dds_mean_luminance(bytes: &[u8]) -> Result<f32, TextureError> {
+    let plan = plan_2d_upload(bytes, TextureRole::BaseColor)?;
+    let level = plan.levels.iter().find(|level| level.width.max(level.height) <= 64)
+        .ok_or(TextureError::UnsupportedDecode)?;
+    let image = decode_planned_mip(bytes, &plan.metadata, level)?;
+    let mut luminance = 0.0_f64;
+    let mut alpha = 0.0_f64;
+    for pixel in image.pixels.chunks_exact(4) {
+        let linear = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+        };
+        let weight = f64::from(pixel[3]) / 255.0;
+        luminance += (0.2126 * linear(pixel[0]) + 0.7152 * linear(pixel[1]) + 0.0722 * linear(pixel[2])) * weight;
+        alpha += weight;
+    }
+    Ok(if alpha > 0.0 { (luminance / alpha) as f32 } else { 1.0 })
+}
+
+fn decode_planned_mip(bytes: &[u8], metadata: &DdsMetadata, level: &DdsMipLevel) -> Result<DecodedRgba8, TextureError> {
     let pixel_count = usize::try_from(level.width)
         .ok()
         .and_then(|width| {
@@ -327,7 +352,7 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
         .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
         .ok_or(TextureError::TruncatedPayload)?;
 
-    match plan.metadata.format {
+    match metadata.format {
         DdsFormat::Bc1Unorm | DdsFormat::Bc1Srgb => decode_rgba_blocks(
             source,
             level.width,
@@ -364,21 +389,21 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc4Snorm),
+            matches!(metadata.format, DdsFormat::Bc4Snorm),
             &mut pixels,
         )?,
         DdsFormat::Bc5Unorm | DdsFormat::Bc5Snorm => decode_bc5_blocks(
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc5Snorm),
+            matches!(metadata.format, DdsFormat::Bc5Snorm),
             &mut pixels,
         )?,
         DdsFormat::Bc6hUnsignedFloat | DdsFormat::Bc6hSignedFloat => decode_bc6_blocks(
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc6hSignedFloat),
+            matches!(metadata.format, DdsFormat::Bc6hSignedFloat),
             &mut pixels,
         )?,
         DdsFormat::R8Unorm => {
@@ -1494,6 +1519,20 @@ pub mod synthetic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layer_mean_uses_small_mip_and_alpha_weighted_linear_colour() -> Result<(), TextureError> {
+        let mut bytes = encode_rgba8_mipmapped_dds(128, 64, &vec![255; 128*64*4], TextureRole::BaseColor)?;
+        let plan = plan_2d_upload(&bytes, TextureRole::BaseColor)?;
+        let first = &plan.levels[0];
+        bytes[first.byte_offset..first.byte_offset+first.byte_length].fill(0);
+        assert!((dds_mean_luminance(&bytes)? - 1.0).abs() < 1e-6, "must not decode level zero");
+        let bytes = encode_rgba8_dds(2,1,&[255,0,0,255, 0,0,255,0],TextureRole::BaseColor)?;
+        assert!((dds_mean_luminance(&bytes)? - 0.2126).abs() < 1e-6);
+        let bytes = encode_rgba8_dds(1,1,&[0,0,0,0],TextureRole::BaseColor)?;
+        assert_eq!(dds_mean_luminance(&bytes)?, 1.0);
+        Ok(())
+    }
 
     fn dds_dx10(dxgi: u32) -> Vec<u8> {
         let mut bytes = vec![0_u8; 148];

@@ -1362,7 +1362,7 @@ def _capture_report_ok(report: Mapping[str, object], *, full_model_only: bool) -
         and report.get("dds_resources_uploaded_once_for_capture_set") is True
         and source_dds.get("available") is True
         and source_dds.get("each_source_binary_decoded_at_most_once") is True
-        and source_dds.get("full_source_decode_complete") is True
+        and source_dds.get("full_source_validation_complete") is True
         and runtime_dds.get("no_duplicate_upload_keys") is True
         and runtime_dds.get("upload_key") == "dds_sha256"
         and runtime_dds.get("role_specific_sampling_views_share_one_physical_upload")
@@ -1389,7 +1389,7 @@ def _report_dds_dedup_ok(report: Mapping[str, object]) -> bool:
     return bool(
         report.get("dds_resources_uploaded_once_for_capture_set") is True
         and source.get("each_source_binary_decoded_at_most_once") is True
-        and source.get("full_source_decode_complete") is True
+        and source.get("full_source_validation_complete") is True
         and _safe_int(source.get("copied_source_dds_count"), -1)
         <= _safe_int(source.get("unique_source_dds_count"), -2)
         and runtime.get("no_duplicate_upload_keys") is True

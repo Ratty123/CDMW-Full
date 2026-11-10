@@ -419,7 +419,20 @@ window and CDMW then exchange bounded JSONL control messages under
 use stderr. Large geometry and state arrays stay in hash-checked files beneath
 the owned session directory rather than being embedded in JSONL.
 
-For a layered PAC material, CDMW uses the shared Archive Browser PAC/PAC_XML graph,
+Full preview packages bind eligible RGB detail layers from the shared PAC graph
+as source-resolution DDS in bind group 2. Group 0 and its 288-byte material uniform
+remain compatible. The renderer requests 32 sampled textures when available;
+other adapters and unsupported graphs use the CPU compositor. Each detail has
+an affine UV transform, linear dye, mean luminance and direct packed response.
+The layer sampler uses zero LOD bias. Technical masks use sequential overlays
+with separate authored colour, normal and packed-response flags and opacity.
+Missing channels use base maps; colour
+seeds affect channels without detail. Grime is hidden unless the internal
+`CDMW_PREVIEW_DRAW_GRIME=1` comparison switch is set. Both capture and window
+recorders use this route. Every graph DDS is still hash-validated, even when
+disabled grime does not require decoding or upload.
+
+For an authoring PAC material, CDMW uses the shared Archive Browser PAC/PAC_XML graph,
 leased DDS cache, and material-combiner path to publish an sRGB base composite and
 linear packed-surface composite for each Part with a proven layer graph; direct-only
 Parts retain their authored DDS. Packed surface green is roughness and blue is

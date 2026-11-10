@@ -27,6 +27,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("CDMW selection depth proof"),
+            required_limits: material_layers::limits(&adapter),
             ..Default::default()
         })
         .await
@@ -61,11 +62,14 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     });
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("selection proof occluder"),
-        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device).into()),
     });
+    let layer_layout = material_layers::layout(&device);
+    let mut layouts = vec![Some(&texture_layout), Some(&camera_layout)];
+    if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("selection proof occluder layout"),
-        bind_group_layouts: &[Some(&texture_layout), Some(&camera_layout)],
+        bind_group_layouts: &layouts,
         immediate_size: 0,
     });
     let occluder_pipeline = create_pipeline(
@@ -219,7 +223,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_bind_group(0, &material.bind_group, &[]);
+            material_layers::bind(&mut pass, &material);
             pass.set_bind_group(1, &camera_binding, &[]);
             pass.set_pipeline(if tinted {
                 &tinted_pipeline
@@ -230,9 +234,9 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             });
             pass.set_vertex_buffer(0, tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..));
             pass.draw(0..if label == "part colors" { 12 } else { 6 }, 0..1);
-            selection.draw(&mut pass, &material.bind_group, &camera_binding, xray);
-            warning.draw(&mut pass, &material.bind_group, &camera_binding, true);
-            hover.draw(&mut pass, &material.bind_group, &camera_binding, true);
+            selection.draw(&mut pass, &material, &camera_binding, xray);
+            warning.draw(&mut pass, &material, &camera_binding, true);
+            hover.draw(&mut pass, &material, &camera_binding, true);
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -340,11 +344,14 @@ impl FaceSelectionRenderer {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("CDMW face selection shader"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device).into()),
         });
+        let layer_layout = material_layers::layout(device);
+        let mut layouts = vec![Some(texture_layout), Some(camera_layout)];
+        if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("CDMW face selection layout"),
-            bind_group_layouts: &[Some(texture_layout), Some(camera_layout)],
+            bind_group_layouts: &layouts,
             immediate_size: 0,
         });
         let pipeline = |depth, label| {
@@ -437,7 +444,7 @@ impl FaceSelectionRenderer {
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         mesh: &'a GpuMeshBuffers,
-        material: &'a wgpu::BindGroup,
+        material: &'a GpuMaterialBinding,
         camera: &'a wgpu::BindGroup,
         mode: ViewMode,
         xray: bool,
@@ -454,7 +461,7 @@ impl FaceSelectionRenderer {
         }
         // These display modes do not fill surfaces, but Visible highlights still need
         // those surfaces to occlude selected faces on the rear of the model.
-        pass.set_bind_group(0, material, &[]);
+        material_layers::bind(pass, material);
         pass.set_bind_group(1, camera, &[]);
         pass.set_vertex_buffer(0, mesh.vertex.slice(..));
         draw_solid(pass, mesh, &self.depth);
@@ -463,7 +470,7 @@ impl FaceSelectionRenderer {
     pub(super) fn draw<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
-        material: &'a wgpu::BindGroup,
+        material: &'a GpuMaterialBinding,
         camera: &'a wgpu::BindGroup,
         xray: bool,
     ) {
@@ -471,7 +478,7 @@ impl FaceSelectionRenderer {
             return;
         }
         if let Some(vertices) = &self.vertices {
-            pass.set_bind_group(0, material, &[]);
+            material_layers::bind(pass, material);
             pass.set_bind_group(1, camera, &[]);
             pass.set_pipeline(if xray { &self.xray } else { &self.visible });
             pass.set_vertex_buffer(0, vertices.slice(..));

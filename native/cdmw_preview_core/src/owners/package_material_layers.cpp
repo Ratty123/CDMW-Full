@@ -191,15 +191,15 @@ static const TextureBinding* find_layer_aux_binding(
                 exact_owner
                 && layer_role == "detail"
                 && parameter == "colorblendingmasktexture"
-                && lower_copy(binding->sidecar_kind).ends_with("pac_xml")
-                && lower_copy(binding->packed_channels).find("layer:color_blending_mask")
-                    != std::string::npos;
+                && lower_copy(binding->sidecar_kind).ends_with("pac_xml");
             if (authoritative_color_region_selector) {
                 // PAC R/G/B suffixes such as `_detailDiffuseMaskR` name
                 // authored colour regions in the same wrapper. Their selector
                 // is `_colorBlendingMaskTexture`; `_detailMaskTexture` remains
                 // a distinct technical detail input and a conservative
                 // fallback when the colour-region authority is not exact.
+                // Constant masks such as Temp_r have no inferred packed-channel
+                // label. The exact parameter still owns the colour regions.
                 score = 180;
             } else if (layer_role == "detail" && (parameter.find("detailmask") != std::string::npos || binding->role == "detail")) score = 120;
             else if ((layer_role == "grime" || layer_role == "layer") && (parameter.find("colorblendingmask") != std::string::npos || parameter.find("blendingmask") != std::string::npos)) score = 118;

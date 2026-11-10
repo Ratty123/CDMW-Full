@@ -106,6 +106,9 @@ Exact PAC detail and grime colour layers keep their authored channel opacity ins
 of the conservative accent cap or texture-resolution attenuation. Property blending
 does not reduce colour opacity. `self-test-materials` runs the focused ownership and
 material contracts, including layered garments, without the archive/path self-tests.
+An exact `_colorBlendingMaskTexture` also selects detail regions when it names a
+constant mask such as `Temp_r`; inferred channel labels must not displace that
+parameter with a generic `_detailMaskTexture`.
 
 ## Implementation owners
 

@@ -221,8 +221,11 @@ def test_layer_transforms_follow_wrapper_and_component_through_promotion(tmp_pat
         parameters.append(dict(component_scope_id=scope, owner_wrapper_item_id=owner,
                                material_wrapper_index=wrapper, parameter_name="_dyeingTransformProperty0",
                                integer_value=value))
-    native["material_conservation"].update(parameters=parameters, declared_parameter_count=4,
-                                           transported_parameter_count=4)
+    for name, value in (("_colorBlendingFlag", 10), ("_dyeingGlobalOpacity", 127)):
+        parameters.append(dict(component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+                               material_wrapper_index=0, parameter_name=name, integer_value=value))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=6,
+                                           transported_parameter_count=6)
     (source / "manifest.json").write_text(json.dumps(native))
     direct = build_rust_preview_package_from_preview_core(
         source, output_package_dir=tmp_path / "direct", material_quality="direct")
@@ -237,6 +240,9 @@ def test_layer_transforms_follow_wrapper_and_component_through_promotion(tmp_pat
         assert layers[1]["uv_transform"] == pytest.approx(pac_layer_uv_transform(
             (("_dyeingTransformProperty0", 13 | (13 << 8)),), "r"))
         assert layers[2]["uv_transform"] == [1, 0, 0, 1, 0, 0]
+        assert layers[1]["blend_flags"] == 10
+        assert layers[1]["blend_opacity"] == pytest.approx(127 / 255)
+        assert layers[1]["tint"][3] == 0  # No authored dye is not a white dye.
 
 
 def _called_names(path: Path) -> set[str]:
@@ -473,7 +479,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 9
+    assert RUST_PREVIEW_CACHE_SCHEMA == 10
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded
