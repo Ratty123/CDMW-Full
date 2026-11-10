@@ -52,6 +52,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Create New Item's **Apply placement** now transfers weights again when a rigged model imported with **Transfer from template** was moved, scaled or fitted after the import. Before, the weights stayed as they were copied where the file first put the model, so a model that had to be moved into place deformed with the wrong bones. After a Mesh Editor edit the weights cannot be transferred again; import the model again to refresh them.
 - Selecting another component in Create New Item while an imported model is open in Mesh Editor no longer cuts that model off from its Mesh Editor session. Before, its edits could not come back and the session had to be closed. **Finish and return to Create New Item** now selects the edited component again.
 
+### Docs
+
+- Help and the prepared Wiki manuals explain worn-set previews and editing, lighting controls, layered materials and GPU texture inspection in all 14 interface languages. The expanded Mesh Editor and Create New Item FAQ is retained.
+
 ## [0.12.0-alpha.3] - 2026-11-07
 
 ### Added

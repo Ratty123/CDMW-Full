@@ -80,7 +80,7 @@ leave the serialized index and material/texture resolution contract unchanged.
 For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
 selector rather than a PBR map. Preview packages publish three `color_seed` rows from
 the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked
-regions before grime/detail overlays, preserves the source fabric's local luminance, and
+regions before detail overlays, preserves the source fabric's local luminance, and
 suppresses the older global-tint approximation. When several logical items share one
 physical PAC, the ordered item prefab supplies `_modelPropertyIndex` per model and the
 native material reader scopes each `.pac_xml` to that exact `ModelProperty` block; the
@@ -101,6 +101,13 @@ six-float `uv_transform` for RGB detail and grime layers. Missing transforms use
 identity; authored zero scales remain authored values. The Rust loader accepts
 legacy graph-v4 packages without the field and rejects non-finite, oversized or
 inconsistently versioned transforms.
+
+The renderer samples eligible graph-v5 layers directly from owned compressed
+DDS mips. The six-layer bound, exact wrapper ownership, channel flags, authored
+opacity and UV affine are validated before GPU admission. Unsupported graphs
+retain CPU composition. Grime is conserved but omitted from normal previews.
+Unchanged source materials can also use this graph in authoring packages;
+Preview Core remains read-only and never becomes the edit authority.
 
 Exact PAC detail and grime colour layers keep their authored channel opacity instead
 of the conservative accent cap or texture-resolution attenuation. Property blending

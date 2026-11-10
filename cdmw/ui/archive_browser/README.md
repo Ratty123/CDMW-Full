@@ -9,6 +9,12 @@ unavailable helper or unsupported texture falls back to the existing PNG preview
 with GPU-only channel/mip controls disabled. Loading and fallback run outside the
 Qt thread; hiding, closing or replacing the preview cancels its owned process.
 
+Model previews expose **Shadows** and **Ambient occlusion**, initially on in
+Textured and Game Outdoor, plus **Studio (fixed lights)** beside the unchanged
+default lighting. Supported native material layers retain their tiled detail,
+dyes and metal; unsupported graphs use bounded composition. Grime is conserved
+but omitted from normal previews. Preview results do not establish game shading.
+
 Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.

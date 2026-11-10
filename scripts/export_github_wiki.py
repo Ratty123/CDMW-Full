@@ -376,7 +376,9 @@ def _readable_guide(source: str, translated: str, locale: str, *, mesh: bool = F
         question = re.match(r"^\*\*(.+?)\*\* (.+)$", block)
         if faq and question:
             source_answer = re.match(r"^\*\*(.+?)\*\* (.+)$", original)
-            block = "#### " + question[1] + "\n\n" + _readable_prose(source_answer[2], question[2], locale, portable=portable)
+            # Short answers read as one paragraph, not a procedure per sentence.
+            answer = _emphasize_paired([question[2]], [source_answer[2]], locale)[0]
+            block = "#### " + question[1] + "\n\n" + answer
         elif original.startswith("> [!"):
             kind = original.split("]", 1)[0][4:]
             source_body = "\n".join(line[2:] for line in original.splitlines()[1:])
@@ -729,14 +731,6 @@ def build_pages() -> dict[str, str]:
                     "".join(f"<p>{text}</p>" for text in selected), locale, translations
                 )).root, locale))
             references = PAGE_REFERENCES.get(page, ())
-            if page in {"Home", "Tools-and-Navigation"}:
-                parts.extend([
-                    "## " + translate("Documentation Index"),
-                    "\n".join(
-                        f"- [{_title(target, sections, translate)}]({page_url(target, locale)})"
-                        for target in PAGE_TOPICS if target != page
-                    ),
-                ])
             if references:
                 parts.append("### " + translate("References"))
                 parts.append("\n".join(

@@ -32,6 +32,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
     <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
+                <p>Supported layered materials preserve tiled fabric, dye and metal in previews, Mesh Editor and Create New Item when source materials are unchanged. Edited materials and exports keep their existing behavior. Grime is omitted. Preview shading does not establish game appearance.</p>
     <h4>Template</h4>
     <p>Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects.</p>
     <p>Wearable by below Template’s preview adds Kliff, Damiane or Oongka without changing inherited wearers or model fit. For a female Kliff, choose Kliff. DMM exports and .cdmw packages retain the choice; changing templates resets it. Equipping still needs a game check.</p>
@@ -186,7 +187,7 @@ class AboutDocumentationEnglishMixin:
                 "title": 'Textures',
                 "summary": 'One texture job for Edit, Replace, Recolor, Upscale, and Review & Export.',
                 "keywords": "texture workflow batch dds png rebuild compare start scan preview policy run summary",
-                "html": '<p><b>Textures</b> keeps the same documents, layers, history, selection, and original DDS bindings across Edit, Replace, Recolor, and Upscale.</p><ul><li><b>Edit</b>: add images or open an existing project, then use the layered editor.</li><li><b>Replace</b>: open a folder of externally edited PNG/DDS files, auto-match originals, and build a mod. Reload Folder refreshes the batch; Remove Selected and Clear All manage it without editing every file.</li><li><b>Recolor</b>: add a mod folder or ZIP, select texture or supported material-color targets, and review a template.</li><li><b>Upscale</b>: scan the configured Original DDS root or use current assets, configure output paths, profiles, rules, and a backend, then preview the policy.</li><li><b>Review &amp; Export</b>: choose edited-image export, replacement matching, recolor packages, or upscale output. Ambiguous originals require an explicit match.</li></ul><p>Batch jobs stage their outputs and publish them only after success. Cancellation or failure keeps previous output. Source mods and game archives are not modified by these export routes.</p>',
+                "html": '<p><b>Textures</b> keeps the same documents, layers, history, selection, and original DDS bindings across Edit, Replace, Recolor, and Upscale.</p><ul><li><b>Edit</b>: add images or open an existing project, then use the layered editor.</li><li><b>Replace</b>: open a folder of externally edited PNG/DDS files, auto-match originals, and build a mod. Reload Folder refreshes the batch; Remove Selected and Clear All manage it without editing every file.</li><li><b>Recolor</b>: add a mod folder or ZIP, select texture or supported material-color targets, and review a template.</li><li><b>Upscale</b>: scan the configured Original DDS root or use current assets, configure output paths, profiles, rules, and a backend, then preview the policy.</li><li><b>Review &amp; Export</b>: choose edited-image export, replacement matching, recolor packages, or upscale output. Ambiguous originals require an explicit match.</li></ul><p>Browse Archives and the Textures replacement preview display supported DDS textures on the GPU. Choose RGB, R, G, B or A, a mip, and optional normal Z reconstruction; use Fit, 100%, zoom and pan. Signed channels map from black at -1 to white at +1. Unsupported inputs use image previews. The editing canvas is unchanged.</p><p>Batch jobs stage their outputs and publish them only after success. Cancellation or failure keeps previous output. Source mods and game archives are not modified by these export routes.</p>',
             },
             {
                 "id": "workflow_profiles",
@@ -421,8 +422,10 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
+                <p>Item Finder opens the worn set without its dropped ground model. Set components groups pieces by file. Use visibility checkboxes, Show all or Isolate. Selecting another file highlights it while keeping the set visible; Preview only this file returns to one model.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>The DLC ships its own copies of about 13,500 base files, mostly textures, level data and models. Archive Browser, previews and the editors open the DLC's copy, which the game is expected to load instead of the base file. Searching by item name also finds DLC items. Texture packages can replace textures that only the DLC ships; such a package needs the DLC installed. Audio entries offer Import WAV as Loose Mod, which writes a loose mod for DMM instead of changing the game archives.</p>
+                <p>Browse Archives and the Textures replacement preview display supported DDS textures on the GPU. Choose RGB, R, G, B or A, a mip, and optional normal Z reconstruction; use Fit, 100%, zoom and pan. Signed channels map from black at -1 to white at +1. Unsupported inputs use image previews. The editing canvas is unchanged.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
@@ -597,6 +600,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml glow translucency shader vertex parameters skin weights cloth physics profile cloth guides pins collision shapes keyboard shortcuts hotkeys keys",
                 "html": """
 <p><b>Mesh Editor</b> opens supported archive or local meshes in the embedded Rust/D3D12 editor. A missing or incompatible helper blocks editing and offers Retry.</p>
+                <p>Open in Mesh Editor edits one piece with the others as references. Switch editable piece asks you to resolve unsaved changes before changing the editable file.</p>
                 <h4>Open and author a mesh</h4>
                 <ul>
                   <li>Choose Open in Mesh Editor for a supported PAC, PAM, or PAMLOD. Imported geometry uses the available Free Edit route.</li>
@@ -607,7 +611,10 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <p>Shadows and Ambient occlusion start on in Textured and Game Outdoor views. Studio (fixed lights) keeps its lights in place as you orbit; the default preset is unchanged. Icons retain self-shadows on a transparent background.</p>
                 <p>Very large models with many materials compose their materials only while they fit the 768 MiB texture limit. The remaining parts show their plain game textures, and the status line says how many parts use simplified materials.</p>
+                <p>Open set in Mesh Editor edits the pieces together. View controls visibility; Include controls output. Build writes separate PACs for changed, included files. Topology edits and paste stay within one source file. Incompatible rigs and empty-file output are refused. Oversized sets name the pieces kept as references. Save a set draft to resume later.</p>
+                <p>Supported layered materials preserve tiled fabric, dye and metal in previews, Mesh Editor and Create New Item when source materials are unchanged. Edited materials and exports keep their existing behavior. Grime is omitted. Preview shading does not establish game appearance.</p>
                 <h4>Parts</h4>
                 <p>Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport &gt; Display and work outside Morph &amp; Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.</p>
                 <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
@@ -1047,7 +1054,7 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <h4>External requirements</h4>
                 <ul>
-                  <li><b>cd-texture-dx.exe</b> is bundled and required for DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild.</li>
+                  <li>The bundled cd-texture-dx.exe is required for DDS-to-PNG conversion, compare previews, DDS rebuilding and the image fallback. Supported GPU previews read DDS directly.</li>
                   <li><b>Real-ESRGAN NCNN</b> and <b>chaiNNer</b> are optional backends.</li>
                 </ul>
                 <h4>References</h4>
@@ -1063,14 +1070,32 @@ class AboutDocumentationEnglishMixin:
                 "id": "faq",
                 "title": "FAQ",
                 "summary": "Short answers to common setup, workflow, and output questions.",
-                "keywords": "faq questions answers native dds ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
+                "keywords": "faq questions answers mesh editor create new item blender rig weights template finish build mod placement components body cloth wearable dmm native dds ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
                 "html": """
-                <p><b>Do I need to install a DDS converter?</b><br/>No. CDMW bundles <b>cd-texture-dx.exe</b> and uses it for all DDS preview and rebuild workflows.</p>
+                <p><b>Should I use Mesh Editor or Create New Item?</b><br/>Use Mesh Editor to change an existing game model. Use Create New Item to make a separate item with its own identity, appearance and way to obtain it; you can open its imported model in Mesh Editor.</p>
+                <h4><a href="topic:mesh_editor">Mesh Editor</a></h4>
+                <p><b>Does Finish Edit Mesh install my changes?</b><br/>For a model opened from Archive Browser, Finish Edit Mesh accepts the edit and saves a draft. Use Build Mod to write the mod, then enable and mount it in DMM. Free Edit uses its separate package export.</p>
+                <p><b>Why does a hidden part still appear in the export?</b><br/>View only hides a part in the preview. Use Mod or Include to leave it out of an eligible game-model export, then check Output Preview. In Create New Item, untick the whole component or delete the unwanted faces.</p>
+                <p><b>How do I continue a saved mesh edit?</b><br/>Open Drafts &amp; Mods and choose Continue Editing on the draft or built mod. Finish your changes before closing; edits still open in the editor and Undo/Redo history are not saved.</p>
+                <p><b>Can I edit a model in Blender and bring it back?</b><br/>Use Export… to save GLB, FBX or OBJ with its companion files, then Open Package in CDMW... to return it. Keep the companions together. Exact return needs stable vertex and joint identities; topology edits can prevent it.</p>
+                <p><b>Which Mesh Editor import weight option should I choose?</b><br/>Keep Imported Weights needs the model's matching game rig. Reduce to Six Influences trims compatible weights to the game's limit. Transfer from Original copies weights from the original surface; check the result in Rig &amp; Weights.</p>
+                <h4><a href="topic:new_item_studio">Create New Item</a></h4>
+                <p><b>How should I choose a new-item template?</b><br/>Start with the same equipment family and test its original model with one shop route first. The template supplies game behaviour and dependencies, not an automatic fit for any imported shape.</p>
+                <p><b>Why are my imported skin weights refused?</b><br/>Keep imported weights needs the template's own skeleton, with unchanged rest bones. Use Export rig GLB… to get that rig, or import with Transfer from template to copy its weights. Check the fit afterward.</p>
+                <p><b>How do I bring Mesh Editor changes back to my new item?</b><br/>Choose Finish and return to Create New Item. CDMW accepts the edit and reapplies placement if it was already applied. If the edit stays open, finish it, then choose Use Mesh Editor changes in Create New Item.</p>
+                <p><b>Why does Build plan report unapplied changes?</b><br/>Choose Apply placement after changing the imported model or its placement, then rebuild the plan. Apply staged effect changes too. Select each edited component to check its state; Build plan does not apply those edits for you.</p>
+                <p><b>How do I export a new item and find it in game?</b><br/>Choose a shop, recipe or reward under Distribution. Export a DMM mod folder, or send a .cdmw package through Mod Management's Send to DMM. Enable the mod and any item registrations entry, then mount in DMM; the item is not added straight to your inventory.</p>
+                <p><b>Do Wearable by and fitting references fit my model automatically?</b><br/>No. Wearable by changes who may equip the item. A fitting reference is only a visual guide and is not included in your export. Fit your own model and test it in game; automatic fitting and compatibility are not verified.</p>
+                <p><b>Why is skin missing after I shorten a garment?</b><br/>In Body underneath, keep the body or clothing layers that the selected component no longer needs to cut. Use a DMM mod folder; .cdmw packages cannot carry these changes. Other equipped items can still hide those layers, so check in game.</p>
+                <p><b>Why doesn't painted cloth move in the preview?</b><br/>Create New Item does not simulate cloth movement. Keep Template cloth / physics on for a cloth-painted import, apply placement and review the cloth warnings. Painted cloth and generated guides are experimental and have not been checked in game.</p>
+                <h4><a href="topic:workflow_overview">Textures</a></h4>
+                <p><b>Do I need to install a DDS converter?</b><br/>No. The bundled cd-texture-dx.exe handles DDS conversion and rebuilding. Supported GPU previews read DDS directly; other previews still use the converter.</p>
                 <p><b>Should I upscale every texture?</b><br/>No. Start with visible color, UI, or emissive textures. Normals, packed masks, vectors, height maps, and displacement maps should usually stay preserve-first unless you know the family.</p>
                 <p><b>When should I use Texture Replacer?</b><br/>Use it for one-off edited PNG/DDS replacements. Use Texture Workflow for batch rebuild or batch upscale of a loose DDS tree.</p>
                 <p><b>What is the safest first backend?</b><br/>Use <b>Disabled</b> first to prove paths and DDS rebuild behavior. Then test direct <b>Real-ESRGAN NCNN</b> or a known-good <b>chaiNNer</b> chain on a small subset.</p>
                 <p><b>Why did output brightness or detail change?</b><br/>Upscale models and correction modes can shift luma, contrast, alpha, or detail. Compare against the original, test a different model, reduce aggressive settings, or try Source Match correction for visible textures.</p>
-                <p><b>Can the app patch archives directly?</b><br/>Only for supported workflows. Ordinary browsing, preview, and extraction are read-only; patch actions require explicit confirmation and use backup/restore support where implemented.</p>
+                <h4>General</h4>
+                <p><b>Can the app patch archives directly?</b><br/>Direct archive patching and overlay installation are currently unavailable. Browsing, preview and extraction are read-only; use supported DMM mod outputs for edits.</p>
                 <p><b>Where are settings stored?</b><br/>The config file and cache are stored beside the executable or local source checkout. See <a href="topic:settings_files">Settings, Files &amp; Dependencies</a>.</p>
                 <p><b>Why does search not find my topic?</b><br/>Try feature names, tab names, file types, field labels, or symptoms such as <code>native DDS</code>, <code>brightness</code>, <code>normal</code>, <code>archive</code>, <code>profile</code>, or <code>mod-ready</code>.</p>
                 """,
@@ -1082,7 +1107,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "troubleshooting limits native dds ncnn chainner png output brightness drift preview archive cache",
                 "html": """
                 <ul>
-                  <li><b>Missing native DDS helper</b>: DDS preview and rebuild stop with an explicit native-backend error. Check that <code>cd-texture-dx.exe</code> was packaged beside the app.</li>
+                  <li>If cd-texture-dx.exe is missing, conversion, compare previews, DDS rebuilding and the image fallback stop. Check that it is packaged beside the app. Supported GPU previews remain available.</li>
                   <li><b>Missing NCNN models</b>: direct NCNN requires a valid executable and matching <code>.param</code> / <code>.bin</code> models.</li>
                   <li><b>No matching PNG outputs</b>: if the selected backend produces no usable PNG output, DDS rebuild has nothing to convert.</li>
                   <li><b>Wrong chaiNNer paths</b>: hardcoded chain paths can make the chain read from or write to the wrong directory.</li>

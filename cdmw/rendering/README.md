@@ -27,8 +27,8 @@ packages carry the corresponding six-float affine to Rust. Transforms are scoped
 to the exact component and material wrapper; old graph-v4 packages retain
 identity sampling when the optional field is absent.
 
-Full preview packages bind one to three distinct RGB detail channels sharing a
-mask directly on the GPU. Authored DDS mips stay compressed; dye uses linear
+Full preview packages bind up to six supported detail layers, including RGB
+channels sharing a mask, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
 luminance measured from a mip no larger than 64 pixels. The shader applies the
 affine, blends normals and reads layer occlusion, roughness and metal directly.
 Colour seeds can supply channels without a detail layer. Technical detail masks
@@ -40,7 +40,14 @@ adapters retain CPU composition, including repeat-wrapped affine sampling.
 Grime remains in the conserved graph but is hidden on both preview routes;
 `CDMW_PREVIEW_DRAW_GRIME=1` restores it for internal comparisons.
 
-Texture preparation composes independent materials on up to four CPU workers.
+Verified, unchanged source materials in Mesh Editor and Create New Item's
+ParsedMesh preview carry the same graph and owned DDS resources as Browse.
+Geometry edits retain eligible bindings; imported or changed materials retain
+the authoring compositor, painted-channel rules and existing export semantics.
+View-only editor references keep their baked materials. Source identity, part
+ownership and texture budgets are checked before a graph enters the package.
+
+Fallback texture preparation composes independent materials on up to four CPU workers.
 The Rust compositor decodes independent source DDS files on up to four workers,
 after the owning reader validates their bytes and admits their decoded sizes
 within the existing 512 MiB source-image limit. Workers finish before composition
@@ -59,7 +66,9 @@ preserves LOD/part ownership, and encodes in source order against one shared
 128 MiB fast-preview budget. Cancellation wakes budget waiters and joins the
 owned workers before temporary files can be removed. The current scene is
 replaced only through the existing completed-package handoff. These changes
-affect 3D material preparation; 2D DDS image previews retain their PNG cache.
+affect 3D material preparation. Browse Archives and the Textures replacement
+preview use the dedicated GPU DDS viewer; unsupported textures and unavailable
+helpers retain the PNG cache. The Texture Editor canvas is unchanged.
 
 Building a preview or Mesh Editor package copies independent geometry batches and
 unique texture files on at most four workers per stage, including the first load

@@ -315,9 +315,11 @@ direct lobe with shifted primary and secondary strand bands; a non-hair owner bi
 same Flow slot with no flag and therefore no pixel change. Exact
 `_colorBlendingMaskTexture` and `_detailMaskTexture` parameters populate the linear
 Layer Mask slot, and the loader carries the production R/B selector into each owning
-range. Layer Mask renders that component in grayscale; it is diagnostic only and never
-alters Textured output because the selected dye/detail layer sources are not yet
-composed.
+range. Layer Mask renders that component in grayscale. This diagnostic does not
+alter Textured output. Managed preview and eligible authoring packages separately
+bind supported graph-v5 dye/detail layers to the shared material shader, with
+owned DDS mips, wrapper-specific affines and validated channel/opacity controls.
+Unsupported graphs retain CPU composition; grime stays conserved but hidden.
 
 Base Color, Normal Map, UV Checker, Base Alpha, and Material Response use the same
 material pipeline and camera rather than a second renderer. The loader also recognizes
@@ -339,8 +341,9 @@ source response.
 A role with no authoritative binding uses its neutral default, while a completely
 unresolved owner keeps the normal-colored placeholder unless a surface factor, alpha
 policy, qualified hair Flow policy, or layer-mask diagnostic supplies explicit material
-evidence. Actual layered/dye composition, non-global displacement, and remaining
-scalar/vector parameters remain preserved but unsampled. Same-owner texture conflicts
+evidence. Non-global displacement and remaining unsupported scalar/vector
+parameters stay preserved but unsampled. Layer composition does not establish
+complete game-shader coverage. Same-owner texture conflicts
 are isolated by preview slot in the loader; Specular and Glossiness are independent,
 while renderer-level duplicate-slot/factor conflicts clear only the affected map rather
 than retaining bindings from the previous LOD.
@@ -474,7 +477,7 @@ extrusion, and individual-face inset.
 Each scenario starts from an untouched baseline and rejects out-of-scope position or
 normal changes before checking exact operation, Undo, and Redo fingerprints. These paths
 remain proof harnesses; they do not own application behavior or establish PAB corpus
-parity, PAC skinning, visible real-game appearance parity, full layer composition, or
+parity, PAC skinning, visible real-game appearance parity, all material-family coverage, or
 true vertex displacement.
 
 ## UI and worker ownership

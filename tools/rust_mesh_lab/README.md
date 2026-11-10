@@ -1,5 +1,24 @@
 # CDMW Rust Mesh Lab
 
+## Managed materials, lighting and item sets
+
+Managed Preview Core graph-v5 packages render supported fabric/dye/metal layers
+from compressed DDS mips, with wrapper-owned UV affines and channel/opacity
+controls. Unchanged source-backed Mesh Editor and Create New Item materials use
+the same path; imported/edited materials and unsupported graphs retain bounded
+composition. Grime is conserved but hidden. Export semantics are unchanged.
+
+Textured and Game Outdoor expose Shadows and Ambient occlusion, on by default.
+Studio (fixed lights) adds a fixed key/fill/rim environment without changing the
+default preset. Transparent icon captures keep self-shadowing.
+
+Item Finder opens worn sets without drop models. Browse keeps per-file component
+visibility and selection; Mesh Editor can open one editable file with references,
+or a whole set with per-file View/Include and separate changed PAC outputs.
+Ownership, rig palettes, topology/clipboard provenance and budgets remain
+validated. Oversized sets name the pieces retained as reduced-detail references.
+These are source, owned-fixture and offscreen rendering contracts, not game proof.
+
 ## Read-only DDS viewer
 
 `--cdmw-texture-view --embedded-parent-hwnd <decimal>` opens the dedicated 2D
@@ -115,7 +134,7 @@ as a validated neutral OBJ/MTL directory.
 Its app flow, archive reconstruction boundary, relationship failures, material-parameter
 Inspector, multi-role DDS upload, and offscreen D3D12 renderer can also be exercised
 without creating a window. Partial PAR, DDS arrays/cubes and fallback transcoding,
-actual layered/dye and blended-alpha material composition, non-global displacement/layer
+complete material-family and blended-alpha coverage, non-global displacement/layer
 semantics, remaining scalar/vector sampling, PAC skin/appearance parity, versioned lab
 projects, representative performance evidence, and private real-game parity remain
 incomplete. See [READINESS.md](READINESS.md).
@@ -1179,7 +1198,7 @@ bounded pointer/latency queues, exact cancellation, and the configured total Und
 history budget.
 
 These gates prove CPU/offscreen execution and control routing, not visible usability, OS
-working-set stability, true displacement, full layer composition, PAC skinning, or
+working-set stability, true displacement, all material-family coverage, PAC skinning, or
 real-game appearance parity. `cargo deny`, `cargo audit`, and fuzzing are separate
 optional gates when installed.
 

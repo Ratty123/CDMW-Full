@@ -182,6 +182,20 @@ def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_man
         assert f"[{language.display_name}]({manual_url(language.code)})" in wiki_manuals["Languages.md"]
 
 
+def test_each_manual_has_one_documentation_index_heading(wiki_manuals):
+    from scripts.export_github_wiki import load_builtin_catalog
+
+    for language in BUILTIN_LANGUAGES:
+        body = wiki_manuals[manual_path(language.code)]
+        title = load_builtin_catalog(language.code)["translations"]["Documentation Index"]
+        headings = re.findall(r"^#{2,6} (.+)$", body, re.MULTILINE)
+        assert headings.count(title) == 1, language.code
+        index = body.split('<a id="guide-tools-and-navigation"></a>', 1)[1].split("\n\n---", 1)[0]
+        assert index.startswith("\n\n## " + title + "\n"), language.code
+        assert "](#guide-archive-browser) |" in index, language.code
+        assert "](#guide-mesh-editor) |" in index, language.code
+
+
 def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wiki_manuals):
     public_pages = {Path(name).name: body for name, body in wiki_manuals.items() if Path(name).name != "_Sidebar.md"}
     for filename, body in wiki_manuals.items():
@@ -242,6 +256,17 @@ def test_procedures_are_steps_with_separate_limits_and_optional_details(wiki_man
     for language in BUILTIN_LANGUAGES:
         manual = wiki_manuals[manual_path(language.code)]
         assert manual.count("<details>") == manual.count("</details>")
+
+
+def test_faq_answers_stay_compact_in_every_language(wiki_pages, wiki_manuals):
+    for language in BUILTIN_LANGUAGES:
+        source = wiki_pages[page_slug('FAQ', language.code) + '.md']
+        faq = wiki_manuals[manual_path(language.code)].split('<a id="guide-faq"></a>', 1)[1]
+        faq = faq.split('\n\n---', 1)[0]
+        questions = re.findall(r'^\*\*(.+?)\*\* ', source, re.MULTILINE)
+        assert questions
+        assert re.findall(r'^##### (.+)$', faq, re.MULTILINE) == questions
+        assert not re.search(r'^(?:1\. |- |> )', faq, re.MULTILINE), language.code
 
 
 def test_sentence_formatting_preserves_code_versions_ellipsis_and_cjk_punctuation():
@@ -563,6 +588,20 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             assert translated in dialog.browser.toPlainText()
             assert translated in wiki_pages[page_slug('Create-New-Item',language.code)+'.md']
             if language.code!='en': assert translated!=guide
+        dialog.select_section('faq')
+        localizer.apply(dialog)
+        faq = next(section for section in sections if section['id'] == 'faq')
+        plain = dialog.browser.toPlainText()
+        for question in re.findall(r'<p><b>(.*?)</b><br/>', faq['html']):
+            question = html.unescape(question)
+            translated = localizer.translate(question)
+            # Both renderers normalize French non-breaking spaces.
+            normalized = ' '.join(translated.split())
+            assert normalized in ' '.join(plain.split())
+            assert normalized in ' '.join(wiki_pages[page_slug('FAQ', language.code) + '.md'].split())
+            assert translated != question or language.code == 'en'
+        for topic in ('mesh_editor', 'new_item_studio', 'workflow_overview'):
+            assert f'href="topic:{topic}"' in dialog.browser.toHtml()
         dialog.select_section('troubleshooting')
         localizer.apply(dialog)
         plain = dialog.browser.toPlainText()

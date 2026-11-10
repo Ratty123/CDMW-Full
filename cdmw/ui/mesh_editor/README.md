@@ -549,6 +549,12 @@ without a native graph and view-only reference packages retain their baked path.
 Create New Item's ParsedMesh preview shares this rule. Material Authority,
 Fast preview, Exact and exported material output retain their existing meanings.
 
+Viewport's **Shadows** and **Ambient occlusion** start enabled in Textured and
+Game Outdoor. **Studio (fixed lights)** keeps the key/fill/rim lighting fixed as
+the camera orbits; the default preset remains Neutral studio. Icon captures keep
+self-shadowing with transparent background pixels. These controls affect preview
+presentation, not exported game materials or verified game appearance.
+
 Large command responses, including dense jiggle data returned after part selection,
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.
