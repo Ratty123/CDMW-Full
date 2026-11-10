@@ -49,6 +49,17 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
                 expected_root_identity=session.root_identity,
             )
             synthesis = authoring._RustMaterialSynthesisState()
+            if not editing_set:
+                # Reference-only packages retain their existing baked material
+                # contract. Editable parts carry the native authoring graph.
+                import copy
+                mesh = copy.copy(mesh)
+                mesh.lod_levels = [[copy.copy(part) for part in level] for level in authoring._mesh_lods(mesh)]
+                mesh.submeshes = mesh.lod_levels[0]
+                for level in mesh.lod_levels:
+                    for part in level:
+                        part.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
+                        part.preview_native_material_overrides.pop("preview_core_material_source", None)
             textures = [] if editing_set else authoring._mesh_texture_payloads(
                 session.root, mesh, expected_root_identity=session.root_identity,
                 stop_event=stop_event, synthesis_state=synthesis,

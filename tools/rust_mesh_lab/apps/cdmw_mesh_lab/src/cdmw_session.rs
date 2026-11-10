@@ -98,6 +98,7 @@ pub struct CdmwMaterialUpdate {
     pub textures: Vec<CdmwTextureResource>,
     pub material_presentations: Vec<SessionMaterialPresentation>,
     pub reason: String,
+    pub layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
 }
 
 #[derive(Deserialize)]
@@ -106,6 +107,10 @@ struct MaterialStatePayload {
     textures: Vec<SessionTextureReference>,
     material_presentations: Vec<SessionMaterialPresentation>,
     reason: String,
+    #[serde(default)]
+    preview_core_material_graph: Option<PreviewCoreMaterialGraph>,
+    #[serde(default)]
+    material_contract: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -574,22 +579,7 @@ impl LoadedCdmwSessionPackage {
         if expected_schema == PREVIEW_PACKAGE_SCHEMA {
             validate_document(&document)?;
         }
-        if manifest.preview_core_geometry.is_none()
-            && let Some(graph) = manifest.preview_core_material_graph.as_ref()
-        {
-            let mut owners = BTreeMap::new();
-            let slots: BTreeMap<_, _> = manifest.material_presentations.iter()
-                .map(|row| ((row.lod_index, row.material_index), row.material_slot_index))
-                .collect();
-            for (lod_index, lod) in document.lods.iter().enumerate() {
-                for (material_index, submesh) in lod.submeshes.iter().enumerate() {
-                    let key = (lod_index as u32, material_index as u32);
-                    let slot = slots.get(&key).copied().unwrap_or(key.1);
-                    owners.insert(key, (slot, submesh.material.as_str()));
-                }
-            }
-            validate_preview_core_material_graph(&manifest, graph, &owners, false)?;
-        }
+        validate_document_material_graph(&manifest, &document)?;
         reject_unexpected_initial_files(&root, &manifest, &document)?;
         validate_material_presentations(&manifest, &document)?;
         check_preview_cancelled(cancelled)?;
@@ -723,6 +713,7 @@ pub struct CdmwBridge {
     shadow_revision: u64,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     reference_pieces: Vec<LoadedReferencePiece>,
     last_result_request_id: u64,
     state_snapshot_accepted: bool,
@@ -769,7 +760,7 @@ impl CdmwBridge {
             reference_pieces,
             effect_textures: _,
             material_composition_metrics: _,
-            layers: _,
+            layers,
         } = package;
         let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound_tx, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
@@ -792,6 +783,7 @@ impl CdmwBridge {
                 shadow_revision,
                 source_lod_index,
                 textures,
+                layers,
                 reference_pieces,
                 last_result_request_id: 0,
                 state_snapshot_accepted: false,
@@ -818,6 +810,10 @@ impl CdmwBridge {
 
     pub fn take_textures(&mut self) -> Vec<CdmwTextureResource> {
         std::mem::take(&mut self.textures)
+    }
+
+    pub fn take_layers(&mut self) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+        std::mem::take(&mut self.layers)
     }
 
     pub fn take_material_presentations(&mut self) -> Vec<SessionMaterialPresentation> {
@@ -1348,13 +1344,16 @@ impl CdmwBridge {
         let mut manifest = self.manifest.clone();
         manifest.textures = payload.textures;
         manifest.material_presentations = payload.material_presentations;
+        manifest.preview_core_material_graph = payload.preview_core_material_graph;
+        manifest.material_contract = payload.material_contract;
         validate_material_presentations(&manifest, document)?;
-        let textures = read_texture_resources(&self.root, &manifest, document)?;
+        let (textures, layers) = read_updated_materials(&self.root, &manifest, document)?;
         Ok(Some(CdmwMaterialUpdate {
             key: key.to_owned(),
             textures,
             material_presentations: manifest.material_presentations,
             reason: payload.reason,
+            layers,
         }))
     }
 
@@ -1445,6 +1444,7 @@ impl CdmwBridge {
             shadow_revision,
             source_lod_index: 0,
             textures: Vec::new(),
+            layers: Vec::new(),
             reference_pieces: Vec::new(),
             last_result_request_id: 0,
             state_snapshot_accepted: false,
@@ -1715,7 +1715,7 @@ fn validate_manifest_for(
         ));
     }
     if manifest.preview_core_geometry.is_some() || manifest.preview_core_material_graph.is_some() {
-        if expected_schema != PREVIEW_PACKAGE_SCHEMA {
+        if manifest.preview_core_geometry.is_some() && expected_schema != PREVIEW_PACKAGE_SCHEMA {
             return Err(SessionError::InvalidManifest(
                 "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
             ));
@@ -1773,6 +1773,51 @@ fn validate_manifest_for(
         }
     }
     Ok(())
+}
+
+fn validate_document_material_graph(manifest: &SessionManifest, document: &MeshDocument) -> Result<(), SessionError> {
+    if manifest.preview_core_geometry.is_none()
+        && let Some(graph) = manifest.preview_core_material_graph.as_ref()
+    {
+        let mut owners = BTreeMap::new();
+        let slots: BTreeMap<_, _> = manifest.material_presentations.iter()
+            .map(|row| ((row.lod_index, row.material_index), row.material_slot_index)).collect();
+        for (lod_index, lod) in document.lods.iter().enumerate() {
+            for (material_index, submesh) in lod.submeshes.iter().enumerate() {
+                let key = (lod_index as u32, material_index as u32);
+                owners.insert(key, (slots.get(&key).copied().unwrap_or(key.1), submesh.material.as_str()));
+            }
+        }
+        validate_preview_core_material_graph(manifest, graph, &owners, false)?;
+    }
+    Ok(())
+}
+
+fn read_updated_materials(root: &Path, manifest: &SessionManifest, document: &MeshDocument)
+    -> Result<(Vec<CdmwTextureResource>, Vec<cdmw_render_wgpu::MaterialLayerSet>), SessionError>
+{
+    validate_manifest_for(manifest, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)?;
+    validate_document_material_graph(manifest, document)?;
+    let mut sources = BTreeMap::new();
+    let mut total = 0_u64;
+    let mut read = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+        let key = serde_json::to_vec(reference)?;
+        if let Some(bytes) = sources.get(&key) { return Ok(Vec::clone(bytes)); }
+        let bytes = read_binary_reference(root, reference)?;
+        total = total.saturating_add(bytes.len() as u64);
+        if total > MAX_TEXTURE_TOTAL_BYTES {
+            return Err(SessionError::InvalidPayload("verified texture sources exceed the 512 MiB limit".into()));
+        }
+        sources.insert(key, bytes.clone());
+        Ok(bytes)
+    };
+    let mut textures = read_texture_resources_with(manifest, document, &mut read)?;
+    let layers = if let Some(graph) = &manifest.preview_core_material_graph {
+        crate::preview_gpu_layers::prepare(graph, &manifest.material_presentations, document, &mut textures,
+            graph.quality == "full" && crate::preview_gpu_layers::supported(),
+            std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"), &mut read, &|| false)?.1
+    } else { Vec::new() };
+    Ok((textures, layers))
 }
 
 fn validate_preview_core_material_graph(
@@ -2701,6 +2746,7 @@ fn is_owned_texture_filename(value: &str) -> bool {
         && parts.next().is_none()
 }
 
+#[cfg(test)]
 fn read_texture_resources(
     root: &Path,
     manifest: &SessionManifest,
@@ -3022,9 +3068,15 @@ fn reject_unexpected_initial_files(
             let mut material_manifest = manifest.clone();
             material_manifest.textures = payload.textures;
             material_manifest.material_presentations = payload.material_presentations;
+            material_manifest.preview_core_material_graph = payload.preview_core_material_graph;
+            material_manifest.material_contract = payload.material_contract;
             validate_material_presentations(&material_manifest, document)?;
-            read_texture_resources(root, &material_manifest, document)?;
+            read_updated_materials(root, &material_manifest, document)?;
             allowed.insert(reference.path.clone());
+            allowed.extend(material_manifest.preview_core_material_graph.iter()
+                .flat_map(|graph| &graph.materials).flat_map(|material| &material.layers)
+                .flat_map(PreviewCoreMaterialLayer::resources)
+                .filter_map(|(_, _, _, reference)| reference.map(|resource| resource.path.clone())));
             allowed.extend(
                 material_manifest
                     .textures
@@ -4441,6 +4493,47 @@ mod tests {
             let error = LoadedCdmwSessionPackage::load_preview(&path).expect_err("wrong material owner");
             assert!(error.to_string().contains("ownership"));
         }
+    }
+
+    #[test]
+    fn authoring_layers_load_and_material_updates_revalidate_ownership() {
+        let root = tempdir().unwrap();
+        let path = write_composite_material_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&path).expect("owned authoring layers");
+        assert!(package.manifest.preview_core_geometry.is_none());
+        assert!(!package.textures.is_empty());
+        assert_eq!(package.manifest.preview_core_material_graph.as_ref().unwrap().materials[0].material_index, 1);
+        read_updated_materials(&package.root, &package.manifest, package.document()).expect("Undo rehydrates original layers");
+        for (field, value) in [("material_index", json!(0)), ("material_slot_index", json!(999)),
+                               ("material_name", json!("other")), ("authoring_channels", json!(4))] {
+            let mut changed = manifest.clone();
+            changed["preview_core_material_graph"]["materials"][0][field] = value;
+            let changed: SessionManifest = serde_json::from_value(changed).unwrap();
+            assert!(read_updated_materials(&package.root, &changed, package.document()).unwrap_err().to_string().contains("ownership"));
+        }
+        let mut edited = package.manifest.clone();
+        edited.preview_core_material_graph = None;
+        edited.material_contract = Value::Null;
+        let (textures, layers) = read_updated_materials(&package.root, &edited, package.document()).unwrap();
+        assert!(!textures.is_empty());
+        assert!(layers.is_empty(), "edited material state clears native layers");
+    }
+
+    #[test]
+    fn authoring_still_refuses_preview_core_geometry() {
+        let root = tempdir().unwrap();
+        let path = write_preview_core_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&path).unwrap_err().to_string().contains("read-only preview"));
     }
 
     #[test]

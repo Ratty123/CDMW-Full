@@ -136,6 +136,10 @@ def preview_masked_part(part, mask, *, glass=False, surface=False, snapshot=None
     from types import SimpleNamespace
     from cdmw.services.shader_controls_preview import publish_preview_texture
     import copy
+    from cdmw.services.mesh_preview_material_source import (
+        bind_preview_core_material_source, unedited_preview_core_material_source,
+    )
+    native_source = unedited_preview_core_material_source(part)
     parameter = "_baseColorTexture" if glass else "_cdmwEyeCoverAlphaTexture" if surface else "_materialTexture"
     inputs = list(getattr(part, "preview_material_texture_inputs", ()) or ())
     aliases = {parameter, "_alphaTexture"} if surface else {parameter} if glass else {parameter, "_metallicRoughnessTexture"}
@@ -210,6 +214,10 @@ def preview_masked_part(part, mask, *, glass=False, surface=False, snapshot=None
         clone.preview_native_material_overrides["alpha_mode"] = "blend"
         # Export replaces the complete base alpha, including any source factor.
         clone.preview_native_material_overrides["opacity"] = 1.
+    if native_source is not None:
+        # This owned alpha-paint transformation retains the original layers;
+        # unrelated material edits still invalidate their binding signature.
+        bind_preview_core_material_source(clone, native_source["package"], native_source["batch"], native_source["conservation"])
     return clone
 
 

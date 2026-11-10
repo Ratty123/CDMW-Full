@@ -1916,6 +1916,23 @@ fn remap_texture_ownership(
         .collect()
 }
 
+fn remap_layer_ownership(
+    layers: &[cdmw_render_wgpu::MaterialLayerSet], previous: &MeshDocument, next: &MeshDocument,
+) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+    layers.iter().filter_map(|layer| {
+        let before = previous.lods.get(layer.lod_index)?;
+        let part = before.submeshes.get(layer.material_index as usize)?;
+        if before.submeshes.iter().filter(|other| same_source_part(part, other)).count() != 1 { return None; }
+        let after = next.lods.get(layer.lod_index)?;
+        let mut matches = after.submeshes.iter().enumerate().filter(|(_, other)| same_source_part(part, other));
+        let (index, _) = matches.next()?;
+        if matches.next().is_some() { return None; }
+        let mut result = layer.clone();
+        result.material_index = index as u32;
+        Some(result)
+    }).collect()
+}
+
 fn format_pass_count(passes: u32) -> String {
     format!("{passes} {}", if passes == 1 { "pass" } else { "passes" })
 }
@@ -2158,6 +2175,7 @@ struct LabApplication {
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     cdmw_texture_resources: Vec<LoadedTexture>,
+    cdmw_material_layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     cdmw_reference_pieces: Vec<cdmw_session::LoadedReferencePiece>,
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
@@ -2364,6 +2382,7 @@ impl LabApplication {
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
             cdmw_texture_resources: Vec::new(),
+            cdmw_material_layers: Vec::new(),
             cdmw_reference_pieces: Vec::new(),
             cdmw_hidden_parts: HashSet::new(),
             cdmw_hidden_islands: Vec::new(),
@@ -2558,6 +2577,7 @@ impl LabApplication {
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
         let mut application = Self::new(None, None);
+        application.cdmw_material_layers = bridge.take_layers();
         application.cdmw_reference_pieces = bridge.take_reference_pieces();
         application.embedded_parent_hwnd = embedded_parent_hwnd;
         application.install_loaded_mesh_with_materials(LoadedMesh {
@@ -3284,7 +3304,7 @@ impl LabApplication {
         let replacement_hidden_parts = (self.cdmw_state["replacement"]["active"].as_bool()
             == Some(true))
         .then(|| self.cdmw_hidden_parts.clone());
-        let (textures, material_presentations, material_revision) = if let Some(update) = materials
+        let (textures, material_presentations, layers, material_revision) = if let Some(update) = materials
         {
             (
                 update
@@ -3293,6 +3313,7 @@ impl LabApplication {
                     .map(loaded_cdmw_texture)
                     .collect(),
                 update.material_presentations,
+                update.layers,
                 Some((update.key, update.reason)),
             )
         } else {
@@ -3308,6 +3329,8 @@ impl LabApplication {
                     },
                 ),
                 self.cdmw_material_presentations.clone(),
+                self.document.as_ref().map_or_else(|| self.cdmw_material_layers.clone(),
+                    |previous| remap_layer_ownership(&self.cdmw_material_layers, previous, &document)),
                 None,
             )
         };
@@ -3374,6 +3397,7 @@ impl LabApplication {
             active_lod_index,
         );
         self.cdmw_texture_resources = textures;
+        self.cdmw_material_layers = layers;
         self.cdmw_material_presentations = material_presentations;
         if let Some((key, reason)) = material_revision {
             self.cdmw_material_key = key;
@@ -3381,6 +3405,9 @@ impl LabApplication {
         }
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
+                for layer in &self.cdmw_material_layers {
+                    renderer.add_material_layers(layer)?;
+                }
                 add_cdmw_material_presentations(
                     renderer,
                     &self.cdmw_material_presentations,
@@ -6820,7 +6847,7 @@ impl LabApplication {
         let mut texture_upload_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut texture_warning = None;
-        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() {
+        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() || !self.cdmw_material_layers.is_empty() {
             renderer.reset_texture();
             for texture in &self.cdmw_texture_resources {
                 match renderer.add_dds_texture(
@@ -6842,6 +6869,11 @@ impl LabApplication {
                     .map_or(0, |document| document.lods.len()),
             ) {
                 texture_warning.get_or_insert_with(|| error.to_string());
+            }
+            for layer in &self.cdmw_material_layers {
+                if let Err(error) = renderer.add_material_layers(layer) {
+                    texture_warning.get_or_insert_with(|| error.to_string());
+                }
             }
             match renderer.set_material_lod(self.active_lod_index) {
                 Ok(count) => bound_material_count = count,

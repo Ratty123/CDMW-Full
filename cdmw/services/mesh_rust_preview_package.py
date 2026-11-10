@@ -1559,12 +1559,13 @@ def _populate_preview_scene_overlays(
 def _composite_preview_core_material_graph(package_dir, scene, textures, presentations, quality, root_identity, cancelled):
     """Copy native layers with scene-local draw indices, including reference roles."""
     from cdmw.services.mesh_rust_authoring import _mesh_lods
+    from cdmw.services.mesh_preview_material_source import unedited_preview_core_material_source
 
     sources = []
     for lod_index, submeshes in enumerate(_mesh_lods(scene)):
         for material_index, submesh in enumerate(submeshes):
             overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
-            source = overrides.get("preview_core_material_source")
+            source = unedited_preview_core_material_source(submesh)
             if source is not None:
                 painted = overrides.get("painted_texture_channels", {})
                 channels = (1 if "opacity" in painted else 0) | (2 if "material" in painted else 0)
@@ -1844,23 +1845,8 @@ def build_rust_preview_package(
         )
         if graph is not None:
             manifest["preview_core_material_graph"] = graph
-            from cdmw.services.mesh_rust_authoring import _mesh_lods
-
-            reports = {}
-            for level in _mesh_lods(scene):
-                for part in level:
-                    source = (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
-                    if source is not None:
-                        reports[source["package"]] = source["conservation"]
-            manifest["material_contract"] = {
-                "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
-                "semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
-                "conservation": {
-                    "conserved": all(report.get("conserved") is True for report in reports.values()),
-                    "declared_parameter_count": sum(report["declared_parameter_count"] for report in reports.values()),
-                    "transported_parameter_count": sum(report["transported_parameter_count"] for report in reports.values()),
-                },
-            }
+            from cdmw.services.mesh_preview_material_source import preview_core_material_contract
+            manifest["material_contract"] = preview_core_material_contract(scene)
     manifest_path = package_dir / "manifest.json"
     # Dense effect surfaces can exceed the shared Python/Rust 16 MiB limit
     # from indentation alone. Keep every value, and reject genuinely oversized

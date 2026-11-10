@@ -1496,11 +1496,16 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
     );
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
     let original_texture = application.cdmw_texture_resources[0].clone();
+    application.cdmw_material_layers.push(cdmw_render_wgpu::MaterialLayerSet {
+        lod_index: 0, material_index: 0, uniform: cdmw_render_wgpu::LayerUniform::default(),
+        textures: std::array::from_fn(|_| None),
+    });
     let payload_lifetime = Arc::downgrade(&original_texture.bytes);
 
     let mut reordered = document;
     reordered.lods[0].submeshes.swap(0, 1);
     application.install_cdmw_document(reordered.clone())?;
+    assert_eq!(application.cdmw_material_layers[0].material_index, 1);
     assert_eq!(
         application.cdmw_texture_resources[0].material_indices_by_lod,
         vec![vec![1]],
@@ -1512,6 +1517,7 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
     let duplicate = reordered.lods[0].submeshes[1].clone();
     reordered.lods[0].submeshes.push(duplicate);
     application.install_cdmw_document(reordered)?;
+    assert!(application.cdmw_material_layers.is_empty());
     assert_eq!(
         application.cdmw_texture_resources[0].material_indices_by_lod,
         vec![Vec::<u32>::new()],

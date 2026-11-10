@@ -536,6 +536,19 @@ Once the editor owns the texture lease, clearing Archive Preview retires its pen
 texture acknowledgement. Each subsequent PAC starts its own request through either
 **Open in Mesh Editor** or the preview's editor button, including after closing a
 session before the archive viewport rendered its textures.
+
+Unedited parts with a verified Preview Core material source carry their native
+layer graph into the authoring package. The Rust renderer uses the same GPU
+composition as Browse Archives, with CPU composition for unsupported materials
+or adapters. File, original section, material and texture ownership are checked;
+geometry edits retain these bindings, while changed or imported materials use
+the existing authoring compositor. Painted alpha retains its dedicated channel.
+Material updates and Undo replace or restore the graph with their owned texture
+state. Layer DDS files count against the existing set/session budgets. Sources
+without a native graph and view-only reference packages retain their baked path.
+Create New Item's ParsedMesh preview shares this rule. Material Authority,
+Fast preview, Exact and exported material output retain their existing meanings.
+
 Large command responses, including dense jiggle data returned after part selection,
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.

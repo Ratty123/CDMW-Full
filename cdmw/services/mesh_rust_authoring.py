@@ -4319,8 +4319,9 @@ def _atomic_copy_texture_payload(
 
 
 def _submesh_has_material_synthesis_inputs(submesh: object) -> bool:
-    if (getattr(submesh, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source"):
-        # Its native graph is copied by the preview package writer. Resynthesizing
+    from cdmw.services.mesh_preview_material_source import unedited_preview_core_material_source
+    if unedited_preview_core_material_source(submesh):
+        # Its native graph is copied by the package writer. Resynthesizing
         # these textures repeats decoding and replaces authored layer semantics.
         return False
     # Scene importers already bind these images to renderer roles. Their input
@@ -7528,6 +7529,9 @@ def _prepare_shadow_mesh_materials(
             )
             or texture_unavailable_reason
         )
+    if preview_material_binding_count > 0:
+        from cdmw.services.mesh_preview_material_source import bind_authoring_preview_core_materials
+        bind_authoring_preview_core_materials(shadow_mesh, getattr(preview_context, "material_package_path", ""))
     return preview_material_binding_count, texture_unavailable_reason
 
 
@@ -8503,6 +8507,13 @@ class RustMeshAuthoringSession:
                 )
             if prepared_material_mesh is not mesh:
                 textures = retain_replacement_material_textures(self, mesh, prepared_material_mesh, textures, stop_event)
+            from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+            from cdmw.services.mesh_preview_material_source import preview_core_material_contract
+            material_graph = _composite_preview_core_material_graph(
+                self.root, prepared_material_mesh, textures, material_presentations, "full", self.root_identity,
+                lambda: stop_event is not None and stop_event.is_set(),
+            )
+            material_contract = preview_core_material_contract(prepared_material_mesh)
             self.material_synthesis_budget_parts = (
                 len(material_synthesis.budget_skipped),
                 sum(
@@ -8516,6 +8527,7 @@ class RustMeshAuthoringSession:
         material_key = getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "context_id", "base")
         self.archive_refit_material_cache[material_key] = {
             "key": material_key, "textures": textures, "material_presentations": material_presentations,
+            "preview_core_material_graph": material_graph, "material_contract": material_contract,
             "reason": self.texture_unavailable_reason,
         }
         material_warning = ""
@@ -8547,6 +8559,8 @@ class RustMeshAuthoringSession:
             "channels": channels,
             "textures": textures,
             "material_presentations": material_presentations,
+            "preview_core_material_graph": material_graph,
+            "material_contract": material_contract,
             "texture_status": {
                 "available": bool(textures),
                 "resource_count": len(textures),
@@ -8607,6 +8621,8 @@ class RustMeshAuthoringSession:
             active_materials = self.archive_refit_material_cache[material_key]
             manifest["textures"] = active_materials["textures"]
             manifest["material_presentations"] = active_materials["material_presentations"]
+            manifest["preview_core_material_graph"] = active_materials.get("preview_core_material_graph")
+            manifest["material_contract"] = active_materials.get("material_contract", {})
             self.texture_resource_count = len(active_materials["textures"])
             self.texture_unavailable_reason = active_materials["reason"]
             manifest["texture_status"].update(

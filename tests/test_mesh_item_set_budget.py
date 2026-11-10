@@ -1,5 +1,6 @@
 import itertools
 import random
+import pytest
 
 from cdmw.services.mesh_item_set_budget import largest_fitting_subset, prepare_item_set_budget
 
@@ -37,6 +38,30 @@ def test_measured_session_budget_keeps_primary_and_bounded_named_reference(tmp_p
         assert set(references) == {context.assets[1].entry.identity}
         assert references[context.assets[1].entry.identity].submeshes[0].faces
         assert materials[0] == []
+        assert not list(tmp_path.glob("item-set-materials-*"))
+    finally:
+        service.close_edit_session(key, force_without_saving=True)
+
+
+def test_native_layer_files_count_even_when_absent_from_base_texture_rows(tmp_path, monkeypatch):
+    from tests.test_mesh_item_set_editing import _set
+    from cdmw.services import mesh_rust_authoring as a, mesh_rust_preview_package as preview
+    (tmp_path / "source").mkdir()
+    _source, service, key, context = _set(tmp_path / "source")
+    root = tmp_path / "package"
+    root.mkdir()
+    def layers(staging, *_args):
+        (staging / "texture-0000-0123456789ab.dds").write_bytes(bytes(4096))
+        return {"unique_resource_bytes": 0}  # Admission counts actual owned files.
+    assert all(len(a.encode_mesh_document(a._mesh_document_arrays(asset.source.mesh),
+                                         max_payload_bytes=2**63 - 1)) < 4000 for asset in context.assets)
+    monkeypatch.setattr(preview, "_composite_preview_core_material_graph", layers)
+    monkeypatch.setattr(a, "RUST_MESH_MAX_PAYLOAD_BYTES", 4000)
+    try:
+        with pytest.raises(ValueError, match="Selected source file exceeds"):
+            prepare_item_set_budget([(asset.entry, asset.source, None, None) for asset in context.assets],
+                                    root, a._session_root_identity(root), None)
+        assert not list(root.iterdir())
         assert not list(tmp_path.glob("item-set-materials-*"))
     finally:
         service.close_edit_session(key, force_without_saving=True)

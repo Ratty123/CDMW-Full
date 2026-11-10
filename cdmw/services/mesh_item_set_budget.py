@@ -70,6 +70,7 @@ def _reference_mesh(mesh):
 def prepare_item_set_budget(sources, root, root_identity, stop_event):
     """Stage once, count actual payloads, publish only admitted material files."""
     from cdmw.services import mesh_rust_authoring as a
+    from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
 
     root = Path(root).resolve()
     payload_limit = a.RUST_MESH_MAX_PAYLOAD_BYTES
@@ -94,8 +95,15 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
                 textures = a._mesh_texture_payloads(staging, mesh, expected_root_identity=a._session_root_identity(staging),
                                                     stop_event=stop_event, synthesis_state=state)
                 texture_bytes = sum({row["file"]["path"]: row["file"]["byte_length"] for row in textures}.values())
-            except a.RustMeshProtocolError as exc:
-                if not any(message in str(exc) for message in ("512 MiB file limit", "768 MiB aggregate limit")):
+                graph = _composite_preview_core_material_graph(
+                    staging, mesh, textures, a._mesh_material_presentations(mesh), "full", a._session_root_identity(staging),
+                    lambda: stop_event is not None and stop_event.is_set())
+                if graph is not None:
+                    # Count the owned files, including identical DDS content
+                    # published under different bindings, against session limits.
+                    texture_bytes = a._validate_owned_session_tree(staging, a._session_root_identity(staging))[1]
+            except (a.RustMeshProtocolError, ValueError) as exc:
+                if not any(message in str(exc) for message in ("512 MiB file limit", "768 MiB aggregate limit", "512 MiB package limit")):
                     raise
                 texture_bytes, textures = payload_limit + 1, []
             rows.append(dict(entry=entry, mesh=mesh, staging=staging, state=state, textures=textures,

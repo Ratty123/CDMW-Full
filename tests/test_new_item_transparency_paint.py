@@ -307,6 +307,9 @@ def test_template_preview_transports_authored_channels_through_native_graph(tmp_
             "batch": {"index": index, "material_name": name, "base_color": [1., 1., 1.], "material_layers": [{
                 "material_wrapper_index": index, "owner_wrapper_item_id": str(index + 100), "layer_role": "base",
                 "diffuse_source": "base.dds", "material_source": "material.dds", "source_parameter": "_baseColorTexture"}]}}}
+        from cdmw.services.mesh_preview_material_source import bind_preview_core_material_source
+        native = part.preview_native_material_overrides["preview_core_material_source"]
+        bind_preview_core_material_source(part, native["package"], native["batch"], native["conservation"])
         parts.append(part)
     mesh = ParsedMesh(path=PAC, format="pac", submeshes=parts)
     selected = replace(controls(gradient()), surface_response_mask=gradient())
