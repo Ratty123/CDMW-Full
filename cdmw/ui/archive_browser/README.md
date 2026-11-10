@@ -1,5 +1,32 @@
 # Archive Browser
 
+## Skinned decal sequence copies
+
+Right-click a `.paseq` and choose **Edit Skinned Decal...**. The editor changes
+present texture references and typed properties in `GameSkinnedDecalEventData`,
+`SkinnedDecalProperty` and `SkinnedDecalDynamicProperty`, then saves a loose
+`.paseq` copy. Missing properties remain absent, including omitted booleans and
+opacity defaults. An unchanged save returns the original bytes.
+
+`cdmw/core/skinned_decal.py` owns the bounded metadata-3, serialization-13/14
+reader and writer. It requires a complete structural walk, one Sequencer root,
+an indexed string pool, and the recognized empty trailing container. New texture
+strings are appended without reordering the pool; inline strings are supported
+too. Only the selected values, directory offsets, walked self-pointers and
+enclosing record lengths change. Other object bytes, masks,
+collection metadata and trailing data are preserved. The writer reopens its
+output and compares every decoded record against the requested changes.
+Unknown containers and absent/unsupported fields refuse editing. This is
+distinct from the generic fixed-size structured-string editor.
+
+`skinned_decal_service.py` reads archives and atomically publishes the loose copy
+through the existing cancellable utility worker. `skinned_decal_actions.py`
+rejects stale results; the dialog validates typed values before closing.
+No PAMT/PAZ data is written. The three caller-supplied sequence donors exercise
+both serialization versions offline; their original game build is unrecorded.
+No game attachment, normal-only blending, playback or removal is established.
+Owned fixture and hidden-widget tests live in `tests/test_skinned_decal*.py`.
+
 Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.

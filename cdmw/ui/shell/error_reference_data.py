@@ -11277,7 +11277,7 @@ MESSAGE_REFERENCE = [
     "message": "Hard decoder corpus proof: {hard_proof.get('status') or 'unknown'} | missing: {', '.join(missing_hard_targets[:6])}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 543
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 544
     }
   },
   {
@@ -13718,7 +13718,7 @@ MESSAGE_REFERENCE = [
     "message": "PTCH/fixup proof: {ptch_proof.get('status') or 'unknown'} | missing: {', '.join(missing_observations[:6])}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 527
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 528
     }
   },
   {
@@ -14560,7 +14560,7 @@ MESSAGE_REFERENCE = [
     "message": "Representative real HKX corpus: {real_plan.get('status') or 'unknown'} | missing: {', '.join(missing_roles[:6])}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 515
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 516
     }
   },
   {
@@ -15200,7 +15200,7 @@ MESSAGE_REFERENCE = [
     "message": "Structured sidecar editor is unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 267
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 268
     }
   },
   {
@@ -15208,7 +15208,7 @@ MESSAGE_REFERENCE = [
     "message": "Structured sidecar worker returned invalid data.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 289
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 290
     }
   },
   {
@@ -15216,7 +15216,7 @@ MESSAGE_REFERENCE = [
     "message": "Structured sidecar writer returned invalid data.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 400
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 401
     }
   },
   {
@@ -16785,7 +16785,7 @@ MESSAGE_REFERENCE = [
     "message": "The sidecar table could not be parsed.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 298
+      "cdmw/ui/archive_browser/binary_sidecar_actions.py": 299
     }
   },
   {
@@ -75471,6 +75471,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A decal setting cannot be edited twice in one save.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/services/skinned_decal_service.py": 44
+    }
+  },
+  {
+    "area": "other",
     "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
     "recovery": "conflict",
     "sources": {
@@ -75855,6 +75863,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "An edited setting is absent or not editable in the original sequence.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 255
+    }
+  },
+  {
+    "area": "other",
     "message": "An effect member cannot appear twice.",
     "recovery": "input",
     "sources": {
@@ -76011,6 +76027,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 385
+    }
+  },
+  {
+    "area": "other",
+    "message": "An unrelated sequence property changed during saving.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 315
     }
   },
   {
@@ -76577,6 +76601,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Cannot edit this sequence: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 210
+    }
+  },
+  {
+    "area": "other",
     "message": "Cannot enumerate known save/Cloud writers.",
     "recovery": "write",
     "sources": {
@@ -76909,6 +76941,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/hair_characters.py": 53
+    }
+  },
+  {
+    "area": "other",
+    "message": "Choose a PASEQ sequence containing skinned decals.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/skinned_decal_service.py": 30
     }
   },
   {
@@ -77646,6 +77686,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/final_package_builder.py": 965
+    }
+  },
+  {
+    "area": "other",
+    "message": "Color must contain eight hexadecimal digits: #RRGGBBAA.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 224
     }
   },
   {
@@ -79424,10 +79472,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Expected an integer.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 241
+    }
+  },
+  {
+    "area": "other",
     "message": "Expected one Shrink section in the equipment descriptor.",
     "recovery": "input",
     "sources": {
       "cdmw/core/equipment_visibility.py": 133
+    }
+  },
+  {
+    "area": "other",
+    "message": "Expected true or false.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 230
     }
   },
   {
@@ -80833,6 +80897,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Invalid or duplicate shared-string identifier.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 169
+    }
+  },
+  {
+    "area": "other",
     "message": "Invalid or non-normalized semantic export path.",
     "recovery": "input",
     "sources": {
@@ -81065,6 +81137,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Invalid sequence string count.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 164
+    }
+  },
+  {
+    "area": "other",
+    "message": "Invalid sequence type count.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 155
+    }
+  },
+  {
+    "area": "other",
     "message": "Invalid source records in {manifest_file}.",
     "recovery": "input",
     "sources": {
@@ -81093,6 +81181,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/effect_writer.py": 122
+    }
+  },
+  {
+    "area": "other",
+    "message": "Invalid value for {field.name}: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 247
     }
   },
   {
@@ -82138,6 +82234,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Named-object tables are not supported for decal editing.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 160
+    }
+  },
+  {
+    "area": "other",
     "message": "Native DDS batch encode failed ({exc}).",
     "recovery": "internal",
     "sources": {
@@ -82255,6 +82359,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/appearance_composite.py": 519
+    }
+  },
+  {
+    "area": "other",
+    "message": "No editable skinned decal settings were found in this sequence.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 202
     }
   },
   {
@@ -82567,6 +82679,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/final_package_builder.py": 603
+    }
+  },
+  {
+    "area": "other",
+    "message": "Only metadata 3, serialization 13/14 PASEQ decals are supported.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 152
     }
   },
   {
@@ -83773,6 +83893,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Save the decal sequence as a .paseq file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/skinned_decal_service.py": 41
+    }
+  },
+  {
+    "area": "other",
     "message": "Save-context inputs and storage must be separate trees.",
     "recovery": "input",
     "sources": {
@@ -84114,6 +84242,46 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/dmm_send_process.py": 44
+    }
+  },
+  {
+    "area": "other",
+    "message": "Sequence collection exceeds its limit.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 101
+    }
+  },
+  {
+    "area": "other",
+    "message": "Sequence collection lookup exceeds its limit.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 104
+    }
+  },
+  {
+    "area": "other",
+    "message": "Sequence data was not completely decoded.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 184
+    }
+  },
+  {
+    "area": "other",
+    "message": "Sequence edits overlap.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 298
+    }
+  },
+  {
+    "area": "other",
+    "message": "Sequence size is outside the supported range.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 148
     }
   },
   {
@@ -84659,6 +84827,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/appearance_composite.py": 990
+    }
+  },
+  {
+    "area": "other",
+    "message": "Texture references must be nonempty single-line UTF-8 paths of at most 4096 bytes.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 218
     }
   },
   {
@@ -86287,6 +86463,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The saved sequence did not retain the requested settings.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 306
+    }
+  },
+  {
+    "area": "other",
     "message": "The screenshot observation is stale.",
     "recovery": "stale",
     "sources": {
@@ -86307,6 +86491,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_runner.py": 217
+    }
+  },
+  {
+    "area": "other",
+    "message": "The selected file is not a supported sequence.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 158
     }
   },
   {
@@ -86411,6 +86603,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/mod_compatibility.py": 413
+    }
+  },
+  {
+    "area": "other",
+    "message": "The sequence has an unsupported trailing container.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 180
     }
   },
   {
@@ -87016,6 +87216,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Truncated sequence object directory.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 173
+    }
+  },
+  {
+    "area": "other",
     "message": "Undeclared effect type: {node.type_name}",
     "recovery": "internal",
     "sources": {
@@ -87204,6 +87412,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 300
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown shared string {key} at {at}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 76
     }
   },
   {
@@ -87795,6 +88011,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Unsupported sequence object directory.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 176
+    }
+  },
+  {
+    "area": "other",
     "message": "Unsupported source-mix source kind: {request.source_kind}",
     "recovery": "unsupported",
     "sources": {
@@ -87875,6 +88099,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Use a relative game texture path ending in .dds, with forward slashes.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 220
+    }
+  },
+  {
+    "area": "other",
     "message": "Use an 8-bit grayscale, RGB or RGBA PNG for the mask.",
     "recovery": "internal",
     "sources": {
@@ -87887,6 +88119,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 457
+    }
+  },
+  {
+    "area": "other",
+    "message": "Value is outside the float32 range.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 244
+    }
+  },
+  {
+    "area": "other",
+    "message": "Values must be finite numbers.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/skinned_decal.py": 234
     }
   },
   {
@@ -97334,7 +97582,7 @@ MESSAGE_REFERENCE = [
     "message": "Playback stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window_playback.py": 229
+      "tools/placement_studio/window_playback.py": 220
     }
   },
   {
@@ -100642,7 +100890,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {existing[2].name}; {language_file.name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 785
+      "cdmw/ui/localization.py": 786
     }
   },
   {
@@ -100650,7 +100898,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {language_file.name}; {existing[2].name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 779
+      "cdmw/ui/localization.py": 780
     }
   },
   {
@@ -101154,7 +101402,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot exceeds {max_keys} keys.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1168
+      "cdmw/ui/localization.py": 1169
     }
   },
   {
@@ -101162,7 +101410,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot is {len(encoded)} bytes; limit is {max_bytes}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1183
+      "cdmw/ui/localization.py": 1184
     }
   },
   {
@@ -105715,6 +105963,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/remote_window_bridge.py",
     "cdmw/ui/archive_browser/render_lifecycle.py",
     "cdmw/ui/archive_browser/scan_lifecycle.py",
+    "cdmw/ui/archive_browser/skinned_decal_dialog.py",
     "cdmw/ui/archive_browser/source_mix_actions.py",
     "cdmw/ui/archive_browser/source_mix_overlay.py",
     "cdmw/ui/archive_browser/workers.py",
@@ -107353,6 +107602,9 @@ SOURCE_COVERAGE = {
   "cdmw/core/skeleton_resolver.py": {
     "finding": 8,
     "raise": 5
+  },
+  "cdmw/core/skinned_decal.py": {
+    "raise": 29
   },
   "cdmw/core/source_mix.py": {
     "diagnostic_field": 1,
@@ -109152,6 +109404,9 @@ SOURCE_COVERAGE = {
     "raise": 4,
     "validation": 1
   },
+  "cdmw/services/skinned_decal_service.py": {
+    "raise": 3
+  },
   "cdmw/services/startup_localization_service.py": {},
   "cdmw/services/startup_splash_service.py": {
     "raise": 1
@@ -109687,6 +109942,10 @@ SOURCE_COVERAGE = {
     "diagnostic_text": 1,
     "display": 2,
     "report": 1
+  },
+  "cdmw/ui/archive_browser/skinned_decal_actions.py": {},
+  "cdmw/ui/archive_browser/skinned_decal_dialog.py": {
+    "dialog": 1
   },
   "cdmw/ui/archive_browser/sound_bank_editor.py": {
     "dialog": 3,

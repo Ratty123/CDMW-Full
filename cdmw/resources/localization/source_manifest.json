@@ -4722,6 +4722,16 @@
       ]
     },
     {
+      "key": "A decal setting cannot be edited twice in one save.",
+      "origins": [
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 44,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A derived vertex needs more skin influences than the supported row can store.",
       "origins": [
         {
@@ -30612,6 +30622,16 @@
       ]
     },
     {
+      "key": "Choose a PASEQ sequence containing skinned decals.",
+      "origins": [
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 30,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a PNG, JPEG or WebP screenshot under 40 megapixels.",
       "origins": [
         {
@@ -44042,6 +44062,41 @@
       ]
     },
     {
+      "key": "Decal loading cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 28,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 32,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 34,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Decal saving cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 39,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 46,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "Decimal {value_0}  |  Hex 0x{value_1}",
       "origins": [
         {
@@ -50377,6 +50432,26 @@
       "manual": true
     },
     {
+      "key": "Edit Skinned Decal",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 16,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Edit Skinned Decal...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 563,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Edit Socket Values - {value_0}",
       "origins": [
         {
@@ -50652,6 +50727,16 @@
       ]
     },
     {
+      "key": "Edit existing texture paths and decal settings. Missing settings keep their game defaults. Save creates a loose PASEQ copy; in-game appearance and attachment are not verified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 19,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Edit game table values",
       "origins": [
         {
@@ -50898,6 +50983,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_01.py",
           "line": 482,
           "sink": "python-return:_comparison_lines_from_mapping"
+        }
+      ]
+    },
+    {
+      "key": "Edit stored decal texture paths and settings with Edit Skinned Decal..., then save a loose copy.",
+      "origins": [
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
         }
       ]
     },
@@ -77463,6 +77558,16 @@
           "path": "cdmw/services/mesh_archive_refit.py",
           "line": 413,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid Decal Setting",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 61,
+          "sink": "warning"
         }
       ]
     },
@@ -112547,6 +112652,26 @@
       ]
     },
     {
+      "key": "PASEQ",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 38,
+          "sink": "getSaveFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "PASEQ (*.paseq)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 38,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "PBD wind",
       "origins": [
         {
@@ -127922,6 +128047,16 @@
       ]
     },
     {
+      "key": "Reading skinned decal sequence...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 22,
+          "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
       "key": "Reading socket XML: {value_0}...",
       "origins": [
         {
@@ -140892,6 +141027,16 @@
       ]
     },
     {
+      "key": "Right-click a PASEQ in Archive Browser and choose Edit Skinned Decal... to change existing texture paths and decal settings, then save a loose copy. Only stored settings are shown; missing settings keep their game defaults. Texture paths may change length. Unchanged saves preserve the original bytes; edited saves are reopened and checked for unrelated changes. This experimental editor supports metadata 3 and serialization 13/14 sequences with skinned decals. It does not add events or settings, install the effect, or verify in-game blending, attachment or removal.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Right-click a folder and choose Export Folder... to extract its matching contents and subfolders.",
       "origins": [
         {
@@ -142797,6 +142942,16 @@
       ]
     },
     {
+      "key": "Save Decal Sequence Copy",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 38,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "Save Draft",
       "origins": [
         {
@@ -143342,6 +143497,16 @@
       ]
     },
     {
+      "key": "Save the decal sequence as a .paseq file.",
+      "origins": [
+        {
+          "path": "cdmw/services/skinned_decal_service.py",
+          "line": 41,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Save the label for every still-unknown DDS file in all selected families.",
       "origins": [
         {
@@ -143533,6 +143698,16 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 150,
           "sink": "python-return:unknown_saved_current_role_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Saved decal sequence copy: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 52,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -143983,6 +144158,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1249,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Saving decal sequence copy...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_actions.py",
+          "line": 43,
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -152825,6 +153010,11 @@
           "sink": "addRow"
         },
         {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 23,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/item_definition_editor.py",
           "line": 190,
           "sink": "tr"
@@ -156903,6 +157093,31 @@
           "path": "cdmw/services/mesh_service_rigging.py",
           "line": 594,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Skinned decal editing requires metadata 3 and serialization 13/14. Other sequence edits remain fixed-size. New events and missing settings cannot be added. In-game blending, attachment and removal are unverified.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
+        {
+          "path": "tools/format_explorer/workflows.py",
+          "line": 1,
+          "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Skinned decal sequences",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -177623,11 +177838,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:remaining"
         }
       ]
     },
@@ -177903,6 +178113,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 209,
           "sink": "python-data:_TOOLTIPS"
+        }
+      ]
+    },
+    {
+      "key": "Transform: scale XYZ, rotation quaternion XYZW, position XYZ.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 43,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -184913,6 +185133,11 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 386,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 23,
+          "sink": "setHorizontalHeaderLabels"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
@@ -195153,11 +195378,6 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:evidence"
-        },
-        {
-          "path": "schemas/archive_content_capabilities.v1.json",
-          "line": 1,
-          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -195293,6 +195513,16 @@
     },
     {
       "key": "cdmw/core/prefab_binary.py: self-describing type table plus pointer-addressed heap walk; headers cover 12,000/12,000 sampled archive prefabs; the heap walk completes on 59.6% of a seeded random sample of 4,000 of the 47,343 archive prefabs, and 95.3% of the objects it does recover have a component type stated by the file rather than inferred. The earlier ~93% figure was measured with scripts/prefab_walk_failure_census.py --limit, which took a lexicographic prefix rather than a sample, so it described the alphabetical head of one extracted corpus and not the archives; --limit now samples. cdmw/core/prefab_binary_edit.py rewrites resource paths including length changes, round-tripped over 1,500 real prefabs 2026-08-17: the element header is `u16 width, mask (width bytes), u8 typeIndex, u16 0`, so a three-byte mask carries member bits 16..23 (14 more of the 15,557 character prefabs walk, none lost); cdmw/core/prefab_component_graft.py grafts a component element from a donor prefab into a target (types appended, type indices remapped, pointers relocated), proven on the thrown lightning spear's EffectComponent onto sword prefabs (real_game gate); a grafted effect is unproven in game.",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
+      "key": "cdmw/core/skinned_decal.py: offline checks on three supplied donors and a CDKit-edited file confirm exact unchanged saves and preservation outside edited values and required relocations. Other sequences retain the fixed-size string editor.",
       "origins": [
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -222228,6 +222458,11 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
           "line": 183,
           "sink": "python-return:_pending_changes"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/skinned_decal_dialog.py",
+          "line": 36,
+          "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",

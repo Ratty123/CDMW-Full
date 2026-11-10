@@ -559,6 +559,12 @@ class ArchiveBrowserActionMixin:
             find_chart_action.setToolTip("Pick a character and weapon slot to open the chart it uses.")
             find_chart_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())
 
+        if entry.extension == ".paseq":
+            edit_decal_action = menu.addAction(menu_icons["data"], "Edit Skinned Decal...")
+            edit_decal_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._edit_archive_skinned_decal(current_entry)
+            )
+
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")
             edit_structured_action.setToolTip(

@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Archive Browser's experimental **Edit Skinned Decal...** changes stored texture references and decal settings in supported PASEQ sequences and saves a loose copy. Missing settings retain their defaults; unchanged saves preserve the original file. In-game blending, attachment and removal remain unverified.
+
 ### Docs
 
 - The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself. Help and the Wiki now group the FAQ by tool, with concise answers about Mesh Editor exports, Blender, weights and saved work, plus Create New Item templates, fitting, placement, installation, body cuts and cloth limits.

@@ -2683,6 +2683,26 @@ Sources: [effect reflection reader][effect-binary], [constrained writer][effect-
 
 ### 10.2 Registered names and attachment
 
+Reviewed 2026-11-10: a constrained PASEQ skinned-decal editor reads metadata 3
+and serialization 13/14, including indexed and inline strings. It edits only
+present texture references and supported scalar/transform settings, preserving
+absence separately from zero/false. The writer retains the original sequence
+bytes outside the changed values and required string-table, pointer and record
+length relocations; unchanged saves are byte-identical. Complete structural
+readback checks every decoded record for unintended changes. Archive Browser
+saves a loose copy through its cancellable utility worker.
+
+The supplied two blood sequences and finisher cover both serialization versions;
+their donor game build was not recorded. The supplied CDKit-edited material-path
+example independently exercises inline-string decoding. Owned fixtures and
+caller-supplied asset checks establish offline editing, not runtime attachment,
+normal-only blending or removal. General sequence authoring, new events and
+materializing omitted settings remain unsupported. The earlier `unexpected
+magic 0x0000` result came from passing PASEQ to the PAE/PAEM decoder, not from
+the supported read-only PASEQ analysis route. Exact contracts and tests:
+`cdmw/core/skinned_decal.py`, `cdmw/ui/archive_browser/README.md`, and
+`tests/test_skinned_decal.py`.
+
 The level/action/gimmick/system/sequencer registries establish effect namespaces.
 A clone of an `.action.effect` source must not acquire `.level.effect` merely
 because a default suffix was convenient. Final prefab, effect and emitter
