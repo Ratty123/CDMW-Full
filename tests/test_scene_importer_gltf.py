@@ -884,7 +884,14 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual((0.3, 0.4, 0.5), mesh.preview_texture_tint)
             self.assertAlmostEqual(0.35, mesh.preview_native_material_overrides["roughness"])
             self.assertAlmostEqual(0.8, mesh.preview_native_material_overrides["metalness"])
-            self.assertAlmostEqual(0.39675, mesh.preview_native_material_overrides["specular"])
+            # A specular factor with no map reaches no exported game material, so
+            # the preview must not draw it either (Blender writes 0 for "Specular 0").
+            self.assertNotIn("specular", mesh.preview_native_material_overrides)
+            parameter_names = {parameter.parameter_name for parameter in result.mesh.submeshes[0].preview_material_parameters}
+            self.assertNotIn("_specularFactor", parameter_names)
+            self.assertNotIn("_specularColorFactor", parameter_names)
+            self.assertIn("_gltfSpecularStrength", parameter_names)
+            self.assertTrue(any("specularFactor 0.5" in line for line in result.diagnostics))
             self.assertEqual(1.0, mesh.preview_native_material_overrides["emissive_intensity"])
             self.assertEqual("#331a00", mesh.preview_native_material_overrides["emissive_color"])
 
