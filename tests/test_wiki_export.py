@@ -182,6 +182,20 @@ def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_man
         assert f"[{language.display_name}]({manual_url(language.code)})" in wiki_manuals["Languages.md"]
 
 
+def test_each_manual_has_one_documentation_index_heading(wiki_manuals):
+    from scripts.export_github_wiki import load_builtin_catalog
+
+    for language in BUILTIN_LANGUAGES:
+        body = wiki_manuals[manual_path(language.code)]
+        title = load_builtin_catalog(language.code)["translations"]["Documentation Index"]
+        headings = re.findall(r"^#{2,6} (.+)$", body, re.MULTILINE)
+        assert headings.count(title) == 1, language.code
+        index = body.split('<a id="guide-tools-and-navigation"></a>', 1)[1].split("\n\n---", 1)[0]
+        assert index.startswith("\n\n## " + title + "\n"), language.code
+        assert "](#guide-archive-browser) |" in index, language.code
+        assert "](#guide-mesh-editor) |" in index, language.code
+
+
 def test_manual_links_resolve_to_the_reduced_page_set_and_unique_section_ids(wiki_manuals):
     public_pages = {Path(name).name: body for name, body in wiki_manuals.items() if Path(name).name != "_Sidebar.md"}
     for filename, body in wiki_manuals.items():

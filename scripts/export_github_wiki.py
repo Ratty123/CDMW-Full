@@ -729,14 +729,6 @@ def build_pages() -> dict[str, str]:
                     "".join(f"<p>{text}</p>" for text in selected), locale, translations
                 )).root, locale))
             references = PAGE_REFERENCES.get(page, ())
-            if page in {"Home", "Tools-and-Navigation"}:
-                parts.extend([
-                    "## " + translate("Documentation Index"),
-                    "\n".join(
-                        f"- [{_title(target, sections, translate)}]({page_url(target, locale)})"
-                        for target in PAGE_TOPICS if target != page
-                    ),
-                ])
             if references:
                 parts.append("### " + translate("References"))
                 parts.append("\n".join(
