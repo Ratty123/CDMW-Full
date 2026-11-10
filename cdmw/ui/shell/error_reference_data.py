@@ -88846,7 +88846,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF JOINTS_0/WEIGHTS_0 contain invalid skin rows; export one complete skin row per vertex.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1196
+      "cdmw/modding/scene_gltf_import.py": 1215
     }
   },
   {
@@ -89166,7 +89166,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF WEIGHTS_0 contains an invalid zero-sum skin row at vertex {vertex_index}; export normalized non-zero weights for every skinned vertex.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1200
+      "cdmw/modding/scene_gltf_import.py": 1219
     }
   },
   {
@@ -89278,7 +89278,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} has an invalid data URI; embed a valid supported image.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 999
+      "cdmw/modding/scene_gltf_import.py": 1018
     }
   },
   {
@@ -89294,7 +89294,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} has invalid bufferView {buffer_view_index} bounds. Embed one complete supported image payload and export again.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1024
+      "cdmw/modding/scene_gltf_import.py": 1043
     }
   },
   {
@@ -89318,7 +89318,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} is missing at {image_path}. Restore that file or embed it, then export again.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1008
+      "cdmw/modding/scene_gltf_import.py": 1027
     }
   },
   {
@@ -89438,7 +89438,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF material {uv_plan.material_name} failed material-slot resolution for {', '.join(missing_slots)}. Re-export every referenced slot with one valid core texture source and decodable image.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 920
+      "cdmw/modding/scene_gltf_import.py": 939
     }
   },
   {
