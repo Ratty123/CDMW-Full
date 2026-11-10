@@ -339,6 +339,27 @@ pub struct PreviewCoreMaterialGraph {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ReferencePieceManifest {
+    pub index: usize,
+    pub name: String,
+    pub role: String,
+    pub document: FileReference,
+    pub textures: Vec<SessionTextureReference>,
+    pub material_presentations: Vec<SessionMaterialPresentation>,
+}
+
+#[derive(Debug)]
+pub struct LoadedReferencePiece {
+    pub index: usize,
+    pub name: String,
+    pub visible: bool,
+    pub snapshot: cdmw_mesh::DrawSnapshot,
+    pub part_count: u32,
+    pub textures: Vec<CdmwTextureResource>,
+    pub material_presentations: Vec<SessionMaterialPresentation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct SessionManifest {
     pub schema: String,
     pub protocol: String,
@@ -376,6 +397,10 @@ pub struct SessionManifest {
     pub state: Value,
     #[serde(default)]
     pub interaction_profile: String,
+    #[serde(default)]
+    pub reference_pieces: Vec<ReferencePieceManifest>,
+    #[serde(default)]
+    pub item_set_files: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -465,6 +490,7 @@ pub struct LoadedCdmwSessionPackage {
     document: MeshDocument,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    reference_pieces: Vec<LoadedReferencePiece>,
     layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     material_composition_metrics:
@@ -583,6 +609,27 @@ impl LoadedCdmwSessionPackage {
             Ok(bytes)
         };
         let mut textures = read_texture_resources_with(&manifest, &document, &mut read_texture)?;
+        let mut reference_pieces = Vec::new();
+        for piece in &manifest.reference_pieces {
+            check_preview_cancelled(cancelled)?;
+            let bytes = read_mesh_document_binary_reference(&root, &piece.document, true)?;
+            let reference_document = mesh_document_binary::decode(&bytes, piece.document.count)?;
+            validate_document(&reference_document)?;
+            let mesh = WorkingMesh::from_document_lod(&reference_document, 0)
+                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            let mut piece_manifest = manifest.clone();
+            piece_manifest.textures = piece.textures.clone();
+            piece_manifest.material_presentations = piece.material_presentations.clone();
+            piece_manifest.preview_core_material_graph = None;
+            validate_material_presentations(&piece_manifest, &reference_document)?;
+            let textures = read_texture_resources_with(&piece_manifest, &reference_document, &mut read_texture)?;
+            reference_pieces.push(LoadedReferencePiece {
+                index: piece.index, name: piece.name.clone(), visible: true,
+                snapshot: mesh.draw_snapshot(),
+                part_count: reference_document.lods[0].submeshes.len() as u32,
+                textures, material_presentations: piece.material_presentations.clone(),
+            });
+        }
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
         let (material_composition_metrics, layers) =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
@@ -611,6 +658,7 @@ impl LoadedCdmwSessionPackage {
             document,
             source_lod_index,
             textures,
+            reference_pieces,
             layers,
             effect_textures,
             material_composition_metrics,
@@ -645,6 +693,10 @@ impl LoadedCdmwSessionPackage {
         std::mem::take(&mut self.layers)
     }
 
+    pub fn take_reference_pieces(&mut self) -> Vec<LoadedReferencePiece> {
+        std::mem::take(&mut self.reference_pieces)
+    }
+
     pub fn take_effect_textures(&mut self) -> Vec<CdmwEffectTextureResource> {
         std::mem::take(&mut self.effect_textures)
     }
@@ -671,6 +723,7 @@ pub struct CdmwBridge {
     shadow_revision: u64,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    reference_pieces: Vec<LoadedReferencePiece>,
     last_result_request_id: u64,
     state_snapshot_accepted: bool,
     translations: translation_transfer::TranslationTransfers,
@@ -713,6 +766,7 @@ impl CdmwBridge {
             document,
             source_lod_index,
             textures,
+            reference_pieces,
             effect_textures: _,
             material_composition_metrics: _,
             layers: _,
@@ -738,6 +792,7 @@ impl CdmwBridge {
                 shadow_revision,
                 source_lod_index,
                 textures,
+                reference_pieces,
                 last_result_request_id: 0,
                 state_snapshot_accepted: false,
                 translations: translation_transfer::TranslationTransfers::default(),
@@ -1138,6 +1193,21 @@ impl CdmwBridge {
         }))
     }
 
+    pub fn take_reference_pieces(&mut self) -> Vec<LoadedReferencePiece> {
+        std::mem::take(&mut self.reference_pieces)
+    }
+
+    pub fn switch_item_piece(&self, index: usize) -> Result<(), SessionError> {
+        if index == 0 || index >= self.manifest.item_set_files.len() {
+            return Err(SessionError::Protocol("invalid editable piece".into()));
+        }
+        self.send_message(json!({
+            "event": "switch_item_piece", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation, "index": index,
+        }))
+    }
+
     /// Shortcut overrides of the defaults; the host saves them for later sessions.
     pub fn publish_shortcuts(&self, shortcuts: Value) -> Result<(), SessionError> {
         self.send_message(json!({
@@ -1366,6 +1436,8 @@ impl CdmwBridge {
                 theme: Value::Null,
                 state: Value::Null,
                 interaction_profile: String::new(),
+                reference_pieces: Vec::new(),
+                item_set_files: Vec::new(),
             },
             incoming,
             outbound,
@@ -1373,6 +1445,7 @@ impl CdmwBridge {
             shadow_revision,
             source_lod_index: 0,
             textures: Vec::new(),
+            reference_pieces: Vec::new(),
             last_result_request_id: 0,
             state_snapshot_accepted: false,
             translations: translation_transfer::TranslationTransfers::default(),
@@ -1382,6 +1455,11 @@ impl CdmwBridge {
     #[cfg(test)]
     pub(crate) fn set_state_for_test(&mut self, state: Value) {
         self.manifest.state = state;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_reference_files_for_test(&mut self, files: Vec<String>) {
+        self.manifest.item_set_files = files;
     }
 
     /// Route this bridge's outgoing JSON messages to the returned receiver.
@@ -2482,7 +2560,7 @@ fn decode_preview_core_document(
 
 fn read_document_reference(root: &Path, reference: &FileReference) -> Result<MeshDocument, SessionError> {
     if reference.data_type == mesh_document_binary::DATA_TYPE {
-        let bytes = read_mesh_document_binary_reference(root, reference)?;
+        let bytes = read_mesh_document_binary_reference(root, reference, false)?;
         mesh_document_binary::decode(&bytes, reference.count)
     } else {
         let document = serde_json::from_slice(&read_json_reference(root, reference)?)?;
@@ -2505,7 +2583,7 @@ fn is_owned_mesh_document_binary_filename(name: &str) -> bool {
         && parts.next().is_none()
 }
 
-fn read_mesh_document_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+fn read_mesh_document_binary_reference(root: &Path, reference: &FileReference, reference_piece: bool) -> Result<Vec<u8>, SessionError> {
     use std::io::Read;
     if reference.content_type != "application/octet-stream"
         || reference.data_type != mesh_document_binary::DATA_TYPE || reference.count == 0
@@ -2516,7 +2594,8 @@ fn read_mesh_document_binary_reference(root: &Path, reference: &FileReference) -
     let relative = Path::new(&reference.path);
     let mut components = relative.components();
     if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some()
-        || !is_owned_mesh_document_binary_filename(&reference.path)
+        || !(is_owned_mesh_document_binary_filename(&reference.path)
+            || (reference_piece && (1..=32).any(|index| reference.path == format!("reference-{index:02}.bin"))))
     {
         return Err(SessionError::InvalidPayload("binary mesh path must be one owned document filename".into()));
     }
@@ -2871,6 +2950,25 @@ fn reject_unexpected_initial_files(
     )
     .map(str::to_owned)
     .collect::<BTreeSet<_>>();
+    if manifest.reference_pieces.len() > 32
+        || manifest.item_set_files.len() > 33
+        || (!manifest.item_set_files.is_empty()
+            && manifest.item_set_files.len() != manifest.reference_pieces.len() + 1)
+        || (!manifest.reference_pieces.is_empty() && manifest.schema != PACKAGE_SCHEMA)
+    {
+        return Err(SessionError::InvalidManifest("invalid item set reference membership".into()));
+    }
+    for (position, piece) in manifest.reference_pieces.iter().enumerate() {
+        if piece.index != position + 1 || piece.role != "reference"
+            || piece.name.is_empty() || piece.name.len() > 512
+            || manifest.item_set_files.get(piece.index) != Some(&piece.name)
+            || piece.document.path != format!("reference-{:02}.bin", piece.index)
+        {
+            return Err(SessionError::InvalidManifest("invalid item set reference identity".into()));
+        }
+        allowed.insert(piece.document.path.clone());
+        allowed.extend(piece.textures.iter().map(|texture| texture.file.path.clone()));
+    }
     if let Some(reference) = manifest.state.get("hair").and_then(|h| h.get("file")) {
         let reference: FileReference = serde_json::from_value(reference.clone())?;
         if reference.path != "hair-state.json" || reference.data_type != "hair_authoring_json" {
@@ -2940,11 +3038,16 @@ fn reject_unexpected_initial_files(
             ));
         }
     }
+    let mut total_bytes = 0_u64;
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         let file_type = entry.file_type()?;
         if file_type.is_file() && allowed.contains(name.as_str()) {
+            total_bytes = total_bytes.saturating_add(entry.metadata()?.len());
+            if total_bytes > 768 * 1024 * 1024 {
+                return Err(SessionError::InvalidManifest("session exceeds 768 MiB".into()));
+            }
             continue;
         }
         if name == "mesh_slider_profiles" && file_type.is_dir() {
@@ -3736,6 +3839,50 @@ mod tests {
             manifest["theme"]["translations"]["Label 7"]
         );
         manifest["theme"]["translations"]["Label 7"] = json!(7);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn reference_pieces_load_materials_but_never_enter_the_editable_document() {
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(&document());
+        let reference = mesh_binary_reference("reference-01.bin", &bytes);
+        fs::write(root.path().join("reference-01.bin"), &bytes).unwrap();
+        manifest["item_set_files"] = json!(["upper.pac", "lower.pac"]);
+        manifest["reference_pieces"] = json!([{
+            "index": 1, "name": "lower.pac", "role": "reference", "document": reference,
+            "textures": manifest["textures"], "material_presentations": manifest["material_presentations"],
+        }]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let mut package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert_eq!(package.document(), &document());
+        assert_eq!(package.reference_pieces.len(), 1);
+        assert_eq!(package.reference_pieces[0].textures[0].bytes, package.textures[0].bytes);
+        let editable = WorkingMesh::from_document(package.document()).unwrap();
+        let mut scene = editable.draw_snapshot();
+        let editable_snapshot = scene.clone();
+        let roles = crate::cdmw_references::append_to_snapshot(&mut scene, &package.reference_pieces, 1);
+        assert_eq!(scene.positions.len(), editable_snapshot.positions.len() * 2);
+        assert_eq!(scene.triangle_materials, vec![0, 1]);
+        assert!(roles[..editable_snapshot.positions.len()].iter().all(|role| *role == 1));
+        assert!(roles[editable_snapshot.positions.len()..].iter().all(|role| *role == 0));
+        assert_eq!(editable.draw_snapshot(), editable_snapshot);
+        assert_eq!(scene.selected_vertices, editable_snapshot.selected_vertices);
+        package.reference_pieces[0].visible = false;
+        let mut hidden = editable.draw_snapshot();
+        crate::cdmw_references::append_to_snapshot(&mut hidden, &package.reference_pieces, 1);
+        assert_eq!(hidden, editable_snapshot);
+        let reference: FileReference = serde_json::from_value(reference).unwrap();
+        // Even the host state reader cannot substitute a reference as editable geometry.
+        assert!(read_document_reference(root.path(), &reference).is_err());
+        manifest["reference_pieces"][0]["role"] = json!("editable");
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        manifest["reference_pieces"][0]["role"] = json!("reference");
+        manifest["reference_pieces"][0]["document"]["sha256"] = json!("0".repeat(64));
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }

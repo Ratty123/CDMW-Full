@@ -12,6 +12,7 @@ mod cdmw_history;
 mod cdmw_jiggle;
 mod cdmw_preview;
 mod cdmw_rig;
+mod cdmw_references;
 mod cdmw_session;
 use cdmw_ui::layout as cdmw_layout;
 mod cdmw_ui;
@@ -717,7 +718,7 @@ fn capture_cdmw_session(
     let temporary_paths = &publication.temporary_paths;
     let source_lod_index = package.source_lod_index();
     let lod_count = package.document().lods.len();
-    let snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
+    let mut snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
         .with_context(|| format!("capture could not create LOD{source_lod_index}"))?
         .draw_snapshot();
     let session_id = package.manifest().session_id.clone();
@@ -729,10 +730,10 @@ fn capture_cdmw_session(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let textures = package.take_textures();
+    let mut textures = package.take_textures();
     let layers = package.take_layers();
     let presentations = package.take_material_presentations();
-    let owned_factors = presentations
+    let mut owned_factors = presentations
         .iter()
         .map(|presentation| {
             (
@@ -741,6 +742,22 @@ fn capture_cdmw_session(
             )
         })
         .collect::<Vec<_>>();
+    let references = package.take_reference_pieces();
+    let mut reference_offset = cdmw_references::material_offset(Some(package.document()));
+    cdmw_references::append_to_snapshot(&mut snapshot, &references, reference_offset);
+    for piece in references {
+        for mut texture in piece.textures {
+            let ownership = texture.material_indices_by_lod.first().cloned().unwrap_or_default()
+                .into_iter().map(|index| index + reference_offset).collect::<Vec<_>>();
+            texture.material_indices_by_lod = vec![ownership; lod_count];
+            textures.push(texture);
+        }
+        for presentation in piece.material_presentations.iter().filter(|row| row.lod_index == 0) {
+            owned_factors.push((cdmw_material_preview_factors(presentation),
+                vec![vec![presentation.material_index + reference_offset]; lod_count]));
+        }
+        reference_offset += piece.part_count;
+    }
     let texture_uploads = textures
         .iter()
         .map(|texture| HeadlessMaterialTexture {
@@ -1519,6 +1536,7 @@ enum UiAction {
         role: &'static str,
     },
     FinishCdmw,
+    SwitchItemPiece(usize),
     OrbitMode,
     OrbitYaw(f32),
     Nudge(Vec3),
@@ -2140,6 +2158,7 @@ struct LabApplication {
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     cdmw_texture_resources: Vec<LoadedTexture>,
+    cdmw_reference_pieces: Vec<cdmw_session::LoadedReferencePiece>,
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
@@ -2345,6 +2364,7 @@ impl LabApplication {
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
             cdmw_texture_resources: Vec::new(),
+            cdmw_reference_pieces: Vec::new(),
             cdmw_hidden_parts: HashSet::new(),
             cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
@@ -2538,6 +2558,7 @@ impl LabApplication {
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
         let mut application = Self::new(None, None);
+        application.cdmw_reference_pieces = bridge.take_reference_pieces();
         application.embedded_parent_hwnd = embedded_parent_hwnd;
         application.install_loaded_mesh_with_materials(LoadedMesh {
             path: source_path,
@@ -2552,6 +2573,7 @@ impl LabApplication {
         if let Some(mesh) = &application.mesh {
             application.camera.frame_integrated_startup(mesh);
         }
+        if !application.cdmw_reference_pieces.is_empty() { application.frame_item_set(); }
         let hair = bridge.hair_from_state(&initial_state)?;
         application.cdmw_state = initial_state;
         application.hair.pending_start = application.cdmw_state["hair"]["start_mode"]
@@ -3366,6 +3388,7 @@ impl LabApplication {
                         .as_ref()
                         .map_or(0, |document| document.lods.len()),
                 )?;
+                cdmw_references::upload_materials(renderer, &self.cdmw_reference_pieces, self.document.as_deref())?;
             }
             renderer
                 .set_material_lod(active_lod_index)
@@ -4755,6 +4778,7 @@ impl LabApplication {
                         self.projection = None;
                         self.status = "Camera framed the complete mesh".to_owned();
                     }
+                    if !self.cdmw_reference_pieces.is_empty() { self.frame_item_set(); }
                 }
                 UiAction::FrameSelected => {
                     if let Some(mesh) = &self.mesh {
@@ -5041,6 +5065,11 @@ impl LabApplication {
                         }
                         Err(error) => self.status = format!("Axis scale failed: {error}"),
                     }
+                }
+                UiAction::SwitchItemPiece(index) => {
+                    if let Some(bridge) = &self.cdmw_bridge
+                        && let Err(error) = bridge.switch_item_piece(index)
+                    { self.status = error.to_string(); }
                 }
                 UiAction::CdmwCommand {
                     command,
@@ -5645,6 +5674,7 @@ impl LabApplication {
         if first_viewport && let Some(mesh) = &self.mesh {
             self.camera.frame_all_in_viewport(mesh, rectangle);
         }
+        if first_viewport && !self.cdmw_reference_pieces.is_empty() { self.frame_item_set(); }
     }
 
     fn ensure_projection(&mut self, rectangle: egui::Rect) -> bool {
@@ -6829,6 +6859,9 @@ impl LabApplication {
             );
         }
         self.refresh_jiggle_regions();
+        if let Err(error) = cdmw_references::upload_materials(
+            &mut renderer, &self.cdmw_reference_pieces, self.document.as_deref(),
+        ) { self.status = format!("Reference materials failed: {error}"); }
         if let Some(mesh) = &self.mesh {
             let visible_submeshes = self.cdmw_visible_submeshes();
             let snapshot = visible_submeshes.as_ref().map_or_else(
@@ -6844,13 +6877,12 @@ impl LabApplication {
                 visible_submeshes.as_ref(),
                 &snapshot,
             ) } else { None };
-            if let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else if let Some(colours) = &part_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else {
-                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            }
+            if let Err(error) = cdmw_references::upload_scene(
+                &mut renderer, &snapshot, &self.cdmw_reference_pieces,
+                cdmw_references::material_offset(self.document.as_deref()),
+                self.cdmw_jiggle.region_colours.as_deref().or(part_colours.as_deref()),
+                deformation_reference, false,
+            )
             {
                 self.status = format!("CDMW mesh upload failed: {error}");
             }
@@ -6920,6 +6952,8 @@ impl LabApplication {
         }
         self.render_jiggle();
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);
+        self.camera.include_clip_positions(self.cdmw_reference_pieces.iter().filter(|piece| piece.visible)
+            .flat_map(|piece| piece.snapshot.positions.iter().copied().map(Vec3::from_array)));
         let camera_matrix = self
             .viewport_rect
             .map(|rectangle| self.camera.view_projection(rectangle));

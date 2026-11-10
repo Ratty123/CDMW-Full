@@ -125,6 +125,7 @@ _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.(?:json|bin)\Z")
 _MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
+_REFERENCE_FILE_RE = re.compile(r"reference-(?:0[1-9]|[12][0-9]|3[0-2])\.bin\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
     r"preview-geometry-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
 )
@@ -1807,6 +1808,7 @@ def _validate_owned_session_tree(
             or _MATERIAL_STATE_FILE_RE.fullmatch(name) is not None
             or _CANDIDATE_FILE_RE.fullmatch(name) is not None
             or _TEXTURE_FILE_RE.fullmatch(name) is not None
+            or _REFERENCE_FILE_RE.fullmatch(name) is not None
             or _PREVIEW_GEOMETRY_FILE_RE.fullmatch(name) is not None
             or _PREVIEW_IDENTITY_FILE_RE.fullmatch(name) is not None
         ):
@@ -1928,7 +1930,8 @@ def _atomic_write_payload(
     expected_root_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
     binary = isinstance(payload, PreparedMeshDocument)
-    valid_binary_name = name == "document.bin" or (_STATE_FILE_RE.fullmatch(name) is not None and name.endswith(".bin"))
+    valid_binary_name = (name == "document.bin" or _REFERENCE_FILE_RE.fullmatch(name) is not None
+                         or (_STATE_FILE_RE.fullmatch(name) is not None and name.endswith(".bin")))
     if Path(name).name != name or (not valid_binary_name if binary else not name.lower().endswith(".json")):
         raise ValueError("Mesh payload name does not match its owned encoding")
     if binary and data_type not in {"json", BINARY_MESH_DOCUMENT_TYPE}:
@@ -7633,6 +7636,7 @@ class RustMeshAuthoringSession:
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()
+    item_set_contexts: tuple = ()
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -7659,6 +7663,7 @@ class RustMeshAuthoringSession:
         theme: Mapping[str, object] | None = None,
         stop_event: threading.Event | None = None,
         hair_start_mode: str = "",
+        item_set_contexts: tuple = (),
         progress: Callable[[str], None] | None = None,
     ) -> "RustMeshAuthoringSession":
         def report(message: str) -> None:
@@ -7807,6 +7812,7 @@ class RustMeshAuthoringSession:
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
+                item_set_contexts=tuple(item_set_contexts),
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )
             if authoritative_morph_root is not None:
@@ -8547,6 +8553,12 @@ class RustMeshAuthoringSession:
             "theme": _json_safe(self.theme),
             "state": self.state_payload(include_document=False),
         }
+        if self.item_set_contexts:
+            from cdmw.services.mesh_item_set_references import prepare_item_set_references
+            manifest["reference_pieces"] = prepare_item_set_references(
+                self, self.item_set_contexts, stop_event, progress)
+            manifest["item_set_files"] = [context.selected_entry.basename
+                                          for context in self.item_set_contexts]
         if self.shadow_service._session(self.shadow_session_id).replacement_state is not None:
             # Reopened replacements already have material snapshots before the
             # helper starts. Declare their exact files for its initial allowlist.

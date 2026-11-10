@@ -65,6 +65,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_context_verified_for_rust: bool,
         material_source_identity: object | None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
+        item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> None:
@@ -99,6 +100,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             ),
             "material_source_identity": material_source_identity,
             "archive_dependencies": archive_dependencies,
+            "item_set_contexts": item_set_contexts,
             "prepared_result": prepared_result,
             "draft_request": draft_request,
         }
@@ -148,12 +150,19 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_context_verified_for_rust: bool = False,
         material_source_identity: object | None = None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
+        item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
+        item_set_contexts = tuple(item_set_contexts)
+        if item_set_contexts and (
+                len(item_set_contexts) > 33
+                or item_set_contexts[0].selected_entry.identity != entry.identity
+                or len({context.selected_entry.identity for context in item_set_contexts}) != len(item_set_contexts)):
+            raise ValueError("Item set dependencies do not match the selected mesh")
         if prepared_result is not None and (not isinstance(prepared_result, _tab.MeshArchiveSessionLoadResult)
                 or str(prepared_result.mesh.path).casefold() != entry.path.casefold()):
             raise ValueError("Prepared editor geometry belongs to another archive target")
@@ -201,6 +210,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 material_context_verified_for_rust=material_context_verified_for_rust,
                 material_source_identity=material_source_identity,
                 archive_dependencies=archive_dependencies,
+                item_set_contexts=item_set_contexts,
                 prepared_result=prepared_result,
                 draft_request=draft_request,
             )
@@ -224,12 +234,14 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "entry": entry_snapshot,
             "resume_manifest_path": resume_path,
             "archive_dependencies": archive_dependencies,
+            "item_set_contexts": item_set_contexts,
             "material_companion_entry": copy.deepcopy(material_companion_entry),
             "material_package_path": material_package_path,
             "draft_request": draft_request,
         }
         self.archive_session_load_entry = entry
         self.archive_session_dependencies = archive_dependencies
+        self.item_set_contexts = item_set_contexts
         self.archive_session_load_material_model = (
             material_preview_model
             if material_preview_model is not None
@@ -725,6 +737,10 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         )
         if callable(defer_for_rust_finish) and defer_for_rust_finish():
             return False
+        preparation = getattr(self, "item_set_preparation", None)
+        if preparation is not None:
+            preparation.cancel()
+        self.item_set_contexts = ()
         pending_open = getattr(self, "archive_session_open_pending", None)
         pending_lease = (
             pending_open.get("material_package_lease")

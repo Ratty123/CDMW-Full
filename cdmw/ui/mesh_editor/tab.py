@@ -178,6 +178,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
     status_message_requested = Signal(str, bool)
     runtime_event_requested = Signal(str, dict)
     open_archive_session_requested = Signal(object)
+    switch_item_piece_requested = Signal(int)
     open_archive_target_requested = Signal(object)
     archive_result_ready = Signal(object)
     # Open the Drafts & Mods page, filtered to a game file path when set.

@@ -3545,6 +3545,23 @@ impl WindowRenderer {
         )
     }
 
+    /// Keep view-only references static while retaining editable diagnostics.
+    pub fn set_editor_scene(
+        &mut self,
+        snapshot: &DrawSnapshot,
+        scene_roles: &[u32],
+        colours: Option<&[[f32; 4]]>,
+        deformation_reference: Option<&[[f32; 3]]>,
+        interactive: bool,
+    ) -> Result<(), RenderError> {
+        self.set_snapshot_with_deformation_mode(
+            snapshot,
+            colours.map_or(VertexOverlay::Deformation(deformation_reference), VertexOverlay::Colours),
+            Some(scene_roles),
+            if interactive { GeometryUpdateMode::Interactive } else { GeometryUpdateMode::Final },
+        )
+    }
+
     pub fn set_snapshot_with_deformation(
         &mut self,
         snapshot: &DrawSnapshot,

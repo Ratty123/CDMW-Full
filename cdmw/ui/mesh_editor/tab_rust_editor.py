@@ -676,6 +676,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             process_generation=process_generation,
             theme=theme,
             **self._hair_start_options(),
+            **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
         )
         thread = QThread(self)
         worker.moveToThread(thread)

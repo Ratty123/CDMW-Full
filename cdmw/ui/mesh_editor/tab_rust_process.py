@@ -322,6 +322,14 @@ class MeshEditorRustProcessMixin:
             return
         if event == "state_snapshot":
             return
+        if event == "switch_item_piece":
+            index = payload.get("index")
+            if (self.standalone_rust_ready and type(index) is int
+                    and 0 < index < len(self.item_set_contexts)
+                    and not self.standalone_rust_protocol_queue
+                    and self.standalone_rust_protocol_worker is None):
+                self.switch_item_piece_requested.emit(index)
+            return
         if event == "layout_changed":
             from cdmw.services.mesh_editor_layout import save_mesh_layout
             from cdmw.ui.widgets import request_settings_sync

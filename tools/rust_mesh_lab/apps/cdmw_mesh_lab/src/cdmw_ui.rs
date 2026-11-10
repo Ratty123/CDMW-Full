@@ -4453,6 +4453,7 @@ impl LabApplication {
                 }
                 ScrollArea::vertical().show(ui, |ui| {
                     self.draw_hair_controls(ui, actions);
+                    ui.add_enabled_ui(!busy, |ui| self.draw_item_set_references(ui, actions));
                     if self.hair.active() {
                         crate::localization::collapsing("Parts")
                             .show(ui, |ui| self.draw_hair_parts(ui, actions));

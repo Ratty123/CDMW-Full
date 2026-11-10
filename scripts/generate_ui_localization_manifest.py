@@ -57,6 +57,10 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Item-set preparation forwards these through worker callbacks/signals.
+        "Preparing reference meshes...",
+        "The archive catalogue changed while preparing the item set.",
+        "Item set dependencies do not match the selected mesh",
         # The Wiki exporter uses this shared navigation label without a widget sink.
         "Independent items",
         # Dynamic reference-search confidence and progress labels.

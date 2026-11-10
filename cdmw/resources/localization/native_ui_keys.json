@@ -1732,6 +1732,7 @@
   "Reduce to Six Influences",
   "Reductions preserve the source gradient. Final motion still needs in-game verification.",
   "Reference changed. Rebind roots before grooming or simulation.",
+  "Reference materials failed: {value_0}",
   "Reference {value_0}",
   "Refine Smooth",
   "Refit diagnostics require 1..128 unique garment Part indices.",

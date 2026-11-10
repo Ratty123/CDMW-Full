@@ -48,6 +48,8 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_entry: _tab.ArchiveEntry | None = None
         self.archive_session_load_material_model: object | None = None
         self.archive_session_dependencies: ArchiveWorkflowDependencyContext | None = None
+        self.item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = ()
+        self.item_set_preparation = None
         self.archive_session_open_pending: dict[str, object] | None = None
         self.archive_session_open_retry_timer = QTimer(self)
         self.archive_session_open_retry_timer.setSingleShot(True)

@@ -463,6 +463,20 @@ the UI does not expose a misleading refraction slider.
 
 ## Opening meshes and preparing sessions
 
+From an Item Finder set preview, **Open in Mesh Editor** edits the selected PAC
+and draws the other worn files as **Reference pieces**. Their Inspector **View**
+checkboxes affect display only. **Switch editable piece** lists the set's files
+and uses the existing close/reopen confirmation, including unsaved edits.
+Selection, editing, drafts and output still belong to the selected PAC.
+
+Each file gets its own prepared dependency snapshot before launch. The Rust
+preparation worker loads reference geometry and materials with the same bounded
+source loader as Archive Refit, then copies immutable payloads into the owned
+session. References are separate from both the authoritative and shadow mesh;
+only the renderer's draw snapshot combines them. They cannot be selected or
+submitted as editor state, and do not contribute archive output authority.
+Cancellation, catalogue replacement, close and shutdown discard stale work.
+
 PAC readers distinguish the declared LOD count from the reserved geometry slots.
 A three-LOD game model can retain LOD0 in slot 4, with its lowest slot empty.
 Reading, cloth-record inspection and supported rebuilds retain that arrangement.

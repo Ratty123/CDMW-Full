@@ -218,15 +218,12 @@ impl LabApplication {
             )
         });
         if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
-            && let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else if let Some(colours) = &part_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else if self.edit_gesture.is_some() {
-                renderer.set_snapshot_with_deformation_interactive(&snapshot, deformation_reference)
-            } else {
-                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            }
+            && let Err(error) = crate::cdmw_references::upload_scene(
+                renderer, &snapshot, &self.cdmw_reference_pieces,
+                crate::cdmw_references::material_offset(self.document.as_deref()),
+                self.cdmw_jiggle.region_colours.as_deref().or(part_colours.as_deref()),
+                deformation_reference, self.edit_gesture.is_some(),
+            )
         {
             self.status = format!("GPU update failed: {error}");
         }

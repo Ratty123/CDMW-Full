@@ -20,6 +20,7 @@ mod free_edit_destination;
 mod new_item_handoff;
 mod island_controls_tests;
 mod parts_output_tests;
+mod item_set_references;
 mod history_controls_tests;
 mod keyboard_shortcuts;
 mod free_edit_replacement_tests;

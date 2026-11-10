@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Item Finder opens an item's worn pieces together in Browse Archives. **Set components** groups them by file, with visibility checkboxes, **Show all** and **Isolate**. Selecting another file keeps the set visible and highlights its parts; **Preview only this file** returns to one model. The item details show larger model lists.
+- Item Finder opens an item's worn pieces together in Browse Archives. **Set components** groups them by file, with visibility checkboxes, **Show all** and **Isolate**. Selecting another file keeps the set visible and highlights its parts; **Preview only this file** returns to one model. The item details show larger model lists. **Open in Mesh Editor** edits the selected piece with the rest as visible references; **Switch editable piece** changes the editing target through the usual unsaved-changes confirmation.
 
 - Preview and Mesh Editor add **Shadows** and **Ambient occlusion** switches for Textured and Game Outdoor views. Both start on. Icon captures retain self-shadows on a transparent background. **Studio (fixed lights)** adds lighting that stays in place as you orbit, alongside the unchanged default preset.
 

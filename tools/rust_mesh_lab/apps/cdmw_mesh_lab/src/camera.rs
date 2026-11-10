@@ -494,11 +494,22 @@ impl OrbitCamera {
             * Quat::from_rotation_z(self.roll)
     }
 
-    fn frame_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
+    pub(super) fn frame_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
         let Some((minimum, maximum)) = finite_bounds(positions) else {
             return;
         };
         self.frame_bounds(minimum, maximum);
+    }
+
+    pub(super) fn include_clip_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
+        if let Some((minimum, maximum)) = finite_bounds(positions) {
+            let center = (minimum + maximum) * 0.5;
+            let radius = ((maximum - minimum) * 0.5).length() + center.distance(self.target);
+            if radius > self.scene_radius {
+                self.scene_radius = radius;
+                self.bump_revision();
+            }
+        }
     }
 
     pub(super) fn frame_positions_in_viewport(

@@ -321,6 +321,8 @@ class MeshEditorTabShellMixin(
             ("standalone_rust_dispose", self.standalone_rust_dispose_thread, self.standalone_rust_dispose_worker),
         )
     def request_shutdown(self) -> None:
+        if self.item_set_preparation is not None:
+            self.item_set_preparation.cancel()
         self._cancel_dotnet_material_compile()
         self._discard_queued_archive_session_open()
         self.close_standalone_session()

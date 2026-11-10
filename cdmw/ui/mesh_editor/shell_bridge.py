@@ -690,6 +690,9 @@ class MeshEditorShellBridgeMixin:
             self._activate_tool_widget(self.mesh_editor_tab)
             self.set_status_message(f"Opening edited {entry.basename} with its source dependencies.")
             return
+        from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+        if prepare_item_set_for_editor(self, entry):
+            return
         if self._defer_rust_mesh_editor_for_archive_textures(entry):
             return
         archive_dependencies = None
@@ -769,6 +772,13 @@ class MeshEditorShellBridgeMixin:
                 material_preview_model is not None
                 and material_source_identity == entry.identity
             )
+        if session_options.get("item_set_contexts"):
+            # The browser package combines several PACs. Authoring must resolve
+            # this file's own material owners from its separate snapshot.
+            material_preview_model = None
+            material_package_path = ""
+            material_source_identity = None
+            material_context_verified_for_rust = False
         material_package_lease = (
             acquire_dotnet_preview_package_cache_lease_for_path(
                 Path(material_package_path)
@@ -776,7 +786,8 @@ class MeshEditorShellBridgeMixin:
             if material_package_path
             else None
         )
-        material_companion_entry = self.archive._find_archive_preview_companion_entry(entry)
+        material_companion_entry = (None if session_options.get("item_set_contexts")
+                                    else self.archive._find_archive_preview_companion_entry(entry))
         self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
         self.mesh_editor_tab.open_archive_session(
             entry,
