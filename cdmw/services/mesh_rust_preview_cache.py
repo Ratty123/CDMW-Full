@@ -759,6 +759,7 @@ class _PreviewCorePackageRequest:
             quality == "full"
             and fast_package_ready is not None
             and _safe_int(self.source_manifest.get("schema_version"), 0) >= 8
+            and not self.all_layer_sources_prepared()
         )
         if not progressive:
             return self.build_or_lookup_quality(quality)
@@ -766,6 +767,27 @@ class _PreviewCorePackageRequest:
             return self._progressive_durable(fast_package_ready)
         direct_package, _ = self.emit_direct(fast_package_ready, retain_lease=False)
         return self.build_or_lookup_quality("full", direct_package)
+
+    def all_layer_sources_prepared(self) -> bool:
+        from cdmw.services.mesh_rust_preview_package import _preview_core_material_source
+
+        batches = self.source_manifest.get("batches", ())
+        if not batches:
+            return False
+        for batch in batches:
+            _check_cancelled(self.cancelled)
+            if not isinstance(batch, Mapping) or not isinstance(batch.get("material_layers"), list):
+                return False
+            for layer in batch["material_layers"]:
+                if not isinstance(layer, Mapping):
+                    return False
+                for role in ("diffuse", "normal", "material", "height", "mask"):
+                    source = str(layer.get(f"{role}_source", "") or "").strip()
+                    if layer.get(f"{role}_archive_path") and not source:
+                        return False
+                    if source and _preview_core_material_source(self.source_package, source) is None:
+                        return False
+        return True
 
 
 def build_or_lookup_rust_preview_package(

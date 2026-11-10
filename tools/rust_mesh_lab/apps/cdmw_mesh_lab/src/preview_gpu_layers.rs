@@ -9,7 +9,7 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
-use cdmw_texture::{DdsFormat, TextureRole, dds_mean_luminance, inspect_dds};
+use cdmw_texture::{DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256, inspect_dds_with_verified_sha256};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
@@ -97,7 +97,7 @@ fn mean(texture: &LayerTexture) -> Result<f32, SessionError> {
     if let Some(value) = MEANS.with(|cache| cache.borrow().get(&texture.source_sha256).copied()) {
         return Ok(value);
     }
-    let value = dds_mean_luminance(&texture.bytes)
+    let value = dds_mean_luminance_with_verified_sha256(&texture.bytes, &texture.source_sha256)
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
     MEANS.with(|cache| {
         let mut cache = cache.borrow_mut();
@@ -130,9 +130,10 @@ fn small_colour_mips(
         .iter()
         .filter_map(|layer| layer.diffuse.as_ref())
     {
-        let metadata = inspect_dds(
+        let metadata = inspect_dds_with_verified_sha256(
             &sources[&reference.sha256.to_ascii_uppercase()],
             TextureRole::BaseColor,
+            &reference.sha256,
         )
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
         if metadata.width.max(metadata.height) >> (metadata.mip_count - 1) > 64 {
@@ -221,7 +222,7 @@ fn build(
         result.textures[1 + k * 3] = Some(color);
         if let Some(reference) = &layer.normal {
             let texture = layer_texture(reference, TextureRole::Normal, sources);
-            let metadata = inspect_dds(&texture.bytes, texture.role)
+            let metadata = inspect_dds_with_verified_sha256(&texture.bytes, texture.role, &texture.source_sha256)
                 .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
             result.uniform.layers[k].properties[3] = match metadata.format {
                 DdsFormat::Bc5Unorm | DdsFormat::Rg8Unorm => 1.0,
@@ -328,7 +329,7 @@ where
                 };
                 if let Some(reference) = reference {
                     let bytes = sources[&reference.sha256.to_ascii_uppercase()].to_vec();
-                    let metadata = inspect_dds(&bytes, role)
+                    let metadata = inspect_dds_with_verified_sha256(&bytes, role, &reference.sha256)
                         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
                     let mut owners = vec![Vec::new(); document.lods.len()];
                     owners[material.lod_index as usize].push(material.material_index);
@@ -369,6 +370,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cdmw_texture::inspect_dds;
 
     fn layer(role: &str, channel: &str, reference: &FileReference) -> PreviewCoreMaterialLayer {
         serde_json::from_value(serde_json::json!({

@@ -331,6 +331,18 @@ class RustPreviewSessionController(
             # helper, so any release it declared on the way out is withdrawn.
             self._session_released = False
             return True
+        if (
+            "rust_preview_runtime_v1" in self._capabilities
+            and self.serving_prewarm_placeholder
+            and self._desired_package is None
+        ):
+            # The read-only preview runtime has no edit document to transfer.
+            # Bind the first real authoring scene without discarding its device.
+            self._session_id = normalized
+            return self._send_json({
+                "event": "preview_session_state", "session_id": normalized,
+                "process_generation": self._process_generation, "protocol_version": 2,
+            })
         if self._session_established and not self._session_provisional:
             if self._launch_is_prewarm and self._desired_package is None:
                 # A prewarm holding a session it cannot hand back must never be
@@ -780,6 +792,30 @@ class RustPreviewSessionController(
         if self._closed or hwnd <= 0 or not self._can_send_protocol():
             return False
         return bool(self._send_json({"event": "reembed_request", "parent_hwnd": hwnd}))
+
+    def adopt_prewarmed_host(
+        self, *, parent: QObject, host_hwnd: Callable[[], int],
+        profile: DotNetPreviewProfile | str, terminate_on_close: bool,
+        direct_authoring: bool,
+    ) -> Mapping[str, object] | None:
+        """Transfer an unused, ready helper; a real scene can never be stolen."""
+        if (
+            self._closed or not self.is_running or not self._renderer_ready
+            or not self._session_established or not self.serving_prewarm_placeholder
+            or self._desired_package is not None or self._gpu_failed
+        ):
+            return None
+        self.setParent(parent)
+        self._host_hwnd = host_hwnd
+        self.profile = DotNetPreviewProfile.normalize(profile)
+        self._terminate_on_close = bool(terminate_on_close)
+        self._direct_authoring = bool(direct_authoring)
+        self.set_visible(False)
+        self.reembed(self._safe_host_hwnd())
+        payload = dict(self._renderer_ready_payload or {})
+        payload["embedded_parent_hwnd"] = self._safe_host_hwnd()
+        self._renderer_ready_payload = payload
+        return payload
 
     def set_visible(self, visible: bool) -> None:
         self._visible = bool(visible)

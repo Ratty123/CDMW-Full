@@ -67,6 +67,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "textured_effect_particles_v1",
     "ui_theme_state_v1",
     "ui_localization_v1",
+    "dialog_prewarm_hold_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -88,6 +89,7 @@ pub(crate) fn control_contract() -> Value {
         ),
         ("activate_request", "both", "activated"),
         ("deactivate_request", "both", "deactivated"),
+        ("prewarm_hold_request", "both", "prewarm_held"),
         ("reembed_request", "both", "reembedded"),
         ("capture_request", "both", "capture_result"),
         ("ui_localization_state", "both", "ui_localization_state_ack"),
@@ -419,6 +421,19 @@ impl PreviewRendererIdle {
     }
 }
 
+#[derive(Default)]
+struct PreviewTextureUploads {
+    base: usize,
+    effect: usize,
+    layer: usize,
+    layer_texture: usize,
+    pending: bool,
+    started: Option<Instant>,
+    bytes: usize,
+    maximum_slice_bytes: usize,
+    maximum_slice_ms: f64,
+}
+
 pub struct PreviewApplication {
     window: Option<Arc<Window>>,
     parent_hwnd: u64,
@@ -433,6 +448,8 @@ pub struct PreviewApplication {
     snapshot_scene_roles: Option<Vec<u32>>,
     textures: Vec<CdmwTextureResource>,
     layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    texture_uploads: PreviewTextureUploads,
+    deferred_capture: Option<(u64, Value)>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     effect_texture_indices: HashMap<String, usize>,
     effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
@@ -516,6 +533,8 @@ impl PreviewApplication {
             snapshot_scene_roles: None,
             textures,
             layers,
+            texture_uploads: PreviewTextureUploads::default(),
+            deferred_capture: None,
             effect_textures,
             effect_texture_indices: HashMap::new(),
             effect_surfaces,
@@ -638,6 +657,8 @@ impl PreviewApplication {
         self.renderer = None;
         self.next_frame = None;
         self.render_failures = 6;
+        self.texture_uploads.pending = false;
+        self.fail_deferred_capture(&reason);
         self.bridge
             .send(json!({"event":"renderer_failed","error":reason}));
     }
@@ -646,6 +667,8 @@ impl PreviewApplication {
         // CPU geometry, materials, camera and placement remain authoritative.
         // Drop the failed device before attempting any new GPU allocation.
         self.renderer = None;
+        self.texture_uploads.pending = false;
+        self.fail_deferred_capture(&reason);
         self.next_frame = None;
         self.render_failures = 6;
         if !self.gpu_recovery.schedule(Instant::now()) {
@@ -657,25 +680,14 @@ impl PreviewApplication {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
-        let (effect_texture_indices, effect_mesh_indices) = renderer
+        let effect_mesh_indices = renderer
             .replace_preview_scene(|renderer| {
+                renderer.begin_texture_uploads();
                 renderer.reset_texture();
                 renderer.reset_effect_textures();
                 let effect_mesh_indices = self.effect_meshes.0.iter().map(|asset|
                     asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
                 ).collect::<Result<Vec<_>, _>>()?;
-                let mut effect_texture_indices = HashMap::new();
-                for texture in &self.effect_textures {
-                    let index = renderer.add_effect_dds_texture(&texture.bytes)?;
-                    effect_texture_indices.insert(texture.archive_path.clone(), index);
-                }
-                for texture in &self.textures {
-                    renderer.add_dds_texture(
-                        &texture.bytes,
-                        texture.role,
-                        &texture.material_indices_by_lod,
-                    )?;
-                }
                 for presentation in &self.presentations {
                     let ownership =
                         presentation_ownership(presentation, self.package.document().lods.len());
@@ -684,7 +696,6 @@ impl PreviewApplication {
                         &ownership,
                     )?;
                 }
-                for layers in &self.layers { renderer.add_material_layers(layers)?; }
                 renderer.set_material_lod(self.package.source_lod_index())?;
                 if let Some(roles) = self.snapshot_scene_roles.as_deref() {
                     renderer.set_snapshot_with_scene_roles(&self.snapshot, roles)?;
@@ -694,12 +705,81 @@ impl PreviewApplication {
                     renderer.set_snapshot(&self.snapshot)?;
                     renderer.set_scene_transform(Mat4::IDENTITY)?;
                 }
-                Ok((effect_texture_indices, effect_mesh_indices))
+                Ok(effect_mesh_indices)
             })
             .map_err(|error| error.to_string())?;
-        self.effect_texture_indices = effect_texture_indices;
+        self.effect_texture_indices.clear();
         self.effect_mesh_indices = effect_mesh_indices;
+        self.texture_uploads = PreviewTextureUploads { pending: true, started:Some(Instant::now()), ..Default::default() };
+        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
         Ok(())
+    }
+
+    fn advance_texture_uploads(&mut self) -> Result<(), String> {
+        let Some(renderer) = &mut self.renderer else { return Ok(()); };
+        let progress = &mut self.texture_uploads;
+        if !progress.pending { return Ok(()); }
+        let started = Instant::now();
+        let mut budget = 8 * 1024 * 1024;
+        let result = (|| -> Result<(), cdmw_render_wgpu::RenderError> {
+            while budget > 0 && started.elapsed() < Duration::from_millis(2) {
+                if let Some(texture) = self.textures.get(progress.base) {
+                    let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
+                        texture.role, &texture.metadata.source_sha256, budget)?;
+                    budget -= used;
+                    if !complete { break; }
+                    renderer.add_verified_dds_texture(&texture.bytes, texture.role,
+                        &texture.material_indices_by_lod, &texture.metadata.source_sha256)?;
+                    progress.base += 1;
+                } else if let Some(layers) = self.layers.get(progress.layer) {
+                    if progress.layer_texture < layers.textures.len() {
+                        if let Some(texture) = &layers.textures[progress.layer_texture] {
+                            let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
+                                texture.role, &texture.source_sha256, budget)?;
+                            budget -= used;
+                            if !complete { break; }
+                        }
+                        progress.layer_texture += 1;
+                    } else {
+                        renderer.add_material_layers(layers)?;
+                        progress.layer += 1;
+                        progress.layer_texture = 0;
+                    }
+                } else if let Some(texture) = self.effect_textures.get(progress.effect) {
+                    let hash = &texture._metadata.source_sha256;
+                    let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
+                        cdmw_texture::TextureRole::BaseColor, hash, budget)?;
+                    budget -= used;
+                    if !complete { break; }
+                    let index = renderer.add_verified_effect_dds_texture(&texture.bytes, hash)?;
+                    self.effect_texture_indices.insert(texture.archive_path.clone(), index);
+                    progress.effect += 1;
+                } else {
+                    renderer.finish_texture_uploads();
+                    progress.pending = false;
+                    break;
+                }
+            }
+            renderer.set_material_lod(self.package.source_lod_index())?;
+            Ok(())
+        })();
+        let used = 8 * 1024 * 1024 - budget;
+        progress.bytes += used;
+        progress.maximum_slice_bytes = progress.maximum_slice_bytes.max(used);
+        progress.maximum_slice_ms = progress.maximum_slice_ms.max(started.elapsed().as_secs_f64()*1000.0);
+        if result.is_ok() && !progress.pending {
+            self.bridge.send(json!({"event":"texture_upload_report",
+                "generation":self.newest_package_generation,
+                "texture_uploads":renderer.texture_upload_count(),
+                "uploaded_bytes":progress.bytes,
+                "maximum_slice_bytes":progress.maximum_slice_bytes,
+                "maximum_slice_ms":progress.maximum_slice_ms,
+                "elapsed_ms":progress.started.map(|start|start.elapsed().as_secs_f64()*1000.0),
+            }));
+        }
+        // The last completed binding also needs one final redraw.
+        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+        result.map_err(|error| error.to_string())
     }
 
     fn start_package_load(
@@ -855,6 +935,10 @@ impl PreviewApplication {
     }
 
     fn start_capture(&mut self, value: &Value) {
+        if self.texture_uploads.pending && !self.capture_in_flight && self.deferred_capture.is_none() {
+            self.deferred_capture = Some((self.scene_revision, value.clone()));
+            return;
+        }
         let request_id = value.get("request_id").and_then(Value::as_u64).unwrap_or(0);
         let Some(output_path) = value
             .get("output_path")
@@ -885,7 +969,7 @@ impl PreviewApplication {
         let yaw_degrees = value.get("yaw_degrees").and_then(Value::as_f64);
         let pitch_degrees = value.get("pitch_degrees").and_then(Value::as_f64);
         let result = (|| -> Result<_> {
-            if self.capture_in_flight {
+            if self.capture_in_flight || self.deferred_capture.is_some() {
                 anyhow::bail!("A preview capture is already in progress");
             }
             let saved_camera = self.camera.clone();
@@ -975,7 +1059,22 @@ impl PreviewApplication {
         }
     }
 
+    fn fail_deferred_capture(&mut self, reason: &str) {
+        if let Some((_, value)) = self.deferred_capture.take() {
+            self.bridge.send(json!({"event":"capture_result", "request_id":value.get("request_id"),
+                "status":"error", "message":reason}));
+        }
+    }
+
     fn poll_captures(&mut self) {
+        if !self.texture_uploads.pending && let Some((revision, value)) = self.deferred_capture.take() {
+            if revision == self.scene_revision {
+                self.start_capture(&value);
+            } else {
+                self.bridge.send(json!({"event":"capture_result", "request_id":value.get("request_id"),
+                    "status":"error", "message":"preview changed while textures were preparing"}));
+            }
+        }
         while let Ok(result) = self.capture_rx.try_recv() {
             self.capture_in_flight = false;
             match result.result {
@@ -1137,6 +1236,17 @@ impl PreviewApplication {
                     window.set_visible(false);
                 }
                 self.bridge.send(json!({"event": "deactivated"}));
+                if self.texture_uploads.pending {
+                    self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+                }
+            }
+            "prewarm_hold_request" => {
+                // One application-owned hidden spare retains its device until
+                // adoption or shutdown. Ordinary deactivation restores expiry.
+                if !self.visible && self.renderer.is_some() {
+                    self.renderer_idle.resume();
+                    self.bridge.send(json!({"event":"prewarm_held"}));
+                }
             }
             "reembed_request" => {
                 self.parent_hwnd = value
@@ -2888,6 +2998,9 @@ impl ApplicationHandler for PreviewApplication {
                     self.visible, self.renderer.as_ref().is_some_and(WindowRenderer::has_material_animation)) {
                     self.next_frame = Some(Instant::now() + Duration::from_millis(16));
                 }
+                if self.render_failures == 0 && let Err(error) = self.advance_texture_uploads() {
+                    self.recover_gpu(error);
+                }
             }
             _ => {}
         }
@@ -2923,8 +3036,11 @@ impl ApplicationHandler for PreviewApplication {
                 && let Some(window) = &self.window
             {
                 window.request_redraw();
+            } else if let Err(error) = self.advance_texture_uploads() {
+                self.recover_gpu(error);
             }
         }
+        self.poll_captures();
         event_loop.set_control_flow(
             self.next_frame
                 .into_iter()

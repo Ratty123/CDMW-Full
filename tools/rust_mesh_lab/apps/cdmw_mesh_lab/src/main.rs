@@ -756,28 +756,30 @@ fn capture_cdmw_session(
             material_indices_by_lod: ownership,
         })
         .collect::<Vec<_>>();
-    let report = pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+    let verified_hashes = textures.iter().map(|texture| texture.metadata.source_sha256.as_str()).collect::<Vec<_>>();
+    let report = pollster::block_on(cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch(
         &snapshot,
         &texture_uploads,
         &factor_uploads,
         &layers,
-        HeadlessMaterialCaptureOptions {
+        &[HeadlessMaterialCaptureRequest { options: HeadlessMaterialCaptureOptions {
             width: size,
             height: size,
             lod_index: source_lod_index,
             camera,
             isolated_material_index,
         },
-        HeadlessMaterialCaptureOutput {
+        output: HeadlessMaterialCaptureOutput {
             textured_bmp: &temporary_paths.textured,
             base_color_bmp: &temporary_paths.base_color,
             part_id_bmp: &temporary_paths.part_id,
             normal_map: None,
             material_response: None,
             layer_mask: None,
-        },
+        } }],
+        &verified_hashes,
     ))
-    .context("CDMW material capture failed")?;
+    .context("CDMW material capture failed")?.pop().context("CDMW material capture returned no frame")?;
     let owners = report
         .owner_coverage
         .iter()
@@ -1041,12 +1043,14 @@ fn capture_cdmw_audit_session(
         .collect::<Vec<_>>();
     let renderer_start_offset_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
     let renderer_started = Instant::now();
-    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture_batch(
+    let verified_hashes = textures.iter().map(|texture| texture.metadata.source_sha256.as_str()).collect::<Vec<_>>();
+    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch(
         &snapshot,
         &texture_uploads,
         &factor_uploads,
         &layers,
         &requests,
+        &verified_hashes,
     ))
     .context("CDMW material audit capture failed")?;
     let physical_uploads_conserved = reports

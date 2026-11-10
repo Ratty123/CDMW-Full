@@ -215,6 +215,29 @@ def test_helper_missing_a_document_capability_is_rejected(tmp_path: Path, capabi
     assert "binary mesh document" in validate_rust_mesh_editor_package(resolution)
 
 
+def test_helper_hash_cache_reuses_bytes_and_rechecks_changed_executables(tmp_path, monkeypatch):
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    executable = Path(resolution.resolved_path)
+    original_open = Path.open
+    reads = []
+
+    def tracked_open(path, *args, **kwargs):
+        if path == executable:
+            reads.append(path)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", tracked_open)
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    assert len(reads) == 1
+    stat = executable.stat()
+    with original_open(executable, "wb") as stream:
+        stream.write(b"x" * stat.st_size)
+    os.utime(executable, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    assert "hash does not match" in validate_rust_mesh_editor_package(resolution)
+    assert len(reads) == 2
+
+
 def test_rust_preflight_recomputes_open_state_after_busy_or_unavailable(tmp_path: Path) -> None:
     tab = _tab(tmp_path, backend=MESH_EDITOR_BACKEND_RUST)
     tab.current_archive_selection = object()  # type: ignore[assignment]

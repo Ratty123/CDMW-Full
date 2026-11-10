@@ -3,7 +3,7 @@
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_mesh::hair::HairState;
 use cdmw_mesh::{Provenance, VertexHandle, WorkingMesh};
-use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
+use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds, inspect_dds_with_verified_sha256};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 use serde_json::{Value, json};
@@ -567,7 +567,22 @@ impl LoadedCdmwSessionPackage {
         reject_unexpected_initial_files(&root, &manifest, &document)?;
         validate_material_presentations(&manifest, &document)?;
         check_preview_cancelled(cancelled)?;
-        let mut textures = read_texture_resources(&root, &manifest, &document)?;
+        // One immutable snapshot per exact file reference for this package load.
+        // Different lengths, digests or types never reuse the same verification.
+        let mut texture_sources = BTreeMap::<Vec<u8>, Vec<u8>>::new();
+        let mut source_bytes = 0_u64;
+        let mut read_texture = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+            let key = serde_json::to_vec(reference)?;
+            if let Some(bytes) = texture_sources.get(&key) { return Ok(bytes.clone()); }
+            let bytes = read_binary_reference(&root, reference)?;
+            source_bytes = source_bytes.saturating_add(bytes.len() as u64);
+            if source_bytes > MAX_TEXTURE_TOTAL_BYTES {
+                return Err(SessionError::InvalidPayload("verified texture sources exceed the 512 MiB limit".into()));
+            }
+            texture_sources.insert(key, bytes.clone());
+            Ok(bytes)
+        };
+        let mut textures = read_texture_resources_with(&manifest, &document, &mut read_texture)?;
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
         let (material_composition_metrics, layers) =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
@@ -576,9 +591,9 @@ impl LoadedCdmwSessionPackage {
                     &manifest.material_presentations,
                     &document,
                     &mut textures,
-                    crate::preview_gpu_layers::supported(),
+                    graph.quality == "full" && crate::preview_gpu_layers::supported(),
                     std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
-                    |reference| read_binary_reference(&root, reference),
+                    &mut read_texture,
                     cancelled,
                 )?
             } else {
@@ -2612,6 +2627,14 @@ fn read_texture_resources(
     manifest: &SessionManifest,
     document: &MeshDocument,
 ) -> Result<Vec<CdmwTextureResource>, SessionError> {
+    read_texture_resources_with(manifest, document, &mut |reference| read_binary_reference(root, reference))
+}
+
+fn read_texture_resources_with(
+    manifest: &SessionManifest,
+    document: &MeshDocument,
+    read: &mut dyn FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
+) -> Result<Vec<CdmwTextureResource>, SessionError> {
     if manifest.textures.len() > MAX_TEXTURE_RESOURCES {
         return Err(SessionError::InvalidManifest(
             "the session contains too many texture resources".to_owned(),
@@ -2651,8 +2674,8 @@ fn read_texture_resources(
                 }
             }
         }
-        let bytes = read_binary_reference(root, &texture.file)?;
-        let metadata = inspect_dds(&bytes, texture.role)
+        let bytes = read(&texture.file)?;
+        let metadata = inspect_dds_with_verified_sha256(&bytes, texture.role, &texture.file.sha256)
             .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
         resources.push(CdmwTextureResource {
             label: texture.label.clone(),

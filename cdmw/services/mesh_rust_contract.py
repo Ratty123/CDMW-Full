@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 RUST_MESH_EDITOR_PROTOCOL = "cdmw_rust_mesh_editor_protocol_v1"
@@ -229,6 +230,23 @@ def rust_mesh_editor_file_signature(resolution: RustMeshExecutableResolution) ->
     )
 
 
+@lru_cache(maxsize=16)
+def _executable_sha256(path: str, signature: tuple[int, ...]) -> str:
+    executable = Path(path)
+    digest = hashlib.sha256()
+    with executable.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if _executable_hash_signature(executable) != signature:
+        raise OSError("executable changed while being hashed")
+    return digest.hexdigest()
+
+
+def _executable_hash_signature(path: Path) -> tuple[int, ...]:
+    stat = path.stat()
+    return stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_dev, stat.st_ino
+
+
 def validate_rust_mesh_editor_package(
     resolution: RustMeshExecutableResolution,
 ) -> str:
@@ -280,14 +298,11 @@ def validate_rust_mesh_editor_package(
     expected_hash = str(payload.get("executable_sha256", "") or "").strip().lower()
     if len(expected_hash) != 64:
         return "provenance executable hash is invalid"
-    digest = hashlib.sha256()
     try:
-        with executable.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
+        actual_hash = _executable_sha256(str(executable.resolve()), _executable_hash_signature(executable))
     except OSError:
         return "executable could not be hashed"
-    if digest.hexdigest().lower() != expected_hash:
+    if actual_hash != expected_hash:
         return "executable hash does not match its provenance manifest"
     contract_path = executable.with_name(RUST_MESH_CONTROL_CONTRACT_FILE)
     if not contract_path.is_file():

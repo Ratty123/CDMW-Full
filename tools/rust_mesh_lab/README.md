@@ -432,6 +432,24 @@ seeds affect channels without detail. Grime is hidden unless the internal
 recorders use this route. Every graph DDS is still hash-validated, even when
 disabled grime does not require decoding or upload.
 
+The package reader carries verified DDS digests into inspection and the GPU
+cache. Unknown callers still hash their input. Resident Preview uploads at most
+8 MiB per frame, stopping between resources after 2 ms, and leaves 1x1 defaults
+bound until a texture is complete. Geometry is installed before those slices;
+captures wait for the final textures and fail if their scene is superseded.
+Old immutable textures remain alive during promotion so matching SHA-256 inputs
+reuse GPU allocations. `texture_upload_report` records actual uploads, bytes and
+slice timing for headless diagnostics. Synchronous capture and staged preview
+share the same mip upload cursor; the ignored pixel comparison checks all mips
+of RGBA8, BC1, BC5 and BC7, including a cancelled partial upload.
+
+When all layer DDS are already prepared, native package preparation publishes
+full quality directly. Promotion otherwise hard-links immutable verified direct
+resources when supported, with a checked copy fallback. Per-file fsync and
+atomic publication remain. A hidden dialog spare advertises
+`dialog_prewarm_hold_v1`; `prewarm_hold_request` retains its idle device until
+ordinary activation/deactivation or shutdown. It never shows its window.
+
 For an authoring PAC material, CDMW uses the shared Archive Browser PAC/PAC_XML graph,
 leased DDS cache, and material-combiner path to publish an sRGB base composite and
 linear packed-surface composite for each Part with a proven layer graph; direct-only

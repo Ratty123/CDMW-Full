@@ -261,6 +261,17 @@ pub enum TextureError {
 
 pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, TextureError> {
     let metadata = inspect_dds(bytes, role)?;
+    plan_inspected_upload(bytes, metadata)
+}
+
+/// Reuse a digest verified by the owning reader for these immutable bytes.
+/// This still validates the header and every mip range; it does not verify the digest.
+pub fn plan_2d_upload_with_verified_sha256(bytes: &[u8], role: TextureRole, sha256: &str) -> Result<DdsUploadPlan, TextureError> {
+    let metadata = inspect_dds_with_verified_sha256(bytes, role, sha256)?;
+    plan_inspected_upload(bytes, metadata)
+}
+
+fn plan_inspected_upload(bytes: &[u8], metadata: DdsMetadata) -> Result<DdsUploadPlan, TextureError> {
     if metadata.depth != 1 || metadata.array_size != 1 || metadata.is_cube {
         return Err(TextureError::UnsupportedUpload);
     }
@@ -315,6 +326,16 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
 /// Sources without a small authored mip require the CPU composition route.
 pub fn dds_mean_luminance(bytes: &[u8]) -> Result<f32, TextureError> {
     let plan = plan_2d_upload(bytes, TextureRole::BaseColor)?;
+    mean_luminance_from_plan(bytes, &plan)
+}
+
+/// Small-mip luminance for immutable bytes whose digest was already checked.
+pub fn dds_mean_luminance_with_verified_sha256(bytes: &[u8], sha256: &str) -> Result<f32, TextureError> {
+    let plan = plan_2d_upload_with_verified_sha256(bytes, TextureRole::BaseColor, sha256)?;
+    mean_luminance_from_plan(bytes, &plan)
+}
+
+fn mean_luminance_from_plan(bytes: &[u8], plan: &DdsUploadPlan) -> Result<f32, TextureError> {
     let level = plan.levels.iter().find(|level| level.width.max(level.height) <= 64)
         .ok_or(TextureError::UnsupportedDecode)?;
     let image = decode_planned_mip(bytes, &plan.metadata, level)?;
@@ -797,6 +818,19 @@ fn write_u32_at(bytes: &mut [u8], offset: usize, value: u32) {
 }
 
 pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, TextureError> {
+    inspect_dds_internal(bytes, role, None)
+}
+
+/// Inspect immutable DDS bytes using their already-verified SHA-256.
+/// Callers must obtain the digest from the same bytes, not trust a manifest alone.
+pub fn inspect_dds_with_verified_sha256(bytes: &[u8], role: TextureRole, sha256: &str) -> Result<DdsMetadata, TextureError> {
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(TextureError::InvalidHeader);
+    }
+    inspect_dds_internal(bytes, role, Some(sha256))
+}
+
+fn inspect_dds_internal(bytes: &[u8], role: TextureRole, verified_sha256: Option<&str>) -> Result<DdsMetadata, TextureError> {
     if bytes.len() > DDS_MAX_PAYLOAD_BYTES {
         return Err(TextureError::ResourceLimit);
     }
@@ -938,7 +972,7 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         is_cube: caps2 & 0x0000_fe00 != 0,
         format,
         color_space,
-        source_sha256: sha256_bytes(bytes),
+        source_sha256: verified_sha256.map_or_else(|| sha256_bytes(bytes), str::to_ascii_lowercase),
         payload_offset,
         warnings,
     })
@@ -1519,6 +1553,18 @@ pub mod synthetic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verified_digest_keeps_header_and_mip_validation() -> Result<(), TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &[127, 80, 20, 255], TextureRole::BaseColor)?;
+        let original = plan_2d_upload(&bytes, TextureRole::BaseColor)?;
+        let digest = original.metadata.source_sha256.to_ascii_uppercase();
+        assert_eq!(plan_2d_upload_with_verified_sha256(&bytes, TextureRole::BaseColor, &digest)?, original);
+        assert_eq!(dds_mean_luminance_with_verified_sha256(&bytes, &digest)?, dds_mean_luminance(&bytes)?);
+        assert!(plan_2d_upload_with_verified_sha256(&bytes[..bytes.len()-1], TextureRole::BaseColor, &digest).is_err());
+        assert!(inspect_dds_with_verified_sha256(&bytes, TextureRole::BaseColor, "not a digest").is_err());
+        Ok(())
+    }
 
     #[test]
     fn layer_mean_uses_small_mip_and_alpha_weighted_linear_colour() -> Result<(), TextureError> {

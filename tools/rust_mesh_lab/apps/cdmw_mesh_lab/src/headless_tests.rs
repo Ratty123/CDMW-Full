@@ -14,6 +14,32 @@ pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
 #[ignore = "requires a D3D12 adapter"]
+fn offscreen_sliced_dds_upload_matches_immediate_pixels() -> TestResult {
+    let pixels = (0..128*65).flat_map(|index| [(index%251) as u8,(index/7%255) as u8,(index/17%255) as u8,255]).collect::<Vec<_>>();
+    let rgba = cdmw_texture::encode_rgba8_mipmapped_dds(128,65,&pixels,cdmw_texture::TextureRole::BaseColor)?;
+    let mut sources = vec![rgba];
+    for (dxgi, block_size) in [(71_u32,8),(83,16),(98,16)] {
+        let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        bytes.truncate(148);
+        for (offset,value) in [(12,64_u32),(16,128),(28,8),(128,dxgi)] {
+            bytes[offset..offset+4].copy_from_slice(&value.to_le_bytes());
+        }
+        for mip in 0..8 {
+            let blocks = (128_usize>>mip).max(1).div_ceil(4)*(64_usize>>mip).max(1).div_ceil(4);
+            for block in 0..blocks {
+                let pattern = [64, (block%251) as u8, 0, 255, 255, 0, 0, 255, 128, 128, 128, 128, 255, 255, 255, 255];
+                bytes.extend_from_slice(&pattern[..block_size]);
+            }
+        }
+        sources.push(bytes);
+    }
+    let compared = pollster::block_on(cdmw_render_wgpu::run_headless_texture_upload_comparison(&sources))?;
+    assert_eq!(compared,32);
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires a D3D12 adapter"]
 fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
     use cdmw_render_wgpu::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet};
     use cdmw_texture::{TextureRole, encode_rgba8_dds};

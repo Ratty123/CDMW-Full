@@ -710,7 +710,24 @@ def test_repeated_material_sources_are_copied_once_without_reusing_changed_input
     assert all(layer["diffuse"] == payload["textures"][0]["file"] for layer in graph["materials"][0]["layers"])
 
 
-def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
+@pytest.mark.parametrize("layers, prepared", [
+    ([], True),
+    ([{"diffuse_archive_path": "game/base.dds", "diffuse_source": "ready.dds"}], True),
+    ([{"diffuse_archive_path": "game/base.dds", "diffuse_source": ""}], False),
+    ([{"diffuse_source": "missing.dds"}], False),
+    (None, False),
+])
+def test_full_only_tier_requires_every_declared_source(tmp_path, layers, prepared):
+    from types import SimpleNamespace
+    from cdmw.services.mesh_rust_preview_cache import _PreviewCorePackageRequest
+
+    (tmp_path / "ready.dds").write_bytes(b"prepared immutable source")
+    request = SimpleNamespace(source_package=tmp_path, cancelled=None,
+        source_manifest={"batches": [{"material_layers": layers}]})
+    assert _PreviewCorePackageRequest.all_layer_sources_prepared(request) is prepared
+
+
+def test_prepared_schema8_preview_core_publishes_full_without_a_redundant_tier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -743,19 +760,10 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     )
 
     assert synthesis_flags == [False]
-    assert len(direct_packages) == 1
-    direct = direct_packages[0]
-    assert direct.package_dir != full.package_dir
-    direct_manifest = json.loads(direct.manifest_path.read_text(encoding="utf-8"))
+    assert direct_packages == []
     full_manifest = json.loads(full.manifest_path.read_text(encoding="utf-8"))
-    assert direct_manifest["texture_status"]["quality"] == "direct"
     assert full_manifest["texture_status"]["quality"] == "full"
-    assert direct_manifest["preview_core_material_graph"]["resources_included"] is False
-    assert direct_manifest["preview_core_material_graph"]["materials"][0]["layers"][0][
-        "diffuse"
-    ] is None
     assert full_manifest["preview_core_material_graph"]["resources_included"] is True
-    assert direct_manifest["source"] == full_manifest["source"]
     from cdmw.services.mesh_rust_preview_cache import rust_preview_overlays_from_preview_core_package
     ordinary = build_rust_preview_package_from_preview_core(
         source, output_package_dir=tmp_path / "ordinary-full",
@@ -800,6 +808,11 @@ def test_full_material_promotion_preserves_direct_on_failure(
     stop = threading.Event()
     original_copy = promotion.shutil.copyfile
 
+    def unavailable_link(*_args):
+        raise OSError("hard links unavailable on this volume")
+
+    monkeypatch.setattr(promotion.os, "link", unavailable_link)
+
     def copy_with_failure(src, dst):
         if failure == "copy":
             raise OSError("injected copy failure")
@@ -829,6 +842,28 @@ def test_full_material_promotion_preserves_direct_on_failure(
     assert not list(tmp_path.glob(".rust-preview-*"))
     assert direct.manifest_path.read_bytes() == original_manifest
     assert validate_rust_preview_package(direct.package_dir) == ()
+
+
+@pytest.mark.parametrize("links_available", (True, False))
+def test_full_material_promotion_reuses_immutable_files(tmp_path, monkeypatch, links_available):
+    from cdmw.services import mesh_rust_preview_promotion as promotion
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct")
+    before = json.loads(direct.manifest_path.read_text(encoding="utf-8"))
+    if not links_available:
+        def unavailable(*_args):
+            raise OSError("different volume")
+        monkeypatch.setattr(promotion.os, "link", unavailable)
+    full = promotion.promote_rust_preview_package_from_preview_core(
+        direct, source, source_manifest=json.loads((source / "manifest.json").read_text(encoding="utf-8")),
+        output_package_dir=tmp_path / "full")
+    for name in promotion._resource_names(before):
+        original, promoted = direct.package_dir / name, full.package_dir / name
+        assert original.read_bytes() == promoted.read_bytes()
+        assert (original.stat().st_ino == promoted.stat().st_ino) is links_available
+    assert validate_rust_preview_package(full.package_dir) == ()
 
 
 def test_native_material_rebasing_preserves_caller_parameters(tmp_path: Path) -> None:

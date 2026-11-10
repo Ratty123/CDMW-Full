@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import replace
 from pathlib import Path
@@ -42,7 +43,7 @@ def promote_rust_preview_package_from_preview_core(
     output_package_dir,
     cancelled=None,
 ):
-    """Copy verified direct resources, then add the source's full layer graph.
+    """Link immutable verified resources, then add the source's full layer graph.
 
     The caller holds the direct package's cache lease for this entire operation.
     Neither that package nor its source manifest is modified.
@@ -80,8 +81,11 @@ def promote_rust_preview_package_from_preview_core(
         _cancelled(cancelled)
         target = package_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(direct_root / name, target)
-    # Verify the copies as well, including a source changed during the copy.
+        try:
+            os.link(direct_root / name, target)
+        except OSError:
+            shutil.copyfile(direct_root / name, target)
+    # Verify the resulting files too, including a source changed during transfer.
     validate_preview_files(package_dir, manifest)
     manifest["preview_core_material_graph"] = _build_preview_core_material_graph(
         source_package,

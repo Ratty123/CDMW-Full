@@ -18,11 +18,13 @@ pub use effect_mesh::{EffectLightningMaterial, EffectMeshAsset, EffectMeshInstan
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
 mod material_layers;
+mod texture_upload;
+pub use texture_upload::run_headless_texture_upload_comparison;
 pub use material_layers::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet, material_layers_supported};
 
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
-use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload};
+use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload, plan_2d_upload_with_verified_sha256};
 use glam::{Mat4, Quat, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
@@ -2907,6 +2909,8 @@ pub struct WindowRenderer {
     gpu_faults: GpuFaults,
     texture_cache: BTreeMap<String, Weak<wgpu::Texture>>,
     texture_uploads: u64,
+    staged_texture: Option<texture_upload::PendingDdsUpload>,
+    retained_upload_textures: BTreeMap<String, Arc<wgpu::Texture>>,
     _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     adapter: wgpu::Adapter,
@@ -2981,7 +2985,7 @@ impl WindowRenderer {
         let mut uploaded = std::array::from_fn(|_| None);
         for (index, texture) in layers.textures.iter().enumerate() {
             if let Some(texture) = texture {
-                uploaded[index] = Some(self.cached_dds_texture(&texture.bytes, texture.role)?);
+                uploaded[index] = Some(self.cached_dds_texture(&texture.bytes, texture.role, Some(&texture.source_sha256))?);
             }
         }
         if let Some(binding) = material_layers::binding(&self.device, &self.default_material_textures, &layers.uniform, &uploaded) {
@@ -3009,6 +3013,48 @@ impl WindowRenderer {
         self.texture_uploads
     }
 
+    /// Keep the previous scene's immutable DDS alive during a staged replacement.
+    pub fn begin_texture_uploads(&mut self) {
+        self.retained_upload_textures = self.texture_cache.iter()
+            .filter_map(|(hash, texture)| texture.upgrade().map(|texture| (hash.clone(), texture)))
+            .collect();
+        self.staged_texture = None;
+    }
+
+    pub fn finish_texture_uploads(&mut self) {
+        self.staged_texture = None;
+        self.retained_upload_textures.clear();
+    }
+
+    /// Stage at most `budget` bytes. Bind the texture only after this returns true.
+    /// The owning package reader must already have verified `sha256`.
+    pub fn stage_verified_dds_texture(&mut self, bytes: &[u8], role: TextureRole,
+        sha256: &str, budget: usize,
+    ) -> Result<(bool, usize), RenderError> {
+        self.check_health()?;
+        if let Some(texture) = self.texture_cache.get(sha256).and_then(Weak::upgrade) {
+            self.retained_upload_textures.insert(sha256.to_owned(), texture);
+            return Ok((true, 0));
+        }
+        if let Some(pending) = &self.staged_texture {
+            if pending.sha256() != sha256 {
+                return Err(RenderError::Texture("another DDS upload is still pending".into()));
+            }
+        } else {
+            let plan = dds_upload_plan(bytes, role, Some(sha256))?;
+            self.staged_texture = Some(texture_upload::PendingDdsUpload::new(&self.device, plan)?);
+        }
+        let pending = self.staged_texture.as_mut().expect("staged above");
+        let used = pending.advance(&self.queue, bytes, budget)?;
+        if !pending.complete() { return Ok((false, used)); }
+        let uploaded = self.staged_texture.take().expect("staged above").finish()?;
+        self.check_health()?;
+        self.texture_uploads += 1;
+        self.texture_cache.insert(uploaded.source_sha256.clone(), Arc::downgrade(&uploaded.texture));
+        self.retained_upload_textures.insert(uploaded.source_sha256, uploaded.texture);
+        Ok((true, used))
+    }
+
     pub fn restore_egui_font_atlas(&mut self, image: egui::ColorImage) {
         self.egui_renderer.update_texture(
             &self.device,
@@ -3026,11 +3072,13 @@ impl WindowRenderer {
         &mut self,
         bytes: &[u8],
         role: TextureRole,
+        verified_sha256: Option<&str>,
     ) -> Result<UploadedDdsTexture, RenderError> {
         self.check_health()?;
         self.texture_cache
             .retain(|_, texture| texture.strong_count() > 0);
-        let identity = dds_texture_identity(bytes, role)?;
+        let plan = dds_upload_plan(bytes, role, verified_sha256)?;
+        let identity = dds_identity_from_plan(&plan)?;
         if let Some(texture) = self
             .texture_cache
             .get(&identity.source_sha256)
@@ -3043,7 +3091,7 @@ impl WindowRenderer {
                 single_channel: identity.single_channel,
             });
         }
-        let uploaded = upload_dds_texture(&self.device, &self.queue, bytes, role)?;
+        let uploaded = upload_planned_dds_texture(&self.device, &self.queue, bytes, plan)?;
         self.check_health()?;
         self.texture_uploads += 1;
         self.texture_cache.insert(
@@ -3064,6 +3112,8 @@ impl WindowRenderer {
         let factors = std::mem::take(&mut self.material_factors);
         let bindings = std::mem::take(&mut self.active_material_bindings);
         let layers = std::mem::take(&mut self.material_layers);
+        let staged = self.staged_texture.take();
+        let retained = std::mem::take(&mut self.retained_upload_textures);
         let effects = self.effect_textures.split_off(1);
         let batches = std::mem::take(&mut self.effect_batches);
         let effect_meshes = std::mem::take(&mut self.effect_mesh.resources);
@@ -3080,6 +3130,8 @@ impl WindowRenderer {
             self.material_factors = factors;
             self.active_material_bindings = bindings;
             self.material_layers = layers;
+            self.staged_texture = staged;
+            self.retained_upload_textures = retained;
             self.effect_textures.truncate(1);
             self.effect_textures.extend(effects);
             self.effect_batches = batches;
@@ -3324,6 +3376,8 @@ impl WindowRenderer {
             gpu_faults,
             texture_cache: BTreeMap::new(),
             texture_uploads: 0,
+            staged_texture: None,
+            retained_upload_textures: BTreeMap::new(),
             _instance: instance,
             surface,
             adapter,
@@ -3762,7 +3816,15 @@ impl WindowRenderer {
     /// Upload one validated package DDS. Identical bytes share the same GPU
     /// texture even when several archive paths refer to them.
     pub fn add_effect_dds_texture(&mut self, bytes: &[u8]) -> Result<usize, RenderError> {
-        let identity = dds_texture_identity(bytes, TextureRole::BaseColor)?;
+        self.add_effect_dds_texture_with_digest(bytes, None)
+    }
+
+    pub fn add_verified_effect_dds_texture(&mut self, bytes: &[u8], sha256: &str) -> Result<usize, RenderError> {
+        self.add_effect_dds_texture_with_digest(bytes, Some(sha256))
+    }
+
+    fn add_effect_dds_texture_with_digest(&mut self, bytes: &[u8], sha256: Option<&str>) -> Result<usize, RenderError> {
+        let identity = dds_identity_from_plan(&dds_upload_plan(bytes, TextureRole::BaseColor, sha256)?)?;
         if let Some(index) = self
             .effect_textures
             .iter()
@@ -3770,7 +3832,7 @@ impl WindowRenderer {
         {
             return Ok(index);
         }
-        let uploaded = self.cached_dds_texture(bytes, TextureRole::BaseColor)?;
+        let uploaded = self.cached_dds_texture(bytes, TextureRole::BaseColor, sha256)?;
         let texture = effect_texture_binding(
             &self.device,
             &self.effect_texture_bind_group_layout,
@@ -3914,8 +3976,21 @@ impl WindowRenderer {
         role: TextureRole,
         material_indices_by_lod: &[Vec<u32>],
     ) -> Result<(), RenderError> {
+        self.add_dds_texture_with_digest(bytes, role, material_indices_by_lod, None)
+    }
+
+    /// The owning reader must have verified this digest against the immutable bytes.
+    pub fn add_verified_dds_texture(&mut self, bytes: &[u8], role: TextureRole,
+        material_indices_by_lod: &[Vec<u32>], sha256: &str,
+    ) -> Result<(), RenderError> {
+        self.add_dds_texture_with_digest(bytes, role, material_indices_by_lod, Some(sha256))
+    }
+
+    fn add_dds_texture_with_digest(&mut self, bytes: &[u8], role: TextureRole,
+        material_indices_by_lod: &[Vec<u32>], sha256: Option<&str>,
+    ) -> Result<(), RenderError> {
         validate_material_texture_ownership(role, material_indices_by_lod)?;
-        let uploaded = self.cached_dds_texture(bytes, role)?;
+        let uploaded = self.cached_dds_texture(bytes, role, sha256)?;
         self.material_textures.push(GpuMaterialTexture {
             texture: uploaded.texture,
             view_format: uploaded.view_format,
@@ -4632,7 +4707,7 @@ pub async fn run_headless_material_capture_batch(
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, &[], requests, None).await
+    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[]).await
 }
 
 pub async fn run_headless_layered_material_capture_batch(
@@ -4642,7 +4717,20 @@ pub async fn run_headless_layered_material_capture_batch(
     layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, layers, requests, None).await
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[]).await
+}
+
+/// Digests must have been verified by the owning reader against each immutable DDS.
+pub async fn run_headless_verified_layered_material_capture_batch(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+    verified_sha256: &[&str],
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    if verified_sha256.len() != textures.len() { return Err(RenderError::ResourceLimit); }
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256).await
 }
 
 /// Offscreen production shader/upload proof. Timings include CPU deformation,
@@ -4657,7 +4745,7 @@ pub async fn run_headless_motion_capture(
 ) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
     if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
     let mut run = MotionCapture { update, frame_count, timings: vec![] };
-    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run)).await?;
+    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[]).await?;
     Ok((reports.remove(0), run.timings))
 }
 
@@ -4674,6 +4762,7 @@ async fn material_capture_batch(
     layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     mut motion: Option<&mut MotionCapture<'_>>,
+    verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     let batch_started = std::time::Instant::now();
     let Some(first_request) = requests.first() else {
@@ -4736,9 +4825,10 @@ async fn material_capture_batch(
 
     let mut material_textures = Vec::with_capacity(textures.len());
     let mut uploaded_textures = BTreeMap::<String, Arc<wgpu::Texture>>::new();
-    for texture in textures {
+    for (index, texture) in textures.iter().enumerate() {
         validate_material_texture_ownership(texture.role, texture.material_indices_by_lod)?;
-        let identity = dds_texture_identity(texture.bytes, texture.role)?;
+        let plan = dds_upload_plan(texture.bytes, texture.role, verified_sha256.get(index).copied())?;
+        let identity = dds_identity_from_plan(&plan)?;
         let uploaded = if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
             UploadedDdsTexture {
                 texture: Arc::clone(existing),
@@ -4747,7 +4837,7 @@ async fn material_capture_batch(
                 single_channel: identity.single_channel,
             }
         } else {
-            let uploaded = upload_dds_texture(&device, &queue, texture.bytes, texture.role)?;
+            let uploaded = upload_planned_dds_texture(&device, &queue, texture.bytes, plan)?;
             uploaded_textures.insert(
                 uploaded.source_sha256.clone(),
                 Arc::clone(&uploaded.texture),
@@ -4770,12 +4860,13 @@ async fn material_capture_batch(
         let mut uploaded = std::array::from_fn(|_| None);
         for (index, texture) in layer.textures.iter().enumerate() {
             if let Some(texture) = texture {
-                let identity = dds_texture_identity(&texture.bytes, texture.role)?;
+                let plan = dds_upload_plan(&texture.bytes, texture.role, Some(&texture.source_sha256))?;
+                let identity = dds_identity_from_plan(&plan)?;
                 uploaded[index] = Some(if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
                     UploadedDdsTexture { texture: Arc::clone(existing), view_format: identity.view_format,
                         source_sha256: identity.source_sha256, single_channel: identity.single_channel }
                 } else {
-                    let result = upload_dds_texture(&device, &queue, &texture.bytes, texture.role)?;
+                    let result = upload_planned_dds_texture(&device, &queue, &texture.bytes, plan)?;
                     uploaded_textures.insert(result.source_sha256.clone(), Arc::clone(&result.texture));
                     result
                 });
@@ -9820,15 +9911,27 @@ fn dds_format_is_single_channel(format: &DdsFormat) -> bool {
     )
 }
 
+#[cfg(test)]
 fn dds_texture_identity(
     bytes: &[u8],
     role: TextureRole,
 ) -> Result<DdsTextureIdentity, RenderError> {
     let plan =
         plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
+    dds_identity_from_plan(&plan)
+}
+
+fn dds_upload_plan(bytes: &[u8], role: TextureRole, sha256: Option<&str>) -> Result<cdmw_texture::DdsUploadPlan, RenderError> {
+    match sha256 {
+        Some(sha) => plan_2d_upload_with_verified_sha256(bytes, role, sha),
+        None => plan_2d_upload(bytes, role),
+    }.map_err(|error| RenderError::Texture(error.to_string()))
+}
+
+fn dds_identity_from_plan(plan: &cdmw_texture::DdsUploadPlan) -> Result<DdsTextureIdentity, RenderError> {
     Ok(DdsTextureIdentity {
         view_format: map_dds_format(&plan.metadata.format, plan.metadata.color_space)?,
-        source_sha256: plan.metadata.source_sha256,
+        source_sha256: plan.metadata.source_sha256.clone(),
         single_channel: dds_format_is_single_channel(&plan.metadata.format),
     })
 }
@@ -9841,55 +9944,15 @@ fn upload_dds_texture(
 ) -> Result<UploadedDdsTexture, RenderError> {
     let plan =
         plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
-    let single_channel = dds_format_is_single_channel(&plan.metadata.format);
-    let view_format = map_dds_format(&plan.metadata.format, plan.metadata.color_space)?;
-    let format = map_dds_format(&plan.metadata.format, ColorSpace::Linear)?;
-    validate_dds_upload_requirements(&plan, format, &device.limits(), device.features())?;
-    let alternate_view_formats = map_dds_format(&plan.metadata.format, ColorSpace::Srgb)
-        .ok()
-        .filter(|candidate| *candidate != format)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let texture = Arc::new(device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("CDMW Rust Mesh Lab DDS"),
-        size: wgpu::Extent3d {
-            width: plan.metadata.width,
-            height: plan.metadata.height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: plan.metadata.mip_count,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &alternate_view_formats,
-    }));
-    for level in &plan.levels {
-        let data = bytes
-            .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
-            .ok_or_else(|| RenderError::Texture("DDS upload slice is truncated".to_owned()))?;
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: level.level,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            data,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(level.bytes_per_row),
-                rows_per_image: Some(level.rows_per_image),
-            },
-            dds_mip_upload_extent(level.width, level.height, format),
-        );
-    }
-    Ok(UploadedDdsTexture {
-        texture,
-        view_format,
-        source_sha256: plan.metadata.source_sha256,
-        single_channel,
-    })
+    upload_planned_dds_texture(device, queue, bytes, plan)
+}
+
+fn upload_planned_dds_texture(device: &wgpu::Device, queue: &wgpu::Queue, bytes: &[u8],
+    plan: cdmw_texture::DdsUploadPlan,
+) -> Result<UploadedDdsTexture, RenderError> {
+    let mut pending = texture_upload::PendingDdsUpload::new(device, plan)?;
+    pending.advance(queue, bytes, usize::MAX)?;
+    pending.finish()
 }
 
 fn validate_dds_upload_requirements(
