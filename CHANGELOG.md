@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.12.0-alpha.4] - 2026-11-10
+
 ### Added
 
 - Create New Item has experimental **Wearable by** choices and a separate **Fitting reference — preview only** section for models installed through DMM. Browse current Character Creator, Female Armor Fit and Female Armor Module files by equipment part and linked item name; their models and textures stay out of exports. Wearer choices travel with the new item, and unrestricted templates show all characters as allowed. New parts use additive registrations in DMM 4.4.0 or newer. Automatic fitting and in-game compatibility remain unverified.
