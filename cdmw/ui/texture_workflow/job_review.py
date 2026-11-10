@@ -17,6 +17,9 @@ class TextureJobReviewMixin:
             return
         if self.job.mode == "replace":
             self.job.active_asset_key = key
+            matcher = created_tool_widget(self.matcher_container)
+            if matcher is not None:
+                matcher.texture_preview.load_path(path)
             return
         for index in range(self.asset_list.topLevelItemCount()):
             item = self.asset_list.topLevelItem(index)

@@ -653,9 +653,10 @@ class ReplaceAssistantTab(
         else:
             self.queue_panel.setMaximumWidth(16777215)
             self.settings_panel.setMaximumWidth(16777215)
-            self.main_splitter.setStretchFactor(0, 1)
-            self.main_splitter.setStretchFactor(1, 0)
-            self.main_splitter.setSizes([550, 450])
+            self.main_splitter.setStretchFactor(0, 0)
+            self.main_splitter.setStretchFactor(1, 1)
+            self.main_splitter.setStretchFactor(2, 0)
+            self._apply_responsive_splitter_defaults()
 
         self.add_files_button.clicked.connect(self.import_files)
         self.add_folder_button.clicked.connect(self.import_folder)
@@ -811,6 +812,9 @@ class ReplaceAssistantTab(
             for field in (self.preview_title_label, self.preview_meta_label, self.preview_warning_label, self.preview_details_edit):
                 details_layout.addWidget(field)
             self.queue_panel.layout().addWidget(self.preview_panel)
+            from cdmw.ui.preview.texture_view import GpuTexturePreview
+            self.texture_preview = GpuTexturePreview(self)
+            self.main_splitter.addWidget(self.texture_preview)
 
     def _apply_responsive_splitter_defaults(self) -> None:
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
@@ -818,7 +822,9 @@ class ReplaceAssistantTab(
         settings_min, settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
         total_width = max(1, self.width() - 32)
         if self.workspace is not None:
-            self.main_splitter.setSizes([max(queue_min, total_width - settings_pref), settings_pref])
+            self.main_splitter.setSizes(build_bounded_splitter_sizes(
+                total_width, [25, 50, 25], [queue_min, 160, settings_min], [queue_max, None, settings_max],
+            ))
             return
         self.main_splitter.setSizes(
             build_bounded_splitter_sizes(
@@ -986,6 +992,8 @@ class ReplaceAssistantTab(
 
     def request_shutdown(self) -> None:
         self._shutting_down = True
+        if hasattr(self, "texture_preview"):
+            self.texture_preview.shutdown()
         self._active_import_request = None
         if self.workspace is not None:
             self.workspace.job.cancel("replacement_review")

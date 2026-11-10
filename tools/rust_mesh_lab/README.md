@@ -1,5 +1,33 @@
 # CDMW Rust Mesh Lab
 
+## Read-only DDS viewer
+
+`--cdmw-texture-view --embedded-parent-hwnd <decimal>` opens the dedicated 2D
+viewer used by Browse Archives and Textures' replacement preview. It validates
+the bounded DDS and uploads its original compressed mip chain; it does not run
+the DDS-to-PNG helper. RGB and raw R/G/B/A isolation use a non-sRGB source view and
+target. Signed values map to 0–1; BC5/RG8 can reconstruct normal Z. The viewport
+supports mip selection, pan, Fit and 100%, including Qt's device pixel ratio.
+
+The line-delimited JSON protocol is `cdmw_texture_view_v1`. Commands are `load`
+(`generation`, absolute `path`), `view` (`generation`, `state`), `resize` (`width`,
+`height`) and `close`. State contains `channel` (0=RGB, 1–4=R/G/B/A), `mip`,
+`reconstruct_z`, `fit`, `zoom` (0.1–16), `pixel_ratio` and two physical-pixel `pan`
+coordinates. Load/view events carry their generation; stale requests are ignored.
+`ready` identifies the protocol/child HWND, `uploaded` confirms GPU upload,
+`loaded` confirms the first presented frame, and `view` acknowledges controls.
+An occluded window can upload but cannot promise a presented frame. Input lines
+are limited to 64 KiB and DDS data to 512 MiB; arrays, volumes and cubemaps are
+refused by the shared 2D upload contract. The Qt host retains its cancellable PNG
+fallback and stops the owned helper on hide, replacement, close or shutdown.
+
+`--capture-dds-texture <absolute DDS> <new PNG>` exercises the same shader offscreen
+without a native window. It emits `frame_ready` before PNG encoding and `captured`
+afterward. Existing outputs are refused. Capture dimensions are bounded to 4096 on each axis. This is synthetic
+GPU evidence, not visible UI or game proof. Run the ignored
+`texture_view_gpu_known_bc1_bc5_bc7_channels_mips_and_pan` test for known BC texels,
+signed channels, raw sRGB-tagged channels, reconstructed Z, mips, pan and DPI.
+
 [Shader experiments](../../cdmw/ui/mesh_editor/SHADER_CONTROLS.md) use the
 existing authoring commands and resident preview. `replacement_shader_controls`
 accepts selected part IDs and typed controls, or `reset: true`. Python owns source

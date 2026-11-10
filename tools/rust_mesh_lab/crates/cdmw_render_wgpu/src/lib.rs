@@ -19,6 +19,7 @@ mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
 mod material_layers;
 mod texture_upload;
+pub mod texture_view;
 mod lighting_depth;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;

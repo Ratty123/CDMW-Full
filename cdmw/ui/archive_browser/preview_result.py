@@ -105,6 +105,18 @@ class ArchivePreviewResultMixin:
                 and self._archive_isolated_renderer_process_running()):
             return 0.0
 
+        texture_path = str(getattr(result, "preview_texture_path", "") or "")
+        if preferred_view == "image" and texture_path and not self.archive_preview_showing_loose:
+            self._deactivate_archive_model_renderers_for_non_model_preview()
+            self.archive_texture_preview.load_path(texture_path)
+            self.archive_preview_stack.setCurrentWidget(self.archive_texture_preview)
+            self.archive_media_preview.clear_media("No media preview available.")
+            self.archive_preview_tabs.setCurrentIndex(0)
+            self._update_archive_model_action_controls(None)
+            self._set_archive_preview_image_controls_enabled(True)
+            self._apply_archive_preview_zoom()
+            return 0.0
+
         if preferred_view == "image" and (preview_image is not None or preview_image_path):
             self._deactivate_archive_model_renderers_for_non_model_preview()
             if preview_image is not None:

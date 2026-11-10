@@ -718,6 +718,7 @@ class ArchivePreviewWorkerMixin:
             visible_texture_mode=preview_settings.visible_texture_mode,
             support_texture_slots=self._archive_preview_support_texture_slots(preview_settings),
             render_settings=preview_settings,
+            prefer_gpu_texture=True,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),

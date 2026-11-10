@@ -159,6 +159,7 @@ def build_archive_preview_result(
     quality_tier: str = "full",
     enable_hkx_visual_preview: bool = True,
     preview_track_index: int = 0,
+    prefer_gpu_texture: bool = False,
     stop_event: Optional[threading.Event] = None,
 ) -> ArchivePreviewResult:
     normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
@@ -357,17 +358,18 @@ def build_archive_preview_result(
             pathc_lookup_detail = build_archive_pathc_lookup_detail_for_entry(entry)
             if pathc_lookup_detail:
                 extra_detail_parts.append(pathc_lookup_detail)
-            preview_png = ensure_dds_display_preview_png(
-                source_path.resolve(),
-                dds_info=dds_info,
-                stop_event=stop_event,
-            )
+            preview_png = None
+            if not prefer_gpu_texture:
+                preview_png = ensure_dds_display_preview_png(
+                    source_path.resolve(), dds_info=dds_info, stop_event=stop_event,
+                )
             return ArchivePreviewResult(
                 status="ok",
                 title=entry.basename,
                 metadata_summary=metadata_summary,
                 detail_text=build_archive_entry_detail_text(entry, "\n\n".join(extra_detail_parts)),
-                preview_image_path=str(preview_png),
+                preview_image_path=str(preview_png or ""),
+                preview_texture_path=str(source_path.resolve()) if prefer_gpu_texture else "",
                 preferred_view="image",
                 warning_badge=warning_badge,
                 warning_text=warning_text,

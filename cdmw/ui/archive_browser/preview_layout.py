@@ -41,6 +41,12 @@ from cdmw.ui.widgets import (
 class ArchivePreviewLayoutMixin:
     """Build the Archive Preview panel."""
 
+    def _build_archive_gpu_texture_preview(self) -> None:
+        from cdmw.ui.preview.texture_view import GpuTexturePreview
+        self.archive_texture_preview = GpuTexturePreview(self.archive_preview_stack, zoom_controls=False)
+        self.archive_texture_preview.view_state_changed.connect(self._handle_archive_texture_view_state_changed)
+        self.archive_preview_stack.addWidget(self.archive_texture_preview)
+
     def _build_archive_model_toolbar_toggles(self) -> None:
         """Create the model toolbar checkboxes, hidden until a model loads."""
 
@@ -594,6 +600,7 @@ class ArchivePreviewLayoutMixin:
         self._build_archive_texture_references_panel()
 
         self.archive_preview_stack = QStackedWidget()
+        self._build_archive_gpu_texture_preview()
         self.archive_preview_label = PreviewLabel("Select an archive file to preview it here.")
         self.archive_preview_scroll = PreviewScrollArea()
         self.archive_preview_scroll.setWidgetResizable(False)

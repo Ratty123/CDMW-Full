@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Browse Archives and the Textures replacement preview show supported DDS textures directly on the GPU, with RGB/R/G/B/A channels, mip selection and optional normal Z reconstruction. Fit, 100%, zoom and pan remain available. Unsupported textures fall back to image previews; the Texture Editor canvas and exports are unchanged.
+
 - Item Finder opens an item's worn pieces together in Browse Archives. **Set components** groups them by file, with visibility checkboxes, **Show all** and **Isolate**. Selecting another file keeps the set visible and highlights its parts; **Preview only this file** returns to one model. **Open set in Mesh Editor** edits the set together, with View and Include controls for each file and part, saved set drafts and separate output for each changed PAC. Topology edits and paste stay within their source file. Oversized sets name the pieces left as reduced-detail references. **Open in Mesh Editor** still edits one piece with the others as references, and **Switch editable piece** uses the usual unsaved-changes confirmation. Set output has not been checked in game.
 
 - Preview and Mesh Editor add **Shadows** and **Ambient occlusion** switches for Textured and Game Outdoor views. Both start on. Icon captures retain self-shadows on a transparent background. **Studio (fixed lights)** adds lighting that stays in place as you orbit, alongside the unchanged default preset.

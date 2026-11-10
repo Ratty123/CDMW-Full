@@ -473,6 +473,7 @@ dependencies = [
  "egui-wgpu",
  "glam",
  "png",
+ "serde",
  "thiserror 2.0.20",
  "wgpu",
  "winit",

@@ -1089,6 +1089,8 @@ class ArchivePreviewResult:
     loose_preview_title: str = ""
     loose_preview_metadata_summary: str = ""
     loose_preview_detail_text: str = ""
+    # Optional direct DDS handoff; appended to retain positional construction compatibility.
+    preview_texture_path: str = ""
 
 
 @dataclass(slots=True)

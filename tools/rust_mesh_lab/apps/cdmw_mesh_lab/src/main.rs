@@ -43,6 +43,7 @@ mod preview_geometry;
 mod preview_gpu_tests;
 mod preview_loader;
 mod shortcuts;
+mod texture_view;
 mod viewport;
 
 use anyhow::{Context, Result, bail};
@@ -102,7 +103,7 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .try_init()
         .ok();
-    if new_item_ui::try_run()? {
+    if texture_view::try_run()? || new_item_ui::try_run()? {
         return Ok(());
     }
     let options = parse_startup_options()?;

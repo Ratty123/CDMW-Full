@@ -199,7 +199,7 @@ class ArchivePreviewCacheMixin:
                 str(entry.flags),
                 str(entry.paz_index),
                 f"renderer:{renderer_backend_key}",
-                "texture:native-v2",
+                "texture:native-v2:dds-view-gpu-v1" if entry.extension.lower() == ".dds" else "texture:native-v2",
                 f"sidecars:{self.archive_sidecar_generation if sidecar_generation is None else int(sidecar_generation)}",
                 str(preview_settings.visible_texture_mode),
                 f"texdim:{int(preview_settings.preview_texture_max_dimension)}",

@@ -1,5 +1,11 @@
 [
   {
+    "path": "cdmw/ui/preview/texture_view.py",
+    "symbol": "GpuTexturePreview._event",
+    "source": "gpu",
+    "reason": "Machine-readable backend identity in the loaded signal; never displayed as a caption."
+  },
+  {
     "path": "cdmw/services/cditem_device_cli.py",
     "symbol": "*",
     "source": "*",

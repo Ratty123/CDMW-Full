@@ -1,5 +1,14 @@
 # Archive Browser
 
+DDS image previews use the shared GPU texture viewer, uploading compressed mip
+payloads directly without a PNG conversion. Choose RGB, R, G, B or A, a mip level,
+or **Reconstruct normal Z** for two-channel normal maps. Single channels retain raw
+values without sRGB conversion; signed formats map -1 to black and +1 to white.
+The existing zoom, Fit and 100% buttons work with the viewer; drag to pan. An
+unavailable helper or unsupported texture falls back to the existing PNG preview,
+with GPU-only channel/mip controls disabled. Loading and fallback run outside the
+Qt thread; hiding, closing or replacing the preview cancels its owned process.
+
 Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
