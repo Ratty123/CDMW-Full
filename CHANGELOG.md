@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Docs
+
+- The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself.
+
 ## [0.12.0-alpha.4] - 2026-11-10
 
 ### Added
