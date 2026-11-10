@@ -21,6 +21,12 @@ than a second renderer. Historical `d3d11_*`, `dotnet_*`, and
 
 ## Material preparation
 
+PAC detail-layer sampling rules live in `cdmw.domain.material_layer_uv`. The
+Python compositor preserves its existing pixel arithmetic, while graph-v5
+packages carry the corresponding six-float affine to Rust. Transforms are scoped
+to the exact component and material wrapper; old graph-v4 packages retain
+identity sampling when the optional field is absent.
+
 Texture preparation composes independent materials on up to four CPU workers.
 The Rust compositor decodes independent source DDS files on up to four workers,
 after the owning reader validates their bytes and admits their decoded sizes

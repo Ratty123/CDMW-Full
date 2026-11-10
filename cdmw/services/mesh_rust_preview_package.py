@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.material_layer_uv import pac_layer_uv_transform
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -56,7 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 _PREVIEW_CORE_VERTEX = struct.Struct("<23f")
 _PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
 _PREVIEW_CORE_SCHEMA_MINIMUM = 8
-_PREVIEW_CORE_MATERIAL_GRAPH_VERSION = 4
+_PREVIEW_CORE_MATERIAL_GRAPH_VERSION = 5
 _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION = 10
 _PREVIEW_CORE_BATCH_LIMIT = 4_096
 _PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
@@ -671,9 +672,33 @@ def _preview_core_layer_tint(value: object) -> list[float]:
     return (components + [1.0] * 4)[:4]
 
 
+def _preview_core_layer_parameter_index(parameters):
+    """Keep transforms tied to the exact component and material wrapper."""
+    result = {}
+    for parameter in parameters:
+        if not isinstance(parameter, Mapping):
+            continue
+        name = str(parameter.get("parameter_name", ""))
+        if name.casefold().lstrip("_") not in {
+            "dyeingtransformproperty0", "dyeingtransformproperty1",
+            "dyeingtransformproperty3", "dyeingpropertyblend",
+        }:
+            continue
+        key = (
+            str(parameter.get("component_scope_id", "") or ""),
+            str(parameter.get("owner_wrapper_item_id", "") or ""),
+            _preview_core_int(parameter.get("material_wrapper_index"), -1),
+        )
+        value = parameter.get("integer_value")
+        if value is None:
+            value = parameter.get("value", "")
+        result.setdefault(key, []).append((name, value))
+    return result
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
-    materials, source_edge_count, cancelled, expected_root_identity,
+    materials, source_edge_count, cancelled, expected_root_identity, parameter_index,
 ):
     for material_index, raw_batch in enumerate(raw_batches):
         if not isinstance(raw_batch, Mapping):
@@ -741,6 +766,13 @@ def _copy_preview_core_material_layers(
                 ),
                 "tint": _preview_core_layer_tint(raw_layer.get("tint")),
             }
+            if role in {"detail", "grime"} and channel in {"r", "g", "b"}:
+                parameter_key = (
+                    str(raw_layer.get("component_scope_id", "") or ""), owner, wrapper_index,
+                )
+                layer["uv_transform"] = list(pac_layer_uv_transform(
+                    parameter_index.get(parameter_key, ()), channel,
+                ))
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
                 _cancelled(cancelled)
@@ -822,6 +854,7 @@ def _build_preview_core_material_graph(
     textures: Sequence[object],
     expected_root_identity: tuple[int, int],
     cancelled: Callable[[], bool] | None,
+    material_parameters: Sequence[object] = (),
 ) -> dict[str, object]:
     resources, next_index, aggregate_bytes = _preview_core_material_resource_index(
         package_dir,
@@ -836,6 +869,7 @@ def _build_preview_core_material_graph(
     ) = _copy_preview_core_material_layers(
         raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes,
         copied_sources, materials, source_edge_count, cancelled, expected_root_identity,
+        _preview_core_layer_parameter_index(material_parameters),
     )
     copied_resource_shas = set(resources).difference(initial_resource_shas)
     return {
@@ -1081,7 +1115,7 @@ def _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, pre
 
 def _prepare_preview_core_materials(
     package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
-    include_material_resources,
+    include_material_resources, material_parameters,
 ):
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState,
@@ -1112,6 +1146,7 @@ def _prepare_preview_core_materials(
         textures=textures,
         expected_root_identity=root_identity,
         cancelled=cancelled,
+        material_parameters=material_parameters,
     )
     presentations = _mesh_material_presentations(
         metadata_mesh,
@@ -1263,11 +1298,11 @@ def _validated_preview_core_source(preview_core_package_dir, source_manifest):
     if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
         raise ValueError("Direct preview requires Preview Core schema 8 or newer.")
     if (
-        material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        material_graph_version not in {4, _PREVIEW_CORE_MATERIAL_GRAPH_VERSION}
         or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
     ):
         raise ValueError(
-            "Direct preview requires Preview Core material graph v4 and semantics v10."
+            "Direct preview requires Preview Core material graph v4 or v5 and semantics v10."
         )
     if (
         not isinstance(raw_material_conservation, Mapping)
@@ -1375,6 +1410,7 @@ def build_rust_preview_package_from_preview_core(
     ) = _prepare_preview_core_materials(
         package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
         include_material_resources,
+        raw_material_conservation.get("parameters", ()),
     )
     frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 
@@ -1393,7 +1429,7 @@ def build_rust_preview_package_from_preview_core(
         "channels": channels,
         "preview_core_geometry": {
             "schema_version": source_schema,
-            "material_graph_version": material_graph_version,
+            "material_graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
             "material_semantics_version": material_semantics_version,
             "format": source_format,
             "source_sha256": source_sha256,
@@ -1402,7 +1438,7 @@ def build_rust_preview_package_from_preview_core(
             "batches": direct_batches,
         },
         "material_contract": {
-            "graph_version": material_graph_version,
+            "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
             "semantics_version": material_semantics_version,
             "conservation": copy.deepcopy(
                 dict(raw_material_conservation)
@@ -1535,6 +1571,7 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
         aggregate_bytes, source_edge_count = _copy_preview_core_material_layers(
             [source["batch"]], Path(source["package"]), package_dir, quality, resources,
             next_index, aggregate_bytes, copied_sources, materials, source_edge_count, cancelled, root_identity,
+            _preview_core_layer_parameter_index(source["conservation"].get("parameters", ())),
         )
         materials[-1].update(lod_index=lod_index, material_index=material_index,
                              material_slot_index=slots.get((lod_index, material_index), material_index))

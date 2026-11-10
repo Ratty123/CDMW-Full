@@ -46,7 +46,7 @@ const MAX_PREVIEW_CORE_BATCHES: usize = 4_096;
 const MAX_PREVIEW_CORE_VERTICES: usize = 2_000_000;
 const PREVIEW_CORE_VERTEX_BYTES: usize = 23 * std::mem::size_of::<f32>();
 const PREVIEW_CORE_IDENTITY_BYTES: usize = 2 * std::mem::size_of::<i32>();
-const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 4;
+const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 5;
 const PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION: u64 = 10;
 const PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA: u64 = 1;
 const MAX_PREVIEW_CORE_MATERIAL_LAYERS: usize = 64;
@@ -65,7 +65,7 @@ pub enum SessionError {
     Json(#[from] serde_json::Error),
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct FileReference {
     pub path: String,
     pub data_type: String,
@@ -228,7 +228,7 @@ pub struct PreviewCoreGeometry {
     pub batches: Vec<PreviewCoreGeometryBatch>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterialLayer {
     pub owner_wrapper_item_id: String,
     pub material_wrapper_index: u32,
@@ -246,6 +246,8 @@ pub struct PreviewCoreMaterialLayer {
     pub specular_hint: f32,
     pub height_scale_hint: f32,
     pub tint: [f32; 4],
+    #[serde(default)]
+    pub uv_transform: Option<[f32; 6]>,
     pub diffuse_declared: bool,
     pub diffuse_archive_path: String,
     pub diffuse: Option<FileReference>,
@@ -264,6 +266,10 @@ pub struct PreviewCoreMaterialLayer {
 }
 
 impl PreviewCoreMaterialLayer {
+    pub fn sampling_transform(&self) -> [f32; 6] {
+        self.uv_transform.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    }
+
     fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 5] {
         [
             (
@@ -300,7 +306,7 @@ impl PreviewCoreMaterialLayer {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterial {
     pub lod_index: u32,
     pub material_index: u32,
@@ -314,7 +320,7 @@ pub struct PreviewCoreMaterial {
     pub authoring_channels: u8,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterialGraph {
     pub schema_version: u64,
     pub graph_version: u64,
@@ -1608,14 +1614,11 @@ fn validate_manifest_for(
                 "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
             ));
         }
-        if manifest.preview_core_geometry.as_ref().is_some_and(|geometry|
-            geometry.material_graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        let graph_version = manifest.material_contract.get("graph_version").and_then(Value::as_u64);
+        if !graph_version.is_some_and(|version| (4..=PREVIEW_CORE_MATERIAL_GRAPH_VERSION).contains(&version))
+            || manifest.preview_core_geometry.as_ref().is_some_and(|geometry|
+            Some(geometry.material_graph_version) != graph_version
             || geometry.material_semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
-            || manifest
-                .material_contract
-                .get("graph_version")
-                .and_then(Value::as_u64)
-                != Some(PREVIEW_CORE_MATERIAL_GRAPH_VERSION)
             || manifest
                 .material_contract
                 .get("semantics_version")
@@ -1623,7 +1626,7 @@ fn validate_manifest_for(
                 != Some(PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
         {
             return Err(SessionError::InvalidManifest(
-                "Preview Core material contract must be graph v4 and semantics v10".to_owned(),
+                "Preview Core material contract must be graph v4 or v5 and semantics v10".to_owned(),
             ));
         }
         let conservation = manifest
@@ -1674,7 +1677,8 @@ fn validate_preview_core_material_graph(
 ) -> Result<(), SessionError> {
     let quality_is_full = graph.quality == "full";
     if graph.schema_version != PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA
-        || graph.graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        || !(4..=PREVIEW_CORE_MATERIAL_GRAPH_VERSION).contains(&graph.graph_version)
+        || manifest.material_contract.get("graph_version").and_then(Value::as_u64) != Some(graph.graph_version)
         || graph.semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
         || !matches!(graph.quality.as_str(), "direct" | "full")
         || graph.resources_included != quality_is_full
@@ -1751,6 +1755,7 @@ fn validate_preview_core_material_graph(
                 || layer.shader_family.len() > 128
                 || layer.shader_rule.len() > 128
                 || layer.evidence_grade.len() > 64
+                || layer.sampling_transform().iter().any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
                 || [
                     layer.weight,
                     layer.detail_scale,
@@ -4130,6 +4135,36 @@ mod tests {
         assert_eq!(submesh.source_vertex_indices, vec![7, 8, 9]);
         assert_eq!(submesh.vertex_stride, 92);
         assert_eq!(submesh.layout, "preview_core_f32x23_le");
+    }
+
+    #[test]
+    fn layer_uv_roundtrip_and_legacy_identity() {
+        let root = tempdir().unwrap();
+        let path = write_preview_core_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let affine = [19.0, 2.0, -2.0, 19.0, -8.0, -10.0];
+        manifest["preview_core_material_graph"]["materials"][0]["layers"][0]["uv_transform"] = json!(affine);
+        let graph: PreviewCoreMaterialGraph = serde_json::from_value(manifest["preview_core_material_graph"].clone()).unwrap();
+        let roundtrip: PreviewCoreMaterialGraph = serde_json::from_slice(&serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert_eq!(roundtrip.materials[0].layers[0].sampling_transform(), affine);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        LoadedCdmwSessionPackage::load_preview(&path).expect("v5 transform");
+        for bad in [json!([1e7, 0, 0, 1, 0, 0]), json!([1, 0, 0, 1, 0]) ] {
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0]["uv_transform"] = bad;
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(LoadedCdmwSessionPackage::load_preview(&path).is_err());
+        }
+        manifest["preview_core_geometry"]["material_graph_version"] = json!(4);
+        manifest["material_contract"]["graph_version"] = json!(4);
+        manifest["preview_core_material_graph"]["graph_version"] = json!(4);
+        manifest["preview_core_material_graph"]["materials"][0]["layers"][0].as_object_mut().unwrap().remove("uv_transform");
+        let graph: PreviewCoreMaterialGraph = serde_json::from_value(manifest["preview_core_material_graph"].clone()).unwrap();
+        assert_eq!(graph.materials[0].layers[0].sampling_transform(), [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        LoadedCdmwSessionPackage::load_preview(&path).expect("legacy v4 without transform");
+        manifest["preview_core_geometry"]["material_graph_version"] = json!(5);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load_preview(&path).is_err(), "mixed versions");
     }
 
     #[test]

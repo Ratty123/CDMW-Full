@@ -51,6 +51,7 @@ def promote_rust_preview_package_from_preview_core(
     from cdmw.services.mesh_rust_authoring import _session_root_identity
     from cdmw.services.mesh_rust_preview_package import (
         _build_preview_core_material_graph,
+        _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
         _cancelled,
         _read_preview_manifest,
         _texture_status,
@@ -90,8 +91,12 @@ def promote_rust_preview_package_from_preview_core(
         textures=manifest["textures"],
         expected_root_identity=root_identity,
         cancelled=cancelled,
+        material_parameters=native["material_conservation"].get("parameters", ()),
     )
     manifest["texture_status"] = _texture_status(manifest["textures"], "full")
+    manifest["material_contract"]["graph_version"] = _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+    if "preview_core_geometry" in manifest:
+        manifest["preview_core_geometry"]["material_graph_version"] = _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
     session_id = uuid4().hex
     manifest["session_id"] = session_id
     manifest["state"]["preview_scene"]["session_id"] = session_id

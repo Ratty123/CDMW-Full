@@ -11,6 +11,7 @@ from PySide6.QtCore import QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader, QImageWriter
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.material_layer_uv import pac_layer_sampling_parameters
 from cdmw.rendering.material_combiner_pixels import numpy_module, to_byte_array
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import (
@@ -128,34 +129,14 @@ def _pac_layer_sampling_transform(
 
     if input_item is None:
         return None
-    channel = _layer_channel(input_item)
-    channel_index = {"r": 0, "g": 1, "b": 2}.get(channel)
-    property_suffix = {"r": "0", "g": "1", "b": "3"}.get(channel)
-    if channel_index is None or property_suffix is None:
-        return None
-
-    transform_name = f"dyeingtransformproperty{property_suffix}"
-    transform_channels: Tuple[float, ...] = ()
-    rotation_channels: Tuple[float, ...] = ()
-    for parameter in tuple(getattr(input_item, "material_parameters", ()) or ()):
-        key = "".join(
-            character
-            for character in str(getattr(parameter, "parameter_name", "") or "").casefold()
-            if character.isalnum()
-        )
-        if key == transform_name:
-            transform_channels = _byte4_channels(getattr(parameter, "value", ""))
-        elif key == "dyeingpropertyblend":
-            rotation_channels = _byte4_channels(getattr(parameter, "value", ""))
-
-    if len(transform_channels) < 4:
-        return None
-    scale_x, scale_y, offset_x, offset_y = (
-        float(value) for value in transform_channels[:4]
+    values = pac_layer_sampling_parameters(
+        ((getattr(parameter, "parameter_name", ""), getattr(parameter, "value", ""))
+         for parameter in tuple(getattr(input_item, "material_parameters", ()) or ())),
+        _layer_channel(input_item),
     )
-    angle = 0.0
-    if len(rotation_channels) > channel_index:
-        angle = (float(rotation_channels[channel_index]) * (2.0 * math.pi)) - math.pi
+    if values is None:
+        return None
+    scale_x, scale_y, offset_x, offset_y, angle = values
 
     # 127 and 128 are the two Byte4 encodings nearest zero rotation. Treat
     # their half-step quantization as identity when every other component is

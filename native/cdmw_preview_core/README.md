@@ -94,6 +94,14 @@ Exact ordered PAC wrappers keep their own parameter tables when several parts
 reuse a detail-mask DDS or material name. Shared texture resources do not merge
 different wrappers' dyes and layers into each part's material graph.
 
+Native packages declare material graph version 5 and preserve each component's
+raw Byte4 dye transforms in the conservation parameter table. The Python
+transport joins by component scope, wrapper owner and wrapper index and emits a
+six-float `uv_transform` for RGB detail and grime layers. Missing transforms use
+identity; authored zero scales remain authored values. The Rust loader accepts
+legacy graph-v4 packages without the field and rejects non-finite, oversized or
+inconsistently versioned transforms.
+
 Exact PAC detail and grime colour layers keep their authored channel opacity instead
 of the conservative accent cap or texture-resolution attenuation. Property blending
 does not reduce colour opacity. `self-test-materials` runs the focused ownership and

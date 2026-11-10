@@ -133,7 +133,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertTrue(job["capabilities"]["direct_dds"])
         self.assertTrue(job["capabilities"]["d3d11_package"])
         self.assertTrue(job["capabilities"]["material_graph"])
-        self.assertEqual(4, job["capabilities"]["material_graph_version"])
+        self.assertEqual(5, job["capabilities"]["material_graph_version"])
         self.assertFalse(job["capabilities"]["python_fallback_allowed"])
         self.assertTrue(job["capabilities"]["native_material_runtime"])
 

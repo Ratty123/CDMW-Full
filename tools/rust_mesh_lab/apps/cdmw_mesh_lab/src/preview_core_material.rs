@@ -2094,6 +2094,7 @@ mod tests {
             specular_hint: 0.0,
             height_scale_hint: 0.0,
             tint: [1.0; 4],
+            uv_transform: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),
             diffuse: None,

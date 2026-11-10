@@ -128,7 +128,7 @@ def _write_schema8_preview_core_fixture(
             {
                 "schema_version": 8,
                 "material_semantics_version": 10,
-                "material_graph_version": 4,
+                "material_graph_version": 5,
                 "material_conservation": {
                     "schema_version": 1,
                     "declared_parameter_count": 0,
@@ -196,6 +196,47 @@ def _write_schema8_preview_core_fixture(
         encoding="utf-8",
     )
     return package, geometry_bytes, identity_bytes, texture_bytes
+
+
+def test_layer_transforms_follow_wrapper_and_component_through_promotion(tmp_path: Path):
+    from cdmw.domain.material_layer_uv import pac_layer_uv_transform
+    from cdmw.services.mesh_rust_preview_promotion import promote_rust_preview_package_from_preview_core
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    native["material_graph_version"] = 4  # Older native sources also upgrade to v5.
+    base = native["batches"][0]["material_layers"][0]
+    detail = dict(base, layer_role="detail", component_scope_id="piece-a",
+                  source_parameter="_detailDiffuseMaskR")
+    native["batches"][0]["material_layers"].extend([
+        detail, dict(detail, layer_role="grime", mask_channel="g"),
+    ])
+    parameters = []
+    for scope, owner, wrapper, value in (
+        ("piece-a", "fixture-wrapper-1", 0, 13 | (13 << 8)),
+        ("piece-b", "fixture-wrapper-1", 0, 26 | (26 << 8)),
+        ("piece-a", "fixture-wrapper-2", 0, 18 | (18 << 8)),
+        ("piece-a", "fixture-wrapper-1", 1, 255 | (255 << 8)),
+    ):
+        parameters.append(dict(component_scope_id=scope, owner_wrapper_item_id=owner,
+                               material_wrapper_index=wrapper, parameter_name="_dyeingTransformProperty0",
+                               integer_value=value))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=4,
+                                           transported_parameter_count=4)
+    (source / "manifest.json").write_text(json.dumps(native))
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct")
+    full = promote_rust_preview_package_from_preview_core(
+        direct, source, source_manifest=native, output_package_dir=tmp_path / "full")
+    for package in (direct, full):
+        manifest = json.loads(package.manifest_path.read_text())
+        graph = manifest["preview_core_material_graph"]
+        assert graph["graph_version"] == manifest["material_contract"]["graph_version"] == 5
+        layers = graph["materials"][0]["layers"]
+        assert "uv_transform" not in layers[0]
+        assert layers[1]["uv_transform"] == pytest.approx(pac_layer_uv_transform(
+            (("_dyeingTransformProperty0", 13 | (13 << 8)),), "r"))
+        assert layers[2]["uv_transform"] == [1, 0, 0, 1, 0, 0]
 
 
 def _called_names(path: Path) -> set[str]:
@@ -432,9 +473,9 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 8
+    assert RUST_PREVIEW_CACHE_SCHEMA == 9
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
-    monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 7)
+    monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
@@ -537,9 +578,9 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     assert warm.package_dir == package.package_dir
     direct = manifest["preview_core_geometry"]
     assert direct["schema_version"] == 8
-    assert direct["material_graph_version"] == 4
+    assert direct["material_graph_version"] == 5
     assert direct["material_semantics_version"] == 10
-    assert manifest["material_contract"]["graph_version"] == 4
+    assert manifest["material_contract"]["graph_version"] == 5
     assert manifest["material_contract"]["semantics_version"] == 10
     assert manifest["material_contract"]["conservation"]["conserved"] is True
     graph = manifest["preview_core_material_graph"]

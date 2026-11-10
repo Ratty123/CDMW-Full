@@ -74,9 +74,9 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild previews that omitted authored translucent shader absorption.
+# Rebuild previews that omitted authored layer UV transforms.
 # Source DDS caches stay reusable; only derived renderer packages change.
-RUST_PREVIEW_CACHE_SCHEMA = 8
+RUST_PREVIEW_CACHE_SCHEMA = 9
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
