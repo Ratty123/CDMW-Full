@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from shiboken6 import isValid
 
 from cdmw.core.owned_temp import cleanup_owned_temp_directory, create_owned_temp_directory
 
@@ -2075,7 +2076,8 @@ class RustPreviewSessionController(
         return request_id == self._package_request_id and generation == self._package_generation
 
     def _is_current_process(self, process: object, generation: int) -> bool:
-        return self._process is process and generation == self._process_generation
+        # App-owned processes may finish after Qt has destroyed their host and timers.
+        return isValid(self) and self._process is process and generation == self._process_generation
 
     @staticmethod
     def _delete_process_later(process: object) -> None:

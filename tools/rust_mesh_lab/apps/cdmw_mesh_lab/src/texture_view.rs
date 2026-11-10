@@ -107,7 +107,7 @@ pub fn try_run() -> Result<bool> {
         emit(json!({"event":"captured", "milliseconds":elapsed, "metadata":metadata}));
         return Ok(true);
     }
-    if !args.first().is_some_and(|a| a == "--cdmw-texture-view") {
+    if args.first().is_none_or(|a| a != "--cdmw-texture-view") {
         return Ok(false);
     }
     if args.len() != 3 || args[1] != "--embedded-parent-hwnd" {
@@ -360,10 +360,10 @@ impl ApplicationHandler<()> for TextureApplication {
         }
     }
     fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: winit::event::StartCause) {
-        if matches!(cause, winit::event::StartCause::ResumeTimeReached { .. }) {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+        if matches!(cause, winit::event::StartCause::ResumeTimeReached { .. })
+            && let Some(window) = &self.window
+        {
+            window.request_redraw();
         }
     }
 }

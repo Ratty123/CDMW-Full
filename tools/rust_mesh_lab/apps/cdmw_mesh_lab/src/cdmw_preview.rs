@@ -1249,13 +1249,11 @@ impl PreviewApplication {
                     self.next_frame = Some(Instant::now() + Duration::from_millis(16));
                 }
             }
-            "prewarm_hold_request" => {
+            "prewarm_hold_request" if !self.visible && self.renderer.is_some() => {
                 // One application-owned hidden spare retains its device until
                 // adoption or shutdown. Ordinary deactivation restores expiry.
-                if !self.visible && self.renderer.is_some() {
-                    self.renderer_idle.resume();
-                    self.bridge.send(json!({"event":"prewarm_held"}));
-                }
+                self.renderer_idle.resume();
+                self.bridge.send(json!({"event":"prewarm_held"}));
             }
             "reembed_request" => {
                 self.parent_hwnd = value

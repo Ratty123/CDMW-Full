@@ -696,75 +696,6 @@ impl AmbientOcclusion {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn visible_bounds_follow_isolation_and_only_transform_editable_vertices() {
-        let mut vertices = vec![GpuVertex::zeroed(); 6];
-        for (index, vertex) in vertices.iter_mut().enumerate() {
-            vertex.position = if index < 3 {
-                [index as f32, 0.0, 0.0]
-            } else {
-                [100.0, index as f32, 0.0]
-            };
-            vertex.editable_role = u32::from(index < 3);
-        }
-        let bounds = SceneBounds::from_vertices(&vertices, &[0, 1, 2, 3, 4, 5], &[0, 1]);
-        let range = |material| GpuMaterialRange {
-            material,
-            part_id: material,
-            first_index: material * 3,
-            index_count: 3,
-        };
-        let transform = Mat4::from_translation(Vec3::new(5.0, 0.0, 0.0));
-        assert_eq!(
-            bounds.world(transform, &[range(0)]),
-            (Vec3::new(5.0, 0.0, 0.0), Vec3::new(7.0, 0.0, 0.0))
-        );
-        assert_eq!(
-            bounds.world(transform, &[range(1)]),
-            (Vec3::new(100.0, 3.0, 0.0), Vec3::new(100.0, 5.0, 0.0))
-        );
-    }
-
-    #[test]
-    fn studio_key_stays_fixed_as_camera_orbits() {
-        let mut camera = CameraUniform::new(true);
-        camera.lighting_preset = LightingPreset::StudioFixed.shader_value();
-        let expected = Vec3::new(-0.45, 0.8, -0.55).normalize();
-        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
-        camera.view_direction = [1.0, 0.0, 0.0, 0.0];
-        camera.camera_right = [0.0, 0.0, 1.0, 0.0];
-        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
-        camera.lighting_preset = LightingPreset::NeutralStudio.shader_value();
-        assert!(!key_direction(&camera).abs_diff_eq(expected, 0.1));
-    }
-
-    #[test]
-    fn depth_lighting_only_applies_to_lit_views() {
-        assert!(textured(ViewMode::TexturedSolid) && textured(ViewMode::GameOutdoor));
-        for mode in [
-            ViewMode::BaseColor,
-            ViewMode::NormalMap,
-            ViewMode::MaterialResponse,
-            ViewMode::PartId,
-            ViewMode::BaseAlpha,
-            ViewMode::UvChecker,
-            ViewMode::LayerMask,
-            ViewMode::Solid,
-            ViewMode::SolidWire,
-            ViewMode::Wireframe,
-            ViewMode::Vertices,
-            ViewMode::WireVertices,
-            ViewMode::XRay,
-        ] {
-            assert!(!textured(mode));
-        }
-    }
-}
-
 /// Offscreen compatibility proof for single-sample/MSAA depth, orthographic
 /// reconstruction, and the supported texture-binding limits.
 #[doc(hidden)]
@@ -893,4 +824,73 @@ pub async fn verify_lighting_depth_compatibility(
         }
     }
     Ok(verified)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_bounds_follow_isolation_and_only_transform_editable_vertices() {
+        let mut vertices = vec![GpuVertex::zeroed(); 6];
+        for (index, vertex) in vertices.iter_mut().enumerate() {
+            vertex.position = if index < 3 {
+                [index as f32, 0.0, 0.0]
+            } else {
+                [100.0, index as f32, 0.0]
+            };
+            vertex.editable_role = u32::from(index < 3);
+        }
+        let bounds = SceneBounds::from_vertices(&vertices, &[0, 1, 2, 3, 4, 5], &[0, 1]);
+        let range = |material| GpuMaterialRange {
+            material,
+            part_id: material,
+            first_index: material * 3,
+            index_count: 3,
+        };
+        let transform = Mat4::from_translation(Vec3::new(5.0, 0.0, 0.0));
+        assert_eq!(
+            bounds.world(transform, &[range(0)]),
+            (Vec3::new(5.0, 0.0, 0.0), Vec3::new(7.0, 0.0, 0.0))
+        );
+        assert_eq!(
+            bounds.world(transform, &[range(1)]),
+            (Vec3::new(100.0, 3.0, 0.0), Vec3::new(100.0, 5.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn studio_key_stays_fixed_as_camera_orbits() {
+        let mut camera = CameraUniform::new(true);
+        camera.lighting_preset = LightingPreset::StudioFixed.shader_value();
+        let expected = Vec3::new(-0.45, 0.8, -0.55).normalize();
+        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
+        camera.view_direction = [1.0, 0.0, 0.0, 0.0];
+        camera.camera_right = [0.0, 0.0, 1.0, 0.0];
+        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
+        camera.lighting_preset = LightingPreset::NeutralStudio.shader_value();
+        assert!(!key_direction(&camera).abs_diff_eq(expected, 0.1));
+    }
+
+    #[test]
+    fn depth_lighting_only_applies_to_lit_views() {
+        assert!(textured(ViewMode::TexturedSolid) && textured(ViewMode::GameOutdoor));
+        for mode in [
+            ViewMode::BaseColor,
+            ViewMode::NormalMap,
+            ViewMode::MaterialResponse,
+            ViewMode::PartId,
+            ViewMode::BaseAlpha,
+            ViewMode::UvChecker,
+            ViewMode::LayerMask,
+            ViewMode::Solid,
+            ViewMode::SolidWire,
+            ViewMode::Wireframe,
+            ViewMode::Vertices,
+            ViewMode::WireVertices,
+            ViewMode::XRay,
+        ] {
+            assert!(!textured(mode));
+        }
+    }
 }

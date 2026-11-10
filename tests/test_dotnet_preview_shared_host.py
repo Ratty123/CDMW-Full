@@ -31,6 +31,21 @@ from cdmw.ui.preview.profile import DotNetPreviewProfile
 _APP = QApplication.instance() or QApplication([])
 
 
+def test_process_completion_after_qt_owner_destruction_ignores_deleted_timers() -> None:
+    parent = QObject()
+    controller = DotNetPreviewSessionController(parent=parent, host_hwnd=lambda: 0)
+    deleted = []
+    process = SimpleNamespace(deleteLater=lambda: deleted.append(True))
+    controller._process = process
+    controller._process_generation = 7
+    controller._pending_process_exits.add(7)
+    shiboken6.delete(parent)
+    assert not shiboken6.isValid(controller)
+    controller._process_finished(process, 7, 0, QProcess.ExitStatus.NormalExit)
+    assert deleted == [True]
+    assert not controller._pending_process_exits
+
+
 def test_depth_toggles_and_icon_alpha_travel_in_live_presentation(tmp_path: Path) -> None:
     controller, _process, package = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)

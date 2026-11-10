@@ -103,7 +103,7 @@ legacy graph-v4 packages without the field and rejects non-finite, oversized or
 inconsistently versioned transforms.
 
 The renderer samples eligible graph-v5 layers directly from owned compressed
-DDS mips. The six-layer bound, exact wrapper ownership, channel flags, authored
+DDS mips. The three detail-channel bound, exact wrapper ownership, channel flags, authored
 opacity and UV affine are validated before GPU admission. Unsupported graphs
 retain CPU composition. Grime is conserved but omitted from normal previews.
 Unchanged source materials can also use this graph in authoring packages;

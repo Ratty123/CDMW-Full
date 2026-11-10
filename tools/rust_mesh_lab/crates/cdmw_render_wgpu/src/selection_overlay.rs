@@ -344,7 +344,7 @@ impl FaceSelectionRenderer {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("CDMW face selection shader"),
-            source: wgpu::ShaderSource::Wgsl(material_layers::shader(&device, false).into()),
+            source: wgpu::ShaderSource::Wgsl(material_layers::shader(device, false).into()),
         });
         let layer_layout = material_layers::layout(device);
         let mut layouts = vec![Some(texture_layout), Some(camera_layout)];

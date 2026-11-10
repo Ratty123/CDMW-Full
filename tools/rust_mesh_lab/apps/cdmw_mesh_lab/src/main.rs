@@ -4283,16 +4283,17 @@ impl LabApplication {
                             ui.selectable_value(&mut self.view_mode, mode, crate::localization::tr(mode.label()));
                         }
                     });
+                egui::ComboBox::from_id_salt("lighting_preset")
+                    .width(ui.available_width())
+                    .selected_text(crate::localization::tr(self.lighting_preset.label()))
+                    .show_ui(ui, |ui| {
+                        for preset in cdmw_render_wgpu::LightingPreset::ALL {
+                            ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
+                        }
+                    });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"));
                     ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
-                    egui::ComboBox::from_id_salt("lighting_preset")
-                        .selected_text(crate::localization::tr(self.lighting_preset.label()))
-                        .show_ui(ui, |ui| {
-                            for preset in cdmw_render_wgpu::LightingPreset::ALL {
-                                ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
-                            }
-                        });
                     ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
                     ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
                     let bones_available = self

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QSettings, QThreadPool
+from PySide6.QtCore import QEvent, QSettings, QThreadPool
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QLabel, QStackedWidget, QWidget
 
@@ -111,7 +111,7 @@ def test_gpu_controls_and_stale_events_do_not_replace_newer_file(app, tmp_path, 
     host._actual_size()
     assert sent[-1]["state"] == dict(channel=2, mip=3, reconstruct_z=True, fit=False, zoom=1.0, pan=[0.0, 0.0], pixel_ratio=host.viewport.devicePixelRatioF())
     monkeypatch.setattr(host.viewport, "devicePixelRatioF", lambda: 2.0)
-    host._actual_size()
+    host.eventFilter(host.viewport, QEvent(QEvent.DevicePixelRatioChange))
     assert sent[-1]["state"]["pixel_ratio"] == 2.0
     assert host.current_display_scale() == 1.0
     host.load_path(tmp_path / "one-mip.dds")

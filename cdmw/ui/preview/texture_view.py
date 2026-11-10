@@ -311,6 +311,8 @@ class GpuTexturePreview(QWidget):
     def eventFilter(self, watched, event):
         if watched is self.viewport and event.type() in (QEvent.Resize, QEvent.DevicePixelRatioChange):
             self._resize_child()
+            if event.type() == QEvent.DevicePixelRatioChange:
+                self._apply_view()
         elif watched is self.viewport and event.type() == QEvent.WinIdChange and self._process is not None:
             self._cancel()
             if self.isVisible():

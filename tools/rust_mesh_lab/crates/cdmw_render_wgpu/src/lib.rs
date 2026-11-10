@@ -56,7 +56,8 @@ struct CameraUniform {
 };
 
 struct VertexOut {
-    @builtin(position) position: vec4<f32>,
+    // Depth prepass and Equal-tested colour pipelines must agree exactly.
+    @builtin(position) @invariant position: vec4<f32>,
     @location(0) color: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) normal: vec3<f32>,
@@ -4998,10 +4999,10 @@ async fn material_capture_batch(
                 });
             }
         }
-        if let Some(binding) = material_layers::binding(&device, &default_material_textures, &layer.uniform, &uploaded) {
-            if layer_bindings.insert(layer.material_index, binding).is_some() {
-                return Err(RenderError::Texture("duplicate material layer ownership".into()));
-            }
+        if let Some(binding) = material_layers::binding(&device, &default_material_textures, &layer.uniform, &uploaded)
+            && layer_bindings.insert(layer.material_index, binding).is_some()
+        {
+            return Err(RenderError::Texture("duplicate material layer ownership".into()));
         }
     }
     let mut material_factors = Vec::with_capacity(factors.len());

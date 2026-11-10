@@ -27,8 +27,8 @@ packages carry the corresponding six-float affine to Rust. Transforms are scoped
 to the exact component and material wrapper; old graph-v4 packages retain
 identity sampling when the optional field is absent.
 
-Full preview packages bind up to six supported detail layers, including RGB
-channels sharing a mask, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
+Full preview packages bind up to three RGB detail channels sharing a mask,
+plus colour seeds, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
 luminance measured from a mip no larger than 64 pixels. The shader applies the
 affine, blends normals and reads layer occlusion, roughness and metal directly.
 Colour seeds can supply channels without a detail layer. Technical detail masks

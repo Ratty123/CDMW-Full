@@ -19,8 +19,9 @@ impl HeadlessUi {
     pub(super) fn refit_scope(&mut self, all: bool) -> TestResult {
         self.reveal("Editing")?;
         let scope = |ui: &Self| ui.output.shapes.iter().find_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if text.galley.job.text.starts_with("All bound garments ·")
-                || text.galley.job.text.starts_with("Selected garments ·") => Some(text.galley.job.text.clone()),
+            egui::Shape::Text(text) if (text.galley.job.text.starts_with("All bound garments ·")
+                || text.galley.job.text.starts_with("Selected garments ·"))
+                && ui.label_rect(&text.galley.job.text).is_some() => Some(text.galley.job.text.clone()),
             _ => None,
         });
         // The label can be revealed at the panel's bottom edge with its dropdown
