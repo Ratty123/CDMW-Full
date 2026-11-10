@@ -7,9 +7,9 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
-### Fixed
+### Docs
 
-- Placement & Animations keeps animation playback smooth with the **Show** menu closed; opening the menu is no longer needed to avoid stuttering.
+- The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself.
 
 ## [0.12.0-alpha.4] - 2026-11-10
 
@@ -35,6 +35,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Placement & Animations keeps animation playback smooth with the **Show** menu closed; opening the menu is no longer needed to avoid stuttering.
 - Create New Item no longer spends about half a minute on "Reading StringInfo and the part-prefab table..." when it reads the archives. Since the DLC update it looked for the DLC's part table by going through every file name in the game, about two million of them. It now looks only at part tables, so that step takes under a second.
 - Items built into separate mods no longer create the same drop-set, enhancement or item-use records. Before, the second mod reused the first one's record numbers, and DMM mounted only one of them with "create the same new item differently". Each item now numbers these records in a range of its own. Rebuild the newer mod to pick this up; mods built earlier keep their numbers.
 - Create New Item's **Add to existing mod** keeps the earlier items' shop stock and item groups when the mod was written for DMM. Before, **Write mod folder** removed them from the mod's `CDMW items - shops and groups.json`, so only the newest item could be bought in game. **Send to DMM** now updates the chosen mod, with its registrations, instead of adding a second mod with the same tables, and adding an item no longer renames the mod. A mod that already lost its earlier items' shop lines does not get them back: rebuild it from its first item, then add the others. Not yet checked in game.
