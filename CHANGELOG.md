@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Placement & Animations keeps animation playback smooth with the **Show** menu closed; opening the menu is no longer needed to avoid stuttering.
+
 ## [0.12.0-alpha.4] - 2026-11-10
 
 ### Added

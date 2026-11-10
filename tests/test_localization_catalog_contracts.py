@@ -12,7 +12,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, QSettings, Qt
+from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, QPropertyAnimation, QSettings, Qt
 from PySide6.QtGui import QAction, QFontMetrics, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QApplication,
@@ -1315,6 +1315,65 @@ def test_a_burst_of_new_widgets_costs_one_apply_pass_and_one_root(tmp_path: Path
     localizer.shutdown()
     root.deleteLater()
     app.processEvents()
+
+
+def test_layout_animation_children_do_not_retranslate_the_parent(tmp_path: Path) -> None:
+    """QMainWindow's temporary geometry animations must not start a translation loop."""
+    app = _app()
+    root = QWidget()
+    label = QLabel("Save", root)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    localizer.activate_runtime_tracking(root, application=app)
+    localizer.apply(root)
+    for _ in range(3):
+        app.processEvents()
+
+    passes = []
+    original = localizer._apply_widget_tree
+
+    def counted(target):
+        passes.append(target)
+        original(target)
+
+    localizer._apply_widget_tree = counted
+    animations = []
+    try:
+        for _ in range(6):
+            animation = QPropertyAnimation(root, b"geometry", root)
+            animation.setDuration(0)
+            animation.setEndValue(root.geometry())
+            animation.start()
+            animations.append(animation)
+            app.processEvents()
+        assert passes == []
+        assert label.text() == "Speichern"
+    finally:
+        localizer.shutdown()
+        root.deleteLater()
+        app.processEvents()
+
+
+def test_new_controls_and_actions_still_translate_after_parent_was_applied(tmp_path: Path) -> None:
+    app = _app()
+    root = QWidget()
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    localizer.activate_runtime_tracking(root, application=app)
+    localizer.apply(root)
+    try:
+        label = QLabel("Save", root)
+        action = QAction("Save", root)
+        for _ in range(5):
+            app.processEvents()
+        assert label.text() == "Speichern"
+        assert action.text() == "Speichern"
+        localizer.load_language("en")
+        localizer.apply_registered_roots()
+        assert label.text() == "Save"
+        assert action.text() == "Save"
+    finally:
+        localizer.shutdown()
+        root.deleteLater()
+        app.processEvents()
 
 
 def test_rich_text_translation_preserves_non_text_blocks() -> None:
