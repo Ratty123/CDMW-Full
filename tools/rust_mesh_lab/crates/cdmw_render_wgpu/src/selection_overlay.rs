@@ -66,7 +66,9 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     });
     let layer_layout = material_layers::layout(&device);
     let mut layouts = vec![Some(&texture_layout), Some(&camera_layout)];
-    if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
+    if let Some(layer) = &layer_layout {
+        layouts.push(Some(layer));
+    }
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("selection proof occluder layout"),
         bind_group_layouts: &layouts,
@@ -143,18 +145,24 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     ] {
         let tinted = matches!(label, "lit region" | "shaded region" | "part colors");
         let tint_buffer = tinted.then(|| {
-            let mut vertices = occluder_positions.map(|position| {
-                let mut vertex = GpuVertex::overlay(Vec3::from_array(position));
-                vertex.normal = [0., 0., if label == "shaded region" { 1. } else { -1. }];
-                vertex.deformation = [1., 0.35, 0.06, 0.6];
-                vertex
-            }).to_vec();
-            if label == "part colors" {
-                let second = vertices.iter().copied().map(|mut vertex| {
-                    vertex.position[0] += 1.0;
-                    vertex.deformation = [0.06, 0.35, 1.0, 0.88];
+            let mut vertices = occluder_positions
+                .map(|position| {
+                    let mut vertex = GpuVertex::overlay(Vec3::from_array(position));
+                    vertex.normal = [0., 0., if label == "shaded region" { 1. } else { -1. }];
+                    vertex.deformation = [1., 0.35, 0.06, 0.6];
                     vertex
-                }).collect::<Vec<_>>();
+                })
+                .to_vec();
+            if label == "part colors" {
+                let second = vertices
+                    .iter()
+                    .copied()
+                    .map(|mut vertex| {
+                        vertex.position[0] += 1.0;
+                        vertex.deformation = [0.06, 0.35, 1.0, 0.88];
+                        vertex
+                    })
+                    .collect::<Vec<_>>();
                 vertices.extend(second);
             }
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -175,12 +183,26 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let show_hover = hovering && label != "part hover cleared";
         let show_warning = (refit && label != "refit warning cleared")
             || (hovering && label != "part hover warning cleared");
-        warning.upload(&device, &queue, if show_warning {
-            &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
-        } else { &[] }, [1.0, 0.35, 0.06, 0.45])?;
-        hover.upload(&device, &queue, if show_hover {
-            &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
-        } else { &[] }, [0.15, 0.85, 1.0, 0.65])?;
+        warning.upload(
+            &device,
+            &queue,
+            if show_warning {
+                &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
+            } else {
+                &[]
+            },
+            [1.0, 0.35, 0.06, 0.45],
+        )?;
+        hover.upload(
+            &device,
+            &queue,
+            if show_hover {
+                &[[-1., -1., 0.6], [0., -1., 0.6], [-0.5, 1., 0.6]]
+            } else {
+                &[]
+            },
+            [0.15, 0.85, 1.0, 0.65],
+        )?;
         if label == "weight gradient" {
             selection.upload_coloured(
                 &device,
@@ -232,7 +254,10 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             } else {
                 &occluder_pipeline
             });
-            pass.set_vertex_buffer(0, tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..));
+            pass.set_vertex_buffer(
+                0,
+                tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..),
+            );
             pass.draw(0..if label == "part colors" { 12 } else { 6 }, 0..1);
             selection.draw(&mut pass, &material, &camera_binding, xray);
             warning.draw(&mut pass, &material, &camera_binding, true);
@@ -265,8 +290,10 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let right_red = pixels[(24 * 32 + 22) * 4 + 2];
         if hovering {
             let left_blue = pixels[(24 * 32 + 10) * 4];
-            if (show_hover && left_blue < 150) || (!show_hover && (left_blue > 100 || left_red < 100))
-                || (empty && right_red > 10) || (!empty && right_red < 100)
+            if (show_hover && left_blue < 150)
+                || (!show_hover && (left_blue > 100 || left_red < 100))
+                || (empty && right_red > 10)
+                || (!empty && right_red < 100)
             {
                 return Err(RenderError::InvalidOverlay(format!(
                     "Part hover did not stay independent of selection and fit warnings: {label}, left red={left_red}, blue={left_blue}, right red={right_red}"
@@ -275,8 +302,10 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             continue;
         }
         if refit {
-            if (show_warning && left_red < 100) || (!show_warning && left_red > 10)
-                || (empty && right_red > 10) || (!empty && right_red < 100)
+            if (show_warning && left_red < 100)
+                || (!show_warning && left_red > 10)
+                || (empty && right_red > 10)
+                || (!empty && right_red < 100)
             {
                 return Err(RenderError::InvalidOverlay(format!(
                     "refit warning did not stay independent of edit selection: {label}, left={left_red}, right={right_red}"
@@ -287,8 +316,12 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         if label == "part colors" {
             let left_blue = pixels[(24 * 32 + 10) * 4];
             let right_blue = pixels[(24 * 32 + 22) * 4];
-            if left_red <= left_blue.saturating_add(40) || right_blue <= right_red.saturating_add(40) {
-                return Err(RenderError::InvalidOverlay("Part colors lost their distinct surface tints".into()));
+            if left_red <= left_blue.saturating_add(40)
+                || right_blue <= right_red.saturating_add(40)
+            {
+                return Err(RenderError::InvalidOverlay(
+                    "Part colors lost their distinct surface tints".into(),
+                ));
             }
             continue;
         }
@@ -348,7 +381,9 @@ impl FaceSelectionRenderer {
         });
         let layer_layout = material_layers::layout(device);
         let mut layouts = vec![Some(texture_layout), Some(camera_layout)];
-        if let Some(layer) = &layer_layout { layouts.push(Some(layer)); }
+        if let Some(layer) = &layer_layout {
+            layouts.push(Some(layer));
+        }
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("CDMW face selection layout"),
             bind_group_layouts: &layouts,

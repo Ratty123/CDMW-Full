@@ -466,6 +466,13 @@ static std::string prefab_component_path_key(std::string path) {
     return lower_copy(path);
 }
 
+static bool head_prefab_components_are_required(const EntryJob& job) {
+    // A head PAC contains the skin and tear shell. Its declared eyes/teeth are
+    // part of the assembled head, rather than optional equipment attachments.
+    return job.extension == ".pac"
+        && prefab_component_path_key(job.path).find("/head/head/") != std::string::npos;
+}
+
 static bool prefab_component_enabled_for_job(
     const ArchiveEntryRef& component,
     const EntryJob& job
@@ -599,6 +606,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const std::string model_stem = stem_from_path(job.path);
     const std::string model_stem_lower = lower_copy(model_stem);
     const std::string model_dir = dirname_from_path(job.path);
+    const bool head_components = head_prefab_components_are_required(job);
     std::vector<std::string> basenames;
     if (job.extension == ".pac") {
         basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
@@ -607,7 +615,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     } else if (job.extension == ".pamlod") {
         basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
     }
-    if (!job.enabled_prefab_component_paths.empty()) {
+    if (head_components || !job.enabled_prefab_component_paths.empty()) {
         basenames.push_back(model_stem + ".prefab");
         basenames.push_back(model_stem + ".prefabdata_xml");
     }
@@ -620,10 +628,10 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
             }
         }
     }
-    if (job.extension == ".pac" && !job.enabled_prefab_component_paths.empty()) {
+    if (job.extension == ".pac" && (head_components || !job.enabled_prefab_component_paths.empty())) {
         for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index)) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
-            if (!prefab_component_enabled_for_job(component, job)) continue;
+            if (!head_components && !prefab_component_enabled_for_job(component, job)) continue;
             const std::string component_stem = stem_from_path(component.path);
             const std::string component_dir = dirname_from_path(component.path);
             for (const std::string& base : {

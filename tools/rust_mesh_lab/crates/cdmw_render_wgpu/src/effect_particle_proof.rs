@@ -61,7 +61,8 @@ fn verify_samples(
     let sampler = create_effect_sampler(device);
     let render_depth = |instance: GpuEffectBillboardInstance,
                         dds: &[u8],
-                        opaque_depth: f32, indexed_mesh: Option<(&EffectMeshAsset, f32)>|
+                        opaque_depth: f32,
+                        indexed_mesh: Option<(&EffectMeshAsset, f32)>|
      -> Result<Vec<u8>, RenderError> {
         let uploaded = upload_dds_texture(device, queue, dds, TextureRole::BaseColor)?;
         let textures = [effect_texture_binding(
@@ -89,20 +90,45 @@ fn verify_samples(
             first_instance: 0,
             instance_count: 1,
         }];
-        let mut meshes = indexed_mesh.map(|_| effect_mesh::MeshParticles::new(
-            device, format, &camera_layout, &effect_layout, &depth_layout, samples));
+        let mut meshes = indexed_mesh.map(|_| {
+            effect_mesh::MeshParticles::new(
+                device,
+                format,
+                &camera_layout,
+                &effect_layout,
+                &depth_layout,
+                samples,
+            )
+        });
         if let Some(meshes) = &mut meshes {
             let (asset, age) = indexed_mesh.expect("indexed mesh proof");
             meshes.add(device, asset)?;
             let transform = Mat4::from_cols(
                 Vec3::from_array(instance.axis_right).extend(0.),
-                Vec3::from_array(instance.axis_up).extend(0.), Vec3::Z.extend(0.),
-                Vec3::from_array(instance.center).extend(1.));
-            meshes.set(device, queue, &[EffectMeshInstance { mesh_index: 0, depth: 0.,
-                particle: EffectMeshParticle { transform: transform.to_cols_array_2d(), colour: instance.colour,
-                    scale_age: [0.5,0.25,1.,age], seed: [17,0,0,0],
-                    parent_scale: [1.;4], parent_origin: [0.;4] },
-            }], EffectMeshView { eye_height: [0.,0.,2.,SIZE as f32], fov_padding: [0.5,0.,0.,0.] })?;
+                Vec3::from_array(instance.axis_up).extend(0.),
+                Vec3::Z.extend(0.),
+                Vec3::from_array(instance.center).extend(1.),
+            );
+            meshes.set(
+                device,
+                queue,
+                &[EffectMeshInstance {
+                    mesh_index: 0,
+                    depth: 0.,
+                    particle: EffectMeshParticle {
+                        transform: transform.to_cols_array_2d(),
+                        colour: instance.colour,
+                        scale_age: [0.5, 0.25, 1., age],
+                        seed: [17, 0, 0, 0],
+                        parent_scale: [1.; 4],
+                        parent_origin: [0.; 4],
+                    },
+                }],
+                EffectMeshView {
+                    eye_height: [0., 0., 2., SIZE as f32],
+                    fov_padding: [0.5, 0., 0., 0.],
+                },
+            )?;
         }
         let target = create_headless_color_target(device, format, SIZE, SIZE);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
@@ -169,17 +195,27 @@ fn verify_samples(
                 multiview_mask: None,
             });
             if let Some(meshes) = &meshes {
-                meshes.draw(&mut pass, 0, 0, 1, &camera_binding, &textures[0].bind_group, &depth_binding);
-            } else { draw_effect_particles(
-                &mut pass,
-                &quad_buffer,
-                &batches,
-                &textures,
-                &camera_binding,
-                &depth_binding,
-                &pipeline,
-                &pipeline,
-            ); }
+                meshes.draw(
+                    &mut pass,
+                    0,
+                    0,
+                    1,
+                    &camera_binding,
+                    &textures[0].bind_group,
+                    &depth_binding,
+                );
+            } else {
+                draw_effect_particles(
+                    &mut pass,
+                    &quad_buffer,
+                    &batches,
+                    &textures,
+                    &camera_binding,
+                    &depth_binding,
+                    &pipeline,
+                    &pipeline,
+                );
+            }
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -376,70 +412,132 @@ fn verify_samples(
         "mesh triangle rendered as a quad or disappeared",
     )?;
     let mesh_asset = EffectMeshAsset {
-        vertices: [[-1.,-1.,0.], [1.,-1.,0.], [0.,1.,0.]].map(|position|
-            EffectMeshVertex { position, normal: [0.;3], uv: [0.5,0.], controls: [1.;4] }).to_vec(),
-        indices: vec![0,1,2],
-        lightning: EffectLightningMaterial { parameters: [[0.;4];11], curves: [[1.;128];13] },
+        vertices: [[-1., -1., 0.], [1., -1., 0.], [0., 1., 0.]]
+            .map(|position| EffectMeshVertex {
+                position,
+                normal: [0.; 3],
+                uv: [0.5, 0.],
+                controls: [1.; 4],
+            })
+            .to_vec(),
+        indices: vec![0, 1, 2],
+        lightning: EffectLightningMaterial {
+            parameters: [[0.; 4]; 11],
+            curves: [[1.; 128]; 13],
+        },
     };
     let render_mesh = |asset: &EffectMeshAsset, age, colour| {
-        render_depth(GpuEffectBillboardInstance { colour, ..base }, &white_dds, 1., Some((asset, age)))
+        render_depth(
+            GpuEffectBillboardInstance { colour, ..base },
+            &white_dds,
+            1.,
+            Some((asset, age)),
+        )
     };
     let indexed = render_mesh(&mesh_asset, 0.5, base.colour)?;
-    require((230..=300).contains(&visible(&indexed)) && center(&indexed)[0] > 180
-        && center(&indexed)[2] < 5, &format!("indexed lightning mesh lost its geometry or colour: count={}, centre={:?}, samples={samples}", visible(&indexed), center(&indexed)))?;
-    let transparent = render_mesh(&mesh_asset, 0.5, [1.,0.,0.,0.])?;
-    require(visible(&transparent) == 0, "zero-alpha indexed lightning is visible")?;
+    require(
+        (230..=300).contains(&visible(&indexed))
+            && center(&indexed)[0] > 180
+            && center(&indexed)[2] < 5,
+        &format!(
+            "indexed lightning mesh lost its geometry or colour: count={}, centre={:?}, samples={samples}",
+            visible(&indexed),
+            center(&indexed)
+        ),
+    )?;
+    let transparent = render_mesh(&mesh_asset, 0.5, [1., 0., 0., 0.])?;
+    require(
+        visible(&transparent) == 0,
+        "zero-alpha indexed lightning is visible",
+    )?;
 
     // Decoded VS/PS controls. These cases run through the real raster pipeline,
     // including interpolation, material storage bindings, tone mapping and MSAA.
     let mut shaped = mesh_asset.clone();
-    shaped.lightning.parameters[8] = [2.,4.,1.,1.];
-    shaped.lightning.parameters[9] = [0.5,1.,0.,1e8];
-    shaped.lightning.parameters[10] = [1.,1.,0.,0.];
+    shaped.lightning.parameters[8] = [2., 4., 1., 1.];
+    shaped.lightning.parameters[9] = [0.5, 1., 0., 1e8];
+    shaped.lightning.parameters[10] = [1., 1., 0., 0.];
     shaped.lightning.curves[10] = std::array::from_fn(|i| i as f32 / 127.);
-    require(visible(&render_mesh(&shaped, 0., base.colour)?) == 0,
-        "lightning pulse lights vertices outside its authored progress window")?;
-    require(visible(&render_mesh(&shaped, 1., base.colour)?) > 230,
-        "lightning pulse failed to reveal the middle of the bolt")?;
+    require(
+        visible(&render_mesh(&shaped, 0., base.colour)?) == 0,
+        "lightning pulse lights vertices outside its authored progress window",
+    )?;
+    require(
+        visible(&render_mesh(&shaped, 1., base.colour)?) > 230,
+        "lightning pulse failed to reveal the middle of the bolt",
+    )?;
     let mut endpoints = shaped.clone();
-    for (vertex, u) in endpoints.vertices.iter_mut().zip([0.,1.,0.]) { vertex.uv[0] = u; }
-    require(visible(&render_mesh(&endpoints, 1., base.colour)?) == 0,
-        "lightning pulse was recomputed per fragment instead of interpolating vertex visibility")?;
+    for (vertex, u) in endpoints.vertices.iter_mut().zip([0., 1., 0.]) {
+        vertex.uv[0] = u;
+    }
+    require(
+        visible(&render_mesh(&endpoints, 1., base.colour)?) == 0,
+        "lightning pulse was recomputed per fragment instead of interpolating vertex visibility",
+    )?;
     let mut zero_width = shaped.clone();
     zero_width.lightning.parameters[9][1] = 0.;
-    require(visible(&render_mesh(&zero_width, 1., base.colour)?) == 0,
-        "a zero-width lightning pulse rendered or divided by zero")?;
+    require(
+        visible(&render_mesh(&zero_width, 1., base.colour)?) == 0,
+        "a zero-width lightning pulse rendered or divided by zero",
+    )?;
     let mut no_hide = shaped.clone();
     no_hide.lightning.parameters[10][0] = 0.;
-    require(visible(&render_mesh(&no_hide, 0., base.colour)?) > 230,
-        "lightning ignores the material's hide flag")?;
+    require(
+        visible(&render_mesh(&no_hide, 0., base.colour)?) > 230,
+        "lightning ignores the material's hide flag",
+    )?;
 
     let same_centre = |actual: &[u8], expected: &[u8]| {
-        center(actual).into_iter().zip(center(expected)).all(|(a,b)| a.abs_diff(b) <= 2)
+        center(actual)
+            .into_iter()
+            .zip(center(expected))
+            .all(|(a, b)| a.abs_diff(b) <= 2)
     };
     let mut narrow = shaped.clone();
-    for v in &mut narrow.vertices { v.controls[2] = 0.5; }
-    require(same_centre(&render_mesh(&narrow, 1., base.colour)?,
-        &render_mesh(&mesh_asset, 1., [0.125,0.,0.,1.])?),
-        "lightning emissive perimeter does not follow the packed mesh channel")?;
+    for v in &mut narrow.vertices {
+        v.controls[2] = 0.5;
+    }
+    require(
+        same_centre(
+            &render_mesh(&narrow, 1., base.colour)?,
+            &render_mesh(&mesh_asset, 1., [0.125, 0., 0., 1.])?,
+        ),
+        "lightning emissive perimeter does not follow the packed mesh channel",
+    )?;
     let mut ramp = shaped.clone();
-    for v in &mut ramp.vertices { v.controls[0] = 0.25; }
+    for v in &mut ramp.vertices {
+        v.controls[0] = 0.25;
+    }
     ramp.lightning.curves[12] = std::array::from_fn(|i| i as f32 / 127.);
-    require(same_centre(&render_mesh(&ramp, 1., base.colour)?,
-        &render_mesh(&mesh_asset, 1., [0.5,0.,0.,1.])?),
-        "lightning emissive spline uses particle age or UV instead of packed control X")?;
+    require(
+        same_centre(
+            &render_mesh(&ramp, 1., base.colour)?,
+            &render_mesh(&mesh_asset, 1., [0.5, 0., 0., 1.])?,
+        ),
+        "lightning emissive spline uses particle age or UV instead of packed control X",
+    )?;
     let mut pulse_power = shaped.clone();
     pulse_power.lightning.parameters[8][3] = 2.;
-    require(same_centre(&render_mesh(&pulse_power, 0.6, base.colour)?,
-        &render_mesh(&mesh_asset, 1., [0.405,0.,0.,1.])?),
-        "lightning hide exponent does not modulate emitted colour")?;
+    require(
+        same_centre(
+            &render_mesh(&pulse_power, 0.6, base.colour)?,
+            &render_mesh(&mesh_asset, 1., [0.405, 0., 0., 1.])?,
+        ),
+        "lightning hide exponent does not modulate emitted colour",
+    )?;
     let mut limited = shaped.clone();
     limited.lightning.parameters[8][2] = 0.;
     limited.lightning.parameters[9][3] = 0.5;
-    let expected = (Vec3::new(4.,2.,1.).normalize() * 0.5).extend(1.).to_array();
-    require(same_centre(&render_mesh(&limited, 1., [4.,2.,1.,1.])?,
-        &render_mesh(&mesh_asset, 1., expected)?),
-        "lightning emissive limits clipped RGB components and changed hue")?;
+    let expected = (Vec3::new(4., 2., 1.).normalize() * 0.5)
+        .extend(1.)
+        .to_array();
+    require(
+        same_centre(
+            &render_mesh(&limited, 1., [4., 2., 1., 1.])?,
+            &render_mesh(&mesh_asset, 1., expected)?,
+        ),
+        "lightning emissive limits clipped RGB components and changed hue",
+    )?;
     Ok(())
 }
 

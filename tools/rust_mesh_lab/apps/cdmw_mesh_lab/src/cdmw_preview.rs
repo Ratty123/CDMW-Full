@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
+use crate::preview_effect_lightning::LightningView;
 #[cfg(test)]
 use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
 use crate::preview_effects::{effect_emitter_particles, push_effect_line};
-use crate::preview_effect_lightning::LightningView;
 
 use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
@@ -16,7 +16,8 @@ use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectLineVertex, LightingDepthSettings, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
+    EffectLineVertex, LightingDepthSettings, LightingPreset, MaterialPreviewFactors, ViewMode,
+    WindowRenderer,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -287,11 +288,17 @@ struct PreviewState {
 impl PreviewState {
     fn needs_animated_frame(&self, visible: bool, material_animation: bool) -> bool {
         let display = &self.presentation["display"];
-        let particles = display["effect_particles_visible"].as_bool().unwrap_or(true)
-            && self.scene["effects_overlay"]["emitters"].as_array()
+        let particles = display["effect_particles_visible"]
+            .as_bool()
+            .unwrap_or(true)
+            && self.scene["effects_overlay"]["emitters"]
+                .as_array()
                 .is_some_and(|emitters| !emitters.is_empty());
-        visible && (particles || material_animation)
-            && !display["effect_particles_paused"].as_bool().unwrap_or(false)
+        visible
+            && (particles || material_animation)
+            && !display["effect_particles_paused"]
+                .as_bool()
+                .unwrap_or(false)
     }
 }
 
@@ -685,9 +692,17 @@ impl PreviewApplication {
                 renderer.begin_texture_uploads();
                 renderer.reset_texture();
                 renderer.reset_effect_textures();
-                let effect_mesh_indices = self.effect_meshes.0.iter().map(|asset|
-                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
-                ).collect::<Result<Vec<_>, _>>()?;
+                let effect_mesh_indices = self
+                    .effect_meshes
+                    .0
+                    .iter()
+                    .map(|asset| {
+                        asset
+                            .as_ref()
+                            .map(|asset| renderer.add_effect_mesh(asset))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 for presentation in &self.presentations {
                     let ownership =
                         presentation_ownership(presentation, self.package.document().lods.len());
@@ -710,34 +725,58 @@ impl PreviewApplication {
             .map_err(|error| error.to_string())?;
         self.effect_texture_indices.clear();
         self.effect_mesh_indices = effect_mesh_indices;
-        self.texture_uploads = PreviewTextureUploads { pending: true, started:Some(Instant::now()), ..Default::default() };
+        self.texture_uploads = PreviewTextureUploads {
+            pending: true,
+            started: Some(Instant::now()),
+            ..Default::default()
+        };
         self.next_frame = Some(Instant::now() + Duration::from_millis(16));
         Ok(())
     }
 
     fn advance_texture_uploads(&mut self) -> Result<(), String> {
-        let Some(renderer) = &mut self.renderer else { return Ok(()); };
+        let Some(renderer) = &mut self.renderer else {
+            return Ok(());
+        };
         let progress = &mut self.texture_uploads;
-        if !progress.pending { return Ok(()); }
+        if !progress.pending {
+            return Ok(());
+        }
         let started = Instant::now();
         let mut budget = 8 * 1024 * 1024;
         let result = (|| -> Result<(), cdmw_render_wgpu::RenderError> {
             while budget > 0 && started.elapsed() < Duration::from_millis(2) {
                 if let Some(texture) = self.textures.get(progress.base) {
-                    let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
-                        texture.role, &texture.metadata.source_sha256, budget)?;
+                    let (complete, used) = renderer.stage_verified_dds_texture(
+                        &texture.bytes,
+                        texture.role,
+                        &texture.metadata.source_sha256,
+                        budget,
+                    )?;
                     budget -= used;
-                    if !complete { break; }
-                    renderer.add_verified_dds_texture(&texture.bytes, texture.role,
-                        &texture.material_indices_by_lod, &texture.metadata.source_sha256)?;
+                    if !complete {
+                        break;
+                    }
+                    renderer.add_verified_dds_texture(
+                        &texture.bytes,
+                        texture.role,
+                        &texture.material_indices_by_lod,
+                        &texture.metadata.source_sha256,
+                    )?;
                     progress.base += 1;
                 } else if let Some(layers) = self.layers.get(progress.layer) {
                     if progress.layer_texture < layers.textures.len() {
                         if let Some(texture) = &layers.textures[progress.layer_texture] {
-                            let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
-                                texture.role, &texture.source_sha256, budget)?;
+                            let (complete, used) = renderer.stage_verified_dds_texture(
+                                &texture.bytes,
+                                texture.role,
+                                &texture.source_sha256,
+                                budget,
+                            )?;
                             budget -= used;
-                            if !complete { break; }
+                            if !complete {
+                                break;
+                            }
                         }
                         progress.layer_texture += 1;
                     } else {
@@ -747,12 +786,19 @@ impl PreviewApplication {
                     }
                 } else if let Some(texture) = self.effect_textures.get(progress.effect) {
                     let hash = &texture._metadata.source_sha256;
-                    let (complete, used) = renderer.stage_verified_dds_texture(&texture.bytes,
-                        cdmw_texture::TextureRole::BaseColor, hash, budget)?;
+                    let (complete, used) = renderer.stage_verified_dds_texture(
+                        &texture.bytes,
+                        cdmw_texture::TextureRole::BaseColor,
+                        hash,
+                        budget,
+                    )?;
                     budget -= used;
-                    if !complete { break; }
+                    if !complete {
+                        break;
+                    }
                     let index = renderer.add_verified_effect_dds_texture(&texture.bytes, hash)?;
-                    self.effect_texture_indices.insert(texture.archive_path.clone(), index);
+                    self.effect_texture_indices
+                        .insert(texture.archive_path.clone(), index);
                     progress.effect += 1;
                 } else {
                     renderer.finish_texture_uploads();
@@ -766,7 +812,9 @@ impl PreviewApplication {
         let used = 8 * 1024 * 1024 - budget;
         progress.bytes += used;
         progress.maximum_slice_bytes = progress.maximum_slice_bytes.max(used);
-        progress.maximum_slice_ms = progress.maximum_slice_ms.max(started.elapsed().as_secs_f64()*1000.0);
+        progress.maximum_slice_ms = progress
+            .maximum_slice_ms
+            .max(started.elapsed().as_secs_f64() * 1000.0);
         if result.is_ok() && !progress.pending {
             self.bridge.send(json!({"event":"texture_upload_report",
                 "generation":self.newest_package_generation,
@@ -847,8 +895,10 @@ impl PreviewApplication {
                 let old_document = std::mem::replace(&mut self.document, loaded.document);
                 let old_mesh = std::mem::replace(&mut self.mesh, loaded.mesh);
                 let old_geometry = std::mem::replace(&mut self.geometry, loaded.geometry);
-                let old_effect_surfaces = std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
-                let old_effect_meshes = std::mem::replace(&mut self.effect_meshes, loaded.effect_meshes);
+                let old_effect_surfaces =
+                    std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
+                let old_effect_meshes =
+                    std::mem::replace(&mut self.effect_meshes, loaded.effect_meshes);
                 let old_snapshot = std::mem::replace(&mut self.snapshot, loaded.snapshot);
                 let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
                 let old_textures =
@@ -939,11 +989,19 @@ impl PreviewApplication {
         // if its host restores ordinary display options while it is waiting.
         let mut capture_request = value.clone();
         if let Some(fields) = capture_request.as_object_mut() {
-            fields.entry("transparent_background").or_insert_with(||
-                json!(self.state.presentation["display"]["icon_capture_mode"].as_bool().unwrap_or(false)));
+            fields.entry("transparent_background").or_insert_with(|| {
+                json!(
+                    self.state.presentation["display"]["icon_capture_mode"]
+                        .as_bool()
+                        .unwrap_or(false)
+                )
+            });
         }
         let value = &capture_request;
-        if self.texture_uploads.pending && !self.capture_in_flight && self.deferred_capture.is_none() {
+        if self.texture_uploads.pending
+            && !self.capture_in_flight
+            && self.deferred_capture.is_none()
+        {
             self.deferred_capture = Some((self.scene_revision, value.clone()));
             return;
         }
@@ -1021,8 +1079,12 @@ impl PreviewApplication {
                     });
                     renderer.set_camera_with_basis(matrix, right, up);
                     renderer
-                        .capture_frame_with_background(width, height, isolated,
-                            value["transparent_background"].as_bool().unwrap_or(false))
+                        .capture_frame_with_background(
+                            width,
+                            height,
+                            isolated,
+                            value["transparent_background"].as_bool().unwrap_or(false),
+                        )
                         .map_err(|e| anyhow::anyhow!(e.to_string()))
                 });
             self.camera = saved_camera;
@@ -1070,18 +1132,24 @@ impl PreviewApplication {
 
     fn fail_deferred_capture(&mut self, reason: &str) {
         if let Some((_, value)) = self.deferred_capture.take() {
-            self.bridge.send(json!({"event":"capture_result", "request_id":value.get("request_id"),
-                "status":"error", "message":reason}));
+            self.bridge.send(
+                json!({"event":"capture_result", "request_id":value.get("request_id"),
+                "status":"error", "message":reason}),
+            );
         }
     }
 
     fn poll_captures(&mut self) {
-        if !self.texture_uploads.pending && let Some((revision, value)) = self.deferred_capture.take() {
+        if !self.texture_uploads.pending
+            && let Some((revision, value)) = self.deferred_capture.take()
+        {
             if revision == self.scene_revision {
                 self.start_capture(&value);
             } else {
-                self.bridge.send(json!({"event":"capture_result", "request_id":value.get("request_id"),
-                    "status":"error", "message":"preview changed while textures were preparing"}));
+                self.bridge.send(
+                    json!({"event":"capture_result", "request_id":value.get("request_id"),
+                    "status":"error", "message":"preview changed while textures were preparing"}),
+                );
             }
         }
         while let Ok(result) = self.capture_rx.try_recv() {
@@ -1400,12 +1468,24 @@ impl PreviewApplication {
             }
             renderer.set_overlay_colours(wire, vertex);
             renderer.set_lighting_depth_settings(LightingDepthSettings {
-                shadows: quality.get("preview_shadows").and_then(Value::as_bool).unwrap_or(true),
-                ambient_occlusion: quality.get("preview_ambient_occlusion").and_then(Value::as_bool).unwrap_or(true),
+                shadows: quality
+                    .get("preview_shadows")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                ambient_occlusion: quality
+                    .get("preview_ambient_occlusion")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
             });
             renderer.set_lighting_preset(
-                match display.get("lighting_preset").and_then(Value::as_str)
-                    .or_else(|| quality.get("preview_lighting_preset").and_then(Value::as_str)) {
+                match display
+                    .get("lighting_preset")
+                    .and_then(Value::as_str)
+                    .or_else(|| {
+                        quality
+                            .get("preview_lighting_preset")
+                            .and_then(Value::as_str)
+                    }) {
                     Some("showcase") => LightingPreset::Showcase,
                     Some("dark") => LightingPreset::Dark,
                     Some("studio_fixed") => LightingPreset::StudioFixed,
@@ -1906,10 +1986,15 @@ impl PreviewApplication {
                             vertical_fov: self.camera.vertical_field_of_view(),
                             height: self.viewport_rect().height(),
                         },
-                        self.effect_surfaces.select(emitter_index,
+                        self.effect_surfaces.select(
+                            emitter_index,
                             emitter["spawn_volume_type"].as_u64().unwrap_or(0),
-                            control("effect_surface_target", 0)),
-                        self.effect_mesh_indices.get(emitter_index).copied().flatten(),
+                            control("effect_surface_target", 0),
+                        ),
+                        self.effect_mesh_indices
+                            .get(emitter_index)
+                            .copied()
+                            .flatten(),
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter
@@ -1924,8 +2009,10 @@ impl PreviewApplication {
                     let remaining = 32_768usize.saturating_sub(effect_particles.len());
                     let allowed = remaining / faces_per_particle * faces_per_particle;
                     let mesh_allowed = cdmw_render_wgpu::MAX_EFFECT_MESH_TRIANGLES
-                        .saturating_sub(effect_mesh_triangles) / faces_per_particle;
-                    let mesh_allowed = mesh_allowed.min(32_768usize.saturating_sub(effect_mesh_particles.len()));
+                        .saturating_sub(effect_mesh_triangles)
+                        / faces_per_particle;
+                    let mesh_allowed =
+                        mesh_allowed.min(32_768usize.saturating_sub(effect_mesh_particles.len()));
                     for instance in emission.meshes.into_iter().take(mesh_allowed) {
                         effect_mesh_particles.push(instance);
                         effect_mesh_triangles += faces_per_particle;
@@ -1950,8 +2037,12 @@ impl PreviewApplication {
         }
 
         let effect_mesh_view = cdmw_render_wgpu::EffectMeshView {
-            eye_height: [self.camera.eye().x, self.camera.eye().y, self.camera.eye().z,
-                self.viewport_rect().height().max(1.)],
+            eye_height: [
+                self.camera.eye().x,
+                self.camera.eye().y,
+                self.camera.eye().z,
+                self.viewport_rect().height().max(1.),
+            ],
             fov_padding: [self.camera.vertical_field_of_view(), 0., 0., 0.],
         };
         if let Some(renderer) = &mut self.renderer {
@@ -3007,11 +3098,19 @@ impl ApplicationHandler for PreviewApplication {
                         }
                     }
                 }
-                if self.render_failures == 0 && self.state.needs_animated_frame(
-                    self.visible, self.renderer.as_ref().is_some_and(WindowRenderer::has_material_animation)) {
+                if self.render_failures == 0
+                    && self.state.needs_animated_frame(
+                        self.visible,
+                        self.renderer
+                            .as_ref()
+                            .is_some_and(WindowRenderer::has_material_animation),
+                    )
+                {
                     self.next_frame = Some(Instant::now() + Duration::from_millis(16));
                 }
-                if self.render_failures == 0 && let Err(error) = self.advance_texture_uploads() {
+                if self.render_failures == 0
+                    && let Err(error) = self.advance_texture_uploads()
+                {
                     self.recover_gpu(error);
                 }
             }
@@ -3109,37 +3208,56 @@ fn apply_preview_material_parameters(
             height_scale: optional_f32(group, "height_scale"),
             base_tint_strength: optional_f32(group, "base_tint_strength"),
             texture_tint: color3(group.get("texture_tint")),
-            glow_surface_color: match group.get("glow_surface_color").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 3]>(value.clone())
-                    .map_err(|_| "Glow surface color requires three numbers".to_owned())?),
+            glow_surface_color: match group
+                .get("glow_surface_color")
+                .filter(|value| !value.is_null())
+            {
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 3]>(value.clone())
+                        .map_err(|_| "Glow surface color requires three numbers".to_owned())?,
+                ),
                 None => None,
             },
             emissive_color: color3(group.get("emissive_color")),
             emissive_intensity: optional_f32(group, "emissive_intensity"),
             emission_reveal: match group.get("emission_reveal").filter(|v| !v.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
-                    .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 4]>(value.clone())
+                        .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?,
+                ),
                 None => None,
             },
             shader_controls: match group.get("shader_controls") {
                 Some(Value::Null) => Some([0.0; 32]),
-                Some(value) => Some(serde_json::from_value::<[f32; 32]>(value.clone())
-                    .map_err(|_| "Shader controls require 32 numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 32]>(value.clone())
+                        .map_err(|_| "Shader controls require 32 numbers".to_owned())?,
+                ),
                 None => None,
             },
             emission_animation: match group.get("emission_animation").filter(|v| !v.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
-                    .map_err(|_| "Emission animation requires four numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 4]>(value.clone())
+                        .map_err(|_| "Emission animation requires four numbers".to_owned())?,
+                ),
                 None => None,
             },
             translucency: match group.get("translucency").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone())
-                    .map_err(|_| "Translucency requires thickness and extinction numbers".to_owned())?),
+                Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone()).map_err(
+                    |_| "Translucency requires thickness and extinction numbers".to_owned(),
+                )?),
                 None => None,
             },
-            translucency_surface: match group.get("translucency_surface").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[Option<f32>; 2]>(value.clone())
-                    .map_err(|_| "Translucent surface requires roughness and metallic numbers or null".to_owned())?),
+            translucency_surface: match group
+                .get("translucency_surface")
+                .filter(|value| !value.is_null())
+            {
+                Some(value) => Some(
+                    serde_json::from_value::<[Option<f32>; 2]>(value.clone()).map_err(|_| {
+                        "Translucent surface requires roughness and metallic numbers or null"
+                            .to_owned()
+                    })?,
+                ),
                 None => None,
             },
             ..MaterialPreviewFactors::default()
@@ -4005,49 +4123,96 @@ mod tests {
     #[test]
     #[ignore = "requires a D3D12 adapter; no window or game files"]
     fn glow_surface_offscreen_replaces_cyan_with_red_without_emission() {
-        use cdmw_render_wgpu::{HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
-            HeadlessMaterialFactors, HeadlessMaterialTexture, run_headless_material_capture};
+        use cdmw_render_wgpu::{
+            HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput, HeadlessMaterialFactors,
+            HeadlessMaterialTexture, run_headless_material_capture,
+        };
         let root = tempfile::tempdir().unwrap();
         let snapshot = cdmw_mesh::DrawSnapshot {
             shader_masks: Vec::new(),
-            mesh_identity: 1, draw_revision: 1, topology_generation: 1,
+            mesh_identity: 1,
+            draw_revision: 1,
+            topology_generation: 1,
             positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
             normals: vec![[0.0, 0.0, -1.0]; 3],
-            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], indices: vec![0, 2, 1],
-            triangle_materials: vec![0], selected_vertices: vec![], fingerprint: "glow-colour-fixture".into(),
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]],
+            indices: vec![0, 2, 1],
+            triangle_materials: vec![0],
+            selected_vertices: vec![],
+            fingerprint: "glow-colour-fixture".into(),
         };
         let owners = [vec![0]];
         // One constant cyan BC1 block, as a real sampled source texture.
         let mut dds = vec![0_u8; 136];
         dds[..4].copy_from_slice(b"DDS ");
-        for (offset, value) in [(4, 124_u32), (8, 0x81007), (12, 4), (16, 4),
-            (20, 8), (28, 1), (76, 32), (80, 4), (108, 0x1000)] {
+        for (offset, value) in [
+            (4, 124_u32),
+            (8, 0x81007),
+            (12, 4),
+            (16, 4),
+            (20, 8),
+            (28, 1),
+            (76, 32),
+            (80, 4),
+            (108, 0x1000),
+        ] {
             dds[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
         }
         dds[84..88].copy_from_slice(b"DXT1");
         dds[128..130].copy_from_slice(&0x07f9_u16.to_le_bytes());
-        let textures = [HeadlessMaterialTexture { bytes: &dds,
-            role: cdmw_texture::TextureRole::BaseColor, material_indices_by_lod: &owners }];
+        let textures = [HeadlessMaterialTexture {
+            bytes: &dds,
+            role: cdmw_texture::TextureRole::BaseColor,
+            material_indices_by_lod: &owners,
+        }];
         for (label, colour) in [("authored", None), ("red", Some([1.0, 0.0, 0.0]))] {
             let textured = root.path().join(format!("{label}-lit.bmp"));
             let base = root.path().join(format!("{label}-base.bmp"));
             let parts = root.path().join(format!("{label}-parts.bmp"));
-            let factors = [HeadlessMaterialFactors { material_indices_by_lod: &owners,
-                factors: MaterialPreviewFactors { glow_surface_color: colour,
-                    emissive_intensity: Some(0.0), roughness: Some(0.9), metalness: Some(0.0),
-                    ..MaterialPreviewFactors::default() } }];
-            let report = pollster::block_on(run_headless_material_capture(&snapshot, &textures, &factors,
-                HeadlessMaterialCaptureOptions { width: 64, height: 64, ..Default::default() },
-                HeadlessMaterialCaptureOutput { textured_bmp: &textured, base_color_bmp: &base,
-                    part_id_bmp: &parts, normal_map: None, material_response: None, layer_mask: None })).unwrap();
+            let factors = [HeadlessMaterialFactors {
+                material_indices_by_lod: &owners,
+                factors: MaterialPreviewFactors {
+                    glow_surface_color: colour,
+                    emissive_intensity: Some(0.0),
+                    roughness: Some(0.9),
+                    metalness: Some(0.0),
+                    ..MaterialPreviewFactors::default()
+                },
+            }];
+            let report = pollster::block_on(run_headless_material_capture(
+                &snapshot,
+                &textures,
+                &factors,
+                HeadlessMaterialCaptureOptions {
+                    width: 64,
+                    height: 64,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &textured,
+                    base_color_bmp: &base,
+                    part_id_bmp: &parts,
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))
+            .unwrap();
             assert!(report.owner_coverage[0].pixel_count > 100);
             let bytes = std::fs::read(base).unwrap();
-            let offset = u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize + (32 * 64 + 32) * 4;
+            let offset =
+                u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize + (32 * 64 + 32) * 4;
             let bgra = &bytes[offset..offset + 4];
             if colour.is_some() {
-                assert!(bgra[2] > 240 && bgra[0] < 5 && bgra[1] < 5, "red surface: {bgra:?}");
+                assert!(
+                    bgra[2] > 240 && bgra[0] < 5 && bgra[1] < 5,
+                    "red surface: {bgra:?}"
+                );
             } else {
-                assert!(bgra[1] > 240 && bgra[0] > 150 && bgra[2] < 5, "authored cyan: {bgra:?}");
+                assert!(
+                    bgra[1] > 240 && bgra[0] > 150 && bgra[2] < 5,
+                    "authored cyan: {bgra:?}"
+                );
             }
         }
     }
@@ -4055,27 +4220,42 @@ mod tests {
     #[test]
     fn glow_surface_updates_validate_and_restore_authored_colours() {
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            texture_tint: Some([0.0, 1.0, 0.8]),
-            emissive_color: Some([0.0, 1.0, 0.0]),
-            ..MaterialPreviewFactors::default()
-        }, ownership.clone())];
-        let overrides = vec![(MaterialPreviewFactors {
-            glow_surface_color: Some([1.0, 0.0, 0.0]),
-            emissive_color: Some([1.0, 0.0, 0.0]),
-            ..MaterialPreviewFactors::default()
-        }, ownership)];
+        let authored = vec![(
+            MaterialPreviewFactors {
+                texture_tint: Some([0.0, 1.0, 0.8]),
+                emissive_color: Some([0.0, 1.0, 0.0]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership.clone(),
+        )];
+        let overrides = vec![(
+            MaterialPreviewFactors {
+                glow_surface_color: Some([1.0, 0.0, 0.0]),
+                emissive_color: Some([1.0, 0.0, 0.0]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership,
+        )];
         let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
         assert_eq!(changed[0].0.glow_surface_color, Some([1.0, 0.0, 0.0]));
         assert_eq!(changed[0].0.texture_tint, Some([0.0, 1.0, 0.8]));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored[0].0.glow_surface_color, None);
         assert_eq!(restored[0].0.emissive_color, Some([0.0, 1.0, 0.0]));
-        for (value, valid) in [(json!([1, 0, 0]), true), (Value::Null, true),
-            (json!([2, 0, 0]), false), (json!([-1, 0, 0]), false),
-            (json!([0, 1]), false), (json!([true, 0, 0]), false)] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "glow_surface_color": value}]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
+        for (value, valid) in [
+            (json!([1, 0, 0]), true),
+            (Value::Null, true),
+            (json!([2, 0, 0]), false),
+            (json!([-1, 0, 0]), false),
+            (json!([0, 1]), false),
+            (json!([true, 0, 0]), false),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "glow_surface_color": value}]});
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid
+            );
         }
     }
 
@@ -4100,22 +4280,40 @@ mod tests {
             let mut group = json!({"source_submesh_indices": [0]});
             group[field] = value;
             let parameters = json!({"groups": [group]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid,
-                "{parameters}");
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid,
+                "{parameters}"
+            );
         }
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            emission_animation: Some([0.5, 0.25, 2.0, 0.1]),
-            emission_reveal: Some([0.5, 0.1, 1.0, 0.7]),
-            roughness: Some(0.7), ..Default::default()
-        }, ownership.clone())];
-        let static_mono = vec![(MaterialPreviewFactors {
-            emission_animation: Some([0.0; 4]),
-            emission_reveal: Some([0.0, 1.0, 0.0, -1.0]), ..Default::default()
-        }, ownership)];
-        let stopped = cdmw_render_wgpu::preview_material_factors(&authored, &static_mono, 0).unwrap();
-        assert_eq!(stopped[0].0.emission_animation, static_mono[0].0.emission_animation);
-        assert_eq!(stopped[0].0.emission_reveal, static_mono[0].0.emission_reveal);
+        let authored = vec![(
+            MaterialPreviewFactors {
+                emission_animation: Some([0.5, 0.25, 2.0, 0.1]),
+                emission_reveal: Some([0.5, 0.1, 1.0, 0.7]),
+                roughness: Some(0.7),
+                ..Default::default()
+            },
+            ownership.clone(),
+        )];
+        let static_mono = vec![(
+            MaterialPreviewFactors {
+                emission_animation: Some([0.0; 4]),
+                emission_reveal: Some([0.0, 1.0, 0.0, -1.0]),
+                ..Default::default()
+            },
+            ownership,
+        )];
+        let stopped =
+            cdmw_render_wgpu::preview_material_factors(&authored, &static_mono, 0).unwrap();
+        assert_eq!(
+            stopped[0].0.emission_animation,
+            static_mono[0].0.emission_animation
+        );
+        assert_eq!(
+            stopped[0].0.emission_reveal,
+            static_mono[0].0.emission_reveal
+        );
         assert_eq!(stopped[0].0.roughness, Some(0.7));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored, authored);
@@ -4129,35 +4327,62 @@ mod tests {
     #[test]
     fn translucency_updates_validate_ranges_and_restore_authored_materials() {
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            roughness: Some(0.7), alpha_blend: Some(false),
-            ..MaterialPreviewFactors::default()
-        }, ownership.clone())];
-        let overrides = vec![(MaterialPreviewFactors {
-            translucency: Some([0.1, 0.3]),
-            translucency_surface: Some([Some(0.9), Some(0.0)]),
-            ..MaterialPreviewFactors::default()
-        }, ownership)];
+        let authored = vec![(
+            MaterialPreviewFactors {
+                roughness: Some(0.7),
+                alpha_blend: Some(false),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership.clone(),
+        )];
+        let overrides = vec![(
+            MaterialPreviewFactors {
+                translucency: Some([0.1, 0.3]),
+                translucency_surface: Some([Some(0.9), Some(0.0)]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership,
+        )];
         let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
         assert_eq!(changed[0].0.translucency, Some([0.1, 0.3]));
-        assert_eq!(changed[0].0.translucency_surface, Some([Some(0.9), Some(0.0)]));
+        assert_eq!(
+            changed[0].0.translucency_surface,
+            Some([Some(0.9), Some(0.0)])
+        );
         assert_eq!(changed[0].0.roughness, Some(0.7));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored[0].0.translucency, None);
         assert_eq!(restored[0].0.translucency_surface, None);
         assert_eq!(restored[0].0.alpha_blend, Some(false));
         for value in [json!([0.1, 0.3]), Value::Null] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
             assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok());
         }
-        for value in [json!([-0.1, 0.3]), json!([0.1, 2.0]), json!([0.1]), json!("bad")] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+        for value in [
+            json!([-0.1, 0.3]),
+            json!([0.1, 2.0]),
+            json!([0.1]),
+            json!("bad"),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
             assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_err());
         }
-        for (value, valid) in [(json!([0.9, 0.0]), true), (json!([null, 0.0]), true),
-            (Value::Null, true), (json!([0.1, 2.0]), false), (json!([true, 0]), false), (json!([0.1]), false)] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency_surface": value}]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
+        for (value, valid) in [
+            (json!([0.9, 0.0]), true),
+            (json!([null, 0.0]), true),
+            (Value::Null, true),
+            (json!([0.1, 2.0]), false),
+            (json!([true, 0]), false),
+            (json!([0.1]), false),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency_surface": value}]});
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid
+            );
         }
     }
 

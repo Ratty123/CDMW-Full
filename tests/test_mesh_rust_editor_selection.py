@@ -238,6 +238,31 @@ def test_helper_hash_cache_reuses_bytes_and_rechecks_changed_executables(tmp_pat
     assert len(reads) == 2
 
 
+@pytest.mark.parametrize("damage", ["missing", "changed"])
+def test_declared_shader_compiler_is_verified_before_launch(tmp_path, damage):
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    executable = Path(resolution.resolved_path)
+    hashes = {}
+    for name in ("dxcompiler.dll", "dxil.dll"):
+        data = name.encode()
+        executable.with_name(name).write_bytes(data)
+        hashes[name] = hashlib.sha256(data).hexdigest()
+    manifest_path = executable.with_name(RUST_MESH_PROVENANCE_FILE)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["shader_compiler_files"] = hashes
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    signature = rust_mesh_editor_file_signature(resolution)
+    compiler = executable.with_name("dxcompiler.dll")
+    if damage == "missing":
+        compiler.unlink()
+    else:
+        compiler.write_bytes(b"changed compiler")
+    assert rust_mesh_editor_file_signature(resolution) != signature
+    reason = validate_rust_mesh_editor_package(resolution)
+    assert "shader compiler" in reason and "dxcompiler.dll" in reason
+
+
 def test_rust_preflight_recomputes_open_state_after_busy_or_unavailable(tmp_path: Path) -> None:
     tab = _tab(tmp_path, backend=MESH_EDITOR_BACKEND_RUST)
     tab.current_archive_selection = object()  # type: ignore[assignment]

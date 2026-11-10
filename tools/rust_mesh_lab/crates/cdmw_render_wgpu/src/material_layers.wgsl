@@ -57,6 +57,21 @@ fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface {
     }
     var base_sp = vec3<f32>(1.0,0.66,0.0);
     if (material.flags & MATERIAL_SURFACE) != 0u { base_sp = textureSampleBias(material_texture, material_sampler, uv, 0.0).rgb; }
+    if layer_uniform.control.x == 3u {
+        var color = base.rgb * layer_uniform.base_color.rgb;
+        let iris = textureSampleBias(layer_r_color, material_sampler, layer_uv(layer_uniform.layers[0], uv), 0.0);
+        let pupil = textureSampleBias(layer_g_color, material_sampler, layer_uv(layer_uniform.layers[1], uv), 0.0);
+        if layer_uniform.layers[0].properties.z > 0.5 {
+            color = mix(color, iris.rgb * layer_uniform.base_color.rgb, clamp(iris.a * layer_uniform.layers[0].properties.x, 0.0, 1.0));
+        }
+        if layer_uniform.layers[1].properties.z > 0.5 {
+            color = mix(color, pupil.rgb * layer_uniform.base_color.rgb, clamp(pupil.a * layer_uniform.layers[1].properties.x, 0.0, 1.0));
+        }
+        out.color = color;
+        out.normal = base_normal;
+        out.orm = vec3<f32>(base_sp.r, clamp(base_sp.g, 0.045, 1.0), 0.0);
+        return out;
+    }
     var colors: array<vec3<f32>,3>;
     var normals: array<vec3<f32>,3>;
     var responses: array<vec3<f32>,3>;

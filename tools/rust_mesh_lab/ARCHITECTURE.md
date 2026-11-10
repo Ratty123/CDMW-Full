@@ -97,6 +97,13 @@ them across shadow document revisions.
 The authoritative `MeshService` remains untouched while the embedded Rust child is open.
 The child starts hidden, reports its HWND and requested parent in `hello`, and is shown
 only after CDMW verifies process ownership and attaches it to the native Qt host.
+The child sends this identity before shader/device initialization. CDMW keeps
+controls disabled until `ready`: an unvalidated startup has a 10-second deadline,
+while a validated child has a bounded 60-second renderer initialization phase.
+Release packages carry hash-pinned `dxcompiler.dll` and `dxil.dll` beside the
+helper. Their declared hashes are checked with the helper provenance; shader
+pipelines share their surface module and selection pipelines reuse compiled
+pipelines where their layouts and states agree.
 
 ### Control transport
 

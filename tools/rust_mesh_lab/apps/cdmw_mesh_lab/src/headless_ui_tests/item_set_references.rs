@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn editable_item_set_groups_keep_view_and_include_independent() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1080.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1080.0),
+    );
     ui.application.cdmw_state["archive_refit_assets"] = json!([
         {"path": "upper.pac", "part_indices": [0]}, {"path": "lower.pac", "part_indices": [1]}]);
     ui.application.cdmw_state["replacement"] = json!({
@@ -15,7 +18,12 @@ fn editable_item_set_groups_keep_view_and_include_independent() -> TestResult {
     ui.reveal("upper.pac")?;
     ui.reveal("lower.pac")?;
     assert!(!ui.application.cdmw_has_archive_refit());
-    let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+    let before = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
     let view = ui.list_checkbox_rect("lower.pac", "View")?;
     ui.click_at(view.center());
     assert!(ui.application.cdmw_hidden_parts.contains(&1));
@@ -26,7 +34,14 @@ fn editable_item_set_groups_keep_view_and_include_independent() -> TestResult {
     assert!(ui.last_actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
         if arguments["part_ids"] == json!(["lower:0"]) && arguments["included"] == false)));
-    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        before
+    );
     Ok(())
 }
 
@@ -36,8 +51,13 @@ fn reference_pieces_inspector_switch_and_view_do_not_edit_geometry() -> TestResu
     let mut application = triangle_application()?;
     let snapshot = application.mesh.as_ref().ok_or("mesh")?.draw_snapshot();
     application.cdmw_reference_pieces = vec![crate::cdmw_session::LoadedReferencePiece {
-        index: 1, name: "lower.pac".into(), visible: true, part_count: 1,
-        snapshot: snapshot.clone(), textures: Vec::new(), material_presentations: Vec::new(),
+        index: 1,
+        name: "lower.pac".into(),
+        visible: true,
+        part_count: 1,
+        snapshot: snapshot.clone(),
+        textures: Vec::new(),
+        material_presentations: Vec::new(),
     }];
     let mut bridge = CdmwBridge::for_test(root.path().to_owned(), "set", 1, 0);
     bridge.set_reference_files_for_test(vec!["upper.pac".into(), "lower.pac".into()]);
@@ -51,13 +71,21 @@ fn reference_pieces_inspector_switch_and_view_do_not_edit_geometry() -> TestResu
     assert!(!ui.application.cdmw_reference_pieces[0].visible);
     ui.click("View")?;
     assert!(ui.application.cdmw_reference_pieces[0].visible);
-    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.draw_snapshot(), snapshot);
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.draw_snapshot(),
+        snapshot
+    );
     assert!(messages.try_recv().is_err());
     ui.click("Switch editable piece")?;
     ui.click("lower.pac")?;
-    assert!(ui.last_actions.iter().any(|action| matches!(action, UiAction::SwitchItemPiece(1))));
+    assert!(
+        ui.last_actions
+            .iter()
+            .any(|action| matches!(action, UiAction::SwitchItemPiece(1)))
+    );
     // The UI harness records actions; the application's handler sends the owned index.
-    ui.application.handle_actions(vec![UiAction::SwitchItemPiece(1)]);
+    ui.application
+        .handle_actions(vec![UiAction::SwitchItemPiece(1)]);
     let message = messages.recv_timeout(std::time::Duration::from_secs(1))?;
     assert_eq!(message["event"], "switch_item_piece");
     assert_eq!(message["index"], 1);

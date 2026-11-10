@@ -1,11 +1,11 @@
 use super::*;
 
-mod camera_clipping_tests;
-mod lighting_depth_tests;
-mod history_navigation_tests;
-mod delete_feedback_tests;
 #[cfg(target_os = "windows")]
 mod authoring_capture;
+mod camera_clipping_tests;
+mod delete_feedback_tests;
+mod history_navigation_tests;
+mod lighting_depth_tests;
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 use cdmw_interaction::{OperatorState, ProjectedHandle};
 use sha2::{Digest, Sha256};
@@ -16,120 +16,357 @@ pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 #[test]
 #[ignore = "requires a D3D12 adapter"]
 fn offscreen_sliced_dds_upload_matches_immediate_pixels() -> TestResult {
-    let pixels = (0..128*65).flat_map(|index| [(index%251) as u8,(index/7%255) as u8,(index/17%255) as u8,255]).collect::<Vec<_>>();
-    let rgba = cdmw_texture::encode_rgba8_mipmapped_dds(128,65,&pixels,cdmw_texture::TextureRole::BaseColor)?;
+    let pixels = (0..128 * 65)
+        .flat_map(|index| {
+            [
+                (index % 251) as u8,
+                (index / 7 % 255) as u8,
+                (index / 17 % 255) as u8,
+                255,
+            ]
+        })
+        .collect::<Vec<_>>();
+    let rgba = cdmw_texture::encode_rgba8_mipmapped_dds(
+        128,
+        65,
+        &pixels,
+        cdmw_texture::TextureRole::BaseColor,
+    )?;
     let mut sources = vec![rgba];
-    for (dxgi, block_size) in [(71_u32,8),(83,16),(98,16)] {
+    for (dxgi, block_size) in [(71_u32, 8), (83, 16), (98, 16)] {
         let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
         bytes.truncate(148);
-        for (offset,value) in [(12,64_u32),(16,128),(28,8),(128,dxgi)] {
-            bytes[offset..offset+4].copy_from_slice(&value.to_le_bytes());
+        for (offset, value) in [(12, 64_u32), (16, 128), (28, 8), (128, dxgi)] {
+            bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
         }
         for mip in 0..8 {
-            let blocks = (128_usize>>mip).max(1).div_ceil(4)*(64_usize>>mip).max(1).div_ceil(4);
+            let blocks =
+                (128_usize >> mip).max(1).div_ceil(4) * (64_usize >> mip).max(1).div_ceil(4);
             for block in 0..blocks {
-                let pattern = [64, (block%251) as u8, 0, 255, 255, 0, 0, 255, 128, 128, 128, 128, 255, 255, 255, 255];
+                let pattern = [
+                    64,
+                    (block % 251) as u8,
+                    0,
+                    255,
+                    255,
+                    0,
+                    0,
+                    255,
+                    128,
+                    128,
+                    128,
+                    128,
+                    255,
+                    255,
+                    255,
+                    255,
+                ];
                 bytes.extend_from_slice(&pattern[..block_size]);
             }
         }
         sources.push(bytes);
     }
-    let compared = pollster::block_on(cdmw_render_wgpu::run_headless_texture_upload_comparison(&sources))?;
-    assert_eq!(compared,32);
+    let compared = pollster::block_on(cdmw_render_wgpu::run_headless_texture_upload_comparison(
+        &sources,
+    ))?;
+    assert_eq!(compared, 32);
     Ok(())
 }
 
 #[test]
 #[ignore = "requires a D3D12 adapter"]
 fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
-    use cdmw_render_wgpu::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet};
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
     use cdmw_texture::{TextureRole, encode_rgba8_dds};
-    let mut snapshot = triangle_application()?.mesh.as_ref().unwrap().draw_snapshot();
-    snapshot.positions = vec![[-1.0,-1.0,0.0],[1.0,-1.0,0.0],[1.0,1.0,0.0],[-1.0,1.0,0.0]];
-    snapshot.normals = vec![[0.0,0.0,1.0];4];
-    snapshot.uvs = vec![[0.5,0.5];4];
-    snapshot.shader_masks = vec![[1.0,1.0,0.0];4];
-    snapshot.indices = vec![0,1,2,0,2,3];
-    snapshot.triangle_materials = vec![0,0];
-    let texture = |pixels: &[u8], width, role| -> Result<LayerTexture, cdmw_texture::TextureError> {
-        let bytes = encode_rgba8_dds(width,1,pixels,role)?;
-        let sha = cdmw_texture::inspect_dds(&bytes,role)?.source_sha256;
-        Ok(LayerTexture { bytes: Arc::from(bytes), role, source_sha256: sha })
-    };
-    let source = texture(&[255,0,0,255, 0,0,255,255],2,TextureRole::BaseColor)?;
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture =
+        |pixels: &[u8], width, role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+            let bytes = encode_rgba8_dds(width, 1, pixels, role)?;
+            let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+            Ok(LayerTexture {
+                bytes: Arc::from(bytes),
+                role,
+                source_sha256: sha,
+            })
+        };
+    let source = texture(&[255, 0, 0, 255, 0, 0, 255, 255], 2, TextureRole::BaseColor)?;
     let ownership = vec![vec![0]];
-    let base = encode_rgba8_dds(1,1,&[0,255,0,255],TextureRole::BaseColor)?;
-    let textures = [HeadlessMaterialTexture { bytes: &base, role: TextureRole::BaseColor, material_indices_by_lod: &ownership }];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
     let temporary = tempdir()?;
-    let reference = |r: [f32;3], g: [f32;3], weights: [f32;3]| {
+    let reference = |r: [f32; 3], g: [f32; 3], weights: [f32; 3]| {
         let sum = weights.iter().sum::<f32>();
-        let w = if sum < 1e-5 { [1.0,0.0,0.0] } else { weights.map(|x| x/sum) };
-        [r[0]*w[0]+g[0]*w[1],r[1]*w[0]+g[1]*w[1],r[2]*w[0]+g[2]*w[1]]
+        let w = if sum < 1e-5 {
+            [1.0, 0.0, 0.0]
+        } else {
+            weights.map(|x| x / sum)
+        };
+        [
+            r[0] * w[0] + g[0] * w[1],
+            r[1] * w[0] + g[1] * w[1],
+            r[2] * w[0] + g[2] * w[1],
+        ]
     };
     for (name, mode, flags, mask, second, tint, affine, expected) in [
-        ("two layers",1,15,[128,128,0,255],true,[1.0,1.0,1.0,0.0],[0.0;4],reference([1.0,0.0,0.0],[0.0,0.0,1.0],[128.0,128.0,0.0])),
-        ("zero mask",1,15,[0,0,0,255],true,[1.0,1.0,1.0,0.0],[0.0;4],[1.0,0.0,0.0]),
-        ("white dye",1,15,[255,0,0,255],false,[1.0,1.0,1.0,1.0],[0.0;4],[1.0,1.0,1.0]),
-        ("rotated repeat",1,15,[255,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0,1.0,-1.0,0.0],[0.0,0.0,1.0]),
-        ("absent channel",1,15,[128,128,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[0.5,0.5,0.0]),
-        ("normal only",2,10,[255,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[0.0,1.0,0.0]),
-        ("sequential colour",2,1,[128,0,0,255],false,[1.0,1.0,1.0,0.0],[0.0;4],[128.0/255.0,127.0/255.0,0.0]),
+        (
+            "two layers",
+            1,
+            15,
+            [128, 128, 0, 255],
+            true,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            reference([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [128.0, 128.0, 0.0]),
+        ),
+        (
+            "zero mask",
+            1,
+            15,
+            [0, 0, 0, 255],
+            true,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [1.0, 0.0, 0.0],
+        ),
+        (
+            "white dye",
+            1,
+            15,
+            [255, 0, 0, 255],
+            false,
+            [1.0, 1.0, 1.0, 1.0],
+            [0.0; 4],
+            [1.0, 1.0, 1.0],
+        ),
+        (
+            "rotated repeat",
+            1,
+            15,
+            [255, 0, 0, 255],
+            false,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0, 1.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ),
+        (
+            "absent channel",
+            1,
+            15,
+            [128, 128, 0, 255],
+            false,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [0.5, 0.5, 0.0],
+        ),
+        (
+            "normal only",
+            2,
+            10,
+            [255, 0, 0, 255],
+            false,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [0.0, 1.0, 0.0],
+        ),
+        (
+            "sequential colour",
+            2,
+            1,
+            [128, 0, 0, 255],
+            false,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [128.0 / 255.0, 127.0 / 255.0, 0.0],
+        ),
+        (
+            "eye alpha overlays",
+            3,
+            0,
+            [255; 4],
+            true,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [
+                128.0 / 255.0 * (191.0 / 255.0),
+                127.0 / 255.0 * (191.0 / 255.0),
+                64.0 / 255.0,
+            ],
+        ),
+        (
+            "eye without pupil map",
+            3,
+            0,
+            [255; 4],
+            false,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [128.0 / 255.0, 127.0 / 255.0, 0.0],
+        ),
     ] {
-        let mut layer = MaterialLayerSet { lod_index:0,material_index:0,
-            uniform: LayerUniform { base_color:[1.0;4],control:[mode,0,0,0],..Default::default() },textures:std::array::from_fn(|_|None) };
-        layer.textures[0]=Some(texture(&mask,1,TextureRole::LayerMask)?);
-        layer.textures[1]=Some(source.clone());
-        layer.uniform.layers[0]=LayerEntryUniform { dye:tint,affine,offset:[0.25,0.5,flags as f32,0.0],properties:[1.0,0.2126,1.0,0.0] };
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [mode, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture(&mask, 1, TextureRole::LayerMask)?);
+        let color = if mode == 3 {
+            texture(&[255, 0, 0, 128, 0, 0, 255, 64], 2, TextureRole::BaseColor)?
+        } else {
+            source.clone()
+        };
+        layer.textures[1] = Some(color.clone());
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: tint,
+            affine,
+            offset: [0.25, 0.5, flags as f32, 0.0],
+            properties: [1.0, 0.2126, 1.0, 0.0],
+        };
         if second {
-            layer.textures[4]=Some(source.clone());
-            layer.uniform.layers[1]=LayerEntryUniform { dye:[1.0,1.0,1.0,0.0],affine:[0.0;4],offset:[0.75,0.5,0.0,0.0],properties:[1.0,0.0722,1.0,0.0] };
+            layer.textures[4] = Some(color);
+            layer.uniform.layers[1] = LayerEntryUniform {
+                dye: [1.0, 1.0, 1.0, 0.0],
+                affine: [0.0; 4],
+                offset: [0.75, 0.5, 0.0, 0.0],
+                properties: [1.0, 0.0722, 1.0, 0.0],
+            };
         }
         let path = temporary.path().join(format!("{name}.bmp"));
-        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(&snapshot,&textures,&[],&[layer],
-            HeadlessMaterialCaptureOptions {width:96,height:96,..Default::default()},
-            HeadlessMaterialCaptureOutput {textured_bmp:&temporary.path().join(format!("{name}-lit.bmp")),base_color_bmp:&path,
-                part_id_bmp:&temporary.path().join(format!("{name}-parts.bmp")),normal_map:None,material_response:None,layer_mask:None}))?;
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &path,
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
         let bytes = std::fs::read(path)?;
-        let pixel = &bytes[54+(48*96+48)*4..][..4];
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
         for (channel, expected) in expected.into_iter().enumerate() {
-            let srgb = f32::from(pixel[2-channel])/255.0;
-            let linear = if srgb<=0.04045 {srgb/12.92} else {((srgb+0.055)/1.055).powf(2.4)};
-            assert!((linear-expected).abs()<=0.01,"{name}: channel {channel}, {linear} != {expected}");
+            let srgb = f32::from(pixel[2 - channel]) / 255.0;
+            let linear = if srgb <= 0.04045 {
+                srgb / 12.92
+            } else {
+                ((srgb + 0.055) / 1.055).powf(2.4)
+            };
+            assert!(
+                (linear - expected).abs() <= 0.01,
+                "{name}: channel {channel}, {linear} != {expected}"
+            );
         }
     }
     let mut skin_lit = Vec::new();
-    for red in [0,196] {
-        let mut layer = MaterialLayerSet { lod_index:0,material_index:0,
-            uniform:LayerUniform {base_color:[1.0;4],control:[1,1,0,0],..Default::default()},textures:std::array::from_fn(|_|None) };
-        layer.textures[0]=Some(texture(&[255,0,0,255],1,TextureRole::LayerMask)?);
-        layer.textures[1]=Some(source.clone());
-        layer.textures[3]=Some(texture(&[red,140,254,255],1,TextureRole::Material)?);
-        layer.uniform.layers[0]=LayerEntryUniform {dye:[0.0;4],affine:[0.0;4],offset:[0.25,0.5,0.0,0.0],properties:[1.0,1.0,1.0,0.0]};
+    for red in [0, 196] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 1, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture(&[255, 0, 0, 255], 1, TextureRole::LayerMask)?);
+        layer.textures[1] = Some(source.clone());
+        layer.textures[3] = Some(texture(&[red, 140, 254, 255], 1, TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [0.0; 4],
+            affine: [0.0; 4],
+            offset: [0.25, 0.5, 0.0, 0.0],
+            properties: [1.0, 1.0, 1.0, 0.0],
+        };
         let lit = temporary.path().join(format!("skin-{red}-lit.bmp"));
         let response = temporary.path().join(format!("skin-{red}-response.bmp"));
-        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(&snapshot,&textures,&[],&[layer],
-            HeadlessMaterialCaptureOptions {width:96,height:96,..Default::default()},
-            HeadlessMaterialCaptureOutput {textured_bmp:&lit,base_color_bmp:&temporary.path().join(format!("skin-{red}-base.bmp")),
-                part_id_bmp:&temporary.path().join(format!("skin-{red}-parts.bmp")),normal_map:None,material_response:Some(&response),layer_mask:None}))?;
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &lit,
+                base_color_bmp: &temporary.path().join(format!("skin-{red}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("skin-{red}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
         let bytes = std::fs::read(response)?;
-        let pixel = &bytes[54+(48*96+48)*4..][..4];
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
         assert!(pixel[2] <= 1, "skin must ignore metal B=254");
-        assert!(pixel[1].abs_diff(140) <= 1,"skin roughness must be the authored G channel");
+        assert!(
+            pixel[1].abs_diff(140) <= 1,
+            "skin roughness must be the authored G channel"
+        );
         skin_lit.push(std::fs::read(lit)?);
     }
-    assert_eq!(skin_lit[0],skin_lit[1],"skin occlusion stays one regardless of packed R");
+    assert_eq!(
+        skin_lit[0], skin_lit[1],
+        "skin occlusion stays one regardless of packed R"
+    );
     Ok(())
 }
 
 #[test]
 fn shader_controls_legacy_documents_have_unknown_vertex_masks() -> TestResult {
-    let document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("synthetic.dds"), MeshFormat::Pam)?;
+    let document = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+        MeshFormat::Pam,
+    )?;
     let mut payload = serde_json::to_value(&document)?;
-    payload["lods"][0]["submeshes"][0].as_object_mut().unwrap().remove("shader_masks");
+    payload["lods"][0]["submeshes"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("shader_masks");
     let restored: MeshDocument = serde_json::from_value(payload)?;
     assert!(restored.lods[0].submeshes[0].shader_masks.is_empty());
     let mesh = WorkingMesh::from_document(&restored)?;
-    assert!(mesh.draw_snapshot().shader_masks.iter().all(|mask| *mask == [1.0, 1.0, 0.0]));
+    assert!(
+        mesh.draw_snapshot()
+            .shader_masks
+            .iter()
+            .all(|mask| *mask == [1.0, 1.0, 0.0])
+    );
     Ok(())
 }
 
@@ -816,9 +1053,14 @@ fn refit_fit_result_rehydrates_settings_only_after_success() -> TestResult {
         let mut application = triangle_application()?;
         let document = application.document.as_deref().cloned().ok_or("document")?;
         application.cdmw_bridge = Some(CdmwBridge::for_test(
-            root.path().to_path_buf(), "fit-result", 2, 0,
+            root.path().to_path_buf(),
+            "fit-result",
+            2,
+            0,
         ));
-        application.cdmw_refit_settings_dirty.mark("tightness_percent");
+        application
+            .cdmw_refit_settings_dirty
+            .mark("tightness_percent");
         application.cdmw_refit_hydration_key = "draft".to_owned();
         application.cdmw_refit_tightness = 25.0;
         application.cdmw_pending_request = Some(CdmwPendingRequest {
@@ -829,8 +1071,16 @@ fn refit_fit_result_rehydrates_settings_only_after_success() -> TestResult {
         });
         let state = cdmw_state_with_document(root.path(), "fit-result", 0, &document)?;
         application.handle_cdmw_result(
-            "command_result", 1, 0, ok, json!({"state": state}),
-            if ok { "" } else { "Part 1 cannot clear the body" },
+            "command_result",
+            1,
+            0,
+            ok,
+            json!({"state": state}),
+            if ok {
+                ""
+            } else {
+                "Part 1 cannot clear the body"
+            },
         );
         assert!(application.cdmw_pending_request.is_none());
         assert_eq!(application.cdmw_refit_settings_dirty.is_dirty(), !ok);
@@ -1245,7 +1495,12 @@ fn integrated_session_activates_and_preserves_the_manifest_source_lod() -> TestR
 
     assert_eq!(application.active_lod_index, 1);
     assert!(application.lod_sessions.iter().all(Option::is_none));
-    let initial_identity = application.mesh.as_ref().ok_or("source LOD mesh")?.draw_snapshot().mesh_identity;
+    let initial_identity = application
+        .mesh
+        .as_ref()
+        .ok_or("source LOD mesh")?
+        .draw_snapshot()
+        .mesh_identity;
     assert_eq!(
         application
             .mesh
@@ -1263,7 +1518,15 @@ fn integrated_session_activates_and_preserves_the_manifest_source_lod() -> TestR
 
     assert_eq!(application.active_lod_index, 1);
     assert!(application.lod_sessions.iter().all(Option::is_none));
-    assert_eq!(application.mesh.as_ref().ok_or("refreshed LOD mesh")?.draw_snapshot().mesh_identity, initial_identity);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("refreshed LOD mesh")?
+            .draw_snapshot()
+            .mesh_identity,
+        initial_identity
+    );
     assert!(
         application
             .mesh
@@ -1408,8 +1671,14 @@ fn integrated_session_retains_textures_when_a_shadow_revision_reloads_geometry()
     application.install_cdmw_document(document)?;
 
     assert_eq!(application.cdmw_texture_resources.len(), 1);
-    assert_eq!(application.cdmw_texture_resources[0].bytes.as_ref(), bytes.as_slice());
-    assert!(Arc::ptr_eq(&retained_bytes, &application.cdmw_texture_resources[0].bytes));
+    assert_eq!(
+        application.cdmw_texture_resources[0].bytes.as_ref(),
+        bytes.as_slice()
+    );
+    assert!(Arc::ptr_eq(
+        &retained_bytes,
+        &application.cdmw_texture_resources[0].bytes
+    ));
     assert_eq!(application.texture_entries.len(), 1);
     assert_eq!(application.texture_entries[0].label, "body_base.dds");
     Ok(())
@@ -1496,10 +1765,14 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
     );
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
     let original_texture = application.cdmw_texture_resources[0].clone();
-    application.cdmw_material_layers.push(cdmw_render_wgpu::MaterialLayerSet {
-        lod_index: 0, material_index: 0, uniform: cdmw_render_wgpu::LayerUniform::default(),
-        textures: std::array::from_fn(|_| None),
-    });
+    application
+        .cdmw_material_layers
+        .push(cdmw_render_wgpu::MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: cdmw_render_wgpu::LayerUniform::default(),
+            textures: std::array::from_fn(|_| None),
+        });
     let payload_lifetime = Arc::downgrade(&original_texture.bytes);
 
     let mut reordered = document;
@@ -1511,8 +1784,15 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
         vec![vec![1]],
         "ownership must follow Part A instead of its previous numeric slot"
     );
-    assert!(Arc::ptr_eq(&original_texture.bytes, &application.cdmw_texture_resources[0].bytes));
-    assert_eq!(original_texture.material_indices_by_lod, vec![vec![0]], "ownership views must remain independent");
+    assert!(Arc::ptr_eq(
+        &original_texture.bytes,
+        &application.cdmw_texture_resources[0].bytes
+    ));
+    assert_eq!(
+        original_texture.material_indices_by_lod,
+        vec![vec![0]],
+        "ownership views must remain independent"
+    );
 
     let duplicate = reordered.lods[0].submeshes[1].clone();
     reordered.lods[0].submeshes.push(duplicate);
@@ -1523,11 +1803,20 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
         vec![Vec::<u32>::new()],
         "ambiguous source identities must invalidate ownership instead of guessing"
     );
-    assert!(Arc::ptr_eq(&original_texture.bytes, &application.cdmw_texture_resources[0].bytes));
+    assert!(Arc::ptr_eq(
+        &original_texture.bytes,
+        &application.cdmw_texture_resources[0].bytes
+    ));
     drop(application);
-    assert!(payload_lifetime.upgrade().is_some(), "retained view owns the payload after the session closes");
+    assert!(
+        payload_lifetime.upgrade().is_some(),
+        "retained view owns the payload after the session closes"
+    );
     drop(original_texture);
-    assert!(payload_lifetime.upgrade().is_none(), "the last owner releases the payload");
+    assert!(
+        payload_lifetime.upgrade().is_none(),
+        "the last owner releases the payload"
+    );
     Ok(())
 }
 
@@ -1536,16 +1825,24 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
 fn shared_texture_ownership_benchmark() -> TestResult {
     use std::hint::black_box;
     use std::time::Instant;
-    let document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("base.dds"), MeshFormat::Pam)?;
+    let document = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("base.dds"),
+        MeshFormat::Pam,
+    )?;
     let dds = cdmw_texture::synthetic::rgba8_checker_dds();
     let metadata = cdmw_texture::inspect_dds(&dds, cdmw_texture::TextureRole::BaseColor)?;
     let bytes: Arc<[u8]> = vec![7_u8; 32 * 1024 * 1024].into();
     let textures = vec![LoadedTexture {
-        label: "synthetic large texture payload".to_owned(), metadata, bytes,
-        role: cdmw_texture::TextureRole::BaseColor, requested_reference: "base.dds".to_owned(),
-        parameter_name: None, sidecar_label: None,
+        label: "synthetic large texture payload".to_owned(),
+        metadata,
+        bytes,
+        role: cdmw_texture::TextureRole::BaseColor,
+        requested_reference: "base.dds".to_owned(),
+        parameter_name: None,
+        sidecar_label: None,
         resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
-        archive_compression: None, material_indices_by_lod: vec![vec![0]],
+        archive_compression: None,
+        material_indices_by_lod: vec![vec![0]],
     }];
     let iterations = 20;
     let started = Instant::now();
@@ -1560,8 +1857,13 @@ fn shared_texture_ownership_benchmark() -> TestResult {
         black_box(remapped);
     }
     let shared = started.elapsed();
-    eprintln!("texture_bytes={} iterations={} old_copy_ms={:.3} shared_remap_ms={:.3} payload_bytes_copied_after=0",
-        textures[0].bytes.len(), iterations, copied.as_secs_f64() * 1000.0, shared.as_secs_f64() * 1000.0);
+    eprintln!(
+        "texture_bytes={} iterations={} old_copy_ms={:.3} shared_remap_ms={:.3} payload_bytes_copied_after=0",
+        textures[0].bytes.len(),
+        iterations,
+        copied.as_secs_f64() * 1000.0,
+        shared.as_secs_f64() * 1000.0
+    );
     Ok(())
 }
 
@@ -1581,36 +1883,84 @@ fn lazy_authoring_lod_prepares_on_worker_and_preserves_parked_history() -> TestR
     let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "lazy-lod", 1, 0);
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
     assert!(application.lod_sessions.iter().all(Option::is_none));
-    let original = application.mesh.as_ref().ok_or("initial mesh")?.draw_snapshot();
+    let original = application
+        .mesh
+        .as_ref()
+        .ok_or("initial mesh")?
+        .draw_snapshot();
     application.switch_lod(1);
     assert!(application.pending_lod.is_some());
     assert_eq!(application.active_lod_index, 0);
-    assert_eq!(application.mesh.as_ref().ok_or("preserved mesh")?.draw_snapshot(), original);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("preserved mesh")?
+            .draw_snapshot(),
+        original
+    );
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while application.pending_lod.is_some() && std::time::Instant::now() < deadline {
         application.poll_loader();
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    assert!(application.pending_lod.is_none(), "LOD worker did not complete: {}", application.status);
+    assert!(
+        application.pending_lod.is_none(),
+        "LOD worker did not complete: {}",
+        application.status
+    );
     assert_eq!(application.active_lod_index, 1);
     let expected = WorkingMesh::from_document_lod(&document, 1)?.draw_snapshot();
-    let actual = application.mesh.as_ref().ok_or("loaded LOD")?.draw_snapshot();
+    let actual = application
+        .mesh
+        .as_ref()
+        .ok_or("loaded LOD")?
+        .draw_snapshot();
     assert_eq!(actual.positions, expected.positions);
     assert_eq!(actual.indices, expected.indices);
     let mesh = application.mesh.as_mut().ok_or("editable LOD")?;
     let before_edit = mesh.clone();
     let handles = mesh.vertices().map(|(handle, _)| handle).collect();
     mesh.translate_vertices(&handles, Vec3::Z)?;
-    application.history.commit("LOD1 translation", before_edit, mesh)?;
+    application
+        .history
+        .commit("LOD1 translation", before_edit, mesh)?;
     let edited = mesh.draw_snapshot();
     application.switch_lod(0);
-    assert_eq!(application.mesh.as_ref().ok_or("parked LOD0")?.draw_snapshot(), original);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("parked LOD0")?
+            .draw_snapshot(),
+        original
+    );
     application.switch_lod(1);
-    assert!(application.pending_lod.is_none(), "resident LOD should not be rebuilt");
-    assert_eq!(application.mesh.as_ref().ok_or("resident LOD1")?.draw_snapshot(), edited);
+    assert!(
+        application.pending_lod.is_none(),
+        "resident LOD should not be rebuilt"
+    );
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("resident LOD1")?
+            .draw_snapshot(),
+        edited
+    );
     assert_eq!(application.history.undo_len(), 1);
-    application.history.undo(application.mesh.as_mut().ok_or("undo LOD1")?)?;
-    assert_eq!(application.mesh.as_ref().ok_or("undo result")?.draw_snapshot().positions, expected.positions);
+    application
+        .history
+        .undo(application.mesh.as_mut().ok_or("undo LOD1")?)?;
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("undo result")?
+            .draw_snapshot()
+            .positions,
+        expected.positions
+    );
     Ok(())
 }
 
@@ -1623,19 +1973,36 @@ fn lazy_authoring_lod_rejects_cancelled_or_replaced_document_results() -> TestRe
     application.switch_lod(1);
     let cancelled = application.pending_lod.ok_or("pending LOD")?;
     application.switch_lod(0);
-    assert!(!application.accept_prepared_lod(cancelled.generation, 1,
-        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    assert!(!application.accept_prepared_lod(
+        cancelled.generation,
+        1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)
+    ));
     assert_eq!(application.active_lod_index, 0);
     application.switch_lod(1);
     let stale = application.pending_lod.ok_or("replacement pending LOD")?;
     document.lods[0].submeshes[0].positions[0][2] += 2.0;
     application.install_cdmw_document(document.clone())?;
-    let replacement = application.mesh.as_ref().ok_or("replacement mesh")?.draw_snapshot();
-    assert!(!application.accept_prepared_lod(stale.generation, 1,
-        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    let replacement = application
+        .mesh
+        .as_ref()
+        .ok_or("replacement mesh")?
+        .draw_snapshot();
+    assert!(!application.accept_prepared_lod(
+        stale.generation,
+        1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)
+    ));
     application.poll_loader();
     assert_eq!(application.active_lod_index, 0);
-    assert_eq!(application.mesh.as_ref().ok_or("retained replacement")?.draw_snapshot(), replacement);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("retained replacement")?
+            .draw_snapshot(),
+        replacement
+    );
     assert!(application.pending_lod.is_none());
     Ok(())
 }
@@ -1646,18 +2013,36 @@ fn lazy_authoring_lod_failure_retains_current_scene_and_can_retry() -> TestResul
     let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
     let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "failed-lod", 1, 0);
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
-    let before = application.mesh.as_ref().ok_or("initial mesh")?.draw_snapshot();
+    let before = application
+        .mesh
+        .as_ref()
+        .ok_or("initial mesh")?
+        .draw_snapshot();
     application.switch_lod(1);
     let failed = application.pending_lod.ok_or("pending LOD")?;
-    assert!(application.accept_prepared_lod(failed.generation, 1, Err("fixture failure".to_owned())));
+    assert!(application.accept_prepared_lod(
+        failed.generation,
+        1,
+        Err("fixture failure".to_owned())
+    ));
     assert!(application.status.contains("fixture failure"));
     assert_eq!(application.active_lod_index, 0);
-    assert_eq!(application.mesh.as_ref().ok_or("retained mesh")?.draw_snapshot(), before);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("retained mesh")?
+            .draw_snapshot(),
+        before
+    );
     application.switch_lod(1);
     let retry = application.pending_lod.ok_or("retry LOD")?;
     assert_ne!(retry.generation, failed.generation);
-    assert!(application.accept_prepared_lod(retry.generation, 1,
-        Ok(WorkingMesh::from_document_lod(&document, 1)?)));
+    assert!(application.accept_prepared_lod(
+        retry.generation,
+        1,
+        Ok(WorkingMesh::from_document_lod(&document, 1)?)
+    ));
     assert_eq!(application.active_lod_index, 1);
     Ok(())
 }
@@ -1665,35 +2050,74 @@ fn lazy_authoring_lod_failure_retains_current_scene_and_can_retry() -> TestResul
 #[test]
 #[ignore = "requires an explicitly authorized read-only PAC corpus manifest"]
 fn authoring_empty_parts_real_pac_corpus() -> TestResult {
-    let path = std::env::var_os("CDMW_EMPTY_PARTS_CORPUS").ok_or("set CDMW_EMPTY_PARTS_CORPUS to the verified corpus manifest")?;
+    let path = std::env::var_os("CDMW_EMPTY_PARTS_CORPUS")
+        .ok_or("set CDMW_EMPTY_PARTS_CORPUS to the verified corpus manifest")?;
     let corpus: Value = serde_json::from_slice(&fs::read(path)?)?;
     let cases = corpus["cases"].as_array().ok_or("missing corpus cases")?;
     assert!(corpus["source_archives_unchanged"].as_bool() == Some(true));
     assert!(corpus["file_count"].as_u64().unwrap_or(0) >= 3);
     for case in cases {
-        let original: MeshDocument = serde_json::from_slice(&fs::read(case["original"].as_str().ok_or("original document")?)?)?;
+        let original: MeshDocument = serde_json::from_slice(&fs::read(
+            case["original"].as_str().ok_or("original document")?,
+        )?)?;
         let root = tempdir()?;
         let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "real-empty-parts", 1, 0);
         let mut application = LabApplication::new_cdmw(bridge, original, None)?;
-        for (index, path) in case["states"].as_array().ok_or("case states")?.iter().enumerate() {
+        for (index, path) in case["states"]
+            .as_array()
+            .ok_or("case states")?
+            .iter()
+            .enumerate()
+        {
             let revision = index as u64 + 1;
-            let document: MeshDocument = serde_json::from_slice(&fs::read(path.as_str().ok_or("state document")?)?)?;
-            let state = cdmw_state_with_document(root.path(), "real-empty-parts", revision, &document)?;
+            let document: MeshDocument =
+                serde_json::from_slice(&fs::read(path.as_str().ok_or("state document")?)?)?;
+            let state =
+                cdmw_state_with_document(root.path(), "real-empty-parts", revision, &document)?;
             application.cdmw_pending_request = Some(CdmwPendingRequest {
-                request_id: revision, event: "command_result", label: "PAC deletion/history".to_owned(), origin: None,
+                request_id: revision,
+                event: "command_result",
+                label: "PAC deletion/history".to_owned(),
+                origin: None,
             });
-            application.handle_cdmw_result("command_result", revision, revision, true, json!({"state":state}), "");
-            assert!(!application.cdmw_exit_requested, "{} Part {}: {}", case["source_path"], case["part_index"], application.status);
+            application.handle_cdmw_result(
+                "command_result",
+                revision,
+                revision,
+                true,
+                json!({"state":state}),
+                "",
+            );
+            assert!(
+                !application.cdmw_exit_requested,
+                "{} Part {}: {}",
+                case["source_path"], case["part_index"], application.status
+            );
             assert!(application.cdmw_pending_request.is_none());
-            assert_eq!(application.document.as_deref().ok_or("resident document")?.lods, document.lods);
-            let actual = application.mesh.as_ref().ok_or("resident graph")?.draw_snapshot();
+            assert_eq!(
+                application
+                    .document
+                    .as_deref()
+                    .ok_or("resident document")?
+                    .lods,
+                document.lods
+            );
+            let actual = application
+                .mesh
+                .as_ref()
+                .ok_or("resident graph")?
+                .draw_snapshot();
             let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
             assert_eq!(actual.positions, expected.positions);
             assert_eq!(actual.triangle_materials, expected.triangle_materials);
         }
         println!("PASS {} Part {}", case["source_path"], case["part_index"]);
     }
-    println!("Verified {} PAC files and {} Part histories through the Rust result/refresh path", corpus["file_count"], cases.len());
+    println!(
+        "Verified {} PAC files and {} Part histories through the Rust result/refresh path",
+        corpus["file_count"],
+        cases.len()
+    );
     Ok(())
 }
 
@@ -1703,12 +2127,14 @@ fn authoring_empty_parts_keep_session_and_source_slots_through_history() -> Test
     let mut original = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
     original.parser = cdmw_session::PACKAGE_SCHEMA.to_owned();
     let part = original.lods[0].submeshes[0].clone();
-    original.lods[0].submeshes = (0..3).map(|index| {
-        let mut part = part.clone();
-        part.name = format!("Part {index}");
-        part.material = format!("Material {index}");
-        part
-    }).collect();
+    original.lods[0].submeshes = (0..3)
+        .map(|index| {
+            let mut part = part.clone();
+            part.name = format!("Part {index}");
+            part.material = format!("Material {index}");
+            part
+        })
+        .collect();
     let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "empty-parts", 1, 0);
     let mut application = LabApplication::new_cdmw(bridge, original.clone(), None)?;
     let mut revision = 0;
@@ -1731,16 +2157,31 @@ fn authoring_empty_parts_keep_session_and_source_slots_through_history() -> Test
             }
             let state = cdmw_state_with_document(root.path(), "empty-parts", revision, &document)?;
             application.cdmw_pending_request = Some(CdmwPendingRequest {
-                request_id: revision, event: "command_result",
-                label: if deleting {"Delete Selection"} else {"Undo"}.to_owned(), origin: None,
+                request_id: revision,
+                event: "command_result",
+                label: if deleting { "Delete Selection" } else { "Undo" }.to_owned(),
+                origin: None,
             });
-            application.handle_cdmw_result("command_result", revision, revision, true,
-                json!({"state": state}), "");
+            application.handle_cdmw_result(
+                "command_result",
+                revision,
+                revision,
+                true,
+                json!({"state": state}),
+                "",
+            );
             assert!(!application.cdmw_exit_requested, "{}", application.status);
             assert!(application.cdmw_pending_request.is_none());
-            assert_eq!(application.cdmw_bridge.as_ref().unwrap().shadow_revision(), revision);
+            assert_eq!(
+                application.cdmw_bridge.as_ref().unwrap().shadow_revision(),
+                revision
+            );
             assert_eq!(application.document.as_deref().unwrap().lods, document.lods);
-            let snapshot = application.mesh.as_ref().ok_or("resident graph")?.draw_snapshot();
+            let snapshot = application
+                .mesh
+                .as_ref()
+                .ok_or("resident graph")?
+                .draw_snapshot();
             let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
             assert_eq!(snapshot.positions, expected.positions);
             assert_eq!(snapshot.triangle_materials, expected.triangle_materials);
@@ -1755,14 +2196,22 @@ fn authoring_graph_refresh_reuses_attributes_and_rebuilds_changed_topology() -> 
     let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
     let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "graph-refresh", 1, 0);
     let mut application = LabApplication::new_cdmw(bridge, document.clone(), None)?;
-    let initial = application.mesh.as_ref().ok_or("initial graph")?.draw_snapshot();
+    let initial = application
+        .mesh
+        .as_ref()
+        .ok_or("initial graph")?
+        .draw_snapshot();
     let part = &mut document.lods[0].submeshes[0];
     part.positions[0] = [2.0, 3.0, 4.0];
     part.normals[0] = [0.2, 0.3, 0.4];
     part.uvs[0] = [0.6, 0.7];
     part.shader_masks = vec![[0.2, 0.5, 0.8]; part.positions.len()];
     application.install_cdmw_document(document.clone())?;
-    let refreshed = application.mesh.as_ref().ok_or("refreshed graph")?.draw_snapshot();
+    let refreshed = application
+        .mesh
+        .as_ref()
+        .ok_or("refreshed graph")?
+        .draw_snapshot();
     let expected = WorkingMesh::from_document(&document)?.draw_snapshot();
     assert_eq!(refreshed.mesh_identity, initial.mesh_identity);
     assert_eq!(refreshed.topology_generation, initial.topology_generation);
@@ -1772,9 +2221,18 @@ fn authoring_graph_refresh_reuses_attributes_and_rebuilds_changed_topology() -> 
     assert_eq!(refreshed.shader_masks, expected.shader_masks);
     document.lods[0].submeshes[0].indices.swap(0, 1);
     application.install_cdmw_document(document.clone())?;
-    let rebuilt = application.mesh.as_ref().ok_or("rebuilt graph")?.draw_snapshot();
+    let rebuilt = application
+        .mesh
+        .as_ref()
+        .ok_or("rebuilt graph")?
+        .draw_snapshot();
     assert_ne!(rebuilt.mesh_identity, refreshed.mesh_identity);
-    assert_eq!(rebuilt.indices, WorkingMesh::from_document(&document)?.draw_snapshot().indices);
+    assert_eq!(
+        rebuilt.indices,
+        WorkingMesh::from_document(&document)?
+            .draw_snapshot()
+            .indices
+    );
     assert!(application.lod_sessions.iter().all(Option::is_none));
     Ok(())
 }
@@ -1784,20 +2242,35 @@ fn authoring_graph_refresh_reuses_attributes_and_rebuilds_changed_topology() -> 
 fn authoring_lod_graph_reuse_benchmark() -> TestResult {
     use std::hint::black_box;
     use std::time::Instant;
-    let mut document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("base.dds"), MeshFormat::Pam)?;
+    let mut document = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("base.dds"),
+        MeshFormat::Pam,
+    )?;
     let vertex_count = 99_999_usize;
     let part = &mut document.lods[0].submeshes[0];
-    part.positions = (0..vertex_count).map(|index| {
-        let base = (index / 3) as f32;
-        match index % 3 { 0 => [base, 0.0, 0.0], 1 => [base + 0.5, 0.0, 0.0], _ => [base, 0.5, 0.0] }
-    }).collect();
+    part.positions = (0..vertex_count)
+        .map(|index| {
+            let base = (index / 3) as f32;
+            match index % 3 {
+                0 => [base, 0.0, 0.0],
+                1 => [base + 0.5, 0.0, 0.0],
+                _ => [base, 0.5, 0.0],
+            }
+        })
+        .collect();
     part.normals = vec![[0.0, 0.0, 1.0]; vertex_count];
     part.uvs = vec![[0.0, 0.0]; vertex_count];
     part.shader_masks = vec![[0.2, 0.5, 0.8]; vertex_count];
     part.indices = (0..vertex_count as u32).collect();
     part.source_vertex_indices = (0..vertex_count as i32).collect();
     let lod = document.lods[0].clone();
-    document.lods = (0..4).map(|level| { let mut value = lod.clone(); value.level = level; value }).collect();
+    document.lods = (0..4)
+        .map(|level| {
+            let mut value = lod.clone();
+            value.level = level;
+            value
+        })
+        .collect();
     document.lod_count_reported = 4;
     let cancellation = cdmw_archive::CancellationToken::default();
     let started = Instant::now();
@@ -1829,7 +2302,9 @@ fn authoring_lod_graph_reuse_benchmark() -> TestResult {
     let started = Instant::now();
     application.switch_lod(2);
     let request_time = started.elapsed();
-    let pending = application.pending_lod.ok_or("missing deferred LOD request")?;
+    let pending = application
+        .pending_lod
+        .ok_or("missing deferred LOD request")?;
     assert_eq!(application.active_lod_index, 0);
     let deadline = started + std::time::Duration::from_secs(10);
     while application.pending_lod.is_some() && Instant::now() < deadline {
@@ -1839,17 +2314,41 @@ fn authoring_lod_graph_reuse_benchmark() -> TestResult {
         }
     }
     let deferred_time = started.elapsed();
-    assert!(application.pending_lod.is_none(), "deferred LOD worker did not complete: {}", application.status);
+    assert!(
+        application.pending_lod.is_none(),
+        "deferred LOD worker did not complete: {}",
+        application.status
+    );
     assert_eq!(application.active_lod_index, 2, "{}", application.status);
     assert_eq!(application.current_generation, pending.generation);
-    assert_eq!(application.lod_document_generation, pending.document_generation);
-    assert!(application.lod_sessions[0].is_some(), "the previous LOD must be parked");
-    assert_eq!(application.mesh.as_ref().ok_or("deferred LOD mesh")?.draw_snapshot().fingerprint,
-        expected_deferred_fingerprint);
-    eprintln!("lods=4 vertices_per_lod={vertex_count} eager_graphs_ms={:.3} selected_graph_ms={:.3} resident_refresh_ms={:.3} startup_graphs_before=4 startup_graphs_after=1",
-        all_time.as_secs_f64() * 1000.0, selected_time.as_secs_f64() * 1000.0, refresh_time.as_secs_f64() * 1000.0);
-    eprintln!("first_deferred_lod=2 request_ms={:.3} request_to_headless_acceptance_ms={:.3} polling_interval_ms=1 gpu_upload_included=false visible_frame_included=false",
-        request_time.as_secs_f64() * 1000.0, deferred_time.as_secs_f64() * 1000.0);
+    assert_eq!(
+        application.lod_document_generation,
+        pending.document_generation
+    );
+    assert!(
+        application.lod_sessions[0].is_some(),
+        "the previous LOD must be parked"
+    );
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("deferred LOD mesh")?
+            .draw_snapshot()
+            .fingerprint,
+        expected_deferred_fingerprint
+    );
+    eprintln!(
+        "lods=4 vertices_per_lod={vertex_count} eager_graphs_ms={:.3} selected_graph_ms={:.3} resident_refresh_ms={:.3} startup_graphs_before=4 startup_graphs_after=1",
+        all_time.as_secs_f64() * 1000.0,
+        selected_time.as_secs_f64() * 1000.0,
+        refresh_time.as_secs_f64() * 1000.0
+    );
+    eprintln!(
+        "first_deferred_lod=2 request_ms={:.3} request_to_headless_acceptance_ms={:.3} polling_interval_ms=1 gpu_upload_included=false visible_frame_included=false",
+        request_time.as_secs_f64() * 1000.0,
+        deferred_time.as_secs_f64() * 1000.0
+    );
     Ok(())
 }
 
@@ -2617,7 +3116,11 @@ fn offscreen_d3d12_capture_pads_odd_rows_and_matches_alpha_cutout_owners() -> Te
 #[test]
 #[ignore = "requires a local Direct3D 12 adapter"]
 fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> TestResult {
-    let mut document = triangle_application()?.document.as_deref().cloned().ok_or("missing document")?;
+    let mut document = triangle_application()?
+        .document
+        .as_deref()
+        .cloned()
+        .ok_or("missing document")?;
     let mut reference = document.lods[0].submeshes[0].clone();
     reference.name = "opaque reference".to_owned();
     reference.material = "reference material".to_owned();
@@ -2658,18 +3161,31 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
             let mask = if name == "masked-glow" { 0 } else { 255 };
             pixel.copy_from_slice(&[mask, mask, mask, 255]);
         }
-        let textures = [HeadlessMaterialTexture {
-            bytes: &base, role: cdmw_texture::TextureRole::BaseColor,
-            material_indices_by_lod: &ownership,
-        }, HeadlessMaterialTexture {
-            bytes: &emissive, role: cdmw_texture::TextureRole::Emissive,
-            material_indices_by_lod: &ownership,
-        }];
+        let textures = [
+            HeadlessMaterialTexture {
+                bytes: &base,
+                role: cdmw_texture::TextureRole::BaseColor,
+                material_indices_by_lod: &ownership,
+            },
+            HeadlessMaterialTexture {
+                bytes: &emissive,
+                role: cdmw_texture::TextureRole::Emissive,
+                material_indices_by_lod: &ownership,
+            },
+        ];
         let factors = [HeadlessMaterialFactors {
             factors: MaterialPreviewFactors {
-                translucency, alpha_blend: Some(false), gltf_metallic_roughness: Some(gltf_opaque),
+                translucency,
+                alpha_blend: Some(false),
+                gltf_metallic_roughness: Some(gltf_opaque),
                 emissive_color: Some([0.1, 0.8, 0.3]),
-                emissive_intensity: Some(if matches!(name, "glowing-dense" | "masked-glow" | "clear-glow") { 4.0 } else { 0.0 }),
+                emissive_intensity: Some(
+                    if matches!(name, "glowing-dense" | "masked-glow" | "clear-glow") {
+                        4.0
+                    } else {
+                        0.0
+                    },
+                ),
                 opacity: Some(if gltf_opaque { 0.0 } else { 1.0 }),
                 ..MaterialPreviewFactors::default()
             },
@@ -2677,35 +3193,94 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
         }];
         let base_path = root.join(format!("{name}-base.bmp"));
         let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
-            &snapshot, &textures, &factors,
-            HeadlessMaterialCaptureOptions { width: 96, height: 96, lod_index: 0, ..HeadlessMaterialCaptureOptions::default() },
+            &snapshot,
+            &textures,
+            &factors,
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                lod_index: 0,
+                ..HeadlessMaterialCaptureOptions::default()
+            },
             HeadlessMaterialCaptureOutput {
-                textured_bmp: &root.join(format!("{name}.bmp")), base_color_bmp: &base_path,
+                textured_bmp: &root.join(format!("{name}.bmp")),
+                base_color_bmp: &base_path,
                 part_id_bmp: &root.join(format!("{name}-parts.bmp")),
-                normal_map: None, material_response: None, layer_mask: None,
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
             },
         ))?;
-        reference_luma.push(report.owner_coverage.iter().find(|owner| owner.material_index == 1)
-            .ok_or("reference material missing")?.textured_mean_luma_255);
-        material_luma.push(report.owner_coverage.iter().find(|owner| owner.material_index == 0)
-            .ok_or("translucent material missing")?.textured_mean_luma_255);
+        reference_luma.push(
+            report
+                .owner_coverage
+                .iter()
+                .find(|owner| owner.material_index == 1)
+                .ok_or("reference material missing")?
+                .textured_mean_luma_255,
+        );
+        material_luma.push(
+            report
+                .owner_coverage
+                .iter()
+                .find(|owner| owner.material_index == 0)
+                .ok_or("translucent material missing")?
+                .textured_mean_luma_255,
+        );
         captures.push(std::fs::read(base_path)?);
     }
     let difference = |pixels: &[u8]| -> u64 {
-        pixels[54..].chunks_exact(4).zip(captures[1][54..].chunks_exact(4))
-            .map(|(pixel, clear)| (0..3).map(|i| u64::from(pixel[i].abs_diff(clear[i]))).sum::<u64>()).sum()
+        pixels[54..]
+            .chunks_exact(4)
+            .zip(captures[1][54..].chunks_exact(4))
+            .map(|(pixel, clear)| {
+                (0..3)
+                    .map(|i| u64::from(pixel[i].abs_diff(clear[i])))
+                    .sum::<u64>()
+            })
+            .sum()
     };
     let opaque = difference(&captures[0]);
     let thin = difference(&captures[2]);
     let dense = difference(&captures[3]);
-    assert!(opaque > dense && dense > thin && thin > 0, "opaque={opaque}, dense={dense}, thin={thin}");
-    assert_eq!(difference(&captures[4]), 0, "zero texture alpha must transmit the background");
-    assert_eq!(&captures[5][54..], &captures[3][54..], "glTF OPAQUE ignores texture and factor alpha, matching export");
-    assert!(material_luma[6] > material_luma[3] + 5.0, "emission disappeared from the translucent part: {material_luma:?}");
-    assert!((material_luma[7] - material_luma[3]).abs() < 1.0, "emissive texture mask was ignored: {material_luma:?}");
-    assert!(material_luma[8] > material_luma[1] + 5.0, "clear glass must not erase emission: {material_luma:?}");
-    assert!(reference_luma.iter().all(|value| *value == reference_luma[0]), "unselected reference appearance changed");
-    println!("D3D12 translucency pixels: opaque={opaque}, dense={dense}, thin={thin}; captures={}", root.display());
+    assert!(
+        opaque > dense && dense > thin && thin > 0,
+        "opaque={opaque}, dense={dense}, thin={thin}"
+    );
+    assert_eq!(
+        difference(&captures[4]),
+        0,
+        "zero texture alpha must transmit the background"
+    );
+    assert_eq!(
+        &captures[5][54..],
+        &captures[3][54..],
+        "glTF OPAQUE ignores texture and factor alpha, matching export"
+    );
+    // Game translucency does not read glow inputs. Keep this separate from
+    // opaque authoring, whose positive emission test is below.
+    assert_eq!(
+        captures[6], captures[3],
+        "translucency unexpectedly drew emission"
+    );
+    assert_eq!(
+        captures[7], captures[3],
+        "translucency unexpectedly drew masked emission"
+    );
+    assert_eq!(
+        captures[8], captures[1],
+        "clear glass unexpectedly drew emission"
+    );
+    assert!(
+        reference_luma
+            .iter()
+            .all(|value| *value == reference_luma[0]),
+        "unselected reference appearance changed"
+    );
+    println!(
+        "D3D12 translucency pixels: opaque={opaque}, dense={dense}, thin={thin}; captures={}",
+        root.display()
+    );
     Ok(())
 }
 
@@ -2722,16 +3297,24 @@ fn offscreen_d3d12_opaque_surface_matches_exported_channels() -> TestResult {
 }
 
 fn surface_matches_exported_channels(translucency: Option<[f32; 2]>) -> TestResult {
-    let mut document = triangle_application()?.document.as_deref().cloned().ok_or("missing document")?;
+    let mut document = triangle_application()?
+        .document
+        .as_deref()
+        .cloned()
+        .ok_or("missing document")?;
     let mut reference = document.lods[0].submeshes[0].clone();
     reference.material = "unselected reference".to_owned();
-    for position in &mut reference.positions { position[0] += 3.0; }
+    for position in &mut reference.positions {
+        position[0] += 3.0;
+    }
     document.lods[0].submeshes.push(reference);
     let snapshot = WorkingMesh::from_document(&document)?.draw_snapshot();
     let temporary = tempdir()?;
     let ownership = vec![vec![0_u32]];
     let mut base = cdmw_texture::synthetic::rgba8_checker_dds();
-    for pixel in base[148..].chunks_exact_mut(4) { pixel.copy_from_slice(&[180, 160, 140, 255]); }
+    for pixel in base[148..].chunks_exact_mut(4) {
+        pixel.copy_from_slice(&[180, 160, 140, 255]);
+    }
     let mut captures = Vec::new();
     let mut base_captures = Vec::new();
     let mut lumas = Vec::new();
@@ -2745,43 +3328,113 @@ fn surface_matches_exported_channels(translucency: Option<[f32; 2]>) -> TestResu
     ] {
         let mut packed = cdmw_texture::synthetic::rgba8_checker_dds();
         for pixel in packed[148..].chunks_exact_mut(4) {
-            pixel.copy_from_slice(if baked { &[255, 230, 0, 255] } else { &[255, 8, 255, 255] });
+            pixel.copy_from_slice(if baked {
+                &[255, 230, 0, 255]
+            } else {
+                &[255, 8, 255, 255]
+            });
         }
         let textures = [
-            HeadlessMaterialTexture { bytes: &base, role: cdmw_texture::TextureRole::BaseColor, material_indices_by_lod: &ownership },
-            HeadlessMaterialTexture { bytes: &packed, role: cdmw_texture::TextureRole::Material, material_indices_by_lod: &ownership },
+            HeadlessMaterialTexture {
+                bytes: &base,
+                role: cdmw_texture::TextureRole::BaseColor,
+                material_indices_by_lod: &ownership,
+            },
+            HeadlessMaterialTexture {
+                bytes: &packed,
+                role: cdmw_texture::TextureRole::Material,
+                material_indices_by_lod: &ownership,
+            },
         ];
         let factors = [HeadlessMaterialFactors {
             factors: MaterialPreviewFactors {
-                translucency, translucency_surface: surface,
-                category_code: Some(7), category_confidence: Some(1.0),
-                emissive_color: Some([0.1, 0.8, 0.3]), emissive_intensity: Some(if glow { 4.0 } else { 0.0 }),
+                translucency,
+                translucency_surface: surface,
+                category_code: Some(7),
+                category_confidence: Some(1.0),
+                emissive_color: Some([0.1, 0.8, 0.3]),
+                emissive_intensity: Some(if glow { 4.0 } else { 0.0 }),
                 ..MaterialPreviewFactors::default()
-            }, material_indices_by_lod: &ownership,
+            },
+            material_indices_by_lod: &ownership,
         }];
         let textured = temporary.path().join(format!("{name}.bmp"));
         let base_path = temporary.path().join(format!("{name}_base.bmp"));
         let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
-            &snapshot, &textures, &factors,
-            HeadlessMaterialCaptureOptions { width: 96, height: 96, lod_index: 0, ..HeadlessMaterialCaptureOptions::default() },
-            HeadlessMaterialCaptureOutput { textured_bmp: &textured, base_color_bmp: &base_path,
+            &snapshot,
+            &textures,
+            &factors,
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                lod_index: 0,
+                ..HeadlessMaterialCaptureOptions::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &textured,
+                base_color_bmp: &base_path,
                 part_id_bmp: &temporary.path().join(format!("{name}_parts.bmp")),
-                normal_map: None, material_response: None, layer_mask: None },
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
         ))?;
         captures.push(std::fs::read(textured)?);
         base_captures.push(std::fs::read(base_path)?);
-        lumas.push(report.owner_coverage.iter().find(|row| row.material_index == 0).ok_or("edited part missing")?.textured_mean_luma_255);
-        references.push(report.owner_coverage.iter().find(|row| row.material_index == 1).ok_or("reference missing")?.textured_mean_luma_255);
+        lumas.push(
+            report
+                .owner_coverage
+                .iter()
+                .find(|row| row.material_index == 0)
+                .ok_or("edited part missing")?
+                .textured_mean_luma_255,
+        );
+        references.push(
+            report
+                .owner_coverage
+                .iter()
+                .find(|row| row.material_index == 1)
+                .ok_or("reference missing")?
+                .textured_mean_luma_255,
+        );
     }
-    assert_ne!(captures[0], captures[1], "surface controls did not affect pixels");
-    assert_eq!(captures[1], captures[2], "live surface must match exported G/B channels");
-    assert_eq!(captures[3], captures[4], "surface edits must retain emission");
+    assert_ne!(
+        captures[0], captures[1],
+        "surface controls did not affect pixels"
+    );
+    assert_eq!(
+        captures[1], captures[2],
+        "live surface must match exported G/B channels"
+    );
+    assert_eq!(
+        captures[3], captures[4],
+        "surface edits must retain emission"
+    );
     if translucency.is_some() {
-        assert!(lumas[1] < lumas[0], "low-shine glass should reduce reflected light: {lumas:?}");
+        assert!(
+            lumas[1] < lumas[0],
+            "low-shine glass should reduce reflected light: {lumas:?}"
+        );
+        assert_eq!(
+            captures[3], captures[1],
+            "game translucency unexpectedly drew emission"
+        );
+    } else {
+        assert!(
+            lumas[3] > lumas[1] + 5.0,
+            "opaque emission disappeared: {lumas:?}"
+        );
     }
-    assert!(lumas[3] > lumas[1] + 5.0, "emission disappeared: {lumas:?}");
-    assert!(base_captures.iter().all(|pixels| *pixels == base_captures[0]), "surface edits changed absorption");
-    assert!(references.iter().all(|value| *value == references[0]), "unselected part changed");
+    assert!(
+        base_captures
+            .iter()
+            .all(|pixels| *pixels == base_captures[0]),
+        "surface edits changed absorption"
+    );
+    assert!(
+        references.iter().all(|value| *value == references[0]),
+        "unselected part changed"
+    );
     Ok(())
 }
 
@@ -2831,11 +3484,13 @@ fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -
     Ok(())
 }
 
-
 #[test]
 fn view_ticks_reopen_from_cdmw_state_and_return_with_finish() -> TestResult {
     let root = tempdir()?;
-    let mut document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("body.dds"), MeshFormat::Pam)?;
+    let mut document = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("body.dds"),
+        MeshFormat::Pam,
+    )?;
     let mut second = document.lods[0].submeshes[0].clone();
     second.name = "Part B".to_owned();
     for position in &mut second.positions {
@@ -2848,13 +3503,20 @@ fn view_ticks_reopen_from_cdmw_state_and_return_with_finish() -> TestResult {
     let messages = bridge.capture_messages_for_test();
     let mut application = LabApplication::new_cdmw(bridge, document, None)?;
     assert_eq!(application.cdmw_hidden_parts, HashSet::from([1]));
-    assert_eq!(application.cdmw_visible_submeshes(), Some(HashSet::from([0])));
+    assert_eq!(
+        application.cdmw_visible_submeshes(),
+        Some(HashSet::from([0]))
+    );
 
     application.submit_cdmw_finish();
     // Messages reach the receiver through a forwarding thread.
-    let finish = std::iter::from_fn(|| messages.recv_timeout(std::time::Duration::from_secs(5)).ok())
-        .find(|message| message["event"] == "finish_request")
-        .ok_or_else(|| format!("no finish request was sent: {}", application.status))?;
+    let finish = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "finish_request")
+    .ok_or_else(|| format!("no finish request was sent: {}", application.status))?;
     assert_eq!(finish["viewport_hidden_parts"], json!([1]));
     Ok(())
 }

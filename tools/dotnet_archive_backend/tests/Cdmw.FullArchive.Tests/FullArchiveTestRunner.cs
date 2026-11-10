@@ -1152,6 +1152,11 @@ internal static class FullArchiveTestRunner
                 && appearancePaths.Contains("character/model/1_pc/2_phw/phw_01.pab")
                 && !appearanceAssociation.Truncated,
                 "character preview association did not include its descriptor, PAB, PABC and PAMT appearance chain");
+            Require(
+                appearancePaths.Contains("character/model/1_pc/2_phw/head/eye/head_companion_eye.pac")
+                && appearancePaths.Contains("character/model/1_pc/2_phw/head/eye/head_companion_eye.pac_xml")
+                && appearancePaths.Contains("character/texture/head_companion_eye.dds"),
+                "head preview did not follow its declared eye companion through its material sidecar to DDS");
 
             var sharedRigHead = Enumerable.Range(0, checked((int)handle.EntryCount)).Select(index => session.ReadEntry(index))
                 .Single(static entry => entry.Path.EndsWith("cd_pgm_00_head_00_0004.pac", StringComparison.OrdinalIgnoreCase));

@@ -5,12 +5,22 @@ impl HeadlessUi {
     pub(super) fn open_refit_detail(&mut self, prefix: &str) -> TestResult {
         self.scroll_tool_rail(2_000.0);
         for _ in 0..32 {
-            let label = self.output.shapes.iter().find_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) if text.galley.job.text.starts_with(prefix)
-                    && self.label_rect(&text.galley.job.text).is_some() => Some(text.galley.job.text.clone()),
-                _ => None,
-            });
-            if let Some(label) = label { return self.click(&label); }
+            let label = self
+                .output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text)
+                        if text.galley.job.text.starts_with(prefix)
+                            && self.label_rect(&text.galley.job.text).is_some() =>
+                    {
+                        Some(text.galley.job.text.clone())
+                    }
+                    _ => None,
+                });
+            if let Some(label) = label {
+                return self.click(&label);
+            }
             self.scroll_tool_rail(-120.0);
         }
         Err(format!("missing refit section {prefix}").into())
@@ -18,12 +28,21 @@ impl HeadlessUi {
 
     pub(super) fn refit_scope(&mut self, all: bool) -> TestResult {
         self.reveal("Editing")?;
-        let scope = |ui: &Self| ui.output.shapes.iter().find_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if (text.galley.job.text.starts_with("All bound garments ·")
-                || text.galley.job.text.starts_with("Selected garments ·"))
-                && ui.label_rect(&text.galley.job.text).is_some() => Some(text.galley.job.text.clone()),
-            _ => None,
-        });
+        let scope = |ui: &Self| {
+            ui.output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text)
+                        if (text.galley.job.text.starts_with("All bound garments ·")
+                            || text.galley.job.text.starts_with("Selected garments ·"))
+                            && ui.label_rect(&text.galley.job.text).is_some() =>
+                    {
+                        Some(text.galley.job.text.clone())
+                    }
+                    _ => None,
+                })
+        };
         // The label can be revealed at the panel's bottom edge with its dropdown
         // still clipped below it; scroll on until the dropdown is drawn.
         let mut current = scope(self);
@@ -35,7 +54,15 @@ impl HeadlessUi {
             current = scope(self);
         }
         let current = current.ok_or("missing refit scope")?;
-        self.choose("Editing", &current, if all { "All bound garments" } else { "Selected garments" })
+        self.choose(
+            "Editing",
+            &current,
+            if all {
+                "All bound garments"
+            } else {
+                "Selected garments"
+            },
+        )
     }
 
     pub(super) fn scroll_tool_window(&mut self, label: &str, distance: f32) -> TestResult {
@@ -47,7 +74,11 @@ impl HeadlessUi {
     }
 
     /// `reveal` scrolls the docked rail and Inspector; a floating tool window scrolls itself.
-    pub(super) fn reveal_in_tool_window(&mut self, window: &str, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
+    pub(super) fn reveal_in_tool_window(
+        &mut self,
+        window: &str,
+        label: &str,
+    ) -> Result<Rect, Box<dyn std::error::Error>> {
         for _ in 0..16 {
             if let Some(rect) = self.label_rect(label) {
                 return Ok(rect);
@@ -89,19 +120,30 @@ fn mixed_refit_ui(selected: &[u32]) -> Result<HeadlessUi, Box<dyn std::error::Er
         {"submesh_index": 2, "enabled": false, "intensity_percent": 64.0,
          "mode": "rigid_component", "clearance_percent": 1.25, "tightness_percent": 63.0}
     ]);
-    ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
-        submeshes: selected.iter().copied().collect(),
-        ..Selection::default()
-    })?;
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_selection(Selection {
+            submeshes: selected.iter().copied().collect(),
+            ..Selection::default()
+        })?;
     ui.click("Fit")?;
     Ok(ui)
 }
 
 fn refit_arguments(actions: &[UiAction]) -> Value {
-    actions.iter().find_map(|action| match action {
-        UiAction::CdmwCommand { command: "refit_configure", arguments, .. } => Some(arguments.clone()),
-        _ => None,
-    }).unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
+    actions
+        .iter()
+        .find_map(|action| match action {
+            UiAction::CdmwCommand {
+                command: "refit_configure",
+                arguments,
+                ..
+            } => Some(arguments.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing refit_configure: {actions:?}"))
 }
 
 fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestResult {
@@ -109,14 +151,28 @@ fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestRe
     let state = ui.application.cdmw_state.clone();
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
     let targets = ui.application.cdmw_refit_region_targets.clone();
-    let expected = mesh.faces().filter(|(_, face)| face.submesh == part)
+    let expected = mesh
+        .faces()
+        .filter(|(_, face)| face.submesh == part)
         .flat_map(|(_, face)| face.vertices.iter())
-        .map(|handle| mesh.vertex(*handle).unwrap().position).collect::<Vec<_>>();
+        .map(|handle| mesh.vertex(*handle).unwrap().position)
+        .collect::<Vec<_>>();
     ui.last_actions.clear();
     ui.frame(vec![Event::PointerMoved(name.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_hovered_part.as_ref().map(|target| target.part), Some(part), "{label}");
-    let (highlighted, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover overlay")?;
+    assert_eq!(
+        ui.application
+            .cdmw_hovered_part
+            .as_ref()
+            .map(|target| target.part),
+        Some(part),
+        "{label}"
+    );
+    let (highlighted, overlay) = ui
+        .application
+        .cdmw_part_hover_overlay
+        .as_ref()
+        .ok_or("hover overlay")?;
     assert_eq!(highlighted.part, part);
     assert!(highlighted.island_faces.is_none());
     assert_eq!(overlay.positions, expected);
@@ -124,10 +180,17 @@ fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestRe
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(current.selection_revision, mesh.selection_revision);
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(ui.application.cdmw_state, state);
     assert_eq!(ui.application.cdmw_refit_region_targets, targets);
-    assert!(ui.last_actions.is_empty(), "hover dispatched {:?}", ui.last_actions);
+    assert!(
+        ui.last_actions.is_empty(),
+        "hover dispatched {:?}",
+        ui.last_actions
+    );
     assert!(ui.application.cdmw_pending_request.is_none());
     ui.frame(vec![Event::PointerGone]);
     assert_eq!(ui.application.cdmw_hovered_part, None, "leaving {label}");
@@ -139,7 +202,12 @@ fn assert_part_name_hover(ui: &mut HeadlessUi, label: &str, part: u32) -> TestRe
 fn workflow_part_name_hover_preserves_selection_and_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-hover-ui", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "part-hover-ui",
+        2,
+        0,
+    ));
     ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
     ui.open_refit_detail("Choose garments")?;
     assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
@@ -157,8 +225,12 @@ fn workflow_part_name_hover_preserves_selection_and_fit_edits() -> TestResult {
     ui.open_refit_detail("Choose Parts")?;
     assert_part_name_hover(&mut ui, "1 · Body", 0)?;
     ui.click("Fit")?;
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+    )?;
     assert_part_name_hover(&mut ui, "2 · Sleeve", 1)?;
     assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
     ui.application.cdmw_refit_feedback = None;
@@ -174,18 +246,37 @@ fn workflow_part_name_hover_preserves_selection_and_fit_edits() -> TestResult {
 fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-hover-ui", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "part-hover-ui",
+        2,
+        0,
+    ));
     ui.open_refit_detail("Choose garments")?;
     let name = ui.reveal("2 · Sleeve")?;
     ui.frame(vec![Event::PointerMoved(name.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(target, _)| target.part), Some(1));
+    assert_eq!(
+        ui.application
+            .cdmw_part_hover_overlay
+            .as_ref()
+            .map(|(target, _)| target.part),
+        Some(1)
+    );
     // Moving straight to another name must replace the cached geometry.
     let other = ui.reveal("3 · Plate")?;
     ui.frame(vec![Event::PointerMoved(other.center())]);
     ui.settle_layout();
-    assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().map(|(target, _)| target.part), Some(2));
-    ui.frame(vec![Event::PointerMoved(ui.application.viewport_rect.ok_or("viewport")?.center())]);
+    assert_eq!(
+        ui.application
+            .cdmw_part_hover_overlay
+            .as_ref()
+            .map(|(target, _)| target.part),
+        Some(2)
+    );
+    ui.frame(vec![Event::PointerMoved(
+        ui.application.viewport_rect.ok_or("viewport")?.center(),
+    )]);
     assert!(ui.application.cdmw_part_hover_overlay.is_none());
     // Hidden Parts and hidden Geometry Layers stay hidden on hover.
     ui.application.cdmw_hidden_parts.insert(1);
@@ -202,12 +293,30 @@ fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_part_hover_overlay.is_some());
     // Rebuilding the visible mesh excludes hidden islands from the hover buffer.
-    let faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces()
-        .filter_map(|(handle, face)| (face.submesh == 1).then_some(handle)).collect();
-    ui.application.mesh.as_mut().ok_or("mesh")?.set_viewport_hidden_faces(faces)?;
+    let faces = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .faces()
+        .filter_map(|(handle, face)| (face.submesh == 1).then_some(handle))
+        .collect();
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_viewport_hidden_faces(faces)?;
     ui.application.invalidate_cdmw_part_hover_overlay();
     ui.frame(Vec::new());
-    assert!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("hover")?.1.positions.is_empty());
+    assert!(
+        ui.application
+            .cdmw_part_hover_overlay
+            .as_ref()
+            .ok_or("hover")?
+            .1
+            .positions
+            .is_empty()
+    );
     ui.application.cdmw_state["replacement"]["comparison"] = json!("source");
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_part_hover_overlay.is_none());
@@ -223,21 +332,40 @@ fn workflow_part_name_hover_clears_and_respects_visible_geometry() -> TestResult
 }
 
 pub(super) fn part_name_has_viewport_outline(ui: &HeadlessUi, label: &str) -> bool {
-    let Some(name) = ui.label_rect(label) else { return false; };
+    let Some(name) = ui.label_rect(label) else {
+        return false;
+    };
     let colour = Color32::from(egui::Rgba::from_rgb(0.15, 0.85, 1.0));
-    ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
+    ui.output.shapes.iter().any(|shape| {
+        matches!(&shape.shape,
         egui::Shape::Rect(rect) if rect.stroke.color == colour && rect.stroke.width == 2.0
-            && rect.rect.contains(name.center()) && shape.clip_rect.contains(name.center())))
+            && rect.rect.contains(name.center()) && shape.clip_rect.contains(name.center()))
+    })
 }
 
 fn viewport_part_point(ui: &HeadlessUi, part: u32) -> Result<Pos2, Box<dyn std::error::Error>> {
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
-    let face = mesh.faces().find(|(_, face)| face.submesh == part).ok_or("Part face")?.1;
-    let centre = face.vertices.iter().map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
-        .sum::<Vec3>() / 3.0;
+    let face = mesh
+        .faces()
+        .find(|(_, face)| face.submesh == part)
+        .ok_or("Part face")?
+        .1;
+    let centre = face
+        .vertices
+        .iter()
+        .map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
+        .sum::<Vec3>()
+        / 3.0;
     let rectangle = ui.application.viewport_rect.ok_or("viewport")?;
-    let point = ui.application.camera.project(centre, rectangle).ok_or("project Part")?;
-    assert!(point.inside_view, "Part {part} must be visible in the viewport");
+    let point = ui
+        .application
+        .camera
+        .project(centre, rectangle)
+        .ok_or("project Part")?;
+    assert!(
+        point.inside_view,
+        "Part {part} must be visible in the viewport"
+    );
     Ok(egui::pos2(point.screen.x, point.screen.y))
 }
 
@@ -250,11 +378,19 @@ fn assert_viewport_part_name_hover(ui: &mut HeadlessUi, part: u32, names: &[&str
     ui.frame(vec![Event::PointerMoved(point)]);
     ui.settle_layout();
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(part));
-    for name in names { assert!(part_name_has_viewport_outline(ui, name), "missing outline: {name}"); }
+    for name in names {
+        assert!(
+            part_name_has_viewport_outline(ui, name),
+            "missing outline: {name}"
+        );
+    }
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(current.selection_revision, mesh.selection_revision);
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(ui.application.cdmw_state, state);
     assert_eq!(ui.application.cdmw_refit_region_targets, targets);
     assert!(ui.application.cdmw_hovered_part.is_none());
@@ -263,7 +399,12 @@ fn assert_viewport_part_name_hover(ui: &mut HeadlessUi, part: u32, names: &[&str
     assert!(ui.application.cdmw_pending_request.is_none());
     ui.frame(vec![Event::PointerGone]);
     assert!(ui.application.cdmw_viewport_hovered_part.is_none());
-    for name in names { assert!(!part_name_has_viewport_outline(ui, name), "stale outline: {name}"); }
+    for name in names {
+        assert!(
+            !part_name_has_viewport_outline(ui, name),
+            "stale outline: {name}"
+        );
+    }
     Ok(())
 }
 
@@ -271,16 +412,39 @@ fn assert_viewport_part_name_hover(ui: &mut HeadlessUi, part: u32, names: &[&str
 fn workflow_viewport_part_hover_identifies_names_without_selection_or_fit_changes() -> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "viewport-part-hover", 2, 0));
-    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
-        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "viewport-part-hover",
+        2,
+        0,
+    ));
+    ui.application.camera.frame_all_in_viewport(
+        ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?,
+    );
     ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
     ui.open_refit_detail("Choose garments")?;
     assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve", "1: Sleeve"])?;
-    let cached = ui.application.projection.as_ref().ok_or("projection")?.interaction.depth_triangles.as_ptr();
+    let cached = ui
+        .application
+        .projection
+        .as_ref()
+        .ok_or("projection")?
+        .interaction
+        .depth_triangles
+        .as_ptr();
     assert_viewport_part_name_hover(&mut ui, 2, &["3 · Plate", "2: Plate"])?;
-    assert_eq!(ui.application.projection.as_ref().ok_or("projection")?.interaction.depth_triangles.as_ptr(), cached,
-        "moving the pointer must reuse the picking cache");
+    assert_eq!(
+        ui.application
+            .projection
+            .as_ref()
+            .ok_or("projection")?
+            .interaction
+            .depth_triangles
+            .as_ptr(),
+        cached,
+        "moving the pointer must reuse the picking cache"
+    );
     ui.click("Part colors")?;
     assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve", "1: Sleeve"])?;
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
@@ -290,7 +454,10 @@ fn workflow_viewport_part_hover_identifies_names_without_selection_or_fit_change
     assert!(ui.application.egui_context.any_popup_open());
     ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
     assert!(ui.application.cdmw_viewport_hovered_part.is_none());
-    ui.frame(vec![key_event(egui::Key::Escape, true), key_event(egui::Key::Escape, false)]);
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
     ui.open_refit_detail("Choose garments")?;
     ui.open_refit_detail("Body region")?;
     assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve"])?;
@@ -299,8 +466,12 @@ fn workflow_viewport_part_hover_identifies_names_without_selection_or_fit_change
     ui.open_refit_detail("Choose Parts")?;
     assert_viewport_part_name_hover(&mut ui, 0, &["1 · Body", "0: Body"])?;
     ui.click("Fit")?;
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+    )?;
     assert_viewport_part_name_hover(&mut ui, 1, &["2 · Sleeve"])?;
     assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
     ui.application.cdmw_refit_feedback = None;
@@ -313,17 +484,31 @@ fn workflow_viewport_part_hover_identifies_names_without_selection_or_fit_change
 }
 
 #[test]
-fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_drags() -> TestResult {
+fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_drags() -> TestResult
+{
     let mut application = overlapping_parts_application()?;
     application.camera.set_standard_view(StandardView::Back);
-    application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
-        submeshes: HashSet::from([1]), ..Selection::default()
-    })?;
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1200.0));
+    application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_selection(Selection {
+            submeshes: HashSet::from([1]),
+            ..Selection::default()
+        })?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1200.0));
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "viewport-part-hover", 2, 0));
-    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
-        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "viewport-part-hover",
+        2,
+        0,
+    ));
+    ui.application.camera.frame_all_in_viewport(
+        ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?,
+    );
     let point = viewport_part_point(&ui, 0)?;
     ui.last_actions.clear();
     ui.frame(vec![Event::PointerMoved(point)]);
@@ -341,17 +526,41 @@ fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_
     ui.application.view_mode = ViewMode::XRay;
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
-    ui.application.handle_actions(vec![UiAction::SetPartVisibility { indices: vec![0], visible: false }]);
+    ui.application
+        .handle_actions(vec![UiAction::SetPartVisibility {
+            indices: vec![0],
+            visible: false,
+        }]);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
     assert!(part_name_has_viewport_outline(&ui, "1: Back"));
-    ui.application.handle_actions(vec![UiAction::SetPartVisibility { indices: vec![0], visible: true }]);
+    ui.application
+        .handle_actions(vec![UiAction::SetPartVisibility {
+            indices: vec![0],
+            visible: true,
+        }]);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(0));
-    let source_faces = ui.application.mesh.as_ref().ok_or("mesh")?.faces().filter_map(|(_, face)| match face.provenance {
-        Provenance::Source { submesh: 0, element } => Some(element), _ => None,
-    }).collect();
-    ui.application.handle_actions(vec![UiAction::SetIslandVisibility { part: 0, faces: source_faces, visible: false }]);
+    let source_faces = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .faces()
+        .filter_map(|(_, face)| match face.provenance {
+            Provenance::Source {
+                submesh: 0,
+                element,
+            } => Some(element),
+            _ => None,
+        })
+        .collect();
+    ui.application
+        .handle_actions(vec![UiAction::SetIslandVisibility {
+            part: 0,
+            faces: source_faces,
+            visible: false,
+        }]);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
     ui.application.cdmw_state["geometry_layers"]["layers"].as_array_mut().ok_or("layers")?.push(
@@ -361,19 +570,32 @@ fn workflow_viewport_part_hover_uses_front_surfaces_and_respects_visibility_and_
     ui.application.cdmw_state["geometry_layers"]["layers"][1]["visible"] = json!(true);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
-    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary, pressed: true,
-        modifiers: egui::Modifiers::NONE }]);
+    ui.frame(vec![Event::PointerButton {
+        pos: point,
+        button: PointerButton::Secondary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    }]);
     assert!(ui.application.cdmw_viewport_hovered_part.is_none());
     assert!(!part_name_has_viewport_outline(&ui, "1: Back"));
-    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary, pressed: false,
-        modifiers: egui::Modifiers::NONE }]);
+    ui.frame(vec![Event::PointerButton {
+        pos: point,
+        button: PointerButton::Secondary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    }]);
     ui.settle_layout();
     assert_eq!(ui.application.cdmw_viewport_hovered_part, Some(1));
     ui.application.cdmw_state["morph_refit"]["corrections_enabled"] = json!(false);
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_viewport_hovered_part.is_none());
     ui.application.cdmw_state["morph_refit"]["corrections_enabled"] = json!(true);
-    let empty = ui.application.viewport_rect.ok_or("viewport")?.right_bottom() - egui::vec2(4.0, 4.0);
+    let empty = ui
+        .application
+        .viewport_rect
+        .ok_or("viewport")?
+        .right_bottom()
+        - egui::vec2(4.0, 4.0);
     ui.frame(vec![Event::PointerMoved(empty)]);
     assert!(ui.application.cdmw_viewport_hovered_part.is_none());
     assert_eq!(ui.application.selected_part_indices(), vec![1]);
@@ -389,17 +611,25 @@ fn long_part_hover_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     for index in 3..60 {
         let mut piece = template.clone();
         piece.name = format!("Piece {index}");
-        for position in &mut piece.positions { position[0] += (index - 2) as f32 * 3.0; }
+        for position in &mut piece.positions {
+            position[0] += (index - 2) as f32 * 3.0;
+        }
         document.lods[0].submeshes.push(piece);
     }
     let mut mesh = WorkingMesh::from_document(document)?;
-    mesh.set_selection(Selection { submeshes: HashSet::from([2]), ..Selection::default() })?;
+    mesh.set_selection(Selection {
+        submeshes: HashSet::from([2]),
+        ..Selection::default()
+    })?;
     ui.application.mesh = Some(mesh);
     ui.application.projection = None;
     let refit = &mut ui.application.cdmw_state["morph_refit"]["refit"];
     refit["garment_submesh_indices"] = json!((1..60).collect::<Vec<u32>>());
     for index in 3..60 {
-        refit["garment_settings"].as_array_mut().ok_or("garment settings")?.push(json!({
+        refit["garment_settings"]
+            .as_array_mut()
+            .ok_or("garment settings")?
+            .push(json!({
             "submesh_index": index, "enabled": true, "mode": "surface", "intensity_percent": 100.0,
             "clearance_percent": 0.1, "tightness_percent": 0.0 }));
     }
@@ -407,17 +637,25 @@ fn long_part_hover_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     ui.settle_layout();
     ui.type_number_in_row("Clearance %", 1.25, "0.75")?;
     ui.open_refit_detail("Choose garments")?;
-    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
-        ui.application.viewport_rect.ok_or("viewport")?);
+    ui.application.camera.frame_all_in_viewport(
+        ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?,
+    );
     ui.frame(Vec::new());
     Ok(ui)
 }
 
 #[test]
-fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_edits() -> TestResult {
+fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_edits() -> TestResult
+{
     let mut ui = long_part_hover_ui()?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "hover-scroll",
+        2,
+        0,
+    ));
     ui.scroll_tool_rail(-50_000.0);
     ui.scroll_inspector(-50_000.0);
     assert!(ui.label_rect("2 · Sleeve").is_none());
@@ -428,24 +666,36 @@ fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_e
     ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
     ui.settle_layout();
     for name in ["2 · Sleeve", "1: Sleeve"] {
-        assert!(part_name_has_viewport_outline(&ui, name), "offscreen name was not revealed: {name}");
+        assert!(
+            part_name_has_viewport_outline(&ui, name),
+            "offscreen name was not revealed: {name}"
+        );
     }
     let before = (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve"));
     ui.settle_layout();
-    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before,
-        "holding the pointer still must not keep repositioning the lists");
+    assert_eq!(
+        (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")),
+        before,
+        "holding the pointer still must not keep repositioning the lists"
+    );
     assert!(ui.label_rect("60 · Piece 59").is_none());
     assert!(ui.label_rect("59: Piece 59").is_none());
     ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
     ui.settle_layout();
     for name in ["60 · Piece 59", "59: Piece 59"] {
-        assert!(part_name_has_viewport_outline(&ui, name), "new hovered Part was not revealed: {name}");
+        assert!(
+            part_name_has_viewport_outline(&ui, name),
+            "new hovered Part was not revealed: {name}"
+        );
     }
     assert_eq!(ui.application.cdmw_state, state);
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(current.selection_revision, mesh.selection_revision);
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
     assert!(ui.last_actions.is_empty());
@@ -454,11 +704,17 @@ fn workflow_viewport_part_hover_scrolls_open_lists_and_keeps_selection_and_fit_e
 }
 
 #[test]
-fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manual_scrolling() -> TestResult {
+fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manual_scrolling()
+-> TestResult {
     let mut ui = long_part_hover_ui()?;
     crate::cdmw_layout::set_auto_open_parts_on_hover(&ui.application.egui_context, true);
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-scroll", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "hover-scroll",
+        2,
+        0,
+    ));
     ui.reveal("2 · Sleeve")?;
     // Keep the whole row clear of the rail's bottom edge: a row cut off there is
     // revealed on hover, which is correct but not the case under test.
@@ -475,26 +731,50 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
     ui.frame(vec![Event::PointerGone]);
     ui.settle_layout();
     assert!(ui.application.cdmw_part_name_scroll.is_none());
-    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
+    assert_eq!(
+        (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")),
+        before
+    );
     ui.frame(vec![Event::PointerMoved(last)]);
     ui.frame(vec![Event::PointerMoved(first)]);
     ui.settle_layout();
-    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
+    assert_eq!(
+        (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")),
+        before
+    );
     assert!(ui.label_rect("59: Piece 59").is_none());
     ui.frame(vec![Event::PointerMoved(last)]);
-    ui.frame(vec![Event::PointerButton { pos: last, button: PointerButton::Secondary,
-        pressed: true, modifiers: egui::Modifiers::NONE }]);
+    ui.frame(vec![Event::PointerButton {
+        pos: last,
+        button: PointerButton::Secondary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    }]);
     ui.settle_layout();
     assert!(ui.application.cdmw_part_name_scroll.is_none());
-    assert_eq!((ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")), before);
-    ui.frame(vec![Event::PointerButton { pos: last, button: PointerButton::Secondary,
-        pressed: false, modifiers: egui::Modifiers::NONE }, Event::PointerMoved(first)]);
+    assert_eq!(
+        (ui.label_rect("2 · Sleeve"), ui.label_rect("1: Sleeve")),
+        before
+    );
+    ui.frame(vec![
+        Event::PointerButton {
+            pos: last,
+            button: PointerButton::Secondary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+        Event::PointerMoved(first),
+    ]);
     ui.settle_layout();
     ui.frame(vec![Event::PointerMoved(last)]);
     ui.scroll_inspector(-50_000.0);
     assert!(ui.application.cdmw_part_name_scroll.is_none());
     assert!(ui.label_rect("59: Piece 59").is_some());
-    assert_eq!(ui.label_rect("2 · Sleeve"), before.0, "manual Inspector scrolling must not move the fitting list");
+    assert_eq!(
+        ui.label_rect("2 · Sleeve"),
+        before.0,
+        "manual Inspector scrolling must not move the fitting list"
+    );
     let manual = ui.label_rect("59: Piece 59");
     ui.settle_layout();
     assert_eq!(ui.label_rect("59: Piece 59"), manual);
@@ -502,9 +782,15 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
     ui.click("Back to Inspector")?;
     ui.frame(vec![Event::PointerMoved(last)]);
     ui.settle_layout();
-    assert!(ui.label_rect("Back to Inspector").is_some(), "viewport hover must reopen the Parts list");
+    assert!(
+        ui.label_rect("Back to Inspector").is_some(),
+        "viewport hover must reopen the Parts list"
+    );
     assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"));
-    assert!(ui.label_rect("60 · Piece 59").is_none(), "closed garment list must stay closed");
+    assert!(
+        ui.label_rect("60 · Piece 59").is_none(),
+        "closed garment list must stay closed"
+    );
     assert_eq!(ui.application.selected_part_indices(), vec![2]);
     assert!(ui.last_actions.is_empty());
     assert!(ui.application.cdmw_pending_request.is_none());
@@ -512,12 +798,18 @@ fn workflow_viewport_part_hover_scroll_cancels_stale_targets_and_yields_to_manua
 }
 
 #[test]
-fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_edits() -> TestResult {
+fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_edits() -> TestResult
+{
     for closed in ["Inspector", "Collapsed"] {
         let mut ui = long_part_hover_ui()?;
         ui.click("Open Parts on hover")?;
         let root = tempdir()?;
-        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-open", 2, 0));
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(),
+            "hover-open",
+            2,
+            0,
+        ));
         ui.open_refit_detail("Choose garments")?;
         ui.click("Back to Inspector")?;
         if closed == "Collapsed" {
@@ -526,25 +818,40 @@ fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_e
             ui.settle_layout();
             assert!(ui.sidebar_button("Expand Inspector").is_some());
         }
-        assert!(ui.application.cdmw_part_name_rows.is_empty(), "all Part name lists must start closed");
+        assert!(
+            ui.application.cdmw_part_name_rows.is_empty(),
+            "all Part name lists must start closed"
+        );
         let state = ui.application.cdmw_state.clone();
         let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
         let targets = ui.application.cdmw_refit_region_targets.clone();
         ui.last_actions.clear();
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.frame(Vec::new());
-        assert!(ui.label_rect("Back to Inspector").is_some(), "Parts did not open from {closed}");
+        assert!(
+            ui.label_rect("Back to Inspector").is_some(),
+            "Parts did not open from {closed}"
+        );
         // Expanding the sidebar changes the viewport size. Continue hovering
         // the same surface at its current projected position.
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.settle_layout();
-        assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "Part not revealed from {closed}");
-        assert!(ui.label_rect("60 · Piece 59").is_none(), "collapsed fitting sections must stay closed");
+        assert!(
+            part_name_has_viewport_outline(&ui, "59: Piece 59"),
+            "Part not revealed from {closed}"
+        );
+        assert!(
+            ui.label_rect("60 · Piece 59").is_none(),
+            "collapsed fitting sections must stay closed"
+        );
         assert_eq!(ui.application.cdmw_state, state);
         let current = ui.application.mesh.as_ref().ok_or("mesh")?;
         assert_eq!(current.selection, mesh.selection);
         assert_eq!(current.selection_revision, mesh.selection_revision);
-        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(
+            current.structural_fingerprint(),
+            mesh.structural_fingerprint()
+        );
         assert_eq!(ui.application.cdmw_refit_region_targets, targets);
         assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
@@ -552,18 +859,29 @@ fn workflow_viewport_part_hover_opens_closed_parts_and_keeps_selection_and_fit_e
         assert!(ui.application.cdmw_pending_request.is_none());
         ui.click("Back to Inspector")?;
         ui.settle_layout();
-        assert!(ui.label_rect("Back to Inspector").is_none(), "closing from the Inspector must remain possible");
+        assert!(
+            ui.label_rect("Back to Inspector").is_none(),
+            "closing from the Inspector must remain possible"
+        );
     }
     Ok(())
 }
 
 #[test]
-fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_feedback() -> TestResult {
+fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_feedback() -> TestResult
+{
     for closed in ["Inspector", "Collapsed", "Mesh islands"] {
         let mut ui = long_part_hover_ui()?;
         let root = tempdir()?;
-        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "hover-toggle", 2, 0));
-        assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(),
+            "hover-toggle",
+            2,
+            0,
+        ));
+        assert!(!crate::cdmw_layout::auto_open_parts_on_hover(
+            &ui.application.egui_context
+        ));
         if closed == "Mesh islands" {
             ui.click("Mesh islands")?;
         } else {
@@ -580,16 +898,26 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
         ui.last_actions.clear();
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.settle_layout();
-        assert_eq!(ui.application.viewport_rect, viewport, "disabled hover must not expand a sidebar");
-        assert!(part_name_has_viewport_outline(&ui, "60 · Piece 59"), "open fitting lists must still reveal and identify Parts");
+        assert_eq!(
+            ui.application.viewport_rect, viewport,
+            "disabled hover must not expand a sidebar"
+        );
+        assert!(
+            part_name_has_viewport_outline(&ui, "60 · Piece 59"),
+            "open fitting lists must still reveal and identify Parts"
+        );
         assert!(ui.label_rect("59: Piece 59").is_none());
         if closed == "Mesh islands" {
-            assert!(ui.application.egui_context.data_mut(|data| data
-                .get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands")).unwrap_or(false)));
+            assert!(ui.application.egui_context.data_mut(|data| {
+                data.get_temp::<bool>(egui::Id::new("cdmw_parts_panel_islands"))
+                    .unwrap_or(false)
+            }));
         } else {
             assert!(ui.label_rect("Back to Inspector").is_none());
         }
-        if closed == "Collapsed" { assert!(ui.sidebar_button("Expand Inspector").is_some()); }
+        if closed == "Collapsed" {
+            assert!(ui.sidebar_button("Expand Inspector").is_some());
+        }
         if closed != "Mesh islands" {
             if closed == "Collapsed" {
                 let expand = ui.sidebar_button("Expand Inspector").ok_or("expand")?;
@@ -599,7 +927,9 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
             ui.click("Parts")?;
         }
         ui.click("Open Parts on hover")?;
-        assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+        assert!(crate::cdmw_layout::auto_open_parts_on_hover(
+            &ui.application.egui_context
+        ));
         if closed != "Mesh islands" {
             ui.click("Back to Inspector")?;
             if closed == "Collapsed" {
@@ -613,16 +943,25 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
         ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 59)?)]);
         ui.settle_layout();
         if closed == "Mesh islands" {
-            assert!(ui.label_rect("Show all islands").is_some(), "hover must keep the chosen Mesh islands tab");
+            assert!(
+                ui.label_rect("Show all islands").is_some(),
+                "hover must keep the chosen Mesh islands tab"
+            );
             assert!(ui.label_rect("59: Piece 59").is_none());
         } else {
-            assert!(part_name_has_viewport_outline(&ui, "59: Piece 59"), "re-enabling must restore automatic opening");
+            assert!(
+                part_name_has_viewport_outline(&ui, "59: Piece 59"),
+                "re-enabling must restore automatic opening"
+            );
         }
         assert_eq!(ui.application.cdmw_state, state);
         let current = ui.application.mesh.as_ref().ok_or("mesh")?;
         assert_eq!(current.selection, mesh.selection);
         assert_eq!(current.selection_revision, mesh.selection_revision);
-        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(
+            current.structural_fingerprint(),
+            mesh.structural_fingerprint()
+        );
         assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
         assert!(ui.last_actions.is_empty());
@@ -632,28 +971,45 @@ fn workflow_viewport_part_hover_toggle_preserves_closed_panels_and_open_list_fee
 }
 
 #[test]
-fn workflow_parts_display_controls_are_outside_morph_and_available_without_its_runtime() -> TestResult {
+fn workflow_parts_display_controls_are_outside_morph_and_available_without_its_runtime()
+-> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "parts-display-options", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "parts-display-options",
+        2,
+        0,
+    ));
     ui.application.cdmw_state["morph_refit"]["available"] = json!(false);
     ui.application.cdmw_state["mesh_islands"]["color_faces"] = json!([[0], [0], [0]]);
     ui.application.view_mode = ViewMode::Solid;
     ui.frame(Vec::new());
     for label in ["Part colors", "Island colors", "Open Parts on hover"] {
-        let rect = ui.label_rect(label).ok_or_else(|| format!("missing {label}"))?;
-        assert!(rect.left() >= ui.application.viewport_rect.ok_or("viewport")?.right(),
-            "{label} must belong to the Parts panel");
+        let rect = ui
+            .label_rect(label)
+            .ok_or_else(|| format!("missing {label}"))?;
+        assert!(
+            rect.left() >= ui.application.viewport_rect.ok_or("viewport")?.right(),
+            "{label} must belong to the Parts panel"
+        );
     }
     ui.click("Back to Inspector")?;
     for label in ["Part colors", "Island colors", "Open Parts on hover"] {
-        assert!(ui.label_rect(label).is_none(), "{label} must not remain in Morph & Refit");
+        assert!(
+            ui.label_rect(label).is_none(),
+            "{label} must not remain in Morph & Refit"
+        );
     }
     ui.click_tool_button("Selection")?;
     ui.click("Parts")?;
-    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(
+        &ui.application.egui_context
+    ));
     assert!(ui.actions_from_click("Open Parts on hover")?.is_empty());
-    assert!(crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
+    assert!(crate::cdmw_layout::auto_open_parts_on_hover(
+        &ui.application.egui_context
+    ));
     assert!(ui.actions_from_click("Part colors")?.is_empty());
     assert!(ui.application.cdmw_part_colours_active());
     assert!(ui.actions_from_click("Island colors")?.is_empty());
@@ -664,23 +1020,45 @@ fn workflow_parts_display_controls_are_outside_morph_and_available_without_its_r
 }
 
 #[test]
-fn workflow_viewport_part_hover_leaves_closed_parts_alone_over_empty_space_and_during_drags() -> TestResult {
+fn workflow_viewport_part_hover_leaves_closed_parts_alone_over_empty_space_and_during_drags()
+-> TestResult {
     let mut ui = mixed_refit_ui(&[2])?;
     ui.click("Open Parts on hover")?;
     ui.click("Back to Inspector")?;
-    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
-        ui.application.viewport_rect.ok_or("viewport")?);
-    let empty = ui.application.viewport_rect.ok_or("viewport")?.right_bottom() - egui::vec2(4.0, 4.0);
+    ui.application.camera.frame_all_in_viewport(
+        ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?,
+    );
+    let empty = ui
+        .application
+        .viewport_rect
+        .ok_or("viewport")?
+        .right_bottom()
+        - egui::vec2(4.0, 4.0);
     ui.frame(vec![Event::PointerMoved(empty)]);
     ui.settle_layout();
     assert!(ui.label_rect("Back to Inspector").is_none());
     let point = viewport_part_point(&ui, 1)?;
-    ui.frame(vec![Event::PointerMoved(point), Event::PointerButton { pos: point,
-        button: PointerButton::Secondary, pressed: true, modifiers: egui::Modifiers::NONE }]);
+    ui.frame(vec![
+        Event::PointerMoved(point),
+        Event::PointerButton {
+            pos: point,
+            button: PointerButton::Secondary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]);
     ui.settle_layout();
     assert!(ui.label_rect("Back to Inspector").is_none());
-    ui.frame(vec![Event::PointerButton { pos: point, button: PointerButton::Secondary,
-        pressed: false, modifiers: egui::Modifiers::NONE }, Event::PointerGone]);
+    ui.frame(vec![
+        Event::PointerButton {
+            pos: point,
+            button: PointerButton::Secondary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+        Event::PointerGone,
+    ]);
     ui.settle_layout();
     assert!(ui.label_rect("Back to Inspector").is_none());
     assert_eq!(ui.application.selected_part_indices(), vec![2]);
@@ -691,15 +1069,24 @@ fn workflow_viewport_part_hover_leaves_closed_parts_alone_over_empty_space_and_d
 #[test]
 fn workflow_viewport_part_hover_scroll_keeps_a_visible_warning_name_in_place() -> TestResult {
     let mut ui = long_part_hover_ui()?;
-    ui.application.egui_context.global_style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    ui.application
+        .egui_context
+        .global_style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+    )?;
     let before = ui.label_rect("2 · Sleeve").ok_or("visible warning name")?;
     ui.frame(vec![Event::PointerMoved(viewport_part_point(&ui, 1)?)]);
     ui.settle_layout();
     assert!(part_name_has_viewport_outline(&ui, "2 · Sleeve"));
-    assert_eq!(ui.label_rect("2 · Sleeve"), Some(before),
-        "a second offscreen name for the same Part must not scroll past the visible warning");
+    assert_eq!(
+        ui.label_rect("2 · Sleeve"),
+        Some(before),
+        "a second offscreen name for the same Part must not scroll past the visible warning"
+    );
     assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
     assert_eq!(ui.application.selected_part_indices(), vec![2]);
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
@@ -716,21 +1103,36 @@ fn workflow_viewport_island_hover_reveals_the_refit_island_before_its_part_headi
     let positions = part.positions.clone();
     let normals = part.normals.clone();
     let uvs = part.uvs.clone();
-    part.positions = (0..70).flat_map(|index| positions.iter().map(move |p|
-        [p[0] + index as f32 * 3.0, p[1], p[2]])).collect();
+    part.positions = (0..70)
+        .flat_map(|index| {
+            positions
+                .iter()
+                .map(move |p| [p[0] + index as f32 * 3.0, p[1], p[2]])
+        })
+        .collect();
     part.normals = (0..70).flat_map(|_| normals.clone()).collect();
     part.uvs = (0..70).flat_map(|_| uvs.clone()).collect();
     part.source_vertex_indices = (0..210).collect();
     part.indices = (0..210).collect();
     let mut mesh = WorkingMesh::from_document(document)?;
-    mesh.set_selection(Selection { submeshes: HashSet::from([2]), ..Selection::default() })?;
+    mesh.set_selection(Selection {
+        submeshes: HashSet::from([2]),
+        ..Selection::default()
+    })?;
     ui.application.mesh = Some(mesh);
     ui.application.projection = None;
     ui.application.cdmw_state["mesh_islands"]["fit_parts"] = json!([{"index":1,"name":"Sleeve",
         "islands":(0..70).map(|face| json!({"faces":[face]})).collect::<Vec<_>>()}]);
-    ui.application.egui_context.global_style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
+    ui.application
+        .egui_context
+        .global_style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "reverse-fit-islands", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "reverse-fit-islands",
+        2,
+        0,
+    ));
     ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
     ui.open_refit_detail("Choose mesh islands")?;
     ui.click("Back to Inspector")?;
@@ -738,18 +1140,38 @@ fn workflow_viewport_island_hover_reveals_the_refit_island_before_its_part_headi
     ui.settle_layout();
     ui.reveal("2 · Sleeve")?;
     assert!(ui.label_rect("Island 70 · 1 faces").is_none());
-    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(&ui.application.egui_context));
-    ui.application.camera.frame_all_in_viewport(ui.application.mesh.as_ref().ok_or("mesh")?,
-        ui.application.viewport_rect.ok_or("viewport")?);
+    assert!(!crate::cdmw_layout::auto_open_parts_on_hover(
+        &ui.application.egui_context
+    ));
+    ui.application.camera.frame_all_in_viewport(
+        ui.application.mesh.as_ref().ok_or("mesh")?,
+        ui.application.viewport_rect.ok_or("viewport")?,
+    );
     ui.application.cdmw_refit_clearance = 0.75;
-    ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
+    ui.application
+        .cdmw_refit_settings_dirty
+        .mark("clearance_percent");
     let point = |ui: &HeadlessUi, source_face| -> Result<Pos2, Box<dyn std::error::Error>> {
         let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
-        let face = mesh.faces().find(|(_, face)| matches!(face.provenance,
-            Provenance::Source { submesh: 1, element } if element == source_face)).ok_or("island")?.1;
-        let centre = face.vertices.iter().map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
-            .sum::<Vec3>() / 3.0;
-        let projected = ui.application.camera.project(centre, ui.application.viewport_rect.ok_or("viewport")?).ok_or("project island")?;
+        let face = mesh
+            .faces()
+            .find(|(_, face)| {
+                matches!(face.provenance,
+            Provenance::Source { submesh: 1, element } if element == source_face)
+            })
+            .ok_or("island")?
+            .1;
+        let centre = face
+            .vertices
+            .iter()
+            .map(|handle| Vec3::from(mesh.vertex(*handle).unwrap().position))
+            .sum::<Vec3>()
+            / 3.0;
+        let projected = ui
+            .application
+            .camera
+            .project(centre, ui.application.viewport_rect.ok_or("viewport")?)
+            .ok_or("project island")?;
         assert!(projected.inside_view);
         Ok(egui::pos2(projected.screen.x, projected.screen.y))
     };
@@ -761,28 +1183,49 @@ fn workflow_viewport_island_hover_reveals_the_refit_island_before_its_part_headi
         ui.frame(vec![Event::PointerMoved(point(&ui, face)?)]);
         ui.settle_layout();
         let name = format!("Island {} · 1 faces", face + 1);
-        assert!(part_name_has_viewport_outline(&ui, &name), "the exact refit island must be revealed: {name}");
+        assert!(
+            part_name_has_viewport_outline(&ui, &name),
+            "the exact refit island must be revealed: {name}"
+        );
         let before = ui.label_rect(&name);
         ui.settle_layout();
-        assert_eq!(ui.label_rect(&name), before, "holding hover must keep a visible island in place");
-        assert!(ui.label_rect("Back to Inspector").is_none(), "hover must respect disabled automatic opening");
+        assert_eq!(
+            ui.label_rect(&name),
+            before,
+            "holding hover must keep a visible island in place"
+        );
+        assert!(
+            ui.label_rect("Back to Inspector").is_none(),
+            "hover must respect disabled automatic opening"
+        );
     }
     let before = ui.label_rect("Island 70 · 1 faces");
     ui.frame(vec![Event::PointerMoved(point(&ui, 0)?)]);
     ui.frame(vec![Event::PointerMoved(point(&ui, 69)?)]);
     ui.settle_layout();
-    assert_eq!(ui.label_rect("Island 70 · 1 faces"), before, "a new island must cancel the stale target");
+    assert_eq!(
+        ui.label_rect("Island 70 · 1 faces"),
+        before,
+        "a new island must cancel the stale target"
+    );
     ui.frame(vec![Event::PointerMoved(point(&ui, 0)?)]);
     ui.frame(vec![Event::PointerGone]);
     ui.settle_layout();
-    assert_eq!(ui.label_rect("Island 70 · 1 faces"), before, "leaving the viewport must cancel scrolling");
+    assert_eq!(
+        ui.label_rect("Island 70 · 1 faces"),
+        before,
+        "leaving the viewport must cancel scrolling"
+    );
     assert!(ui.application.cdmw_part_name_scroll.is_none());
     assert!(!part_name_has_viewport_outline(&ui, "Island 70 · 1 faces"));
     assert_eq!(ui.application.cdmw_state, state);
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(current.selection_revision, mesh.selection_revision);
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(ui.application.cdmw_refit_region_targets, targets);
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
@@ -797,25 +1240,39 @@ fn workflow_refit_island_name_hover_highlights_only_its_faces_without_editing() 
         let mut ui = mixed_refit_ui(&[2])?;
         let document = Arc::make_mut(ui.application.document.as_mut().ok_or("document")?);
         let part = &mut document.lods[0].submeshes[1];
-        let positions = part.positions.iter().map(|p| [p[0] + 3.0, p[1], p[2]]).collect::<Vec<_>>();
+        let positions = part
+            .positions
+            .iter()
+            .map(|p| [p[0] + 3.0, p[1], p[2]])
+            .collect::<Vec<_>>();
         part.positions.extend(positions);
         part.normals.extend(part.normals.clone());
         part.uvs.extend(part.uvs.clone());
         part.source_vertex_indices.extend([3, 4, 5]);
         part.indices.extend([3, 4, 5]);
         let mut mesh = WorkingMesh::from_document(document)?;
-        mesh.set_selection(Selection { submeshes: HashSet::from([2]), ..Selection::default() })?;
+        mesh.set_selection(Selection {
+            submeshes: HashSet::from([2]),
+            ..Selection::default()
+        })?;
         ui.application.mesh = Some(mesh);
         ui.application.projection = None;
         ui.application.cdmw_state["mesh_islands"] = json!({"color_faces":[[0],[0,1],[0]],
             "fit_parts":[{"index":1,"name":"Sleeve","islands":[{"faces":[0]},{"faces":[1]}]}]});
         let root = tempdir()?;
-        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "fit-island-hover", 2, 0));
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(),
+            "fit-island-hover",
+            2,
+            0,
+        ));
         ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
         ui.open_refit_detail("Choose mesh islands")?;
         ui.application.view_mode = mode;
         ui.application.cdmw_refit_clearance = 0.75;
-        ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
+        ui.application
+            .cdmw_refit_settings_dirty
+            .mark("clearance_percent");
         let state = ui.application.cdmw_state.clone();
         let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.clone();
         let targets = ui.application.cdmw_refit_region_targets.clone();
@@ -824,20 +1281,37 @@ fn workflow_refit_island_name_hover_highlights_only_its_faces_without_editing() 
             let name = ui.reveal(&format!("Island {} · 1 faces", face + 1))?;
             ui.frame(vec![Event::PointerMoved(name.center())]);
             ui.settle_layout();
-            let (target, overlay) = ui.application.cdmw_part_hover_overlay.as_ref().ok_or("refit island hover")?;
-            let expected: Vec<_> = mesh.faces().filter(|(_, item)| matches!(item.provenance,
-                Provenance::Source { submesh: 1, element } if element == face))
-                .flat_map(|(_, item)| item.vertices.iter()).map(|handle| mesh.vertex(*handle).unwrap().position).collect();
+            let (target, overlay) = ui
+                .application
+                .cdmw_part_hover_overlay
+                .as_ref()
+                .ok_or("refit island hover")?;
+            let expected: Vec<_> = mesh
+                .faces()
+                .filter(|(_, item)| {
+                    matches!(item.provenance,
+                Provenance::Source { submesh: 1, element } if element == face)
+                })
+                .flat_map(|(_, item)| item.vertices.iter())
+                .map(|handle| mesh.vertex(*handle).unwrap().position)
+                .collect();
             assert_eq!(target.part, 1);
             assert_eq!(target.island_faces.as_deref(), Some([face].as_slice()));
             assert_eq!(overlay.positions, expected);
-            assert_eq!(overlay.positions.len(), 3, "must not tint the other island in this Part");
+            assert_eq!(
+                overlay.positions.len(),
+                3,
+                "must not tint the other island in this Part"
+            );
         }
         assert_eq!(ui.application.cdmw_state, state);
         let current = ui.application.mesh.as_ref().ok_or("mesh")?;
         assert_eq!(current.selection, mesh.selection);
         assert_eq!(current.selection_revision, mesh.selection_revision);
-        assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+        assert_eq!(
+            current.structural_fingerprint(),
+            mesh.structural_fingerprint()
+        );
         assert_eq!(ui.application.cdmw_refit_region_targets, targets);
         assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
@@ -846,11 +1320,25 @@ fn workflow_refit_island_name_hover_highlights_only_its_faces_without_editing() 
         assert!(ui.application.cdmw_pending_request.is_none());
         ui.application.set_island_visibility(1, vec![0], false);
         ui.frame(Vec::new());
-        assert!(ui.application.cdmw_part_hover_overlay.as_ref().is_none_or(|(_, overlay)| overlay.positions.is_empty()));
+        assert!(
+            ui.application
+                .cdmw_part_hover_overlay
+                .as_ref()
+                .is_none_or(|(_, overlay)| overlay.positions.is_empty())
+        );
         ui.application.set_island_visibility(1, vec![0], true);
         ui.frame(Vec::new());
         ui.settle_layout();
-        assert_eq!(ui.application.cdmw_part_hover_overlay.as_ref().ok_or("restored hover")?.1.positions.len(), 3);
+        assert_eq!(
+            ui.application
+                .cdmw_part_hover_overlay
+                .as_ref()
+                .ok_or("restored hover")?
+                .1
+                .positions
+                .len(),
+            3
+        );
         ui.frame(vec![Event::PointerGone]);
         assert!(ui.application.cdmw_hovered_part.is_none());
         assert!(ui.application.cdmw_part_hover_overlay.is_none());
@@ -862,20 +1350,40 @@ fn workflow_refit_island_name_hover_highlights_only_its_faces_without_editing() 
 fn workflow_island_colour_swatches_cover_refit_island_names() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "fit-island-swatches", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "fit-island-swatches",
+        2,
+        0,
+    ));
     ui.application.cdmw_state["mesh_islands"] = json!({"color_faces":[[0],[0],[0]],
         "fit_parts":[{"index":1,"name":"Sleeve","islands":[{"faces":[0]}]}]});
     ui.choose("Editing", "Selected garments · 1", "Selected mesh islands")?;
     ui.open_refit_detail("Choose mesh islands")?;
     ui.reveal("Island 1 · 1 faces")?;
     let colour = crate::cdmw_islands::island_colour(1, 0);
-    assert!(super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour).is_none());
-    let selected = ui.application.mesh.as_ref().ok_or("mesh")?.selection.clone();
+    assert!(
+        super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour)
+            .is_none()
+    );
+    let selected = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .clone();
     ui.last_actions.clear();
     ui.click("Island colors")?;
     ui.reveal("Island 1 · 1 faces")?;
-    assert!(super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour).is_some());
-    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection, selected);
+    assert!(
+        super::island_controls_tests::island_colour_swatch(&ui, "Island 1 · 1 faces", colour)
+            .is_some()
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selected
+    );
     assert!(ui.last_actions.is_empty());
     assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
@@ -885,7 +1393,12 @@ fn workflow_island_colour_swatches_cover_refit_island_names() -> TestResult {
 fn workflow_island_colours_switch_granularity_and_preserve_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "island-fit-colours", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "island-fit-colours",
+        2,
+        0,
+    ));
     ui.application.cdmw_state["mesh_islands"]["color_faces"] = json!([[0], [0], [0]]);
     ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
     ui.application.view_mode = ViewMode::SolidWire;
@@ -907,14 +1420,20 @@ fn workflow_island_colours_switch_granularity_and_preserve_fit_edits() -> TestRe
     assert!(ui.application.cdmw_island_colours_active());
     ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
     assert!(!ui.application.cdmw_island_colours_active());
-    assert_eq!(ui.application.cdmw_render_display_mode(), ViewMode::SolidWire);
+    assert_eq!(
+        ui.application.cdmw_render_display_mode(),
+        ViewMode::SolidWire
+    );
     ui.application.cdmw_state["replacement"]["comparison"] = json!("edit");
     assert!(ui.application.cdmw_island_colours_active());
     ui.click("Island colors")?;
     assert_eq!(ui.application.view_mode, ViewMode::SolidWire);
     assert_eq!(ui.application.cdmw_state, state);
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
@@ -927,7 +1446,12 @@ fn workflow_island_colours_switch_granularity_and_preserve_fit_edits() -> TestRe
 fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-colours-ui", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "part-colours-ui",
+        2,
+        0,
+    ));
     ui.application.view_mode = ViewMode::SolidWire;
     ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
     let state = ui.application.cdmw_state.clone();
@@ -946,7 +1470,10 @@ fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> Te
     assert!(!ui.application.cdmw_part_colours_applied);
     assert_eq!(ui.application.cdmw_state, state);
     let current = ui.application.mesh.as_ref().ok_or("mesh")?;
-    assert_eq!(current.structural_fingerprint(), mesh.structural_fingerprint());
+    assert_eq!(
+        current.structural_fingerprint(),
+        mesh.structural_fingerprint()
+    );
     assert_eq!(current.selection, mesh.selection);
     assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
@@ -955,14 +1482,23 @@ fn workflow_part_colours_toggle_restores_display_and_preserves_fit_edits() -> Te
 
 #[test]
 fn workflow_part_colour_swatches_match_the_viewport_and_follow_the_mode() -> TestResult {
-    fn swatch(ui: &HeadlessUi, label: &str, part: u32) -> Result<egui::Rect, Box<dyn std::error::Error>> {
-        let text = ui.label_rect(label).ok_or_else(|| format!("missing Part label {label}"))?;
+    fn swatch(
+        ui: &HeadlessUi,
+        label: &str,
+        part: u32,
+    ) -> Result<egui::Rect, Box<dyn std::error::Error>> {
+        let text = ui
+            .label_rect(label)
+            .ok_or_else(|| format!("missing Part label {label}"))?;
         let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
         let snapshot = mesh.draw_snapshot();
         let colours = viewport::part_colour_snapshot(mesh, None, &snapshot);
-        let colour = mesh.faces().zip(snapshot.indices.chunks_exact(3))
+        let colour = mesh
+            .faces()
+            .zip(snapshot.indices.chunks_exact(3))
             .find(|((_, face), _)| face.submesh == part)
-            .map(|(_, triangle)| colours[triangle[0] as usize]).ok_or("Part colour")?;
+            .map(|(_, triangle)| colours[triangle[0] as usize])
+            .ok_or("Part colour")?;
         let expected = Color32::from(egui::Rgba::from_rgb(colour[0], colour[1], colour[2]));
         ui.output.shapes.iter().find_map(|shape| match &shape.shape {
             egui::Shape::Rect(swatch) if swatch.fill == expected
@@ -983,7 +1519,12 @@ fn workflow_part_colour_swatches_match_the_viewport_and_follow_the_mode() -> Tes
     }
     let mut ui = mixed_refit_ui(&[2])?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "part-swatch-ui", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "part-swatch-ui",
+        2,
+        0,
+    ));
     ui.open_refit_detail("Choose garments")?;
     ui.reveal("2 · Sleeve")?;
     assert!(swatch(&ui, "2 · Sleeve", 1).is_err());
@@ -997,12 +1538,21 @@ fn workflow_part_colour_swatches_match_the_viewport_and_follow_the_mode() -> Tes
     ui.reveal("1 · Body")?;
     swatch(&ui, "1 · Body", 0)?;
     ui.click("Fit")?;
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+    )?;
     ui.reveal("2 · Sleeve")?;
     let badge = swatch(&ui, "2 · Sleeve", 1)?;
     let root = tempdir()?;
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "refit-feedback-ui", 2, 0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "refit-feedback-ui",
+        2,
+        0,
+    ));
     ui.click_at(badge.center());
     assert_eq!(ui.application.selected_part_indices(), vec![1]);
     refit_feedback_reply(&mut ui, "Select parts", true, "")?;
@@ -1022,45 +1572,90 @@ fn workflow_part_colours_distinguish_shared_materials_and_stay_stable_when_hidde
     let mut by_part = HashMap::new();
     for ((_, face), triangle) in mesh.faces().zip(snapshot.indices.chunks_exact(3)) {
         let colour = colours[triangle[0] as usize];
-        assert!(triangle.iter().all(|index| colours[*index as usize] == colour));
-        assert!(by_part.insert(face.submesh, (colour, face.material))
-            .is_none_or(|previous| previous == (colour, face.material)));
+        assert!(
+            triangle
+                .iter()
+                .all(|index| colours[*index as usize] == colour)
+        );
+        assert!(
+            by_part
+                .insert(face.submesh, (colour, face.material))
+                .is_none_or(|previous| previous == (colour, face.material))
+        );
     }
     assert_ne!(by_part[&1].0, by_part[&2].0);
-    let faces = mesh.faces().filter(|(_, face)| face.submesh == 1).map(|(handle, _)| handle).collect();
+    let faces = mesh
+        .faces()
+        .filter(|(_, face)| face.submesh == 1)
+        .map(|(handle, _)| handle)
+        .collect();
     let generated = mesh.duplicate_faces_to_new_submesh(&faces)?;
-    let hidden = mesh.faces().filter(|(_, face)| face.submesh == 0).map(|(handle, _)| handle).collect();
+    let hidden = mesh
+        .faces()
+        .filter(|(_, face)| face.submesh == 0)
+        .map(|(handle, _)| handle)
+        .collect();
     mesh.set_viewport_hidden_faces(hidden)?;
     let visible = HashSet::from([0, 2, 3]);
     let snapshot = mesh.draw_snapshot_for_submeshes(&visible);
     let colours = viewport::part_colour_snapshot(&mesh, Some(&visible), &snapshot);
     assert_eq!(colours.len(), snapshot.positions.len());
     let elements = mesh.element_handles_for_submeshes(&visible);
-    for ((handle, face), triangle) in mesh.faces().filter(|(handle, _)| elements.faces.contains(handle))
+    for ((handle, face), triangle) in mesh
+        .faces()
+        .filter(|(handle, _)| elements.faces.contains(handle))
         .zip(snapshot.indices.chunks_exact(3))
     {
         let colour = colours[triangle[0] as usize];
-        assert!(triangle.iter().all(|index| colours[*index as usize] == colour));
+        assert!(
+            triangle
+                .iter()
+                .all(|index| colours[*index as usize] == colour)
+        );
         assert_ne!(face.submesh, 0, "hidden islands stay hidden");
-        if face.submesh == 2 { assert_eq!(colour, by_part[&2].0); }
+        if face.submesh == 2 {
+            assert_eq!(colour, by_part[&2].0);
+        }
         if generated.contains(&handle) {
             assert_ne!(colour, by_part[&1].0);
-            assert_eq!(face.material, by_part[&1].1, "new and original Parts share a material");
+            assert_eq!(
+                face.material, by_part[&1].1,
+                "new and original Parts share a material"
+            );
         }
     }
-    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), original);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        original
+    );
     Ok(())
 }
 
-fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, error: &str) -> TestResult {
+fn refit_feedback_reply(
+    ui: &mut HeadlessUi,
+    label: &'static str,
+    ok: bool,
+    error: &str,
+) -> TestResult {
     let root = tempdir()?;
-    let revision = ui.application.cdmw_state["base_revision"].as_u64().unwrap_or(0);
+    let revision = ui.application.cdmw_state["base_revision"]
+        .as_u64()
+        .unwrap_or(0);
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
-        root.path().to_path_buf(), "refit-feedback-ui", 2, revision,
+        root.path().to_path_buf(),
+        "refit-feedback-ui",
+        2,
+        revision,
     ));
     let selection = ok && label == "Select parts";
     ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
-        request_id: 1, event: "command_result", label: label.to_owned(),
+        request_id: 1,
+        event: "command_result",
+        label: label.to_owned(),
         origin: selection.then_some(CdmwRequestOrigin::Selection),
     });
     let mut state = ui.application.cdmw_state.clone();
@@ -1076,9 +1671,19 @@ fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, erro
         "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {},
         "source_indices": ui.application.selected_part_indices(),
     });
-    ui.application.handle_cdmw_result("command_result", 1, reply_revision, ok,
-        json!({"state": state, "result": {"status": "noop"}}), error);
-    assert!(ui.application.cdmw_pending_request.is_none(), "{}", ui.application.status);
+    ui.application.handle_cdmw_result(
+        "command_result",
+        1,
+        reply_revision,
+        ok,
+        json!({"state": state, "result": {"status": "noop"}}),
+        error,
+    );
+    assert!(
+        ui.application.cdmw_pending_request.is_none(),
+        "{}",
+        ui.application.status
+    );
     ui.settle_layout();
     Ok(())
 }
@@ -1086,35 +1691,73 @@ fn refit_feedback_reply(ui: &mut HeadlessUi, label: &'static str, ok: bool, erro
 #[test]
 fn workflow_refit_refusal_shows_targeted_guidance_and_expandable_details() -> TestResult {
     for (error, protected, reason, hint) in [
-        ("mesh-editor-session-json: inline status error: Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
-            false, "Garment layers overlap.", "Try 0.1% Clearance or lower Tightness, then Apply."),
-        ("Fit to body: Part 1, triangle 224 would contain a spike, inverted or collapsed triangle after conforming (orientation -0.688139); previous preview retained",
-            false, "Fitting would fold or damage the mesh.", "Lower Tightness, then Apply. Keep loose trim at 0%."),
-        ("Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
-            true, "Garment intersects the body.", "Reduce local protection or adjust the garment position, then retry."),
-        ("Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
-            false, "Garment intersects the body.", "Try 0.1% Clearance or lower Tightness, then Apply."),
+        (
+            "mesh-editor-session-json: inline status error: Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+            false,
+            "Garment layers overlap.",
+            "Try 0.1% Clearance or lower Tightness, then Apply.",
+        ),
+        (
+            "Fit to body: Part 1, triangle 224 would contain a spike, inverted or collapsed triangle after conforming (orientation -0.688139); previous preview retained",
+            false,
+            "Fitting would fold or damage the mesh.",
+            "Lower Tightness, then Apply. Keep loose trim at 0%.",
+        ),
+        (
+            "Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
+            true,
+            "Garment intersects the body.",
+            "Reduce local protection or adjust the garment position, then retry.",
+        ),
+        (
+            "Fit to body: Part 1, vertex 12 cannot clear the body with its current protection mask or geometry (gap -0.001, requested 0.000)",
+            false,
+            "Garment intersects the body.",
+            "Try 0.1% Clearance or lower Tightness, then Apply.",
+        ),
     ] {
         let mut ui = mixed_refit_ui(&[1])?;
-        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["clearance_percent"] = json!(0.0);
-        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["has_vertex_mask"] = json!(protected);
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["clearance_percent"] =
+            json!(0.0);
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["has_vertex_mask"] =
+            json!(protected);
         ui.type_number_in_row("Tightness %", 25.0, "64")?;
         ui.size = egui::vec2(1000.0, 700.0);
         ui.settle_layout();
         ui.scroll_tool_rail(-2_000.0);
         let settings = ui.application.cdmw_state["morph_refit"]["refit"].clone();
-        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        let mesh = ui
+            .application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint();
         refit_feedback_reply(&mut ui, "Apply garment refit settings", false, error)?;
-        assert!(ui.label_rect("Fit blocked · preview kept").is_some(), "refusal should reveal its guidance");
+        assert!(
+            ui.label_rect("Fit blocked · preview kept").is_some(),
+            "refusal should reveal its guidance"
+        );
         ui.reveal(reason)?;
         ui.reveal(hint)?;
         ui.reveal("2 · Sleeve")?;
-        if error.contains("Part 2") { ui.reveal("3 · Plate")?; }
-        assert!(ui.label_rect(error).is_none(), "raw error should be collapsed");
+        if error.contains("Part 2") {
+            ui.reveal("3 · Plate")?;
+        }
+        assert!(
+            ui.label_rect(error).is_none(),
+            "raw error should be collapsed"
+        );
         ui.click("Fit details")?;
         ui.reveal(error)?;
         assert_eq!(ui.application.cdmw_state["morph_refit"]["refit"], settings);
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), mesh);
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .structural_fingerprint(),
+            mesh
+        );
         assert_eq!(ui.application.cdmw_refit_tightness, 64.0);
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
     }
@@ -1125,8 +1768,12 @@ fn workflow_refit_refusal_shows_targeted_guidance_and_expandable_details() -> Te
 fn workflow_refit_guidance_survives_selection_and_clears_after_fit_or_reset() -> TestResult {
     for success in ["Fit to body", "Apply garment refit settings", "Reset morph"] {
         let mut ui = mixed_refit_ui(&[1])?;
-        refit_feedback_reply(&mut ui, "Fit to body", false,
-            "Fit to body: Part 1 cannot clear Part 2 beneath its triangles; previous preview retained")?;
+        refit_feedback_reply(
+            &mut ui,
+            "Fit to body",
+            false,
+            "Fit to body: Part 1 cannot clear Part 2 beneath its triangles; previous preview retained",
+        )?;
         ui.reveal("Increase Clearance or lower Tightness, then Apply.")?;
         refit_feedback_reply(&mut ui, "Select parts", true, "")?;
         ui.reveal("Fit blocked · preview kept")?;
@@ -1135,11 +1782,24 @@ fn workflow_refit_guidance_survives_selection_and_clears_after_fit_or_reset() ->
         assert!(ui.label_rect("Fit blocked · preview kept").is_none());
     }
     let mut ui = mixed_refit_ui(&[1])?;
-    refit_feedback_reply(&mut ui, "Apply garment refit settings", false, "Host connection unavailable")?;
+    refit_feedback_reply(
+        &mut ui,
+        "Apply garment refit settings",
+        false,
+        "Host connection unavailable",
+    )?;
     assert!(ui.application.cdmw_refit_feedback.is_none());
-    assert!(ui.application.status.contains("Host connection unavailable"));
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Part 1 still intersects Part 2 beneath its triangles")?;
+    assert!(
+        ui.application
+            .status
+            .contains("Host connection unavailable")
+    );
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Part 1 still intersects Part 2 beneath its triangles",
+    )?;
     ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(12);
     refit_feedback_reply(&mut ui, "Select parts", true, "")?;
     assert!(ui.application.cdmw_refit_feedback.is_none());
@@ -1147,30 +1807,64 @@ fn workflow_refit_guidance_survives_selection_and_clears_after_fit_or_reset() ->
 }
 
 #[test]
-fn workflow_refit_warning_highlights_without_selecting_and_selects_from_the_warning() -> TestResult {
+fn workflow_refit_warning_highlights_without_selecting_and_selects_from_the_warning() -> TestResult
+{
     for (button, expected) in [
-        ("Select affected parts", vec![1, 2]), ("2 · Sleeve", vec![1]), ("3 · Plate", vec![2]),
+        ("Select affected parts", vec![1, 2]),
+        ("2 · Sleeve", vec![1]),
+        ("3 · Plate", vec![2]),
     ] {
         let mut ui = mixed_refit_ui(&[0])?;
-        refit_feedback_reply(&mut ui, "Fit to body", false,
-            "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained")?;
+        refit_feedback_reply(
+            &mut ui,
+            "Fit to body",
+            false,
+            "Fit to body: Part 1 still intersects Part 2 beneath its triangles; previous preview retained",
+        )?;
         assert_eq!(ui.application.selected_part_indices(), vec![0]);
         assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
         ui.application.refresh_cdmw_refit_overlay();
-        let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        let before = ui
+            .application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint();
         ui.reveal(button)?;
         let actions = ui.actions_from_click(button)?;
-        assert!(actions.iter().any(|action| matches!(action,
-            UiAction::SetPartSelection(parts) if parts == &expected)), "{actions:?}");
+        assert!(
+            actions.iter().any(|action| matches!(action,
+            UiAction::SetPartSelection(parts) if parts == &expected)),
+            "{actions:?}"
+        );
         // Keep the real selection-command bridge alive after delivering the refusal.
         let root = tempdir()?;
-        let revision = ui.application.cdmw_state["base_revision"].as_u64().unwrap_or(0);
-        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "refit-feedback-ui", 2, revision));
+        let revision = ui.application.cdmw_state["base_revision"]
+            .as_u64()
+            .unwrap_or(0);
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(),
+            "refit-feedback-ui",
+            2,
+            revision,
+        ));
         ui.application.handle_actions(actions);
         assert_eq!(ui.application.selected_part_indices(), expected);
-        assert_eq!(ui.application.cdmw_pending_request.as_ref().map(|request| &request.origin),
-            Some(&Some(CdmwRequestOrigin::Selection)));
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+        assert_eq!(
+            ui.application
+                .cdmw_pending_request
+                .as_ref()
+                .map(|request| &request.origin),
+            Some(&Some(CdmwRequestOrigin::Selection))
+        );
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .structural_fingerprint(),
+            before
+        );
         refit_feedback_reply(&mut ui, "Select parts", true, "")?;
         assert_eq!(ui.application.cdmw_refit_highlight_parts(), vec![1, 2]);
         ui.reveal("Fit blocked · preview kept")?;
@@ -1181,19 +1875,44 @@ fn workflow_refit_warning_highlights_without_selecting_and_selects_from_the_warn
 #[test]
 fn workflow_refit_warning_highlight_obeys_toggle_visibility_and_preview_lifetime() -> TestResult {
     let mut ui = mixed_refit_ui(&[0])?;
-    refit_feedback_reply(&mut ui, "Fit to body", false,
-        "Fit to body: Parts 1, 2 cannot preserve their garment layer separation")?;
+    refit_feedback_reply(
+        &mut ui,
+        "Fit to body",
+        false,
+        "Fit to body: Parts 1, 2 cannot preserve their garment layer separation",
+    )?;
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
     let sleeve = &ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[1];
-    let expected = sleeve.indices.iter().map(|index| sleeve.positions[*index as usize]).collect::<Vec<_>>();
+    let expected = sleeve
+        .indices
+        .iter()
+        .map(|index| sleeve.positions[*index as usize])
+        .collect::<Vec<_>>();
     let colour = [1.0, 0.35, 0.06, 0.45];
-    let overlay = FaceSelectionOverlay::build_for_parts(mesh, Some(HashSet::from([0, 1])), colour, &[1, 2]);
+    let overlay =
+        FaceSelectionOverlay::build_for_parts(mesh, Some(HashSet::from([0, 1])), colour, &[1, 2]);
     assert_eq!(overlay.positions, expected);
     assert!(!overlay.positions.is_empty());
-    let sleeve_faces = mesh.faces().filter(|(_, face)| face.submesh == 1).map(|(handle, _)| handle).collect();
-    ui.application.mesh.as_mut().ok_or("mesh")?.set_viewport_hidden_faces(sleeve_faces)?;
-    assert!(FaceSelectionOverlay::build_for_parts(ui.application.mesh.as_ref().ok_or("mesh")?,
-        Some(HashSet::from([0, 1])), colour, &[1, 2]).positions.is_empty());
+    let sleeve_faces = mesh
+        .faces()
+        .filter(|(_, face)| face.submesh == 1)
+        .map(|(handle, _)| handle)
+        .collect();
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_viewport_hidden_faces(sleeve_faces)?;
+    assert!(
+        FaceSelectionOverlay::build_for_parts(
+            ui.application.mesh.as_ref().ok_or("mesh")?,
+            Some(HashSet::from([0, 1])),
+            colour,
+            &[1, 2]
+        )
+        .positions
+        .is_empty()
+    );
     ui.click("Highlight in viewport")?;
     assert!(ui.application.cdmw_refit_highlight_parts().is_empty());
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
@@ -1215,8 +1934,10 @@ fn workflow_refit_warning_highlight_obeys_toggle_visibility_and_preview_lifetime
 
 #[test]
 fn workflow_refit_warning_never_selects_unknown_parts_or_guesses_missing_locations() -> TestResult {
-    for error in ["Fit to body: clearance displacement solve did not converge",
-        "Fit to body: Part 999, triangle 1 would collapse; previous preview retained"] {
+    for error in [
+        "Fit to body: clearance displacement solve did not converge",
+        "Fit to body: Part 999, triangle 1 would collapse; previous preview retained",
+    ] {
         let mut ui = mixed_refit_ui(&[0])?;
         refit_feedback_reply(&mut ui, "Fit to body", false, error)?;
         assert!(ui.application.cdmw_refit_highlight_parts().is_empty());
@@ -1229,35 +1950,48 @@ fn workflow_refit_warning_never_selects_unknown_parts_or_guesses_missing_locatio
 #[test]
 fn workflow_refit_fresh_tightness_shows_the_default_and_can_explicitly_choose_zero() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
-    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_percent"] = json!(0.0);
-    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_initialized"] = json!(false);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_percent"] =
+        json!(0.0);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["tightness_initialized"] =
+        json!(false);
     ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_refit_tightness, 100.0);
     ui.type_number_in_row("Tightness %", 100.0, "0")?;
-    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), json!({
-        "submesh_indices": [1], "tightness_percent": 0.0,
-    }));
+    assert_eq!(
+        refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({
+            "submesh_indices": [1], "tightness_percent": 0.0,
+        })
+    );
 
     for initialized in [Some(true), None] {
         let mut saved = mixed_refit_ui(&[1])?;
-        let settings = &mut saved.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0];
+        let settings =
+            &mut saved.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0];
         settings["tightness_percent"] = json!(0.0);
         if let Some(initialized) = initialized {
             settings["tightness_initialized"] = json!(initialized);
         } else {
-            settings.as_object_mut().ok_or("settings")?.remove("tightness_initialized");
+            settings
+                .as_object_mut()
+                .ok_or("settings")?
+                .remove("tightness_initialized");
         }
         saved.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
         saved.frame(Vec::new());
         assert_eq!(saved.application.cdmw_refit_tightness, 0.0);
-        assert!(!has_host_command(&saved.actions_from_click("Apply to Selected Garments")?, "refit_configure"));
+        assert!(!has_host_command(
+            &saved.actions_from_click("Apply to Selected Garments")?,
+            "refit_configure"
+        ));
     }
     Ok(())
 }
 
 #[test]
-fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_all() -> TestResult {
+fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_all() -> TestResult
+{
     for (selected, button, expected) in [
         (vec![1, 2], "Apply to Selected Garments", vec![1, 2]),
         (vec![1], "Apply to Selected Garments", vec![1]),
@@ -1266,7 +2000,10 @@ fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_
     ] {
         let mut ui = mixed_refit_ui(&selected)?;
         ui.refit_scope(button == "Apply to All Bound Garments")?;
-        assert!(!has_host_command(&ui.actions_from_click(button)?, "refit_configure"));
+        assert!(!has_host_command(
+            &ui.actions_from_click(button)?,
+            "refit_configure"
+        ));
         if expected.len() != 1 {
             ui.reveal("Use displayed clearance")?;
         }
@@ -1274,13 +2011,17 @@ fn workflow_refit_mixed_clearance_dispatches_only_changed_fields_to_selected_or_
         // A resident refresh must update untouched fields without adding them
         // to the outgoing patch or discarding the user's clearance edit.
         ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
-        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["intensity_percent"] = json!(48.0);
+        ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["intensity_percent"] =
+            json!(48.0);
         ui.frame(Vec::new());
         assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
         assert_eq!(ui.application.cdmw_refit_intensity, 48.0);
-        assert_eq!(refit_arguments(&ui.actions_from_click(button)?), json!({
-            "submesh_indices": expected, "clearance_percent": 0.75,
-        }));
+        assert_eq!(
+            refit_arguments(&ui.actions_from_click(button)?),
+            json!({
+                "submesh_indices": expected, "clearance_percent": 0.75,
+            })
+        );
     }
     Ok(())
 }
@@ -1293,41 +2034,60 @@ fn workflow_refit_mixed_values_require_an_explicit_field_choice() -> TestResult 
         ("Use displayed clearance", "clearance_percent", json!(0.5)),
     ] {
         let mut ui = mixed_refit_ui(&[1, 2])?;
-        if field == "intensity_percent" { ui.open_refit_detail("Follow body shape")?; }
+        if field == "intensity_percent" {
+            ui.open_refit_detail("Follow body shape")?;
+        }
         ui.click(button)?;
         let mut expected = json!({"submesh_indices": [1, 2]});
         expected[field] = value;
-        assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), expected);
+        assert_eq!(
+            refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+            expected
+        );
     }
     let mut ui = mixed_refit_ui(&[1, 2])?;
     let mode = ui.reveal("Fit as")?;
-    ui.click_where("Mixed", |rect| (rect.center().y - mode.center().y).abs() < 20.0)?;
+    ui.click_where("Mixed", |rect| {
+        (rect.center().y - mode.center().y).abs() < 20.0
+    })?;
     // Surface is already the first Part's value. Clicking it must still
     // explicitly resolve the mixed selection to Surface.
     ui.click("Flexible")?;
-    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
-        json!({"submesh_indices": [1, 2], "mode": "surface"}));
+    assert_eq!(
+        refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({"submesh_indices": [1, 2], "mode": "surface"})
+    );
     let mut ui = mixed_refit_ui(&[1, 2])?;
     ui.click("Refit enabled")?;
-    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
-        json!({"submesh_indices": [1, 2], "enabled": true}));
+    assert_eq!(
+        refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({"submesh_indices": [1, 2], "enabled": true})
+    );
     Ok(())
 }
 
 #[test]
-fn workflow_refit_selection_change_discards_draft_even_when_first_part_is_unchanged() -> TestResult {
+fn workflow_refit_selection_change_discards_draft_even_when_first_part_is_unchanged() -> TestResult
+{
     let mut ui = mixed_refit_ui(&[1])?;
     ui.type_number_in_row("Clearance %", 0.5, "0.75")?;
     assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
-    ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
-        submeshes: [1, 2].into_iter().collect(),
-        ..Selection::default()
-    })?;
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_selection(Selection {
+            submeshes: [1, 2].into_iter().collect(),
+            ..Selection::default()
+        })?;
     ui.frame(Vec::new());
     assert!(!ui.application.cdmw_refit_settings_dirty.is_dirty());
     assert_eq!(ui.application.cdmw_refit_clearance, 0.5);
     ui.reveal("Use displayed clearance")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply to Selected Garments")?, "refit_configure"));
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply to Selected Garments")?,
+        "refit_configure"
+    ));
     Ok(())
 }
 
@@ -1362,7 +2122,8 @@ fn workflow_actions_stay_visible_across_tabs_and_panel_presentations() -> TestRe
     for presentation in ["expanded", "pinned", "floating"] {
         let mut ui = super::morph_authoring::authoring_ui()?;
         ui.size = egui::vec2(1000.0, 650.0);
-        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
         ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
         ui.settle_layout();
         if presentation != "expanded" {
@@ -1381,24 +2142,43 @@ fn workflow_actions_stay_visible_across_tabs_and_panel_presentations() -> TestRe
                     ui.scroll_tool_rail(delta);
                 }
                 for label in ["Reset", "Bake"] {
-                    let rect = ui.label_rect(label).ok_or_else(|| format!("{presentation}/{tab}: {label} scrolled away"))?;
-                    assert!(rect.bottom() <= ui.size.y, "{presentation}: footer outside window");
+                    let rect = ui
+                        .label_rect(label)
+                        .ok_or_else(|| format!("{presentation}/{tab}: {label} scrolled away"))?;
+                    assert!(
+                        rect.bottom() <= ui.size.y,
+                        "{presentation}: footer outside window"
+                    );
                 }
             }
-            assert!(has_host_command(&ui.actions_from_click("Bake")?, "morph_bake"));
+            assert!(has_host_command(
+                &ui.actions_from_click("Bake")?,
+                "morph_bake"
+            ));
         }
         ui.application.cdmw_state["morph_refit"]["correction_definition_id"] = json!("body-shape");
         ui.frame(Vec::new());
         ui.click("Setup")?;
         assert!(ui.label_rect("Bake").is_none());
-        assert!(has_host_command(&ui.actions_from_click("Save correction")?, "morph_save_correction"));
-        assert!(has_host_command(&ui.actions_from_click("Cancel")?, "morph_cancel_correction"));
+        assert!(has_host_command(
+            &ui.actions_from_click("Save correction")?,
+            "morph_save_correction"
+        ));
+        assert!(has_host_command(
+            &ui.actions_from_click("Cancel")?,
+            "morph_cancel_correction"
+        ));
         ui.application.cdmw_state["morph_refit"]["correction_definition_id"] = json!("");
         ui.application.cdmw_state["morph_refit"]["authoring_baseline_ready"] = json!(true);
         ui.settle_layout();
         for label in ["Save slider", "Discard base"] {
-            let rect = ui.label_rect(label).ok_or_else(|| format!("{presentation}: missing {label}"))?;
-            assert!(rect.bottom() <= ui.size.y, "{presentation}: pending slider footer outside window");
+            let rect = ui
+                .label_rect(label)
+                .ok_or_else(|| format!("{presentation}: missing {label}"))?;
+            assert!(
+                rect.bottom() <= ui.size.y,
+                "{presentation}: pending slider footer outside window"
+            );
         }
     }
     Ok(())
@@ -1420,7 +2200,10 @@ fn workflow_pending_slider_can_be_reopened_and_footer_observes_authoring_policy(
     ui.reveal("Pending shape")?;
     ui.open_morph_saved("Profiles")?;
     assert!(ui.actions_from_click("Save Profile")?.is_empty());
-    assert!(has_host_command(&ui.actions_from_click("Save slider")?, "morph_capture_authored"));
+    assert!(has_host_command(
+        &ui.actions_from_click("Save slider")?,
+        "morph_capture_authored"
+    ));
     ui.application.cdmw_state["authoring_enabled"] = json!(false);
     ui.frame(Vec::new());
     assert!(ui.actions_from_click("Save slider")?.is_empty());
@@ -1440,31 +2223,47 @@ fn workflow_pending_slider_can_be_reopened_and_footer_observes_authoring_policy(
 
 #[test]
 fn workflow_footer_names_finish_and_build_mod_once_the_fit_is_baked() -> TestResult {
-    const BUILD: &str = "Next, choose Finish Edit Mesh at the top right, then Build Mod on the page that opens.";
-    const FREE_EDIT: &str = "Next, choose Finish Edit Mesh at the top right to save the Free Edit package.";
+    const BUILD: &str =
+        "Next, choose Finish Edit Mesh at the top right, then Build Mod on the page that opens.";
+    const FREE_EDIT: &str =
+        "Next, choose Finish Edit Mesh at the top right to save the Free Edit package.";
     let mut ui = super::morph_authoring::authoring_ui()?;
     ui.click("Continue to Fit")?;
     ui.application.cdmw_state["undo_count"] = json!(1);
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.settle_layout();
-    assert!(ui.label_rect(BUILD).is_none(), "an unbaked preview must be baked before finishing");
+    assert!(
+        ui.label_rect(BUILD).is_none(),
+        "an unbaked preview must be baked before finishing"
+    );
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
     ui.settle_layout();
-    let hint = ui.label_rect(BUILD).ok_or("baked fit does not name Finish and Build Mod")?;
-    let finish = ui.label_rect("Finish Edit Mesh").ok_or("Finish Edit Mesh")?;
-    assert!(finish.top() < hint.top() && finish.left() > ui.size.x / 2.0, "Finish must be at the top right");
+    let hint = ui
+        .label_rect(BUILD)
+        .ok_or("baked fit does not name Finish and Build Mod")?;
+    let finish = ui
+        .label_rect("Finish Edit Mesh")
+        .ok_or("Finish Edit Mesh")?;
+    assert!(
+        finish.top() < hint.top() && finish.left() > ui.size.x / 2.0,
+        "Finish must be at the top right"
+    );
     assert!(ui.label_rect(FREE_EDIT).is_none());
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.settle_layout();
     ui.label_rect(FREE_EDIT).ok_or("Free Edit finish hint")?;
     assert!(ui.label_rect(BUILD).is_none());
     // An archive Refit always rebuilds the original files, whatever the policy says.
-    ui.application.cdmw_state["archive_refit_assets"] = json!([{"path": "body.pac", "part_indices": [0]}]);
+    ui.application.cdmw_state["archive_refit_assets"] =
+        json!([{"path": "body.pac", "part_indices": [0]}]);
     ui.settle_layout();
     ui.label_rect(BUILD).ok_or("archive Refit hint")?;
     ui.application.cdmw_state["undo_count"] = json!(0);
     ui.settle_layout();
-    assert!(ui.label_rect(BUILD).is_none() && ui.label_rect(FREE_EDIT).is_none(), "nothing to keep yet");
+    assert!(
+        ui.label_rect(BUILD).is_none() && ui.label_rect(FREE_EDIT).is_none(),
+        "nothing to keep yet"
+    );
     Ok(())
 }
 
@@ -1491,10 +2290,14 @@ fn workflow_compact_sections_keep_order_captured_targets_and_active_summaries() 
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
     assert_eq!(ui.application.cdmw_refit_region_targets, vec![2]);
     // A body selection must never silently broaden garment settings to all.
-    assert!(ui.actions_from_click("Apply to Selected Garments")?.is_empty());
+    assert!(
+        ui.actions_from_click("Apply to Selected Garments")?
+            .is_empty()
+    );
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_regions"] =
         json!([[2, [{"submesh_index": 0, "vertex_count": 3}]]]);
-    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["has_vertex_mask"] = json!(true);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][1]["has_vertex_mask"] =
+        json!(true);
     ui.frame(Vec::new());
     ui.open_refit_detail("Body region")?;
     ui.reveal("Body region · 1 restricted Part")?;
@@ -1512,18 +2315,23 @@ fn workflow_compact_fit_long_names_and_scope_stay_inside_narrow_panels() -> Test
     for presentation in ["expanded", "pinned", "floating"] {
         let mut ui = super::morph_authoring::authoring_ui()?;
         ui.size = egui::vec2(1000.0, 750.0);
-        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": 18.0, "density": "comfortable"}));
-        Arc::make_mut(ui.application.document.as_mut().ok_or("document")?).lods[0].submeshes[2].name =
-            "CD_PHM_00_Vest_Acc_0013_long_material_and_part_name".into();
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": 18.0, "density": "comfortable"}));
+        Arc::make_mut(ui.application.document.as_mut().ok_or("document")?).lods[0].submeshes[2]
+            .name = "CD_PHM_00_Vest_Acc_0013_long_material_and_part_name".into();
         ui.settle_layout();
         if presentation != "expanded" {
             ui.click_sidebar("Collapse Tools")?;
             ui.click_sidebar("Morph & Refit")?;
-            if presentation == "pinned" { ui.click_sidebar("Pin Morph & Refit settings")?; }
+            if presentation == "pinned" {
+                ui.click_sidebar("Pin Morph & Refit settings")?;
+            }
         }
         ui.settle_layout();
         let setup = ui.reveal("Setup")?;
-        ui.click_where("Fit", |rect| (rect.center().y - setup.center().y).abs() < setup.height())?;
+        ui.click_where("Fit", |rect| {
+            (rect.center().y - setup.center().y).abs() < setup.height()
+        })?;
         if presentation == "floating" {
             let review = ui.reveal_in_tool_window("Morph & Refit", "Review parts")?;
             ui.click_at(review.center());
@@ -1533,15 +2341,23 @@ fn workflow_compact_fit_long_names_and_scope_stay_inside_narrow_panels() -> Test
             ui.click("Review parts")?;
             ui.scroll_tool_rail(-200.0);
         }
-        let right = if presentation == "floating" { ui.tool_window_rect("Morph & Refit")?.right() }
-            else { ui.application.viewport_rect.ok_or("viewport")?.left() };
+        let right = if presentation == "floating" {
+            ui.tool_window_rect("Morph & Refit")?.right()
+        } else {
+            ui.application.viewport_rect.ok_or("viewport")?.left()
+        };
         for clipped in &ui.output.shapes {
             if let egui::Shape::Text(text) = &clipped.shape {
                 let rect = text.visual_bounding_rect();
-                if clipped.clip_rect.width() > 100.0 && clipped.clip_rect.right() <= right + 5.0
-                    && rect.intersects(clipped.clip_rect) {
-                    assert!(rect.right() <= clipped.clip_rect.right() + 1.0,
-                        "{presentation}: {:?} clips horizontally", text.galley.job.text);
+                if clipped.clip_rect.width() > 100.0
+                    && clipped.clip_rect.right() <= right + 5.0
+                    && rect.intersects(clipped.clip_rect)
+                {
+                    assert!(
+                        rect.right() <= clipped.clip_rect.right() + 1.0,
+                        "{presentation}: {:?} clips horizontally",
+                        text.galley.job.text
+                    );
                 }
             }
         }
@@ -1551,24 +2367,49 @@ fn workflow_compact_fit_long_names_and_scope_stay_inside_narrow_panels() -> Test
 
 #[test]
 fn workflow_compact_sections_localize_and_dispatch_in_every_builtin_language() -> TestResult {
-    let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../cdmw/resources/localization");
-    for code in ["en", "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko", "zh-Hans", "zh-Hant"] {
+    let resources =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../cdmw/resources/localization");
+    for code in [
+        "en", "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko",
+        "zh-Hans", "zh-Hant",
+    ] {
         let mut ui = super::morph_authoring::authoring_ui()?;
-        let catalog: Value = serde_json::from_slice(&std::fs::read(resources.join(format!("{code}.json")))?)?;
+        let catalog: Value =
+            serde_json::from_slice(&std::fs::read(resources.join(format!("{code}.json")))?)?;
         let translations = &catalog["translations"];
-        ui.application.apply_cdmw_theme_payload(&json!({"language": code, "translations": translations}));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"language": code, "translations": translations}));
         ui.settle_layout();
         for source in ["1 · Body", "2 · Garments", "3 · Bind to body"] {
-            let text = translations[source].as_str().ok_or("missing section translation")?;
+            let text = translations[source]
+                .as_str()
+                .ok_or("missing section translation")?;
             ui.reveal(text)?;
-            if code != "en" { assert_ne!(text, source, "{code}: untranslated {source}"); }
+            if code != "en" {
+                assert_ne!(text, source, "{code}: untranslated {source}");
+            }
         }
-        ui.click(translations["Continue to Fit"].as_str().ok_or("continue translation")?)?;
+        ui.click(
+            translations["Continue to Fit"]
+                .as_str()
+                .ok_or("continue translation")?,
+        )?;
         for source in ["Fit the outfit", "Adjust garments", "Choose garments"] {
-            ui.reveal(translations[source].as_str().ok_or("missing fit translation")?)?;
+            ui.reveal(
+                translations[source]
+                    .as_str()
+                    .ok_or("missing fit translation")?,
+            )?;
         }
-        let actions = ui.actions_from_click(translations["Fit all enabled garments"].as_str().ok_or("fit translation")?)?;
-        assert!(has_host_command(&actions, "refit_fit_to_body"), "{code}: translated fitting action failed");
+        let actions = ui.actions_from_click(
+            translations["Fit all enabled garments"]
+                .as_str()
+                .ok_or("fit translation")?,
+        )?;
+        assert!(
+            has_host_command(&actions, "refit_fit_to_body"),
+            "{code}: translated fitting action failed"
+        );
     }
     Ok(())
 }
@@ -1596,22 +2437,36 @@ fn workflow_setup_selects_garment_parts_even_without_an_archive_asset_row() -> T
 fn restore_fitting_shape_actions_stay_visible_for_a_large_selection() -> TestResult {
     let mut ui = super::morph_authoring::authoring_ui()?;
     ui.size = egui::vec2(1000.0, 650.0);
-    ui.application.apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
+    ui.application
+        .apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
     let state = &mut ui.application.cdmw_state["morph_refit"];
     state["shape_restore_source"] = json!("matching-unbaked.pac");
     state["shape_restore_sha256"] = json!("a".repeat(64));
     state["shape_restore_vertex_count"] = json!(3000);
-    state["shape_restore_scope"] = json!((0..80).map(|i| json!([i, "selected garment", 1])).collect::<Vec<_>>());
+    state["shape_restore_scope"] = json!(
+        (0..80)
+            .map(|i| json!([i, "selected garment", 1]))
+            .collect::<Vec<_>>()
+    );
     ui.settle_layout();
     for tab in ["Setup", "Fit", "Shape", "Saved"] {
         ui.click(tab)?;
         for label in ["Apply", "Cancel"] {
             let rect = ui.label_rect(label).ok_or("restoration action is hidden")?;
-            assert!(rect.bottom() <= ui.size.y, "{tab}: restoration action outside window");
+            assert!(
+                rect.bottom() <= ui.size.y,
+                "{tab}: restoration action outside window"
+            );
         }
     }
-    assert!(has_host_command(&ui.actions_from_click("Apply")?, "refit_restore_shape_apply"));
-    assert!(has_host_command(&ui.actions_from_click("Cancel")?, "refit_restore_shape_cancel"));
+    assert!(has_host_command(
+        &ui.actions_from_click("Apply")?,
+        "refit_restore_shape_apply"
+    ));
+    assert!(has_host_command(
+        &ui.actions_from_click("Cancel")?,
+        "refit_restore_shape_cancel"
+    ));
     assert!(ui.actions_from_click("Finish Edit Mesh")?.is_empty());
     Ok(())
 }
@@ -1619,13 +2474,17 @@ fn restore_fitting_shape_actions_stay_visible_for_a_large_selection() -> TestRes
 #[test]
 fn workflow_refit_pull_to_skin_is_a_part_setting_beside_tightness() -> TestResult {
     let mut ui = mixed_refit_ui(&[1])?;
-    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["skin_pull_percent"] = json!(20.0);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_settings"][0]["skin_pull_percent"] =
+        json!(20.0);
     ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(2);
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_refit_skin_pull, 20.0);
     ui.type_number_in_row("Pull to skin %", 20.0, "60")?;
-    assert_eq!(refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?), json!({
-        "submesh_indices": [1], "skin_pull_percent": 60.0,
-    }));
+    assert_eq!(
+        refit_arguments(&ui.actions_from_click("Apply to Selected Garments")?),
+        json!({
+            "submesh_indices": [1], "skin_pull_percent": 60.0,
+        })
+    );
     Ok(())
 }

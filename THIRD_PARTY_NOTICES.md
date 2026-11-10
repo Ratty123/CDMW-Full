@@ -43,6 +43,14 @@ This file is a practical notice list for repository and release packaging. For a
 
 ## Native Libraries
 
+### DirectX Shader Compiler
+
+- Purpose: compile the Rust renderer's D3D12 shaders during initialization.
+- Upstream: https://github.com/microsoft/DirectXShaderCompiler
+- Runtime files: `dxcompiler.dll` and `dxil.dll`, staged from the Windows SDK.
+- Licences and notices: `tools/rust_mesh_lab/DXC-LLVM-LICENSE.txt` and
+  `tools/rust_mesh_lab/DXC-THIRD-PARTY-NOTICES.txt`, included in the release.
+
 ### CDMW Rust Mesh Editor and Archive Preview runtime dependencies
 
 - Purpose: the embedded wgpu/D3D12 production Mesh Editor, every Archive Preview viewport, and standalone Rust Mesh Lab

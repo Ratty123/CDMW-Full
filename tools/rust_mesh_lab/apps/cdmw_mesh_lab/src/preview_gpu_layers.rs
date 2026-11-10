@@ -9,7 +9,10 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
-use cdmw_texture::{DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256, inspect_dds_with_verified_sha256};
+use cdmw_texture::{
+    DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256,
+    inspect_dds_with_verified_sha256,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
@@ -33,6 +36,23 @@ fn channel(layer: &PreviewCoreMaterialLayer) -> Option<usize> {
 pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
     if material.authoring_channels != 0 {
         return false;
+    }
+    if material
+        .layers
+        .first()
+        .is_some_and(|base| base.shader_family.eq_ignore_ascii_case("SkinnedMeshEye"))
+    {
+        let mut channels = BTreeSet::new();
+        return material.layers.len() > 1
+            && material.layers.iter().skip(1).all(|layer| {
+                eye_channel(layer).is_some_and(|channel| channels.insert(channel))
+                    && layer.mask_channel == "a"
+                    && layer
+                        .diffuse
+                        .as_ref()
+                        .zip(layer.mask.as_ref())
+                        .is_some_and(|(color, mask)| color.sha256 == mask.sha256)
+            });
     }
     let mut channels = BTreeSet::new();
     let mut mask = None;
@@ -79,6 +99,18 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
         }
     }
     !channels.is_empty() && channels.len() <= 3
+}
+
+fn eye_channel(layer: &PreviewCoreMaterialLayer) -> Option<usize> {
+    if layer.layer_role != "overlay" || !layer.shader_family.eq_ignore_ascii_case("SkinnedMeshEye")
+    {
+        return None;
+    }
+    match layer.source_parameter.as_str() {
+        "_irisDiffuseTexture" => Some(0),
+        "_pupilTexture" => Some(1),
+        _ => None,
+    }
 }
 
 fn linear(value: f32) -> f32 {
@@ -163,6 +195,28 @@ fn build(
         textures: std::array::from_fn(|_| None),
     };
     let family = material.layers[0].shader_family.to_ascii_lowercase();
+    if family == "skinnedmesheye" {
+        result.uniform.control = [3, 0, 1, 0];
+        // The package's neutral geometry placeholder is not an eye tint.
+        // Authored eye colour comes from these source maps and their coverage.
+        result.uniform.base_color = [1.0; 4];
+        for layer in material.layers.iter().skip(1) {
+            let k = eye_channel(layer).expect("eligible eye layer");
+            let affine = layer.sampling_transform();
+            result.uniform.layers[k] = LayerEntryUniform {
+                affine: [affine[0], affine[1], affine[2], affine[3]],
+                offset: [affine[4], affine[5], 0.0, 0.0],
+                properties: [layer.weight, 0.0, 1.0, 0.0],
+                ..Default::default()
+            };
+            result.textures[1 + k * 3] = Some(layer_texture(
+                layer.diffuse.as_ref().expect("eligible eye diffuse"),
+                TextureRole::BaseColor,
+                sources,
+            ));
+        }
+        return Ok(result);
+    }
     if material
         .layers
         .iter()
@@ -222,8 +276,12 @@ fn build(
         result.textures[1 + k * 3] = Some(color);
         if let Some(reference) = &layer.normal {
             let texture = layer_texture(reference, TextureRole::Normal, sources);
-            let metadata = inspect_dds_with_verified_sha256(&texture.bytes, texture.role, &texture.source_sha256)
-                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            let metadata = inspect_dds_with_verified_sha256(
+                &texture.bytes,
+                texture.role,
+                &texture.source_sha256,
+            )
+            .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
             result.uniform.layers[k].properties[3] = match metadata.format {
                 DdsFormat::Bc5Unorm | DdsFormat::Rg8Unorm => 1.0,
                 DdsFormat::Bc5Snorm => 2.0,
@@ -329,8 +387,9 @@ where
                 };
                 if let Some(reference) = reference {
                     let bytes = sources[&reference.sha256.to_ascii_uppercase()].to_vec();
-                    let metadata = inspect_dds_with_verified_sha256(&bytes, role, &reference.sha256)
-                        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+                    let metadata =
+                        inspect_dds_with_verified_sha256(&bytes, role, &reference.sha256)
+                            .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
                     let mut owners = vec![Vec::new(); document.lods.len()];
                     owners[material.lod_index as usize].push(material.material_index);
                     resources.push(CdmwTextureResource {
@@ -410,6 +469,94 @@ mod tests {
                 .source_sha256
                 .to_ascii_uppercase(),
             content_type: "image/vnd-ms.dds".into(),
+        }
+    }
+
+    #[test]
+    fn eye_layers_preserve_order_alpha_and_cpu_fallback() {
+        let pixels = [[0, 255, 0, 255], [255, 0, 0, 128], [0, 0, 255, 64]];
+        let bytes: Vec<_> = pixels
+            .iter()
+            .map(|p| cdmw_texture::encode_rgba8_dds(1, 1, p, TextureRole::BaseColor).unwrap())
+            .collect();
+        let refs: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(k, b)| reference(b, &format!("eye-{k}.dds")))
+            .collect();
+        let mut entries: Vec<_> = refs
+            .iter()
+            .enumerate()
+            .map(|(k, r)| {
+                let mut entry = layer(if k == 0 { "base" } else { "overlay" }, "a", r);
+                entry.shader_family = "SkinnedMeshEye".into();
+                entry.source_parameter =
+                    ["_baseColorTexture", "_irisDiffuseTexture", "_pupilTexture"][k].into();
+                entry
+            })
+            .collect();
+        let mut eye = material(entries.clone());
+        assert!(eligible(&eye));
+        eye.layers.push(eye.layers[1].clone());
+        assert!(!eligible(&eye), "duplicate iris is ambiguous");
+        entries[0].mask = None;
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 5,
+            unique_resource_count: 3,
+            copied_resource_count: 3,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![material(entries)],
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        for gpu in [false, true] {
+            let mut resources = Vec::new();
+            let (_, layers) = prepare(
+                &graph,
+                &[],
+                &document,
+                &mut resources,
+                gpu,
+                false,
+                |r| Ok(bytes[refs.iter().position(|p| p.path == r.path).unwrap()].clone()),
+                &|| false,
+            )
+            .unwrap();
+            if gpu {
+                assert_eq!(layers.len(), 1);
+                assert_eq!(layers[0].uniform.control[0], 3);
+                assert_eq!(
+                    layers[0].textures[1].as_ref().unwrap().source_sha256,
+                    refs[1].sha256
+                );
+                assert_eq!(
+                    layers[0].textures[4].as_ref().unwrap().source_sha256,
+                    refs[2].sha256
+                );
+            } else {
+                let base = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::BaseColor)
+                    .unwrap();
+                let decoded = cdmw_texture::decode_dds_rgba8(&base.bytes, base.role).unwrap();
+                let expected = [
+                    128.0 / 255.0 * 191.0 / 255.0,
+                    127.0 / 255.0 * 191.0 / 255.0,
+                    64.0 / 255.0,
+                ];
+                for (k, expected) in expected.iter().enumerate() {
+                    assert!((linear(f32::from(decoded.pixels[k]) / 255.0) - expected).abs() < 0.01);
+                }
+                assert_eq!(decoded.pixels[3], 255, "eye coverage stays opaque");
+            }
         }
     }
 

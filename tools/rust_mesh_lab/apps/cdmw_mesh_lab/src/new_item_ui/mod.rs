@@ -25,7 +25,8 @@ pub fn control_contract() -> Value {
 }
 
 fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
-    let Some(host_scale) = theme["pixels_per_point"].as_f64()
+    let Some(host_scale) = theme["pixels_per_point"]
+        .as_f64()
         .filter(|scale| scale.is_finite() && *scale > 0.0 && *scale <= 8.0)
     else {
         return;
@@ -41,8 +42,13 @@ fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
 }
 
 fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {
-    if matches!(input.action, "text" | "number" | "cell" | "range" | "resize_dialog") {
-        requests.retain(|queued| queued.edit_key() != input.edit_key() || queued.action != input.action);
+    if matches!(
+        input.action,
+        "text" | "number" | "cell" | "range" | "resize_dialog"
+    ) {
+        requests.retain(|queued| {
+            queued.edit_key() != input.edit_key() || queued.action != input.action
+        });
     }
     if requests.len() < 128 {
         requests.push_back(input);
@@ -55,10 +61,16 @@ fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state
         // Geometry acknowledgements change the dialog's presentation revision.
         // Preserve the final drag sample and an immediately following close.
         if pending.control == previous.control
-            && (matches!(pending.action, "text" | "number" | "cell" | "finish_edit" | "submit" | "resize_dialog")
-                || previous.action == "resize_dialog" && pending.action == "close_dialog")
-            && let Some(revision) = state.root.find_revision(&pending.control)
-                .or_else(|| state.dialogs.iter().find_map(|dialog| dialog.find_revision(&pending.control)))
+            && (matches!(
+                pending.action,
+                "text" | "number" | "cell" | "finish_edit" | "submit" | "resize_dialog"
+            ) || previous.action == "resize_dialog" && pending.action == "close_dialog")
+            && let Some(revision) = state.root.find_revision(&pending.control).or_else(|| {
+                state
+                    .dialogs
+                    .iter()
+                    .find_map(|dialog| dialog.find_revision(&pending.control))
+            })
         {
             pending.revision = revision;
         }
@@ -353,11 +365,12 @@ impl Application {
                         continue;
                     }
                     if let Some((request, previous)) = &self.in_flight
-                        && state.last_request >= *request {
-                            self.view.acknowledge(previous);
-                            rebase_pending_inputs(&mut self.requests, previous, &state);
-                            self.in_flight = None;
-                        }
+                        && state.last_request >= *request
+                    {
+                        self.view.acknowledge(previous);
+                        rebase_pending_inputs(&mut self.requests, previous, &state);
+                        self.in_flight = None;
+                    }
                     apply_theme(&self.context, &state.theme);
                     load_images(&self.context, &mut self.view, &state)?;
                     emit(
@@ -548,10 +561,10 @@ impl ApplicationHandler for Application {
                 state: winit::event::ElementState::Pressed,
                 ..
             }
-        )
-            && let Some(window) = &self.window {
-                let _ = cdmw_win32_embed::focus_child_window(window);
-            }
+        ) && let Some(window) = &self.window
+        {
+            let _ = cdmw_win32_embed::focus_child_window(window);
+        }
         if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             if let Some(state) = &self.state {
                 sync_host_scale(&self.context, &state.theme, window.scale_factor() as f32);
@@ -567,7 +580,11 @@ impl ApplicationHandler for Application {
             }
             WindowEvent::RedrawRequested => {
                 repaint = false;
-                if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+                if self
+                    .window
+                    .as_ref()
+                    .is_some_and(|window| window.is_visible() == Some(false))
+                {
                     self.next_repaint = None;
                 } else if let Err(error) = self.redraw(event_loop) {
                     self.failed(event_loop, error);
@@ -575,14 +592,17 @@ impl ApplicationHandler for Application {
             }
             _ => {}
         }
-        if repaint
-            && let Some(window) = &self.window {
-                window.request_redraw();
-            }
+        if repaint && let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+        if self
+            .window
+            .as_ref()
+            .is_some_and(|window| window.is_visible() == Some(false))
+        {
             self.next_repaint = None;
         }
         if self
@@ -613,30 +633,68 @@ mod layout_input_tests {
             let mut state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
                 "session": "enter", "generation": 2,
                 "root": {"id": "root", "kind": "column", "children": [
-                    {"id": "other", "kind": "text", "revision": 99}]}})).unwrap();
+                    {"id": "other", "kind": "text", "revision": 99}]}}))
+            .unwrap();
             if in_dialog {
                 state.dialogs.push(serde_json::from_value(field).unwrap());
             } else {
-                state.root.children.push(serde_json::from_value(field).unwrap());
+                state
+                    .root
+                    .children
+                    .push(serde_json::from_value(field).unwrap());
             }
-            let previous = Input { control: "sprite".into(), revision: 7,
-                action: "text", value: json!("texture/new.dds") };
+            let previous = Input {
+                control: "sprite".into(),
+                revision: 7,
+                action: "text",
+                value: json!("texture/new.dds"),
+            };
             let mut requests = VecDeque::new();
-            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
-                action: "submit", value: Value::Null });
-            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
-                action: "finish_edit", value: Value::Null });
-            enqueue_input(&mut requests, Input { control: "other".into(), revision: 7,
-                action: "submit", value: Value::Null });
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "sprite".into(),
+                    revision: 7,
+                    action: "submit",
+                    value: Value::Null,
+                },
+            );
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "sprite".into(),
+                    revision: 7,
+                    action: "finish_edit",
+                    value: Value::Null,
+                },
+            );
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "other".into(),
+                    revision: 7,
+                    action: "submit",
+                    value: Value::Null,
+                },
+            );
             rebase_pending_inputs(&mut requests, &previous, &state);
-            assert_eq!(requests[0].revision, 8, "Enter must commit the acknowledged text");
+            assert_eq!(
+                requests[0].revision, 8,
+                "Enter must commit the acknowledged text"
+            );
             assert_eq!(requests[1].revision, 8);
-            assert_eq!(requests[2].revision, 7, "Other controls keep stale-input protection");
+            assert_eq!(
+                requests[2].revision, 7,
+                "Other controls keep stale-input protection"
+            );
 
             state.root.children.clear();
             state.dialogs.clear();
             rebase_pending_inputs(&mut requests, &previous, &state);
-            assert_eq!(requests[0].revision, 8, "Removed controls cannot gain a revision");
+            assert_eq!(
+                requests[0].revision, 8,
+                "Removed controls cannot gain a revision"
+            );
         }
     }
 
@@ -649,13 +707,21 @@ mod layout_input_tests {
                 "session": "monitor-scale", "generation": 1,
                 "root": {"id": "recovery", "kind": "button", "label": "Archive recovery",
                          "enabled": true, "revision": 1},
-                "theme": {"font_pixels": font}})).unwrap();
+                "theme": {"font_pixels": font}}))
+            .unwrap();
             apply_theme(&context, &state.theme);
             // Both stale child DPI and an eventual native DPI notification are
             // covered while the same context moves back and forth.
-            for (window_scale, host_scale) in [(1.5, 1.5), (1.5, 1.0), (1.5, 2.0),
-                                              (2.0, 2.0), (2.0, 1.25), (2.0, 3.0),
-                                              (1.0, 1.0), (1.0, 1.5)] {
+            for (window_scale, host_scale) in [
+                (1.5, 1.5),
+                (1.5, 1.0),
+                (1.5, 2.0),
+                (2.0, 2.0),
+                (2.0, 1.25),
+                (2.0, 3.0),
+                (1.0, 1.0),
+                (1.0, 1.5),
+            ] {
                 state.theme["pixels_per_point"] = json!(host_scale);
                 let physical_size = egui::vec2(1280.0, 720.0) * host_scale;
                 let mut pointer_pixels = egui::Pos2::ZERO;
@@ -667,18 +733,28 @@ mod layout_input_tests {
                     let input_scale = window_scale * context.zoom_factor();
                     assert!((input_scale - host_scale).abs() < 0.0001);
                     let mut input = egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO,
-                            physical_size / input_scale)),
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            physical_size / input_scale,
+                        )),
                         ..Default::default()
                     };
-                    input.viewports.entry(egui::ViewportId::ROOT).or_default()
+                    input
+                        .viewports
+                        .entry(egui::ViewportId::ROOT)
+                        .or_default()
                         .native_pixels_per_point = Some(window_scale);
                     if let Some(pressed) = pressed {
                         let point = pointer_pixels / input_scale;
-                        input.events = vec![egui::Event::PointerMoved(point),
-                            egui::Event::PointerButton { pos: point,
-                                button: egui::PointerButton::Primary, pressed,
-                                modifiers: egui::Modifiers::NONE }];
+                        input.events = vec![
+                            egui::Event::PointerMoved(point),
+                            egui::Event::PointerButton {
+                                pos: point,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers: egui::Modifiers::NONE,
+                            },
+                        ];
                     }
                     let mut output = context.run_ui(input, |ui| {
                         assert_eq!(ui.style().text_styles[&egui::TextStyle::Body].size, font);
@@ -686,11 +762,18 @@ mod layout_input_tests {
                     });
                     output.textures_delta.clear();
                     assert!((output.pixels_per_point - host_scale).abs() < 0.0001);
-                    assert_eq!(context.input(|input| input.content_rect().size()),
-                               egui::vec2(1280.0, 720.0));
-                    let rect = view.rects.iter().find(|rect| rect.id == "recovery").unwrap().rect;
-                    pointer_pixels = egui::pos2(rect[0] + rect[2] / 2.0,
-                                               rect[1] + rect[3] / 2.0) * host_scale;
+                    assert_eq!(
+                        context.input(|input| input.content_rect().size()),
+                        egui::vec2(1280.0, 720.0)
+                    );
+                    let rect = view
+                        .rects
+                        .iter()
+                        .find(|rect| rect.id == "recovery")
+                        .unwrap()
+                        .rect;
+                    pointer_pixels =
+                        egui::pos2(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0) * host_scale;
                 }
                 assert_eq!(view.inputs.len(), 1);
                 assert_eq!(view.inputs[0].control, "recovery");
@@ -702,17 +785,30 @@ mod layout_input_tests {
     #[test]
     fn persistent_dialog_drag_keeps_the_final_sample_across_delayed_acknowledgements() {
         let mut requests = VecDeque::new();
-        let input = |action, value| Input { control: "dialog".into(), revision: 7, action, value };
+        let input = |action, value| Input {
+            control: "dialog".into(),
+            revision: 7,
+            action,
+            value,
+        };
         for x in 0..300 {
-            enqueue_input(&mut requests, input("resize_dialog", json!([x, 60, 740, 500])));
+            enqueue_input(
+                &mut requests,
+                input("resize_dialog", json!([x, 60, 740, 500])),
+            );
         }
         enqueue_input(&mut requests, input("close_dialog", Value::Null));
         assert_eq!(requests.len(), 2);
         let state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
             "session": "layout", "generation": 2,
             "root": {"id": "root", "kind": "column"},
-            "dialogs": [{"id": "dialog", "kind": "dialog", "revision": 8}]})).unwrap();
-        rebase_pending_inputs(&mut requests, &input("resize_dialog", json!([0, 60, 740, 500])), &state);
+            "dialogs": [{"id": "dialog", "kind": "dialog", "revision": 8}]}))
+        .unwrap();
+        rebase_pending_inputs(
+            &mut requests,
+            &input("resize_dialog", json!([0, 60, 740, 500])),
+            &state,
+        );
         let final_drag = requests.pop_front().unwrap();
         assert_eq!(final_drag.value, json!([299, 60, 740, 500]));
         assert_eq!(final_drag.revision, 8);

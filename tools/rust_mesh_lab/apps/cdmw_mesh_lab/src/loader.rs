@@ -219,15 +219,23 @@ impl Loader {
         })
     }
 
-    pub fn prepare_lod(&mut self, document: Arc<MeshDocument>, lod_index: usize) -> Result<u64, String> {
+    pub fn prepare_lod(
+        &mut self,
+        document: Arc<MeshDocument>,
+        lod_index: usize,
+    ) -> Result<u64, String> {
         if lod_index >= document.lods.len() {
             return Err(format!("LOD {lod_index} is not available for editing"));
         }
         // Only an Arc and index cross the queue. No source arrays or graph are
         // copied on the UI thread; this exact immutable revision stays alive.
         self.submit(|generation, cancellation| LoadRequest::Lod {
-            generation, lod_index, document, cancellation,
-        }).map_err(|error| error.to_string())
+            generation,
+            lod_index,
+            document,
+            cancellation,
+        })
+        .map_err(|error| error.to_string())
     }
 
     pub fn open_archive(&mut self, root: PathBuf) -> Result<u64, LoaderError> {
@@ -281,15 +289,22 @@ impl Loader {
         self.events.try_iter()
     }
 
-    pub fn prepare_jiggle(&mut self, request: crate::cdmw_jiggle::native::Request) -> Result<u64, LoaderError> {
+    pub fn prepare_jiggle(
+        &mut self,
+        request: crate::cdmw_jiggle::native::Request,
+    ) -> Result<u64, LoaderError> {
         self.submit(|generation, cancellation| LoadRequest::Jiggle {
-            generation, request: Box::new(request), cancellation,
+            generation,
+            request: Box::new(request),
+            cancellation,
         })
     }
 
     pub fn cancel_generation(&mut self, generation: u64) {
         if self.current_generation.load(Ordering::Acquire) == generation {
-            if let Some(token) = self.active_cancellation.take() { token.cancel(); }
+            if let Some(token) = self.active_cancellation.take() {
+                token.cancel();
+            }
             self.current_generation.fetch_add(1, Ordering::AcqRel);
         }
     }
@@ -337,18 +352,44 @@ fn worker_loop(
     while let Ok(request) = requests.recv() {
         match request {
             LoadRequest::Shutdown => break,
-            LoadRequest::Lod { generation, lod_index, document, cancellation } => {
-                let result = cancellation.check().map_err(|error| error.to_string())
-                    .and_then(|()| WorkingMesh::from_document_lod(&document, lod_index).map_err(|error| error.to_string()))
-                    .and_then(|mesh| cancellation.check().map(|()| mesh).map_err(|error| error.to_string()));
+            LoadRequest::Lod {
+                generation,
+                lod_index,
+                document,
+                cancellation,
+            } => {
+                let result = cancellation
+                    .check()
+                    .map_err(|error| error.to_string())
+                    .and_then(|()| {
+                        WorkingMesh::from_document_lod(&document, lod_index)
+                            .map_err(|error| error.to_string())
+                    })
+                    .and_then(|mesh| {
+                        cancellation
+                            .check()
+                            .map(|()| mesh)
+                            .map_err(|error| error.to_string())
+                    });
                 if current_generation.load(Ordering::Acquire) == generation {
-                    let _ = events.send(LoadEvent::Lod { generation, lod_index, result: Box::new(result) });
+                    let _ = events.send(LoadEvent::Lod {
+                        generation,
+                        lod_index,
+                        result: Box::new(result),
+                    });
                 }
             }
-            LoadRequest::Jiggle { generation, request, cancellation } => {
+            LoadRequest::Jiggle {
+                generation,
+                request,
+                cancellation,
+            } => {
                 let result = crate::cdmw_jiggle::native::prepare(*request, &cancellation);
                 if current_generation.load(Ordering::Acquire) == generation {
-                    let _ = events.send(LoadEvent::Jiggle { generation, result: Box::new(result) });
+                    let _ = events.send(LoadEvent::Jiggle {
+                        generation,
+                        result: Box::new(result),
+                    });
                 }
             }
             LoadRequest::Mesh {
@@ -1580,7 +1621,9 @@ fn resolve_material_parameters(
                         ]
                     }),
                     emissive_intensity: intensity.map(f32::from_bits),
-                    emission_animation: None, emission_reveal: None, shader_controls: None,
+                    emission_animation: None,
+                    emission_reveal: None,
+                    shader_controls: None,
                     roughness: roughness.map(f32::from_bits),
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),
@@ -2305,8 +2348,12 @@ mod tests {
     static TEMP_ID: AtomicU64 = AtomicU64::new(1);
 
     #[test]
-    fn queued_lod_shares_exact_document_and_cancels_before_construction() -> Result<(), Box<dyn std::error::Error>> {
-        let document = Arc::new(decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?);
+    fn queued_lod_shares_exact_document_and_cancels_before_construction()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = Arc::new(decode_mesh(
+            &cdmw_formats::synthetic::two_lod_pac(),
+            MeshFormat::Pac,
+        )?);
         let (requests, receiver) = bounded(2);
         let (_events, events) = bounded(8);
         let mut loader = Loader {
@@ -2316,17 +2363,29 @@ mod tests {
             active_cancellation: None,
         };
         let generation = loader.prepare_lod(Arc::clone(&document), 1)?;
-        let LoadRequest::Lod { generation: queued_generation, lod_index, document: queued, cancellation } = receiver.try_recv()? else {
+        let LoadRequest::Lod {
+            generation: queued_generation,
+            lod_index,
+            document: queued,
+            cancellation,
+        } = receiver.try_recv()?
+        else {
             panic!("expected a LOD request");
         };
         assert_eq!(queued_generation, generation);
         assert_eq!(lod_index, 1);
-        assert!(Arc::ptr_eq(&document, &queued), "queueing must not copy source arrays");
+        assert!(
+            Arc::ptr_eq(&document, &queued),
+            "queueing must not copy source arrays"
+        );
         assert!(cancellation.check().is_ok());
         loader.cancel_generation(generation);
         assert!(cancellation.check().is_err());
         assert!(loader.prepare_lod(Arc::clone(&document), 2).is_err());
-        assert!(receiver.try_recv().is_err(), "an invalid LOD must not enqueue work");
+        assert!(
+            receiver.try_recv().is_err(),
+            "an invalid LOD must not enqueue work"
+        );
         Ok(())
     }
 
@@ -2530,7 +2589,11 @@ mod tests {
             decoded.compression,
             cdmw_archive::CompressionOutcome::PartialDds
         );
-        assert_eq!(decoded.bytes, payload);
+        let mut unpacked = payload.clone();
+        // A loose DDS must no longer advertise packed mip sizes. The archive
+        // reader clears that metadata while preserving the mip payload.
+        unpacked[32..40].fill(0);
+        assert_eq!(decoded.bytes, unpacked);
         assert!(inspect_dds(&decoded.bytes, TextureRole::BaseColor).is_ok());
         assert_eq!(fs::read(payload_path)?, payload);
         assert_eq!(fs::read(pathc_path)?, pathc);

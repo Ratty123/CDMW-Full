@@ -122,8 +122,11 @@ impl PresentationView {
                             // Navigation already names the active workspace.
                             // Keep that space for its controls at larger fonts.
                             self.management_page = true;
-                            let controls: Vec<_> = pages.children.iter()
-                                .chain(named(root, "mod_management_operation_bar")).collect();
+                            let controls: Vec<_> = pages
+                                .children
+                                .iter()
+                                .chain(named(root, "mod_management_operation_bar"))
+                                .collect();
                             self.management_column(ui, &controls);
                             self.management_page = false;
                         });
@@ -133,22 +136,29 @@ impl PresentationView {
 
     fn management_header(&mut self, ui: &mut Ui, root: &Node) {
         let s = scale(ui);
-        Frame::NONE.inner_margin(margin(12.0 * s, 10.0 * s)).show(ui, |ui| {
-            ui.spacing_mut().item_spacing = vec2(10.0 * s, 8.0 * s);
-            let title_width = named(root, "SectionTitle")
-                .map(|title| galley(ui, title.text("text"), 16.0, muted(ui), f32::INFINITY).size().x + 36.0 * s)
-                .unwrap_or(0.0);
-            if ui.available_width() > title_width + 480.0 * s {
-                ui.horizontal(|ui| {
+        Frame::NONE
+            .inner_margin(margin(12.0 * s, 10.0 * s))
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0 * s, 8.0 * s);
+                let title_width = named(root, "SectionTitle")
+                    .map(|title| {
+                        galley(ui, title.text("text"), 16.0, muted(ui), f32::INFINITY)
+                            .size()
+                            .x
+                            + 36.0 * s
+                    })
+                    .unwrap_or(0.0);
+                if ui.available_width() > title_width + 480.0 * s {
+                    ui.horizontal(|ui| {
+                        self.management_heading(ui, root);
+                        ui.add_space(12.0 * s);
+                        self.management_game_folder(ui, root);
+                    });
+                } else {
                     self.management_heading(ui, root);
-                    ui.add_space(12.0 * s);
                     self.management_game_folder(ui, root);
-                });
-            } else {
-                self.management_heading(ui, root);
-                self.management_game_folder(ui, root);
-            }
-        });
+                }
+            });
     }
 
     fn management_heading(&mut self, ui: &mut Ui, root: &Node) {
@@ -157,8 +167,14 @@ impl PresentationView {
             ui.horizontal(|ui| {
                 let (rect, _) = ui.allocate_exact_size(vec2(18.0, 24.0) * s, Sense::hover());
                 icon(ui, rect.center(), 18.0 * s, "layers", muted(ui));
-                let response = ui.add(egui::Label::new(
-                    RichText::new(title.text("text")).font(font(ui, 16.0)).strong()).wrap());
+                let response = ui.add(
+                    egui::Label::new(
+                        RichText::new(title.text("text"))
+                            .font(font(ui, 16.0))
+                            .strong(),
+                    )
+                    .wrap(),
+                );
                 self.record(ui, title, &response);
             });
         }
@@ -202,8 +218,7 @@ impl PresentationView {
                 self.record(ui, label, &response);
             }
             let width = (ui.available_width() - choose_width - 10.0 * s).max(40.0 * s);
-            let (rect, response) =
-                ui.allocate_exact_size(vec2(width, 34.0 * s), Sense::hover());
+            let (rect, response) = ui.allocate_exact_size(vec2(width, 34.0 * s), Sense::hover());
             ui.painter().rect(
                 rect,
                 CornerRadius::same(4),
@@ -262,51 +277,59 @@ impl PresentationView {
 
     fn management_tabs(&mut self, ui: &mut Ui, pages: &Node) {
         let s = scale(ui);
-        let inset = if pages.name == "mod_management_pages" { 12.0 * s } else { 0.0 };
-        Frame::NONE
-            .inner_margin(margin(inset, 0.0))
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing = vec2(2.0 * s, 0.0);
-                ui.horizontal_wrapped(|ui| {
-                    for (index, tab) in pages.array("tabs").iter().enumerate() {
-                        if tab["visible"] == false {
-                            continue;
-                        }
-                        let selected = pages.number("selected", 0.0) as usize == index;
-                        let color = if selected {
-                            ui.visuals().hyperlink_color
-                        } else {
-                            muted(ui)
-                        };
-                        let button = egui::Button::new(
-                            RichText::new(tab["text"].as_str().unwrap_or(""))
-                                .font(font(ui, 12.0))
-                                .color(color),
-                        )
-                        .fill(Color32::TRANSPARENT)
-                        .stroke(Stroke::NONE)
-                        .corner_radius(0)
-                        .min_size(vec2(0.0, if pages.name == "mod_management_package_task" { 30.0 * s } else { 38.0 * s }))
-                        .wrap();
-                        let response =
-                            ui.add_enabled(pages.enabled && tab["enabled"] != false, button);
-                        if selected {
-                            ui.painter().hline(
-                                response.rect.x_range(),
-                                response.rect.bottom(),
-                                Stroke::new(2.0 * s, color),
-                            );
-                        }
-                        if response.clicked() {
-                            self.input(pages, "tab", json!(index));
-                        }
-                        self.record(ui, pages, &response);
-                        if let Some(tooltip) = tab["tooltip"].as_str().filter(|tip| !tip.is_empty()) {
-                            response.on_hover_text(tooltip);
-                        }
+        let inset = if pages.name == "mod_management_pages" {
+            12.0 * s
+        } else {
+            0.0
+        };
+        Frame::NONE.inner_margin(margin(inset, 0.0)).show(ui, |ui| {
+            ui.spacing_mut().item_spacing = vec2(2.0 * s, 0.0);
+            ui.horizontal_wrapped(|ui| {
+                for (index, tab) in pages.array("tabs").iter().enumerate() {
+                    if tab["visible"] == false {
+                        continue;
                     }
-                });
+                    let selected = pages.number("selected", 0.0) as usize == index;
+                    let color = if selected {
+                        ui.visuals().hyperlink_color
+                    } else {
+                        muted(ui)
+                    };
+                    let button = egui::Button::new(
+                        RichText::new(tab["text"].as_str().unwrap_or(""))
+                            .font(font(ui, 12.0))
+                            .color(color),
+                    )
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(Stroke::NONE)
+                    .corner_radius(0)
+                    .min_size(vec2(
+                        0.0,
+                        if pages.name == "mod_management_package_task" {
+                            30.0 * s
+                        } else {
+                            38.0 * s
+                        },
+                    ))
+                    .wrap();
+                    let response = ui.add_enabled(pages.enabled && tab["enabled"] != false, button);
+                    if selected {
+                        ui.painter().hline(
+                            response.rect.x_range(),
+                            response.rect.bottom(),
+                            Stroke::new(2.0 * s, color),
+                        );
+                    }
+                    if response.clicked() {
+                        self.input(pages, "tab", json!(index));
+                    }
+                    self.record(ui, pages, &response);
+                    if let Some(tooltip) = tab["tooltip"].as_str().filter(|tip| !tip.is_empty()) {
+                        response.on_hover_text(tooltip);
+                    }
+                }
             });
+        });
         ui.separator();
     }
 
@@ -704,7 +727,12 @@ impl PresentationView {
             self.record(ui, title, &response);
             if wide {
                 ui.add_space(
-                    (ui.available_width() - check_width - missing_width - cleanup_width - refresh_width - 34.0 * s)
+                    (ui.available_width()
+                        - check_width
+                        - missing_width
+                        - cleanup_width
+                        - refresh_width
+                        - 34.0 * s)
                         .max(0.0),
                 );
                 controls(self, ui);

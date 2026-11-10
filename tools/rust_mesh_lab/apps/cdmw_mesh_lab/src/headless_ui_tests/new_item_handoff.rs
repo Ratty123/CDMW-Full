@@ -1,7 +1,10 @@
 use super::*;
 
 fn new_item_session() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(triangle_application()?, egui::vec2(1440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.cdmw_state["output_destination"] = json!("C:/temp/cdmw-new-item-edits/abc");
     ui.application.cdmw_state["output_destination_ready"] = json!(true);
@@ -25,7 +28,12 @@ fn create_new_item_session_names_the_way_back_and_hides_free_edit_output() -> Te
     }
     assert!(ui.label_rect("Finish Edit Mesh").is_none());
     ui.reveal("Finish sends the edited model back to Create New Item, which builds the item and its package.")?;
-    for hidden in ["Export Free Edit Package", "Change output folder...", "Open Package in CDMW...", "C:/temp/cdmw-new-item-edits/abc"] {
+    for hidden in [
+        "Export Free Edit Package",
+        "Change output folder...",
+        "Open Package in CDMW...",
+        "C:/temp/cdmw-new-item-edits/abc",
+    ] {
         assert!(ui.label_rect(hidden).is_none(), "{hidden} shown");
     }
     Ok(())
@@ -59,8 +67,14 @@ fn an_ordinary_session_keeps_finish_edit_mesh_and_its_output_choices() -> TestRe
     ui.frame(Vec::new());
     ui.frame(Vec::new());
     assert!(ui.label_rect("Finish Edit Mesh").is_some());
-    assert!(ui.label_rect("Editing a model for Create New Item").is_none());
-    assert!(ui.label_rect("Finish and return to Create New Item").is_none());
+    assert!(
+        ui.label_rect("Editing a model for Create New Item")
+            .is_none()
+    );
+    assert!(
+        ui.label_rect("Finish and return to Create New Item")
+            .is_none()
+    );
     ui.reveal("Export Free Edit Package")?;
     Ok(())
 }
@@ -76,7 +90,10 @@ fn cloth_brush_turns_strokes_into_paint_and_ends_with_another_tool() -> TestResu
     ui.click("2 Paint cloth")?;
     assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Cloth));
     ui.reveal("Paint whole model")?;
-    assert!(ui.label_rect("Mark which parts of your model swing as cloth.").is_none());
+    assert!(
+        ui.label_rect("Mark which parts of your model swing as cloth.")
+            .is_none()
+    );
     ui.click("Brush")?;
     assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
     assert_eq!(ui.application.selection_tool, SelectionTool::Brush);

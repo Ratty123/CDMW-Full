@@ -3,7 +3,9 @@ use super::*;
 
 impl LabApplication {
     pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let Some(state) = self.cdmw_state.get("shader_controls") else { return; };
+        let Some(state) = self.cdmw_state.get("shader_controls") else {
+            return;
+        };
         crate::localization::collapsing("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
             let selected = self.selected_part_indices();
             let rows = state["parts"].as_array().into_iter().flatten()

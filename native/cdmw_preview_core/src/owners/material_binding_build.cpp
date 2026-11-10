@@ -846,6 +846,22 @@ static void finish_material_bindings(MaterialBindingBuildState& state, size_t si
             state.package.material_conservation_findings.push_back(
                 "cross_owner_binding:" + row.sidecar_path + ":"
                 + row.owner_wrapper_item_id + ":" + row.parameter.name);
+        } else if (normalized_key(row.parameter.name) == "emissivetexture"
+            && std::any_of(state.bindings.begin(), state.bindings.end(), [&](const TextureBinding& binding) {
+                return normalized_key(binding.parameter_name) == "emissiveintensitytexture"
+                    && !binding.source_path.empty()
+                    && binding.source_authority == "exact_sidecar"
+                    && lower_copy(binding.component_scope_id) == lower_copy(row.component_scope_id)
+                    && lower_copy(binding.sidecar_path) == lower_copy(row.sidecar_path)
+                    && lower_copy(binding.owner_wrapper_item_id) == lower_copy(row.owner_wrapper_item_id)
+                    && binding.material_wrapper_index == row.material_wrapper_index;
+            })) {
+            // The native scalar emission path takes precedence over RGB.
+            // Keep the missing declaration as evidence, but it is not an active
+            // preview edge and must not discard every other material map.
+            row.declared_source_missing = true;
+            row.status = "transported_inactive_rgb_emission";
+            row.source_resolution_detail = "resolved_same_wrapper_emissive_intensity_takes_precedence";
         } else {
             row.status = "transported_source_unavailable";
             row.finding = "source_dds_unavailable";

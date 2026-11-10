@@ -14,22 +14,22 @@ use std::collections::{HashMap, HashSet};
 use tempfile::tempdir;
 use winit::event::DeviceId;
 
-mod cloth_preview_tests;
 mod bend;
+mod cloth_preview_tests;
 mod free_edit_destination;
-mod new_item_handoff;
-mod island_controls_tests;
-mod parts_output_tests;
-mod item_set_references;
-mod history_controls_tests;
-mod keyboard_shortcuts;
 mod free_edit_replacement_tests;
-mod replacement_weights_tests;
+mod history_controls_tests;
+mod island_controls_tests;
+mod item_set_references;
+mod keyboard_shortcuts;
 mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;
 mod morph_workflow;
+mod new_item_handoff;
+mod parts_output_tests;
 mod refit_diagnostics;
+mod replacement_weights_tests;
 mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;
@@ -41,37 +41,70 @@ mod precision_controls {
                 let context = egui::Context::default();
                 for _ in 0..2 {
                     let mut input = egui::RawInput {
-                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(width, 800.0))),
+                        screen_rect: Some(Rect::from_min_size(
+                            Pos2::ZERO,
+                            egui::vec2(width, 800.0),
+                        )),
                         ..Default::default()
                     };
-                    input.viewports.get_mut(&egui::ViewportId::ROOT).unwrap().native_pixels_per_point = Some(scale);
+                    input
+                        .viewports
+                        .get_mut(&egui::ViewportId::ROOT)
+                        .unwrap()
+                        .native_pixels_per_point = Some(scale);
                     let mut output = context.run_ui(input, |root| {
                         egui::CentralPanel::default().show(root, |ui| {
-                            for (label, mut value) in [("Strength", 4.0), ("Scroll V", 0.173205),
-                                ("Angular offset limit (radians)", 400.1234567)] {
+                            for (label, mut value) in [
+                                ("Strength", 4.0),
+                                ("Scroll V", 0.173205),
+                                ("Angular offset limit (radians)", 400.1234567),
+                            ] {
                                 ui.add(numeric::slider(&mut value, 0.0..=5000.0).text(label));
                             }
                         });
                     });
                     output.textures_delta.clear();
-                    let bars = output.shapes.iter().filter_map(|shape| match &shape.shape {
-                        egui::Shape::Rect(shape) if shape.rect.width() > 30.0 && shape.rect.height() <= 8.0 => Some(shape),
-                        _ => None,
-                    }).collect::<Vec<_>>();
+                    let bars = output
+                        .shapes
+                        .iter()
+                        .filter_map(|shape| match &shape.shape {
+                            egui::Shape::Rect(shape)
+                                if shape.rect.width() > 30.0 && shape.rect.height() <= 8.0 =>
+                            {
+                                Some(shape)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
                     // Each rail also carries a shorter fill up to its value.
                     let full = bars.iter().map(|bar| bar.rect.width()).fold(0.0, f32::max);
-                    let rails = bars.iter().copied().filter(|bar| bar.rect.width() == full).collect::<Vec<_>>();
+                    let rails = bars
+                        .iter()
+                        .copied()
+                        .filter(|bar| bar.rect.width() == full)
+                        .collect::<Vec<_>>();
                     assert_eq!(rails.len(), 3, "one full rail per control");
                     for fill in bars.iter().filter(|bar| bar.rect.width() < full) {
-                        assert_eq!(fill.rect.left(), rails[0].rect.left(), "fills start at the rail");
+                        assert_eq!(
+                            fill.rect.left(),
+                            rails[0].rect.left(),
+                            "fills start at the rail"
+                        );
                         assert_ne!(fill.fill, rails[0].fill, "fills stand out from the rail");
                     }
                     for rail in &rails {
-                        assert_eq!(rail.rect.x_range(), rails[0].rect.x_range(), "width {width}, scale {scale}");
+                        assert_eq!(
+                            rail.rect.x_range(),
+                            rails[0].rect.x_range(),
+                            "width {width}, scale {scale}"
+                        );
                         assert_eq!(rail.fill, rails[0].fill);
                         assert_eq!(rail.rect.height(), rails[0].rect.height());
-                        assert!(rail.rect.left() >= 0.0 && rail.rect.right() <= width,
-                            "width {width}, scale {scale}, rail {:?}", rail.rect);
+                        assert!(
+                            rail.rect.left() >= 0.0 && rail.rect.right() <= width,
+                            "width {width}, scale {scale}, rail {:?}",
+                            rail.rect
+                        );
                     }
                 }
             }
@@ -130,7 +163,11 @@ mod precision_controls {
                                     .speed(0.01),
                             ),
                             2 => ui.add(numeric::slider(&mut self.count, 1..=8).text("Count")),
-                            4 => ui.add(numeric::value(&mut self.value).range(-10.0..=10.0).compact_width(52.0)),
+                            4 => ui.add(
+                                numeric::value(&mut self.value)
+                                    .range(-10.0..=10.0)
+                                    .compact_width(52.0),
+                            ),
                             _ => numeric::text(
                                 ui,
                                 &mut self.text,
@@ -265,7 +302,10 @@ mod precision_controls {
         ui.click_at(position);
         ui.frame(vec![key_event(egui::Key::Enter, true)]);
         ui.frame(vec![key_event(egui::Key::Enter, false)]);
-        assert_eq!(ui.value, -0.123456789, "reopening a compact value must not round it");
+        assert_eq!(
+            ui.value, -0.123456789,
+            "reopening a compact value must not round it"
+        );
         ui.click_at(position);
         ui.scroll(position, true);
         assert!((ui.value - 0.376543211).abs() < 1e-12);
@@ -520,7 +560,10 @@ mod guide_authoring_tests {
         // Neither anchor: creating is refused in the view.
         ui.application.cdmw_cloth.guides.use_pins = false;
         ui.frame(Vec::new());
-        assert!(ui.label_rect("Pin the guides by height or with painted pins.").is_some());
+        assert!(
+            ui.label_rect("Pin the guides by height or with painted pins.")
+                .is_some()
+        );
         Ok(())
     }
 
@@ -535,7 +578,8 @@ mod guide_authoring_tests {
                 .is_some()
         );
         ui.application.cdmw_state["cloth_guides"]["available"] = json!(false);
-        ui.application.cdmw_state["cloth_guides"]["reason"] = json!("Attach the matching skeleton.");
+        ui.application.cdmw_state["cloth_guides"]["reason"] =
+            json!("Attach the matching skeleton.");
         ui.settle_layout();
         assert!(ui.label_rect("Attach the matching skeleton.").is_some());
         assert!(ui.label_rect("Create / update guides").is_none());
@@ -554,13 +598,24 @@ struct HeadlessUi {
 
 #[test]
 fn lighting_depth_controls_toggle_without_editing_mesh() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?,egui::vec2(1400.0,1000.0));
-    let original = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
-    assert!(ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion);
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    let original = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    assert!(
+        ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion
+    );
     ui.click_tool_button("Viewport")?;
     ui.click("Neutral studio")?;
     ui.click("Studio (fixed lights)")?;
-    assert_eq!(ui.application.lighting_preset, cdmw_render_wgpu::LightingPreset::StudioFixed);
+    assert_eq!(
+        ui.application.lighting_preset,
+        cdmw_render_wgpu::LightingPreset::StudioFixed
+    );
     ui.click("Shadows")?;
     assert!(!ui.application.lighting_depth.shadows);
     assert!(ui.application.lighting_depth.ambient_occlusion);
@@ -568,8 +623,17 @@ fn lighting_depth_controls_toggle_without_editing_mesh() -> TestResult {
     assert!(!ui.application.lighting_depth.ambient_occlusion);
     ui.click("Shadows")?;
     ui.click("Ambient occlusion")?;
-    assert!(ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion);
-    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(),original);
+    assert!(
+        ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion
+    );
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        original
+    );
     Ok(())
 }
 
@@ -1023,7 +1087,11 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                         ui.click_sidebar(&format!("Pin {label} settings"))?;
                     }
                 } else {
-                    ui.click_tool_button(if label == "Select" { "Selection" } else { label })?;
+                    ui.click_tool_button(if label == "Select" {
+                        "Selection"
+                    } else {
+                        label
+                    })?;
                 }
                 if label == "Vertex Parameters" {
                     seed_vertex_inspection(&mut ui, 156);
@@ -1495,22 +1563,46 @@ impl HeadlessUi {
         })
     }
 
-    fn list_checkbox_rect(&mut self, row: &str, column: &str) -> Result<Rect, Box<dyn std::error::Error>> {
+    fn list_checkbox_rect(
+        &mut self,
+        row: &str,
+        column: &str,
+    ) -> Result<Rect, Box<dyn std::error::Error>> {
         let header = self.reveal(column)?;
         let row = self.reveal(row)?;
-        self.output.shapes.iter().filter_map(|clipped| match &clipped.shape {
-            egui::Shape::Rect(shape) if (8.0..=40.0).contains(&shape.rect.width())
-                && (8.0..=40.0).contains(&shape.rect.height())
-                && (shape.rect.center().y - row.center().y).abs() < 3.0
-                && clipped.clip_rect.contains_rect(shape.rect) => Some(shape.rect),
-            _ => None,
-        }).min_by(|a, b| (a.center().x - header.center().x).abs().total_cmp(&(b.center().x - header.center().x).abs()))
+        self.output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Rect(shape)
+                    if (8.0..=40.0).contains(&shape.rect.width())
+                        && (8.0..=40.0).contains(&shape.rect.height())
+                        && (shape.rect.center().y - row.center().y).abs() < 3.0
+                        && clipped.clip_rect.contains_rect(shape.rect) =>
+                {
+                    Some(shape.rect)
+                }
+                _ => None,
+            })
+            .min_by(|a, b| {
+                (a.center().x - header.center().x)
+                    .abs()
+                    .total_cmp(&(b.center().x - header.center().x).abs())
+            })
             .filter(|rect| (rect.center().x - header.center().x).abs() < header.width() * 0.5 + 8.0)
             .ok_or_else(|| format!("painted {column} checkbox beside {row:?}").into())
     }
 
-    fn actions_from_part_checkbox(&mut self, index: usize, column: &str) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
-        let name = self.application.document.as_ref().ok_or("document")?.lods[self.application.active_lod_index].submeshes[index].name.clone();
+    fn actions_from_part_checkbox(
+        &mut self,
+        index: usize,
+        column: &str,
+    ) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
+        let name = self.application.document.as_ref().ok_or("document")?.lods
+            [self.application.active_lod_index]
+            .submeshes[index]
+            .name
+            .clone();
         let rect = self.list_checkbox_rect(&format!("{index}: {name}"), column)?;
         self.last_actions.clear();
         self.click_at(rect.center());
@@ -1520,7 +1612,10 @@ impl HeadlessUi {
     fn scroll_inspector(&mut self, distance: f32) {
         let viewport = self.application.viewport_rect.expect("viewport");
         // The parts toolbar stays fixed; send the wheel into the list below it.
-        let position = egui::pos2((viewport.right() + self.size.x) * 0.5, viewport.bottom() - 60.0);
+        let position = egui::pos2(
+            (viewport.right() + self.size.x) * 0.5,
+            viewport.bottom() - 60.0,
+        );
         self.frame(vec![Event::PointerMoved(position), wheel_event(distance)]);
         for _ in 0..8 {
             self.frame(Vec::new());
@@ -1539,18 +1634,38 @@ impl HeadlessUi {
     fn reveal(&mut self, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
         self.frame(Vec::new());
         // These surfaces now have an explicit navigation step in the Inspector.
-        if self.integrated_cdmw && ["Geometry Layers", "Action History", "Translucency (experimental)", "Glow (experimental)", "Shader experiments"].contains(&label)
-            && let Some(back) = self.label_rect("Back to Inspector") {
-                self.click_at(back.center());
-                self.settle_layout();
-            }
-        if self.integrated_cdmw && self.label_rect(label).is_none()
-            && self.application.document.as_ref().and_then(|doc| doc.lods.get(self.application.active_lod_index))
-                .is_some_and(|lod| lod.submeshes.iter().enumerate().any(|(index, part)| label == format!("{index}: {}", part.name)))
-            && let Some(parts) = self.label_rect("Parts") {
-                self.click_at(parts.center());
-                self.settle_layout();
-            }
+        if self.integrated_cdmw
+            && [
+                "Geometry Layers",
+                "Action History",
+                "Translucency (experimental)",
+                "Glow (experimental)",
+                "Shader experiments",
+            ]
+            .contains(&label)
+            && let Some(back) = self.label_rect("Back to Inspector")
+        {
+            self.click_at(back.center());
+            self.settle_layout();
+        }
+        if self.integrated_cdmw
+            && self.label_rect(label).is_none()
+            && self
+                .application
+                .document
+                .as_ref()
+                .and_then(|doc| doc.lods.get(self.application.active_lod_index))
+                .is_some_and(|lod| {
+                    lod.submeshes
+                        .iter()
+                        .enumerate()
+                        .any(|(index, part)| label == format!("{index}: {}", part.name))
+                })
+            && let Some(parts) = self.label_rect("Parts")
+        {
+            self.click_at(parts.center());
+            self.settle_layout();
+        }
         if let Some(rectangle) = self.label_rect(label) {
             return Ok(rectangle);
         }
@@ -1600,11 +1715,26 @@ impl HeadlessUi {
     fn type_number_in_row(&mut self, label: &str, old: f64, new: &str) -> TestResult {
         let caption = label;
         let label = self.reveal(label)?;
-        let position = self.output.shapes.iter().filter_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if text.galley.job.text.replace('−', "-").parse::<f64>() == Ok(old)
-                && (-20.0..40.0).contains(&(text.visual_bounding_rect().center().y - label.center().y)) => Some(text.visual_bounding_rect().center()),
-            _ => None,
-        }).min_by(|a, b| (a.y - label.center().y).abs().total_cmp(&(b.y - label.center().y).abs()))
+        let position = self
+            .output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text)
+                    if text.galley.job.text.replace('−', "-").parse::<f64>() == Ok(old)
+                        && (-20.0..40.0).contains(
+                            &(text.visual_bounding_rect().center().y - label.center().y),
+                        ) =>
+                {
+                    Some(text.visual_bounding_rect().center())
+                }
+                _ => None,
+            })
+            .min_by(|a, b| {
+                (a.y - label.center().y)
+                    .abs()
+                    .total_cmp(&(b.y - label.center().y).abs())
+            })
             .ok_or_else(|| format!("editable number {old} beside or below {caption}"))?;
         self.click_at(position);
         self.frame(vec![Event::Text(new.into())]);
@@ -1730,14 +1860,25 @@ impl HeadlessUi {
         // A control with the same text can share the row's height in the other
         // sidebar, such as Part colors in Parts beside Viewport's Display.
         let viewport = self.application.viewport_rect;
-        let same_side = |rectangle: Rect| viewport.is_none_or(|viewport|
-            (rectangle.center().x < viewport.center().x) == (row.center().x < viewport.center().x));
+        let same_side = |rectangle: Rect| {
+            viewport.is_none_or(|viewport| {
+                (rectangle.center().x < viewport.center().x)
+                    == (row.center().x < viewport.center().x)
+            })
+        };
         let selected = self
             .label_rect_where(current, |rectangle| {
                 same_side(rectangle) && (rectangle.center().y - row.center().y).abs() < row.height()
                     || (rectangle.top() >= row.bottom()
-                        && rectangle.top() - row.bottom() < row.height()
-                            + self.application.egui_context.style_of(self.application.egui_context.theme()).spacing.item_spacing.y
+                        && rectangle.top() - row.bottom()
+                            < row.height()
+                                + self
+                                    .application
+                                    .egui_context
+                                    .style_of(self.application.egui_context.theme())
+                                    .spacing
+                                    .item_spacing
+                                    .y
                         && (rectangle.left() - row.left()).abs() < 16.0)
             })
             .ok_or_else(|| format!("missing current value {current:?} near {label:?}"))?;
@@ -2104,7 +2245,12 @@ fn integrated_parts_visibility_follows_surviving_parts_and_respects_layers() -> 
         1,
         0,
     ));
-    let original = ui.application.document.as_deref().cloned().ok_or("document")?;
+    let original = ui
+        .application
+        .document
+        .as_deref()
+        .cloned()
+        .ok_or("document")?;
     ui.application.cdmw_state["geometry_layers"]["layers"] = json!([
         {"submesh_indices": [0], "base": true, "visible": true},
         {"submesh_indices": [1], "base": false, "visible": false},
@@ -2139,10 +2285,11 @@ fn integrated_cdmw_status_details_show_and_copy_complete_error() -> TestResult {
     );
     for size in [egui::vec2(1440.0, 900.0), egui::vec2(1000.0, 650.0)] {
         let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
-        ui.application.egui_context.style_mut_of(
-            ui.application.egui_context.theme(),
-            |style| style.interaction.tooltip_delay = 0.0,
-        );
+        ui.application
+            .egui_context
+            .style_mut_of(ui.application.egui_context.theme(), |style| {
+                style.interaction.tooltip_delay = 0.0
+            });
         ui.application.status.clone_from(&message);
         ui.frame(Vec::new());
         ui.frame(Vec::new());
@@ -2154,41 +2301,69 @@ fn integrated_cdmw_status_details_show_and_copy_complete_error() -> TestResult {
         ui.frame(vec![Event::PointerMoved(summary.center())]);
         ui.frame(Vec::new());
         ui.frame(Vec::new());
-        assert!(ui.output.shapes.iter().any(|clipped| {
-            matches!(&clipped.shape, egui::Shape::Text(text)
+        assert!(
+            ui.output.shapes.iter().any(|clipped| {
+                matches!(&clipped.shape, egui::Shape::Text(text)
                 if text.galley.job.text == message && !text.galley.elided)
-        }), "hover must show the complete message");
+            }),
+            "hover must show the complete message"
+        );
         ui.click("Details")?;
-        assert!(ui.output.shapes.iter().any(|clipped| {
-            matches!(&clipped.shape, egui::Shape::Text(text)
+        assert!(
+            ui.output.shapes.iter().any(|clipped| {
+                matches!(&clipped.shape, egui::Shape::Text(text)
                 if text.galley.job.text == message && !text.galley.elided
                     && text.galley.rows.len() > 1
                     && text.visual_bounding_rect().height() > clipped.clip_rect.height())
-        }), "the complete message must wrap inside a bounded scroll area");
-        let (scroll_rect, text_top) = ui.output.shapes.iter().find_map(|clipped| {
-            let egui::Shape::Text(text) = &clipped.shape else { return None };
-            (text.galley.job.text == message && !text.galley.elided)
-                .then_some((clipped.clip_rect, text.visual_bounding_rect().top()))
-        }).ok_or("scrollable details text")?;
+            }),
+            "the complete message must wrap inside a bounded scroll area"
+        );
+        let (scroll_rect, text_top) = ui
+            .output
+            .shapes
+            .iter()
+            .find_map(|clipped| {
+                let egui::Shape::Text(text) = &clipped.shape else {
+                    return None;
+                };
+                (text.galley.job.text == message && !text.galley.elided)
+                    .then_some((clipped.clip_rect, text.visual_bounding_rect().top()))
+            })
+            .ok_or("scrollable details text")?;
         let camera_revision = ui.application.camera.revision();
-        ui.frame(vec![Event::PointerMoved(scroll_rect.center()), wheel_event(-240.0)]);
+        ui.frame(vec![
+            Event::PointerMoved(scroll_rect.center()),
+            wheel_event(-240.0),
+        ]);
         ui.settle_layout();
-        assert!(ui.output.shapes.iter().any(|clipped| {
-            matches!(&clipped.shape, egui::Shape::Text(text)
+        assert!(
+            ui.output.shapes.iter().any(|clipped| {
+                matches!(&clipped.shape, egui::Shape::Text(text)
                 if text.galley.job.text == message && !text.galley.elided
                     && text.visual_bounding_rect().top() < text_top)
-        }), "Details must remain open and scroll to hidden text");
+            }),
+            "Details must remain open and scroll to hidden text"
+        );
         assert_eq!(ui.application.camera.revision(), camera_revision);
         let copy = ui.label_rect("Copy").ok_or("details copy button")?.center();
         ui.frame(vec![Event::PointerMoved(copy)]);
-        assert!(ui.label_rect("Copy").is_some(), "Copy disappeared on move at {size:?}");
+        assert!(
+            ui.label_rect("Copy").is_some(),
+            "Copy disappeared on move at {size:?}"
+        );
         ui.frame(vec![pointer_button(copy, PointerButton::Primary, true)]);
-        assert!(ui.label_rect("Copy").is_some(), "Copy disappeared on press at {size:?}");
+        assert!(
+            ui.label_rect("Copy").is_some(),
+            "Copy disappeared on press at {size:?}"
+        );
         ui.frame(vec![pointer_button(copy, PointerButton::Primary, false)]);
         assert_eq!(ui.application.status, message, "details changed the status");
-        assert!(ui.output.platform_output.commands.iter().any(|command| {
-            matches!(command, egui::OutputCommand::CopyText(text) if text == &message)
-        }), "Copy must retain the entire message, including its hidden tail");
+        assert!(
+            ui.output.platform_output.commands.iter().any(|command| {
+                matches!(command, egui::OutputCommand::CopyText(text) if text == &message)
+            }),
+            "Copy must retain the entire message, including its hidden tail"
+        );
     }
     Ok(())
 }
@@ -2480,7 +2655,10 @@ fn integrated_sidebar_flyouts_use_available_height_and_full_content_width() -> T
             ui.scroll_tool_window("Morph & Refit", -100.0)?;
         }
         ui.reveal("Open Selection tool")?;
-        assert!(ui.label_rect("Reset").is_some(), "scrolling Setup must retain its actions");
+        assert!(
+            ui.label_rect("Reset").is_some(),
+            "scrolling Setup must retain its actions"
+        );
         ui.click("Open Selection tool")?;
         assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
         assert!(ui.sidebar_button("Close Select settings").is_some());
@@ -2518,19 +2696,24 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         ui.click_sidebar(label)?;
         assert_eq!(ui.application.cdmw_rail_page, Some(page));
         assert!(
-            ui.sidebar_button(&format!("Close {label} settings")).is_some(),
+            ui.sidebar_button(&format!("Close {label} settings"))
+                .is_some(),
             "{label}"
         );
         assert_eq!(ui.application.viewport_rect, Some(viewport));
         ui.click_sidebar(label)?;
         assert!(
-            ui.sidebar_button(&format!("Close {label} settings")).is_none(),
+            ui.sidebar_button(&format!("Close {label} settings"))
+                .is_none(),
             "{label} should close on a second click"
         );
         assert_eq!(ui.application.cdmw_rail_page, Some(page));
     }
     ui.click_sidebar("Rig & Weights")?;
-    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::RigWeights));
+    assert_eq!(
+        ui.application.cdmw_rail_page,
+        Some(CdmwRailPage::RigWeights)
+    );
     assert!(ui.label_rect("Sidebars").is_none());
     ui.click_sidebar("Move")?;
     ui.click_sidebar("Rotate")?;
@@ -2834,7 +3017,8 @@ fn integrated_sidebar_moved_panels_stay_reachable_after_resize_and_font_changes(
         viewport
             .expand(1.0)
             .contains_rect(ui.tool_window_rect("Move")?),
-        "Move after pinning: {:?} vs {viewport:?}", ui.tool_window_rect("Move")?
+        "Move after pinning: {:?} vs {viewport:?}",
+        ui.tool_window_rect("Move")?
     );
     ui.click_sidebar("Close Move settings")?;
     assert!(ui.sidebar_button("Close Viewport settings").is_some());
@@ -2844,12 +3028,10 @@ fn integrated_sidebar_moved_panels_stay_reachable_after_resize_and_font_changes(
 #[test]
 fn integrated_transform_fields_fit_the_viewport_beside_a_docked_panel() -> TestResult {
     for tool in ["Move", "Rotate", "Scale"] {
-        let mut ui = HeadlessUi::new_integrated_cdmw(
-            triangle_application()?, egui::vec2(1000.0, 650.0),
-        );
-        ui.application.apply_cdmw_theme_payload(
-            &json!({"font_point_size": 18.0, "density": "comfortable"}),
-        );
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1000.0, 650.0));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": 18.0, "density": "comfortable"}));
         ui.settle_layout();
         ui.click_sidebar("Collapse Tools")?;
         ui.click_sidebar(tool)?;
@@ -2857,8 +3039,13 @@ fn integrated_transform_fields_fit_the_viewport_beside_a_docked_panel() -> TestR
         ui.click_sidebar("Pin Viewport settings")?;
         let viewport = ui.application.viewport_rect.ok_or("viewport")?;
         let area = ui.tool_window_rect(tool)?;
-        assert!(viewport.expand(1.0).contains_rect(area), "{tool}: {area:?} vs {viewport:?}");
-        let close = ui.sidebar_button(&format!("Close {tool} settings")).ok_or("close")?;
+        assert!(
+            viewport.expand(1.0).contains_rect(area),
+            "{tool}: {area:?} vs {viewport:?}"
+        );
+        let close = ui
+            .sidebar_button(&format!("Close {tool} settings"))
+            .ok_or("close")?;
         assert!(close.interact_rect.contains(close.rect.center()));
     }
     Ok(())
@@ -3709,7 +3896,12 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
     ui.click("Bones")?;
     assert!(ui.application.show_bones);
     let state = ui.application.cdmw_state.clone();
-    let mut document = ui.application.document.as_deref().cloned().ok_or("document")?;
+    let mut document = ui
+        .application
+        .document
+        .as_deref()
+        .cloned()
+        .ok_or("document")?;
     document.lods[0].submeshes[0].positions[0][0] += 0.2;
     ui.application
         .install_validated_cdmw_state(state, Some(document))?;
@@ -3954,16 +4146,28 @@ fn integrated_inspector_hair_color_background_draw_and_erase_controls_are_wired(
 #[test]
 fn persistent_editor_panels_restore_in_the_real_ui_across_display_sizes() -> TestResult {
     use egui::containers::panel::PanelState;
-    for (width, height, font) in [(1920.0, 1080.0, 10.0), (2560.0, 1440.0, 12.0),
-                                  (3440.0, 1440.0, 14.0), (3840.0, 2160.0, 18.0)] {
-        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(width, height));
-        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font}));
-        crate::cdmw_layout::restore(&ui.application.egui_context,
-            &json!({"cdmw_tool_rail": 319.0, "cdmw_right_panels": 507.0}));
+    for (width, height, font) in [
+        (1920.0, 1080.0, 10.0),
+        (2560.0, 1440.0, 12.0),
+        (3440.0, 1440.0, 14.0),
+        (3840.0, 2160.0, 18.0),
+    ] {
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(width, height));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font}));
+        crate::cdmw_layout::restore(
+            &ui.application.egui_context,
+            &json!({"cdmw_tool_rail": 319.0, "cdmw_right_panels": 507.0}),
+        );
         ui.settle_layout();
         for (key, expected) in [("cdmw_tool_rail", 319.0), ("cdmw_right_panels", 507.0)] {
-            let panel = PanelState::load(&ui.application.egui_context, egui::Id::new(key)).ok_or(key)?;
-            assert!((panel.size().x - expected).abs() <= 1.0, "{width}x{height} {key}: {panel:?}");
+            let panel =
+                PanelState::load(&ui.application.egui_context, egui::Id::new(key)).ok_or(key)?;
+            assert!(
+                (panel.size().x - expected).abs() <= 1.0,
+                "{width}x{height} {key}: {panel:?}"
+            );
         }
         assert!(ui.application.viewport_rect.ok_or("viewport")?.width() > 500.0);
     }
@@ -4107,9 +4311,7 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
     ui.application
         .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.frame(Vec::new());
-    ui.reveal(
-        "Adding geometry needs Free Edit: export a new OBJ package to a folder.",
-    )?;
+    ui.reveal("Adding geometry needs Free Edit: export a new OBJ package to a folder.")?;
     assert!(!has_host_command(
         &ui.actions_from_click("Copy Selection")?,
         "layer_copy"
@@ -4156,10 +4358,17 @@ fn integrated_exact_layers_paste_into_game_parts_when_the_host_has_a_writer() ->
     ui.frame(Vec::new());
     ui.reveal("Pasted copies are written into the game Part they came from, at full detail only.")?;
     let viewport = ui.application.viewport_rect.ok_or("viewport")?;
-    for (label, command) in [("Paste New Layer", "layer_paste"), ("Delete", "layer_delete")] {
+    for (label, command) in [
+        ("Paste New Layer", "layer_paste"),
+        ("Delete", "layer_delete"),
+    ] {
         ui.last_actions.clear();
         ui.click_where(label, |rectangle| rectangle.center().x > viewport.right())?;
-        assert!(has_host_command(&ui.last_actions, command), "{label}: {:?}", ui.last_actions);
+        assert!(
+            has_host_command(&ui.last_actions, command),
+            "{label}: {:?}",
+            ui.last_actions
+        );
     }
 
     // PAM, higher LODs and Archive Refit have no exact route for new geometry.
@@ -4167,7 +4376,9 @@ fn integrated_exact_layers_paste_into_game_parts_when_the_host_has_a_writer() ->
     ui.frame(Vec::new());
     ui.reveal("Adding geometry needs Free Edit: export a new OBJ package to a folder.")?;
     ui.last_actions.clear();
-    ui.click_where("Paste New Layer", |rectangle| rectangle.center().x > viewport.right())?;
+    ui.click_where("Paste New Layer", |rectangle| {
+        rectangle.center().x > viewport.right()
+    })?;
     assert!(ui.last_actions.is_empty(), "{:?}", ui.last_actions);
     Ok(())
 }
@@ -4425,21 +4636,52 @@ fn integrated_selection_heading_opens_controls_and_activates_viewport_selection(
         assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Select));
         assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
         assert!(!ui.application.cdmw_orbit_mode);
-        assert!(ui.label_rect("Select").is_none(), "redundant Select button remains");
-        for label in ["Vertex", "Edge", "Face", "Shape", "Operation", "Visible", "X-Ray", "Invert", "Create Part"] {
+        assert!(
+            ui.label_rect("Select").is_none(),
+            "redundant Select button remains"
+        );
+        for label in [
+            "Vertex",
+            "Edge",
+            "Face",
+            "Shape",
+            "Operation",
+            "Visible",
+            "X-Ray",
+            "Invert",
+            "Create Part",
+        ] {
             ui.reveal(label)?;
         }
         ui.click("Face")?;
         ui.click("X-Ray")?;
         let point = ui.projected_point(SelectionDomain::Face)?;
         ui.click_at(egui::pos2(point.x, point.y));
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .selection
+                .faces
+                .len(),
+            1
+        );
 
         ui.click_tool_button("Selection")?;
         assert_eq!(ui.application.cdmw_rail_page, None);
         assert!(ui.application.cdmw_orbit_mode);
         assert!(ui.label_rect("Shape").is_none());
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .selection
+                .faces
+                .len(),
+            1
+        );
         ui.click_tool_button("Selection")?;
         assert_eq!(ui.application.selection_domain, SelectionDomain::Face);
         assert!(!ui.application.selection_visible_only);
@@ -4684,19 +4926,33 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
         for key in ["enabled", "intensity_percent", "mode", "clearance_percent"] {
             ui.application.cdmw_refit_settings_dirty.mark(key);
         }
-        assert!(ui.actions_from_click("Fit all enabled garments")?.is_empty());
+        assert!(
+            ui.actions_from_click("Fit all enabled garments")?
+                .is_empty()
+        );
         ui.application.cdmw_refit_settings_dirty = Default::default();
         ui.frame(Vec::new());
-        let before = (ui.application.cdmw_refit_clearance, ui.application.cdmw_refit_intensity,
-            ui.application.cdmw_refit_mode.clone(), ui.application.cdmw_refit_enabled);
+        let before = (
+            ui.application.cdmw_refit_clearance,
+            ui.application.cdmw_refit_intensity,
+            ui.application.cdmw_refit_mode.clone(),
+            ui.application.cdmw_refit_enabled,
+        );
         let actions = ui.actions_from_click("Fit all enabled garments")?;
         assert!(actions.iter().any(|action| matches!(
             action,
             UiAction::CdmwCommand { command: "refit_fit_to_body", arguments, .. }
                 if arguments == &json!({})
         )));
-        assert_eq!((ui.application.cdmw_refit_clearance, ui.application.cdmw_refit_intensity,
-            ui.application.cdmw_refit_mode.clone(), ui.application.cdmw_refit_enabled), before);
+        assert_eq!(
+            (
+                ui.application.cdmw_refit_clearance,
+                ui.application.cdmw_refit_intensity,
+                ui.application.cdmw_refit_mode.clone(),
+                ui.application.cdmw_refit_enabled
+            ),
+            before
+        );
     }
     Ok(())
 }
@@ -4749,7 +5005,9 @@ fn integrated_cloth_controls_apply_boundary_disable_and_restore() -> TestResult 
 #[test]
 fn integrated_jiggle_independent_regions_reuse_contribution_and_solver_controls() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        triangle_application()?, egui::vec2(1440.0, 1800.0));
+        triangle_application()?,
+        egui::vec2(1440.0, 1800.0),
+    );
     ui.application.cdmw_state["jiggle"] = json!({
         "available": true, "reason": "", "lod_count": 4,
         "bone_regions": [{"bone": 3, "name": "Chest_L", "slots": [0, 2]},
@@ -4769,20 +5027,37 @@ fn integrated_jiggle_independent_regions_reuse_contribution_and_solver_controls(
     assert!(actions.iter().any(|a| matches!(a, UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
         if arguments == &json!({"part_ids": ["body:0"], "bone_slots": [0, 2], "rule": {"below_y": null, "retained": 0.25}}))));
     let actions = ui.actions_from_click("Use whole-part contribution")?;
-    assert!(actions.iter().any(|a| matches!(a, UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
-        if arguments == &json!({"part_ids": ["body:0"], "bone_slots": [0, 2], "reset": true}))));
+    assert!(actions.iter().any(
+        |a| matches!(a, UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "bone_slots": [0, 2], "reset": true}))
+    ));
     ui.click("Bone solver settings")?;
     ui.type_number_in_row("Linear response", 680.0, "30")?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0], 30.0);
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0],
+        30.0
+    );
     ui.click("Chest_L")?;
     ui.click("Chest_R")?;
     ui.settle_layout();
     assert_eq!(ui.application.cdmw_jiggle.retained_percent, 75.0);
     ui.type_number_in_row("Linear response", 680.0, "50")?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&7][0], 50.0);
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.native_bone_settings[&7][0],
+        50.0
+    );
     ui.click("Reset bone settings")?;
-    assert!(!ui.application.cdmw_jiggle.preview.native_bone_settings.contains_key(&7));
-    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0], 30.0);
+    assert!(
+        !ui.application
+            .cdmw_jiggle
+            .preview
+            .native_bone_settings
+            .contains_key(&7)
+    );
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0],
+        30.0
+    );
     Ok(())
 }
 
@@ -4804,8 +5079,14 @@ fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -
     ui.click_tool_button("Jiggle")?;
     ui.settle_layout();
     assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Jiggle));
-    assert!(ui.label_rect("This PAC has no existing cloth bindings.").is_none());
-    assert!(ui.label_rect("Select an included part with editable jiggle data.").is_some());
+    assert!(
+        ui.label_rect("This PAC has no existing cloth bindings.")
+            .is_none()
+    );
+    assert!(
+        ui.label_rect("Select an included part with editable jiggle data.")
+            .is_some()
+    );
     assert!(ui.label_rect("Disable jiggle").is_none());
     ui.click("Selected parts")?;
     ui.settle_layout();
@@ -4840,13 +5121,17 @@ fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -
 #[test]
 fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        triangle_application()?, egui::vec2(1440.0, 980.0),
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
     );
     ui.application.cdmw_state["jiggle"] = json!({"available": false,
         "reason": "Jiggle editing requires an original PAC mesh.", "parts": []});
     ui.click_tool_button("Jiggle")?;
     ui.settle_layout();
-    assert!(ui.label_rect("Jiggle editing requires an original PAC mesh.").is_some());
+    assert!(
+        ui.label_rect("Jiggle editing requires an original PAC mesh.")
+            .is_some()
+    );
     assert!(ui.label_rect("Disable jiggle").is_none());
     assert!(ui.label_rect("Restore original jiggle").is_none());
     Ok(())
@@ -4915,7 +5200,9 @@ fn jiggle_preview_hover_keeps_wrapped_controls_stationary() -> TestResult {
 #[test]
 fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        triangle_application()?, egui::vec2(1440.0, 1100.0));
+        triangle_application()?,
+        egui::vec2(1440.0, 1100.0),
+    );
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.application.cdmw_state["jiggle"] = json!({
         "available": false, "reason": "No editable jiggle parts.", "parts": [],
@@ -4938,45 +5225,80 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     let low_nibble = colours[1];
     assert!(ui.label_rect("8-bit mode").is_none());
     assert!(ui.label_rect("4-bit mode").is_none());
-    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] = json!([15, 249, 255]);
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] =
+        json!([15, 249, 255]);
     ui.application.publish_mesh_snapshot();
-    assert_eq!(low_nibble, ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1]);
+    assert_eq!(
+        low_nibble,
+        ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1]
+    );
     ui.application.refresh_face_selection_overlay();
     assert!(ui.application.face_selection_overlay.is_none());
-    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] = json!([255, 255, 255]);
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] =
+        json!([255, 255, 255]);
     ui.application.publish_mesh_snapshot();
-    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![disabled; 3]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(),
+        &vec![disabled; 3]
+    );
     ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["available"] = json!(false);
     ui.application.publish_mesh_snapshot();
     let unknown = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[0];
     assert_ne!(unknown, disabled);
-    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(),
+        &vec![unknown; 3]
+    );
     ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["available"] = json!(true);
     ui.application.active_lod_index = 1;
     ui.application.publish_mesh_snapshot();
-    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(),
+        &vec![unknown; 3]
+    );
     ui.application.active_lod_index = 0;
     ui.application.cdmw_state["replacement"]["comparison"] = json!("original");
     ui.application.publish_mesh_snapshot();
-    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(),
+        &vec![unknown; 3]
+    );
     ui.click("Show jiggle regions")?;
     assert!(ui.application.cdmw_jiggle.region_colours.is_none());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
-fn decoded_jiggle_ui() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
+fn decoded_jiggle_ui()
+-> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
     use sha2::{Digest, Sha256};
     let root = tempdir()?;
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        triangle_application()?, egui::vec2(1440.0, 1400.0));
-    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "jiggle", 1, 0));
-    let identity = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+        triangle_application()?,
+        egui::vec2(1440.0, 1400.0),
+    );
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "jiggle",
+        1,
+        0,
+    ));
+    let identity = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ];
     let mut record = [0_u8; 40];
     record[28] = 255;
     record[39] = 63;
-    let hex = record.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let hex = record
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     let payload = serde_json::to_vec(&json!({"version": 1,
         "rig": {"bone_palette": [0], "parents": [-1], "inverse_bind_matrices": [identity],
             "neutral_global_matrices": [identity], "neutral_local_matrices": [identity]},
@@ -4994,14 +5316,14 @@ fn decoded_jiggle_ui() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<d
 }
 
 fn wait_for_jiggle(ui: &mut HeadlessUi) -> TestResult {
-        let deadline = Instant::now() + std::time::Duration::from_secs(5);
-        while ui.application.cdmw_jiggle.preview.pending.is_some() {
-            assert!(Instant::now() < deadline, "decoded jiggle loader timed out");
-            ui.application.poll_loader();
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-        ui.frame(Vec::new());
-        Ok(())
+    let deadline = Instant::now() + std::time::Duration::from_secs(5);
+    while ui.application.cdmw_jiggle.preview.pending.is_some() {
+        assert!(Instant::now() < deadline, "decoded jiggle loader timed out");
+        ui.application.poll_loader();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    ui.frame(Vec::new());
+    Ok(())
 }
 
 #[test]
@@ -5010,53 +5332,117 @@ fn decoded_jiggle_controls_change_each_setting_live_and_show_examples() -> TestR
         ("Linear response", 680.0, "30", false, "catch up faster"),
         ("Linear damping", 0.82, "0.25", false, "90%"),
         ("Linear speed limit", 3.0, "0.01", false, "catch up slowly"),
-        ("Linear offset limit", 0.055, "0.001", false, "closer to the body"),
+        (
+            "Linear offset limit",
+            0.055,
+            "0.001",
+            false,
+            "closer to the body",
+        ),
         ("Angular response", 400.0, "30", true, "straighten faster"),
         ("Angular damping", 0.7, "0.25", true, "more spin"),
-        ("Angular speed limit", 200.0, "0.01", true, "turn back slowly"),
-        ("Angular offset limit (radians)", 0.7, "0.001", true, "6 degrees"),
+        (
+            "Angular speed limit",
+            200.0,
+            "0.01",
+            true,
+            "turn back slowly",
+        ),
+        (
+            "Angular offset limit (radians)",
+            0.7,
+            "0.001",
+            true,
+            "6 degrees",
+        ),
     ] {
         let (_root, mut ui, _) = decoded_jiggle_ui()?;
         let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-        ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
-            |style| style.interaction.tooltip_delay = 0.0);
+        ui.application
+            .egui_context
+            .style_mut_of(ui.application.egui_context.theme(), |style| {
+                style.interaction.tooltip_delay = 0.0
+            });
         ui.click_tool_button("Jiggle")?;
         ui.click("Selected parts")?;
-        if angular { ui.click("Turning")?; }
+        if angular {
+            ui.click("Turning")?;
+        }
         ui.click("Play preview")?;
         wait_for_jiggle(&mut ui)?;
-        for _ in 0..10 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        for _ in 0..10 {
+            ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+        }
         ui.click("Pause preview")?;
         ui.click("Bone solver settings")?;
         ui.reveal(label)?;
         ui.settle_layout();
         // egui suppresses tooltips immediately after clicks/scrolling. Move
         // onto the label after that grace period, as a new deliberate hover.
-        for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
+        for _ in 0..12 {
+            ui.frame(vec![Event::PointerGone]);
+        }
         let position = ui.label_rect(label).ok_or("solver label")?.center();
         ui.frame(vec![Event::PointerMoved(position)]);
-        for _ in 0..3 { ui.frame(Vec::new()); }
-        assert!(ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
+        for _ in 0..3 {
+            ui.frame(Vec::new());
+        }
+        assert!(
+            ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
             egui::Shape::Text(text) if text.galley.job.text.contains("For example")
-                && text.galley.job.text.contains(example))), "missing example for {label}: {:?}",
-                    ui.output.shapes.iter().filter_map(|shape| match &shape.shape {
-                        egui::Shape::Text(text) if text.galley.job.text.contains("example") => Some(&text.galley.job.text),
-                        _ => None,
-                    }).collect::<Vec<_>>());
+                && text.galley.job.text.contains(example))),
+            "missing example for {label}: {:?}",
+            ui.output
+                .shapes
+                .iter()
+                .filter_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text.contains("example") =>
+                        Some(&text.galley.job.text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        );
         ui.type_number_in_row(label, old, new)?;
         // Continue the existing simulation: settings must not require reloading.
         ui.click("Resume preview")?;
-        for _ in 0..30 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-        let changed = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions.clone();
+        for _ in 0..30 {
+            ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+        }
+        let changed = ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions
+            .clone();
         ui.click("Reset preview")?;
         ui.click("Reset bone settings")?;
         ui.click("Play preview")?;
         wait_for_jiggle(&mut ui)?;
-        for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-        let baseline = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
-        assert!(Vec3::from(changed[1]).distance(Vec3::from(baseline[1])) > 1e-5, "{label} did not reach playback");
+        for _ in 0..40 {
+            ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+        }
+        let baseline = &ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions;
+        assert!(
+            Vec3::from(changed[1]).distance(Vec3::from(baseline[1])) > 1e-5,
+            "{label} did not reach playback"
+        );
         assert!(Vec3::from(changed[0]).distance(Vec3::from(authored.positions[0])) < 1e-5);
-        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
     }
     Ok(())
 }
@@ -5072,37 +5458,86 @@ fn check_centred_motion_preview(ui: &mut HeadlessUi) -> TestResult {
         if motion == "Freehand" {
             let centre = ui.application.viewport_rect.unwrap().center();
             let centre = Vec2::new(centre.x, centre.y);
-            ui.drag(&[centre, centre + Vec2::new(35.0, -20.0)], PointerButton::Primary);
+            ui.drag(
+                &[centre, centre + Vec2::new(35.0, -20.0)],
+                PointerButton::Primary,
+            );
             // A display frame can arrive before the next fixed physics step.
             ui.application.advance_jiggle_preview(0.0)?;
-            let pending = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+            let pending = &ui
+                .application
+                .cdmw_jiggle
+                .preview
+                .scene
+                .as_ref()
+                .unwrap()
+                .frame;
             for (actual, expected) in pending.positions.iter().zip(&authored.positions) {
-                assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5,
-                    "unintegrated pointer motion moved the centred body");
+                assert!(
+                    Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5,
+                    "unintegrated pointer motion moved the centred body"
+                );
             }
         }
-        for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        for _ in 0..20 {
+            ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+        }
         ui.click("Pause preview")?;
-        let centred = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+        let centred = ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .clone();
         for (actual, expected) in centred.positions.iter().zip(&authored.positions) {
-            assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5, "{motion} moved the rigid body");
+            assert!(
+                Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5,
+                "{motion} moved the rigid body"
+            );
         }
         let camera_revision = ui.application.camera.revision();
         ui.click("Keep model centred")?;
         ui.application.advance_jiggle_preview(0.0)?;
-        let full_motion = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
-        assert!(full_motion.positions.iter().zip(&authored.positions)
-            .any(|(a, b)| Vec3::from(*a).distance(Vec3::from(*b)) > 1e-4), "{motion} lost its simulation motion");
+        let full_motion = ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .clone();
+        assert!(
+            full_motion
+                .positions
+                .iter()
+                .zip(&authored.positions)
+                .any(|(a, b)| Vec3::from(*a).distance(Vec3::from(*b)) > 1e-4),
+            "{motion} lost its simulation motion"
+        );
         ui.click("Keep model centred")?;
         ui.application.advance_jiggle_preview(0.0)?;
-        let restored = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+        let restored = &ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame;
         assert_eq!(restored.positions, centred.positions);
         assert_eq!(restored.normals, centred.normals);
         assert_ne!(restored.draw_revision, full_motion.draw_revision);
         assert_eq!(ui.application.camera.revision(), camera_revision);
         ui.click("Reset preview")?;
     }
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
@@ -5112,14 +5547,17 @@ fn jiggle_centred_motion_preserves_all_disabled_and_paused_views_for_both_solver
         let (_root, mut ui, _) = decoded_jiggle_ui()?;
         ui.click_tool_button("Jiggle")?;
         ui.click("Selected parts")?;
-        if approximate { ui.click("Approximate vertices")?; }
+        if approximate {
+            ui.click("Approximate vertices")?;
+        }
         check_centred_motion_preview(&mut ui)?;
     }
     Ok(())
 }
 
 #[test]
-fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previous_scene() -> TestResult {
+fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previous_scene()
+-> TestResult {
     let (root, mut ui, payload) = decoded_jiggle_ui()?;
     let path = root.path().join("jiggle-rig.json");
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
@@ -5130,14 +5568,43 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     assert!(ui.application.cdmw_jiggle.preview.pending.is_some());
     wait(&mut ui)?;
     assert!(ui.application.cdmw_jiggle.preview.playing);
-    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let current = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    for _ in 0..20 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let current = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     ui.click("Original flags")?;
     // The previous usable frame stays visible until preparation succeeds.
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, current);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        current
+    );
     wait(&mut ui)?;
-    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let original = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    for _ in 0..20 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let original = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     assert_ne!(original.positions, current.positions);
     assert_eq!(original.positions[1], current.positions[1]);
     assert!(original.normals.iter().flatten().all(|v| v.is_finite()));
@@ -5147,8 +5614,19 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     ui.click("Reset preview")?;
     ui.click("Play preview")?;
     wait(&mut ui)?;
-    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, original);
+    for _ in 0..20 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        original
+    );
 
     // Invalid file delivery keeps the original frame paused; Play retries the
     // newly selected comparison, rather than resuming that obsolete simulation.
@@ -5156,22 +5634,44 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     ui.click("All disabled")?;
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, original);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        original
+    );
     std::fs::write(&path, &payload)?;
     ui.click("Play preview")?;
     wait(&mut ui)?;
     assert!(ui.application.cdmw_jiggle.preview.playing);
-    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let disabled = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+    for _ in 0..20 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let disabled = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame;
     assert_eq!(disabled.positions[0], current.positions[0]);
     assert_ne!(disabled.positions[1], current.positions[1]);
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
 
     ui.click("Current flags")?;
     let cancelled = ui.application.cdmw_jiggle.preview.pending.unwrap();
     ui.click("Reset preview")?;
     assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
-    ui.application.accept_prepared_jiggle(cancelled, Err("stale failure".into()));
+    ui.application
+        .accept_prepared_jiggle(cancelled, Err("stale failure".into()));
     ui.application.poll_loader();
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
     assert!(!ui.application.cdmw_jiggle.preview.playing);
@@ -5187,7 +5687,9 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
 #[test]
 fn integrated_freehand_motion_keeps_the_body_centred_without_mesh_edits() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        overlapping_parts_application()?, egui::vec2(1440.0, 1400.0));
+        overlapping_parts_application()?,
+        egui::vec2(1440.0, 1400.0),
+    );
     ui.application.cdmw_state["jiggle"] = json!({"available": true, "lod_count": 1,
         "parts": [{"index": 0, "id": "body:0", "included": true, "min_y": 0.0, "max_y": 1.0,
             "preview": {"available": true, "vertex_count": 3,
@@ -5199,30 +5701,84 @@ fn integrated_freehand_motion_keeps_the_body_centred_without_mesh_edits() -> Tes
     ui.click("Freehand")?;
     ui.click("Play preview")?;
     ui.application.advance_jiggle_preview(1.0 / 60.0)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        authored.positions
+    );
     let center = ui.application.viewport_rect.unwrap().center();
     let center = Vec2::new(center.x, center.y);
     let delta = Vec2::new(40.0, -30.0);
     ui.drag(&[center, center + delta], PointerButton::Primary);
     ui.application.advance_jiggle_preview(1.0 / 60.0)?;
     assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_none());
-    let frame = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+    let frame = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame;
     for index in [0, 2, 3, 4, 5] {
-        assert!(Vec3::from(frame.positions[index]).distance(Vec3::from(authored.positions[index])) < 1e-5,
-            "non-simulated vertex {index} did not stay centred");
+        assert!(
+            Vec3::from(frame.positions[index]).distance(Vec3::from(authored.positions[index]))
+                < 1e-5,
+            "non-simulated vertex {index} did not stay centred"
+        );
     }
     let target = Vec3::from(authored.positions[1]);
     let lag = Vec3::from(frame.positions[1]).distance(target);
     assert!(lag > 1e-5);
-    for _ in 0..180 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    assert!(Vec3::from(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[1]).distance(target) < lag);
+    for _ in 0..180 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    assert!(
+        Vec3::from(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .scene
+                .as_ref()
+                .unwrap()
+                .frame
+                .positions[1]
+        )
+        .distance(target)
+            < lag
+    );
     ui.click("Pause preview")?;
-    let paused = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    let paused = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     ui.drag(&[center, center - delta], PointerButton::Primary);
     ui.application.advance_jiggle_preview(0.1)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, paused);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        paused
+    );
     ui.click("Resume preview")?;
-    ui.application.pointer_events.push(ViewportPointerEvent::PrimaryPressed(center));
+    ui.application
+        .pointer_events
+        .push(ViewportPointerEvent::PrimaryPressed(center));
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_some());
     ui.application.cancel_active_gesture("Focus loss");
@@ -5230,16 +5786,33 @@ fn integrated_freehand_motion_keeps_the_body_centred_without_mesh_edits() -> Tes
     ui.click("Reset preview")?;
     ui.click("Play preview")?;
     ui.application.advance_jiggle_preview(1.0 / 60.0)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
-    assert!(ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        authored.positions
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
+    assert!(
+        ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0
+    );
     Ok(())
 }
 
 #[test]
 fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        triangle_application()?, egui::vec2(1440.0, 1400.0));
+        triangle_application()?,
+        egui::vec2(1440.0, 1400.0),
+    );
     ui.application.cdmw_state["cloth"] = json!({"available": false, "parts": []});
     ui.application.cdmw_state["jiggle"] = json!({
         "available": true, "lod_count": 4,
@@ -5260,8 +5833,18 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     ui.click("Show jiggle regions")?;
     assert!(ui.application.cdmw_jiggle.region_colours.is_none());
     assert!(ui.application.cdmw_jiggle.preview.playing);
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let moving = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let moving = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     assert_ne!(moving.positions, authored.positions);
     assert_eq!(moving.positions[0][0], authored.positions[0][0]);
     assert_eq!(moving.positions[0][2], authored.positions[0][2]);
@@ -5269,40 +5852,118 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     assert_eq!(moving.indices, authored.indices);
     assert_eq!(moving.uvs, authored.uvs);
     assert!(moving.normals.iter().flatten().all(|n| n.is_finite()));
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
-    ui.application.begin_primary_gesture(crate::headless_tests::viewport(), Vec2::ZERO);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
+    ui.application
+        .begin_primary_gesture(crate::headless_tests::viewport(), Vec2::ZERO);
     assert!(ui.application.selection_gesture.is_none() && ui.application.edit_gesture.is_none());
     ui.click("Pause preview")?;
     ui.application.advance_jiggle_preview(1.0)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, moving.positions);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        moving.positions
+    );
     ui.click("Original flags")?;
     ui.click("Play preview")?;
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let original = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions.clone();
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let original = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .positions
+        .clone();
     assert_ne!(original, moving.positions);
     ui.click("All disabled")?;
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let disabled = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let disabled = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .positions;
     assert_ne!(*disabled, original);
     for i in 1..3 {
         let distance = Vec3::from(disabled[i]).distance(Vec3::from(disabled[0]));
-        let rest_distance = Vec3::from(authored.positions[i]).distance(Vec3::from(authored.positions[0]));
+        let rest_distance =
+            Vec3::from(authored.positions[i]).distance(Vec3::from(authored.positions[0]));
         assert!((distance - rest_distance).abs() < 1e-5);
     }
-    let normals = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.normals;
+    let normals = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .normals;
     for (actual, expected) in normals.iter().zip(&authored.normals) {
         assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5);
     }
     let vertical = disabled.clone();
     ui.click("Turning")?;
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    assert_ne!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, vertical);
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    assert_ne!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        vertical
+    );
     ui.click("Up / down")?;
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, vertical);
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        vertical
+    );
     ui.click("Start / stop")?;
-    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let stopped = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
+    for _ in 0..40 {
+        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    }
+    let stopped = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .positions;
     assert_eq!(stopped[0][1], authored.positions[0][1]);
     assert!((stopped[0][2] - authored.positions[0][2]).abs() < 1e-5);
     ui.application.handle_actions(vec![UiAction::FrameAll]);
@@ -5310,7 +5971,10 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     ui.click("Reset preview")?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     ui.click("Play preview")?;
     ui.application.publish_mesh_snapshot();
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
@@ -5354,13 +6018,23 @@ fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_availab
     assert!(ui.label_rect("Try Experimental Replacement").is_none());
     let notice = "Experimental: positioning, scale or animation may be wrong in game. Compatible glTF/GLB weights are retained on the matching game rig; unskinned imports use weights from the original part. Export reverses the original part's neutral display transform.";
     assert!(ui.label_rect(notice).is_none());
-    ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
-        |style| style.interaction.tooltip_delay = 0.0);
+    ui.application
+        .egui_context
+        .style_mut_of(ui.application.egui_context.theme(), |style| {
+            style.interaction.tooltip_delay = 0.0
+        });
     let badge = ui.reveal("Experimental")?;
-    for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
+    for _ in 0..12 {
+        ui.frame(vec![Event::PointerGone]);
+    }
     ui.frame(vec![Event::PointerMoved(badge.center())]);
-    for _ in 0..3 { ui.frame(Vec::new()); }
-    assert!(ui.label_rect(notice).is_some(), "the compact badge retains the full warning on hover");
+    for _ in 0..3 {
+        ui.frame(Vec::new());
+    }
+    assert!(
+        ui.label_rect(notice).is_some(),
+        "the compact badge retains the full warning on hover"
+    );
     let actions = ui.actions_from_part_checkbox(0, "Include")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
@@ -5407,7 +6081,9 @@ fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> Tes
             "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
         });
         ui.settle_layout();
-        let name = ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[0].name.clone();
+        let name = ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[0]
+            .name
+            .clone();
         let checkbox = ui.list_checkbox_rect(&format!("0: {name}"), "View")?;
         ui.last_actions.clear();
         ui.click_at(checkbox.center());
@@ -5520,10 +6196,14 @@ fn integrated_replacement_mapping_warns_when_imported_materials_are_missing() ->
     ui.reveal(REPLACEMENT_MISSING_MATERIALS_WARNING)?;
     // The disabled imported choice cannot be picked; Apply stays geometry-only.
     ui.click("Imported Materials & Textures")?;
-    assert!(ui.actions_from_click("Apply Replacement")?.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-        if arguments["materials"] == "original"
-    )));
+    assert!(
+        ui.actions_from_click("Apply Replacement")?
+            .iter()
+            .any(|action| matches!(action,
+                UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "original"
+            ))
+    );
     assert!(ui.label_rect(REPLACEMENT_OWN_TEXTURES_HINT).is_none());
     Ok(())
 }
@@ -5538,13 +6218,20 @@ fn integrated_replacement_mapping_points_out_the_models_own_textures() -> TestRe
         "error": "", "textures": 2,
     }));
     ui.reveal(REPLACEMENT_OWN_TEXTURES_HINT)?;
-    assert!(ui.label_rect(REPLACEMENT_MISSING_MATERIALS_WARNING).is_none());
+    assert!(
+        ui.label_rect(REPLACEMENT_MISSING_MATERIALS_WARNING)
+            .is_none()
+    );
     ui.click("Imported Materials & Textures")?;
     assert!(ui.label_rect(REPLACEMENT_OWN_TEXTURES_HINT).is_none());
-    assert!(ui.actions_from_click("Apply Replacement")?.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-        if arguments["materials"] == "imported"
-    )));
+    assert!(
+        ui.actions_from_click("Apply Replacement")?
+            .iter()
+            .any(|action| matches!(action,
+                UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "imported"
+            ))
+    );
     Ok(())
 }
 
@@ -5568,18 +6255,24 @@ fn integrated_replacement_imported_materials_send_roughness_and_metallic() -> Te
     // Starting values come from the model; a missing value starts at 0%.
     ui.type_number_in_row("Metallic", 0.0, "40")?;
     let apply = ui.actions_from_click("Apply Replacement")?;
-    assert!(apply.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-            if arguments["materials"] == "imported"
-                && arguments["roughness"] == json!(0.62)
-                && arguments["metallic"] == json!(0.4)
-    )), "{apply:?}");
+    assert!(
+        apply.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "imported"
+                    && arguments["roughness"] == json!(0.62)
+                    && arguments["metallic"] == json!(0.4)
+        )),
+        "{apply:?}"
+    );
     ui.click("Keep Original Materials")?;
     let original = ui.actions_from_click("Apply Replacement")?;
-    assert!(original.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-            if arguments["materials"] == "original" && arguments.get("roughness").is_none()
-    )), "{original:?}");
+    assert!(
+        original.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "original" && arguments.get("roughness").is_none()
+        )),
+        "{original:?}"
+    );
     Ok(())
 }
 
@@ -5598,10 +6291,13 @@ fn integrated_replacement_surface_is_disabled_for_unsupported_materials() -> Tes
     ui.reveal("Roughness")?;
     assert!(ui.label_rect(REPLACEMENT_SURFACE_HINT).is_none());
     let apply = ui.actions_from_click("Apply Replacement")?;
-    assert!(apply.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-            if arguments["materials"] == "imported" && arguments.get("roughness").is_none()
-    )), "{apply:?}");
+    assert!(
+        apply.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "imported" && arguments.get("roughness").is_none()
+        )),
+        "{apply:?}"
+    );
     Ok(())
 }
 
@@ -5616,16 +6312,26 @@ fn integrated_replacement_mapping_explains_scope_and_part_destinations() -> Test
             {"index": 0, "id": "stable:0", "name": "Outer helmet", "included": true},
             {"index": 1, "id": "stable:1", "name": "Inner helmet", "included": true}
         ]);
-        let targets = if entire_mesh { parts.clone() } else { json!([parts[0].clone()]) };
+        let targets = if entire_mesh {
+            parts.clone()
+        } else {
+            json!([parts[0].clone()])
+        };
         ui.application.cdmw_state["replacement"] = json!({
             "available": true, "active": false, "comparison": "edit", "parts": parts,
             "pending": {"token": "scope", "source": "helmet.glb", "targets": targets,
                 "sources": [{"name": "Imported helmet", "target": "stable:0"}]}
         });
         let (title, explanation) = if entire_mesh {
-            ("Replacing entire mesh", "Map each imported part below. Original parts without a replacement will be excluded.")
+            (
+                "Replacing entire mesh",
+                "Map each imported part below. Original parts without a replacement will be excluded.",
+            )
         } else {
-            ("Replacing selected parts", "Map each imported part below. Unmapped selected parts are excluded; other original parts stay unchanged.")
+            (
+                "Replacing selected parts",
+                "Map each imported part below. Unmapped selected parts are excluded; other original parts stay unchanged.",
+            )
         };
         ui.reveal(title)?;
         ui.reveal(explanation)?;
@@ -5673,7 +6379,11 @@ fn integrated_replacement_long_names_keep_controls_clickable() -> TestResult {
                 "sources": [{"name": names[0], "target": "stable:0"}, {"name": names[1], "target": "stable:1"}]}
         });
         ui.settle_layout();
-        for (label, expected) in [("All", vec![0, 1]), ("None", vec![]), ("Invert", vec![0, 1])] {
+        for (label, expected) in [
+            ("All", vec![0, 1]),
+            ("None", vec![]),
+            ("Invert", vec![0, 1]),
+        ] {
             let actions = ui.actions_from_click(label)?;
             assert!(
                 actions.iter().any(|action| matches!(action,
@@ -5683,21 +6393,32 @@ fn integrated_replacement_long_names_keep_controls_clickable() -> TestResult {
             );
         }
         let material_id = egui::Id::new(("replacement_materials", "long-names"));
-        for (label, expected) in [("Imported Materials & Textures", true), ("Keep Original Materials", false)] {
+        for (label, expected) in [
+            ("Imported Materials & Textures", true),
+            ("Keep Original Materials", false),
+        ] {
             ui.click(label)?;
             assert_eq!(
-                ui.application.egui_context.data_mut(|data| data.get_temp::<bool>(material_id)),
+                ui.application
+                    .egui_context
+                    .data_mut(|data| data.get_temp::<bool>(material_id)),
                 Some(expected),
                 "{label} ignored its painted position at {size:?}, {font}"
             );
         }
         let actions = ui.actions_from_click("Apply Replacement")?;
-        assert!(actions.iter().any(|action| matches!(action,
-            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
-                if arguments["targets"] == json!(["stable:0", "stable:1"])
-                    && arguments["materials"] == "original"
-        )), "Apply Replacement ignored its painted position at {size:?}, {font}: {actions:?}");
-        assert!(has_host_command(&ui.actions_from_click("Cancel Import")?, "replacement_cancel"));
+        assert!(
+            actions.iter().any(|action| matches!(action,
+                UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                    if arguments["targets"] == json!(["stable:0", "stable:1"])
+                        && arguments["materials"] == "original"
+            )),
+            "Apply Replacement ignored its painted position at {size:?}, {font}: {actions:?}"
+        );
+        assert!(has_host_command(
+            &ui.actions_from_click("Cancel Import")?,
+            "replacement_cancel"
+        ));
     }
     Ok(())
 }
@@ -5715,10 +6436,7 @@ fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResul
     ui.click("Morph & Refit")?;
     ui.click("Setup")?;
     assert!(ui.label_rect("Use loaded mesh as body").is_none());
-    assert!(
-        ui.reveal("1 of 2 Parts")
-            .is_ok()
-    );
+    assert!(ui.reveal("1 of 2 Parts").is_ok());
     ui.click("Setup")?;
     ui.click("Setup")?;
     ui.click("Select garments")?;
@@ -5759,9 +6477,11 @@ fn integrated_refit_offers_loading_when_only_the_body_is_present() -> TestResult
 }
 
 #[test]
-fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_settings() -> TestResult {
+fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_settings() -> TestResult
+{
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        two_part_application()?, egui::vec2(1440.0, 980.0),
+        two_part_application()?,
+        egui::vec2(1440.0, 980.0),
     );
     ui.application.cdmw_state["morph_refit"] = json!({
         "profile_id": "existing", "driver_submesh_indices": [],
@@ -5781,10 +6501,14 @@ fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_set
     ui.click("Setup")?;
     ui.click("Use loaded parts")?;
     let garments_header = ui.reveal("2 · Garments")?;
-    let body_name = ui.label_rect_where("body.pac", |rect| rect.bottom() < garments_header.top())
+    let body_name = ui
+        .label_rect_where("body.pac", |rect| rect.bottom() < garments_header.top())
         .ok_or("missing body asset")?;
-    let button = ui.label_rect_where("Set as body", |rect| rect.top() >= body_name.bottom()
-        && rect.top() - body_name.bottom() < 32.0).ok_or("missing body asset assignment")?;
+    let button = ui
+        .label_rect_where("Set as body", |rect| {
+            rect.top() >= body_name.bottom() && rect.top() - body_name.bottom() < 32.0
+        })
+        .ok_or("missing body asset assignment")?;
     ui.click_at(button.center());
     assert!(ui.last_actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand {command: "refit_set_driver", arguments, ..}
@@ -5796,16 +6520,19 @@ fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_set
 #[test]
 fn integrated_archive_refit_free_edit_is_blocked_before_the_folder_picker() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        two_part_application()?, egui::vec2(1440.0, 980.0),
+        two_part_application()?,
+        egui::vec2(1440.0, 980.0),
     );
     ui.application.cdmw_state["archive_refit_assets"] = json!([
         {"path": "body.pac", "role": "loaded", "part_indices": [0]},
         {"path": "coat.pac", "role": "armor", "part_indices": [1]},
     ]);
     ui.click("Display")?;
-    assert!(!ui.actions_from_click("Free Edit")?.iter().any(
-        |action| matches!(action, UiAction::ChooseCdmwFreeEdit)
-    ));
+    assert!(
+        !ui.actions_from_click("Free Edit")?
+            .iter()
+            .any(|action| matches!(action, UiAction::ChooseCdmwFreeEdit))
+    );
     // A direct action route also returns before opening a native folder dialog.
     ui.application.choose_cdmw_free_edit();
     assert!(ui.application.status.contains("Archive Refit"));
@@ -5818,13 +6545,15 @@ fn integrated_archive_refit_free_edit_is_blocked_before_the_folder_picker() -> T
 #[test]
 fn integrated_refit_create_body_slider_selects_the_driver_and_opens_the_creator() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        two_part_application()?, egui::vec2(1440.0, 980.0),
+        two_part_application()?,
+        egui::vec2(1440.0, 980.0),
     );
     ui.application.cdmw_state["morph_refit"] = json!({
         "profile_id": "body", "driver_submesh_indices": [0], "definitions": [],
         "refit": {"garment_submesh_indices": [1]},
     });
-    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![1])]);
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![1])]);
     ui.click("Morph & Refit")?;
     ui.click("Shape")?;
     ui.click("Create body slider")?;
@@ -6137,8 +6866,10 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
             "Apply to Selected Garments" | "Apply to All Bound Garments" => {
                 ui.click("Fit")?;
                 ui.refit_scope(label == "Apply to All Bound Garments")?;
-                ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
-            },
+                ui.application
+                    .cdmw_refit_settings_dirty
+                    .mark("clearance_percent");
+            }
             _ => (),
         }
         let actions = ui.actions_from_click(label)?;
@@ -8817,7 +9548,8 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
             emissive_color: Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0]),
             emissive_intensity: Some(2.5),
-            emission_animation: None, emission_reveal: None,
+            emission_animation: None,
+            emission_reveal: None,
             roughness: Some(0.75),
             metalness: Some(0.5),
             specular: Some(0.9),
@@ -8911,11 +9643,12 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     Ok(())
 }
 
-
 #[test]
 fn translucency_controls_send_selected_parts_and_restore_without_changing_geometry() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        two_part_application()?, egui::vec2(1440.0, 1100.0));
+        two_part_application()?,
+        egui::vec2(1440.0, 1100.0),
+    );
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.application.cdmw_state["translucency"] = json!({
         "available": true, "parts": [
@@ -8969,15 +9702,23 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
     ui.click("Parts")?;
     ui.click("None")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply translucency")?, "replacement_translucency"));
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply translucency")?,
+        "replacement_translucency"
+    ));
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        before
+    );
     Ok(())
 }
 
 #[test]
 fn translucency_controls_start_from_authored_source_values() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
-        two_part_application()?, egui::vec2(1440.0, 1100.0));
+        two_part_application()?,
+        egui::vec2(1440.0, 1100.0),
+    );
     ui.application.cdmw_state["translucency"] = json!({
         "available": true, "parts": [
             {"index": 0, "id": "a", "translucency": null, "authored_translucency": [0.125, 0.75]},
@@ -8998,7 +9739,10 @@ fn translucency_controls_start_from_authored_source_values() -> TestResult {
 
 #[test]
 fn emission_controls_send_selected_parts_and_restore() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1600.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1600.0),
+    );
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     let emission = json!({"color": [1.0, 0.5, 0.25], "intensity": 6.125,
         "animation": {"flow_u": 0.5, "flow_v": 0.25, "pulse_frequency": 2.0, "pulse_minimum": 0.25},
@@ -9011,10 +9755,17 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     ui.settle_layout();
     let actions = ui.actions_from_click("Apply glow")?;
     let actual = actions.iter().find_map(|action| match action {
-        UiAction::CdmwCommand { command: "replacement_emission", arguments, .. } => Some(arguments.clone()),
+        UiAction::CdmwCommand {
+            command: "replacement_emission",
+            arguments,
+            ..
+        } => Some(arguments.clone()),
         _ => None,
     });
-    assert_eq!(actual, Some(json!({"part_ids": ["b"], "emission": emission})));
+    assert_eq!(
+        actual,
+        Some(json!({"part_ids": ["b"], "emission": emission}))
+    );
     ui.application.cdmw_pending_request = None;
     ui.click("RGB")?;
     ui.type_number_in_row("R", 1.0, "0.375")?;
@@ -9022,13 +9773,21 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("Glow colour")?;
     ui.type_number_in_row("Strength", 6.125, "7.375")?;
     let actions = ui.actions_from_click("Apply glow")?;
-    assert!(actions.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
-        if arguments["emission"]["intensity"] == json!(7.375)
-            && arguments["emission"]["color"] == json!([0.375, 0.5, 0.25])
-    )), "{:?}", actions.iter().filter_map(|action| match action {
-        UiAction::CdmwCommand { arguments, .. } => Some(arguments), _ => None,
-    }).collect::<Vec<_>>());
+    assert!(
+        actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
+            if arguments["emission"]["intensity"] == json!(7.375)
+                && arguments["emission"]["color"] == json!([0.375, 0.5, 0.25])
+        )),
+        "{:?}",
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                UiAction::CdmwCommand { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    );
     ui.application.cdmw_pending_request = None;
     ui.click("Use RGB glow map")?;
     let actions = ui.actions_from_click("Apply glow")?;
@@ -9042,14 +9801,23 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("Parts")?;
     ui.click("None")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply glow")?, "replacement_emission"));
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply glow")?,
+        "replacement_emission"
+    ));
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        before
+    );
     Ok(())
 }
 
 #[test]
 fn shader_controls_send_selected_parts_and_restore() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1800.0),
+    );
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     let controls = json!({"shader": "SkinnedMeshWing", "values": {"_wingFlowProgress": [0.5]}});
     ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": false,
@@ -9064,7 +9832,10 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("1: Part B")?;
     ui.click("Shader experiments")?;
     ui.settle_layout();
-    assert!(ui.reveal("Part B: Known masks: 2/3; G 0.000–1.000.").is_ok());
+    assert!(
+        ui.reveal("Part B: Known masks: 2/3; G 0.000–1.000.")
+            .is_ok()
+    );
     let actions = ui.actions_from_click("Apply shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
@@ -9093,16 +9864,27 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("Parts")?;
     ui.click("None")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply shader controls")?,
+        "replacement_shader_controls"
+    ));
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        before
+    );
     Ok(())
 }
 
 #[test]
 fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> TestResult {
-    for (is_static, shader, label, maximum) in [(true, "Translucent", "World-object glass", 10.0),
-        (false, "SkinnedMeshTranslucent", "Equipment glass", 1.0)] {
-        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    for (is_static, shader, label, maximum) in [
+        (true, "Translucent", "World-object glass", 10.0),
+        (false, "SkinnedMeshTranslucent", "Equipment glass", 1.0),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            two_part_application()?,
+            egui::vec2(1440.0, 1800.0),
+        );
         let catalogue = [("Translucent", "World-object glass", 10.0), ("SkinnedMeshTranslucent", "Equipment glass", 1.0)]
             .map(|(shader, label, maximum)| json!({"shader": shader, "label": label, "note": "Glass preview.",
                 "fields": [{"name": "_extinctionCoefficient", "label": "Absorption", "default": [0.3],
@@ -9128,7 +9910,10 @@ fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> Tes
 
 #[test]
 fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1800.0),
+    );
     let controls = json!({"shader": "SkinnedMeshTranslucent", "values": {}});
     ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": false,
         "catalogue": [
@@ -9148,7 +9933,10 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ui.click("Equipment glass")?;
     ui.click("Patterned reveal")?;
     // Close the combo. A disabled choice must leave Equipment glass selected.
-    ui.frame(vec![key_event(egui::Key::Escape, true), key_event(egui::Key::Escape, false)]);
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
     let actions = ui.actions_from_click("Apply shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
@@ -9157,13 +9945,22 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ui.click("Parts")?;
     ui.click("All")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
-    assert!(has_host_command(&ui.actions_from_click("Restore shader controls")?, "replacement_shader_controls"));
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply shader controls")?,
+        "replacement_shader_controls"
+    ));
+    assert!(has_host_command(
+        &ui.actions_from_click("Restore shader controls")?,
+        "replacement_shader_controls"
+    ));
     ui.application.cdmw_pending_request = None;
     ui.click("1: Part B")?;
     ui.click("Back to Inspector")?;
     ui.application.cdmw_state["shader_controls"]["parts"][1]["shader_options"] = Value::Null;
     ui.settle_layout();
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply shader controls")?,
+        "replacement_shader_controls"
+    ));
     Ok(())
 }

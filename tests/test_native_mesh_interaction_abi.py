@@ -799,6 +799,12 @@ def _read_all_vertices(
     return [_read_vertex(library, handle, index) for index in range(count)]
 
 
+def _assert_vertices_close(actual, expected) -> None:
+    assert len(actual) == len(expected)
+    for vertex, original in zip(actual, expected, strict=True):
+        assert vertex == pytest.approx(original)
+
+
 def test_native_interaction_abi_introspection_and_invalid_headers(abi: ctypes.CDLL) -> None:
     assert abi.cdmw_mesh_interaction_abi_version() == ABI_VERSION
     assert abi.cdmw_mesh_interaction_abi_contract() == b"cdmw_mesh_interaction_abi_v1"
@@ -1313,7 +1319,7 @@ def test_indexed_deformation_matches_typed_golden_and_one_undo(
             _authority(handle, AUTHORITY_UNDO, 2, 3),
         )
         assert status == OK
-        assert _read_all_vertices(abi, handle, len(positions)) == pytest.approx(positions)
+        _assert_vertices_close(_read_all_vertices(abi, handle, len(positions)), positions)
     finally:
         _close_indexed_scene(abi, handle)
 
@@ -1351,7 +1357,8 @@ def test_sculpt_applies_an_initial_dab_without_a_selection(
         assert status == OK
         assert result.dirty_range_count > 0
         changed = _read_all_vertices(abi, handle, len(positions))
-        assert changed != pytest.approx(positions)
+        assert any(vertex != pytest.approx(original)
+                   for vertex, original in zip(changed, positions, strict=True))
 
         status, result = _call(abi, "end", begin)
         assert status == OK
@@ -1362,7 +1369,7 @@ def test_sculpt_applies_an_initial_dab_without_a_selection(
             _authority(handle, AUTHORITY_REJECTED, 1, 2, 530 + tool),
         )
         assert status == REJECTED
-        assert _read_all_vertices(abi, handle, len(positions)) == pytest.approx(positions)
+        _assert_vertices_close(_read_all_vertices(abi, handle, len(positions)), positions)
     finally:
         _close_indexed_scene(abi, handle)
 
@@ -1417,7 +1424,7 @@ def test_brush_tools_clip_the_cursor_scope_to_a_committed_selection(
         assert status == OK
         changed = _read_all_vertices(abi, handle, len(positions))
         assert changed[0] != pytest.approx(positions[0])
-        assert changed[1:] == pytest.approx(positions[1:])
+        _assert_vertices_close(changed[1:], positions[1:])
     finally:
         _close_indexed_scene(abi, handle)
 
@@ -1442,7 +1449,7 @@ def test_move_rejects_an_empty_committed_selection(abi: ctypes.CDLL) -> None:
         assert status == INVALID_ARGUMENT
         assert b"Move requires a committed mesh selection" in bytes(result.message)
         assert result.operator_state == OPERATOR_IDLE
-        assert _read_all_vertices(abi, handle, len(positions)) == pytest.approx(positions)
+        _assert_vertices_close(_read_all_vertices(abi, handle, len(positions)), positions)
     finally:
         _close_indexed_scene(abi, handle)
 
@@ -1489,7 +1496,7 @@ def test_direct_deformation_tracks_the_full_pointer_delta_independent_of_brush_s
         assert status == OK
         changed = _read_all_vertices(abi, handle, len(positions))
         assert changed[0] == pytest.approx((0.4, 0.0, 0.0))
-        assert changed[1:] == pytest.approx(positions[1:])
+        _assert_vertices_close(changed[1:], positions[1:])
     finally:
         _close_indexed_scene(abi, handle)
 
@@ -1524,7 +1531,7 @@ def test_indexed_pinch_uses_the_pointer_center_for_a_single_vertex_brush(
         assert status == OK
         changed = _read_all_vertices(abi, handle, len(positions))
         assert 0.0 < changed[0][0] < 0.1
-        assert changed[1:] == pytest.approx(positions[1:])
+        _assert_vertices_close(changed[1:], positions[1:])
         status, _ = _call(
             abi,
             "apply_authoritative",
@@ -1566,7 +1573,7 @@ def test_indexed_deformation_cancel_restores_exact_baseline(
         status, result = _call(abi, "cancel", begin)
         assert status == OK
         assert result.operator_state == OPERATOR_IDLE
-        assert _read_all_vertices(abi, handle, len(positions)) == pytest.approx(positions)
+        _assert_vertices_close(_read_all_vertices(abi, handle, len(positions)), positions)
     finally:
         _close_indexed_scene(abi, handle)
 

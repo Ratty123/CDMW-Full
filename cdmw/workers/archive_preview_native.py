@@ -267,6 +267,64 @@ class ArchivePreviewNativeMixin:
         except Exception as exc:
             return b"", "", (f"Character appearance deformation was not applied for {entry.path}: {exc}",)
 
+    def _prepare_native_head_component_geometry(self):
+        """Fit declared facial pieces with the selected head's authored pose."""
+        entry = self.entry
+        if entry is None or "/head/head/" not in entry.path.replace("\\", "/").casefold():
+            return (), ()
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+        from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
+        from cdmw.domain.character_context import NativePreviewContextComponent
+        from cdmw.modding.mesh_parser import parse_mesh
+
+        dependencies = tuple(getattr(self, "native_preview_dependency_entries", ()) or ())
+        paths = getattr(self, "texture_entries_by_normalized_path", {}) or {}
+        basenames = getattr(self, "texture_entries_by_basename", {}) or {}
+        read = lambda candidate: read_archive_entry_data(candidate, stop_event=self.stop_event)[0]
+        resolution = resolve_skeleton_descriptor_for_model(entry, dependencies,
+            archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+            read_entry_data=read)
+        descriptor = resolution.skeleton_descriptor_entry or resolution.descriptor_entry
+        if descriptor is None or resolution.skeleton_variation_entry is None:
+            return (), ()
+        stem = Path(entry.path).stem.casefold()
+        prefabs = tuple(candidate for candidate in dependencies
+            if candidate.extension.casefold() == ".prefab" and Path(candidate.path).stem.casefold() == stem)
+        declared = native_preview_model_property_indices(prefabs, self.stop_event)
+        if entry.path.replace("\\", "/").casefold() not in declared:
+            return (), ()
+        components, notes = [], []
+        for path in declared:
+            if path == entry.path.replace("\\", "/").casefold():
+                continue
+            if len(components) >= 32:
+                break
+            candidates = tuple(paths.get(path, ()))
+            if len(candidates) != 1 or candidates[0].extension.casefold() != ".pac":
+                continue
+            component = candidates[0]
+            try:
+                data = read(component)
+                parsed = parse_mesh(data, component.path)
+                presentation, detail = apply_archive_mesh_appearance(component, parsed, data,
+                    archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+                    context_entries=dependencies, stop_event=self.stop_event, authored_descriptor=descriptor)
+                notes.extend(detail)
+                source = str(getattr(presentation, "_cdmw_skeleton_variation_source", "") or "")
+                if presentation is parsed or not source:
+                    continue
+                components.append(NativePreviewContextComponent(component, "face", component.basename,
+                    "authored", appearance_path=entry.path,
+                    dependencies_complete=bool(getattr(self, "native_preview_dependency_entries_complete", False)),
+                    presentation_geometry_payload=_native_presentation_geometry_payload(presentation, self.stop_event),
+                    presentation_geometry_source=source))
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                notes.append(f"Head component appearance was not applied for {path}: {exc}")
+        return tuple(components), tuple(notes)
+
     def _run_native_preview_core_with_presentation(
         self,
         *,
@@ -277,6 +335,8 @@ class ArchivePreviewNativeMixin:
     ) -> NativePreviewCoreAttempt:
         settings = self.render_settings if render_settings is None else render_settings
         payload, source, appearance_notes = self._prepare_native_preview_presentation_geometry()
+        head_components, head_notes = self._prepare_native_head_component_geometry()
+        appearance_notes = (*appearance_notes, *head_notes)
         dependency_entries = tuple(
             getattr(self, "native_preview_dependency_entries", ()) or ()
         )
@@ -304,6 +364,7 @@ class ArchivePreviewNativeMixin:
             dds_cache_target_bytes=dds_cache_target_bytes,
             presentation_geometry_payload=payload,
             presentation_geometry_source=source,
+            preview_context_components=head_components,
         )
         diagnostics = dict(attempt.diagnostics)
         if appearance_notes:

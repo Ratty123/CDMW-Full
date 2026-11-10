@@ -107,9 +107,14 @@ fn regional_settings_change_only_the_requested_original_bone() {
     let overrides = BTreeMap::from([(1, [2.0, 0.7, 0.1, 0.01, 2.0, 0.7, 0.1, 0.01])]);
     let mut differs = false;
     for frame in 1..40 {
-        let poses = BTreeMap::from([(0, translated(root, 10.0, 20.0 + (f64::from(frame) * 0.4).sin()))]);
+        let poses = BTreeMap::from([(
+            0,
+            translated(root, 10.0, 20.0 + (f64::from(frame) * 0.4).sin()),
+        )]);
         let original = run(&rig, baseline.as_ref(), frame, &commands, &poses).unwrap();
-        let adjusted = run_with_settings(&rig, changed.as_ref(), frame, &commands, &poses, &overrides).unwrap();
+        let adjusted =
+            run_with_settings(&rig, changed.as_ref(), frame, &commands, &poses, &overrides)
+                .unwrap();
         assert_eq!(original.bone_states[0], adjusted.bone_states[0]);
         assert_eq!(original.skeletal_matrices, adjusted.skeletal_matrices);
         differs |= original.bone_states[1] != adjusted.bone_states[1];
@@ -117,8 +122,21 @@ fn regional_settings_change_only_the_requested_original_bone() {
         changed = Some(adjusted);
     }
     assert!(differs);
-    for settings in [BTreeMap::from([(99, [1.0; 8])]), BTreeMap::from([(1, [f32::NAN; 8])])] {
-        assert!(run_with_settings(&rig, baseline.as_ref(), 40, &commands, &BTreeMap::new(), &settings).is_err());
+    for settings in [
+        BTreeMap::from([(99, [1.0; 8])]),
+        BTreeMap::from([(1, [f32::NAN; 8])]),
+    ] {
+        assert!(
+            run_with_settings(
+                &rig,
+                baseline.as_ref(),
+                40,
+                &commands,
+                &BTreeMap::new(),
+                &settings
+            )
+            .is_err()
+        );
     }
 }
 

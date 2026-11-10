@@ -840,6 +840,10 @@ static std::vector<MaterialLayer> compile_material_layers(
         : normal;
     const std::string material_layer_role = material == nullptr
         ? std::string() : lower_copy(material->layer_role);
+    const bool declared_base_response = material != nullptr && base != nullptr
+        && normalized_key(material->parameter_name) == "materialtexture"
+        && material->source_authority == "exact_sidecar"
+        && same_exact_material_wrapper(*base, *material);
     const bool material_is_layer_scoped = material != nullptr
         && (binding_is_layer_selector_mask(*material)
             || material_layer_role == "detail"
@@ -848,7 +852,8 @@ static std::vector<MaterialLayer> compile_material_layers(
             || material_layer_role == "damage"
             || material_layer_role == "overlay"
             || material_layer_role == "layer"
-            || lower_copy(material->packed_channels).find("layer:") != std::string::npos);
+            || (!declared_base_response
+                && lower_copy(material->packed_channels).find("layer:") != std::string::npos));
     const TextureBinding* base_material = base_is_layer_channel
         ? find_base_layer_aux_companion(bindings, base, "material")
         : (material_is_layer_scoped ? nullptr : material);
@@ -858,6 +863,30 @@ static std::vector<MaterialLayer> compile_material_layers(
     const TextureBinding* base_specular = base_is_layer_channel ? nullptr : specular;
     layers.push_back(make_base_material_layer(
         base, base_normal, base_material, base_height, base_specular, hints));
+    if (base != nullptr && lower_copy(base->shader_family) == "skinnedmesheye") {
+        // The sclera leaves the iris blank. These same-wrapper colour maps
+        // cover it with their own alpha, in the authored iris/pupil order.
+        for (const char* parameter : {"_irisDiffuseTexture", "_pupilTexture"}) {
+            const auto found = std::find_if(bindings.begin(), bindings.end(), [&](const TextureBinding* binding) {
+                return binding != nullptr && !binding->source_path.empty()
+                    && binding->source_authority == "exact_sidecar"
+                    && same_exact_material_wrapper(*base, *binding)
+                    && lower_copy(binding->parameter_name) == lower_copy(parameter);
+            });
+            if (found == bindings.end()) continue;
+            const TextureBinding* binding = *found;
+            MaterialLayer layer = make_base_material_layer(binding, nullptr, nullptr, nullptr, nullptr, hints);
+            layer.layer_role = "overlay";
+            layer.layer_channel = "a";
+            layer.mask_source = binding->source_path;
+            layer.mask_archive_path = binding->archive_path;
+            layer.mask_parameter = binding->parameter_name;
+            layer.tint = {1.0f, 1.0f, 1.0f, 0.0f};
+            layer.blend_order = "sclera_then_iris_then_pupil";
+            layers.push_back(std::move(layer));
+        }
+        return layers;
+    }
     // Skin and wrinkle shaders hold their own albedo and still return early
     // below.  Preserve their separately masked normal/material micro-detail
     // before that guard; this layer deliberately has no diffuse texture.

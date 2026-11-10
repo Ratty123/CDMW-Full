@@ -703,3 +703,39 @@ def test_hello_requires_embedded_capability_and_passes_pid_to_host(tmp_path: Pat
     assert attached == [(123, 77, 456)]
     assert tab.standalone_rust_hello_received is True
     assert sent
+    assert not tab.standalone_rust_ready
+    assert tab.standalone_rust_ready_timer.isActive()
+    assert tab.standalone_rust_ready_timer.interval() == 60_000
+    tab._handle_rust_ready({})
+    assert tab.standalone_rust_ready
+    assert not tab.standalone_rust_ready_timer.isActive()
+
+
+@pytest.mark.parametrize("hello_received", [False, True])
+def test_startup_timeout_distinguishes_handshake_from_renderer(
+    tmp_path: Path, hello_received: bool,
+) -> None:
+    tab = _tab(tmp_path)
+    tab.standalone_rust_hello_received = hello_received
+    failures = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append((message, kwargs))
+    tab._handle_rust_ready_timeout()
+    assert len(failures) == 1
+    message, options = failures[0]
+    assert ("handshake" in message) is not hello_received
+    assert bool(options.get("incompatible")) is not hello_received
+    tab.standalone_rust_ready = True
+    tab._handle_rust_ready_timeout()
+    assert len(failures) == 1
+
+
+def test_rejected_hello_cannot_extend_startup_deadline(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    failures = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append(message)
+    tab.standalone_rust_ready_timer.start(10_000)
+    tab._handle_rust_hello({"renderer": "wrong renderer"})
+    assert failures
+    assert not tab.standalone_rust_hello_received
+    assert tab.standalone_rust_ready_timer.interval() == 10_000
+    tab.standalone_rust_ready_timer.stop()

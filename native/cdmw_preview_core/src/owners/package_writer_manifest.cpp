@@ -53,16 +53,22 @@ static std::string native_material_conservation_json(const NativePackage& packag
     size_t transported_count = 0;
     size_t resolved_texture_count = 0;
     size_t unresolved_texture_count = 0;
+    size_t inactive_unavailable_texture_count = 0;
     for (const NativeMaterialConservationRow& row : package.material_conservation_rows) {
         if (row.logical_graph_edge) ++transported_count;
         if (row.parameter.kind == "texture" && !row.parameter.texture_path.empty()) {
             if (row.texture_resolved) ++resolved_texture_count;
-            else ++unresolved_texture_count;
+            else {
+                ++unresolved_texture_count;
+                if (row.status == "transported_inactive_rgb_emission") {
+                    ++inactive_unavailable_texture_count;
+                }
+            }
         }
     }
     const bool conserved = package.material_conservation_ok
         && transported_count == package.material_conservation_rows.size()
-        && unresolved_texture_count == 0;
+        && unresolved_texture_count == inactive_unavailable_texture_count;
     std::ostringstream out;
     out << "{"
         << "\"schema_version\":1,"
@@ -70,6 +76,7 @@ static std::string native_material_conservation_json(const NativePackage& packag
         << "\"transported_parameter_count\":" << transported_count << ","
         << "\"resolved_texture_count\":" << resolved_texture_count << ","
         << "\"unresolved_texture_count\":" << unresolved_texture_count << ","
+        << "\"inactive_unavailable_texture_count\":" << inactive_unavailable_texture_count << ","
         << "\"conserved\":" << (conserved ? "true" : "false") << ","
         << "\"findings\":[";
     for (size_t index = 0; index < package.material_conservation_findings.size(); ++index) {

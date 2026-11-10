@@ -17,7 +17,11 @@ fn offscreen_fixed_studio_depth_preserves_diagnostics() -> TestResult {
 #[test]
 #[ignore = "requires a D3D12 adapter"]
 fn offscreen_all_hidden_parts_keep_lighting_depth_background() -> TestResult {
-    let mut snapshot = triangle_application()?.mesh.as_ref().unwrap().draw_snapshot();
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
     snapshot.positions.clear();
     snapshot.normals.clear();
     snapshot.uvs.clear();
@@ -55,8 +59,10 @@ fn offscreen_all_hidden_parts_keep_lighting_depth_background() -> TestResult {
         );
         // Capture validation intentionally rejects a blank model after rendering
         // and writing its images. GPU errors and panics must not reach this check.
-        assert!(matches!(result, Err(cdmw_render_wgpu::RenderError::Device(message))
-            if message == "material capture contained only the clear color"));
+        assert!(
+            matches!(result, Err(cdmw_render_wgpu::RenderError::Device(message))
+            if message == "material capture contained only the clear color")
+        );
         for path in [lit, base, parts] {
             let image = std::fs::read(path)?;
             let pixels = &image[54..];

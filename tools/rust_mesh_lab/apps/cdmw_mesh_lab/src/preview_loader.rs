@@ -99,8 +99,10 @@ impl PreviewLoader {
                             &package.manifest().interaction_profile,
                             request.revision,
                         );
-                        let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(scene, &cancelled)?;
-                        let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(scene, &cancelled)?;
+                        let effect_surfaces =
+                            crate::preview_effect_spawn::EffectSurfaces::read(scene, &cancelled)?;
+                        let effect_meshes =
+                            crate::preview_effect_mesh::EffectMeshes::read(scene, &cancelled)?;
                         let document = package.document().clone();
                         Ok(LoadedPreview {
                             package,

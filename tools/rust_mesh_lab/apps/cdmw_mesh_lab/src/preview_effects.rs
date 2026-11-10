@@ -1,9 +1,11 @@
 //! Deterministic, bounded simulation of decoded preview effects.
+use crate::preview_effect_lightning::{LightningMaterial, LightningParticle, LightningView};
+use crate::preview_effect_spawn::{
+    BirthSamples, Surface, half_precision, mesh_birth_rotation, preview_random_seed,
+};
 use cdmw_render_wgpu::{EffectBillboardInstance, EffectBlendMode, EffectLineVertex};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde_json::Value;
-use crate::preview_effect_spawn::{BirthSamples, Surface, half_precision, mesh_birth_rotation, preview_random_seed};
-use crate::preview_effect_lightning::{LightningMaterial, LightningParticle, LightningView};
 
 fn vec3_value(value: Option<&Value>, fallback: Vec3) -> Vec3 {
     let Some(values) = value.and_then(Value::as_array) else {
@@ -119,9 +121,17 @@ fn effect_spawn_position(emitter: &Value, seed: f32) -> Vec3 {
     if emitter["spawn_volume_type"].as_u64() == Some(0) {
         // Explicit point mode must not keep an inherited surface point cloud.
         let transform = emitter["spawn_volume_transform"].as_array();
-        return transform.filter(|v| v.len() == 16).map(|v| Vec3::new(
-            v[12].as_f64().unwrap_or(0.) as f32, v[13].as_f64().unwrap_or(0.) as f32,
-            v[14].as_f64().unwrap_or(0.) as f32)).filter(|v| v.is_finite()).unwrap_or(Vec3::ZERO);
+        return transform
+            .filter(|v| v.len() == 16)
+            .map(|v| {
+                Vec3::new(
+                    v[12].as_f64().unwrap_or(0.) as f32,
+                    v[13].as_f64().unwrap_or(0.) as f32,
+                    v[14].as_f64().unwrap_or(0.) as f32,
+                )
+            })
+            .filter(|v| v.is_finite())
+            .unwrap_or(Vec3::ZERO);
     }
     if emitter.get("spawn").and_then(Value::as_str) == Some("points")
         && let Some(points) = emitter.get("points").and_then(Value::as_array)
@@ -224,7 +234,11 @@ pub(crate) fn effect_emitter_billboards(
         camera_up,
         camera_forward,
         256,
-        LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
+        LightningView {
+            eye: Vec3::Z * 5.,
+            vertical_fov: 45_f32.to_radians(),
+            height: 512.,
+        },
         None,
     )
 }
@@ -244,9 +258,22 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     lightning_view: LightningView,
     spawn_surface: Option<(&Surface, bool)>,
 ) -> Vec<EffectBillboardInstance> {
-    effect_emitter_particles(emitter, emitter_index, time, minimum_radius,
-        texture_index, model_matrix, camera_right, camera_up, camera_forward,
-        particle_limit, lightning_view, spawn_surface, None).billboards
+    effect_emitter_particles(
+        emitter,
+        emitter_index,
+        time,
+        minimum_radius,
+        texture_index,
+        model_matrix,
+        camera_right,
+        camera_up,
+        camera_forward,
+        particle_limit,
+        lightning_view,
+        spawn_surface,
+        None,
+    )
+    .billboards
 }
 
 #[derive(Default)]
@@ -294,8 +321,11 @@ pub(crate) fn effect_emitter_particles(
     if faces == 0 || faces > 8192 {
         return EffectEmission::default();
     }
-    let max_instances_per_emitter = if mesh_index.is_some() { usize::MAX }
-        else { (max_particles_per_emitter * 8).max(faces) };
+    let max_instances_per_emitter = if mesh_index.is_some() {
+        usize::MAX
+    } else {
+        (max_particles_per_emitter * 8).max(faces)
+    };
     let simulation_speed = emitter
         .get("simulation_speed")
         .and_then(Value::as_f64)
@@ -304,8 +334,14 @@ pub(crate) fn effect_emitter_particles(
         .unwrap_or(1.0)
         .clamp(0.0, 20.0);
     let (delay_low, delay_high) = value_pair(emitter.get("start_delay"), (0.0, 0.0));
-    let particle_delay_span = if native_surface_birth { (delay_high - delay_low).max(0.) } else { 0. };
-    let delay = if native_surface_birth { delay_low } else {
+    let particle_delay_span = if native_surface_birth {
+        (delay_high - delay_low).max(0.)
+    } else {
+        0.
+    };
+    let delay = if native_surface_birth {
+        delay_low
+    } else {
         delay_low + (delay_high - delay_low) * seed_unit(emitter_index as f32 + 17.3)
     };
     let simulation_time = time.max(0.0) * simulation_speed - delay.max(0.0);
@@ -317,7 +353,14 @@ pub(crate) fn effect_emitter_particles(
         .and_then(Value::as_u64)
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(1)
-        .clamp(1, if surface_spawn || mesh_index.is_some() { 10000 } else { 64 });
+        .clamp(
+            1,
+            if surface_spawn || mesh_index.is_some() {
+                10000
+            } else {
+                64
+            },
+        );
     let authored_maximum = emitter
         .get("max_particles")
         .and_then(Value::as_u64)
@@ -373,12 +416,17 @@ pub(crate) fn effect_emitter_particles(
         // Rejected native surface births retain their slots when life is
         // infinite (GPUParticleUpdateCS %25411..25446). Draw quality must not
         // shrink that reservation or change which births were attempted.
-        let capacity = if native_surface_birth { authored_maximum } else { maximum };
+        let capacity = if native_surface_birth {
+            authored_maximum
+        } else {
+            maximum
+        };
         let capacity_bursts = capacity.div_ceil(burst).max(1);
         newest_burst = newest_burst.min(capacity_bursts.saturating_sub(1) as i64);
         capacity_bursts
     } else {
-        (((longest_life + particle_delay_span) / interval).ceil() as usize + 1).min(max_particles_per_emitter)
+        (((longest_life + particle_delay_span) / interval).ceil() as usize + 1)
+            .min(max_particles_per_emitter)
     };
     let damping = emitter
         .get("damping")
@@ -447,7 +495,11 @@ pub(crate) fn effect_emitter_particles(
     // Thin over the bursts still alive. Counting expired ones too halved a
     // one-particle pool (1.5 s life every 1.6 s) and blinked it off for seconds.
     let candidates = burst
-        .saturating_mul((0..burst_history).filter(|history| live_burst(*history).is_some()).count())
+        .saturating_mul(
+            (0..burst_history)
+                .filter(|history| live_burst(*history).is_some())
+                .count(),
+        )
         .max(1);
     let keep_fraction = (maximum as f64 / candidates as f64).min(1.0);
     'bursts: for history in (0..burst_history).rev() {
@@ -472,22 +524,38 @@ pub(crate) fn effect_emitter_particles(
             }
             let seed =
                 emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
-            let slot = (burst_index as u32).wrapping_mul(burst as u32).wrapping_add(particle as u32);
+            let slot = (burst_index as u32)
+                .wrapping_mul(burst as u32)
+                .wrapping_add(particle as u32);
             if native_surface_birth && infinite_life && slot as usize >= authored_maximum {
                 break 'bursts;
             }
-            let birth_samples = native_surface_birth.then(|| BirthSamples::new(emitter, slot, native_seed));
+            let birth_samples =
+                native_surface_birth.then(|| BirthSamples::new(emitter, slot, native_seed));
             // Every 1/keep_fraction-th spawn, not a random subset: kept ages stay evenly
             // spread, and a pool smaller than its live spawns shows exactly its size
             // (alternate bursts for a 10 s life every 5 s) instead of sometimes none.
             let order = burst_index as f64 * burst as f64 + particle as f64;
-            if !surface_spawn && ((order + 1.0) * keep_fraction).floor() <= (order * keep_fraction).floor() {
+            if !surface_spawn
+                && ((order + 1.0) * keep_fraction).floor() <= (order * keep_fraction).floor()
+            {
                 continue;
             }
-            let life = (life_low + (life_high - life_low)
-                * birth_samples.as_ref().map_or_else(|| seed_unit(seed + 3.73), |v| v.life)).clamp(0.01, 120.0);
-            let life = if native_surface_birth { half_precision(life) } else { life };
-            let age = age - birth_samples.as_ref().map_or(0., |v| v.delay * particle_delay_span);
+            let life = (life_low
+                + (life_high - life_low)
+                    * birth_samples
+                        .as_ref()
+                        .map_or_else(|| seed_unit(seed + 3.73), |v| v.life))
+            .clamp(0.01, 120.0);
+            let life = if native_surface_birth {
+                half_precision(life)
+            } else {
+                life
+            };
+            let age = age
+                - birth_samples
+                    .as_ref()
+                    .map_or(0., |v| v.delay * particle_delay_span);
             if age < 0. || (!infinite_life && age > life) {
                 continue;
             }
@@ -498,7 +566,14 @@ pub(crate) fn effect_emitter_particles(
             };
             let (origin, surface_scale) = if surface_spawn {
                 let (surface, world_space) = spawn_surface.expect("surface admitted above");
-                let Some(sample) = surface.sample(emitter, model_matrix, world_space, slot, native_seed, birth_samples.as_ref()) else {
+                let Some(sample) = surface.sample(
+                    emitter,
+                    model_matrix,
+                    world_space,
+                    slot,
+                    native_seed,
+                    birth_samples.as_ref(),
+                ) else {
                     continue;
                 };
                 (sample.position, sample.scale)
@@ -539,11 +614,17 @@ pub(crate) fn effect_emitter_particles(
             let scales = emitter.get("scale").and_then(Value::as_array);
             let scale_low = vec3_value(scales.and_then(|v| v.first()), Vec3::splat(0.04)).abs();
             let scale_high = vec3_value(scales.and_then(|v| v.get(1)), scale_low).abs();
-            let initial_scale = (scale_low + (scale_high - scale_low)
-                * birth_samples.as_ref().map_or_else(|| Vec3::splat(seed_unit(seed + 0.91)), |v| v.scale)) * surface_scale;
+            let initial_scale = (scale_low
+                + (scale_high - scale_low)
+                    * birth_samples
+                        .as_ref()
+                        .map_or_else(|| Vec3::splat(seed_unit(seed + 0.91)), |v| v.scale))
+                * surface_scale;
             let size = if native_surface_birth {
                 Vec3::from_array(initial_scale.to_array().map(half_precision)) * axes_curve
-            } else { initial_scale * axes_curve };
+            } else {
+                initial_scale * axes_curve
+            };
             if size.x <= 1.0e-6 || size.y <= 1.0e-6 || (mesh_index.is_some() && size.z <= 1.0e-6) {
                 continue;
             }
@@ -582,44 +663,67 @@ pub(crate) fn effect_emitter_particles(
                         * (std::f32::consts::PI / 180.0);
                     let high = vec3_value(emitter["rotation_3d"].get(1), Vec3::ZERO)
                         * (std::f32::consts::PI / 180.0);
-                    Vec3::from_array((low + (high - low) * samples.rotation).to_array().map(half_precision))
+                    Vec3::from_array(
+                        (low + (high - low) * samples.rotation)
+                            .to_array()
+                            .map(half_precision),
+                    )
                 } else {
                     effect_range(emitter.get("rotation_3d"), seed + 23.3, Vec3::ZERO)
                         * (std::f32::consts::PI / 180.0)
                 };
-                let rotation = if native_surface_birth { mesh_birth_rotation(angles) }
-                    else { Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z) };
+                let rotation = if native_surface_birth {
+                    mesh_birth_rotation(angles)
+                } else {
+                    Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z)
+                };
                 let transform = model_matrix
                     * Mat4::from_scale_rotation_translation(size, rotation, local_center)
                     * Mat4::from_translation(vec3_value(emitter.get("pivot_offset"), Vec3::ZERO));
                 if let Some(mesh_index) = mesh_index {
                     mesh_instances.push(cdmw_render_wgpu::EffectMeshInstance {
-                        mesh_index, depth: (center - lightning_view.eye).dot(camera_forward),
+                        mesh_index,
+                        depth: (center - lightning_view.eye).dot(camera_forward),
                         particle: cdmw_render_wgpu::EffectMeshParticle {
-                            transform: transform.to_cols_array_2d(), colour,
+                            transform: transform.to_cols_array_2d(),
+                            colour,
                             scale_age: [size.x, size.y, size.z, progress],
                             // The native VS reads _particleID at byte 108,
                             // not the birth generator's evolving random state.
                             seed: [slot, 0, 0, 0],
-                            parent_scale: [model_matrix.x_axis.length(), model_matrix.y_axis.length(), model_matrix.z_axis.length(), 0.],
+                            parent_scale: [
+                                model_matrix.x_axis.length(),
+                                model_matrix.y_axis.length(),
+                                model_matrix.z_axis.length(),
+                                0.,
+                            ],
                             parent_origin: model_matrix.w_axis.to_array(),
                         },
                     });
                 } else {
-                append_particle_mesh(
-                    &mut instances,
-                    emitter,
-                    transform,
-                    colour,
-                    texture_index,
-                    texture_channel,
-                    blend,
-                    max_instances_per_emitter,
-                    lightning.as_ref().map(|material| (material, LightningParticle {
-                        age: progress, seed: slot, scale: size, parent: model_matrix,
-                        transform, view: lightning_view,
-                    })),
-                );
+                    append_particle_mesh(
+                        &mut instances,
+                        emitter,
+                        transform,
+                        colour,
+                        texture_index,
+                        texture_channel,
+                        blend,
+                        max_instances_per_emitter,
+                        lightning.as_ref().map(|material| {
+                            (
+                                material,
+                                LightningParticle {
+                                    age: progress,
+                                    seed: slot,
+                                    scale: size,
+                                    parent: model_matrix,
+                                    transform,
+                                    view: lightning_view,
+                                },
+                            )
+                        }),
+                    );
                 }
             } else if kind == "beam" {
                 let local_axis =
@@ -698,8 +802,11 @@ pub(crate) fn effect_emitter_particles(
                     // Native ParticleAlignMode 0 keeps the particle basis; mode 1
                     // removes the emitter basis to face the view. Keep placement
                     // and authored XYZ rotation together, including scale once.
-                    let angles = effect_range(emitter.get("rotation_3d"), seed + 23.3, Vec3::new(0.0, 0.0, angle.to_degrees()))
-                        * (std::f32::consts::PI / 180.0);
+                    let angles = effect_range(
+                        emitter.get("rotation_3d"),
+                        seed + 23.3,
+                        Vec3::new(0.0, 0.0, angle.to_degrees()),
+                    ) * (std::f32::consts::PI / 180.0);
                     let rotation = Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z);
                     (
                         model_matrix.transform_vector3(rotation * Vec3::X),
@@ -715,11 +822,15 @@ pub(crate) fn effect_emitter_particles(
                 let projected_velocity =
                     world_velocity - camera_forward * world_velocity.dot(camera_forward);
                 let stretch = 1.0 + projected_velocity.length() * velocity_stretch;
-                if !follows_placement && velocity_stretch > 0.0 && projected_velocity.length_squared() > 1.0e-8 {
+                if !follows_placement
+                    && velocity_stretch > 0.0
+                    && projected_velocity.length_squared() > 1.0e-8
+                {
                     let up_direction = projected_velocity.normalize();
                     right_axis = up_direction
                         .cross(camera_forward)
-                        .normalize_or(right_axis.normalize_or(camera_right)) * scene_scale;
+                        .normalize_or(right_axis.normalize_or(camera_right))
+                        * scene_scale;
                     up_axis = up_direction * scene_scale;
                 }
                 instances.push(EffectBillboardInstance {
@@ -727,8 +838,7 @@ pub(crate) fn effect_emitter_particles(
                     // Authored particle scale is the full quad size. The draw
                     // shader expands these axes with corners at -1 and +1.
                     axis_right: (right_axis * size.x * 0.5).to_array(),
-                    axis_up: (up_axis * size.y * stretch.clamp(1.0, 20.0) * 0.5)
-                        .to_array(),
+                    axis_up: (up_axis * size.y * stretch.clamp(1.0, 20.0) * 0.5).to_array(),
                     colour,
                     uv_rect,
                     texture_channel,
@@ -742,7 +852,10 @@ pub(crate) fn effect_emitter_particles(
             emitted += 1;
         }
     }
-    EffectEmission { billboards: instances, meshes: mesh_instances }
+    EffectEmission {
+        billboards: instances,
+        meshes: mesh_instances,
+    }
 }
 
 fn effect_range(value: Option<&Value>, seed: f32, fallback: Vec3) -> Vec3 {
@@ -784,25 +897,37 @@ fn append_particle_mesh(
     let read_uv = |i: usize| -> [f32; 2] {
         let value = uvs.and_then(|v| v.get(i)).and_then(Value::as_array);
         [0, 1].map(|axis| {
-            value.and_then(|v| v.get(axis)).and_then(Value::as_f64)
-                .filter(|v| v.is_finite()).unwrap_or(0.0) as f32
+            value
+                .and_then(|v| v.get(axis))
+                .and_then(Value::as_f64)
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0) as f32
         })
     };
     let normals = emitter.get("particle_normals").and_then(Value::as_array);
     let controls = emitter.get("particle_colors").and_then(Value::as_array);
-    let lightning = lightning.filter(|_| normals.is_some_and(|v| v.len() == vertices.len())
-        && controls.is_some_and(|v| v.len() == vertices.len()));
+    let lightning = lightning.filter(|_| {
+        normals.is_some_and(|v| v.len() == vertices.len())
+            && controls.is_some_and(|v| v.len() == vertices.len())
+    });
     // Deform shared vertices once, not once per triangle corner.
-    let transformed = vertices.iter().enumerate().map(|(i, vertex)| {
-        let mut position = vec3_value(Some(vertex), Vec3::ZERO);
-        if let Some((material, particle)) = lightning {
-            position = material.deform_vertex(position,
-                vec3_value(normals.and_then(|v| v.get(i)), Vec3::ZERO),
-                glam::Vec2::from_array(read_uv(i)),
-                vec3_value(controls.and_then(|v| v.get(i)), Vec3::ZERO), particle);
-        }
-        transform.transform_point3(position)
-    }).collect::<Vec<_>>();
+    let transformed = vertices
+        .iter()
+        .enumerate()
+        .map(|(i, vertex)| {
+            let mut position = vec3_value(Some(vertex), Vec3::ZERO);
+            if let Some((material, particle)) = lightning {
+                position = material.deform_vertex(
+                    position,
+                    vec3_value(normals.and_then(|v| v.get(i)), Vec3::ZERO),
+                    glam::Vec2::from_array(read_uv(i)),
+                    vec3_value(controls.and_then(|v| v.get(i)), Vec3::ZERO),
+                    particle,
+                );
+            }
+            transform.transform_point3(position)
+        })
+        .collect::<Vec<_>>();
     for face in faces {
         let Some(indices) = face.as_array().filter(|v| v.len() == 3) else {
             continue;
@@ -815,10 +940,7 @@ fn append_particle_mesh(
         if indices.len() != 3 || indices.iter().any(|i| *i >= vertices.len()) {
             continue;
         }
-        let points = indices
-            .iter()
-            .map(|i| transformed[*i])
-            .collect::<Vec<_>>();
+        let points = indices.iter().map(|i| transformed[*i]).collect::<Vec<_>>();
         let edge1 = points[1] - points[0];
         let edge2 = points[2] - points[0];
 
@@ -922,7 +1044,11 @@ mod tests {
                 Vec3::Y,
                 -Vec3::Z,
                 budget,
-                LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
+                LightningView {
+                    eye: Vec3::Z * 5.,
+                    vertical_fov: 45_f32.to_radians(),
+                    height: 512.,
+                },
                 None,
             )
         };
@@ -996,7 +1122,8 @@ mod tests {
                 e["alignment_mode"] = json!(mode);
             }
             let transform = Mat4::from_rotation_z(std::f32::consts::FRAC_PI_2);
-            let p = effect_emitter_billboards(&e, 0, 0.5, 1., 0, transform, Vec3::Z, Vec3::Y, Vec3::X);
+            let p =
+                effect_emitter_billboards(&e, 0, 0.5, 1., 0, transform, Vec3::Z, Vec3::Y, Vec3::X);
             assert!(Vec3::from(p[0].axis_right).abs_diff_eq(Vec3::Z * 0.05, 1.0e-6));
             assert!(Vec3::from(p[0].axis_up).abs_diff_eq(Vec3::Y * 0.2, 1.0e-6));
         }
@@ -1074,19 +1201,36 @@ mod tests {
         e["life"] = json!([0.32, 0.32]);
         e["force"] = json!([[0., 2.5, 0.], [0., 2.5, 0.]]);
         let rising = draw(&e, 0.2);
-        assert!((rising[0].center[1] - 0.05).abs() < 1.0e-5, "{:?}", rising[0].center);
+        assert!(
+            (rising[0].center[1] - 0.05).abs() < 1.0e-5,
+            "{:?}",
+            rising[0].center
+        );
         // 2.5 m/s^2 for the 0.32 s life is 0.128 m, and the flame stays there.
         for time in [0.32, 5., 60.] {
             let p = draw(&e, time);
             assert_eq!(p.len(), 1, "t={time}");
-            assert!((p[0].center[1] - 0.128).abs() < 1.0e-5, "t={time}: {:?}", p[0].center);
+            assert!(
+                (p[0].center[1] - 0.128).abs() < 1.0e-5,
+                "t={time}: {:?}",
+                p[0].center
+            );
         }
         // while its flipbook keeps playing once per life instead of stopping on a frame
         e["sequence"] = json!([4, 1]);
-        let frames: Vec<f32> = [5.0, 5.08, 5.16, 5.24].iter().map(|time| draw(&e, *time)[0].uv_rect[0]).collect();
+        let frames: Vec<f32> = [5.0, 5.08, 5.16, 5.24]
+            .iter()
+            .map(|time| draw(&e, *time)[0].uv_rect[0])
+            .collect();
         assert_eq!(frames.len(), 4);
-        assert!(frames.windows(2).any(|pair| pair[0] != pair[1]), "{frames:?}");
-        assert_eq!(draw(&e, 5.0)[0].uv_rect, draw(&e, 5.0 + 0.32 * 3.0)[0].uv_rect);
+        assert!(
+            frames.windows(2).any(|pair| pair[0] != pair[1]),
+            "{frames:?}"
+        );
+        assert_eq!(
+            draw(&e, 5.0)[0].uv_rect,
+            draw(&e, 5.0 + 0.32 * 3.0)[0].uv_rect
+        );
     }
 
     #[test]
@@ -1138,20 +1282,39 @@ mod tests {
         e["kind"] = json!("mesh");
         e["burst"] = json!(256);
         e["max_particles"] = json!(256);
-        e["particle_vertices"] = json!([[0.,0.,0.],[1.,0.,0.],[0.,1.,0.]]);
-        e["particle_faces"] = json!(vec![[0,1,2];3338]);
-        e["scale"] = json!([[2.,2.,2.],[2.,2.,2.]]);
-        e["pivot_offset"] = json!([0.,0.,-5.]);
-        let emission = effect_emitter_particles(&e, 0, 0.5, 0.001, 0,
-            Mat4::from_translation(Vec3::X), Vec3::X,Vec3::Y,-Vec3::Z,256,
-            LightningView {eye:Vec3::Z*5.,vertical_fov:0.5,height:512.},None,Some(7));
+        e["particle_vertices"] = json!([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]]);
+        e["particle_faces"] = json!(vec![[0, 1, 2]; 3338]);
+        e["scale"] = json!([[2., 2., 2.], [2., 2., 2.]]);
+        e["pivot_offset"] = json!([0., 0., -5.]);
+        let emission = effect_emitter_particles(
+            &e,
+            0,
+            0.5,
+            0.001,
+            0,
+            Mat4::from_translation(Vec3::X),
+            Vec3::X,
+            Vec3::Y,
+            -Vec3::Z,
+            256,
+            LightningView {
+                eye: Vec3::Z * 5.,
+                vertical_fov: 0.5,
+                height: 512.,
+            },
+            None,
+            Some(7),
+        );
         assert!(emission.billboards.is_empty());
-        assert_eq!(emission.meshes.len(),256); // 854,528 triangles, 256 records.
+        assert_eq!(emission.meshes.len(), 256); // 854,528 triangles, 256 records.
         assert!(emission.meshes.iter().all(|p| p.mesh_index == 7));
         let transform = Mat4::from_cols_array_2d(&emission.meshes[0].particle.transform);
-        assert_eq!(transform.transform_point3(Vec3::ZERO),Vec3::new(1.,0.,-10.));
-        let cpu = draw(&e,0.5);
-        assert_eq!(cpu[0].center,[0.,0.,-10.]);
+        assert_eq!(
+            transform.transform_point3(Vec3::ZERO),
+            Vec3::new(1., 0., -10.)
+        );
+        let cpu = draw(&e, 0.5);
+        assert_eq!(cpu[0].center, [0., 0., -10.]);
     }
 
     #[test]

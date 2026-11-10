@@ -472,6 +472,30 @@ static void run_material_source_resolution_self_test() {
         binding.archive_path = row.parameter.texture_path;
         require_material_contract(finding(binding) == "cross_owner_binding",
             "an actual foreign-owner source no longer fails ownership validation");
+        row.parameter.name = "_emissiveTexture";
+        binding.parameter_name = "_emissiveIntensityTexture";
+        binding.source_authority = "exact_sidecar";
+        binding.source_path = "resolved-intensity.dds";
+        require_material_contract(finding(binding) == "source_dds_unavailable",
+            "another owner's intensity map suppressed a required RGB source");
+        binding.owner_wrapper_item_id = row.owner_wrapper_item_id;
+        binding.material_wrapper_index = row.material_wrapper_index;
+        NativePackage inactive_package;
+        inactive_package.material_conservation_rows.push_back(row);
+        MaterialBindingBuildState inactive_state{job, index, meshes, inactive_package, techniques};
+        inactive_state.bindings.push_back(binding);
+        finish_material_bindings(inactive_state, 1);
+        const auto& inactive = inactive_package.material_conservation_rows.front();
+        require_material_contract(inactive_package.material_conservation_ok
+            && inactive.logical_graph_edge && !inactive.texture_resolved
+            && inactive.declared_source_missing
+            && inactive.status == "transported_inactive_rgb_emission",
+            "unused missing RGB emission discarded the resolved native material graph");
+        const auto inactive_json = native_material_conservation_json(inactive_package);
+        require_material_contract(inactive_json.find("\"conserved\":true") != std::string::npos
+            && inactive_json.find("\"unresolved_texture_count\":1") != std::string::npos
+            && inactive_json.find("\"inactive_unavailable_texture_count\":1") != std::string::npos,
+            "inactive source evidence was lost or refused at publication");
     }
     EntryJob source_resolution_job;
     ArchiveEntryRef source_resolution_sidecar;

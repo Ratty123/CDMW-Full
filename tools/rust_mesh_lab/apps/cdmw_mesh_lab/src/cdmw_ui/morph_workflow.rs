@@ -33,7 +33,11 @@ const MORPH_RULES: [(&str, &str); 7] = [
     ("twist", "Twist"),
     ("radius", "Radius"),
 ];
-const MORPH_FALLOFFS: [(&str, &str); 3] = [("constant", "Constant"), ("linear", "Linear"), ("smooth", "Smooth")];
+const MORPH_FALLOFFS: [(&str, &str); 3] = [
+    ("constant", "Constant"),
+    ("linear", "Linear"),
+    ("smooth", "Smooth"),
+];
 const MORPH_MIRRORS: [(&str, &str); 4] = [("off", "Off"), ("x", "X"), ("y", "Y"), ("z", "Z")];
 
 #[derive(Clone, Copy, Default)]
@@ -103,26 +107,44 @@ impl LabApplication {
                 crate::localization::tr(failure),
             );
         }
-        if !state_str(&state, "shape_restore_source").unwrap_or("").is_empty() {
+        if !state_str(&state, "shape_restore_source")
+            .unwrap_or("")
+            .is_empty()
+        {
             ui.label(state_str(&state, "shape_restore_source").unwrap_or(""))
                 .on_hover_text(state_str(&state, "shape_restore_sha256").unwrap_or(""));
             ui.strong(crate::localization::tr("Selected geometry"));
-            for row in state["shape_restore_scope"].as_array().into_iter().flatten() {
-                if let (Some(part), Some(name), Some(islands)) = (row[0].as_u64(), row[1].as_str(), row[2].as_u64()) {
-                    ui.label(crate::localization::tr(if islands == 0 { format!("Part {part}: {name}") }
-                        else if islands == 1 { format!("Part {part}: {name} · 1 selected island") }
-                        else { format!("Part {part}: {name} · {islands} selected islands") }));
+            for row in state["shape_restore_scope"]
+                .as_array()
+                .into_iter()
+                .flatten()
+            {
+                if let (Some(part), Some(name), Some(islands)) =
+                    (row[0].as_u64(), row[1].as_str(), row[2].as_u64())
+                {
+                    ui.label(crate::localization::tr(if islands == 0 {
+                        format!("Part {part}: {name}")
+                    } else if islands == 1 {
+                        format!("Part {part}: {name} · 1 selected island")
+                    } else {
+                        format!("Part {part}: {name} · {islands} selected islands")
+                    }));
                 }
             }
             ui.data_mut(|data| data.insert_temp(id, workflow));
             return;
         }
         let pending = state_bool(&state, "authoring_baseline_ready")
-            || !state_str(&state, "shape_restore_source").unwrap_or("").is_empty()
+            || !state_str(&state, "shape_restore_source")
+                .unwrap_or("")
+                .is_empty()
             || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty())
             || self.cdmw_morph_comparison_active();
         let body = value_u32_list(&state, "driver_submesh_indices");
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         if matches!(workflow.tab, MorphTab::Setup | MorphTab::Fit) {
             self.draw_cdmw_refit_roles(ui, &body, &garments);
         }
@@ -144,7 +166,9 @@ impl LabApplication {
                 });
             }
             MorphTab::Shape => {
-                let has_definitions = state.get("definitions").and_then(Value::as_array)
+                let has_definitions = state
+                    .get("definitions")
+                    .and_then(Value::as_array)
                     .is_some_and(|definitions| !definitions.is_empty());
                 if !workflow.create && !garments.is_empty() && !has_definitions
                     && ui.add_enabled(!pending && !state_bool(&state, "unbaked"),
@@ -684,9 +708,14 @@ impl LabApplication {
         let has_mesh_selection =
             self.selected_counts().total() > 0 || !self.selected_part_indices().is_empty();
         if has_mesh_selection {
-            ui.weak(crate::localization::tr("New sliders use the current selection."));
+            ui.weak(crate::localization::tr(
+                "New sliders use the current selection.",
+            ));
         } else {
-            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Select a Part or region before creating a slider."));
+            ui.colored_label(
+                cdmw_readable(ui, REFIT_ARMOR_COLOUR),
+                crate::localization::tr("Select a Part or region before creating a slider."),
+            );
         }
         ui.label(crate::localization::tr("Profile name"));
         ui.add(
@@ -727,8 +756,14 @@ impl LabApplication {
         }
         let replace_edit_scope = editing_definition && self.cdmw_morph_replace_selection_on_edit;
         // Stored rule values stay lowercase; show their labels instead.
-        let shown = |options: &[(&str, &str)], value: &str| crate::localization::tr(
-            options.iter().find(|(id, _)| *id == value).map_or(value, |(_, label)| *label));
+        let shown = |options: &[(&str, &str)], value: &str| {
+            crate::localization::tr(
+                options
+                    .iter()
+                    .find(|(id, _)| *id == value)
+                    .map_or(value, |(_, label)| *label),
+            )
+        };
         ui.push_id("morph-definition", |ui| {
             ui.label(crate::localization::tr("Rule"));
             ComboBox::from_id_salt("morph-rule")

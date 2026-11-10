@@ -224,6 +224,8 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "executable": root / "cdmw_mesh_lab.exe",
         "control_contract": root / "cdmw_mesh_lab.control-contract.json",
         "manifest": root / "cdmw_mesh_lab.manifest.json",
+        "shader_compiler": root / "dxcompiler.dll",
+        "shader_validator": root / "dxil.dll",
     }
     missing = [path for path in expected_files.values() if not path.is_file()]
     if missing:
@@ -255,6 +257,12 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "control_contract": expected_files["control_contract"].name,
         "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
     }
+    compiler_files = manifest.get("shader_compiler_files", {})
+    if not isinstance(compiler_files, dict) or set(compiler_files) != {"dxcompiler.dll", "dxil.dll"}:
+        raise SystemExit("Rust Mesh Editor shader compiler provenance is incomplete or invalid.")
+    for name in ("dxcompiler.dll", "dxil.dll"):
+        if not isinstance(compiler_files[name], str) or compiler_files[name].lower() != _sha256(root / name).lower():
+            raise SystemExit(f"Rust Mesh Editor shader compiler provenance does not match: {name}")
     mismatches = [
         f"{field}={manifest.get(field)!r}"
         for field, expected in expected_manifest.items()
@@ -398,6 +406,8 @@ _add_native_binary(
     "native/rust_mesh_editor",
     required_release=True,
 )
+for compiler_file in ("dxcompiler.dll", "dxil.dll"):
+    _add_native_binary(f"{rust_mesh_editor_stage}/{compiler_file}", "native/rust_mesh_editor", required_release=True)
 for rust_mesh_editor_data in (
     "cdmw_mesh_lab.manifest.json",
     "cdmw_mesh_lab.control-contract.json",
@@ -414,6 +424,8 @@ _add_data_if_exists(
     "native/rust_mesh_editor",
     required_release=True,
 )
+for compiler_notice in ("DXC-LLVM-LICENSE.txt", "DXC-THIRD-PARTY-NOTICES.txt"):
+    _add_data_if_exists(datas, f"tools/rust_mesh_lab/{compiler_notice}", "native/rust_mesh_editor", required_release=True)
 # Self-contained .NET publishes include crash-dump/debugger data-access tools
 # for post-mortem debugging. The archive worker never invokes or loads them;
 # excluding them preserves the worker/runtime/ABI while avoiding several MB of

@@ -74,7 +74,9 @@ pub(super) fn render(
     height: u32,
     viewport: Option<[f32; 4]>,
 ) {
-    if (renderer.effect_batches.is_empty() && renderer.effect_mesh.is_empty()) || renderer.mesh.is_none() {
+    if (renderer.effect_batches.is_empty() && renderer.effect_mesh.is_empty())
+        || renderer.mesh.is_none()
+    {
         return;
     }
     let [x, y, w, h] = viewport.unwrap_or([0., 0., width as f32, height as f32]);

@@ -86,6 +86,22 @@ def authored_blended_factors(part):
     return preview_factors(ShaderControls(shader), values)
 
 
+def authored_eye_cover_factors(part):
+    """Keep an exact EyeCover wet shell from hiding the underlying eye.
+
+    Missing game G-buffer coverage is not opaque colour authority. Match the
+    archive preview's transparent-shell policy until a source value is known;
+    explicit authoring controls still take precedence in the caller.
+    """
+    if _exact_source_shader(part) != EYE_COVER.shader.casefold():
+        return None
+    values, _ = source_inputs(part)
+    return preview_factors(
+        ShaderControls(EYE_COVER.shader),
+        {"_eyeCoverDiffuseParameter": 0, **values},
+    )
+
+
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
     if family_for(controls.shader) in (*GLASS_FAMILIES, *BLENDED_FAMILIES):

@@ -99,6 +99,13 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             (
                 "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac",
                 Encoding.ASCII.GetBytes("PAC\0damian head\0")),
+            ("character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefab",
+                Encoding.UTF8.GetBytes("character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac\0"
+                    + "character/model/1_pc/2_phw/head/eye/head_companion_eye.pac\0")),
+            ("character/model/1_pc/2_phw/head/eye/head_companion_eye.pac", "PAC eye"u8.ToArray()),
+            ("character/model/1_pc/2_phw/head/eye/head_companion_eye.pac_xml",
+                "<Material Texture=\"character/texture/head_companion_eye.dds\"/>"u8.ToArray()),
+            ("character/texture/head_companion_eye.dds", "DDS eye"u8.ToArray()),
             (
                 "character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml",
                 Encoding.UTF8.GetBytes(

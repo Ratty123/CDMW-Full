@@ -18,20 +18,30 @@ fn resample_draw_points(points: &[[f32; 3]], count: usize, root_span: f32) -> Ve
         let distance = if i <= root_samples {
             root_span * i as f32 / root_samples as f32
         } else {
-            root_span + (total - root_span) * (i - root_samples) as f32 / (count - 1 - root_samples) as f32
+            root_span
+                + (total - root_span) * (i - root_samples) as f32
+                    / (count - 1 - root_samples) as f32
         };
         while segment + 2 < points.len() && lengths[segment + 1] < distance {
             segment += 1;
         }
-        let t = (distance - lengths[segment]) / (lengths[segment + 1] - lengths[segment]).max(1e-12);
-        result.push(Vec3::from(points[segment]).lerp(Vec3::from(points[segment + 1]), t).to_array());
+        let t =
+            (distance - lengths[segment]) / (lengths[segment + 1] - lengths[segment]).max(1e-12);
+        result.push(
+            Vec3::from(points[segment])
+                .lerp(Vec3::from(points[segment + 1]), t)
+                .to_array(),
+        );
     }
     result.push(*points.last().unwrap());
     result
 }
 
 fn smooth_draw_points(points: &[[f32; 3]], smoothing: f32, width: f32) -> Vec<[f32; 3]> {
-    let length: f32 = points.windows(2).map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).sum();
+    let length: f32 = points
+        .windows(2)
+        .map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1])))
+        .sum();
     let count = ((length / (width * 0.15).max(0.0001)).ceil() as usize + 1).clamp(32, 512);
     let points = resample_draw_points(points, count, 0.0);
     // Symmetric spatial filtering keeps the tip under the pointer; a temporal
@@ -55,11 +65,17 @@ fn draw_shape_point(shape: DrawShape, start: Vec2, end: Vec2, t: f32, bend: f32)
 
 #[test]
 fn hair_spatial_smoothing_reduces_jitter_without_trailing_the_pointer() {
-    let path: Vec<_> = (0..201).map(|i| [i as f32 * 0.001, 0.2, (i as f32 * 1.3).sin() * 0.001]).collect();
+    let path: Vec<_> = (0..201)
+        .map(|i| [i as f32 * 0.001, 0.2, (i as f32 * 1.3).sin() * 0.001])
+        .collect();
     let raw = smooth_draw_points(&path, 0.0, 0.012);
     let smooth = smooth_draw_points(&path, 1.0, 0.012);
-    let jitter = |points: &[[f32; 3]]| points.windows(3)
-        .map(|p| (p[0][2] - 2.0 * p[1][2] + p[2][2]).abs()).sum::<f32>();
+    let jitter = |points: &[[f32; 3]]| {
+        points
+            .windows(3)
+            .map(|p| (p[0][2] - 2.0 * p[1][2] + p[2][2]).abs())
+            .sum::<f32>()
+    };
     assert!(jitter(&smooth) < jitter(&raw) * 0.7);
     assert_eq!(smooth[0], path[0]);
     assert_eq!(smooth.last(), path.last());
@@ -67,17 +83,30 @@ fn hair_spatial_smoothing_reduces_jitter_without_trailing_the_pointer() {
 
 #[test]
 fn hair_draw_smoothing_is_independent_of_pointer_sample_density() {
-    let sparse: Vec<_> = (0..41).map(|i| [i as f32 * 0.004, 0.2, (i as f32 * 1.7).sin() * 0.002]).collect();
+    let sparse: Vec<_> = (0..41)
+        .map(|i| [i as f32 * 0.004, 0.2, (i as f32 * 1.7).sin() * 0.002])
+        .collect();
     let mut dense = vec![sparse[0]];
     for pair in sparse.windows(2) {
         for i in 1..=12 {
-            dense.push(Vec3::from(pair[0]).lerp(Vec3::from(pair[1]), i as f32 / 12.0).to_array());
+            dense.push(
+                Vec3::from(pair[0])
+                    .lerp(Vec3::from(pair[1]), i as f32 / 12.0)
+                    .to_array(),
+            );
         }
     }
     let a = smooth_draw_points(&sparse, 0.8, 0.012);
     let b = smooth_draw_points(&dense, 0.8, 0.012);
-    let error = a.iter().zip(&b).map(|(p, q)| Vec3::from(*p).distance(Vec3::from(*q))).fold(0.0_f32, f32::max);
-    assert!(error < 0.00001, "mouse sample density changed smoothing by {error}");
+    let error = a
+        .iter()
+        .zip(&b)
+        .map(|(p, q)| Vec3::from(*p).distance(Vec3::from(*q)))
+        .fold(0.0_f32, f32::max);
+    assert!(
+        error < 0.00001,
+        "mouse sample density changed smoothing by {error}"
+    );
     assert_eq!(a[0], sparse[0]);
     assert_eq!(a.last(), sparse.last());
 }
@@ -88,18 +117,34 @@ impl LabApplication {
             || self.cdmw_state["replacement"]["comparison"]
                 .as_str()
                 .is_some_and(|v| v != "edit")
-            || !matches!(action, UiAction::ClearSelection | UiAction::SelectAllVertices
-                | UiAction::SelectAllEdges | UiAction::SelectAllFaces | UiAction::InvertSelection(_))
+            || !matches!(
+                action,
+                UiAction::ClearSelection
+                    | UiAction::SelectAllVertices
+                    | UiAction::SelectAllEdges
+                    | UiAction::SelectAllFaces
+                    | UiAction::InvertSelection(_)
+            )
         {
             return false;
         }
         let visible = self.cdmw_visible_submeshes();
-        let locks = self.hair.state.as_ref().unwrap().locks.iter()
-            .filter(|l| !l.vertices.is_empty() && visible.as_ref().is_none_or(|v| v.contains(&l.part)))
+        let locks = self
+            .hair
+            .state
+            .as_ref()
+            .unwrap()
+            .locks
+            .iter()
+            .filter(|l| {
+                !l.vertices.is_empty() && visible.as_ref().is_none_or(|v| v.contains(&l.part))
+            })
             .map(|l| l.id as usize);
         self.hair.selected = match action {
             UiAction::ClearSelection => HashSet::new(),
-            UiAction::InvertSelection(_) => locks.filter(|id| !self.hair.selected.contains(id)).collect(),
+            UiAction::InvertSelection(_) => locks
+                .filter(|id| !self.hair.selected.contains(id))
+                .collect(),
             _ => locks.collect(),
         };
         // Hair selection is local lock state. A mesh selection refresh would
@@ -162,15 +207,28 @@ impl LabApplication {
     }
 
     fn brush_locks(&self, point: Vec2, rect: egui::Rect) -> Vec<u64> {
-        self.brushed_hair_hits(point, rect, false).into_iter().map(|(id, _, _)| id).collect()
+        self.brushed_hair_hits(point, rect, false)
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect()
     }
 
-    fn brushed_hair_hits(&self, point: Vec2, rect: egui::Rect, all_rows: bool) -> Vec<(u64, u32, f32)> {
+    fn brushed_hair_hits(
+        &self,
+        point: Vec2,
+        rect: egui::Rect,
+        all_rows: bool,
+    ) -> Vec<(u64, u32, f32)> {
         self.hair_brush_hits(point, rect, all_rows, None)
     }
 
-    fn hair_brush_hits(&self, point: Vec2, rect: egui::Rect, all_rows: bool,
-        mut local_faces: Option<&mut Vec<(u64, u32, [u32; 3])>>) -> Vec<(u64, u32, f32)> {
+    fn hair_brush_hits(
+        &self,
+        point: Vec2,
+        rect: egui::Rect,
+        all_rows: bool,
+        mut local_faces: Option<&mut Vec<(u64, u32, [u32; 3])>>,
+    ) -> Vec<(u64, u32, f32)> {
         let Some(scene) = &self.hair.scene else {
             return vec![];
         };
@@ -201,10 +259,15 @@ impl LabApplication {
             let Some(id) = scene.vertex_locks[face[0] as usize] else {
                 return;
             };
-            if local_faces.is_none() && !nearest && !all_rows && ids.contains(&(id, 0)) { return; }
+            if local_faces.is_none() && !nearest && !all_rows && ids.contains(&(id, 0)) {
+                return;
+            }
             // Physics paint follows the brush unless selection masking is
             // explicitly enabled; a leftover grooming selection is not a mask.
-            if all_rows && self.hair.physics_selected_only && !self.hair.selected.contains(&(id as usize)) {
+            if all_rows
+                && self.hair.physics_selected_only
+                && !self.hair.selected.contains(&(id as usize))
+            {
                 return;
             }
             let projected = |vertex: u32| {
@@ -236,7 +299,10 @@ impl LabApplication {
                         let along = (point - start).dot(edge) / edge.length_squared().max(1e-12);
                         start + edge * along.clamp(0.0, 1.0)
                     })
-                    .min_by(|a, b| a.distance_squared(point).total_cmp(&b.distance_squared(point)))
+                    .min_by(|a, b| {
+                        a.distance_squared(point)
+                            .total_cmp(&b.distance_squared(point))
+                    })
                     .unwrap();
             }
             if closest.distance_squared(point) > radius * radius {
@@ -246,32 +312,65 @@ impl LabApplication {
             // resident scene preserves scalp occlusion and part visibility.
             let sample = closest.lerp((a + b + c) / 3.0, 0.0001);
             if let Some(faces) = local_faces.as_mut() {
-                let Some((origin, direction, _)) = self.camera.screen_ray(sample, rect) else { return; };
-                let Some(hit) = scene.picking.hit(&scene.frame.positions, &scene.frame.indices, origin, direction) else { return; };
+                let Some((origin, direction, _)) = self.camera.screen_ray(sample, rect) else {
+                    return;
+                };
+                let Some(hit) = scene.picking.hit(
+                    &scene.frame.positions,
+                    &scene.frame.indices,
+                    origin,
+                    direction,
+                ) else {
+                    return;
+                };
                 // A shared lock id is not a visibility test: the same connected
                 // scalp shell may also cover the opposite side of the head.
-                if hit.triangle != triangle { return; }
+                if hit.triangle != triangle {
+                    return;
+                }
                 let part = scene.frame.triangle_materials[triangle];
                 if let Some((_, first, _, _)) = scene.parts.iter().find(|p| p.0 == part) {
-                    faces.push((id, part, [face[0] - *first as u32, face[1] - *first as u32, face[2] - *first as u32]));
+                    faces.push((
+                        id,
+                        part,
+                        [
+                            face[0] - *first as u32,
+                            face[1] - *first as u32,
+                            face[2] - *first as u32,
+                        ],
+                    ));
                 }
                 return;
             }
             if nearest {
                 candidates.push((closest.distance_squared(point), id, sample));
             } else if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
-                let row = if all_rows { hit.1 as usize + usize::from(hit.2 >= 0.5) } else { 0 };
-                if ids.insert((id, row)) { hits.push(hit); }
+                let row = if all_rows {
+                    hit.1 as usize + usize::from(hit.2 >= 0.5)
+                } else {
+                    0
+                };
+                if ids.insert((id, row)) {
+                    hits.push(hit);
+                }
             }
         });
         // Only Cut needs the position nearest the brush centre on each lock.
         // Other brushes stop projecting a lock as soon as a visible hit is found.
         candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
         for (_, id, sample) in candidates {
-            if !all_rows && ids.contains(&(id, 0)) { continue; }
+            if !all_rows && ids.contains(&(id, 0)) {
+                continue;
+            }
             if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
-                let row = if all_rows { hit.1 as usize + usize::from(hit.2 >= 0.5) } else { 0 };
-                if ids.insert((id, row)) { hits.push(hit); }
+                let row = if all_rows {
+                    hit.1 as usize + usize::from(hit.2 >= 0.5)
+                } else {
+                    0
+                };
+                if ids.insert((id, row)) {
+                    hits.push(hit);
+                }
             }
         }
         hits
@@ -299,13 +398,26 @@ impl LabApplication {
         let events: Vec<_> = self.pointer_events.drain().collect();
         for (index, event) in events.iter().enumerate() {
             let endpoint_tool = self.hair.tool == Some(HairTool::Move)
-                || (self.hair.tool == Some(HairTool::Guide) && self.hair.draw_shape != DrawShape::Freehand);
-            if endpoint_tool && !modifiers.alt && !modifiers.shift
+                || (self.hair.tool == Some(HairTool::Guide)
+                    && self.hair.draw_shape != DrawShape::Freehand);
+            if endpoint_tool
+                && !modifiers.alt
+                && !modifiers.shift
                 && matches!(event, ViewportPointerEvent::PrimaryMoved(_))
-                && matches!(events.get(index + 1), Some(ViewportPointerEvent::PrimaryMoved(_))) {
+                && matches!(
+                    events.get(index + 1),
+                    Some(ViewportPointerEvent::PrimaryMoved(_))
+                )
+            {
                 continue;
             }
-            self.dispatch_hair_pointer(*event, rect, modifiers.ctrl, modifiers.alt, modifiers.shift);
+            self.dispatch_hair_pointer(
+                *event,
+                rect,
+                modifiers.ctrl,
+                modifiers.alt,
+                modifiers.shift,
+            );
         }
         // A release can be lost when the embedded window loses pointer capture.
         // Do not leave an abandoned local stroke holding Finish/history busy.
@@ -355,7 +467,8 @@ impl LabApplication {
         }
         match event {
             ViewportPointerEvent::PrimaryPressed(point)
-                if self.hair_input_ready() || self.hair_draw_input_ready() => {
+                if self.hair_input_ready() || self.hair_draw_input_ready() =>
+            {
                 let hit = self.lock_at(point, rect);
                 self.hair.stroke_primary = hit.map(|h| h.0);
                 self.hair.move_anchor = hit.and_then(|(id, segment, t)| {
@@ -364,11 +477,18 @@ impl LabApplication {
                     let points = &state.guides[gi].points;
                     let mut lengths = vec![0.0];
                     for pair in points.windows(2) {
-                        lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+                        lengths.push(
+                            lengths.last().unwrap()
+                                + Vec3::from(pair[0]).distance(Vec3::from(pair[1])),
+                        );
                     }
                     let i = (segment as usize).min(points.len() - 2);
-                    let along = (lengths[i] + (lengths[i + 1] - lengths[i]) * t) / lengths.last().unwrap().max(1e-6);
-                    Some((along, Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t)))
+                    let along = (lengths[i] + (lengths[i + 1] - lengths[i]) * t)
+                        / lengths.last().unwrap().max(1e-6);
+                    Some((
+                        along,
+                        Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t),
+                    ))
                 });
                 self.hair.stroke_distances.clear();
                 self.hair.cuts.clear();
@@ -419,7 +539,9 @@ impl LabApplication {
                 self.hair_stroke_point(rect, point, !ctrl && self.hair.draw_follow_scalp);
             }
             ViewportPointerEvent::PrimaryPressed(_) => {
-                self.hair.feedback = "Finishing the previous hair edit. Drawing will be ready when it completes.".into();
+                self.hair.feedback =
+                    "Finishing the previous hair edit. Drawing will be ready when it completes."
+                        .into();
             }
             ViewportPointerEvent::PrimaryMoved(point) => {
                 if self.hair.stroke_start.is_some() {
@@ -432,18 +554,30 @@ impl LabApplication {
                 }
                 if self.hair.tool == Some(HairTool::Select) {
                     if let Some(start) = self.hair.stroke_start
-                        && start.distance(point) > 5.0 {
-                            self.select_hair_marquee(start, point, rect, ctrl);
-                        }
+                        && start.distance(point) > 5.0
+                    {
+                        self.select_hair_marquee(start, point, rect, ctrl);
+                    }
                 } else if self.hair.tool == Some(HairTool::Cut) {
                     self.hair_stroke_point(rect, point, false);
                     let cuts = std::mem::take(&mut self.hair.cuts);
-                    if let Some(mut state) = self.hair.state.as_ref().filter(|_| !cuts.is_empty()).cloned() {
+                    if let Some(mut state) = self
+                        .hair
+                        .state
+                        .as_ref()
+                        .filter(|_| !cuts.is_empty())
+                        .cloned()
+                    {
                         state.revision += 1;
                         self.queue_hair(
                             state,
                             "Cut hair",
-                            Preparation::Cut(cuts.into_iter().map(|(id, (segment, t))| (id, segment, t)).collect(), self.hair.symmetry),
+                            Preparation::Cut(
+                                cuts.into_iter()
+                                    .map(|(id, (segment, t))| (id, segment, t))
+                                    .collect(),
+                                self.hair.symmetry,
+                            ),
                         );
                     }
                 } else {
@@ -474,7 +608,11 @@ impl LabApplication {
                                 ),
                                 _ => Preparation::Deform,
                             };
-                            let label = if self.hair.tool == Some(HairTool::Physics) { "Paint hair physics" } else { "Groom hair" };
+                            let label = if self.hair.tool == Some(HairTool::Physics) {
+                                "Paint hair physics"
+                            } else {
+                                "Groom hair"
+                            };
                             self.queue_hair(state, label, operation);
                         }
                     }
@@ -500,7 +638,9 @@ impl LabApplication {
     }
 
     pub(crate) fn cancel_hair_stroke(&mut self) -> bool {
-        if self.hair.stroke_start.is_none() && self.hair.stroke.is_none() { return false; }
+        if self.hair.stroke_start.is_none() && self.hair.stroke.is_none() {
+            return false;
+        }
         let editing = self.hair.stroke.is_some() || self.hair.tool != Some(HairTool::Select);
         self.hair.stroke = None;
         self.hair.stroke_start = None;
@@ -515,7 +655,9 @@ impl LabApplication {
         self.hair.cuts.clear();
         self.hair.erased_faces.clear();
         self.hair.scene = None;
-        if editing { self.hair.playing = self.hair.restart_after_stroke; }
+        if editing {
+            self.hair.playing = self.hair.restart_after_stroke;
+        }
         self.hair.restart_after_stroke = false;
         self.hair.last_tick = Instant::now();
         self.pointer_events.clear();
@@ -557,12 +699,30 @@ impl LabApplication {
 
     fn hair_stroke_point(&mut self, rect: egui::Rect, pointer: Vec2, follow_scalp: bool) {
         let previous = self.hair.last_pointer.unwrap_or(pointer);
-        let steps = if matches!(self.hair.tool, Some(HairTool::Cut | HairTool::Erase | HairTool::Lengthen
-            | HairTool::Comb | HairTool::Smooth | HairTool::Curl | HairTool::Clump)) {
-            (pointer.distance(previous) / (self.hair.radius * 0.5).max(1.0)).ceil().clamp(1.0, 256.0) as usize
-        } else { 1 };
+        let steps = if matches!(
+            self.hair.tool,
+            Some(
+                HairTool::Cut
+                    | HairTool::Erase
+                    | HairTool::Lengthen
+                    | HairTool::Comb
+                    | HairTool::Smooth
+                    | HairTool::Curl
+                    | HairTool::Clump
+            )
+        ) {
+            (pointer.distance(previous) / (self.hair.radius * 0.5).max(1.0))
+                .ceil()
+                .clamp(1.0, 256.0) as usize
+        } else {
+            1
+        };
         for sample in 1..=steps {
-            self.hair_stroke_sample(rect, previous.lerp(pointer, sample as f32 / steps as f32), follow_scalp);
+            self.hair_stroke_sample(
+                rect,
+                previous.lerp(pointer, sample as f32 / steps as f32),
+                follow_scalp,
+            );
         }
     }
 
@@ -570,13 +730,22 @@ impl LabApplication {
         if self.hair.tool == Some(HairTool::Cut) {
             self.hair.last_pointer = Some(pointer);
             for (id, segment, t) in self.brushed_hair_hits(pointer, rect, false) {
-                let Some(lock) = self.hair.state.as_ref().and_then(|s| s.locks.iter().find(|l| l.id == id)) else { continue; };
+                let Some(lock) = self
+                    .hair
+                    .state
+                    .as_ref()
+                    .and_then(|s| s.locks.iter().find(|l| l.id == id))
+                else {
+                    continue;
+                };
                 if lock.guide.is_none() {
                     self.hair.feedback = "Correct this lock's root before cutting".into();
                     continue;
                 }
                 let cut = self.hair.cuts.entry(id).or_insert((segment, t));
-                if segment as f32 + t < cut.0 as f32 + cut.1 { *cut = (segment, t); }
+                if segment as f32 + t < cut.0 as f32 + cut.1 {
+                    *cut = (segment, t);
+                }
             }
             return;
         }
@@ -588,7 +757,10 @@ impl LabApplication {
         let tool = self.hair.tool.unwrap_or(HairTool::Select);
         // Measure from the last accepted draw sample. Updating this anchor on
         // every subpixel event used to discard slow/high-frequency strokes forever.
-        if matches!(tool, HairTool::Guide | HairTool::Paint) && !self.hair.drawing.is_empty() && distance < 0.5 {
+        if matches!(tool, HairTool::Guide | HairTool::Paint)
+            && !self.hair.drawing.is_empty()
+            && distance < 0.5
+        {
             self.hair.last_pointer = Some(previous);
             self.hair.stroke = Some(state);
             return;
@@ -596,29 +768,54 @@ impl LabApplication {
         let hit = self.lock_at(pointer, rect);
         let result: Result<(), String> = (|| {
             if tool == HairTool::Physics {
-                let steps = (distance / (self.hair.radius * 0.5).max(1.0)).ceil().clamp(1.0, 256.0) as usize;
+                let steps = (distance / (self.hair.radius * 0.5).max(1.0))
+                    .ceil()
+                    .clamp(1.0, 256.0) as usize;
                 let mut rows = BTreeSet::new();
                 for sample in 1..=steps {
-                    rows.extend(self.brushed_hair_hits(previous.lerp(pointer, sample as f32 / steps as f32), rect, true)
-                        .into_iter().map(|(id, segment, t)| (id, segment as usize + usize::from(t >= 0.5))));
+                    rows.extend(
+                        self.brushed_hair_hits(
+                            previous.lerp(pointer, sample as f32 / steps as f32),
+                            rect,
+                            true,
+                        )
+                        .into_iter()
+                        .map(|(id, segment, t)| (id, segment as usize + usize::from(t >= 0.5))),
+                    );
                 }
                 for (id, row) in rows {
-                    let Some(lock) = state.locks.iter().find(|lock| lock.id == id) else { continue; };
+                    let Some(lock) = state.locks.iter().find(|lock| lock.id == id) else {
+                        continue;
+                    };
                     let Some(gi) = lock.guide else {
-                        self.hair.feedback = "Set a grooming root before painting physics on this section.".into();
+                        self.hair.feedback =
+                            "Set a grooming root before painting physics on this section.".into();
                         continue;
                     };
                     let mut targets = vec![(gi as usize, row)];
                     if self.hair.symmetry
-                        && let Some(pair) = lock.mirrored.and_then(|id| state.locks.iter().find(|l| l.id == id)).and_then(|l| l.guide) {
-                            let other_row = (row as f32 * (state.guides[pair as usize].points.len() - 1) as f32
-                                / (state.guides[gi as usize].points.len() - 1) as f32).round() as usize;
-                            targets.push((pair as usize, other_row));
-                        }
+                        && let Some(pair) = lock
+                            .mirrored
+                            .and_then(|id| state.locks.iter().find(|l| l.id == id))
+                            .and_then(|l| l.guide)
+                    {
+                        let other_row = (row as f32
+                            * (state.guides[pair as usize].points.len() - 1) as f32
+                            / (state.guides[gi as usize].points.len() - 1) as f32)
+                            .round() as usize;
+                        targets.push((pair as usize, other_row));
+                    }
                     for (gi, row) in targets {
                         let guide = &mut state.guides[gi];
-                        if row == 0 || row >= guide.points.len() || guide.is_pinned(row) == self.hair.paint_static { continue; }
-                        if guide.pinned.is_empty() { guide.pinned = vec![false; guide.points.len()]; }
+                        if row == 0
+                            || row >= guide.points.len()
+                            || guide.is_pinned(row) == self.hair.paint_static
+                        {
+                            continue;
+                        }
+                        if guide.pinned.is_empty() {
+                            guide.pinned = vec![false; guide.points.len()];
+                        }
                         guide.pinned[row] = self.hair.paint_static;
                         self.hair.stroke_changed = true;
                     }
@@ -633,10 +830,15 @@ impl LabApplication {
                     let mut faces = vec![];
                     self.hair_brush_hits(pointer, rect, false, Some(&mut faces));
                     for (id, part, face) in faces {
-                        if state.locks.iter().any(|l| l.id == id && l.kind == LockKind::Generated) {
+                        if state
+                            .locks
+                            .iter()
+                            .any(|l| l.id == id && l.kind == LockKind::Generated)
+                        {
                             ids.push(id);
                         } else {
-                            self.hair.stroke_changed |= self.hair.erased_faces.entry(part).or_default().insert(face);
+                            self.hair.stroke_changed |=
+                                self.hair.erased_faces.entry(part).or_default().insert(face);
                         }
                     }
                 }
@@ -752,10 +954,13 @@ impl LabApplication {
                         .iter()
                         .find(|l| l.id == self.hair.drawing[0])
                         .unwrap();
-                    let root_position = Vec3::from(state.guides[first.guide.unwrap() as usize].points[0]);
+                    let root_position =
+                        Vec3::from(state.guides[first.guide.unwrap() as usize].points[0]);
                     let anchor = if self.hair.draw_shape == DrawShape::Freehand {
                         Vec3::from(*self.hair.drawing_samples.last().unwrap())
-                    } else { root_position };
+                    } else {
+                        root_position
+                    };
                     let (min, max) = hair_bounds(&state);
                     let pivot = self.hair.simulation.as_ref().map_or(
                         Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5),
@@ -773,7 +978,8 @@ impl LabApplication {
                     let delta = self.camera.plane_drag_delta(
                         self.camera.forward(),
                         pose.head_point(anchor),
-                        self.camera.project(pose.head_point(anchor), rect)
+                        self.camera
+                            .project(pose.head_point(anchor), rect)
                             .map_or(previous, |p| p.screen),
                         pointer,
                         rect,
@@ -791,7 +997,11 @@ impl LabApplication {
                         .iter()
                         .find(|g| g.id == self.hair.group)
                         .unwrap()
-                        .width * state.locks.iter().find(|l| Some(l.id) == self.hair.drawing.first().copied())
+                        .width
+                        * state
+                            .locks
+                            .iter()
+                            .find(|l| Some(l.id) == self.hair.drawing.first().copied())
                             .map_or(1.0, |l| l.width_scale);
                     let clearance = width * 0.55 + self.hair.motion.collision_margin;
                     let tip = if let Some(root) = surface {
@@ -802,10 +1012,13 @@ impl LabApplication {
                     if self.hair.draw_shape == DrawShape::Freehand {
                         let from = Vec3::from(*self.hair.drawing_samples.last().unwrap());
                         let steps = ((tip.distance(from) / (width * 0.15).max(0.0005)).ceil()
-                            as usize).clamp(1, 64);
+                            as usize)
+                            .clamp(1, 64);
                         for step in 1..=steps {
                             let p = from.lerp(tip, step as f32 / steps as f32);
-                            if p.distance(Vec3::from(*self.hair.drawing_samples.last().unwrap())) >= 0.0001 {
+                            if p.distance(Vec3::from(*self.hair.drawing_samples.last().unwrap()))
+                                >= 0.0001
+                            {
                                 self.hair.drawing_samples.push(p.to_array());
                             }
                         }
@@ -813,15 +1026,32 @@ impl LabApplication {
                         let start = self.hair.stroke_start.unwrap();
                         self.hair.drawing_samples = vec![root_position.to_array()];
                         for i in 1..hair::MAX_POINTS {
-                            let screen = draw_shape_point(self.hair.draw_shape, start, pointer,
-                                i as f32 / (hair::MAX_POINTS - 1) as f32, self.hair.arc_bend);
-                            let attachment = follow_scalp.then(|| self.camera.screen_ray(screen, rect)
-                                .and_then(|ray| self.pick_hair_scalp(ray.0, ray.1))).flatten();
+                            let screen = draw_shape_point(
+                                self.hair.draw_shape,
+                                start,
+                                pointer,
+                                i as f32 / (hair::MAX_POINTS - 1) as f32,
+                                self.hair.arc_bend,
+                            );
+                            let attachment = follow_scalp
+                                .then(|| {
+                                    self.camera
+                                        .screen_ray(screen, rect)
+                                        .and_then(|ray| self.pick_hair_scalp(ray.0, ray.1))
+                                })
+                                .flatten();
                             let point = if let Some(attachment) = attachment {
                                 state.scalp.point(&attachment).map_err(|e| e.to_string())?
                             } else {
-                                root_position + pose.head.inverse() * self.camera.plane_drag_delta(
-                                    self.camera.forward(), pose.head_point(root_position), start, screen, rect)
+                                root_position
+                                    + pose.head.inverse()
+                                        * self.camera.plane_drag_delta(
+                                            self.camera.forward(),
+                                            pose.head_point(root_position),
+                                            start,
+                                            screen,
+                                            rect,
+                                        )
                             };
                             self.hair.drawing_samples.push(point.to_array());
                         }
@@ -830,17 +1060,30 @@ impl LabApplication {
                     // Repeatedly deleting low-curvature points used to consume
                     // the entire budget at scalp seams and stretch long tails.
                     if self.hair.drawing_samples.len() > 4096 {
-                        self.hair.drawing_samples = resample_draw_points(&self.hair.drawing_samples, 2048, 0.0);
+                        self.hair.drawing_samples =
+                            resample_draw_points(&self.hair.drawing_samples, 2048, 0.0);
                     }
                     let samples = if self.hair.draw_shape == DrawShape::Freehand {
-                        smooth_draw_points(&self.hair.drawing_samples, self.hair.draw_smoothing, width)
+                        smooth_draw_points(
+                            &self.hair.drawing_samples,
+                            self.hair.draw_smoothing,
+                            width,
+                        )
                     } else {
-                        resample_draw_points(&self.hair.drawing_samples, hair::MAX_POINTS, width * 2.0)
+                        resample_draw_points(
+                            &self.hair.drawing_samples,
+                            hair::MAX_POINTS,
+                            width * 2.0,
+                        )
                     };
                     for (i, id) in self.hair.drawing.iter().enumerate() {
                         let lock = state.locks.iter().find(|l| l.id == *id).unwrap();
                         let guide = &mut state.guides[lock.guide.unwrap() as usize];
-                        let mirror = if i == 0 { Vec3::ONE } else { Vec3::new(-1.0, 1.0, 1.0) };
+                        let mirror = if i == 0 {
+                            Vec3::ONE
+                        } else {
+                            Vec3::new(-1.0, 1.0, 1.0)
+                        };
                         let mut points = vec![guide.points[0]];
                         let mut length = 0.0;
                         for pair in samples.windows(2) {
@@ -850,11 +1093,20 @@ impl LabApplication {
                             // Preserve the drawn silhouette. Normal-only pushes
                             // can reverse adjacent samples at brows and seams,
                             // folding the cards despite a smooth pointer path.
-                            if let Some(ray) = self.camera.project(pose.head_point(p), rect)
-                                .and_then(|p| self.camera.screen_ray(p.screen, rect)) {
-                                let origin = pivot + pose.head.inverse() * (ray.0 - pivot - pose.translation);
+                            if let Some(ray) = self
+                                .camera
+                                .project(pose.head_point(p), rect)
+                                .and_then(|p| self.camera.screen_ray(p.screen, rect))
+                            {
+                                let origin = pivot
+                                    + pose.head.inverse() * (ray.0 - pivot - pose.translation);
                                 let direction = pose.head.inverse() * ray.1;
-                                if let Some(hit) = scene.scalp_picking.hit(&state.scalp.positions, &scene.scalp_indices, origin, direction) {
+                                if let Some(hit) = scene.scalp_picking.hit(
+                                    &state.scalp.positions,
+                                    &scene.scalp_indices,
+                                    origin,
+                                    direction,
+                                ) {
                                     // Use view-depth clearance, not division by
                                     // individual face normals. Near-tangent faces
                                     // otherwise create large depth spikes.
@@ -874,11 +1126,18 @@ impl LabApplication {
                             let before = points.clone();
                             for row in 9..points.len().saturating_sub(1) {
                                 let p = Vec3::from(before[row]);
-                                let mean = (Vec3::from(before[row - 1]) + Vec3::from(before[row + 1])) * 0.5;
-                                if let Some(ray) = self.camera.project(pose.head_point(p), rect)
-                                    .and_then(|p| self.camera.screen_ray(p.screen, rect)) {
+                                let mean = (Vec3::from(before[row - 1])
+                                    + Vec3::from(before[row + 1]))
+                                    * 0.5;
+                                if let Some(ray) = self
+                                    .camera
+                                    .project(pose.head_point(p), rect)
+                                    .and_then(|p| self.camera.screen_ray(p.screen, rect))
+                                {
                                     let toward = pose.head.inverse() * -ray.1;
-                                    points[row] = (p + toward * (mean - p).dot(toward).max(0.0) * 0.5).to_array();
+                                    points[row] =
+                                        (p + toward * (mean - p).dot(toward).max(0.0) * 0.5)
+                                            .to_array();
                                 }
                             }
                         }
@@ -977,8 +1236,17 @@ impl LabApplication {
                     .collect();
                 let gi = if let Some(gi) = lock.guide {
                     let old = &state.guides[gi as usize];
-                    let pinned = if old.pinned.is_empty() { vec![] } else {
-                        (0..16).map(|row| old.is_pinned((row as f32 / 15.0 * (old.points.len() - 1) as f32).round() as usize)).collect()
+                    let pinned = if old.pinned.is_empty() {
+                        vec![]
+                    } else {
+                        (0..16)
+                            .map(|row| {
+                                old.is_pinned(
+                                    (row as f32 / 15.0 * (old.points.len() - 1) as f32).round()
+                                        as usize,
+                                )
+                            })
+                            .collect()
                     };
                     state.guides[gi as usize] = hair::Guide {
                         pinned,
@@ -1040,38 +1308,76 @@ impl LabApplication {
             }
             if tool == HairTool::Move {
                 let before = self.hair.state.as_ref().ok_or("Loading hair")?;
-                let (along, anchor) = self.hair.move_anchor.ok_or("Click a visible hair lock to select it, then drag.")?;
+                let (along, anchor) = self
+                    .hair
+                    .move_anchor
+                    .ok_or("Click a visible hair lock to select it, then drag.")?;
                 let (min, max) = hair_bounds(before);
                 let pivot = self.hair.simulation.as_ref().map_or(
-                    Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5), |s| s.pivot);
-                let pose = hair::PreviewPose::at(pivot, (max.y - min.y).max(0.01),
-                    self.hair.simulation.as_ref().map_or(0.0, |s| s.elapsed as f32), self.hair.head_test);
-                let delta = pose.head.inverse() * self.camera.plane_drag_delta(self.camera.forward(),
-                    pose.head_point(anchor), self.hair.stroke_start.unwrap(), pointer, rect);
+                    Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5),
+                    |s| s.pivot,
+                );
+                let pose = hair::PreviewPose::at(
+                    pivot,
+                    (max.y - min.y).max(0.01),
+                    self.hair
+                        .simulation
+                        .as_ref()
+                        .map_or(0.0, |s| s.elapsed as f32),
+                    self.hair.head_test,
+                );
+                let delta = pose.head.inverse()
+                    * self.camera.plane_drag_delta(
+                        self.camera.forward(),
+                        pose.head_point(anchor),
+                        self.hair.stroke_start.unwrap(),
+                        pointer,
+                        rect,
+                    );
                 let primary_left = before.guides[guides[0]].points[0][0] < 0.0;
                 let mut affected: BTreeSet<_> = guides.iter().copied().collect();
-                if self.hair.symmetry { locks::extend_mirrored_guides(&state, &mut affected); }
+                if self.hair.symmetry {
+                    locks::extend_mirrored_guides(&state, &mut affected);
+                }
                 for gi in affected {
                     let old = &before.guides[gi];
                     let mut lengths = vec![0.0];
                     for pair in old.points.windows(2) {
-                        lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+                        lengths.push(
+                            lengths.last().unwrap()
+                                + Vec3::from(pair[0]).distance(Vec3::from(pair[1])),
+                        );
                     }
-                    let paired = before.locks.iter().any(|l| l.guide == Some(gi as u32) && l.mirrored.is_some());
-                    let mirror = if self.hair.symmetry && paired && (old.points[0][0] < 0.0) != primary_left {
-                        Vec3::new(-1.0, 1.0, 1.0)
-                    } else { Vec3::ONE };
+                    let paired = before
+                        .locks
+                        .iter()
+                        .any(|l| l.guide == Some(gi as u32) && l.mirrored.is_some());
+                    let mirror =
+                        if self.hair.symmetry && paired && (old.points[0][0] < 0.0) != primary_left
+                        {
+                            Vec3::new(-1.0, 1.0, 1.0)
+                        } else {
+                            Vec3::ONE
+                        };
                     let group = before.groups.iter().find(|g| g.id == old.group).unwrap();
                     for i in 1..old.points.len() {
                         let t = lengths[i] / lengths.last().unwrap().max(1e-6);
                         let root = (t / along.max(0.02)).clamp(0.0, 1.0);
-                        let weight = root * root * (3.0 - 2.0 * root)
+                        let weight = root
+                            * root
+                            * (3.0 - 2.0 * root)
                             * (-2.0 * ((t - along) / self.hair.move_reach).powi(2)).exp();
                         let mut point = Vec3::from(old.points[i]) + delta * mirror * weight;
                         if let Some(scene) = &self.hair.scene {
-                            let margin = self.hair.motion.collision_margin * hair::root_blend(lengths[i], group.width);
-                            point = scene.scalp_picking.contact_with_reach(&state.scalp.positions,
-                                &scene.scalp_indices, point, margin, delta.length() + group.width);
+                            let margin = self.hair.motion.collision_margin
+                                * hair::root_blend(lengths[i], group.width);
+                            point = scene.scalp_picking.contact_with_reach(
+                                &state.scalp.positions,
+                                &scene.scalp_indices,
+                                point,
+                                margin,
+                                delta.length() + group.width,
+                            );
                         }
                         state.guides[gi].points[i] = point.to_array();
                     }
@@ -1104,7 +1410,10 @@ impl LabApplication {
                 HairTool::Clump => Groom::Clump,
                 _ => Groom::Comb,
             };
-            if matches!(tool, HairTool::Smooth | HairTool::Curl | HairTool::Clump | HairTool::Lengthen) {
+            if matches!(
+                tool,
+                HairTool::Smooth | HairTool::Curl | HairTool::Clump | HairTool::Lengthen
+            ) {
                 // Evaluate the rest shape at cumulative stroke distance. Splitting
                 // the same stroke into more mouse events cannot amplify the tool.
                 let mut affected: BTreeSet<_> = guides.iter().copied().collect();
@@ -1117,8 +1426,15 @@ impl LabApplication {
                         *self.hair.stroke_distances.entry(gi).or_default() += distance;
                     }
                 }
-                let total = affected.iter().map(|g| self.hair.stroke_distances[g]).fold(0.0_f32, f32::max);
-                let direction = if tool == HairTool::Lengthen { delta * (total / distance) } else { delta };
+                let total = affected
+                    .iter()
+                    .map(|g| self.hair.stroke_distances[g])
+                    .fold(0.0_f32, f32::max);
+                let direction = if tool == HairTool::Lengthen {
+                    delta * (total / distance)
+                } else {
+                    delta
+                };
                 hair::groom(
                     &mut state,
                     &guides,
@@ -1134,9 +1450,18 @@ impl LabApplication {
                     for gi in affected {
                         let strength = if tool == HairTool::Lengthen {
                             self.hair.strength * self.hair.stroke_distances[&gi] / total
-                        } else { 1.0 - (-self.hair.stroke_distances[&gi] * self.hair.strength / 40.0).exp() };
-                        for (point, old) in state.guides[gi].points.iter_mut().zip(&before.guides[gi].points) {
-                            *point = Vec3::from(*old).lerp(Vec3::from(*point), strength).to_array();
+                        } else {
+                            1.0 - (-self.hair.stroke_distances[&gi] * self.hair.strength / 40.0)
+                                .exp()
+                        };
+                        for (point, old) in state.guides[gi]
+                            .points
+                            .iter_mut()
+                            .zip(&before.guides[gi].points)
+                        {
+                            *point = Vec3::from(*old)
+                                .lerp(Vec3::from(*point), strength)
+                                .to_array();
                         }
                     }
                 }
@@ -1175,7 +1500,11 @@ impl LabApplication {
         };
         if let Some(scene) = &self.hair.scene {
             let physics = self.hair.tool == Some(HairTool::Physics);
-            let marks_per_lock = if physics { (4096 / state.locks.len().max(1)).clamp(1, 64) } else { 24 };
+            let marks_per_lock = if physics {
+                (4096 / state.locks.len().max(1)).clamp(1, 64)
+            } else {
+                24
+            };
             let mut samples = 0;
             for lock in &state.locks {
                 let selected = self.hair.selected.contains(&(lock.id as usize));
@@ -1214,10 +1543,19 @@ impl LabApplication {
                         if self.lock_at(p.screen, rect).is_some_and(|h| h.0 == lock.id) {
                             let color = if physics {
                                 let row = scene.vertex_along[first + *v as usize].round() as usize;
-                                let fixed = lock.kind == LockKind::Rigid || lock.guide
-                                    .and_then(|g| state.guides.get(g as usize)).is_some_and(|g| g.is_pinned(row));
-                                if fixed { Color32::from_rgb(60, 190, 245) } else { Color32::from_rgb(245, 155, 60) }
-                            } else { color };
+                                let fixed = lock.kind == LockKind::Rigid
+                                    || lock
+                                        .guide
+                                        .and_then(|g| state.guides.get(g as usize))
+                                        .is_some_and(|g| g.is_pinned(row));
+                                if fixed {
+                                    Color32::from_rgb(60, 190, 245)
+                                } else {
+                                    Color32::from_rgb(245, 155, 60)
+                                }
+                            } else {
+                                color
+                            };
                             ui.painter().circle_filled(
                                 egui::pos2(p.screen.x, p.screen.y),
                                 if physics { 2.5 } else { 1.4 },
@@ -1340,7 +1678,9 @@ impl LabApplication {
             .input(|i| i.pointer.hover_pos())
             .filter(|p| rect.contains(*p))
         {
-            if self.hair.tool == Some(HairTool::Cut) && (self.hair.hover.is_some() || !self.hair.cuts.is_empty()) {
+            if self.hair.tool == Some(HairTool::Cut)
+                && (self.hair.hover.is_some() || !self.hair.cuts.is_empty())
+            {
                 ui.painter().line_segment(
                     [
                         pointer - egui::vec2(8.0, 0.0),
@@ -1360,14 +1700,15 @@ impl LabApplication {
                 );
             }
             if self.hair.tool == Some(HairTool::Select)
-                && let Some(start) = self.hair.stroke_start {
-                    ui.painter().rect_stroke(
-                        egui::Rect::from_two_pos(egui::pos2(start.x, start.y), pointer),
-                        0.0,
-                        egui::Stroke::new(1.0, Color32::LIGHT_BLUE),
-                        egui::StrokeKind::Inside,
-                    );
-                }
+                && let Some(start) = self.hair.stroke_start
+            {
+                ui.painter().rect_stroke(
+                    egui::Rect::from_two_pos(egui::pos2(start.x, start.y), pointer),
+                    0.0,
+                    egui::Stroke::new(1.0, Color32::LIGHT_BLUE),
+                    egui::StrokeKind::Inside,
+                );
+            }
         }
     }
 }

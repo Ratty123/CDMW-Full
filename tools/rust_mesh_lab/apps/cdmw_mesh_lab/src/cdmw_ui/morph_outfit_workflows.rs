@@ -2,9 +2,15 @@
 use super::*;
 
 fn fitting_setup_targets(state: &Value, recipe_id: &str, selected: &[u32]) -> Option<Vec<u32>> {
-    let record = state.get("matching_recipe_garments")?.as_array()?.iter()
+    let record = state
+        .get("matching_recipe_garments")?
+        .as_array()?
+        .iter()
         .find(|record| record.get(0).and_then(Value::as_str) == Some(recipe_id))?;
-    let garments = record.get(1)?.as_array()?.iter()
+    let garments = record
+        .get(1)?
+        .as_array()?
+        .iter()
         .map(|part| part.as_u64().and_then(|part| u32::try_from(part).ok()))
         .collect::<Option<Vec<_>>>()?;
     if garments.is_empty() {
@@ -13,7 +19,11 @@ fn fitting_setup_targets(state: &Value, recipe_id: &str, selected: &[u32]) -> Op
     if selected.is_empty() {
         return Some(Vec::new());
     }
-    let targets = selected.iter().copied().filter(|part| garments.contains(part)).collect::<Vec<_>>();
+    let targets = selected
+        .iter()
+        .copied()
+        .filter(|part| garments.contains(part))
+        .collect::<Vec<_>>();
     // An empty explicit intersection must never acquire the host's apply-all meaning.
     (!targets.is_empty()).then_some(targets)
 }
@@ -25,10 +35,18 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         state: &Value,
     ) {
-        let mut enabled = state.get("corrections_enabled").and_then(Value::as_bool).unwrap_or(true);
-        let has_corrections = state.get("definitions").and_then(Value::as_array).is_some_and(|definitions| {
-            definitions.iter().any(|definition| !value_u32_list(definition, "garment_correction_submesh_indices").is_empty())
-        });
+        let mut enabled = state
+            .get("corrections_enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let has_corrections = state
+            .get("definitions")
+            .and_then(Value::as_array)
+            .is_some_and(|definitions| {
+                definitions.iter().any(|definition| {
+                    !value_u32_list(definition, "garment_correction_submesh_indices").is_empty()
+                })
+            });
         if !has_corrections && enabled {
             return;
         }
@@ -84,17 +102,29 @@ impl LabApplication {
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let pending = state_bool(state, "authoring_baseline_ready")
             || state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         let selected = self.selected_part_indices();
         let recipes = pair_list(state, "matching_recipes");
         ui.separator();
         ui.label(RichText::new(crate::localization::tr("Matching fitting setups")).strong())
             .on_hover_text(crate::localization::tr("Saved setups appear here when their body and garment identities match the loaded meshes."));
-        let save_ready = authoring && !pending && !self.cdmw_morph_comparison_active()
+        let save_ready = authoring
+            && !pending
+            && !self.cdmw_morph_comparison_active()
             && !state_str(state, "profile_id").unwrap_or("").is_empty()
-            && !garments.is_empty() && !self.cdmw_morph_preset_name.trim().is_empty();
-        if ui.add_enabled(save_ready, Button::new(crate::localization::tr("Save reusable fitting setup")))
-            .on_hover_text(crate::localization::tr("Use the setup name above to save this setup for these meshes."))
+            && !garments.is_empty()
+            && !self.cdmw_morph_preset_name.trim().is_empty();
+        if ui
+            .add_enabled(
+                save_ready,
+                Button::new(crate::localization::tr("Save reusable fitting setup")),
+            )
+            .on_hover_text(crate::localization::tr(
+                "Use the setup name above to save this setup for these meshes.",
+            ))
             .clicked()
         {
             actions.push(UiAction::CdmwCommand {
@@ -103,8 +133,8 @@ impl LabApplication {
                 label: "Save reusable fitting setup",
             });
         }
-        let ready = authoring && !pending && !self.cdmw_morph_comparison_active()
-            && !recipes.is_empty();
+        let ready =
+            authoring && !pending && !self.cdmw_morph_comparison_active() && !recipes.is_empty();
         let caption = ui.label(crate::localization::tr("Saved setup"));
         ui.add_enabled_ui(ready, |ui| {
             ComboBox::from_id_salt("morph-matching-setup")

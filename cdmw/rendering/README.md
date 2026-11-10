@@ -1,5 +1,10 @@
 # Rendering
 
+Head previews include declared facial components and apply the head's authored
+shape to their presentation geometry. Eye iris/pupil maps compose in linear
+colour on the GPU, with an equivalent bounded CPU fallback. These are preview
+changes; source PAC data and export authority remain unchanged.
+
 Owns native preview packaging, Rust host integration, material combiner rules,
 preview payloads, texture source resolution, capture helpers, and rendering
 fidelity checks.

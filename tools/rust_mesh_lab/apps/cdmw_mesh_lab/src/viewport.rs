@@ -6,7 +6,9 @@ use cdmw_interaction::{
     SculptTool, SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats,
     SelectionShape, query_selection, query_selection_with_stats, selection_after_operation,
 };
-use cdmw_mesh::{DrawSnapshot, FaceHandle, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
+use cdmw_mesh::{
+    DrawSnapshot, FaceHandle, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh,
+};
 use egui::Rect;
 use glam::{Vec2, Vec3};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -565,15 +567,22 @@ pub fn part_colour(part: u32) -> [f32; 4] {
 
 /// Colour actual Parts, including Parts that share materials or contain generated faces.
 pub fn part_colour_snapshot(
-    mesh: &WorkingMesh, visible: Option<&HashSet<u32>>, snapshot: &DrawSnapshot,
+    mesh: &WorkingMesh,
+    visible: Option<&HashSet<u32>>,
+    snapshot: &DrawSnapshot,
 ) -> Vec<[f32; 4]> {
     let elements = visible.map(|parts| mesh.element_handles_for_submeshes(parts));
     let mut colours = vec![[0.0; 4]; snapshot.positions.len()];
     let mut palette = HashMap::new();
-    let faces = mesh.faces().filter(|(handle, _)|
-        elements.as_ref().is_none_or(|elements| elements.faces.contains(handle)));
+    let faces = mesh.faces().filter(|(handle, _)| {
+        elements
+            .as_ref()
+            .is_none_or(|elements| elements.faces.contains(handle))
+    });
     for ((_, face), triangle) in faces.zip(snapshot.indices.chunks_exact(3)) {
-        let colour = *palette.entry(face.submesh).or_insert_with(|| part_colour(face.submesh));
+        let colour = *palette
+            .entry(face.submesh)
+            .or_insert_with(|| part_colour(face.submesh));
         for index in triangle {
             colours[*index as usize] = colour;
         }
@@ -594,28 +603,44 @@ pub struct FaceSelectionOverlay {
 
 impl FaceSelectionOverlay {
     pub fn build_for_parts(
-        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], parts: &[u32],
+        mesh: &WorkingMesh,
+        visible: Option<HashSet<u32>>,
+        colour: [f32; 4],
+        parts: &[u32],
     ) -> Self {
         Self::build_for_matching_faces(mesh, visible, colour, |part, _| parts.contains(&part))
     }
 
     pub fn build_for_island(
-        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4], part: u32, faces: &[u32],
+        mesh: &WorkingMesh,
+        visible: Option<HashSet<u32>>,
+        colour: [f32; 4],
+        part: u32,
+        faces: &[u32],
     ) -> Self {
         let faces: HashSet<_> = faces.iter().copied().collect();
-        Self::build_for_matching_faces(mesh, visible, colour, |submesh, provenance|
-            submesh == part && matches!(provenance, Provenance::Source { submesh, element }
-                if *submesh == part && faces.contains(element)))
+        Self::build_for_matching_faces(mesh, visible, colour, |submesh, provenance| {
+            submesh == part
+                && matches!(provenance, Provenance::Source { submesh, element }
+                if *submesh == part && faces.contains(element))
+        })
     }
 
     fn build_for_matching_faces(
-        mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4],
+        mesh: &WorkingMesh,
+        visible: Option<HashSet<u32>>,
+        colour: [f32; 4],
         includes: impl Fn(u32, &Provenance) -> bool,
     ) -> Self {
-        let positions = mesh.faces()
-            .filter(|(handle, face)| includes(face.submesh, &face.provenance)
-                && !mesh.viewport_hidden_faces().contains(handle)
-                && visible.as_ref().is_none_or(|visible| visible.contains(&face.submesh)))
+        let positions = mesh
+            .faces()
+            .filter(|(handle, face)| {
+                includes(face.submesh, &face.provenance)
+                    && !mesh.viewport_hidden_faces().contains(handle)
+                    && visible
+                        .as_ref()
+                        .is_none_or(|visible| visible.contains(&face.submesh))
+            })
             .flat_map(|(_, face)| face.vertices.iter())
             .filter_map(|handle| mesh.vertex(*handle).map(|vertex| vertex.position))
             .collect();
@@ -837,7 +862,9 @@ impl ViewportProjection {
 
     #[must_use]
     pub fn face_at(&self, point: Vec2) -> Option<(u32, FaceHandle)> {
-        self.interaction.nearest_triangle(point).and_then(|index| self.triangle_faces.get(index).copied())
+        self.interaction
+            .nearest_triangle(point)
+            .and_then(|index| self.triangle_faces.get(index).copied())
     }
 
     #[must_use]

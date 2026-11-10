@@ -1,9 +1,7 @@
 //! Hair controls and background generation in the existing authoring viewport.
 use super::*;
 use cdmw_mesh::hair::locks::{self, LockKind};
-use cdmw_mesh::hair::{
-    self, Attachment, Groom, GroupMode, HairState, MotionSettings, Simulation,
-};
+use cdmw_mesh::hair::{self, Attachment, Groom, GroupMode, HairState, MotionSettings, Simulation};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -37,7 +35,12 @@ pub(super) enum HairTool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DrawShape { Freehand, Straight, Arc, Circle }
+enum DrawShape {
+    Freehand,
+    Straight,
+    Arc,
+    Circle,
+}
 
 struct PreparedHair {
     state: HairState,
@@ -312,9 +315,12 @@ impl LabApplication {
         if !changed {
             // Conversion publishes a full host snapshot instead of a compact
             // hair ACK. It can equal the preview already installed locally.
-            if self.hair.inflight.as_ref().is_some_and(|pending| {
-                state.as_ref() == Some(&pending.state)
-            }) {
+            if self
+                .hair
+                .inflight
+                .as_ref()
+                .is_some_and(|pending| state.as_ref() == Some(&pending.state))
+            {
                 let pending = self.hair.inflight.take().unwrap();
                 self.hair.acknowledged = Some((pending.state, pending.document));
             }
@@ -348,7 +354,8 @@ impl LabApplication {
             }
             if let Some(doc) = &mut self.document {
                 for (part, indices) in &hair.vertex_sources {
-                    if let Some(part) = Arc::make_mut(doc).lods[0].submeshes.get_mut(*part as usize) {
+                    if let Some(part) = Arc::make_mut(doc).lods[0].submeshes.get_mut(*part as usize)
+                    {
                         part.source_vertex_indices = indices.clone();
                     }
                 }
@@ -377,7 +384,12 @@ impl LabApplication {
                         hair.scalp
                             .positions
                             .iter()
-                            .chain(hair.references.iter().filter(|r| !r.identity.starts_with("collision:")).flat_map(|r| r.positions.iter()))
+                            .chain(
+                                hair.references
+                                    .iter()
+                                    .filter(|r| !r.identity.starts_with("collision:"))
+                                    .flat_map(|r| r.positions.iter()),
+                            )
                             .chain(self.document.iter().flat_map(|d| {
                                 d.lods.iter().take(1).flat_map(|l| {
                                     l.submeshes.iter().flat_map(|p| p.positions.iter())
@@ -489,12 +501,19 @@ impl LabApplication {
             && !self.hair.pending_finish
             && self.hair_has_edit_capacity()
             && self.hair.job.as_ref().is_none_or(|job| job.drawing)
-            && self.hair.queued.iter().all(|(_, _, _, op)| matches!(op, Preparation::Draw))
+            && self
+                .hair
+                .queued
+                .iter()
+                .all(|(_, _, _, op)| matches!(op, Preparation::Draw))
             && (!self.cdmw_busy() || self.hair.inflight.is_some())
     }
 
     fn hair_has_edit_capacity(&self) -> bool {
-        match (&self.hair.state, self.hair.preview.as_ref().or(self.document.as_deref())) {
+        match (
+            &self.hair.state,
+            self.hair.preview.as_ref().or(self.document.as_deref()),
+        ) {
             (Some(state), Some(document)) => self.hair_queue_has_capacity(state, document),
             _ => true,
         }
@@ -509,9 +528,19 @@ impl LabApplication {
             return false;
         }
         let pending_bytes = self.hair.job.as_ref().map_or(0, |job| job.retained_bytes)
-            + self.hair.queued.iter().map(|(state, document, _, _)| hair_snapshot_bytes(state, document)).sum::<usize>()
-            + self.hair.publications.iter().chain(self.hair.inflight.iter())
-                .map(|prepared| hair_snapshot_bytes(&prepared.state, &prepared.document)).sum::<usize>();
+            + self
+                .hair
+                .queued
+                .iter()
+                .map(|(state, document, _, _)| hair_snapshot_bytes(state, document))
+                .sum::<usize>()
+            + self
+                .hair
+                .publications
+                .iter()
+                .chain(self.hair.inflight.iter())
+                .map(|prepared| hair_snapshot_bytes(&prepared.state, &prepared.document))
+                .sum::<usize>();
         pending_bytes + hair_snapshot_bytes(state, document) <= MAX_PENDING_HAIR_BYTES
     }
 
@@ -535,18 +564,22 @@ impl LabApplication {
     }
 
     pub(super) fn poll_hair(&mut self) {
-        if self.hair_input_ready() && !self.hair.preparing() && !self.cdmw_busy()
-            && let Some(preset) = self.hair.requested_preset.take() {
-                if preset != "empty" {
-                    self.hair.feedback = "Hairstyle presets are no longer available. Use Draw to create hair.".into();
-                } else if self.hair.state.as_ref().is_some_and(|s| {
-                    !s.converted && s.groups.iter().all(|g| g.mode == GroupMode::Generated)
-                }) {
-                    self.run_hair_action(HairAction::Empty);
-                } else {
-                    self.hair.feedback = "Use Create Hair to start an empty hairstyle.".into();
-                }
+        if self.hair_input_ready()
+            && !self.hair.preparing()
+            && !self.cdmw_busy()
+            && let Some(preset) = self.hair.requested_preset.take()
+        {
+            if preset != "empty" {
+                self.hair.feedback =
+                    "Hairstyle presets are no longer available. Use Draw to create hair.".into();
+            } else if self.hair.state.as_ref().is_some_and(|s| {
+                !s.converted && s.groups.iter().all(|g| g.mode == GroupMode::Generated)
+            }) {
+                self.run_hair_action(HairAction::Empty);
+            } else {
+                self.hair.feedback = "Use Create Hair to start an empty hairstyle.".into();
             }
+        }
         if !self.cdmw_busy() {
             if let Some(mode) = self.hair.pending_start.take() {
                 self.submit_cdmw_command("hair_begin", json!({"mode": mode}), "Loading character");
@@ -611,7 +644,8 @@ impl LabApplication {
                         if let Some(stroke) = &mut self.hair.stroke {
                             adopt_prepared_hair_geometry(stroke, &prepared.state);
                         }
-                        if self.hair.restart_after_stroke && self.hair.queued.is_empty()
+                        if self.hair.restart_after_stroke
+                            && self.hair.queued.is_empty()
                             && self.hair.stroke.is_none()
                         {
                             self.hair.playing = true;
@@ -644,75 +678,78 @@ impl LabApplication {
             self.hair.topology_busy = false;
             self.start_hair_job();
         }
-        if !self.cdmw_busy() && self.hair.inflight.is_none()
-            && let Some(prepared) = self.hair.publications.pop_front() {
-                let baseline = self
-                    .hair
-                    .acknowledged
-                    .as_ref()
-                    .map(|(_, doc)| doc)
-                    .or(self.document.as_deref());
-                if let (Some(bridge), Some(before)) = (self.cdmw_bridge.as_mut(), baseline) {
-                    match if prepared.state.converted {
-                        bridge.submit_hair_transaction(
-                            &prepared.document,
-                            &prepared.state,
-                            &prepared.label,
-                        )
-                    } else {
-                        bridge.submit_hair_update(
-                            &prepared.document,
-                            &prepared.state,
-                            before,
-                            self.hair.acknowledged.as_ref().map(|(s, _)| s),
-                            &prepared.label,
-                        )
-                    } {
-                        Ok(request_id) => {
-                            self.status = "Saving completed actions in order…".into();
-                            self.cdmw_pending_request = Some(CdmwPendingRequest {
-                                request_id,
-                                event: "transaction_result",
-                                label: prepared.label.clone(),
-                                origin: None,
-                            });
-                            self.hair.inflight = Some(prepared);
+        if !self.cdmw_busy()
+            && self.hair.inflight.is_none()
+            && let Some(prepared) = self.hair.publications.pop_front()
+        {
+            let baseline = self
+                .hair
+                .acknowledged
+                .as_ref()
+                .map(|(_, doc)| doc)
+                .or(self.document.as_deref());
+            if let (Some(bridge), Some(before)) = (self.cdmw_bridge.as_mut(), baseline) {
+                match if prepared.state.converted {
+                    bridge.submit_hair_transaction(
+                        &prepared.document,
+                        &prepared.state,
+                        &prepared.label,
+                    )
+                } else {
+                    bridge.submit_hair_update(
+                        &prepared.document,
+                        &prepared.state,
+                        before,
+                        self.hair.acknowledged.as_ref().map(|(s, _)| s),
+                        &prepared.label,
+                    )
+                } {
+                    Ok(request_id) => {
+                        self.status = "Saving completed actions in order…".into();
+                        self.cdmw_pending_request = Some(CdmwPendingRequest {
+                            request_id,
+                            event: "transaction_result",
+                            label: prepared.label.clone(),
+                            origin: None,
+                        });
+                        self.hair.inflight = Some(prepared);
+                    }
+                    Err(error) => {
+                        self.cancel_hair_stroke();
+                        self.hair.feedback =
+                            format!("{} could not be saved: {error}", prepared.label);
+                        self.hair.generation += 1;
+                        if let Some(job) = &self.hair.job {
+                            job.cancel.store(true, Ordering::Relaxed);
                         }
-                        Err(error) => {
-                            self.cancel_hair_stroke();
-                            self.hair.feedback =
-                                format!("{} could not be saved: {error}", prepared.label);
-                            self.hair.generation += 1;
-                            if let Some(job) = &self.hair.job {
-                                job.cancel.store(true, Ordering::Relaxed);
-                            }
-                            self.hair.queued.clear();
-                            self.hair.publications.clear();
-                            self.hair.pending_history.clear();
-                            self.hair.pending_finish = false;
-                            self.hair.playing = false;
-                            self.hair.restart_after_stroke = false;
-                            if let Some((state, document)) = &self.hair.acknowledged {
-                                self.hair.state = Some(state.clone());
-                                self.hair.preview = Some(document.clone());
-                                self.hair.scene = None;
-                            }
+                        self.hair.queued.clear();
+                        self.hair.publications.clear();
+                        self.hair.pending_history.clear();
+                        self.hair.pending_finish = false;
+                        self.hair.playing = false;
+                        self.hair.restart_after_stroke = false;
+                        if let Some((state, document)) = &self.hair.acknowledged {
+                            self.hair.state = Some(state.clone());
+                            self.hair.preview = Some(document.clone());
+                            self.hair.scene = None;
                         }
                     }
                 }
             }
+        }
         if !self.cdmw_busy()
             && self.hair.job.is_none()
             && self.hair.queued.is_empty()
             && self.hair.publications.is_empty()
             && self.hair.inflight.is_none()
-            && let Some(redo) = self.hair.pending_history.pop_front() {
-                self.submit_cdmw_command(
-                    if redo { "redo" } else { "undo" },
-                    json!({}),
-                    if redo { "Redo" } else { "Undo" },
-                );
-            }
+            && let Some(redo) = self.hair.pending_history.pop_front()
+        {
+            self.submit_cdmw_command(
+                if redo { "redo" } else { "undo" },
+                json!({}),
+                if redo { "Redo" } else { "Undo" },
+            );
+        }
         if self.hair.pending_finish && !self.cdmw_busy() && !self.hair.preparing() {
             self.hair.pending_finish = false;
             self.submit_cdmw_finish();
@@ -867,9 +904,11 @@ impl LabApplication {
             return Err("Preparing hair sections".into());
         }
         if let Some((r, m, reason)) = &self.hair.readiness_cache
-            && *r == revision && *m == materials {
-                return reason.clone().map_or(Ok(()), Err);
-            }
+            && *r == revision
+            && *m == materials
+        {
+            return reason.clone().map_or(Ok(()), Err);
+        }
         let state = self.hair.state.as_ref().ok_or("Open Hair first")?;
         let doc = self
             .hair
@@ -925,7 +964,9 @@ impl LabApplication {
         let Some(state) = self.hair.state.as_ref() else {
             return;
         };
-        ui.weak(crate::localization::tr("Material sections · visibility does not change output"));
+        ui.weak(crate::localization::tr(
+            "Material sections · visibility does not change output",
+        ));
         for group in &state.groups {
             let ids: Vec<_> = state
                 .locks
@@ -954,7 +995,9 @@ impl LabApplication {
                 if ui
                     .add_enabled(
                         shown,
-                        egui::Button::new(crate::localization::tr(&label)).selected(selected).truncate(),
+                        egui::Button::new(crate::localization::tr(&label))
+                            .selected(selected)
+                            .truncate(),
                     )
                     .on_hover_text(crate::localization::tr(&label))
                     .on_disabled_hover_text(crate::localization::tr(&label))
@@ -975,13 +1018,17 @@ impl LabApplication {
             return;
         }
         ui.heading(crate::localization::tr("Hair Tools (Experimental)"));
-        ui.label(crate::localization::tr("Not tested in game. Hairstyles may not work correctly."));
+        ui.label(crate::localization::tr(
+            "Not tested in game. Hairstyles may not work correctly.",
+        ));
         if self.hair.state.is_none() {
             ui.label(crate::localization::tr("Use Hair Tools above the editor to choose a character and create or edit a hairstyle."));
             return;
         }
         if self.hair.state.as_ref().is_some_and(|s| s.converted) {
-            ui.weak(crate::localization::tr("Converted to ordinary mesh. Undo restores Hair editing."));
+            ui.weak(crate::localization::tr(
+                "Converted to ordinary mesh. Undo restores Hair editing.",
+            ));
             return;
         }
         let ready = self.hair_input_ready() || self.hair_draw_input_ready();
@@ -999,7 +1046,10 @@ impl LabApplication {
             self.hair.style_name,
             self.hair.selected.len()
         )));
-        if ui.small_button(crate::localization::tr("Keyboard Shortcuts...")).clicked() {
+        if ui
+            .small_button(crate::localization::tr("Keyboard Shortcuts..."))
+            .clicked()
+        {
             self.shortcut_editor.open = true;
         }
         ui.add_enabled_ui(ready,|ui| {
@@ -1166,7 +1216,11 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     reason.is_none() || self.hair.playing,
-                    egui::Button::new(crate::localization::tr(if self.hair.playing { "Pause" } else { "Play" })),
+                    egui::Button::new(crate::localization::tr(if self.hair.playing {
+                        "Pause"
+                    } else {
+                        "Play"
+                    })),
                 )
                 .clicked()
             {
@@ -1192,31 +1246,56 @@ impl LabApplication {
         egui::ComboBox::from_id_salt("Movement test")
             .width(ui.available_width())
             .truncate()
-            .selected_text(crate::localization::tr(tests[self.hair.head_test.min(5) as usize]))
+            .selected_text(crate::localization::tr(
+                tests[self.hair.head_test.min(5) as usize],
+            ))
             .show_ui(ui, |ui| {
                 for (i, label) in tests.iter().enumerate() {
-                    ui.selectable_value(&mut self.hair.head_test, i as u32, crate::localization::tr(*label));
+                    ui.selectable_value(
+                        &mut self.hair.head_test,
+                        i as u32,
+                        crate::localization::tr(*label),
+                    );
                 }
             })
             .response
             .labelled_by(movement_label.id);
         crate::localization::collapsing("Advanced").show(ui, |ui| {
-            ui.checkbox(&mut self.hair.show_reference, crate::localization::tr("Show character bust"))
-                .on_hover_text(crate::localization::tr("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel"));
-            ui.checkbox(&mut self.hair.show_guides, crate::localization::tr("Show guides and roots"));
-            ui.checkbox(&mut self.hair.show_collisions, crate::localization::tr("Show collision shapes"));
-            ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.motion.damping, 0.0..=20.0).text(crate::localization::tr("Damping")));
+            ui.checkbox(
+                &mut self.hair.show_reference,
+                crate::localization::tr("Show character bust"),
+            )
+            .on_hover_text(crate::localization::tr(
+                "Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel",
+            ));
+            ui.checkbox(
+                &mut self.hair.show_guides,
+                crate::localization::tr("Show guides and roots"),
+            );
+            ui.checkbox(
+                &mut self.hair.show_collisions,
+                crate::localization::tr("Show collision shapes"),
+            );
+            ui.add(
+                crate::cdmw_ui::numeric::slider(&mut self.hair.motion.damping, 0.0..=20.0)
+                    .text(crate::localization::tr("Damping")),
+            );
             ui.add(
                 crate::cdmw_ui::numeric::slider(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
                     .text(crate::localization::tr("Shape softness")),
             );
             ui.add(
-                crate::cdmw_ui::numeric::slider(&mut self.hair.motion.gravity[1], -20.0..=0.0).text(crate::localization::tr("Gravity")),
+                crate::cdmw_ui::numeric::slider(&mut self.hair.motion.gravity[1], -20.0..=0.0)
+                    .text(crate::localization::tr("Gravity")),
             );
             ui.horizontal(|ui| {
                 ui.label(crate::localization::tr("Wind"));
                 for v in &mut self.hair.motion.wind {
-                    ui.add(crate::cdmw_ui::numeric::value(v).speed(0.1).range(-30.0..=30.0));
+                    ui.add(
+                        crate::cdmw_ui::numeric::value(v)
+                            .speed(0.1)
+                            .range(-30.0..=30.0),
+                    );
                 }
             });
             if ui
@@ -1235,7 +1314,10 @@ impl LabApplication {
                 actions.push(UiAction::Hair(HairAction::Settle));
             }
             if ui
-                .add_enabled(ready, egui::Button::new(crate::localization::tr("Convert to ordinary mesh")))
+                .add_enabled(
+                    ready,
+                    egui::Button::new(crate::localization::tr("Convert to ordinary mesh")),
+                )
                 .clicked()
             {
                 actions.push(UiAction::Hair(HairAction::Convert));
@@ -1246,7 +1328,9 @@ impl LabApplication {
             ui.label(crate::localization::tr("Preparing hair…"));
         }
         if self.hair.saving() {
-            ui.weak(crate::localization::tr("Saving completed actions in order…"));
+            ui.weak(crate::localization::tr(
+                "Saving completed actions in order…",
+            ));
         }
         if !self.hair.feedback.is_empty() {
             ui.weak(crate::localization::tr(&self.hair.feedback));
@@ -1262,7 +1346,9 @@ impl HairEditor {
         self.scene = None;
     }
     fn pending_edits(&self) -> usize {
-        usize::from(self.job.is_some()) + self.queued.len() + self.publications.len()
+        usize::from(self.job.is_some())
+            + self.queued.len()
+            + self.publications.len()
             + usize::from(self.inflight.is_some())
     }
     pub(super) fn saving(&self) -> bool {
@@ -1283,7 +1369,11 @@ fn adopt_prepared_hair_geometry(state: &mut HairState, prepared: &HairState) {
     state.bindings.clone_from(&prepared.bindings);
     state.vertex_sources.clone_from(&prepared.vertex_sources);
     state.prepared_parts.clone_from(&prepared.prepared_parts);
-    let vertices: HashMap<_, _> = prepared.locks.iter().map(|lock| (lock.id, &lock.vertices)).collect();
+    let vertices: HashMap<_, _> = prepared
+        .locks
+        .iter()
+        .map(|lock| (lock.id, &lock.vertices))
+        .collect();
     for lock in &mut state.locks {
         if let Some(old) = vertices.get(&lock.id) {
             lock.vertices.clone_from(old);
@@ -1295,22 +1385,50 @@ fn hair_snapshot_bytes(state: &HairState, document: &MeshDocument) -> usize {
     // Reserve for the generated result too: queued Draws do not have their new
     // card arrays yet. Large hairstyles reach the memory budget before the
     // small-edit burst limit. A single otherwise valid edit is still allowed.
-    let references = std::iter::once(&state.scalp).chain(&state.references)
-        .map(|s| 12 * (s.positions.len() + s.triangles.len())).sum::<usize>();
-    let document_bytes = document.lods.iter().flat_map(|lod| &lod.submeshes)
-        .map(|part| part.positions.len() * 12 + part.normals.len() * 12
-            + part.uvs.len() * 8 + part.indices.len() * 4 + part.source_vertex_indices.len() * 4)
+    let references = std::iter::once(&state.scalp)
+        .chain(&state.references)
+        .map(|s| 12 * (s.positions.len() + s.triangles.len()))
+        .sum::<usize>();
+    let document_bytes = document
+        .lods
+        .iter()
+        .flat_map(|lod| &lod.submeshes)
+        .map(|part| {
+            part.positions.len() * 12
+                + part.normals.len() * 12
+                + part.uvs.len() * 8
+                + part.indices.len() * 4
+                + part.source_vertex_indices.len() * 4
+        })
         .sum::<usize>();
     let max_cards = state.locks.iter().map(|lock| lock.cards).max().unwrap_or(0);
-    let generated_vertices = state.guides.iter().filter_map(|guide| {
-        let group = state.groups.iter().find(|g| g.id == guide.group && g.mode == GroupMode::Generated)?;
-        let cards = group.cards_per_guide.max(max_cards) as usize;
-        Some((guide.points.len().saturating_sub(1) * 3 + 1) * 2 * cards)
-    }).sum::<usize>().min(hair::MAX_HAIR_VERTICES);
-    references + document_bytes.max(generated_vertices * 64)
-        + (state.bindings.len() * std::mem::size_of::<hair::VertexBinding>()).max(generated_vertices * 52)
-        + state.locks.iter().map(|l| 4 * l.vertices.len() + 128).sum::<usize>()
-        + state.guides.iter().map(|g| 12 * g.points.len() + g.pinned.len() + 128).sum::<usize>()
+    let generated_vertices = state
+        .guides
+        .iter()
+        .filter_map(|guide| {
+            let group = state
+                .groups
+                .iter()
+                .find(|g| g.id == guide.group && g.mode == GroupMode::Generated)?;
+            let cards = group.cards_per_guide.max(max_cards) as usize;
+            Some((guide.points.len().saturating_sub(1) * 3 + 1) * 2 * cards)
+        })
+        .sum::<usize>()
+        .min(hair::MAX_HAIR_VERTICES);
+    references
+        + document_bytes.max(generated_vertices * 64)
+        + (state.bindings.len() * std::mem::size_of::<hair::VertexBinding>())
+            .max(generated_vertices * 52)
+        + state
+            .locks
+            .iter()
+            .map(|l| 4 * l.vertices.len() + 128)
+            .sum::<usize>()
+        + state
+            .guides
+            .iter()
+            .map(|g| 12 * g.points.len() + g.pinned.len() + 128)
+            .sum::<usize>()
         + 64 * 1024
 }
 
@@ -1357,8 +1475,13 @@ fn build_scene(
         }
         let first = snapshot.positions.len();
         snapshot.positions.extend_from_slice(&part.positions);
-        snapshot.shader_masks.extend(part.shader_masks.iter().copied()
-            .chain(std::iter::repeat([1.0, 1.0, 0.0])).take(part.positions.len()));
+        snapshot.shader_masks.extend(
+            part.shader_masks
+                .iter()
+                .copied()
+                .chain(std::iter::repeat([1.0, 1.0, 0.0]))
+                .take(part.positions.len()),
+        );
         let mut part_normals = part.normals.clone();
         if part_normals.len() != part.positions.len() {
             normals(&part.positions, &part.indices, &mut part_normals);
@@ -1388,7 +1511,9 @@ fn build_scene(
     let mut head_reference_ranges = vec![];
     if reference {
         for mesh in std::iter::once(&state.scalp).chain(&state.references) {
-            if mesh.identity.starts_with("collision:") { continue; }
+            if mesh.identity.starts_with("collision:") {
+                continue;
+            }
             let first = snapshot.positions.len() as u32;
             if std::ptr::eq(mesh, &state.scalp) || mesh.identity.starts_with("head:") {
                 head_reference_ranges.push(first as usize..first as usize + mesh.positions.len());
@@ -1397,7 +1522,9 @@ fn build_scene(
             let mut reference_normals = vec![];
             normals(&mesh.positions, &indices, &mut reference_normals);
             snapshot.positions.extend_from_slice(&mesh.positions);
-            snapshot.shader_masks.extend(std::iter::repeat_n([1.0, 1.0, 0.0], mesh.positions.len()));
+            snapshot
+                .shader_masks
+                .extend(std::iter::repeat_n([1.0, 1.0, 0.0], mesh.positions.len()));
             snapshot.normals.extend(reference_normals);
             snapshot
                 .uvs

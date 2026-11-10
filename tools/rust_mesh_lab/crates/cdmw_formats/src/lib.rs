@@ -76,8 +76,14 @@ impl Submesh {
     }
 
     pub fn validate(&self) -> Result<(), FormatError> {
-        if !self.shader_masks.is_empty() && (self.shader_masks.len() != self.positions.len()
-            || self.shader_masks.iter().flatten().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))) {
+        if !self.shader_masks.is_empty()
+            && (self.shader_masks.len() != self.positions.len()
+                || self
+                    .shader_masks
+                    .iter()
+                    .flatten()
+                    .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v)))
+        {
             return Err(FormatError::InvalidIndex);
         }
         if self.positions.is_empty()
@@ -1816,11 +1822,20 @@ mod tests {
     #[test]
     fn shader_masks_are_optional_and_validate_vertex_ownership() -> Result<(), FormatError> {
         let mut part = Submesh {
-            name: "mask".to_owned(), material: String::new(),
-            positions: vec![[0.0; 3]; 3], normals: vec![[0.0, 1.0, 0.0]; 3],
-            uvs: vec![[0.0; 2]; 3], indices: vec![0, 1, 2], source_vertex_indices: vec![0, 1, 2],
-            shader_masks: vec![[0.2, 0.8, 1.0]; 3], source_range: SourceRange { offset: 0, length: 0 },
-            vertex_stride: 40, layout: "synthetic".to_owned(),
+            name: "mask".to_owned(),
+            material: String::new(),
+            positions: vec![[0.0; 3]; 3],
+            normals: vec![[0.0, 1.0, 0.0]; 3],
+            uvs: vec![[0.0; 2]; 3],
+            indices: vec![0, 1, 2],
+            source_vertex_indices: vec![0, 1, 2],
+            shader_masks: vec![[0.2, 0.8, 1.0]; 3],
+            source_range: SourceRange {
+                offset: 0,
+                length: 0,
+            },
+            vertex_stride: 40,
+            layout: "synthetic".to_owned(),
         };
         part.validate()?;
         part.shader_masks.pop();

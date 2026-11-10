@@ -93,6 +93,7 @@ static void merge_prefab_component_meshes(
     int component_models_added = 0;
     int component_batches_added = 0;
     int component_models_available = 0;
+    const bool head_components = head_prefab_components_are_required(job);
     const std::vector<ArchiveEntryRef> prefab_components = enabled_prefab_component_refs_for_job(job, index);
     for (const ArchiveEntryRef& component : prefab_components) {
         if (lower_copy(component.path) == lower_copy(job.path)) continue;
@@ -105,8 +106,10 @@ static void merge_prefab_component_meshes(
             "Resolved",
             "Prefab",
             "authoritative",
-            "optional",
-            "Available prefab model component; geometry and materials load only when enabled in Archive Browser Parts.",
+            head_components ? "required" : "optional",
+            head_components
+                ? "Required head component; geometry and materials load with the selected head."
+                : "Available prefab model component; geometry and materials load only when enabled in Archive Browser Parts.",
             "model",
             "Prefab model component",
             "",
@@ -119,7 +122,7 @@ static void merge_prefab_component_meshes(
             "",
             ""
         });
-        if (!prefab_component_enabled_for_job(component, job)) continue;
+        if (!head_components && !prefab_component_enabled_for_job(component, job)) continue;
         try {
             const std::vector<char> component_data = read_archive_ref_decoded_bytes(component);
             NativeMeshParseResult component_parse;
@@ -134,6 +137,17 @@ static void merge_prefab_component_meshes(
                 component_parse = parse_pat_submeshes(component_data);
             }
             if (component_parse.meshes.empty()) continue;
+            if (head_components) {
+                for (const PreviewContextComponentRef& context : job.preview_context_components) {
+                    if (lower_copy(context.entry.path) != lower_copy(component.path)
+                        || context.presentation_geometry_path.empty()) continue;
+                    const size_t count = apply_presentation_geometry_bytes(
+                        read_binary_file(context.presentation_geometry_path), component_parse.meshes);
+                    ++package.context_presentation_component_count;
+                    package.context_presentation_vertex_count += static_cast<int>(count);
+                    break;
+                }
+            }
             const int component_index = component_models_added + 1;
             const int global_submesh_offset = static_cast<int>(parsed.meshes.size());
             for (size_t mesh_index = 0; mesh_index < component_parse.meshes.size(); ++mesh_index) {
@@ -141,7 +155,9 @@ static void merge_prefab_component_meshes(
                 mesh.source_model_path = component.path;
                 mesh.source_component_label = component.basename.empty() ? basename_from_path(component.path) : component.basename;
                 mesh.source_component_index = component_index;
-                mesh.source_prefab_component = true;
+                // Required head pieces use ordinary part visibility controls;
+                // they must not be unchecked as unloaded optional attachments.
+                mesh.source_prefab_component = !head_components;
                 if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
                 mesh.source_submesh_index = global_submesh_offset + static_cast<int>(mesh_index);
             }
@@ -187,6 +203,10 @@ static void merge_preview_context_component_meshes(
     int component_models_added = 0;
     int component_batches_added = 0;
     for (const PreviewContextComponentRef& context : job.preview_context_components) {
+        if (head_prefab_components_are_required(job)
+            && std::any_of(parsed.meshes.begin(), parsed.meshes.end(), [&](const NativeSubmesh& mesh) {
+                return lower_copy(mesh.source_model_path) == lower_copy(context.entry.path);
+            })) continue;
         try {
             const std::vector<char> component_data = read_archive_ref_decoded_bytes(context.entry);
             NativeMeshParseResult component_parse;

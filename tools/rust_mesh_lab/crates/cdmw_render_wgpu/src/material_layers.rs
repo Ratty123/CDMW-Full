@@ -19,7 +19,7 @@ pub struct LayerUniform {
     pub layers: [LayerEntryUniform; 3],
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
-    /// Mode (1 shared normalized mask, 2 sequential overlays), skin flag, eye flag, reserved.
+    /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays), skin flag, eye flag, reserved.
     pub control: [u32; 4],
 }
 

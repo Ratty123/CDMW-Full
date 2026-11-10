@@ -101,7 +101,9 @@ pub fn extend_mirrored_guides(state: &HairState, guides: &mut BTreeSet<usize>) {
         .filter_map(|l| l.mirrored)
         .collect();
     for lock in &state.locks {
-        if pairs.contains(&lock.id) && let Some(guide) = lock.guide {
+        if pairs.contains(&lock.id)
+            && let Some(guide) = lock.guide
+        {
             guides.insert(guide as usize);
         }
     }
@@ -140,11 +142,20 @@ impl Curve {
     pub(super) fn new(points: &[[f32; 3]]) -> Self {
         let points: Vec<_> = points.iter().copied().map(Vec3::from).collect();
         if points.len() < 2 {
-            return Self { points, derivatives: vec![], frames: vec![] };
+            return Self {
+                points,
+                derivatives: vec![],
+                frames: vec![],
+            };
         }
-        let lengths: Vec<_> = points.windows(2).map(|p| p[0].distance(p[1]).max(1e-8)).collect();
-        let directions: Vec<_> = points.windows(2).map(|p|
-            (p[1] - p[0]).try_normalize().unwrap_or(Vec3::Y)).collect();
+        let lengths: Vec<_> = points
+            .windows(2)
+            .map(|p| p[0].distance(p[1]).max(1e-8))
+            .collect();
+        let directions: Vec<_> = points
+            .windows(2)
+            .map(|p| (p[1] - p[0]).try_normalize().unwrap_or(Vec3::Y))
+            .collect();
         let mut derivatives = Vec::with_capacity(points.len());
         let mut frames: Vec<(Vec3, Vec3, Vec3)> = Vec::with_capacity(points.len());
         for i in 0..points.len() {
@@ -156,7 +167,9 @@ impl Curve {
                 (directions[i - 1] * lengths[i] + directions[i] * lengths[i - 1])
                     / (lengths[i - 1] + lengths[i])
             };
-            let tangent = derivative.try_normalize().unwrap_or(directions[i.min(directions.len() - 1)]);
+            let tangent = derivative
+                .try_normalize()
+                .unwrap_or(directions[i.min(directions.len() - 1)]);
             let side = if let Some(&(side, _, old)) = frames.last() {
                 Quat::from_rotation_arc(old, tangent) * side
             } else {
@@ -166,7 +179,11 @@ impl Curve {
             derivatives.push(derivative);
             frames.push((side, tangent.cross(side).normalize_or_zero(), tangent));
         }
-        Self { points, derivatives, frames }
+        Self {
+            points,
+            derivatives,
+            frames,
+        }
     }
 
     pub(super) fn sample(&self, segment: usize, t: f32) -> (Vec3, (Vec3, Vec3, Vec3)) {
@@ -178,11 +195,15 @@ impl Curve {
         let m1 = self.derivatives[segment + 1] * length - chord;
         let position = a.lerp(b, t) + m0 * (t * (1.0 - t).powi(2)) - m1 * (t * t * (1.0 - t));
         let (side, _, old) = self.frames[segment];
-        let tangent = (chord + m0 * (1.0 - 4.0 * t + 3.0 * t * t)
-            + m1 * (3.0 * t * t - 2.0 * t)).try_normalize().unwrap_or(old);
+        let tangent = (chord + m0 * (1.0 - 4.0 * t + 3.0 * t * t) + m1 * (3.0 * t * t - 2.0 * t))
+            .try_normalize()
+            .unwrap_or(old);
         let side = Quat::from_rotation_arc(old, tangent) * side;
         let side = (side - tangent * side.dot(tangent)).normalize_or_zero();
-        (position, (side, tangent.cross(side).normalize_or_zero(), tangent))
+        (
+            position,
+            (side, tangent.cross(side).normalize_or_zero(), tangent),
+        )
     }
 }
 
@@ -207,7 +228,9 @@ pub fn deform_normals(
         {
             let (x, y, z) = if b.smooth {
                 curves[b.guide as usize].sample(b.segment as usize, b.t).1
-            } else { (x, y, z) };
+            } else {
+                (x, y, z)
+            };
             let local = Vec3::from(b.normal);
             if local.length_squared() > 0.1 {
                 *normal = (x * local.x + y * local.y + z * local.z)

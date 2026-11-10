@@ -254,8 +254,8 @@ impl OrbitCamera {
             // Selection changes the framing target, not the extent of the visible scene.
             // A point-sized selection must not collapse the far plane or zoom range.
             let center = (minimum + maximum) * 0.5;
-            let radius =
-                (((maximum - minimum) * 0.5).length() + center.distance(self.target)).max(MIN_DISTANCE);
+            let radius = (((maximum - minimum) * 0.5).length() + center.distance(self.target))
+                .max(MIN_DISTANCE);
             if self.scene_radius != radius {
                 self.scene_radius = radius;
                 self.bump_revision();
@@ -705,16 +705,32 @@ mod tests {
                 camera.orbit(Vec2::new(23.0, -17.0));
                 let point = Vec2::new(viewport.left(), viewport.top())
                     + relative * Vec2::new(viewport.width(), viewport.height());
-                let anchor = camera.point_on_view_plane(point, camera.target, viewport).unwrap();
+                let anchor = camera
+                    .point_on_view_plane(point, camera.target, viewport)
+                    .unwrap();
                 let original_distance = camera.distance;
                 let original_target = camera.target;
                 camera.zoom_at(120.0, point, viewport);
                 assert!(camera.distance < original_distance);
                 assert!(camera.target.distance(original_target) > 0.001);
-                assert!(camera.project(anchor, viewport).unwrap().screen.distance(point) < 0.01);
+                assert!(
+                    camera
+                        .project(anchor, viewport)
+                        .unwrap()
+                        .screen
+                        .distance(point)
+                        < 0.01
+                );
                 camera.zoom_at(-120.0, point, viewport);
                 assert!((camera.distance - original_distance).abs() < 0.0001);
-                assert!(camera.project(anchor, viewport).unwrap().screen.distance(point) < 0.01);
+                assert!(
+                    camera
+                        .project(anchor, viewport)
+                        .unwrap()
+                        .screen
+                        .distance(point)
+                        < 0.01
+                );
             }
         }
     }

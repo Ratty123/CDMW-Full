@@ -21,6 +21,28 @@ restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
 
+Heads include the facial PACs explicitly declared by their same-stem prefab.
+Their eyes and teeth use the selected head's authored skeleton variation;
+short bone palettes require exact skeleton hash matches and equally sized
+conflicting palettes are refused. Other prefab components remain opt-in.
+SkinnedMeshEye composes the declared sclera, iris and pupil maps in alpha order.
+Declared texture slots outrank inferred siblings, including channels that share
+a normal map but use different colour and response maps. Same-wrapper
+`_materialTexture` owns surface response ahead of blend selectors. Source textures
+receive a neutral colour multiplier; missing colour keeps the grey placeholder.
+Support maps may cross wrapper order only for an exactly shared material family.
+BlendHeight
+uses the Standard detail-layer contract; this does not claim true displacement
+or game rendering parity.
+
+Conservation retains every declared parameter, including an unavailable RGB
+emission map superseded by a resolved, exact same-wrapper emissive-intensity map.
+Such a row remains unresolved and is explicitly marked
+`transported_inactive_rgb_emission`; `inactive_unavailable_texture_count` reports
+this subset of `unresolved_texture_count`. Only these inactive missing sources
+may coexist with `conserved: true`. Missing active inputs and foreign-owner
+substitutions still fail conservation. No replacement DDS is generated.
+
 ## Windows paths and ownership
 
 Windows file access uses absolute extended-length Unicode paths, including UNC

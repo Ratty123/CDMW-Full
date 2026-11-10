@@ -218,6 +218,8 @@ public sealed class ArchiveLookupService(
         var session = sessions.GetRequired(sessionId);
         var selected = session.ReadEntry(entryId);
         var dependencyIndex = await session.DependencyIndexAsync(cancellationToken).ConfigureAwait(false);
+        var assembleHead = selected.Extension == ".pac"
+            && NormalizePath(selected.Path).Contains("/head/head/", StringComparison.OrdinalIgnoreCase);
         var ids = new HashSet<long>();
         var incomplete = AddDependencyMatches(
             dependencyIndex.FindEntryIdsByStem(
@@ -242,8 +244,10 @@ public sealed class ArchiveLookupService(
         void QueueReferenceScan(long candidateId)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var candidate = session.ReadEntry(candidateId);
             if (queuedIds.Add(candidateId)
-                && ShouldScanPreviewReferences(session.ReadEntry(candidateId), selected.EntryId))
+                && (ShouldScanPreviewReferences(candidate, selected.EntryId)
+                    || (assembleHead && candidate.Extension == ".pac")))
             {
                 scanIds.Add(candidateId);
             }
@@ -259,6 +263,16 @@ public sealed class ArchiveLookupService(
                 break;
             }
             var entry = session.ReadEntry(scanIds[scanIndex]);
+            if (assembleHead && entry.EntryId != selected.EntryId && entry.Extension == ".pac")
+            {
+                // Follow the material sidecars of explicitly referenced eyes
+                // and teeth too; otherwise the prepared set lacks their DDS.
+                incomplete |= AddDependencyMatches(
+                    dependencyIndex.FindEntryIdsByStem(session.Index,
+                        Path.GetFileNameWithoutExtension(entry.Path),
+                        MaximumPreviewLookupResults, cancellationToken), ids, cancellationToken);
+                incomplete |= AddPreviewCompanionPaths(entry, session.Index, ids, cancellationToken);
+            }
             var maximumBytes = entry.EntryId == selected.EntryId
                 ? 512L * 1024 * 1024
                 : 64L * 1024 * 1024;
@@ -295,7 +309,7 @@ public sealed class ArchiveLookupService(
             }
             else
             {
-                var includeMaterialBasenameHints = entry.EntryId == selected.EntryId
+                var includeMaterialBasenameHints = (entry.EntryId == selected.EntryId || assembleHead)
                     && entry.Extension is ".pac" or ".pam" or ".pamlod";
                 var extracted = ArchivePreviewReferenceScanner.Extract(decoded.Bytes, cancellationToken, includeMaterialBasenameHints);
                 incomplete |= extracted.Truncated;

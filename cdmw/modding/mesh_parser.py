@@ -3063,11 +3063,18 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
             continue
         by_hash.setdefault(name_hash, position)
     best: tuple[int, ...] = ()
-    for candidate in _pac_bone_palette_candidates(data, matching_hashes=by_hash):
-        if len(candidate) <= len(best) or any(value not in by_hash for value in candidate):
+    ambiguous = False
+    # Eyes can carry a single explicit bone. Accept short tables only here,
+    # where every hash must resolve against the selected skeleton.
+    for candidate in _pac_bone_palette_candidates(data, minimum_entries=1, matching_hashes=by_hash):
+        if len(candidate) < len(best) or any(value not in by_hash for value in candidate):
             continue
-        best = tuple(by_hash[value] for value in candidate)
-    return best
+        resolved = tuple(by_hash[value] for value in candidate)
+        if len(resolved) == len(best):
+            ambiguous |= resolved != best
+        else:
+            best, ambiguous = resolved, False
+    return () if ambiguous else best
 
 
 def parse_mesh(data: bytes, filename: str = "") -> ParsedMesh:

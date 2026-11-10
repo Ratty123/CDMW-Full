@@ -161,9 +161,37 @@ impl ApplicationHandler for CaptureProbe {
             );
             renderer.set_clear_colour([0.02, 0.02, 0.02, 1.]);
             let dds = cdmw_texture::synthetic::rgba8_checker_dds();
+            let metadata = cdmw_texture::inspect_dds(&dds, TextureRole::BaseColor)
+                .map_err(|e| e.to_string())?;
+            let upper_hash = metadata.source_sha256.to_ascii_uppercase();
+            renderer.begin_texture_uploads();
+            let budget = metadata.width as usize * 4;
+            let (complete, _) = renderer
+                .stage_verified_dds_texture(&dds, TextureRole::BaseColor, &upper_hash, budget)
+                .map_err(|e| e.to_string())?;
+            if complete {
+                return Err("Fixture did not exercise a partially uploaded texture".into());
+            }
+            loop {
+                let (complete, _) = renderer
+                    .stage_verified_dds_texture(&dds, TextureRole::BaseColor, &upper_hash, budget)
+                    .map_err(|e| e.to_string())?;
+                if complete {
+                    break;
+                }
+            }
+            for hash in [&upper_hash, &metadata.source_sha256] {
+                let reused = renderer
+                    .stage_verified_dds_texture(&dds, TextureRole::BaseColor, hash, budget)
+                    .map_err(|e| e.to_string())?;
+                if reused != (true, 0) {
+                    return Err("Hash capitalisation duplicated a completed DDS upload".into());
+                }
+            }
             renderer
                 .add_dds_texture(&dds, TextureRole::BaseColor, &[vec![0]])
                 .map_err(|e| e.to_string())?;
+            renderer.finish_texture_uploads();
             renderer.set_material_lod(0).map_err(|e| e.to_string())?;
             let directory = tempfile::tempdir().map_err(|e| e.to_string())?;
             let capture = |renderer: &mut WindowRenderer, name: &str| -> Result<Vec<u8>, String> {
@@ -496,16 +524,37 @@ impl ApplicationHandler for EffectProbe {
                 let inputs: serde_json::Value =
                     serde_json::from_slice(&std::fs::read(dir.join("inputs.json"))?)?;
                 let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(
-                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
-                let offset = inputs["offset"].as_array().map(|v| Vec3::new(
-                    v[0].as_f64().unwrap() as f32, v[1].as_f64().unwrap() as f32, v[2].as_f64().unwrap() as f32)).unwrap_or(Vec3::ZERO);
+                    &serde_json::json!({"effects_overlay": &effect}),
+                    &|| false,
+                )
+                .map_err(anyhow::Error::msg)?;
+                let offset = inputs["offset"]
+                    .as_array()
+                    .map(|v| {
+                        Vec3::new(
+                            v[0].as_f64().unwrap() as f32,
+                            v[1].as_f64().unwrap() as f32,
+                            v[2].as_f64().unwrap() as f32,
+                        )
+                    })
+                    .unwrap_or(Vec3::ZERO);
                 let model = Mat4::from_translation(offset);
                 renderer.reset_effect_textures();
                 let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(
-                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
-                let mesh_indices = effect_meshes.0.iter().map(|asset|
-                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
-                ).collect::<Result<Vec<_>, _>>()?;
+                    &serde_json::json!({"effects_overlay": &effect}),
+                    &|| false,
+                )
+                .map_err(anyhow::Error::msg)?;
+                let mesh_indices = effect_meshes
+                    .0
+                    .iter()
+                    .map(|asset| {
+                        asset
+                            .as_ref()
+                            .map(|asset| renderer.add_effect_mesh(asset))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let mut textures = std::collections::HashMap::new();
                 for (name, path) in inputs["textures"].as_object().expect("texture map") {
                     textures.insert(
@@ -535,8 +584,16 @@ impl ApplicationHandler for EffectProbe {
                             Vec3::Y,
                             -Vec3::Z,
                             256,
-                            crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 480. },
-                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
+                            crate::preview_effect_lightning::LightningView {
+                                eye: Vec3::Z * 5.,
+                                vertical_fov: 45_f32.to_radians(),
+                                height: 480.,
+                            },
+                            effect_surfaces.select(
+                                index,
+                                emitter["spawn_volume_type"].as_u64().unwrap_or(0),
+                                inputs["surface_target"].as_i64().unwrap_or(0),
+                            ),
                             mesh_indices[index],
                         );
                         for p in emission.billboards {
@@ -547,20 +604,39 @@ impl ApplicationHandler for EffectProbe {
                             high = high.max(center + radius);
                         }
                         if let Some(asset) = &effect_meshes.0[index] {
-                            let material = crate::preview_effect_lightning::LightningMaterial::read(emitter).unwrap();
+                            let material =
+                                crate::preview_effect_lightning::LightningMaterial::read(emitter)
+                                    .unwrap();
                             for instance in emission.meshes {
                                 let p = instance.particle;
                                 let transform = Mat4::from_cols_array_2d(&p.transform);
                                 let particle = crate::preview_effect_lightning::LightningParticle {
-                                    age:p.scale_age[3],seed:p.seed[0],
-                                    scale:Vec3::new(p.scale_age[0],p.scale_age[1],p.scale_age[2]),parent:model,transform,
-                                    view:crate::preview_effect_lightning::LightningView {eye:Vec3::Z*5.,vertical_fov:45_f32.to_radians(),height:480.},
+                                    age: p.scale_age[3],
+                                    seed: p.seed[0],
+                                    scale: Vec3::new(
+                                        p.scale_age[0],
+                                        p.scale_age[1],
+                                        p.scale_age[2],
+                                    ),
+                                    parent: model,
+                                    transform,
+                                    view: crate::preview_effect_lightning::LightningView {
+                                        eye: Vec3::Z * 5.,
+                                        vertical_fov: 45_f32.to_radians(),
+                                        height: 480.,
+                                    },
                                 };
                                 for v in &asset.vertices {
-                                    let position = transform.transform_point3(material.deform_vertex(
-                                        Vec3::from_array(v.position),Vec3::from_array(v.normal),glam::Vec2::from_array(v.uv),
-                                        Vec3::new(v.controls[0],v.controls[1],v.controls[2]),particle));
-                                    low = low.min(position); high = high.max(position);
+                                    let position =
+                                        transform.transform_point3(material.deform_vertex(
+                                            Vec3::from_array(v.position),
+                                            Vec3::from_array(v.normal),
+                                            glam::Vec2::from_array(v.uv),
+                                            Vec3::new(v.controls[0], v.controls[1], v.controls[2]),
+                                            particle,
+                                        ));
+                                    low = low.min(position);
+                                    high = high.max(position);
                                 }
                             }
                         }
@@ -615,8 +691,16 @@ impl ApplicationHandler for EffectProbe {
                             Vec3::Y,
                             -Vec3::Z,
                             256,
-                            crate::preview_effect_lightning::LightningView { eye, vertical_fov: 45_f32.to_radians(), height: 480. },
-                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
+                            crate::preview_effect_lightning::LightningView {
+                                eye,
+                                vertical_fov: 45_f32.to_radians(),
+                                height: 480.,
+                            },
+                            effect_surfaces.select(
+                                index,
+                                emitter["spawn_volume_type"].as_u64().unwrap_or(0),
+                                inputs["surface_target"].as_i64().unwrap_or(0),
+                            ),
                             mesh_indices[index],
                         );
                         particles.extend(emission.billboards);
@@ -626,10 +710,13 @@ impl ApplicationHandler for EffectProbe {
                         p.depth = (Vec3::from_array(p.center) - eye).dot(-Vec3::Z);
                     }
                     renderer.set_effect_particles(&particles)?;
-                    renderer.set_effect_mesh_particles(&meshes, cdmw_render_wgpu::EffectMeshView {
-                        eye_height: [eye.x,eye.y,eye.z,480.],
-                        fov_padding: [45_f32.to_radians(),0.,0.,0.],
-                    })?;
+                    renderer.set_effect_mesh_particles(
+                        &meshes,
+                        cdmw_render_wgpu::EffectMeshView {
+                            eye_height: [eye.x, eye.y, eye.z, 480.],
+                            fov_padding: [45_f32.to_radians(), 0., 0., 0.],
+                        },
+                    )?;
                     let prepare_ms = frame_start.elapsed().as_secs_f64() * 1000.;
                     renderer
                         .capture_frame(640, 480, None)?

@@ -172,8 +172,10 @@ fn file_label(path: &str) -> &str {
 impl LabApplication {
     fn draw_rig_identity(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, skeleton: &Value) {
         ui.label(RichText::new(crate::localization::tr("Loaded mesh")).strong());
-        ui.add(egui::Label::new(crate::localization::tr(file_label(&self.source_label))).truncate())
-            .on_hover_text(crate::localization::tr(&self.source_label));
+        ui.add(
+            egui::Label::new(crate::localization::tr(file_label(&self.source_label))).truncate(),
+        )
+        .on_hover_text(crate::localization::tr(&self.source_label));
         let parts = skeleton["parts"].as_array().cloned().unwrap_or_default();
         let selected_parts = self.selected_part_indices();
         if !parts.is_empty() {
@@ -218,7 +220,10 @@ impl LabApplication {
                 state_u64(skeleton, "weighted_vertex_count")
             )));
         } else {
-            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("No named rig attached"));
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                crate::localization::tr("No named rig attached"),
+            );
         }
     }
 
@@ -245,7 +250,9 @@ impl LabApplication {
             )));
         }
         if selected < 0 {
-            ui.small(crate::localization::tr("Choose a bone to locate it and see its weights."));
+            ui.small(crate::localization::tr(
+                "Choose a bone to locate it and see its weights.",
+            ));
         } else if self.cdmw_rig.available {
             let part_ids = self
                 .cdmw_rig
@@ -254,7 +261,9 @@ impl LabApplication {
                 .map(|(part, _)| *part)
                 .collect::<BTreeSet<_>>();
             if self.cdmw_rig.weights.is_empty() {
-                ui.small(crate::localization::tr("This bone has no influence on the loaded mesh."));
+                ui.small(crate::localization::tr(
+                    "This bone has no influence on the loaded mesh.",
+                ));
             } else {
                 let names = skeleton["parts"]
                     .as_array()
@@ -271,8 +280,11 @@ impl LabApplication {
                     if part_ids.len() == 1 { "part" } else { "parts" }
                 )));
                 if !names.is_empty() {
-                    ui.add(egui::Label::new(RichText::new(crate::localization::tr(&names)).small()).truncate())
-                        .on_hover_text(crate::localization::tr(&names));
+                    ui.add(
+                        egui::Label::new(RichText::new(crate::localization::tr(&names)).small())
+                            .truncate(),
+                    )
+                    .on_hover_text(crate::localization::tr(&names));
                 }
             }
         } else {
@@ -448,7 +460,10 @@ impl LabApplication {
             if !self.cdmw_cloth_paint.uploaded
                 && let Some(renderer) = &mut self.renderer
             {
-                match renderer.set_rig_weights(&self.cdmw_cloth_paint.positions, &self.cdmw_cloth_paint.colours) {
+                match renderer.set_rig_weights(
+                    &self.cdmw_cloth_paint.positions,
+                    &self.cdmw_cloth_paint.colours,
+                ) {
                     Ok(()) => {
                         self.cdmw_cloth_paint.uploaded = true;
                         self.cdmw_rig.force_upload();
@@ -595,14 +610,14 @@ impl LabApplication {
             .truncate()
             .height(250.0)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-            .selected_text(
-                crate::localization::tr(bones
+            .selected_text(crate::localization::tr(
+                bones
                     .iter()
                     .find(|bone| bone.get("index").and_then(Value::as_i64) == Some(selected_bone))
                     .and_then(|bone| bone.get("name").and_then(Value::as_str))
                     .map(|name| format!("{selected_bone}: {name}"))
-                    .unwrap_or_else(|| "Choose bone".to_owned())),
-            )
+                    .unwrap_or_else(|| "Choose bone".to_owned()),
+            ))
             .show_ui(ui, |ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.cdmw_rig.search)
@@ -624,7 +639,10 @@ impl LabApplication {
                     let index = bone.get("index").and_then(Value::as_i64).unwrap_or(-1);
                     let name = bone.get("name").and_then(Value::as_str).unwrap_or("Bone");
                     if ui
-                        .selectable_label(index == selected_bone, crate::localization::tr(format!("{index}: {name}")))
+                        .selectable_label(
+                            index == selected_bone,
+                            crate::localization::tr(format!("{index}: {name}")),
+                        )
                         .clicked()
                     {
                         actions.push(UiAction::CdmwCommand {
@@ -653,13 +671,22 @@ impl LabApplication {
         }));
         if weight_edit_enabled {
             let detail = if state_bool(&weight_capability, "per_asset") {
-                crate::localization::tr("Each source file uses its own PAC bone palette. Weight edits apply only to the explicit vertex selection.")
+                crate::localization::tr(
+                    "Each source file uses its own PAC bone palette. Weight edits apply only to the explicit vertex selection.",
+                )
             } else {
-                crate::localization::tr(format!("{palette_size} PAC palette slots mapped to {} rig bones. Weight edits apply only to the explicit vertex selection.", bones.len()))
+                crate::localization::tr(format!(
+                    "{palette_size} PAC palette slots mapped to {} rig bones. Weight edits apply only to the explicit vertex selection.",
+                    bones.len()
+                ))
             };
-            ui.small(crate::localization::tr("Weight editing ready")).on_hover_text(detail);
+            ui.small(crate::localization::tr("Weight editing ready"))
+                .on_hover_text(detail);
         } else {
-            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(weight_edit_reason));
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                crate::localization::tr(weight_edit_reason),
+            );
         }
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Weight step"));
@@ -705,7 +732,10 @@ impl LabApplication {
             "Explicitly select target vertices or Parts first"
         };
         if weight_edit_enabled && has_explicit_weight_target && !target_is_eligible {
-            ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 190, 75)), crate::localization::tr(target_reason));
+            ui.colored_label(
+                crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
+                crate::localization::tr(target_reason),
+            );
         }
         let can_adjust = weight_edit_enabled
             && target_is_eligible
@@ -783,7 +813,9 @@ impl LabApplication {
         if unnormalized > 0 {
             ui.colored_label(
                 crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
-                crate::localization::tr(format!("{unnormalized} vertices have unnormalized weights")),
+                crate::localization::tr(format!(
+                    "{unnormalized} vertices have unnormalized weights"
+                )),
             );
         }
         let selected_weights = skeleton
@@ -875,7 +907,10 @@ impl LabApplication {
                     let label =
                         format!("SM {submesh} · V {vertex} · {influence_text} · Σ {total:.3}");
                     if row.get("invalid").and_then(Value::as_bool) == Some(true) {
-                        ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 120, 105)), crate::localization::tr(label));
+                        ui.colored_label(
+                            crate::cdmw_ui::cdmw_readable(ui, Color32::from_rgb(245, 120, 105)),
+                            crate::localization::tr(label),
+                        );
                     } else {
                         ui.small(crate::localization::tr(label));
                     }
@@ -887,9 +922,9 @@ impl LabApplication {
                     )));
                 }
                 if state_bool(&skeleton, "selected_weights_truncated") {
-                    ui.small(
-                        crate::localization::tr("Additional selected weight rows are hidden by the bounded host summary"),
-                    );
+                    ui.small(crate::localization::tr(
+                        "Additional selected weight rows are hidden by the bounded host summary",
+                    ));
                 }
             });
         }

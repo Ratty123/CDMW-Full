@@ -119,6 +119,8 @@ static void run_base_layer_material_companion_contract_self_test() {
     direct_surface.parameter_name = "_materialTexture";
     direct_surface.layer_role = "material_response";
     direct_surface.layer_channel.clear();
+    direct_surface.packed_channels = "layer:material_response,g=roughness,b=metalness";
+    direct_surface.source_authority = "exact_sidecar";
     const std::vector<const TextureBinding*> direct_refs{
         &direct_base, &direct_surface, &owner_normal, &owner_height};
     const std::vector<MaterialLayer> direct = compile_material_layers(
@@ -591,6 +593,89 @@ static void run_shared_hair_identity_contract_self_test() {
 }
 
 static void run_head_eye_cover_identity_contract_self_test() {
+    EntryJob colour_job;
+    std::vector<NativeSubmesh> colour_meshes(1);
+    std::vector<TextureBinding> colour_bindings(1);
+    colour_bindings[0].source_path = "authored.dds";
+    colour_bindings[0].role = "base";
+    colour_bindings[0].shader_family = "SkinnedMeshStandard";
+    PackageWriteState colour_state{colour_job, colour_meshes, colour_bindings};
+    PackageBatchState colour_batch;
+    colour_batch.mesh = &colour_meshes[0];
+    colour_batch.base = &colour_bindings[0];
+    colour_batch.bindings = {&colour_bindings[0]};
+    prepare_package_batch_material(colour_state, colour_batch);
+    require_material_contract(colour_batch.color == std::array<float, 3>{1.0f, 1.0f, 1.0f},
+        "geometry placeholder grey darkened an authored texture");
+    colour_batch.base = nullptr;
+    colour_batch.bindings.clear();
+    prepare_package_batch_material(colour_state, colour_batch);
+    require_material_contract(colour_batch.color == std::array<float, 3>{0.62f, 0.62f, 0.62f},
+        "missing source colour lost its neutral placeholder");
+    require_material_contract(shader_rule_for_family("SkinnedMeshBlendHeight") == "standard",
+        "authored BlendHeight detail layers were treated as an unknown shader");
+    MaterialParameterRecord declared_eye_base;
+    declared_eye_base.name = "_baseColorTexture";
+    declared_eye_base.texture_path = "eye_ball.dds";
+    std::vector<SidecarTextureRef> inferred;
+    std::set<std::string> inferred_seen;
+    add_support_base_sibling_ref(inferred, inferred_seen, "eye_sp.dds", "_materialTexture",
+        "Eye", "SkinnedMeshEye", "owner", 0, {declared_eye_base});
+    require_material_contract(inferred.empty(), "a specular sibling replaced the declared eye albedo");
+    add_support_base_sibling_ref(inferred, inferred_seen, "eye_sp.dds", "_materialTexture",
+        "Eye", "SkinnedMeshEye", "owner", 0, {});
+    require_material_contract(inferred.size() == 1, "missing-base fallback was lost");
+    std::vector<MaterialParameterRecord> declared_blue;
+    for (const char* parameter : {"_detailDiffuseMaskB", "_detailNormalMaskB", "_detailMaterialMaskB", "_detailHeightMaskB"}) {
+        MaterialParameterRecord value;
+        value.name = parameter;
+        value.texture_path = std::string(parameter) + ".dds";
+        declared_blue.push_back(value);
+    }
+    inferred.clear();
+    inferred_seen.clear();
+    add_layer_family_sibling_refs(inferred, inferred_seen, "shared_green_n.dds", "_detailNormalMaskB",
+        "Wing", "SkinnedMeshBlendHeight", "owner", 0, declared_blue);
+    require_material_contract(inferred.empty(),
+        "a shared normal invented duplicate colour or response maps for an authored channel");
+    declared_blue.pop_back();
+    add_layer_family_sibling_refs(inferred, inferred_seen, "shared_green_n.dds", "_detailNormalMaskB",
+        "Wing", "SkinnedMeshBlendHeight", "owner", 0, declared_blue);
+    require_material_contract(inferred.size() == 1 && inferred[0].parameter_name == "_detailHeightMaskB",
+        "missing layer companion completion no longer preserves declared slots");
+    TextureBinding eye_base;
+    eye_base.shader_family = "SkinnedMeshEye";
+    eye_base.source_authority = "exact_sidecar";
+    eye_base.sidecar_path = "character/modelproperty/eye.pac_xml";
+    eye_base.material_wrapper_index = 0;
+    eye_base.source_path = "sclera.dds";
+    eye_base.parameter_name = "_baseColorTexture";
+    TextureBinding iris = eye_base;
+    iris.source_path = "iris.dds";
+    iris.parameter_name = "_irisDiffuseTexture";
+    TextureBinding pupil = eye_base;
+    pupil.source_path = "pupil.dds";
+    pupil.parameter_name = "_pupilTexture";
+    TextureBinding unrelated_iris = iris;
+    unrelated_iris.material_wrapper_index = 1;
+    unrelated_iris.source_path = "wrong-eye.dds";
+    const auto eye_layers = compile_material_layers(
+        {&unrelated_iris, &pupil, &eye_base, &iris}, NativeSubmesh{}, &eye_base,
+        nullptr, nullptr, nullptr, nullptr, NativeMaterialHints{}, "mesh_base_first");
+    require_material_contract(eye_layers.size() == 3
+        && eye_layers[1].diffuse_source == "iris.dds"
+        && eye_layers[2].diffuse_source == "pupil.dds"
+        && eye_layers[1].mask_source == eye_layers[1].diffuse_source
+        && eye_layers[2].layer_channel == "a",
+        "eye colour lost its exact wrapper, alpha coverage or iris/pupil ordering");
+    EntryJob head_job;
+    head_job.extension = ".pac";
+    head_job.path = "character/model/1_pc/2_phw/head/head/head.pac";
+    require_material_contract(head_prefab_components_are_required(head_job),
+        "a head lost its declared eye and mouth components");
+    head_job.path = "character/model/1_pc/2_phw/armor/upper.pac";
+    require_material_contract(!head_prefab_components_are_required(head_job),
+        "optional equipment components became required head pieces");
     NativeSubmesh eye_cover;
     eye_cover.name = "CD_PHW_00_Head_00_0028_EyeCover";
     eye_cover.material = "cd_phw_00_head_00_0028_eyecover";
@@ -639,6 +724,13 @@ static void run_cached_material_owner_contract_self_test() {
     shared.role = "normal";
     shared.material_wrapper_order_authoritative = true;
     shared.material_wrapper_index = 0;
+    require_material_contract(!support_binding_rejected_before_scoring(shared, right, "normal", false, nullptr),
+        "an exactly shared material lost its support maps");
+    TextureBinding foreign_glow = shared;
+    foreign_glow.role = "emissive";
+    foreign_glow.material_name = "shared_cloth_02_emi";
+    require_material_contract(support_binding_rejected_before_scoring(foreign_glow, right, "emissive", false, nullptr),
+        "a similar material name leaked another wrapper's glow across the model");
     const std::vector<TextureBinding> bindings(9, shared);
     std::unordered_map<const TextureBinding*, int> owners;
     for (const TextureBinding& binding : bindings) {

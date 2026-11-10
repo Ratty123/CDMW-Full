@@ -22,7 +22,10 @@ fn native_localization_paints_and_activates_controls_in_every_builtin_language()
             "language": code, "translations": translations,
         }));
         ui.settle_layout();
-        assert!(ui.label_rect("History").is_some(), "{code}: changed a user-authored layer name");
+        assert!(
+            ui.label_rect("History").is_some(),
+            "{code}: changed a user-authored layer name"
+        );
         for source in ["Clear Selection", "Select All", "History"] {
             let label = translations[source].as_str().expect("scalar control label");
             assert!(

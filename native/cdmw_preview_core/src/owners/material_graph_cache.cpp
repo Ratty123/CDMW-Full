@@ -425,6 +425,15 @@ static void add_support_base_sibling_ref(
     const std::vector<MaterialParameterRecord>& material_parameters
 ) {
     const std::string parameter_key = normalized_key(parameter);
+    if (std::any_of(material_parameters.begin(), material_parameters.end(), [](const MaterialParameterRecord& value) {
+        const std::string name = normalized_key(value.name);
+        return !value.texture_path.empty() && (name == "basecolortexture"
+            || name == "diffusetexture" || name == "albedotexture");
+    })) {
+        // A normal/specular filename is only a fallback clue. It cannot create
+        // a competing base edge when this wrapper declares its actual albedo.
+        return;
+    }
     if (parameter_key.find("detail") != std::string::npos
         || parameter_key.find("grime") != std::string::npos
         || parameter_key.find("dye") != std::string::npos) {
@@ -471,14 +480,20 @@ static void add_layer_family_sibling_refs(
     const std::string material_parameter = key.find("grime") != std::string::npos ? ("_grimeMaterialTexture" + suffix) : ("_detailMaterialMask" + suffix);
     const std::string height_parameter = "_detailHeightMask" + suffix;
     const std::string stem = diffuse_path.substr(0, diffuse_path.size() - 4);
-    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name,
-        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name,
-        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name,
-        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name,
-        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
+    const auto add_missing = [&](const std::string& sibling_path, const std::string& sibling_parameter) {
+        if (std::any_of(material_parameters.begin(), material_parameters.end(), [&](const MaterialParameterRecord& value) {
+            return !value.texture_path.empty()
+                && normalized_key(value.name) == normalized_key(sibling_parameter);
+        })) return;
+        // Shared normals do not imply shared colour or response: a declared
+        // channel may deliberately mix maps from different texture families.
+        add_sidecar_texture_ref(refs, seen, sibling_path, sibling_parameter, material_name,
+            shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
+    };
+    add_missing(diffuse_path, diffuse_parameter);
+    add_missing(stem + "_n.dds", normal_parameter);
+    add_missing(stem + "_sp.dds", material_parameter);
+    add_missing(stem + "_disp.dds", height_parameter);
 }
 
 static void extract_texture_refs_from_scope(

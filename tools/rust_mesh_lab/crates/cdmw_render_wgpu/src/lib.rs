@@ -1,34 +1,40 @@
 #![forbid(unsafe_code)]
 
-mod gpu_lifecycle;
 mod glow_proof;
+mod gpu_lifecycle;
 mod shader_controls_proof;
 use gpu_lifecycle::GpuFaults;
 pub use gpu_lifecycle::GpuRecovery;
 
 mod effect_depth;
+mod effect_mesh;
+mod effect_mesh_proof;
+mod effect_mesh_shader;
 mod effect_particle_proof;
 mod effect_particle_shader;
-mod effect_mesh;
-mod effect_mesh_shader;
-mod effect_mesh_proof;
+pub use effect_mesh::{
+    EffectLightningMaterial, EffectMeshAsset, EffectMeshInstance, EffectMeshParticle,
+    EffectMeshVertex, EffectMeshView, MAX_EFFECT_MESH_TRIANGLES,
+};
 pub use effect_mesh_proof::run_headless_effect_mesh_deformation;
-pub use effect_mesh::{EffectLightningMaterial, EffectMeshAsset, EffectMeshInstance,
-    EffectMeshParticle, EffectMeshVertex, EffectMeshView, MAX_EFFECT_MESH_TRIANGLES};
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
+mod lighting_depth;
 mod material_layers;
 mod texture_upload;
 pub mod texture_view;
-mod lighting_depth;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
+pub use material_layers::{
+    LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, material_layers_supported,
+};
 pub use texture_upload::run_headless_texture_upload_comparison;
-pub use material_layers::{LayerEntryUniform, LayerUniform, LayerTexture, MaterialLayerSet, material_layers_supported};
 
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
-use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload, plan_2d_upload_with_verified_sha256};
+use cdmw_texture::{
+    ColorSpace, DdsFormat, TextureRole, plan_2d_upload, plan_2d_upload_with_verified_sha256,
+};
 use glam::{Mat4, Quat, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
@@ -1566,7 +1572,12 @@ pub enum LightingPreset {
 }
 
 impl LightingPreset {
-    pub const ALL: [Self; 4] = [Self::NeutralStudio, Self::Showcase, Self::Dark, Self::StudioFixed];
+    pub const ALL: [Self; 4] = [
+        Self::NeutralStudio,
+        Self::Showcase,
+        Self::Dark,
+        Self::StudioFixed,
+    ];
 
     pub const fn label(self) -> &'static str {
         match self {
@@ -2448,14 +2459,19 @@ impl VertexOverlay<'_> {
             Self::Deformation(reference) => deformation_signature(reference),
             Self::Colours(colours) => {
                 if colours.len() != vertex_count
-                    || colours.iter().flatten().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+                    || colours
+                        .iter()
+                        .flatten()
+                        .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
                 {
                     return Err(RenderError::InvalidSnapshot("vertex overlay colours must match the mesh and contain finite RGBA values in 0..1".to_owned()));
                 }
                 let mut hasher = DefaultHasher::new();
                 2_u8.hash(&mut hasher);
                 colours.len().hash(&mut hasher);
-                for value in colours.iter().flatten() { value.to_bits().hash(&mut hasher); }
+                for value in colours.iter().flatten() {
+                    value.to_bits().hash(&mut hasher);
+                }
                 Ok(hasher.finish())
             }
         }
@@ -2614,7 +2630,11 @@ fn gpu_vertices_with_tangents(
                 tangent,
                 deformation: deformation[index],
                 editable_role: scene_roles.map_or(0, |roles| roles[index]),
-                shader_masks: snapshot.shader_masks.get(index).copied().unwrap_or([1.0, 1.0, 0.0]),
+                shader_masks: snapshot
+                    .shader_masks
+                    .get(index)
+                    .copied()
+                    .unwrap_or([1.0, 1.0, 0.0]),
             }
         })
         .collect())
@@ -2645,7 +2665,11 @@ impl GpuMeshBuffers {
         });
         let (material_indices, material_ranges) = material_index_batches(snapshot)?;
         let sort_triangles = material_transparency::sort_triangles(&vertices, &material_indices);
-        let lighting_bounds = lighting_depth::SceneBounds::from_vertices(&vertices, &snapshot.indices, &snapshot.triangle_materials);
+        let lighting_bounds = lighting_depth::SceneBounds::from_vertices(
+            &vertices,
+            &snapshot.indices,
+            &snapshot.triangle_materials,
+        );
         let triangle_index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab triangle indices"),
             contents: bytemuck::cast_slice(&material_indices),
@@ -2761,7 +2785,11 @@ impl GpuMeshBuffers {
             ));
         }
         queue.write_buffer(&self.vertex, 0, bytemuck::cast_slice(&vertices));
-        self.lighting_bounds = lighting_depth::SceneBounds::from_vertices(&vertices, &snapshot.indices, &snapshot.triangle_materials);
+        self.lighting_bounds = lighting_depth::SceneBounds::from_vertices(
+            &vertices,
+            &snapshot.indices,
+            &snapshot.triangle_materials,
+        );
         for triangle in &mut self.sort_triangles {
             triangle.refresh(&vertices);
         }
@@ -2795,8 +2823,10 @@ struct MultisampleTarget {
 }
 
 fn requested_renderer_features(supported: wgpu::Features) -> wgpu::Features {
-    supported & (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::FLOAT32_FILTERABLE
-        | wgpu::Features::DUAL_SOURCE_BLENDING)
+    supported
+        & (wgpu::Features::TEXTURE_COMPRESSION_BC
+            | wgpu::Features::FLOAT32_FILTERABLE
+            | wgpu::Features::DUAL_SOURCE_BLENDING)
 }
 
 fn preferred_sample_count_from_flags(
@@ -3039,36 +3069,62 @@ impl WindowRenderer {
         self.lighting_depth_settings = settings;
     }
 
-    pub fn supports_material_layers(&self) -> bool { material_layers::supported(&self.device) }
+    pub fn supports_material_layers(&self) -> bool {
+        material_layers::supported(&self.device)
+    }
 
     pub fn add_material_layers(&mut self, layers: &MaterialLayerSet) -> Result<(), RenderError> {
         if !self.supports_material_layers() {
-            return Err(RenderError::Texture("adapter requires CPU material composition".into()));
+            return Err(RenderError::Texture(
+                "adapter requires CPU material composition".into(),
+            ));
         }
         let mut uploaded = std::array::from_fn(|_| None);
         for (index, texture) in layers.textures.iter().enumerate() {
             if let Some(texture) = texture {
-                uploaded[index] = Some(self.cached_dds_texture(&texture.bytes, texture.role, Some(&texture.source_sha256))?);
+                uploaded[index] = Some(self.cached_dds_texture(
+                    &texture.bytes,
+                    texture.role,
+                    Some(&texture.source_sha256),
+                )?);
             }
         }
-        if let Some(binding) = material_layers::binding(&self.device, &self.default_material_textures, &layers.uniform, &uploaded) {
-            self.material_layers.insert((layers.lod_index, layers.material_index), binding);
+        if let Some(binding) = material_layers::binding(
+            &self.device,
+            &self.default_material_textures,
+            &layers.uniform,
+            &uploaded,
+        ) {
+            self.material_layers
+                .insert((layers.lod_index, layers.material_index), binding);
         }
         Ok(())
     }
 
     pub fn has_material_animation(&self) -> bool {
-        self.material_factors.iter().any(|owned| owned.factors.emission_animation
-            .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0))
-            || owned.factors.shader_controls.is_some_and(|v|
-                (v[0] == 3.0 && (v[6] * v[8] != 0.0 || v[7] * v[9] != 0.0))
-                || (v[0] == 6.0 && v[4] * v[5] > 0.0 && v[14] > 0.0 && (v[12] != 0.0 || v[13] != 0.0))))
+        self.material_factors.iter().any(|owned| {
+            owned
+                .factors
+                .emission_animation
+                .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0))
+                || owned.factors.shader_controls.is_some_and(|v| {
+                    (v[0] == 3.0 && (v[6] * v[8] != 0.0 || v[7] * v[9] != 0.0))
+                        || (v[0] == 6.0
+                            && v[4] * v[5] > 0.0
+                            && v[14] > 0.0
+                            && (v[12] != 0.0 || v[13] != 0.0))
+                })
+        })
     }
 
     pub fn set_material_time(&mut self, time: f32) {
         if time.is_finite() {
             self.camera_uniform.material_time = time;
-            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.camera_uniform));
+            self.queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::bytes_of(&self.camera_uniform),
+            );
         }
     }
 
@@ -3078,7 +3134,9 @@ impl WindowRenderer {
 
     /// Keep the previous scene's immutable DDS alive during a staged replacement.
     pub fn begin_texture_uploads(&mut self) {
-        self.retained_upload_textures = self.texture_cache.iter()
+        self.retained_upload_textures = self
+            .texture_cache
+            .iter()
             .filter_map(|(hash, texture)| texture.upgrade().map(|texture| (hash.clone(), texture)))
             .collect();
         self.staged_texture = None;
@@ -3091,30 +3149,46 @@ impl WindowRenderer {
 
     /// Stage at most `budget` bytes. Bind the texture only after this returns true.
     /// The owning package reader must already have verified `sha256`.
-    pub fn stage_verified_dds_texture(&mut self, bytes: &[u8], role: TextureRole,
-        sha256: &str, budget: usize,
+    pub fn stage_verified_dds_texture(
+        &mut self,
+        bytes: &[u8],
+        role: TextureRole,
+        sha256: &str,
+        budget: usize,
     ) -> Result<(bool, usize), RenderError> {
         self.check_health()?;
-        if let Some(texture) = self.texture_cache.get(sha256).and_then(Weak::upgrade) {
-            self.retained_upload_textures.insert(sha256.to_owned(), texture);
+        // Package references may use upper-case hex; DDS upload plans and the
+        // shared cache use lower-case identities, including between slices.
+        let sha256 = sha256.to_ascii_lowercase();
+        if let Some(texture) = self.texture_cache.get(&sha256).and_then(Weak::upgrade) {
+            self.retained_upload_textures
+                .insert(sha256.clone(), texture);
             return Ok((true, 0));
         }
         if let Some(pending) = &self.staged_texture {
             if pending.sha256() != sha256 {
-                return Err(RenderError::Texture("another DDS upload is still pending".into()));
+                return Err(RenderError::Texture(
+                    "another DDS upload is still pending".into(),
+                ));
             }
         } else {
-            let plan = dds_upload_plan(bytes, role, Some(sha256))?;
+            let plan = dds_upload_plan(bytes, role, Some(&sha256))?;
             self.staged_texture = Some(texture_upload::PendingDdsUpload::new(&self.device, plan)?);
         }
         let pending = self.staged_texture.as_mut().expect("staged above");
         let used = pending.advance(&self.queue, bytes, budget)?;
-        if !pending.complete() { return Ok((false, used)); }
+        if !pending.complete() {
+            return Ok((false, used));
+        }
         let uploaded = self.staged_texture.take().expect("staged above").finish()?;
         self.check_health()?;
         self.texture_uploads += 1;
-        self.texture_cache.insert(uploaded.source_sha256.clone(), Arc::downgrade(&uploaded.texture));
-        self.retained_upload_textures.insert(uploaded.source_sha256, uploaded.texture);
+        self.texture_cache.insert(
+            uploaded.source_sha256.clone(),
+            Arc::downgrade(&uploaded.texture),
+        );
+        self.retained_upload_textures
+            .insert(uploaded.source_sha256, uploaded.texture);
         Ok((true, used))
     }
 
@@ -3342,9 +3416,14 @@ impl WindowRenderer {
             &effect_sampler,
         )];
         let effect_depth_layout = effect_depth::layout(&device, sample_count);
-        let effect_mesh = effect_mesh::MeshParticles::new(&device, format,
-            &camera_bind_group_layout, &effect_texture_bind_group_layout,
-            &effect_depth_layout, sample_count);
+        let effect_mesh = effect_mesh::MeshParticles::new(
+            &device,
+            format,
+            &camera_bind_group_layout,
+            &effect_texture_bind_group_layout,
+            &effect_depth_layout,
+            sample_count,
+        );
         let effect_particle_alpha_pipeline = create_effect_particle_pipeline(
             &device,
             format,
@@ -3425,13 +3504,7 @@ impl WindowRenderer {
             &camera_bind_group_layout,
             sample_count,
         );
-        let rig_weights = selection_overlay::FaceSelectionRenderer::new(
-            &device,
-            format,
-            &texture_bind_group_layout,
-            &camera_bind_group_layout,
-            sample_count,
-        );
+        let rig_weights = face_selection.empty_with_shared_pipelines();
         let refit_warning = face_selection.empty_with_shared_pipelines();
         let part_hover = face_selection.empty_with_shared_pipelines();
         gpu_faults.check()?;
@@ -3558,9 +3631,16 @@ impl WindowRenderer {
     ) -> Result<(), RenderError> {
         self.set_snapshot_with_deformation_mode(
             snapshot,
-            colours.map_or(VertexOverlay::Deformation(deformation_reference), VertexOverlay::Colours),
+            colours.map_or(
+                VertexOverlay::Deformation(deformation_reference),
+                VertexOverlay::Colours,
+            ),
             Some(scene_roles),
-            if interactive { GeometryUpdateMode::Interactive } else { GeometryUpdateMode::Final },
+            if interactive {
+                GeometryUpdateMode::Interactive
+            } else {
+                GeometryUpdateMode::Final
+            },
         )
     }
 
@@ -3796,16 +3876,22 @@ impl WindowRenderer {
 
     /// Display-only warning tint, independent of the user's edit selection.
     pub fn set_refit_warning(
-        &mut self, positions: &[[f32; 3]], colour: [f32; 4],
+        &mut self,
+        positions: &[[f32; 3]],
+        colour: [f32; 4],
     ) -> Result<(), RenderError> {
-        self.refit_warning.upload(&self.device, &self.queue, positions, colour)
+        self.refit_warning
+            .upload(&self.device, &self.queue, positions, colour)
     }
 
     /// Temporary Part-name hover tint, independent of edit selection and fit warnings.
     pub fn set_part_hover(
-        &mut self, positions: &[[f32; 3]], colour: [f32; 4],
+        &mut self,
+        positions: &[[f32; 3]],
+        colour: [f32; 4],
     ) -> Result<(), RenderError> {
-        self.part_hover.upload(&self.device, &self.queue, positions, colour)
+        self.part_hover
+            .upload(&self.device, &self.queue, positions, colour)
     }
 
     /// Display-only, interpolated skin weights; independent of edit selection.
@@ -3835,7 +3921,10 @@ impl WindowRenderer {
     }
 
     /// Collision inspection must also reveal shapes inside a solid cloak/body.
-    pub fn set_collision_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
+    pub fn set_collision_lines(
+        &mut self,
+        vertices: &[EffectLineVertex],
+    ) -> Result<(), RenderError> {
         self.preview_lines_xray = true;
         self.update_preview_lines(vertices)
     }
@@ -3892,8 +3981,13 @@ impl WindowRenderer {
         self.effect_mesh.add(&self.device, asset)
     }
 
-    pub fn set_effect_mesh_particles(&mut self, instances: &[EffectMeshInstance], view: EffectMeshView) -> Result<(), RenderError> {
-        self.effect_mesh.set(&self.device, &self.queue, instances, view)
+    pub fn set_effect_mesh_particles(
+        &mut self,
+        instances: &[EffectMeshInstance],
+        view: EffectMeshView,
+    ) -> Result<(), RenderError> {
+        self.effect_mesh
+            .set(&self.device, &self.queue, instances, view)
     }
 
     /// Upload one validated package DDS. Identical bytes share the same GPU
@@ -3902,12 +3996,21 @@ impl WindowRenderer {
         self.add_effect_dds_texture_with_digest(bytes, None)
     }
 
-    pub fn add_verified_effect_dds_texture(&mut self, bytes: &[u8], sha256: &str) -> Result<usize, RenderError> {
+    pub fn add_verified_effect_dds_texture(
+        &mut self,
+        bytes: &[u8],
+        sha256: &str,
+    ) -> Result<usize, RenderError> {
         self.add_effect_dds_texture_with_digest(bytes, Some(sha256))
     }
 
-    fn add_effect_dds_texture_with_digest(&mut self, bytes: &[u8], sha256: Option<&str>) -> Result<usize, RenderError> {
-        let identity = dds_identity_from_plan(&dds_upload_plan(bytes, TextureRole::BaseColor, sha256)?)?;
+    fn add_effect_dds_texture_with_digest(
+        &mut self,
+        bytes: &[u8],
+        sha256: Option<&str>,
+    ) -> Result<usize, RenderError> {
+        let identity =
+            dds_identity_from_plan(&dds_upload_plan(bytes, TextureRole::BaseColor, sha256)?)?;
         if let Some(index) = self
             .effect_textures
             .iter()
@@ -4063,14 +4166,22 @@ impl WindowRenderer {
     }
 
     /// The owning reader must have verified this digest against the immutable bytes.
-    pub fn add_verified_dds_texture(&mut self, bytes: &[u8], role: TextureRole,
-        material_indices_by_lod: &[Vec<u32>], sha256: &str,
+    pub fn add_verified_dds_texture(
+        &mut self,
+        bytes: &[u8],
+        role: TextureRole,
+        material_indices_by_lod: &[Vec<u32>],
+        sha256: &str,
     ) -> Result<(), RenderError> {
         self.add_dds_texture_with_digest(bytes, role, material_indices_by_lod, Some(sha256))
     }
 
-    fn add_dds_texture_with_digest(&mut self, bytes: &[u8], role: TextureRole,
-        material_indices_by_lod: &[Vec<u32>], sha256: Option<&str>,
+    fn add_dds_texture_with_digest(
+        &mut self,
+        bytes: &[u8],
+        role: TextureRole,
+        material_indices_by_lod: &[Vec<u32>],
+        sha256: Option<&str>,
     ) -> Result<(), RenderError> {
         validate_material_texture_ownership(role, material_indices_by_lod)?;
         let uploaded = self.cached_dds_texture(bytes, role, sha256)?;
@@ -4130,7 +4241,9 @@ impl WindowRenderer {
             active.entry(*material).or_default();
         }
         for &(lod, material) in self.material_layers.keys() {
-            if lod == lod_index { active.entry(material).or_default(); }
+            if lod == lod_index {
+                active.entry(material).or_default();
+            }
         }
         self.active_material_bindings = active
             .into_iter()
@@ -4214,10 +4327,20 @@ impl WindowRenderer {
         output_height: u32,
         viewport: Option<[f32; 4]>,
     ) {
-        let shadow = self.mesh.as_ref().map(|mesh| self.shadow_resources.frame(
-            &self.device, encoder, mesh, &self.default_material_binding, &self.active_material_bindings,
-            &self.camera_uniform, self.view_mode, self.lighting_depth_settings,
-            [output_width, output_height], viewport));
+        let shadow = self.mesh.as_ref().map(|mesh| {
+            self.shadow_resources.frame(
+                &self.device,
+                encoder,
+                mesh,
+                &self.default_material_binding,
+                &self.active_material_bindings,
+                &self.camera_uniform,
+                self.view_mode,
+                self.lighting_depth_settings,
+                [output_width, output_height],
+                viewport,
+            )
+        });
         let transparency = self.mesh.as_ref().and_then(|mesh| {
             material_transparency::prepare(
                 &self.device,
@@ -4240,8 +4363,13 @@ impl WindowRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(if self.camera_uniform.lighting_preset == 2 {
-                            clear_colour_for_target([0.006, 0.008, 0.012, self.clear_colour.a as f32], self.config.format.is_srgb())
-                        } else { self.clear_colour }),
+                            clear_colour_for_target(
+                                [0.006, 0.008, 0.012, self.clear_colour.a as f32],
+                                self.config.format.is_srgb(),
+                            )
+                        } else {
+                            self.clear_colour
+                        }),
                         store,
                     },
                     depth_slice: None,
@@ -4294,7 +4422,9 @@ impl WindowRenderer {
                     self.view_mode,
                     self.view_mode == ViewMode::XRay,
                 );
-                if let Some(shadow) = &shadow { pass.set_bind_group(3, &shadow.binding, &[]); }
+                if let Some(shadow) = &shadow {
+                    pass.set_bind_group(3, &shadow.binding, &[]);
+                }
                 draw_mesh(
                     &mut pass,
                     mesh,
@@ -4312,7 +4442,11 @@ impl WindowRenderer {
                     &self.normal_pipeline,
                     &self.bounds_pipeline,
                     &self.bone_pipeline,
-                    if self.preview_lines_xray { &self.effect_pipeline } else { &self.guide_pipeline },
+                    if self.preview_lines_xray {
+                        &self.effect_pipeline
+                    } else {
+                        &self.guide_pipeline
+                    },
                     &self.effect_pipeline,
                     self.skeleton_lines.as_ref(),
                     self.preview_lines.as_ref(),
@@ -4363,9 +4497,21 @@ impl WindowRenderer {
             }
         }
         if let Some(shadow) = &shadow {
-            let (color,resolve) = multisample.map_or((view,None),|target| (&target.view,Some(view)));
-            self.ambient_occlusion.record(&self.device,encoder,color,resolve,depth,&self.camera_uniform,shadow.radius,
-                [output_width,output_height],viewport,self.view_mode,self.lighting_depth_settings);
+            let (color, resolve) =
+                multisample.map_or((view, None), |target| (&target.view, Some(view)));
+            self.ambient_occlusion.record(
+                &self.device,
+                encoder,
+                color,
+                resolve,
+                depth,
+                &self.camera_uniform,
+                shadow.radius,
+                [output_width, output_height],
+                viewport,
+                self.view_mode,
+                self.lighting_depth_settings,
+            );
         }
         effect_depth::render(
             self,
@@ -4377,10 +4523,23 @@ impl WindowRenderer {
             output_height,
             viewport,
         );
-        if let Some(mesh) = &self.mesh && let Some(shadow) = &shadow {
-            self.emission_bloom.record(&self.device, encoder, view, [output_width, output_height], viewport,
-                mesh, &self.default_material_binding, &self.active_material_bindings,
-                &self.camera_bind_group, &self.camera_uniform, self.view_mode, &shadow.binding);
+        if let Some(mesh) = &self.mesh
+            && let Some(shadow) = &shadow
+        {
+            self.emission_bloom.record(
+                &self.device,
+                encoder,
+                view,
+                [output_width, output_height],
+                viewport,
+                mesh,
+                &self.default_material_binding,
+                &self.active_material_bindings,
+                &self.camera_bind_group,
+                &self.camera_uniform,
+                self.view_mode,
+                &shadow.binding,
+            );
         }
     }
 
@@ -4390,11 +4549,15 @@ impl WindowRenderer {
         height: u32,
         material: Option<u32>,
     ) -> Result<PendingFrameCapture, RenderError> {
-        self.capture_frame_with_background(width,height,material,false)
+        self.capture_frame_with_background(width, height, material, false)
     }
 
     pub fn capture_frame_with_background(
-        &mut self, width:u32, height:u32, material:Option<u32>, transparent:bool,
+        &mut self,
+        width: u32,
+        height: u32,
+        material: Option<u32>,
+        transparent: bool,
     ) -> Result<PendingFrameCapture, RenderError> {
         self.check_health()?;
         if width == 0 || height == 0 || width > 2048 || height > 2048 {
@@ -4442,7 +4605,9 @@ impl WindowRenderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         let saved_clear_colour = self.clear_colour;
-        if transparent { self.clear_colour = wgpu::Color::TRANSPARENT; }
+        if transparent {
+            self.clear_colour = wgpu::Color::TRANSPARENT;
+        }
         self.record_scene(
             &mut encoder,
             &view,
@@ -4673,7 +4838,9 @@ fn validate_material_factor_ownership(
         ));
     }
     if factors.glow_surface_color.is_some_and(|color| {
-        color.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        color
+            .into_iter()
+            .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
     }) || factors.emissive_color.is_some_and(|color| {
         color
             .into_iter()
@@ -4703,7 +4870,8 @@ fn validate_material_factor_ownership(
             "material factors contain a non-finite or out-of-range value".to_owned(),
         ));
     }
-    if factors.shader_controls.is_some_and(|v| v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
+    if factors.shader_controls.is_some_and(|v| {
+        v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
         || !(0.0..=11.0).contains(&v[0]) || v[0].fract() != 0.0
         // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
         || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
@@ -4714,30 +4882,51 @@ fn validate_material_factor_ownership(
             || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))
         || (matches!(v[0] as u32, 8 | 9) && (!(0.0..=1.0).contains(&v[4])
             || !(0.0..=if v[0] == 8.0 { 10.0 } else { 1.0 }).contains(&v[5])
-            || !(0.0..=1.0).contains(&v[6])))) {
-        return Err(RenderError::Texture("Invalid experimental shader controls".to_owned()));
+            || !(0.0..=1.0).contains(&v[6])))
+    }) {
+        return Err(RenderError::Texture(
+            "Invalid experimental shader controls".to_owned(),
+        ));
     }
     if factors.emission_reveal.is_some_and(|v| {
-        v.into_iter().any(|v| !v.is_finite()) || !(0.0..=1.0).contains(&v[0])
-            || !(0.001..=1.0).contains(&v[1]) || !(v[2] == 0.0 || v[2] == 1.0)
+        v.into_iter().any(|v| !v.is_finite())
+            || !(0.0..=1.0).contains(&v[0])
+            || !(0.001..=1.0).contains(&v[1])
+            || !(v[2] == 0.0 || v[2] == 1.0)
             || !(v[3] == -1.0 || (0.0..=1.0).contains(&v[3]))
     }) {
-        return Err(RenderError::Texture("invalid RGB glow reveal factors".to_owned()));
+        return Err(RenderError::Texture(
+            "invalid RGB glow reveal factors".to_owned(),
+        ));
     }
     if factors.emission_animation.is_some_and(|values| {
-        values.into_iter().zip([10.0, 10.0, 10.0, 1.0]).any(|(v, max)| !v.is_finite() || !(0.0..=max).contains(&v))
+        values
+            .into_iter()
+            .zip([10.0, 10.0, 10.0, 1.0])
+            .any(|(v, max)| !v.is_finite() || !(0.0..=max).contains(&v))
     }) {
-        return Err(RenderError::Texture("invalid emission animation factors".to_owned()));
+        return Err(RenderError::Texture(
+            "invalid emission animation factors".to_owned(),
+        ));
     }
     if factors.translucency.is_some_and(|values| {
-        values.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        values
+            .into_iter()
+            .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
     }) {
-        return Err(RenderError::Texture("translucency factors must be in 0..=1".to_owned()));
+        return Err(RenderError::Texture(
+            "translucency factors must be in 0..=1".to_owned(),
+        ));
     }
     if factors.translucency_surface.is_some_and(|values| {
-        values.into_iter().flatten().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        values
+            .into_iter()
+            .flatten()
+            .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
     }) {
-        return Err(RenderError::Texture("translucent surface factors must be in 0..=1".to_owned()));
+        return Err(RenderError::Texture(
+            "translucent surface factors must be in 0..=1".to_owned(),
+        ));
     }
     if factors.category_code.is_some_and(|code| code > 14) {
         return Err(RenderError::Texture(
@@ -4798,32 +4987,66 @@ pub async fn run_headless_layered_material_capture(
     options: HeadlessMaterialCaptureOptions,
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
-    run_headless_layered_material_capture_batch(snapshot, textures, factors, layers,
-        &[HeadlessMaterialCaptureRequest { options, output }]).await?.pop()
-        .ok_or_else(|| RenderError::InvalidSnapshot("layer capture returned no frame".into()))
+    run_headless_layered_material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        layers,
+        &[HeadlessMaterialCaptureRequest { options, output }],
+    )
+    .await?
+    .pop()
+    .ok_or_else(|| RenderError::InvalidSnapshot("layer capture returned no frame".into()))
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_headless_layered_material_capture_with_depth(
-    snapshot: &DrawSnapshot, textures: &[HeadlessMaterialTexture<'_>],
-    factors: &[HeadlessMaterialFactors<'_>], layers: &[MaterialLayerSet],
-    settings: LightingDepthSettings, options: HeadlessMaterialCaptureOptions,
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    settings: LightingDepthSettings,
+    options: HeadlessMaterialCaptureOptions,
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
-    run_headless_layered_material_capture_with_lighting(snapshot, textures, factors, layers,
-        LightingPreset::NeutralStudio, settings, options, output).await
+    run_headless_layered_material_capture_with_lighting(
+        snapshot,
+        textures,
+        factors,
+        layers,
+        LightingPreset::NeutralStudio,
+        settings,
+        options,
+        output,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_headless_layered_material_capture_with_lighting(
-    snapshot: &DrawSnapshot, textures: &[HeadlessMaterialTexture<'_>],
-    factors: &[HeadlessMaterialFactors<'_>], layers: &[MaterialLayerSet],
-    preset: LightingPreset, settings: LightingDepthSettings, options: HeadlessMaterialCaptureOptions,
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    preset: LightingPreset,
+    settings: LightingDepthSettings,
+    options: HeadlessMaterialCaptureOptions,
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
-    material_capture_batch(snapshot, textures, factors, layers,
-        &[HeadlessMaterialCaptureRequest { options, output }], None, &[], settings, preset)
-        .await?.pop().ok_or_else(|| RenderError::InvalidSnapshot("depth capture returned no frame".into()))
+    material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        layers,
+        &[HeadlessMaterialCaptureRequest { options, output }],
+        None,
+        &[],
+        settings,
+        preset,
+    )
+    .await?
+    .pop()
+    .ok_or_else(|| RenderError::InvalidSnapshot("depth capture returned no frame".into()))
 }
 
 pub async fn run_headless_material_capture_batch(
@@ -4832,7 +5055,18 @@ pub async fn run_headless_material_capture_batch(
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
+    material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        &[],
+        requests,
+        None,
+        &[],
+        LightingDepthSettings::default(),
+        LightingPreset::NeutralStudio,
+    )
+    .await
 }
 
 pub async fn run_headless_layered_material_capture_batch(
@@ -4842,7 +5076,18 @@ pub async fn run_headless_layered_material_capture_batch(
     layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
+    material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        layers,
+        requests,
+        None,
+        &[],
+        LightingDepthSettings::default(),
+        LightingPreset::NeutralStudio,
+    )
+    .await
 }
 
 /// Digests must have been verified by the owning reader against each immutable DDS.
@@ -4854,8 +5099,21 @@ pub async fn run_headless_verified_layered_material_capture_batch(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    if verified_sha256.len() != textures.len() { return Err(RenderError::ResourceLimit); }
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256, LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
+    if verified_sha256.len() != textures.len() {
+        return Err(RenderError::ResourceLimit);
+    }
+    material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        layers,
+        requests,
+        None,
+        verified_sha256,
+        LightingDepthSettings::default(),
+        LightingPreset::NeutralStudio,
+    )
+    .await
 }
 
 /// Offscreen production shader/upload proof. Timings include CPU deformation,
@@ -4868,9 +5126,26 @@ pub async fn run_headless_motion_capture(
     frame_count: u32,
     update: &mut dyn FnMut(&mut DrawSnapshot) -> Result<(), RenderError>,
 ) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
-    if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
-    let mut run = MotionCapture { update, frame_count, timings: vec![] };
-    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await?;
+    if !(1..=3600).contains(&frame_count) {
+        return Err(RenderError::ResourceLimit);
+    }
+    let mut run = MotionCapture {
+        update,
+        frame_count,
+        timings: vec![],
+    };
+    let mut reports = material_capture_batch(
+        snapshot,
+        textures,
+        factors,
+        &[],
+        &[request],
+        Some(&mut run),
+        &[],
+        LightingDepthSettings::default(),
+        LightingPreset::NeutralStudio,
+    )
+    .await?;
     Ok((reports.remove(0), run.timings))
 }
 
@@ -4954,7 +5229,11 @@ async fn material_capture_batch(
     let mut uploaded_textures = BTreeMap::<String, Arc<wgpu::Texture>>::new();
     for (index, texture) in textures.iter().enumerate() {
         validate_material_texture_ownership(texture.role, texture.material_indices_by_lod)?;
-        let plan = dds_upload_plan(texture.bytes, texture.role, verified_sha256.get(index).copied())?;
+        let plan = dds_upload_plan(
+            texture.bytes,
+            texture.role,
+            verified_sha256.get(index).copied(),
+        )?;
         let identity = dds_identity_from_plan(&plan)?;
         let uploaded = if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
             UploadedDdsTexture {
@@ -4981,28 +5260,47 @@ async fn material_capture_batch(
     }
     let mut layer_bindings = BTreeMap::new();
     if !layers.is_empty() && !material_layers::supported(&device) {
-        return Err(RenderError::Texture("adapter requires CPU material composition".into()));
+        return Err(RenderError::Texture(
+            "adapter requires CPU material composition".into(),
+        ));
     }
     for layer in layers.iter().filter(|layer| layer.lod_index == lod_index) {
         let mut uploaded = std::array::from_fn(|_| None);
         for (index, texture) in layer.textures.iter().enumerate() {
             if let Some(texture) = texture {
-                let plan = dds_upload_plan(&texture.bytes, texture.role, Some(&texture.source_sha256))?;
+                let plan =
+                    dds_upload_plan(&texture.bytes, texture.role, Some(&texture.source_sha256))?;
                 let identity = dds_identity_from_plan(&plan)?;
-                uploaded[index] = Some(if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
-                    UploadedDdsTexture { texture: Arc::clone(existing), view_format: identity.view_format,
-                        source_sha256: identity.source_sha256, single_channel: identity.single_channel }
-                } else {
-                    let result = upload_planned_dds_texture(&device, &queue, &texture.bytes, plan)?;
-                    uploaded_textures.insert(result.source_sha256.clone(), Arc::clone(&result.texture));
-                    result
-                });
+                uploaded[index] = Some(
+                    if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
+                        UploadedDdsTexture {
+                            texture: Arc::clone(existing),
+                            view_format: identity.view_format,
+                            source_sha256: identity.source_sha256,
+                            single_channel: identity.single_channel,
+                        }
+                    } else {
+                        let result =
+                            upload_planned_dds_texture(&device, &queue, &texture.bytes, plan)?;
+                        uploaded_textures
+                            .insert(result.source_sha256.clone(), Arc::clone(&result.texture));
+                        result
+                    },
+                );
             }
         }
-        if let Some(binding) = material_layers::binding(&device, &default_material_textures, &layer.uniform, &uploaded)
-            && layer_bindings.insert(layer.material_index, binding).is_some()
+        if let Some(binding) = material_layers::binding(
+            &device,
+            &default_material_textures,
+            &layer.uniform,
+            &uploaded,
+        ) && layer_bindings
+            .insert(layer.material_index, binding)
+            .is_some()
         {
-            return Err(RenderError::Texture("duplicate material layer ownership".into()));
+            return Err(RenderError::Texture(
+                "duplicate material layer ownership".into(),
+            ));
         }
     }
     let mut material_factors = Vec::with_capacity(factors.len());
@@ -5029,7 +5327,9 @@ async fn material_capture_batch(
     for material in resolved_factors.keys() {
         resolved.entry(*material).or_default();
     }
-    for &material in layer_bindings.keys() { resolved.entry(material).or_default(); }
+    for &material in layer_bindings.keys() {
+        resolved.entry(material).or_default();
+    }
     let active_material_bindings = resolved
         .into_iter()
         .map(|(material, indices)| {
@@ -5113,18 +5413,50 @@ async fn material_capture_batch(
                 let update_ms = started.elapsed().as_secs_f64() * 1000.0;
                 frame.draw_revision += 1;
                 if topology_signature(&frame) != topology_signature(capture_snapshot) {
-                    return Err(RenderError::InvalidSnapshot("motion changed topology".into()));
+                    return Err(RenderError::InvalidSnapshot(
+                        "motion changed topology".into(),
+                    ));
                 }
-                mesh.refresh_geometry(&queue, &frame, VertexOverlay::Deformation(None), 0, None, 0, GeometryUpdateMode::Interactive)?;
-                let readback = render_headless_readback_at(&device, &queue, format, &mesh,
-                    &default_material_binding, &active_material_bindings, &camera_bind_group,
-                    &pipelines, &mut camera_uniform, &camera_buffer, ViewMode::TexturedSolid,
-                    options.width, options.height, view_projection, None, false, None);
+                mesh.refresh_geometry(
+                    &queue,
+                    &frame,
+                    VertexOverlay::Deformation(None),
+                    0,
+                    None,
+                    0,
+                    GeometryUpdateMode::Interactive,
+                )?;
+                let readback = render_headless_readback_at(
+                    &device,
+                    &queue,
+                    format,
+                    &mesh,
+                    &default_material_binding,
+                    &active_material_bindings,
+                    &camera_bind_group,
+                    &pipelines,
+                    &mut camera_uniform,
+                    &camera_buffer,
+                    ViewMode::TexturedSolid,
+                    options.width,
+                    options.height,
+                    view_projection,
+                    None,
+                    false,
+                    None,
+                );
                 let pixels = read_headless_pixels(&device, &readback.0, readback.1, readback.2)?;
-                if index == run.frame_count + 9 && headless_frame_stats(&pixels)?.non_background_pixels == 0 {
-                    return Err(RenderError::Device("motion frame contains only background".into()));
+                if index == run.frame_count + 9
+                    && headless_frame_stats(&pixels)?.non_background_pixels == 0
+                {
+                    return Err(RenderError::Device(
+                        "motion frame contains only background".into(),
+                    ));
                 }
-                if index >= 10 { run.timings.push([update_ms, started.elapsed().as_secs_f64() * 1000.0]); }
+                if index >= 10 {
+                    run.timings
+                        .push([update_ms, started.elapsed().as_secs_f64() * 1000.0]);
+                }
             }
         }
         let mut render = |view_mode| {
@@ -5476,8 +5808,16 @@ async fn run_headless_render_smoke_internal(
             .iter()
             .map(|(material, indices)| {
                 let selected = MaterialTextureIndices {
-                    shader_mask: if roles.contains(&TextureRole::ShaderMask) { indices.shader_mask } else { None },
-                    shader_normal: if roles.contains(&TextureRole::ShaderNormal) { indices.shader_normal } else { None },
+                    shader_mask: if roles.contains(&TextureRole::ShaderMask) {
+                        indices.shader_mask
+                    } else {
+                        None
+                    },
+                    shader_normal: if roles.contains(&TextureRole::ShaderNormal) {
+                        indices.shader_normal
+                    } else {
+                        None
+                    },
                     base_color: if roles.contains(&TextureRole::BaseColor) {
                         indices.base_color
                     } else {
@@ -5796,37 +6136,98 @@ async fn run_headless_render_smoke_internal(
     // Assert actual pixels through the production bindings and vertex layout.
     if let Err(error) = effect_particle_proof::verify(&device, &queue) {
         if let Some(validation) = error_scope.pop().await {
-            return Err(RenderError::Device(format!("particle GPU validation failed: {validation}")));
+            return Err(RenderError::Device(format!(
+                "particle GPU validation failed: {validation}"
+            )));
         }
         return Err(error);
     }
-    glow_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
-        &mut camera_uniform, &camera_buffer, &default_material_binding, |bytes, base, factors| {
+    glow_proof::verify(
+        &device,
+        &queue,
+        format,
+        &pipelines,
+        &camera_bind_group,
+        &mut camera_uniform,
+        &camera_buffer,
+        &default_material_binding,
+        |bytes, base, factors| {
             let mut textures = Vec::new();
             for (bytes, role) in std::iter::once((bytes, TextureRole::Emissive))
-                .chain(base.map(|bytes| (bytes, TextureRole::BaseColor))) {
+                .chain(base.map(|bytes| (bytes, TextureRole::BaseColor)))
+            {
                 let uploaded = upload_dds_texture(&device, &queue, bytes, role)?;
-                textures.push(GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
-                    role, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] });
+                textures.push(GpuMaterialTexture {
+                    texture: uploaded.texture,
+                    view_format: uploaded.view_format,
+                    role,
+                    single_channel: uploaded.single_channel,
+                    material_indices_by_lod: vec![vec![0]],
+                });
             }
-            Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
-                &textures, MaterialTextureIndices { emissive: Some(0), base_color: base.map(|_| 1), ..Default::default() }, factors))
-        })?;
-    shader_controls_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
-        &mut camera_uniform, &camera_buffer, &default_material_binding, |mask, base, factors| {
+            Ok(create_material_bind_group(
+                &device,
+                &texture_layout,
+                &material_sampler,
+                &default_material_textures,
+                &textures,
+                MaterialTextureIndices {
+                    emissive: Some(0),
+                    base_color: base.map(|_| 1),
+                    ..Default::default()
+                },
+                factors,
+            ))
+        },
+    )?;
+    shader_controls_proof::verify(
+        &device,
+        &queue,
+        format,
+        &pipelines,
+        &camera_bind_group,
+        &mut camera_uniform,
+        &camera_buffer,
+        &default_material_binding,
+        |mask, base, factors| {
             let mut textures = Vec::new();
             let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
-            let mut inputs = vec![(base, TextureRole::BaseColor), (mask, TextureRole::ShaderMask), (mask, TextureRole::ShaderNormal)];
-            if eye_cover { inputs.extend([(mask, TextureRole::Material), (mask, TextureRole::Normal)]); }
+            let mut inputs = vec![
+                (base, TextureRole::BaseColor),
+                (mask, TextureRole::ShaderMask),
+                (mask, TextureRole::ShaderNormal),
+            ];
+            if eye_cover {
+                inputs.extend([(mask, TextureRole::Material), (mask, TextureRole::Normal)]);
+            }
             for (bytes, role) in inputs {
                 let uploaded = upload_dds_texture(&device, &queue, bytes, role)?;
-                textures.push(GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
-                    role, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] });
+                textures.push(GpuMaterialTexture {
+                    texture: uploaded.texture,
+                    view_format: uploaded.view_format,
+                    role,
+                    single_channel: uploaded.single_channel,
+                    material_indices_by_lod: vec![vec![0]],
+                });
             }
-            Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
-                &textures, MaterialTextureIndices { base_color: Some(0), shader_mask: Some(1), shader_normal: Some(2),
-                    surface: eye_cover.then_some(3), normal: eye_cover.then_some(4), ..Default::default() }, factors))
-        })?;
+            Ok(create_material_bind_group(
+                &device,
+                &texture_layout,
+                &material_sampler,
+                &default_material_textures,
+                &textures,
+                MaterialTextureIndices {
+                    base_color: Some(0),
+                    shader_mask: Some(1),
+                    shader_normal: Some(2),
+                    surface: eye_cover.then_some(3),
+                    normal: eye_cover.then_some(4),
+                    ..Default::default()
+                },
+                factors,
+            ))
+        },
+    )?;
     material_transparency::verify(
         &device,
         &queue,
@@ -7258,8 +7659,18 @@ fn record_headless_pass(
     effect_lines: Option<&GpuOverlayLines>,
     size: [u32; 2],
 ) {
-    let shadow = pipelines.shadow_resources.frame(device, encoder, mesh, default_material_bind_group,
-        active_material_bindings, camera_uniform, mode, pipelines.lighting_depth_settings, size, None);
+    let shadow = pipelines.shadow_resources.frame(
+        device,
+        encoder,
+        mesh,
+        default_material_bind_group,
+        active_material_bindings,
+        camera_uniform,
+        mode,
+        pipelines.lighting_depth_settings,
+        size,
+        None,
+    );
     let transparency = material_transparency::prepare(
         device,
         mesh,
@@ -7274,8 +7685,13 @@ fn record_headless_pass(
             resolve_target,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(clear_colour_for_target(
-                    if camera_uniform.lighting_preset == 2 { [0.006, 0.008, 0.012, 1.0] }
-                    else { [0.025, 0.03, 0.04, 1.0] }, camera_uniform.output_is_srgb != 0)),
+                    if camera_uniform.lighting_preset == 2 {
+                        [0.006, 0.008, 0.012, 1.0]
+                    } else {
+                        [0.025, 0.03, 0.04, 1.0]
+                    },
+                    camera_uniform.output_is_srgb != 0,
+                )),
                 store: wgpu::StoreOp::Store,
             },
             depth_slice: None,
@@ -7321,9 +7737,33 @@ fn record_headless_pass(
         show_bones,
     );
     drop(pass);
-    pipelines.ambient_occlusion.record(device,encoder,color,resolve_target,depth,camera_uniform,shadow.radius,size,None,mode,pipelines.lighting_depth_settings);
-    pipelines.emission_bloom.record(device, encoder, resolve_target.unwrap_or(color), size, None,
-        mesh, default_material_bind_group, active_material_bindings, camera_bind_group, camera_uniform, mode, &shadow.binding);
+    pipelines.ambient_occlusion.record(
+        device,
+        encoder,
+        color,
+        resolve_target,
+        depth,
+        camera_uniform,
+        shadow.radius,
+        size,
+        None,
+        mode,
+        pipelines.lighting_depth_settings,
+    );
+    pipelines.emission_bloom.record(
+        device,
+        encoder,
+        resolve_target.unwrap_or(color),
+        size,
+        None,
+        mesh,
+        default_material_bind_group,
+        active_material_bindings,
+        camera_bind_group,
+        camera_uniform,
+        mode,
+        &shadow.binding,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -8007,49 +8447,96 @@ fn create_pipelines_with_sample_count(
     camera_layout: &wgpu::BindGroupLayout,
     sample_count: u32,
 ) -> Pipelines {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("CDMW Rust Mesh Lab shader"),
-        source: wgpu::ShaderSource::Wgsl(material_layers::shader(device, true).into()),
-    });
-    let layer_layout = material_layers::layout(device);
-    let shadow_layout = lighting_depth::shadow_layout(device);
-    let layouts = vec![Some(texture_layout), Some(camera_layout), layer_layout.as_ref(), Some(&shadow_layout)];
-    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("CDMW Rust Mesh Lab pipeline layout"),
-        bind_group_layouts: &layouts,
-        immediate_size: 0,
-    });
-    let glass = if device.features().contains(wgpu::Features::DUAL_SOURCE_BLENDING) {
-        let main_shader = material_layers::shader(device, true);
-        let source = format!("enable dual_source_blending;\n{main_shader}\n{}", r#"
+    // All surface passes use one fragment entry point. The DX12 shader cache
+    // keys compilation by module and entry point; separate solid, blended and
+    // glass wrappers compiled the same large material graph three times.
+    let dual_source = device
+        .features()
+        .contains(wgpu::Features::DUAL_SOURCE_BLENDING);
+    let surface_source = material_layers::shader(device, true);
+    let source = if dual_source {
+        format!(
+            "enable dual_source_blending;\n{surface_source}\n{}",
+            r#"
 struct GlassOutput {
     @location(0) @blend_src(0) surface: vec4<f32>,
     @location(0) @blend_src(1) transmission: vec4<f32>,
 };
 @fragment
-fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -> GlassOutput {
+fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> GlassOutput {
     var out: GlassOutput;
-    out.surface = shade_surface(input, front_facing, false, false);
+    let surface = shade_surface(input, front_facing, false, false);
+    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5
+        || shader_value(0u) == 7.0 || shader_value(0u) == 10.0 || shader_value(0u) == 11.0);
+    out.surface = vec4<f32>(surface.rgb * coverage, surface.a);
     out.transmission = shade_surface(input, front_facing, true, false);
     return out;
 }
-"#);
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("CDMW glass transmission shader"),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
-        });
-        GlassPipelines::new(device, format, &layout, &shader, "fs_translucent", wgpu::BlendState {
-            color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
-                dst_factor: wgpu::BlendFactor::Src1, operation: wgpu::BlendOperation::Add },
-            alpha: wgpu::BlendComponent::OVER,
-        }, true, sample_count)
+"#
+        )
     } else {
-        GlassPipelines::new(device, format, &layout, &shader, "fs_blended",
-            wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING, false, sample_count)
+        surface_source
+    };
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("CDMW Rust Mesh Lab shader"),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    });
+    let surface_entry = if dual_source {
+        "fs_surface"
+    } else {
+        "fs_blended"
+    };
+    let layer_layout = material_layers::layout(device);
+    let shadow_layout = lighting_depth::shadow_layout(device);
+    let layouts = vec![
+        Some(texture_layout),
+        Some(camera_layout),
+        layer_layout.as_ref(),
+        Some(&shadow_layout),
+    ];
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("CDMW Rust Mesh Lab pipeline layout"),
+        bind_group_layouts: &layouts,
+        immediate_size: 0,
+    });
+    let glass = if dual_source {
+        GlassPipelines::new(
+            device,
+            format,
+            &layout,
+            &shader,
+            surface_entry,
+            wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::Src1,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent::OVER,
+            },
+            true,
+            sample_count,
+        )
+    } else {
+        GlassPipelines::new(
+            device,
+            format,
+            &layout,
+            &shader,
+            "fs_blended",
+            wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
+            false,
+            sample_count,
+        )
     };
     Pipelines {
         sample_count,
-        shadow_resources: lighting_depth::ShadowResources::new(device, texture_layout, camera_layout, &shader),
+        shadow_resources: lighting_depth::ShadowResources::new(
+            device,
+            texture_layout,
+            camera_layout,
+            &shader,
+        ),
         ambient_occlusion: lighting_depth::AmbientOcclusion::new(device, format, sample_count),
         lighting_depth_settings: LightingDepthSettings::default(),
         emission_bloom: emission_bloom::EmissionBloom::new(device, format, &layout, &shader),
@@ -8061,7 +8548,7 @@ fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -
             &shader,
             "solid",
             wgpu::PrimitiveTopology::TriangleList,
-            "fs_solid",
+            surface_entry,
             solid_cull_mode(),
             PipelineDepth::Write,
             Some(wgpu::BlendState::REPLACE),
@@ -8074,7 +8561,7 @@ fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -
             &shader,
             "blended material",
             wgpu::PrimitiveTopology::TriangleList,
-            "fs_blended",
+            surface_entry,
             solid_cull_mode(),
             PipelineDepth::Test,
             Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
@@ -8234,12 +8721,32 @@ impl GlassPipelines {
         sample_count: u32,
     ) -> Self {
         Self {
-            depth: create_pipeline(device, format, layout, shader, "glass nearest-layer depth",
-                wgpu::PrimitiveTopology::TriangleList, "fs_wire", solid_cull_mode(),
-                PipelineDepth::DepthOnly, Some(wgpu::BlendState::REPLACE), sample_count),
-            color: create_pipeline(device, format, layout, shader, "glass transmission",
-                wgpu::PrimitiveTopology::TriangleList, fragment_entry, solid_cull_mode(),
-                PipelineDepth::Equal, Some(blend), sample_count),
+            depth: create_pipeline(
+                device,
+                format,
+                layout,
+                shader,
+                "glass nearest-layer depth",
+                wgpu::PrimitiveTopology::TriangleList,
+                "fs_wire",
+                solid_cull_mode(),
+                PipelineDepth::DepthOnly,
+                Some(wgpu::BlendState::REPLACE),
+                sample_count,
+            ),
+            color: create_pipeline(
+                device,
+                format,
+                layout,
+                shader,
+                "glass transmission",
+                wgpu::PrimitiveTopology::TriangleList,
+                fragment_entry,
+                solid_cull_mode(),
+                PipelineDepth::Equal,
+                Some(blend),
+                sample_count,
+            ),
             rgb_transmission,
         }
     }
@@ -8477,14 +8984,22 @@ fn draw_textured_solid<'a>(
         pass.set_pipeline(blended_pipeline);
         for batch in transparency.batches.iter().filter(|batch| !is_glass(batch)) {
             material_layers::bind(pass, &active_material_bindings[&batch.material]);
-            pass.draw_indexed(batch.first_index..batch.end_index, 0, batch.part_id..batch.part_id + 1);
+            pass.draw_indexed(
+                batch.first_index..batch.end_index,
+                0,
+                batch.part_id..batch.part_id + 1,
+            );
         }
         if let Some(glass) = glass {
             for pipeline in [&glass.depth, &glass.color] {
                 pass.set_pipeline(pipeline);
                 for batch in transparency.batches.iter().filter(is_glass) {
                     material_layers::bind(pass, &active_material_bindings[&batch.material]);
-                    pass.draw_indexed(batch.first_index..batch.end_index, 0, batch.part_id..batch.part_id + 1);
+                    pass.draw_indexed(
+                        batch.first_index..batch.end_index,
+                        0,
+                        batch.part_id..batch.part_id + 1,
+                    );
                 }
             }
         }
@@ -8942,7 +9457,10 @@ fn resolve_material_factors<'a>(
                 resolved.base_tint_strength = Some(base_tint_strength);
             }
             if let Some(color) = factors.glow_surface_color {
-                if resolved.glow_surface_color.is_some_and(|existing| existing != color) {
+                if resolved
+                    .glow_surface_color
+                    .is_some_and(|existing| existing != color)
+                {
                     return Err(RenderError::Texture(format!(
                         "material {material} has conflicting glow surface colors in LOD {lod_index}"
                     )));
@@ -8950,20 +9468,35 @@ fn resolve_material_factors<'a>(
                 resolved.glow_surface_color = Some(color);
             }
             if let Some(controls) = factors.shader_controls {
-                if resolved.shader_controls.is_some_and(|existing| existing != controls) {
-                    return Err(RenderError::Texture("Conflicting shader controls".to_owned()));
+                if resolved
+                    .shader_controls
+                    .is_some_and(|existing| existing != controls)
+                {
+                    return Err(RenderError::Texture(
+                        "Conflicting shader controls".to_owned(),
+                    ));
                 }
                 resolved.shader_controls = Some(controls);
             }
             if let Some(reveal) = factors.emission_reveal {
-                if resolved.emission_reveal.is_some_and(|existing| existing != reveal) {
-                    return Err(RenderError::Texture(format!("material {material} has conflicting RGB glow reveal")));
+                if resolved
+                    .emission_reveal
+                    .is_some_and(|existing| existing != reveal)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting RGB glow reveal"
+                    )));
                 }
                 resolved.emission_reveal = Some(reveal);
             }
             if let Some(animation) = factors.emission_animation {
-                if resolved.emission_animation.is_some_and(|existing| existing != animation) {
-                    return Err(RenderError::Texture(format!("material {material} has conflicting emission animations")));
+                if resolved
+                    .emission_animation
+                    .is_some_and(|existing| existing != animation)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting emission animations"
+                    )));
                 }
                 resolved.emission_animation = Some(animation);
             }
@@ -9045,7 +9578,10 @@ fn resolve_material_factors<'a>(
                 resolved.alpha_blend = Some(alpha_blend);
             }
             if let Some(translucency) = factors.translucency {
-                if resolved.translucency.is_some_and(|existing| existing != translucency) {
+                if resolved
+                    .translucency
+                    .is_some_and(|existing| existing != translucency)
+                {
                     return Err(RenderError::Texture(format!(
                         "material {material} has conflicting translucency factors in LOD {lod_index}"
                     )));
@@ -9053,7 +9589,10 @@ fn resolve_material_factors<'a>(
                 resolved.translucency = Some(translucency);
             }
             if let Some(surface) = factors.translucency_surface {
-                if resolved.translucency_surface.is_some_and(|existing| existing != surface) {
+                if resolved
+                    .translucency_surface
+                    .is_some_and(|existing| existing != surface)
+                {
                     return Err(RenderError::Texture(format!(
                         "material {material} has conflicting translucent surface factors in LOD {lod_index}"
                     )));
@@ -9708,21 +10247,29 @@ fn create_default_material_textures(
             [255, 255, 255, 255],
         ),
     };
-    defaults.layers = material_layers::binding(device, &defaults, &LayerUniform::default(), &std::array::from_fn(|_| None));
+    defaults.layers = material_layers::binding(
+        device,
+        &defaults,
+        &LayerUniform::default(),
+        &std::array::from_fn(|_| None),
+    );
     defaults
 }
 
 fn material_translucency_uniform(factors: MaterialPreviewFactors) -> [f32; 4] {
     // IDs 8/9 share the absorption preview, but the object's main pass never
     // multiplies extinction by base alpha. Shadow tint (lane 6) is export-only.
-    let glass = factors.shader_controls.filter(|v| matches!(v[0] as u32, 8 | 9));
+    let glass = factors
+        .shader_controls
+        .filter(|v| matches!(v[0] as u32, 8 | 9));
     let values = glass.map(|v| [v[4], v[5]]).or(factors.translucency);
     values.map_or([0.0; 4], |values| {
         // Plain PBR export makes glTF OPAQUE alpha solid, including opacity.
         // BLEND/MASK and directly imported DDS retain alpha for equipment.
         let use_alpha = !glass.is_some_and(|v| v[0] == 8.0)
             && (factors.gltf_metallic_roughness != Some(true)
-                || factors.alpha_blend == Some(true) || factors.alpha_cutoff.is_some());
+                || factors.alpha_blend == Some(true)
+                || factors.alpha_cutoff.is_some());
         [values[0], values[1], 1.0, if use_alpha { 1.0 } else { 0.0 }]
     })
 }
@@ -9776,16 +10323,34 @@ fn create_material_bind_group(
     let height_view = material_texture_view(textures, indices.height, &defaults.height);
     let flow_view = material_texture_view(textures, indices.flow, &defaults.flow);
     let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
-    let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0 && v[0] <= 7.0);
+    let effect = factors
+        .shader_controls
+        .is_some_and(|v| v[0] > 0.0 && v[0] <= 7.0);
     let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
     // SkinnedMeshGlass (10) and the veil (11) blend in the game's forward pass.
-    let layered = factors.shader_controls.is_some_and(|v| matches!(v[0] as u32, 10 | 11));
+    let layered = factors
+        .shader_controls
+        .is_some_and(|v| matches!(v[0] as u32, 10 | 11));
     let translucency = material_translucency_uniform(factors);
     let translucent = translucency[2] > 0.5 && !eye_cover;
-    let skin_detail_mask_view =
-        material_texture_view(textures, if effect { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
-    let skin_detail_normal_view =
-        material_texture_view(textures, if effect { indices.shader_normal } else { indices.skin_detail_normal }, &defaults.normal);
+    let skin_detail_mask_view = material_texture_view(
+        textures,
+        if effect {
+            indices.shader_mask
+        } else {
+            indices.skin_detail_mask
+        },
+        &defaults.layer_mask,
+    );
+    let skin_detail_normal_view = material_texture_view(
+        textures,
+        if effect {
+            indices.shader_normal
+        } else {
+            indices.skin_detail_normal
+        },
+        &defaults.normal,
+    );
     let skin_detail_material_view =
         material_texture_view(textures, indices.skin_detail_material, &defaults.surface);
     let mut flags = 0;
@@ -9882,17 +10447,30 @@ fn create_material_bind_group(
         emission_reveal: factors.emission_reveal.unwrap_or([0.0, 1.0, 0.0, -1.0]),
         shader_controls: {
             let mut values = factors.shader_controls.unwrap_or([0.0; 32]);
-            values[3] = if effect && indices.shader_mask.is_some() { 1.0 } else { 0.0 };
-            values[31] = if effect && indices.shader_normal.is_some() { 1.0 } else { 0.0 };
-            if layered && factors.gltf_metallic_roughness == Some(true)
-                && factors.alpha_blend != Some(true) && factors.alpha_cutoff.is_none() {
+            values[3] = if effect && indices.shader_mask.is_some() {
+                1.0
+            } else {
+                0.0
+            };
+            values[31] = if effect && indices.shader_normal.is_some() {
+                1.0
+            } else {
+                0.0
+            };
+            if layered
+                && factors.gltf_metallic_roughness == Some(true)
+                && factors.alpha_blend != Some(true)
+                && factors.alpha_cutoff.is_none()
+            {
                 // Plain PBR export writes glTF OPAQUE base colour with solid alpha.
                 values[1] = 0.0;
             }
             std::array::from_fn(|i| std::array::from_fn(|j| values[i * 4 + j]))
         },
         flags,
-        glow_surface_color: factors.glow_surface_color.map_or([0.0; 4], |c| [c[0], c[1], c[2], 1.0]),
+        glow_surface_color: factors
+            .glow_surface_color
+            .map_or([0.0; 4], |c| [c[0], c[1], c[2], 1.0]),
         skin_detail_scale: factors.skin_detail_scale.unwrap_or(1.0),
         skin_detail_opacity: factors.skin_detail_opacity.unwrap_or(0.0),
         opacity: factors.opacity.unwrap_or(1.0),
@@ -9926,8 +10504,12 @@ fn create_material_bind_group(
         texture_tint_and_strength: texture_tint_and_strength.unwrap_or([1.0, 1.0, 1.0, 0.0]),
         translucency_factors: translucency,
         translucency_surface: factors.translucency_surface.map_or([0.0; 4], |values| {
-            [values[0].unwrap_or(0.0), values[1].unwrap_or(0.0),
-             if values[0].is_some() { 1.0 } else { 0.0 }, if values[1].is_some() { 1.0 } else { 0.0 }]
+            [
+                values[0].unwrap_or(0.0),
+                values[1].unwrap_or(0.0),
+                if values[0].is_some() { 1.0 } else { 0.0 },
+                if values[1].is_some() { 1.0 } else { 0.0 },
+            ]
         }),
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -10020,9 +10602,15 @@ fn create_material_bind_group(
         _uniform_buffer: uniform_buffer,
         alpha_blend: factors.alpha_blend == Some(true) || translucent || eye_cover || layered,
         translucent,
-        emits_light: !eye_cover && !translucent && !layered && (((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
-            && uniform.emissive_color_and_intensity[..3].iter().any(|value| *value > 0.0))
-            || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
+        emits_light: !eye_cover
+            && !translucent
+            && !layered
+            && (((uniform.emissive_color_and_intensity[3] > 0.0
+                || uniform.emission_reveal[3] > 0.0)
+                && uniform.emissive_color_and_intensity[..3]
+                    .iter()
+                    .any(|value| *value > 0.0))
+                || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
     }
 }
 
@@ -10056,14 +10644,21 @@ fn dds_texture_identity(
     dds_identity_from_plan(&plan)
 }
 
-fn dds_upload_plan(bytes: &[u8], role: TextureRole, sha256: Option<&str>) -> Result<cdmw_texture::DdsUploadPlan, RenderError> {
+fn dds_upload_plan(
+    bytes: &[u8],
+    role: TextureRole,
+    sha256: Option<&str>,
+) -> Result<cdmw_texture::DdsUploadPlan, RenderError> {
     match sha256 {
         Some(sha) => plan_2d_upload_with_verified_sha256(bytes, role, sha),
         None => plan_2d_upload(bytes, role),
-    }.map_err(|error| RenderError::Texture(error.to_string()))
+    }
+    .map_err(|error| RenderError::Texture(error.to_string()))
 }
 
-fn dds_identity_from_plan(plan: &cdmw_texture::DdsUploadPlan) -> Result<DdsTextureIdentity, RenderError> {
+fn dds_identity_from_plan(
+    plan: &cdmw_texture::DdsUploadPlan,
+) -> Result<DdsTextureIdentity, RenderError> {
     Ok(DdsTextureIdentity {
         view_format: map_dds_format(&plan.metadata.format, plan.metadata.color_space)?,
         source_sha256: plan.metadata.source_sha256.clone(),
@@ -10082,7 +10677,10 @@ fn upload_dds_texture(
     upload_planned_dds_texture(device, queue, bytes, plan)
 }
 
-fn upload_planned_dds_texture(device: &wgpu::Device, queue: &wgpu::Queue, bytes: &[u8],
+fn upload_planned_dds_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    bytes: &[u8],
     plan: cdmw_texture::DdsUploadPlan,
 ) -> Result<UploadedDdsTexture, RenderError> {
     let mut pending = texture_upload::PendingDdsUpload::new(device, plan)?;
@@ -10425,7 +11023,8 @@ mod emission_bloom {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             });
             let view = texture.create_view(&Default::default());
@@ -10481,7 +11080,8 @@ mod emission_bloom {
                 });
             }
             let targets = storage.as_ref().expect("bloom targets");
-            let transparency = material_transparency::prepare(device, mesh, materials, uniform, mode);
+            let transparency =
+                material_transparency::prepare(device, mesh, materials, uniform, mode);
             {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Visible emission only"),
@@ -10764,7 +11364,12 @@ mod material_transparency {
                 .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
             snapshot.triangle_materials.extend([material, material]);
         }
-        let mesh = GpuMeshBuffers::upload_with_deformation(device, &snapshot, crate::VertexOverlay::Deformation(None), Some(&roles))?;
+        let mesh = GpuMeshBuffers::upload_with_deformation(
+            device,
+            &snapshot,
+            crate::VertexOverlay::Deformation(None),
+            Some(&roles),
+        )?;
         let mut factors = [
             super::MaterialPreviewFactors {
                 texture_tint: Some([0.0, 0.0, 1.0]),
@@ -10856,8 +11461,16 @@ mod material_transparency {
                 ("clear glass", ViewMode::BaseColor, [255u8, 255, 255, 255]),
                 ("coloured glass", ViewMode::BaseColor, [200, 242, 245, 255]),
                 ("stacked glass", ViewMode::BaseColor, [200, 242, 245, 255]),
-                ("glass over alpha blend", ViewMode::BaseColor, [200, 177, 180, 255]),
-                ("absorption diagnostic", ViewMode::BaseAlpha, [53, 53, 53, 255]),
+                (
+                    "glass over alpha blend",
+                    ViewMode::BaseColor,
+                    [200, 177, 180, 255],
+                ),
+                (
+                    "absorption diagnostic",
+                    ViewMode::BaseAlpha,
+                    [53, 53, 53, 255],
+                ),
                 ("UV diagnostic", ViewMode::UvChecker, [20, 20, 20, 255]),
             ] {
                 camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
@@ -10867,31 +11480,65 @@ mod material_transparency {
                     ..Default::default()
                 };
                 let middle = if case == "glass over alpha blend" {
-                    super::MaterialPreviewFactors { texture_tint: Some([0.0, 0.0, 1.0]),
-                        alpha_blend: Some(true), opacity: Some(0.5), ..Default::default() }
+                    super::MaterialPreviewFactors {
+                        texture_tint: Some([0.0, 0.0, 1.0]),
+                        alpha_blend: Some(true),
+                        opacity: Some(0.5),
+                        ..Default::default()
+                    }
                 } else {
                     super::MaterialPreviewFactors {
                         translucency: Some([0.5, if case == "stacked glass" { 0.6 } else { 0.0 }]),
                         ..glass
                     }
                 };
-                let bindings = [super::MaterialPreviewFactors {
-                    texture_tint: Some([1.0; 3]), ..Default::default()
-                }, glass, middle].into_iter().enumerate()
-                    .map(|(index, factor)| (index as u32, make_binding(factor))).collect();
+                let bindings = [
+                    super::MaterialPreviewFactors {
+                        texture_tint: Some([1.0; 3]),
+                        ..Default::default()
+                    },
+                    glass,
+                    middle,
+                ]
+                .into_iter()
+                .enumerate()
+                .map(|(index, factor)| (index as u32, make_binding(factor)))
+                .collect();
                 let (buffer, width, height) = super::render_headless_readback_at(
-                    device, queue, format, &mesh, default_binding, &bindings, camera_binding,
-                    pipelines, camera, camera_buffer, mode, 64, 64,
-                    Mat4::IDENTITY, None, false, None);
+                    device,
+                    queue,
+                    format,
+                    &mesh,
+                    default_binding,
+                    &bindings,
+                    camera_binding,
+                    pipelines,
+                    camera,
+                    camera_buffer,
+                    mode,
+                    64,
+                    64,
+                    Mat4::IDENTITY,
+                    None,
+                    false,
+                    None,
+                );
                 let pixels = super::read_headless_pixels(device, &buffer, width, height)?;
                 let center = ((height / 2 * width + width / 2) * 4) as usize;
                 let actual = &pixels[center..center + 4];
-                if actual.iter().zip(expected).any(|(value, expected)| value.abs_diff(expected) > 3) {
+                if actual
+                    .iter()
+                    .zip(expected)
+                    .any(|(value, expected)| value.abs_diff(expected) > 3)
+                {
                     return Err(super::RenderError::Device(format!(
-                        "transmission {case}: BGRA pixel {actual:?}, expected {expected:?}")));
+                        "transmission {case}: BGRA pixel {actual:?}, expected {expected:?}"
+                    )));
                 }
             }
-            eprintln!("Verified coloured, clear and overlapping glass transmission and material diagnostic pixels.");
+            eprintln!(
+                "Verified coloured, clear and overlapping glass transmission and material diagnostic pixels."
+            );
         }
         for (case, expected) in [
             ("glTF defaults without maps", [255u8, 255, 255, 255]),
@@ -10949,8 +11596,12 @@ mod material_transparency {
         // Test imported lighting with a neutral conductor under the key softbox.
         // The authored PBR values must win over an inferred material category.
         snapshot.normals.fill([-0.12, 0.14, -0.98285]);
-        let lit_mesh =
-            GpuMeshBuffers::upload_with_deformation(device, &snapshot, crate::VertexOverlay::Deformation(None), Some(&roles))?;
+        let lit_mesh = GpuMeshBuffers::upload_with_deformation(
+            device,
+            &snapshot,
+            crate::VertexOverlay::Deformation(None),
+            Some(&roles),
+        )?;
         let mut samples = Vec::new();
         for (tint, roughness, category) in [
             ([0.8, 0.8, 0.8], 0.18, 0),
@@ -11217,27 +11868,54 @@ mod tests {
 
     #[test]
     fn shader_controls_validate_and_remain_owned_by_the_selected_material() {
-        let mut controls = [0.0; 32]; controls[0] = 1.0; controls[4] = 0.5;
-        let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+        let mut controls = [0.0; 32];
+        controls[0] = 1.0;
+        controls[4] = 0.5;
+        let factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            ..Default::default()
+        };
         let owners = vec![vec![1]];
         assert!(validate_material_factor_ownership(factors, &owners).is_ok());
-        let resolved = resolve_material_factors(std::iter::once((factors, owners.as_slice())), 0).unwrap();
+        let resolved =
+            resolve_material_factors(std::iter::once((factors, owners.as_slice())), 0).unwrap();
         assert!(!resolved.contains_key(&0));
         assert_eq!(resolved[&1].shader_controls, Some(controls));
         controls[0] = 7.0;
         controls[5..9].fill(-1.0);
-        assert!(validate_material_factor_ownership(MaterialPreviewFactors {
-            shader_controls: Some(controls), ..Default::default()
-        }, &owners).is_ok());
+        assert!(
+            validate_material_factor_ownership(
+                MaterialPreviewFactors {
+                    shader_controls: Some(controls),
+                    ..Default::default()
+                },
+                &owners
+            )
+            .is_ok()
+        );
         controls[5] = -0.5;
-        assert!(validate_material_factor_ownership(MaterialPreviewFactors {
-            shader_controls: Some(controls), ..Default::default()
-        }, &owners).is_err());
+        assert!(
+            validate_material_factor_ownership(
+                MaterialPreviewFactors {
+                    shader_controls: Some(controls),
+                    ..Default::default()
+                },
+                &owners
+            )
+            .is_err()
+        );
         for invalid in [f32::NAN, f32::INFINITY, 10.0, 1.5] {
             controls[0] = invalid;
-            assert!(validate_material_factor_ownership(MaterialPreviewFactors {
-                shader_controls: Some(controls), ..Default::default()
-            }, &owners).is_err());
+            assert!(
+                validate_material_factor_ownership(
+                    MaterialPreviewFactors {
+                        shader_controls: Some(controls),
+                        ..Default::default()
+                    },
+                    &owners
+                )
+                .is_err()
+            );
         }
     }
 
@@ -11246,16 +11924,25 @@ mod tests {
         let mut controls = [0.0; 32];
         controls[0] = 8.0;
         controls[4..7].copy_from_slice(&[0.02, 10.0, 1.0]);
-        let mut factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+        let mut factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            ..Default::default()
+        };
         assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
-        assert_eq!(material_translucency_uniform(factors), [0.02, 10.0, 1.0, 0.0]);
+        assert_eq!(
+            material_translucency_uniform(factors),
+            [0.02, 10.0, 1.0, 0.0]
+        );
         controls[0] = 9.0;
         factors.shader_controls = Some(controls);
         assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
         controls[5] = 1.0;
         factors.shader_controls = Some(controls);
         assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
-        assert_eq!(material_translucency_uniform(factors), [0.02, 1.0, 1.0, 1.0]);
+        assert_eq!(
+            material_translucency_uniform(factors),
+            [0.02, 1.0, 1.0, 1.0]
+        );
         factors.gltf_metallic_roughness = Some(true);
         assert_eq!(material_translucency_uniform(factors)[3], 0.0);
         factors.alpha_blend = Some(true);
@@ -11266,28 +11953,51 @@ mod tests {
             factors.shader_controls = Some(invalid);
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
         }
-        factors = MaterialPreviewFactors { translucency: Some([0.2, 0.3]), ..Default::default() };
+        factors = MaterialPreviewFactors {
+            translucency: Some([0.2, 0.3]),
+            ..Default::default()
+        };
         assert_eq!(material_translucency_uniform(factors), [0.2, 0.3, 1.0, 1.0]);
-        assert_eq!(material_translucency_uniform(MaterialPreviewFactors::default()), [0.0; 4]);
+        assert_eq!(
+            material_translucency_uniform(MaterialPreviewFactors::default()),
+            [0.0; 4]
+        );
     }
 
     #[test]
     fn layered_transparency_controls_validate_their_decoded_ranges() {
         // Shipped visor glass and the cd_phw_00_hel_00_0219 veil, as Python lays them out.
         let mut glass = [0.0; 32];
-        glass[..12].copy_from_slice(&[10.0, 1.0, 0.0, 0.0, 0.267, 0.191, 0.087, 1.68, 0.933, 0.949, 0.937, 0.843]);
+        glass[..12].copy_from_slice(&[
+            10.0, 1.0, 0.0, 0.0, 0.267, 0.191, 0.087, 1.68, 0.933, 0.949, 0.937, 0.843,
+        ]);
         let mut veil = [0.0; 32];
-        veil[..13].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0]);
+        veil[..13].copy_from_slice(&[
+            11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0,
+        ]);
         for controls in [glass, veil] {
-            let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+            let factors = MaterialPreviewFactors {
+                shader_controls: Some(controls),
+                ..Default::default()
+            };
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
             // Layered families blend in their own pass, never the one-layer glass composite.
             assert_eq!(material_translucency_uniform(factors), [0.0; 4]);
         }
-        for (mut controls, index, value) in [(glass, 7, 0.99), (glass, 7, 2.6), (glass, 4, 1.01), (glass, 11, -0.1),
-                                             (veil, 4, 1.01), (veil, 12, 1.5), (veil, 0, 12.0)] {
+        for (mut controls, index, value) in [
+            (glass, 7, 0.99),
+            (glass, 7, 2.6),
+            (glass, 4, 1.01),
+            (glass, 11, -0.1),
+            (veil, 4, 1.01),
+            (veil, 12, 1.5),
+            (veil, 0, 12.0),
+        ] {
             controls[index] = value;
-            let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+            let factors = MaterialPreviewFactors {
+                shader_controls: Some(controls),
+                ..Default::default()
+            };
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
         }
         assert!(SHADER.contains("fn veil_net_coverage("));
@@ -11299,7 +12009,10 @@ mod tests {
         assert_eq!(std::mem::size_of::<GpuVertex>(), 80);
         assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
         assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
-        assert_eq!(GpuVertex::ATTRIBUTES[6].format, wgpu::VertexFormat::Float32x3);
+        assert_eq!(
+            GpuVertex::ATTRIBUTES[6].format,
+            wgpu::VertexFormat::Float32x3
+        );
     }
 
     #[test]
@@ -11578,7 +12291,8 @@ mod tests {
                     | wgpu::Features::DUAL_SOURCE_BLENDING
                     | wgpu::Features::TIMESTAMP_QUERY
             ),
-            wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::FLOAT32_FILTERABLE
+            wgpu::Features::TEXTURE_COMPRESSION_BC
+                | wgpu::Features::FLOAT32_FILTERABLE
                 | wgpu::Features::DUAL_SOURCE_BLENDING
         );
     }
@@ -11743,17 +12457,32 @@ mod tests {
     fn jiggle_region_colours_use_the_gpu_overlay_without_changing_geometry() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
-            mesh_identity: 1, draw_revision: 1, topology_generation: 1,
+            mesh_identity: 1,
+            draw_revision: 1,
+            topology_generation: 1,
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-            normals: vec![[0.0, 0.0, 1.0]; 3], uvs: vec![[0.0, 0.0]; 3],
-            indices: vec![0, 1, 2], triangle_materials: vec![0],
-            selected_vertices: Vec::new(), fingerprint: String::new(),
+            normals: vec![[0.0, 0.0, 1.0]; 3],
+            uvs: vec![[0.0, 0.0]; 3],
+            indices: vec![0, 1, 2],
+            triangle_materials: vec![0],
+            selected_vertices: Vec::new(),
+            fingerprint: String::new(),
         };
-        let colours = [[0.06, 0.85, 0.18, 0.88], [0.32, 0.34, 0.38, 0.88], [0.55, 0.12, 0.85, 0.88]];
+        let colours = [
+            [0.06, 0.85, 0.18, 0.88],
+            [0.32, 0.34, 0.38, 0.88],
+            [0.55, 0.12, 0.85, 0.88],
+        ];
         let overlay = VertexOverlay::Colours(&colours);
         let tangents = vertex_tangents(&snapshot).unwrap();
         let painted = gpu_vertices_with_tangents(&snapshot, overlay, None, &tangents).unwrap();
-        let off = gpu_vertices_with_tangents(&snapshot, VertexOverlay::Deformation(None), None, &tangents).unwrap();
+        let off = gpu_vertices_with_tangents(
+            &snapshot,
+            VertexOverlay::Deformation(None),
+            None,
+            &tangents,
+        )
+        .unwrap();
         for i in 0..3 {
             assert_eq!(painted[i].position, off[i].position);
             assert_eq!(painted[i].normal, off[i].normal);
@@ -11762,10 +12491,22 @@ mod tests {
             assert_eq!(off[i].deformation, [0.0; 4]);
         }
         let signature = overlay.signature(3).unwrap();
-        assert_ne!(signature, VertexOverlay::Deformation(None).signature(3).unwrap());
-        assert_ne!(signature, VertexOverlay::Colours(&[colours[1]; 3]).signature(3).unwrap());
+        assert_ne!(
+            signature,
+            VertexOverlay::Deformation(None).signature(3).unwrap()
+        );
+        assert_ne!(
+            signature,
+            VertexOverlay::Colours(&[colours[1]; 3])
+                .signature(3)
+                .unwrap()
+        );
         assert!(overlay.signature(2).is_err());
-        assert!(VertexOverlay::Colours(&[[f32::NAN; 4]; 3]).signature(3).is_err());
+        assert!(
+            VertexOverlay::Colours(&[[f32::NAN; 4]; 3])
+                .signature(3)
+                .is_err()
+        );
     }
 
     #[test]

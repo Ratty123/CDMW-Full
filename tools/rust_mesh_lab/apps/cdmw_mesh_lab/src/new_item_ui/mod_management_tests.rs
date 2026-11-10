@@ -82,8 +82,16 @@ fn fixture(long: bool) -> State {
     overview.children.extend([
         node("mod_management_archives_title", "label", "Archive folders"),
         node("mod_management_show_game", "check", "Show game archives"),
-        node("mod_management_show_missing", "check", "Show missing references"),
-        node("mod_management_clean_missing", "button", "Clean missing references..."),
+        node(
+            "mod_management_show_missing",
+            "check",
+            "Show missing references",
+        ),
+        node(
+            "mod_management_clean_missing",
+            "button",
+            "Clean missing references...",
+        ),
         node("mod_management_refresh", "button", "Refresh"),
     ]);
     let mut table = node("mod_management_archives", "table", "");
@@ -143,7 +151,11 @@ fn grouped_management_controls_fit_widths_fonts_and_translated_captions() {
                     .filter(|r| r.id.starts_with("mod_management_open_"))
                     .collect();
                 assert_eq!(actions.len(), 6);
-                assert!(view.rects.iter().any(|control| control.id == "mod_management_clean_missing"));
+                assert!(
+                    view.rects
+                        .iter()
+                        .any(|control| control.id == "mod_management_clean_missing")
+                );
                 for control in &view.rects {
                     let [x, _, w, _] = control.rect;
                     assert!(
@@ -498,7 +510,8 @@ fn management_form_fixture() -> State {
     results.children.push(actions);
     page.children.push(results);
     let mut tasks = node("mod_management_package_task", "tabs", "");
-    tasks.props = json!({"selected":1,"tabs":[{"text":"Convert"},{"text":"Combine"},{"text":"Update"}]});
+    tasks.props =
+        json!({"selected":1,"tabs":[{"text":"Convert"},{"text":"Combine"},{"text":"Update"}]});
     tasks.children.push(page);
     pages.props = json!({"selected":1,"tabs":[{"text":"Mods"},{"text":"Prepare packages"},
         {"text":"Item identities"},{"text":"Shared files"},{"text":"Health and recovery"}]});
@@ -535,8 +548,11 @@ fn grouped_management_forms_fit_and_actions_remain_reachable_at_all_sizes() {
                 let controls: Vec<_> = view
                     .rects
                     .iter()
-                    .filter(|r| r.id.starts_with("input-") || r.id.ends_with("-action")
-                        || r.id == "mod_management_package_task")
+                    .filter(|r| {
+                        r.id.starts_with("input-")
+                            || r.id.ends_with("-action")
+                            || r.id == "mod_management_package_task"
+                    })
                     .collect();
                 for control in &controls {
                     let [x, y, w, h] = control.rect;
@@ -591,30 +607,65 @@ fn grouped_management_forms_fit_and_actions_remain_reachable_at_all_sizes() {
 #[test]
 fn consolidated_health_and_recovery_wraps_without_overlapping_controls() {
     let mut state = management_form_fixture();
-    let pages = state.root.children.iter_mut().find(|node| node.name == "mod_management_pages").unwrap();
+    let pages = state
+        .root
+        .children
+        .iter_mut()
+        .find(|node| node.name == "mod_management_pages")
+        .unwrap();
     pages.props["selected"] = json!(4);
     let mut health = node("health", "column", "");
     let mut filters = node("filters", "row", "");
     filters.children = vec![
-        node("show-game", "check", "Show game archives — längere Beschriftung"),
-        node("show-missing", "check", "Show missing references — längere Beschriftung"),
+        node(
+            "show-game",
+            "check",
+            "Show game archives — längere Beschriftung",
+        ),
+        node(
+            "show-missing",
+            "check",
+            "Show missing references — längere Beschriftung",
+        ),
     ];
     health.children.push(filters);
-    health.children.push(node("cleanup", "button", "Clean missing references…"));
+    health
+        .children
+        .push(node("cleanup", "button", "Clean missing references…"));
     let mut repair = node("repair", "button", "Repair and recovery…");
     repair.props = json!({"checkable":true,"checked":true});
     health.children.push(repair);
     let mut saved = node("saved", "group", "Saved installs");
     let mut actions = node("actions", "row", "");
     actions.children = vec![
-        node("rebuild", "button", "Rebuild / reapply — längere übersetzte Beschriftung"),
-        node("retire", "button", "Start fresh — längere übersetzte Beschriftung"),
+        node(
+            "rebuild",
+            "button",
+            "Rebuild / reapply — längere übersetzte Beschriftung",
+        ),
+        node(
+            "retire",
+            "button",
+            "Start fresh — längere übersetzte Beschriftung",
+        ),
     ];
     saved.children.push(actions);
     health.children.push(saved);
-    health.children.push(node("migrate", "button", "Move installed items into the overlay…"));
+    health.children.push(node(
+        "migrate",
+        "button",
+        "Move installed items into the overlay…",
+    ));
     pages.children = vec![health];
-    let ids = ["show-game", "show-missing", "cleanup", "repair", "rebuild", "retire", "migrate"];
+    let ids = [
+        "show-game",
+        "show-missing",
+        "cleanup",
+        "repair",
+        "rebuild",
+        "retire",
+        "migrate",
+    ];
     for pixels in [14.0, 28.0] {
         for width in [360.0, 760.0, 1280.0] {
             let ctx = egui::Context::default();
@@ -622,27 +673,55 @@ fn consolidated_health_and_recovery_wraps_without_overlapping_controls() {
             let mut view = PresentationView::default();
             let mut seen = std::collections::BTreeSet::new();
             for pass in 0..50 {
-                let events = if pass < 3 { vec![] } else { vec![
-                    egui::Event::PointerMoved(pos2(width - 18.0, 260.0)),
-                    egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point,
-                        delta: vec2(0.0, -85.0), phase: egui::TouchPhase::Move,
-                        modifiers: egui::Modifiers::NONE },
-                ] };
+                let events = if pass < 3 {
+                    vec![]
+                } else {
+                    vec![
+                        egui::Event::PointerMoved(pos2(width - 18.0, 260.0)),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: vec2(0.0, -85.0),
+                            phase: egui::TouchPhase::Move,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ]
+                };
                 frame(&ctx, &mut view, &state, vec2(width, 500.0), events);
-                let controls: Vec<_> = view.rects.iter().filter(|r| ids.contains(&r.id.as_str())).collect();
+                let controls: Vec<_> = view
+                    .rects
+                    .iter()
+                    .filter(|r| ids.contains(&r.id.as_str()))
+                    .collect();
                 for (i, a) in controls.iter().enumerate() {
-                    assert!(a.rect[0] >= 0.0 && a.rect[0] + a.rect[2] <= width + 0.5,
-                        "Clipped control at {width}/{pixels}: {a:?}");
-                    if a.rect[1] >= 0.0 && a.rect[1] + a.rect[3] <= 500.0 { seen.insert(a.id.clone()); }
-                    let rect = Rect::from_min_size(pos2(a.rect[0], a.rect[1]), vec2(a.rect[2], a.rect[3]));
+                    assert!(
+                        a.rect[0] >= 0.0 && a.rect[0] + a.rect[2] <= width + 0.5,
+                        "Clipped control at {width}/{pixels}: {a:?}"
+                    );
+                    if a.rect[1] >= 0.0 && a.rect[1] + a.rect[3] <= 500.0 {
+                        seen.insert(a.id.clone());
+                    }
+                    let rect =
+                        Rect::from_min_size(pos2(a.rect[0], a.rect[1]), vec2(a.rect[2], a.rect[3]));
                     for b in &controls[i + 1..] {
-                        let other = Rect::from_min_size(pos2(b.rect[0], b.rect[1]), vec2(b.rect[2], b.rect[3]));
-                        assert!(rect.intersect(other).area() <= 0.5, "Overlapping controls: {a:?} {b:?}");
+                        let other = Rect::from_min_size(
+                            pos2(b.rect[0], b.rect[1]),
+                            vec2(b.rect[2], b.rect[3]),
+                        );
+                        assert!(
+                            rect.intersect(other).area() <= 0.5,
+                            "Overlapping controls: {a:?} {b:?}"
+                        );
                     }
                 }
-                if seen.len() == ids.len() { break; }
+                if seen.len() == ids.len() {
+                    break;
+                }
             }
-            assert_eq!(seen.len(), ids.len(), "Unreachable controls at {width}/{pixels}: {seen:?}");
+            assert_eq!(
+                seen.len(),
+                ids.len(),
+                "Unreachable controls at {width}/{pixels}: {seen:?}"
+            );
         }
     }
 }
@@ -655,15 +734,42 @@ fn management_task_tabs_dispatch_the_original_page_index() {
         let state = management_form_fixture();
         let mut view = PresentationView::default();
         let size = vec2(width, 1100.0);
-        for _ in 0..3 { frame(&ctx, &mut view, &state, size, vec![]); }
-        let field = view.rects.iter().filter(|r| r.id == "mod_management_package_task").nth(2).unwrap().rect;
+        for _ in 0..3 {
+            frame(&ctx, &mut view, &state, size, vec![]);
+        }
+        let field = view
+            .rects
+            .iter()
+            .filter(|r| r.id == "mod_management_package_task")
+            .nth(2)
+            .unwrap()
+            .rect;
         let point = pos2(field[0] + field[2] / 2.0, field[1] + field[3] / 2.0);
         for pressed in [true, false] {
-            frame(&ctx, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
-                egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
-                    pressed, modifiers:egui::Modifiers::NONE }]);
+            frame(
+                &ctx,
+                &mut view,
+                &state,
+                size,
+                vec![
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
         }
-        assert!(view.inputs.iter().any(|input| input.control == "mod_management_package_task"
-            && input.action == "tab" && input.value == json!(2)), "{width}/{pixels}: {:?}", view.inputs);
+        assert!(
+            view.inputs
+                .iter()
+                .any(|input| input.control == "mod_management_package_task"
+                    && input.action == "tab"
+                    && input.value == json!(2)),
+            "{width}/{pixels}: {:?}",
+            view.inputs
+        );
     }
 }

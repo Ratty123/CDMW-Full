@@ -16,6 +16,29 @@ from cdmw.services.mesh_replacement_output import prepare_replacement_output
 from tests.test_mesh_editor_replacement import editor
 
 
+def test_archive_eye_cover_uses_transparent_shell_without_unproven_colour():
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.mesh_rust_authoring import _mesh_material_presentations
+    from cdmw.services.shader_controls_preview import authored_eye_cover_factors
+
+    part = SubMesh(name="head_shell", material="head_shell",
+                   vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])
+    part.preview_sidecar_shader_family = "SkinnedMeshEyeCover"
+    mesh = ParsedMesh(path="character/model/head.pac", format="pac", submeshes=[part])
+    factors = _mesh_material_presentations(mesh)[0]["shader_controls"]
+    assert factors[0] == 7
+    assert factors[4] == 0
+    assert factors[5:9] == (-1., -1., -1., -1.)
+    part.preview_material_parameters = (SimpleNamespace(
+        parameter_name="_eyeCoverDiffuseParameter", value="64"),)
+    assert _mesh_material_presentations(mesh)[0]["shader_controls"][4] == pytest.approx(64 / 255)
+    part.preview_native_material_overrides = {"shader_controls": list(preview_factors(
+        ShaderControls("SkinnedMeshEyeCover", (("_eyeCoverDiffuseParameter", (.75,)),))))}
+    assert _mesh_material_presentations(mesh)[0]["shader_controls"][4] == pytest.approx(191 / 255)
+    part.preview_sidecar_shader_family = "SkinnedMeshStandard"
+    assert authored_eye_cover_factors(part) is None
+
+
 @pytest.mark.parametrize("packed", [0, 64, 127, 128, 191, 255])
 @pytest.mark.parametrize("pixel", [0, 64, 128, 255])
 def test_raw_eye_cover_mask_keeps_unclamped_legacy_channel_math(packed, pixel):

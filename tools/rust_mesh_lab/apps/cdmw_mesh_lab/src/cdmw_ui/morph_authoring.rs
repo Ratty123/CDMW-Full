@@ -38,10 +38,16 @@ impl LabApplication {
         });
     }
 
-    pub(super) fn draw_cdmw_authored_morph_save(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value) {
+    pub(super) fn draw_cdmw_authored_morph_save(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
+    ) {
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let baseline_ready = state_bool(state, "authoring_baseline_ready");
-        let correcting = state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+        let correcting =
+            state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
         let profile_id = state_str(state, "profile_id").unwrap_or("");
         ui.horizontal_wrapped(|ui| {
             let ready = authoring
@@ -88,33 +94,59 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         state: &Value,
     ) {
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         if garments.is_empty() {
             return;
         }
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
-        let editing_correction = state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+        let editing_correction =
+            state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
         let selected = self.selected_part_indices();
-        let selected_garments: Vec<u32> = selected.into_iter().filter(|part| garments.contains(part)).collect();
+        let selected_garments: Vec<u32> = selected
+            .into_iter()
+            .filter(|part| garments.contains(part))
+            .collect();
         let has_selection = self.selected_counts().total() > 0 || !selected_garments.is_empty();
-        let masked = state.get("refit").and_then(|refit| refit.get("garment_settings"))
-            .and_then(Value::as_array).into_iter().flatten()
-            .filter(|row| state_bool(row, "has_vertex_mask")).count();
-        let summary = if masked == 0 { crate::localization::tr("No mask") }
-            else { cdmw_count(masked, "1 masked Part", "{} masked Parts") };
+        let masked = state
+            .get("refit")
+            .and_then(|refit| refit.get("garment_settings"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|row| state_bool(row, "has_vertex_mask"))
+            .count();
+        let summary = if masked == 0 {
+            crate::localization::tr("No mask")
+        } else {
+            cdmw_count(masked, "1 masked Part", "{} masked Parts")
+        };
         let title = format!("{} · {summary}", crate::localization::tr("Local influence"));
         cdmw_section(ui, "refit-local-influence", &title, None, |ui| {
             if selected_garments.is_empty() {
                 let counts = self.selected_counts();
                 ui.horizontal_wrapped(|ui| {
-                    for (label, count) in [("Vertices", counts.vertices), ("Edges", counts.edges), ("Faces", counts.faces)] {
+                    for (label, count) in [
+                        ("Vertices", counts.vertices),
+                        ("Edges", counts.edges),
+                        ("Faces", counts.faces),
+                    ] {
                         ui.weak(format!("{}: {count}", crate::localization::tr(label)));
                     }
                 });
             } else {
-                ui.weak(cdmw_count(selected_garments.len(), "1 garment Part selected", "{} garment Parts selected"));
+                ui.weak(cdmw_count(
+                    selected_garments.len(),
+                    "1 garment Part selected",
+                    "{} garment Parts selected",
+                ));
             }
-            if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+            if ui
+                .button(crate::localization::tr("Open Selection tool"))
+                .clicked()
+            {
                 self.cancel_active_gesture("Open garment influence selection");
                 self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
             }
@@ -163,18 +195,32 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_refit_garment_parts(
-        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
     ) {
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         let selected = self.selected_part_indices();
         let visible = self.cdmw_visible_submeshes();
-        let settings = state.get("refit").and_then(|refit| refit.get("garment_settings"))
+        let settings = state
+            .get("refit")
+            .and_then(|refit| refit.get("garment_settings"))
             .and_then(Value::as_array);
         ui.horizontal_wrapped(|ui| {
-            if ui.button(crate::localization::tr("Select garments")).clicked() {
+            if ui
+                .button(crate::localization::tr("Select garments"))
+                .clicked()
+            {
                 actions.push(UiAction::SetPartSelection(garments.clone()));
             }
-            if ui.button(crate::localization::tr("Clear selection")).clicked() {
+            if ui
+                .button(crate::localization::tr("Clear selection"))
+                .clicked()
+            {
                 actions.push(UiAction::SetPartSelection(Vec::new()));
             }
         });
@@ -228,29 +274,54 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_refit_island_parts(
-        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
     ) {
         let garments = value_u32_list(&state["refit"], "garment_submesh_indices");
         let selected = self.selected_refit_islands(&garments);
         let visible = self.cdmw_visible_submeshes();
-        let rows = self.cdmw_state["mesh_islands"]["fit_parts"].as_array().cloned().unwrap_or_default();
+        let rows = self.cdmw_state["mesh_islands"]["fit_parts"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         let faces_of = |island: &Value| value_u32_list(island, "faces");
         ui.horizontal_wrapped(|ui| {
-            if ui.button(crate::localization::tr("Select islands")).clicked() {
-                let islands = rows.iter().filter_map(|row| Some((row["index"].as_u64()? as u32, row["islands"].as_array()?)))
+            if ui
+                .button(crate::localization::tr("Select islands"))
+                .clicked()
+            {
+                let islands = rows
+                    .iter()
+                    .filter_map(|row| {
+                        Some((row["index"].as_u64()? as u32, row["islands"].as_array()?))
+                    })
                     .filter(|(part, _)| garments.contains(part))
-                    .flat_map(|(part, groups)| groups.iter().map(move |island| (part, faces_of(island))))
+                    .flat_map(|(part, groups)| {
+                        groups.iter().map(move |island| (part, faces_of(island)))
+                    })
                     .collect();
                 actions.push(UiAction::SelectIslands(islands));
             }
-            if ui.button(crate::localization::tr("Clear selection")).clicked() {
+            if ui
+                .button(crate::localization::tr("Clear selection"))
+                .clicked()
+            {
                 actions.push(UiAction::SelectIslands(Vec::new()));
             }
         });
         for row in rows {
-            let Some(part) = row["index"].as_u64().map(|index| index as u32) else { continue; };
-            if !garments.contains(&part) { continue; }
-            let parent = state["refit"]["garment_settings"].as_array().into_iter().flatten()
+            let Some(part) = row["index"].as_u64().map(|index| index as u32) else {
+                continue;
+            };
+            if !garments.contains(&part) {
+                continue;
+            }
+            let parent = state["refit"]["garment_settings"]
+                .as_array()
+                .into_iter()
+                .flatten()
                 .find(|setting| setting["submesh_index"].as_u64() == Some(u64::from(part)));
             ui.push_id(("fit-islands", part), |ui| {
                 let heading = ui.add(egui::AtomLayout::new(self.cdmw_part_name_atoms(part,
@@ -294,29 +365,59 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_refit_body_region(
-        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value, edit_targets: &[u32],
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
+        edit_targets: &[u32],
     ) {
         let refit = state.get("refit").unwrap_or(&Value::Null);
         let garments = value_u32_list(refit, "garment_submesh_indices");
-        self.cdmw_refit_region_targets.retain(|part| garments.contains(part));
+        self.cdmw_refit_region_targets
+            .retain(|part| garments.contains(part));
         // The host serializes garment_regions as [garment_index, regions] pairs.
-        let restricted = refit.get("garment_regions").and_then(Value::as_array).into_iter().flatten()
-            .filter(|pair| pair.get(1).and_then(Value::as_array).is_some_and(|regions| !regions.is_empty())).count();
-        let summary = if restricted == 0 { crate::localization::tr("Whole body") }
-            else { cdmw_count(restricted, "1 restricted Part", "{} restricted Parts") };
+        let restricted = refit
+            .get("garment_regions")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|pair| {
+                pair.get(1)
+                    .and_then(Value::as_array)
+                    .is_some_and(|regions| !regions.is_empty())
+            })
+            .count();
+        let summary = if restricted == 0 {
+            crate::localization::tr("Whole body")
+        } else {
+            cdmw_count(restricted, "1 restricted Part", "{} restricted Parts")
+        };
         let title = format!("{} · {summary}", crate::localization::tr("Body region"));
         cdmw_section(ui, "refit-body-region", &title, None, |ui| {
-            ui.weak(crate::localization::tr("Choose target garments, then select the body faces they may follow."));
-            if ui.add_enabled(!edit_targets.is_empty(), Button::new(crate::localization::tr("Use editing targets")))
-                .on_hover_text(crate::localization::tr("Capture the garments from Editing without changing the viewport selection.")).clicked()
-            { self.cdmw_refit_region_targets = edit_targets.to_vec(); }
+            ui.weak(crate::localization::tr(
+                "Choose target garments, then select the body faces they may follow.",
+            ));
+            if ui
+                .add_enabled(
+                    !edit_targets.is_empty(),
+                    Button::new(crate::localization::tr("Use editing targets")),
+                )
+                .on_hover_text(crate::localization::tr(
+                    "Capture the garments from Editing without changing the viewport selection.",
+                ))
+                .clicked()
+            {
+                self.cdmw_refit_region_targets = edit_targets.to_vec();
+            }
             for part in &garments {
                 let mut checked = self.cdmw_refit_region_targets.contains(part);
                 let name = self.cdmw_morph_part_names(&[*part]);
-                let row = ui.scope(|ui| {
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                    ui.checkbox(&mut checked, self.cdmw_part_name_atoms(*part, &name))
-                }).inner;
+                let row = ui
+                    .scope(|ui| {
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                        ui.checkbox(&mut checked, self.cdmw_part_name_atoms(*part, &name))
+                    })
+                    .inner;
                 self.track_cdmw_part_hover(ui, *part, &row);
                 if row.on_hover_text(&name)
                     .on_hover_text(crate::localization::tr("Choose garments for the body-region buttons below. Your body selection is kept.")).changed()
@@ -325,34 +426,51 @@ impl LabApplication {
                     else { self.cdmw_refit_region_targets.retain(|candidate| candidate != part); }
                 }
             }
-            ui.weak(cdmw_count(self.cdmw_refit_region_targets.len(), "1 target garment", "{} target garments"));
+            ui.weak(cdmw_count(
+                self.cdmw_refit_region_targets.len(),
+                "1 target garment",
+                "{} target garments",
+            ));
             ui.horizontal_wrapped(|ui| {
                 let body = value_u32_list(state, "driver_submesh_indices");
-                if ui.add_enabled(!body.is_empty(), Button::new(crate::localization::tr("Select body"))).clicked() {
+                if ui
+                    .add_enabled(
+                        !body.is_empty(),
+                        Button::new(crate::localization::tr("Select body")),
+                    )
+                    .clicked()
+                {
                     actions.push(UiAction::SetPartSelection(body));
                 }
-                if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+                if ui
+                    .button(crate::localization::tr("Open Selection tool"))
+                    .clicked()
+                {
                     self.cancel_active_gesture("Open body region selection");
                     self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
                 }
             });
             if state_bool(state, "unbaked") {
-                ui.weak(crate::localization::tr("Reset or Bake before changing the body region."));
+                ui.weak(crate::localization::tr(
+                    "Reset or Bake before changing the body region.",
+                ));
             }
             let targets = self.cdmw_refit_region_targets.clone();
             let ready = state_bool(&self.cdmw_state, "authoring_enabled")
                 && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty())
-                && !state_bool(state, "unbaked") && !targets.is_empty();
+                && !state_bool(state, "unbaked")
+                && !targets.is_empty();
             ui.horizontal_wrapped(|ui| {
                 let help = if state_bool(state, "unbaked") {
                     "Region changes require a neutral fit. Other garments keep their bindings."
                 } else {
                     "Check garments, select the body faces they may follow, then apply the region."
                 };
-                if ui.add_enabled(
-                    ready && self.selected_counts().total() > 0,
-                    Button::new(crate::localization::tr("Use selected body region")),
-                )
+                if ui
+                    .add_enabled(
+                        ready && self.selected_counts().total() > 0,
+                        Button::new(crate::localization::tr("Use selected body region")),
+                    )
                     .on_disabled_hover_text(crate::localization::tr(help))
                     .clicked()
                 {
@@ -362,7 +480,11 @@ impl LabApplication {
                         label: "Constrain garment binding to body region",
                     });
                 }
-                if ui.add_enabled(ready, Button::new(crate::localization::tr("Use whole body")))
+                if ui
+                    .add_enabled(
+                        ready,
+                        Button::new(crate::localization::tr("Use whole body")),
+                    )
                     .on_disabled_hover_text(crate::localization::tr(help))
                     .clicked()
                 {
@@ -383,14 +505,30 @@ impl LabApplication {
         state: &Value,
         definition_id: &str,
     ) {
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
-        let targets: Vec<u32> = self.selected_part_indices().into_iter()
-            .filter(|part| garments.contains(part)).collect();
-        let corrected = state.get("definitions").and_then(Value::as_array)
-            .and_then(|definitions| definitions.iter().find(|definition| state_str(definition, "definition_id") == Some(definition_id)))
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
+        let targets: Vec<u32> = self
+            .selected_part_indices()
+            .into_iter()
+            .filter(|part| garments.contains(part))
+            .collect();
+        let corrected = state
+            .get("definitions")
+            .and_then(Value::as_array)
+            .and_then(|definitions| {
+                definitions.iter().find(|definition| {
+                    state_str(definition, "definition_id") == Some(definition_id)
+                })
+            })
             .map(|definition| value_u32_list(definition, "garment_correction_submesh_indices"))
             .unwrap_or_default();
-        let reset_targets: Vec<u32> = targets.iter().copied().filter(|part| corrected.contains(part)).collect();
+        let reset_targets: Vec<u32> = targets
+            .iter()
+            .copied()
+            .filter(|part| corrected.contains(part))
+            .collect();
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
             && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty())
@@ -435,21 +573,33 @@ impl LabApplication {
     ) {
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let profile = state_str(state, "profile_id").unwrap_or("");
-        let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         let pending = state_bool(state, "authoring_baseline_ready")
             || state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
         ui.horizontal_wrapped(|ui| {
-            if ui.add_enabled(
-                authoring && !pending && !profile.is_empty() && !garments.is_empty()
-                    && !self.cdmw_morph_preset_name.trim().is_empty(),
-                Button::new(crate::localization::tr("Save fitting setup...")),
-            ).clicked() {
+            if ui
+                .add_enabled(
+                    authoring
+                        && !pending
+                        && !profile.is_empty()
+                        && !garments.is_empty()
+                        && !self.cdmw_morph_preset_name.trim().is_empty(),
+                    Button::new(crate::localization::tr("Save fitting setup...")),
+                )
+                .clicked()
+            {
                 actions.push(UiAction::ChooseCdmwRefitRecipe { save: true });
             }
-            if ui.add_enabled(
-                authoring && !pending && !state_bool(state, "unbaked"),
-                Button::new(crate::localization::tr("Load fitting setup...")),
-            ).clicked() {
+            if ui
+                .add_enabled(
+                    authoring && !pending && !state_bool(state, "unbaked"),
+                    Button::new(crate::localization::tr("Load fitting setup...")),
+                )
+                .clicked()
+            {
                 actions.push(UiAction::ChooseCdmwRefitRecipe { save: false });
             }
         });

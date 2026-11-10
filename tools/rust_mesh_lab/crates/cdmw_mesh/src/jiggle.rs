@@ -87,7 +87,9 @@ impl Simulation {
             || rest.len() > 100_000
             || indices.len() > 600_000
             || rest.len() != weights.len()
-            || weights.iter().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+            || weights
+                .iter()
+                .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
             || !indices.len().is_multiple_of(3)
             || indices.iter().any(|i| *i as usize >= rest.len())
             || rest.iter().flatten().any(|v| !v.is_finite())
@@ -160,9 +162,10 @@ impl Simulation {
     }
 
     pub fn positions(&self) -> impl Iterator<Item = [f32; 3]> + '_ {
-        self.positions.iter().enumerate().map(|(i, p)| {
-            self.targets[i].lerp(*p, self.weights[i]).to_array()
-        })
+        self.positions
+            .iter()
+            .enumerate()
+            .map(|(i, p)| self.targets[i].lerp(*p, self.weights[i]).to_array())
     }
 
     pub fn rotation(&self, motion: Motion) -> Quat {
@@ -180,7 +183,10 @@ impl Simulation {
             Motion::Freehand(offset) => (Quat::IDENTITY, offset),
             Motion::UpDown => {
                 let bounce = (self.elapsed % 1.2) as f32 * std::f32::consts::TAU / 1.2;
-                (Quat::IDENTITY, Vec3::Y * self.scale * 0.06 * (1.0 - bounce.cos()))
+                (
+                    Quat::IDENTITY,
+                    Vec3::Y * self.scale * 0.06 * (1.0 - bounce.cos()),
+                )
             }
             Motion::StartStop => {
                 let fraction = if phase < 0.6 {
@@ -232,7 +238,8 @@ impl Simulation {
         let dt = STEP as f32;
         let (rotation, translation) = self.pose(motion);
         self.motion_transform = glam::Mat4::from_rotation_translation(
-            rotation, self.pivot + translation - rotation * self.pivot,
+            rotation,
+            self.pivot + translation - rotation * self.pivot,
         );
         let omega = (5.0 - 3.5 * settings.softness) * std::f32::consts::TAU;
         let damping = 0.15 + settings.damping * 1.35;
@@ -297,8 +304,10 @@ mod tests {
         let mut full = Simulation::new(&positions, &[0, 1, 2], vec![1.0; 3]).unwrap();
         let mut half = Simulation::new(&positions, &[0, 1, 2], vec![0.5; 3]).unwrap();
         for _ in 0..90 {
-            full.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
-            half.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            full.advance(STEP, Motion::UpDown, Settings::default())
+                .unwrap();
+            half.advance(STEP, Motion::UpDown, Settings::default())
+                .unwrap();
             for (i, (a, b)) in full.positions().zip(half.positions()).enumerate() {
                 let expected = full.targets[i] + (Vec3::from(a) - full.targets[i]) * 0.5;
                 assert!(Vec3::from(b).distance(expected) < 1e-6);
@@ -328,8 +337,11 @@ mod tests {
         let mut went_down = false;
         let mut lagged = false;
         for _ in 0..288 {
-            soft.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
-            rigid.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            soft.advance(STEP, Motion::UpDown, Settings::default())
+                .unwrap();
+            rigid
+                .advance(STEP, Motion::UpDown, Settings::default())
+                .unwrap();
             let next_height = rigid.positions[0].y;
             went_up |= next_height > height + 1e-5;
             went_down |= next_height < height - 1e-5;

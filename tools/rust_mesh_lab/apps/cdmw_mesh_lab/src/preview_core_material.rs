@@ -319,7 +319,8 @@ mod work {
                 } else {
                     working_bytes(&job.material, resources, &cache)?
                 };
-                if !ready.is_empty() && bytes.saturating_add(estimate) > MAX_RESIZED_MATERIAL_BYTES {
+                if !ready.is_empty() && bytes.saturating_add(estimate) > MAX_RESIZED_MATERIAL_BYTES
+                {
                     break;
                 }
                 bytes = bytes.saturating_add(estimate);
@@ -353,10 +354,13 @@ mod work {
                         let handle = std::thread::Builder::new()
                             .name("cdmw-material".into())
                             .spawn_scoped(scope, move || {
-                                let result =
-                                    prepare(&job.material, presentations, resources, cache, &|| {
-                                        stop.load(Ordering::Relaxed)
-                                    });
+                                let result = prepare(
+                                    &job.material,
+                                    presentations,
+                                    resources,
+                                    cache,
+                                    &|| stop.load(Ordering::Relaxed),
+                                );
                                 if result.is_err() {
                                     stop.store(true, Ordering::Relaxed);
                                 }
@@ -777,7 +781,6 @@ mod work {
     }
 }
 
-
 const MAX_DECODED_SOURCE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_SOURCE_DECODER_WORKERS: usize = 4;
 const MAX_RESIZED_MATERIAL_BYTES: u64 = 512 * 1024 * 1024;
@@ -1002,7 +1005,10 @@ impl ImageCache {
     }
 
     fn transformed(
-        &mut self, reference: &FileReference, width: u32, height: u32,
+        &mut self,
+        reference: &FileReference,
+        width: u32,
+        height: u32,
         layer: &PreviewCoreMaterialLayer,
     ) -> Result<ImagePixels, SessionError> {
         let affine = layer.sampling_transform();
@@ -1011,11 +1017,17 @@ impl ImageCache {
         }
         let bytes = u64::from(width) * u64::from(height) * 4;
         if self.resized_bytes.saturating_add(bytes) > MAX_RESIZED_MATERIAL_BYTES {
-            return Err(SessionError::InvalidPayload("Transformed material sources exceed the 512 MiB limit".into()));
+            return Err(SessionError::InvalidPayload(
+                "Transformed material sources exceed the 512 MiB limit".into(),
+            ));
         }
         let pixels = sample_affine_repeat(self.image(reference)?, width, height, affine)?;
         // This buffer is transient for one layer; retained cache bytes are unchanged.
-        Ok(ImagePixels(Arc::new(DecodedRgba8 { width, height, pixels })))
+        Ok(ImagePixels(Arc::new(DecodedRgba8 {
+            width,
+            height,
+            pixels,
+        })))
     }
 
     fn resized(
@@ -1065,25 +1077,37 @@ impl ImageCache {
     }
 }
 
-fn sample_affine_repeat(image: &DecodedRgba8, width: u32, height: u32, a: [f32; 6]) -> Result<Vec<u8>, SessionError> {
+fn sample_affine_repeat(
+    image: &DecodedRgba8,
+    width: u32,
+    height: u32,
+    a: [f32; 6],
+) -> Result<Vec<u8>, SessionError> {
     let mut result = vec![0; checked_pixel_count(width, height)?.saturating_mul(4)];
     for y in 0..height {
         for x in 0..width {
             let u = (x as f32 + 0.5) / width as f32;
             let v = (y as f32 + 0.5) / height as f32;
-            let sx = (a[0]*u + a[2]*v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
-            let sy = (a[1]*u + a[3]*v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
+            let sx = (a[0] * u + a[2] * v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
+            let sy = (a[1] * u + a[3] * v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
             let ix = sx.floor() as i64;
             let iy = sy.floor() as i64;
             let tx = sx - sx.floor();
             let ty = sy - sy.floor();
             let at = |dx: i64, dy: i64, c: usize| {
-                let x = (ix+dx).rem_euclid(i64::from(image.width)) as usize;
-                let y = (iy+dy).rem_euclid(i64::from(image.height)) as usize;
-                f32::from(image.pixels[(y*image.width as usize+x)*4+c])
+                let x = (ix + dx).rem_euclid(i64::from(image.width)) as usize;
+                let y = (iy + dy).rem_euclid(i64::from(image.height)) as usize;
+                f32::from(image.pixels[(y * image.width as usize + x) * 4 + c])
             };
             for c in 0..4 {
-                result[((y*width+x)*4) as usize+c] = mix(mix(at(0,0,c), at(1,0,c), tx), mix(at(0,1,c),at(1,1,c),tx),ty).round().clamp(0.0,255.0) as u8;
+                result[((y * width + x) * 4) as usize + c] = mix(
+                    mix(at(0, 0, c), at(1, 0, c), tx),
+                    mix(at(0, 1, c), at(1, 1, c), tx),
+                    ty,
+                )
+                .round()
+                .clamp(0.0, 255.0)
+                    as u8;
             }
         }
     }
@@ -1092,10 +1116,23 @@ fn sample_affine_repeat(image: &DecodedRgba8, width: u32, height: u32, a: [f32; 
 
 #[test]
 fn affine_resampling_wraps_offsets_and_rotation() {
-    let image = DecodedRgba8 { width: 2, height: 1, pixels: vec![255,0,0,255, 0,0,255,255] };
-    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,0.0,0.0,0.0,0.25,0.5]).unwrap(), [255,0,0,255]);
-    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,1.0,-1.0,0.0,0.25,-0.5]).unwrap(), [0,0,255,255]);
-    assert_eq!(sample_affine_repeat(&image,1,1,[0.0,0.0,0.0,0.0,-0.25,0.5]).unwrap(), [0,0,255,255]);
+    let image = DecodedRgba8 {
+        width: 2,
+        height: 1,
+        pixels: vec![255, 0, 0, 255, 0, 0, 255, 255],
+    };
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 0.0, 0.0, 0.0, 0.25, 0.5]).unwrap(),
+        [255, 0, 0, 255]
+    );
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 1.0, -1.0, 0.0, 0.25, -0.5]).unwrap(),
+        [0, 0, 255, 255]
+    );
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 0.0, 0.0, 0.0, -0.25, 0.5]).unwrap(),
+        [0, 0, 255, 255]
+    );
 }
 
 #[cfg(test)]
@@ -1131,7 +1168,12 @@ where
     F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
 {
     work::compose(
-        graph, presentations, document, resources, &mut read_reference, cancelled,
+        graph,
+        presentations,
+        document,
+        resources,
+        &mut read_reference,
+        cancelled,
     )
 }
 
@@ -1142,17 +1184,27 @@ fn apply_authored_channel(
     role: TextureRole,
     channel: usize,
 ) -> Result<(), SessionError> {
-    let sources: Vec<_> = resources.iter().filter(|resource| {
-        resource.role == role && resource.material_indices_by_lod
-            .get(material.lod_index as usize)
-            .is_some_and(|owners| owners.contains(&material.material_index))
-    }).collect();
+    let sources: Vec<_> = resources
+        .iter()
+        .filter(|resource| {
+            resource.role == role
+                && resource
+                    .material_indices_by_lod
+                    .get(material.lod_index as usize)
+                    .is_some_and(|owners| owners.contains(&material.material_index))
+        })
+        .collect();
     if sources.len() != 1 {
-        return Err(SessionError::InvalidPayload("Painted material channel requires one owned source texture".to_owned()));
+        return Err(SessionError::InvalidPayload(
+            "Painted material channel requires one owned source texture".to_owned(),
+        ));
     }
     let authored = decode_dds_rgba8(&sources[0].bytes, role)
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-    let (width, height) = (composed.width.max(authored.width), composed.height.max(authored.height));
+    let (width, height) = (
+        composed.width.max(authored.width),
+        composed.height.max(authored.height),
+    );
     checked_pixel_count(width, height)?;
     let mut pixels = resize_rgba8(composed, width, height)?;
     let authored = resize_rgba8(&authored, width, height)?;
@@ -1170,14 +1222,24 @@ fn map_needs_composition(
     resources: &[CdmwTextureResource],
     map: LayerMap,
 ) -> bool {
-    if !material.layers.iter().any(|layer| map.reference(layer).is_some()) {
+    if !material
+        .layers
+        .iter()
+        .any(|layer| map.reference(layer).is_some())
+    {
         return false;
     }
     match map {
         LayerMap::Diffuse => {
-            material.layers.iter().skip(1)
+            material
+                .layers
+                .iter()
+                .skip(1)
                 .any(|layer| layer.layer_role == "color_seed" || layer.diffuse.is_some())
-                || !material.layers.first().and_then(|layer| layer.diffuse.as_ref())
+                || !material
+                    .layers
+                    .first()
+                    .and_then(|layer| layer.diffuse.as_ref())
                     .is_some_and(|reference| {
                         resource_matches(resources, TextureRole::BaseColor, material, reference)
                     })
@@ -1188,7 +1250,11 @@ fn map_needs_composition(
                 LayerMap::Normal => TextureRole::Normal,
                 _ => TextureRole::Height,
             };
-            material.layers.iter().skip(1).any(|layer| map.reference(layer).is_some())
+            material
+                .layers
+                .iter()
+                .skip(1)
+                .any(|layer| map.reference(layer).is_some())
                 || !resource_owns(resources, role, material.lod_index, material.material_index)
         }
     }
@@ -1278,7 +1344,14 @@ fn compose_base_color(
                 unit(overlay[offset + 1]),
                 unit(overlay[offset + 2]),
             ];
-            let output = if layer.layer_role == "detail" && tint_active {
+            let output = if layer.layer_role == "overlay"
+                && layer.shader_family.eq_ignore_ascii_case("SkinnedMeshEye")
+                && matches!(
+                    layer.source_parameter.as_str(),
+                    "_irisDiffuseTexture" | "_pupilTexture"
+                ) {
+                std::array::from_fn(|k| mix_srgb_in_linear(base[k], source[k], coverage))
+            } else if layer.layer_role == "detail" && tint_active {
                 let luma =
                     (0.299 * source[0] + 0.587 * source[1] + 0.114 * source[2]).clamp(0.0, 1.0);
                 let modulation = 0.82 + 0.36 * luma;
@@ -1885,6 +1958,22 @@ fn mix(left: f32, right: f32, amount: f32) -> f32 {
     left * (1.0 - amount) + right * amount
 }
 
+fn mix_srgb_in_linear(left: f32, right: f32, amount: f32) -> f32 {
+    let linear = |v: f32| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let value = mix(linear(left), linear(right), amount);
+    if value <= 0.0031308 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
+}
+
 fn resource_matches(
     resources: &[CdmwTextureResource],
     role: TextureRole,
@@ -2275,14 +2364,16 @@ mod tests {
             assert_eq!(actual.height, expected.height);
             assert_eq!(actual.pixels, expected.pixels);
         }
-        assert!(ImageCache::preload(&graph, &required, |reference| {
-            if reference.sha256 == *files.keys().nth(4).unwrap() {
-                Err(SessionError::InvalidPayload("cancelled source read".into()))
-            } else {
-                Ok(files[&reference.sha256].clone())
-            }
-        })
-        .is_err());
+        assert!(
+            ImageCache::preload(&graph, &required, |reference| {
+                if reference.sha256 == *files.keys().nth(4).unwrap() {
+                    Err(SessionError::InvalidPayload("cancelled source read".into()))
+                } else {
+                    Ok(files[&reference.sha256].clone())
+                }
+            })
+            .is_err()
+        );
         assert!(
             matches!(ImageCache::preload(&graph, &required, |reference| {
             let mut bytes = files[&reference.sha256].clone();
@@ -2506,18 +2597,31 @@ mod tests {
 
     #[test]
     fn authored_channels_survive_full_graph_composition_without_changing_other_owners() {
-        let source = encode_rgba8_mipmapped_dds(2, 2, &[32, 90, 170, 220].repeat(4), TextureRole::Material).unwrap();
+        let source =
+            encode_rgba8_mipmapped_dds(2, 2, &[32, 90, 170, 220].repeat(4), TextureRole::Material)
+                .unwrap();
         let original = reference(0, &source);
         let mut base = layer("base", "r");
         base.diffuse = Some(original.clone());
         base.material = Some(original);
         let mut graph = PreviewCoreMaterialGraph {
-            schema_version: 1, graph_version: 4, semantics_version: 10,
-            quality: "full".to_owned(), resources_included: true, source_edge_count: 2,
-            unique_resource_count: 1, copied_resource_count: 0, unique_resource_bytes: source.len() as u64,
+            schema_version: 1,
+            graph_version: 4,
+            semantics_version: 10,
+            quality: "full".to_owned(),
+            resources_included: true,
+            source_edge_count: 2,
+            unique_resource_count: 1,
+            copied_resource_count: 0,
+            unique_resource_bytes: source.len() as u64,
             materials: vec![PreviewCoreMaterial {
-                lod_index: 0, material_index: 0, material_slot_index: 0,
-                material_name: "test".to_owned(), base_color: [1.0; 3], layers: vec![base], authoring_channels: 0,
+                lod_index: 0,
+                material_index: 0,
+                material_slot_index: 0,
+                material_name: "test".to_owned(),
+                base_color: [1.0; 3],
+                layers: vec![base],
+                authoring_channels: 0,
             }],
         };
         let painted_pixels = [201, 1, 2, 17, 3, 1, 2, 239].repeat(4);
@@ -2525,31 +2629,76 @@ mod tests {
         for role in [TextureRole::BaseColor, TextureRole::Material] {
             let bytes = encode_rgba8_mipmapped_dds(4, 2, &painted_pixels, role).unwrap();
             inputs.push(CdmwTextureResource {
-                label: "owned paint".to_owned(), role, metadata: inspect_dds(&bytes, role).unwrap(),
-                bytes, material_indices_by_lod: vec![vec![0, 1]],
+                label: "owned paint".to_owned(),
+                role,
+                metadata: inspect_dds(&bytes, role).unwrap(),
+                bytes,
+                material_indices_by_lod: vec![vec![0, 1]],
             });
         }
         let mut baseline = inputs.clone();
-        compose_preview_core_material_resources(&graph, &[], &document(), &mut baseline, |_| Ok(source.clone())).unwrap();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut baseline, |_| {
+            Ok(source.clone())
+        })
+        .unwrap();
         graph.materials[0].authoring_channels = 3;
         let mut painted = inputs.clone();
-        compose_preview_core_material_resources(&graph, &[], &document(), &mut painted, |_| Ok(source.clone())).unwrap();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut painted, |_| {
+            Ok(source.clone())
+        })
+        .unwrap();
         for (role, channel) in [(TextureRole::BaseColor, 3), (TextureRole::Material, 0)] {
             let owned = |resources: &[CdmwTextureResource]| {
-                let resource = resources.iter().find(|row| row.role == role && row.material_indices_by_lod[0].contains(&0)).unwrap();
+                let resource = resources
+                    .iter()
+                    .find(|row| row.role == role && row.material_indices_by_lod[0].contains(&0))
+                    .unwrap();
                 decode_dds_rgba8(&resource.bytes, role).unwrap()
             };
             let actual = owned(&painted);
             assert_eq!((actual.width, actual.height), (4, 2));
             let expected = resize_rgba8(&owned(&baseline), 4, 2).unwrap();
-            for ((pixel, composed), authored) in actual.pixels.chunks_exact(4).zip(expected.chunks_exact(4)).zip(painted_pixels.chunks_exact(4)) {
-                for lane in 0..4 { assert_eq!(pixel[lane], if lane == channel { authored[lane] } else { composed[lane] }); }
+            for ((pixel, composed), authored) in actual
+                .pixels
+                .chunks_exact(4)
+                .zip(expected.chunks_exact(4))
+                .zip(painted_pixels.chunks_exact(4))
+            {
+                for lane in 0..4 {
+                    assert_eq!(
+                        pixel[lane],
+                        if lane == channel {
+                            authored[lane]
+                        } else {
+                            composed[lane]
+                        }
+                    );
+                }
             }
-            let untouched = painted.iter().find(|row| row.role == role && row.material_indices_by_lod[0] == vec![1]).unwrap();
-            assert_eq!(untouched.bytes, inputs.iter().find(|row| row.role == role).unwrap().bytes);
+            let untouched = painted
+                .iter()
+                .find(|row| row.role == role && row.material_indices_by_lod[0] == vec![1])
+                .unwrap();
+            assert_eq!(
+                untouched.bytes,
+                inputs.iter().find(|row| row.role == role).unwrap().bytes
+            );
         }
-        let mut image = DecodedRgba8 { width: 1, height: 1, pixels: vec![255; 4] };
-        assert!(apply_authored_channel(&mut image, &[], &graph.materials[0], TextureRole::Material, 0).is_err());
+        let mut image = DecodedRgba8 {
+            width: 1,
+            height: 1,
+            pixels: vec![255; 4],
+        };
+        assert!(
+            apply_authored_channel(
+                &mut image,
+                &[],
+                &graph.materials[0],
+                TextureRole::Material,
+                0
+            )
+            .is_err()
+        );
     }
 
     #[test]

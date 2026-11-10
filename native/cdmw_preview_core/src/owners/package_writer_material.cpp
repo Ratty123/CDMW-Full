@@ -166,18 +166,19 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
             + ": raw equipment texture-layer albedo muted because no visible sidecar tint was decoded");
     }
     if (batch.color_is_batch_palette) {
-        // No albedo texture, no authored tint, no visible layer: the source says
-        // nothing about this surface's colour. The renderer shows the published
-        // colour directly when no base map is bound, so publish a neutral grey
-        // instead of the per-batch palette hue. Some shipped assets reference
-        // textures that were never built -- cd_phm_02_cannon_ball_0065 is one --
-        // and painting those peach or mauve reads as a material defect rather
-        // than as absent source. The geometry blob keeps its palette colour, so
-        // the untextured view still separates submeshes.
-        batch.color = {0.62f, 0.62f, 0.62f};
-        state.package.base_quality_notes.push_back(
-            "batch " + std::to_string(batch.index) + " " + mesh.material
-            + ": neutral placeholder albedo because the source declares no base texture, tint, or visible layer");
+        // The geometry palette is not an authored texture tint. A real source
+        // map needs a neutral multiplier; grey is only for absent colour maps.
+        const bool has_source_colour = std::any_of(
+            batch.material_layers.begin(), batch.material_layers.end(),
+            [](const MaterialLayer& layer) { return !layer.diffuse_source.empty(); });
+        batch.color = has_source_colour
+            ? std::array<float, 3>{1.0f, 1.0f, 1.0f}
+            : std::array<float, 3>{0.62f, 0.62f, 0.62f};
+        if (!has_source_colour) {
+            state.package.base_quality_notes.push_back(
+                "batch " + std::to_string(batch.index) + " " + mesh.material
+                + ": neutral placeholder albedo because the source declares no base texture, tint, or visible layer");
+        }
     }
     batch.material_response_promoted = batch.material_category == "metal"
         && promoted_global_material_response(batch.material);

@@ -3,13 +3,13 @@
 use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
+mod delete_guidance;
+mod keyboard;
 mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;
 mod morph_workflow;
 mod refit_diagnostics;
-mod delete_guidance;
-mod keyboard;
 #[cfg(test)]
 mod theme_readability;
 
@@ -486,8 +486,13 @@ pub(super) mod layout {
     }
 
     pub(crate) fn auto_open_parts_on_hover(context: &Context) -> bool {
-        context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default()
-            .values["auto_open_parts_on_hover"].as_bool().unwrap_or(false))
+        context.data_mut(|data| {
+            data.get_temp::<Layout>(state_id())
+                .unwrap_or_default()
+                .values["auto_open_parts_on_hover"]
+                .as_bool()
+                .unwrap_or(false)
+        })
     }
 
     pub(crate) fn set_auto_open_parts_on_hover(context: &Context, enabled: bool) {
@@ -505,7 +510,10 @@ pub(super) mod layout {
             let point = &layout.values["floating"][key];
             match (point[0].as_f64(), point[1].as_f64()) {
                 (Some(x), Some(y))
-                    if x.is_finite() && y.is_finite() && x.abs() <= 32768.0 && y.abs() <= 32768.0 =>
+                    if x.is_finite()
+                        && y.is_finite()
+                        && x.abs() <= 32768.0
+                        && y.abs() <= 32768.0 =>
                 {
                     egui::pos2(x as f32, y as f32)
                 }
@@ -620,7 +628,10 @@ pub(super) mod layout {
             assert!(!auto_open_parts_on_hover(&context));
             restore(&context, &json!({"auto_open_parts_on_hover": "false"}));
             assert!(!auto_open_parts_on_hover(&context));
-            restore(&context, &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}));
+            restore(
+                &context,
+                &json!({PANELS[0]: 310.0, "floating": {"Viewport": [120.0, 180.0]}}),
+            );
             for enabled in [false, true] {
                 set_auto_open_parts_on_hover(&context, enabled);
                 let saved = changed(&context).expect("preference change must be saved");
@@ -780,7 +791,14 @@ fn cdmw_sidebar_button(
     selected: bool,
     minimum_size: f32,
 ) -> egui::Response {
-    cdmw_sidebar_button_with_tooltip(ui, label, crate::localization::tr(label), icon, selected, minimum_size)
+    cdmw_sidebar_button_with_tooltip(
+        ui,
+        label,
+        crate::localization::tr(label),
+        icon,
+        selected,
+        minimum_size,
+    )
 }
 
 /// `tooltip` adds a shortcut hint; `label` stays the widget's stable name.
@@ -1062,7 +1080,12 @@ const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
 const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
 
 const REFIT_SETTING_KEYS: [&str; 6] = [
-    "enabled", "mode", "intensity_percent", "tightness_percent", "clearance_percent", "skin_pull_percent",
+    "enabled",
+    "mode",
+    "intensity_percent",
+    "tightness_percent",
+    "clearance_percent",
+    "skin_pull_percent",
 ];
 
 pub(super) struct RefitFeedback {
@@ -1079,12 +1102,18 @@ pub(super) struct PartHoverTarget {
     pub island_faces: Option<Vec<u32>>,
 }
 
-pub(super) fn cdmw_colour_name_atoms<'a>(label: impl egui::IntoAtoms<'a>, colour: Option<[f32; 4]>) -> egui::Atoms<'a> {
+pub(super) fn cdmw_colour_name_atoms<'a>(
+    label: impl egui::IntoAtoms<'a>,
+    colour: Option<[f32; 4]>,
+) -> egui::Atoms<'a> {
     let mut atoms = egui::Atoms::new(label);
     if let Some([r, g, b, _]) = colour {
         let white = egui::epaint::WHITE_UV;
-        atoms.push_left(egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
-            .uv(egui::Rect::from_min_max(white, white)).tint(Color32::from(egui::Rgba::from_rgb(r, g, b))));
+        atoms.push_left(
+            egui::Image::new((egui::TextureId::default(), egui::vec2(10.0, 10.0)))
+                .uv(egui::Rect::from_min_max(white, white))
+                .tint(Color32::from(egui::Rgba::from_rgb(r, g, b))),
+        );
     }
     atoms
 }
@@ -1099,13 +1128,17 @@ pub(super) struct PartNameRow {
 
 impl PartNameRow {
     fn matches(&self, part: u32, source_face: Option<u32>) -> bool {
-        self.part == part && self.island_faces.as_ref().is_none_or(|faces|
-            source_face.is_some_and(|face| faces.contains(&face)))
+        self.part == part
+            && self
+                .island_faces
+                .as_ref()
+                .is_none_or(|faces| source_face.is_some_and(|face| faces.contains(&face)))
     }
 
     fn fully_visible(&self) -> bool {
-        self.clip_rect.is_positive() && self.response.rect.intersect(self.clip_rect).height() + 0.5
-            >= self.response.rect.height().min(self.clip_rect.height())
+        self.clip_rect.is_positive()
+            && self.response.rect.intersect(self.clip_rect).height() + 0.5
+                >= self.response.rect.height().min(self.clip_rect.height())
     }
 }
 
@@ -1156,13 +1189,22 @@ impl RefitSettingsEdits {
 }
 
 fn refit_setting_values(setting: Option<&Value>) -> Value {
-    let mode = setting.and_then(|row| row.get("mode")).and_then(Value::as_str).unwrap_or("surface");
+    let mode = setting
+        .and_then(|row| row.get("mode"))
+        .and_then(Value::as_str)
+        .unwrap_or("surface");
     let tightness = if mode != "rigid"
-        && setting.and_then(|row| row.get("tightness_initialized")).and_then(Value::as_bool) == Some(false)
+        && setting
+            .and_then(|row| row.get("tightness_initialized"))
+            .and_then(Value::as_bool)
+            == Some(false)
     {
         100.0
     } else {
-        setting.and_then(|row| row.get("tightness_percent")).and_then(Value::as_f64).unwrap_or(0.0)
+        setting
+            .and_then(|row| row.get("tightness_percent"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
     };
     json!({
         "enabled": setting.and_then(|row| row.get("enabled")).and_then(Value::as_bool).unwrap_or(true),
@@ -1175,17 +1217,33 @@ fn refit_setting_values(setting: Option<&Value>) -> Value {
 }
 
 fn refit_mixed_fields(refit: &Value, targets: &[u32]) -> std::collections::BTreeSet<&'static str> {
-    let rows = refit.get("garment_settings").and_then(Value::as_array)
-        .into_iter().flatten().filter_map(|row| {
-            row.get("submesh_index").and_then(Value::as_u64).map(|index| (index, row))
-        }).collect::<std::collections::HashMap<_, _>>();
-    let values = targets.iter().map(|index| {
-        refit_setting_values(rows.get(&u64::from(*index)).copied())
-    }).collect::<Vec<_>>();
-    let Some(first) = values.first() else { return Default::default(); };
-    REFIT_SETTING_KEYS.into_iter().filter(|key| {
-        values.iter().skip(1).any(|value| value.get(*key) != first.get(*key))
-    }).collect()
+    let rows = refit
+        .get("garment_settings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|row| {
+            row.get("submesh_index")
+                .and_then(Value::as_u64)
+                .map(|index| (index, row))
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    let values = targets
+        .iter()
+        .map(|index| refit_setting_values(rows.get(&u64::from(*index)).copied()))
+        .collect::<Vec<_>>();
+    let Some(first) = values.first() else {
+        return Default::default();
+    };
+    REFIT_SETTING_KEYS
+        .into_iter()
+        .filter(|key| {
+            values
+                .iter()
+                .skip(1)
+                .any(|value| value.get(*key) != first.get(*key))
+        })
+        .collect()
 }
 
 fn refit_apply_button(
@@ -1197,14 +1255,16 @@ fn refit_apply_button(
     edits: &RefitSettingsEdits,
 ) -> egui::Response {
     let enabled = !targets.is_empty() && edits.is_dirty();
-    let response = ui.add_enabled(
-        enabled,
-        cdmw_primary_button(ui, crate::localization::tr(label), enabled),
-    ).on_disabled_hover_text(crate::localization::tr(if targets.is_empty() {
-        "Select one or more bound garment Parts first"
-    } else {
-        "Change a setting before applying"
-    }));
+    let response = ui
+        .add_enabled(
+            enabled,
+            cdmw_primary_button(ui, crate::localization::tr(label), enabled),
+        )
+        .on_disabled_hover_text(crate::localization::tr(if targets.is_empty() {
+            "Select one or more bound garment Parts first"
+        } else {
+            "Change a setting before applying"
+        }));
     if response.clicked() {
         actions.push(UiAction::CdmwCommand {
             command: "refit_configure",
@@ -1249,12 +1309,16 @@ pub(super) fn cdmw_primary_button<'a>(ui: &egui::Ui, text: String, primary: bool
     }
     let accent = ui.visuals().hyperlink_color;
     // Prefer the theme's own text colour for the accent; otherwise the stronger of black and white.
-    let text_colour = ui.ctx().data(|data| data.get_temp::<Color32>(egui::Id::new(CDMW_ACCENT_TEXT)))
-        .unwrap_or(if cdmw_contrast(Color32::BLACK, accent) >= cdmw_contrast(Color32::WHITE, accent) {
-            Color32::BLACK
-        } else {
-            Color32::WHITE
-        });
+    let text_colour = ui
+        .ctx()
+        .data(|data| data.get_temp::<Color32>(egui::Id::new(CDMW_ACCENT_TEXT)))
+        .unwrap_or(
+            if cdmw_contrast(Color32::BLACK, accent) >= cdmw_contrast(Color32::WHITE, accent) {
+                Color32::BLACK
+            } else {
+                Color32::WHITE
+            },
+        );
     Button::new(RichText::new(text).strong().color(text_colour)).fill(accent)
 }
 
@@ -1267,7 +1331,13 @@ pub(crate) fn cdmw_danger_button<'a>(ui: &egui::Ui, text: String) -> Button<'a> 
 pub(crate) fn cdmw_danger_colour(visuals: &egui::Visuals) -> Color32 {
     let background = visuals.widgets.inactive.weak_bg_fill;
     (0..=20)
-        .map(|step| cdmw_mix(visuals.strong_text_color(), visuals.error_fg_color, step as f32 / 20.0))
+        .map(|step| {
+            cdmw_mix(
+                visuals.strong_text_color(),
+                visuals.error_fg_color,
+                step as f32 / 20.0,
+            )
+        })
         .find(|candidate| cdmw_contrast(*candidate, background) >= 4.5)
         .unwrap_or(visuals.strong_text_color())
 }
@@ -1288,14 +1358,22 @@ fn cdmw_step_heading(ui: &mut egui::Ui, title: &str, done: bool, current: bool) 
             ui.colored_label(cdmw_readable(ui, REFIT_READY_COLOUR), "✔");
         }
         let text = RichText::new(crate::localization::tr(title)).strong();
-        ui.label(if current { text.color(ui.visuals().hyperlink_color) } else { text });
+        ui.label(if current {
+            text.color(ui.visuals().hyperlink_color)
+        } else {
+            text
+        });
     });
 }
 
 /// A translated count: `one` for exactly one, otherwise `other` with its `{}` filled in.
 /// Translations phrase plurals generically; the singular needs its own key.
 fn cdmw_count(count: usize, one: &str, other: &str) -> String {
-    crate::localization::tr(if count == 1 { one.to_owned() } else { other.replacen("{}", &count.to_string(), 1) })
+    crate::localization::tr(if count == 1 {
+        one.to_owned()
+    } else {
+        other.replacen("{}", &count.to_string(), 1)
+    })
 }
 
 /// The first unfinished Setup step: 1 body, 2 garments, 3 bind, 4 ready to fit.
@@ -1333,42 +1411,69 @@ fn cdmw_section<R>(
 // Both lists share the same aligned View / Include columns. Names and physics
 // truncate inside their cells; growing text never pushes a checkbox off-screen.
 pub(super) fn cdmw_list_columns(ui: &egui::Ui, detail: &str) -> [f32; 4] {
-    let measure = |text: &str| ui.painter().layout_no_wrap(
-        crate::localization::tr(text), egui::TextStyle::Body.resolve(ui.style()),
-        ui.visuals().text_color(),
-    ).size().x + ui.spacing().button_padding.x * 2.0;
+    let measure = |text: &str| {
+        ui.painter()
+            .layout_no_wrap(
+                crate::localization::tr(text),
+                egui::TextStyle::Body.resolve(ui.style()),
+                ui.visuals().text_color(),
+            )
+            .size()
+            .x
+            + ui.spacing().button_padding.x * 2.0
+    };
     let view = measure("View").max(ui.spacing().interact_size.y);
     let include = measure("Include").max(ui.spacing().interact_size.y);
     let detail = measure(detail).max(58.0);
-    let name = (ui.available_width() - view - include - detail - ui.spacing().item_spacing.x * 3.0).max(24.0);
+    let name = (ui.available_width() - view - include - detail - ui.spacing().item_spacing.x * 3.0)
+        .max(24.0);
     [name, detail, view, include]
 }
 
-pub(super) fn cdmw_list_cell<R>(ui: &mut egui::Ui, width: f32, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(super) fn cdmw_list_cell<R>(
+    ui: &mut egui::Ui,
+    width: f32,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
     let size = egui::vec2(width, ui.spacing().interact_size.y);
     ui.allocate_ui_with_layout(
-        size, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        size,
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
             ui.set_min_size(size);
             body(ui)
         },
-    ).inner
+    )
+    .inner
 }
 
-pub(super) fn cdmw_list_header(ui: &mut egui::Ui, widths: [f32; 4], name: &str, detail: &str) -> [egui::Id; 2] {
+pub(super) fn cdmw_list_header(
+    ui: &mut egui::Ui,
+    widths: [f32; 4],
+    name: &str,
+    detail: &str,
+) -> [egui::Id; 2] {
     ui.horizontal(|ui| {
         cdmw_list_cell(ui, widths[0], |ui| ui.weak(crate::localization::tr(name)));
         cdmw_list_cell(ui, widths[1], |ui| ui.weak(crate::localization::tr(detail)));
         let mut ids = [egui::Id::NULL; 2];
         for (index, title) in ["View", "Include"].into_iter().enumerate() {
             ids[index] = cdmw_list_cell(ui, widths[index + 2], |ui| {
-                ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
-                    ui.label(crate::localization::tr(title))
-                        .on_hover_text(crate::localization::tr("View: viewport only · Include: exported mesh"))
-                }).inner.id
+                ui.with_layout(
+                    egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                    |ui| {
+                        ui.label(crate::localization::tr(title)).on_hover_text(
+                            crate::localization::tr("View: viewport only · Include: exported mesh"),
+                        )
+                    },
+                )
+                .inner
+                .id
             });
         }
         ids
-    }).inner
+    })
+    .inner
 }
 
 fn cdmw_chrome_row_height(context: &egui::Context) -> f32 {
@@ -1429,7 +1534,11 @@ pub(crate) fn cdmw_contrast(a: Color32, b: Color32) -> f32 {
         [red, green, blue]
             .map(|channel| {
                 let value = f32::from(channel) / 255.0;
-                if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+                if value <= 0.04045 {
+                    value / 12.92
+                } else {
+                    ((value + 0.055) / 1.055).powf(2.4)
+                }
             })
             .into_iter()
             .zip([0.2126, 0.7152, 0.0722])
@@ -1457,25 +1566,57 @@ pub(crate) fn cdmw_readable(ui: &egui::Ui, colour: Color32) -> Color32 {
 
 pub(crate) fn cdmw_readable_in(visuals: &egui::Visuals, colour: Color32) -> Color32 {
     let backgrounds = [visuals.panel_fill, visuals.window_fill];
-    let target = if visuals.dark_mode { Color32::WHITE } else { Color32::BLACK };
+    let target = if visuals.dark_mode {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    };
     (0..=20)
         .map(|step| cdmw_mix(target, colour, step as f32 / 20.0))
-        .find(|candidate| backgrounds.iter().all(|background| cdmw_contrast(*candidate, *background) >= 4.5))
+        .find(|candidate| {
+            backgrounds
+                .iter()
+                .all(|background| cdmw_contrast(*candidate, *background) >= 4.5)
+        })
         .unwrap_or(target)
 }
 
 /// A colour legend entry: the true swatch colour beside text in the normal colour.
 /// Measured as one item so wrapping rows move it to the next line as a whole.
-pub(crate) fn cdmw_legend(ui: &mut egui::Ui, colour: Color32, text: impl Into<egui::WidgetText>) -> egui::Response {
-    let galley = text.into().into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+pub(crate) fn cdmw_legend(
+    ui: &mut egui::Ui,
+    colour: Color32,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let galley = text.into().into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
     let side = galley.size().y * 0.7;
     let gap = ui.spacing().item_spacing.x * 0.5;
     let (rect, response) = ui.allocate_exact_size(
-        egui::vec2(side + gap + galley.size().x, galley.size().y), egui::Sense::hover());
+        egui::vec2(side + gap + galley.size().x, galley.size().y),
+        egui::Sense::hover(),
+    );
     if ui.is_rect_visible(rect) {
-        let swatch = egui::Rect::from_center_size(egui::pos2(rect.left() + side / 2.0, rect.center().y), egui::vec2(side, side));
-        ui.painter().rect(swatch, 2.0, colour, ui.visuals().widgets.noninteractive.fg_stroke, egui::StrokeKind::Inside);
-        ui.painter().galley(egui::pos2(rect.left() + side + gap, rect.top()), galley, ui.visuals().text_color());
+        let swatch = egui::Rect::from_center_size(
+            egui::pos2(rect.left() + side / 2.0, rect.center().y),
+            egui::vec2(side, side),
+        );
+        ui.painter().rect(
+            swatch,
+            2.0,
+            colour,
+            ui.visuals().widgets.noninteractive.fg_stroke,
+            egui::StrokeKind::Inside,
+        );
+        ui.painter().galley(
+            egui::pos2(rect.left() + side + gap, rect.top()),
+            galley,
+            ui.visuals().text_color(),
+        );
     }
     response
 }
@@ -1659,7 +1800,9 @@ impl LabApplication {
             cdmw_theme_colour(theme, "button_disabled_text", text_muted),
             cdmw_theme_colour(theme, "button_disabled", surface),
         );
-        let target = disabled_text.min(cdmw_contrast(text_strong, button) * 0.6).max(4.5);
+        let target = disabled_text
+            .min(cdmw_contrast(text_strong, button) * 0.6)
+            .max(4.5);
         visuals.disabled_alpha = (35..=90)
             .map(|percent| percent as f32 / 100.0)
             .find(|alpha| {
@@ -1704,7 +1847,10 @@ impl LabApplication {
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);
         let rail = if self.hair.active() {
-            if !CdmwSidebarSettings::load(&self.egui_context).open.is_empty() {
+            if !CdmwSidebarSettings::load(&self.egui_context)
+                .open
+                .is_empty()
+            {
                 CdmwSidebarSettings::default().store(&self.egui_context);
             }
             None
@@ -1760,10 +1906,12 @@ impl LabApplication {
     fn cdmw_show_busy_controls(&self) -> bool {
         // Selection and weapon placement are already shown locally. Keep the UI steady
         // while the host records it; cdmw_busy still guards edits until the reply.
-        self.cdmw_pending_request
-            .as_ref()
-            .is_some_and(|pending| !matches!(pending.origin, Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement)))
-            || self.hair.preparing()
+        self.cdmw_pending_request.as_ref().is_some_and(|pending| {
+            !matches!(
+                pending.origin,
+                Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement)
+            )
+        }) || self.hair.preparing()
     }
 
     fn draw_cdmw_session_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -1780,9 +1928,18 @@ impl LabApplication {
             .exact_size(if wide { row_height } else { row_height * 2.0 })
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(crate::localization::tr("Mesh Editor")).heading().strong());
-                    if self.cdmw_pending_request.as_ref().is_some_and(|pending|
-                        !matches!(pending.origin, Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement))) || self.hair.saving() {
+                    ui.label(
+                        RichText::new(crate::localization::tr("Mesh Editor"))
+                            .heading()
+                            .strong(),
+                    );
+                    if self.cdmw_pending_request.as_ref().is_some_and(|pending| {
+                        !matches!(
+                            pending.origin,
+                            Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement)
+                        )
+                    }) || self.hair.saving()
+                    {
                         ui.add(Spinner::new());
                     }
                     if wide {
@@ -1838,9 +1995,17 @@ impl LabApplication {
             None => response,
         };
         ui.label(RichText::new(crate::localization::tr("Selection")).strong());
-        if hinted(ui.add_enabled(!busy, Button::new(crate::localization::tr("Clear Selection"))), Shortcut::ClearSelection)
-            .on_disabled_hover_text(crate::localization::tr("Wait for the current shadow operation"))
-            .clicked()
+        if hinted(
+            ui.add_enabled(
+                !busy,
+                Button::new(crate::localization::tr("Clear Selection")),
+            ),
+            Shortcut::ClearSelection,
+        )
+        .on_disabled_hover_text(crate::localization::tr(
+            "Wait for the current shadow operation",
+        ))
+        .clicked()
         {
             actions.push(UiAction::ClearSelection);
         }
@@ -1849,48 +2014,73 @@ impl LabApplication {
             SelectionDomain::Edge => UiAction::SelectAllEdges,
             SelectionDomain::Face => UiAction::SelectAllFaces,
         };
-        if hinted(ui.add_enabled(!busy, Button::new(crate::localization::tr("Select All"))), Shortcut::SelectAll)
-            .on_disabled_hover_text(crate::localization::tr("Wait for the current shadow operation"))
-            .clicked()
+        if hinted(
+            ui.add_enabled(!busy, Button::new(crate::localization::tr("Select All"))),
+            Shortcut::SelectAll,
+        )
+        .on_disabled_hover_text(crate::localization::tr(
+            "Wait for the current shadow operation",
+        ))
+        .clicked()
         {
             actions.push(select_all);
         }
         let has_selection = if self.hair.active()
-            && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|v| v == "edit")
+            && self.cdmw_state["replacement"]["comparison"]
+                .as_str()
+                .is_none_or(|v| v == "edit")
         {
             !self.hair.selected.is_empty()
         } else {
             selected.total() > 0
         };
-        if hinted(ui.add_enabled(!busy && has_selection, Button::new(crate::localization::tr("Invert"))), Shortcut::InvertSelection)
-            .on_disabled_hover_text(crate::localization::tr(if busy {
-                "Wait for the current shadow operation"
-            } else {
-                "Select an element first"
-            }))
-            .clicked()
+        if hinted(
+            ui.add_enabled(
+                !busy && has_selection,
+                Button::new(crate::localization::tr("Invert")),
+            ),
+            Shortcut::InvertSelection,
+        )
+        .on_disabled_hover_text(crate::localization::tr(if busy {
+            "Wait for the current shadow operation"
+        } else {
+            "Select an element first"
+        }))
+        .clicked()
         {
             actions.push(UiAction::InvertSelection(self.selection_domain));
         }
         ui.separator();
         ui.label(RichText::new(crate::localization::tr("History")).strong());
-        if hinted(ui.add_enabled(!busy && authoring && undo_count > 0, Button::new(crate::localization::tr("Undo"))), Shortcut::Undo)
-            .on_disabled_hover_text(crate::localization::tr(if busy {
-                "Wait for the current shadow operation"
-            } else {
-                "No Mesh Editor action to undo"
-            }))
-            .clicked()
+        if hinted(
+            ui.add_enabled(
+                !busy && authoring && undo_count > 0,
+                Button::new(crate::localization::tr("Undo")),
+            ),
+            Shortcut::Undo,
+        )
+        .on_disabled_hover_text(crate::localization::tr(if busy {
+            "Wait for the current shadow operation"
+        } else {
+            "No Mesh Editor action to undo"
+        }))
+        .clicked()
         {
             actions.push(UiAction::Undo);
         }
-        if hinted(ui.add_enabled(!busy && authoring && redo_count > 0, Button::new(crate::localization::tr("Redo"))), Shortcut::Redo)
-            .on_disabled_hover_text(crate::localization::tr(if busy {
-                "Wait for the current shadow operation"
-            } else {
-                "No Mesh Editor action to redo"
-            }))
-            .clicked()
+        if hinted(
+            ui.add_enabled(
+                !busy && authoring && redo_count > 0,
+                Button::new(crate::localization::tr("Redo")),
+            ),
+            Shortcut::Redo,
+        )
+        .on_disabled_hover_text(crate::localization::tr(if busy {
+            "Wait for the current shadow operation"
+        } else {
+            "No Mesh Editor action to redo"
+        }))
+        .clicked()
         {
             actions.push(UiAction::Redo);
         }
@@ -1911,24 +2101,33 @@ impl LabApplication {
             && !self.hair.pending_finish
             && authoring
             && !self.cdmw_morph_comparison_active()
-            && state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty()
+            && state_str(&self.cdmw_state["morph_refit"], "shape_restore_source")
+                .unwrap_or("")
+                .is_empty()
             && self.cdmw_host_connected;
         // Once there are edits to keep, Finish is the next step.
         let primary = enabled && state_u64(&self.cdmw_state, "undo_count") > 0;
         if ui
             .add_enabled(
                 enabled,
-                cdmw_primary_button(ui, crate::localization::tr(if self.hair.pending_finish {
-                    "Saving hair before Finish…"
-                } else {
-                    self.cdmw_finish_label()
-                }), primary),
+                cdmw_primary_button(
+                    ui,
+                    crate::localization::tr(if self.hair.pending_finish {
+                        "Saving hair before Finish…"
+                    } else {
+                        self.cdmw_finish_label()
+                    }),
+                    primary,
+                ),
             )
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Finish waits until the pending shadow transaction completes"
             } else if self.cdmw_morph_comparison_active() {
                 "Turn outfit corrections back on before finishing."
-            } else if !state_str(&self.cdmw_state["morph_refit"], "shape_restore_source").unwrap_or("").is_empty() {
+            } else if !state_str(&self.cdmw_state["morph_refit"], "shape_restore_source")
+                .unwrap_or("")
+                .is_empty()
+            {
                 "Apply or Cancel Restore fitting shape before finishing."
             } else if !authoring {
                 policy_reason
@@ -1955,7 +2154,10 @@ impl LabApplication {
             "Live" => Color32::from_rgb(245, 190, 75),
             _ => Color32::from_gray(170),
         };
-        ui.colored_label(cdmw_readable(ui, colour), RichText::new(crate::localization::tr(status_label)).strong());
+        ui.colored_label(
+            cdmw_readable(ui, colour),
+            RichText::new(crate::localization::tr(status_label)).strong(),
+        );
         ui.separator();
         ui.label(crate::localization::tr(format!(
             "{} vertices · {} edges · {} faces",
@@ -1966,7 +2168,8 @@ impl LabApplication {
             || self.status.to_ascii_lowercase().contains("rejected")
             || self.status.to_ascii_lowercase().contains("error");
         let text = if failed {
-            RichText::new(crate::localization::tr(&self.status)).color(cdmw_readable(ui, Color32::from_rgb(245, 105, 105)))
+            RichText::new(crate::localization::tr(&self.status))
+                .color(cdmw_readable(ui, Color32::from_rgb(245, 105, 105)))
         } else {
             RichText::new(crate::localization::tr(&self.status))
         };
@@ -1976,7 +2179,11 @@ impl LabApplication {
             .show(|ui| {
                 ui.set_max_width(560.0);
                 ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
-                    ui.add(egui::Label::new(crate::localization::tr(&self.status)).wrap().selectable(true));
+                    ui.add(
+                        egui::Label::new(crate::localization::tr(&self.status))
+                            .wrap()
+                            .selectable(true),
+                    );
                 });
                 if ui.button(crate::localization::tr("Copy")).clicked() {
                     ui.ctx().copy_text(self.status.clone());
@@ -2260,7 +2467,11 @@ impl LabApplication {
                 .show(root_ui, |ui| {
                     self.draw_cdmw_settings_header(ui, page);
                     let morph_active = page == CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit);
-                    let footer_height = if morph_active { self.cdmw_morph_footer_height(ui) } else { 0.0 };
+                    let footer_height = if morph_active {
+                        self.cdmw_morph_footer_height(ui)
+                    } else {
+                        0.0
+                    };
                     ScrollArea::vertical()
                         .max_height((ui.available_height() - footer_height).max(1.0))
                         .id_salt(("cdmw-settings-scroll", page.label()))
@@ -2273,7 +2484,9 @@ impl LabApplication {
                     }
                 });
         }
-        let bounds = root_ui.available_rect_before_wrap().intersect(root_ui.max_rect());
+        let bounds = root_ui
+            .available_rect_before_wrap()
+            .intersect(root_ui.max_rect());
         let width = 280.0_f32.min(bounds.width());
         let pressed_layer = context
             .input(|input| {
@@ -2306,7 +2519,11 @@ impl LabApplication {
             let area = egui::Area::new(page.layer().id)
                 .order(egui::Order::Foreground)
                 .movable(true)
-                .default_pos(crate::cdmw_layout::position(&context, page.label(), position))
+                .default_pos(crate::cdmw_layout::position(
+                    &context,
+                    page.label(),
+                    position,
+                ))
                 .constrain_to(bounds)
                 .default_size(egui::vec2(width, 0.0))
                 .show(&context, |ui| {
@@ -2317,26 +2534,35 @@ impl LabApplication {
                     let frame = egui::Frame::popup(ui.style()).inner_margin(6.0);
                     let frame_margin = frame.total_margin();
                     frame.show(ui, |ui| {
-                            ui.set_width((width - frame_margin.sum().x).max(1.0));
-                            self.draw_cdmw_settings_header(ui, page);
-                            let morph_active = page == CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit);
-                            let footer_height = if morph_active { self.cdmw_morph_footer_height(ui) } else { 0.0 };
-                            let height = (bounds.bottom() - ui.cursor().top() - 6.0 - footer_height).max(1.0);
-                            ScrollArea::vertical()
-                                .id_salt(("cdmw-settings-scroll", page.label()))
-                                .max_height(height)
-                                .auto_shrink([false, true])
-                                .show(ui, |ui| {
-                                    self.draw_cdmw_sidebar_page(ui, page, actions);
-                                });
-                            if morph_active {
-                                self.draw_cdmw_morph_footer(ui, actions);
-                            }
-                        });
+                        ui.set_width((width - frame_margin.sum().x).max(1.0));
+                        self.draw_cdmw_settings_header(ui, page);
+                        let morph_active = page == CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit);
+                        let footer_height = if morph_active {
+                            self.cdmw_morph_footer_height(ui)
+                        } else {
+                            0.0
+                        };
+                        let height =
+                            (bounds.bottom() - ui.cursor().top() - 6.0 - footer_height).max(1.0);
+                        ScrollArea::vertical()
+                            .id_salt(("cdmw-settings-scroll", page.label()))
+                            .max_height(height)
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                self.draw_cdmw_sidebar_page(ui, page, actions);
+                            });
+                        if morph_active {
+                            self.draw_cdmw_morph_footer(ui, actions);
+                        }
+                    });
                 });
             if area.response.dragged() {
                 context.set_cursor_icon(egui::CursorIcon::Grabbing);
-                crate::cdmw_layout::remember_position(&context, page.label(), area.response.rect.min);
+                crate::cdmw_layout::remember_position(
+                    &context,
+                    page.label(),
+                    area.response.rect.min,
+                );
             }
         }
         // Viewport input never dismisses tool windows. Escape closes only the
@@ -2376,9 +2602,13 @@ impl LabApplication {
                             | CdmwRailPage::RigWeights
                     )
             ) || state_bool(&self.cdmw_state, "authoring_enabled"))
-            && (!self.cdmw_morph_comparison_active() || matches!(page,
-                CdmwSidebarPage::Viewport | CdmwSidebarPage::Output | CdmwSidebarPage::Tool(
-                    CdmwRailPage::Select | CdmwRailPage::MorphRefit)));
+            && (!self.cdmw_morph_comparison_active()
+                || matches!(
+                    page,
+                    CdmwSidebarPage::Viewport
+                        | CdmwSidebarPage::Output
+                        | CdmwSidebarPage::Tool(CdmwRailPage::Select | CdmwRailPage::MorphRefit)
+                ));
         // Explicit IDs keep collapsing sections and edit fields alive when their
         // settings move between the expanded rail, floating area and dock.
         ui.scope_builder(
@@ -2440,11 +2670,19 @@ impl LabApplication {
                         set_cdmw_sidebar_expanded(ui.ctx(), CDMW_TOOLS_SIDEBAR, false);
                         CdmwSidebarSettings::default().store(ui.ctx());
                     }
-                    ui.label(RichText::new(crate::localization::tr("Tools")).heading().strong());
+                    ui.label(
+                        RichText::new(crate::localization::tr("Tools"))
+                            .heading()
+                            .strong(),
+                    );
                 });
                 ui.separator();
                 let morph_active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
-                let footer_height = if morph_active { self.cdmw_morph_footer_height(ui) } else { 0.0 };
+                let footer_height = if morph_active {
+                    self.cdmw_morph_footer_height(ui)
+                } else {
+                    0.0
+                };
                 ScrollArea::vertical()
                     .max_height((ui.available_height() - footer_height).max(1.0))
                     .auto_shrink([false, !morph_active])
@@ -2453,9 +2691,14 @@ impl LabApplication {
                         ui.add_enabled_ui(!busy, |ui| {
                             ui.push_id("cdmw-viewport-root", |ui| {
                                 // The Viewport shortcut asks for this section once.
-                                let reveal = ui.ctx().data_mut(|data| {
-                                    data.remove_temp::<bool>(egui::Id::new(keyboard::CDMW_REVEAL_VIEWPORT))
-                                }).unwrap_or(false);
+                                let reveal = ui
+                                    .ctx()
+                                    .data_mut(|data| {
+                                        data.remove_temp::<bool>(egui::Id::new(
+                                            keyboard::CDMW_REVEAL_VIEWPORT,
+                                        ))
+                                    })
+                                    .unwrap_or(false);
                                 let section = crate::localization::collapsing("Viewport")
                                     .id_salt("cdmw-viewport")
                                     .default_open(false)
@@ -2473,9 +2716,12 @@ impl LabApplication {
                             });
                             ui.push_id("cdmw-output-root", |ui| {
                                 // The Output chip beside Finish asks for this section once.
-                                let reveal = ui.ctx().data_mut(|data| {
-                                    data.remove_temp::<bool>(egui::Id::new(CDMW_REVEAL_OUTPUT))
-                                }).unwrap_or(false);
+                                let reveal = ui
+                                    .ctx()
+                                    .data_mut(|data| {
+                                        data.remove_temp::<bool>(egui::Id::new(CDMW_REVEAL_OUTPUT))
+                                    })
+                                    .unwrap_or(false);
                                 let section = crate::localization::collapsing("Output")
                                     .id_salt("cdmw-output")
                                     .default_open(false)
@@ -2610,7 +2856,13 @@ impl LabApplication {
                         if !direct_selection {
                             ui.horizontal_wrapped(|ui| {
                                 for &tool in tools {
-                                    self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
+                                    self.draw_cdmw_tool_tab(
+                                        ui,
+                                        tool,
+                                        busy,
+                                        authoring,
+                                        policy_reason,
+                                    );
                                 }
                             });
                         }
@@ -2663,11 +2915,16 @@ impl LabApplication {
             CdmwRailPage::Select | CdmwRailPage::VertexParameters | CdmwRailPage::RigWeights
         );
         let mut response = ui.add_enabled(
-            !busy && (!requires_authoring || authoring)
+            !busy
+                && (!requires_authoring || authoring)
                 && (!self.cdmw_morph_comparison_active() || page == CdmwRailPage::Select),
-            Button::new(crate::localization::tr(label)).selected(active).wrap(),
+            Button::new(crate::localization::tr(label))
+                .selected(active)
+                .wrap(),
         );
-        if let Some(hint) = keyboard::rail_page_action(page).and_then(|action| self.shortcut_tooltip(action)) {
+        if let Some(hint) =
+            keyboard::rail_page_action(page).and_then(|action| self.shortcut_tooltip(action))
+        {
             response = response.on_hover_text(hint);
         }
         if response
@@ -2705,20 +2962,34 @@ impl LabApplication {
         ComboBox::from_id_salt("Display")
             .width(ui.available_width())
             .truncate()
-            .selected_text(crate::localization::tr(cdmw_view_mode_label(self.view_mode, self.cdmw_island_colours)))
+            .selected_text(crate::localization::tr(cdmw_view_mode_label(
+                self.view_mode,
+                self.cdmw_island_colours,
+            )))
             .show_ui(ui, |ui| {
                 for (mode, label) in CDMW_VIEW_MODES {
                     let islands = label == "Island colors";
-                    let enabled =
-                        (mode != ViewMode::TexturedSolid || self.cdmw_textured_mode_available)
-                            && (!islands || self.cdmw_state["mesh_islands"]["color_faces"].is_array());
+                    let enabled = (mode != ViewMode::TexturedSolid
+                        || self.cdmw_textured_mode_available)
+                        && (!islands || self.cdmw_state["mesh_islands"]["color_faces"].is_array());
                     let response = ui
-                        .add_enabled(enabled, Button::new(crate::localization::tr(label)).selected(self.view_mode == mode
-                            && (mode != ViewMode::PartId || self.cdmw_island_colours == islands)))
-                        .on_disabled_hover_text(crate::localization::tr(&self.cdmw_textured_mode_reason));
+                        .add_enabled(
+                            enabled,
+                            Button::new(crate::localization::tr(label)).selected(
+                                self.view_mode == mode
+                                    && (mode != ViewMode::PartId
+                                        || self.cdmw_island_colours == islands),
+                            ),
+                        )
+                        .on_disabled_hover_text(crate::localization::tr(
+                            &self.cdmw_textured_mode_reason,
+                        ));
                     if response.clicked() {
-                        if islands { self.set_cdmw_island_colours(true); }
-                        else { self.set_cdmw_display_mode(mode); }
+                        if islands {
+                            self.set_cdmw_island_colours(true);
+                        } else {
+                            self.set_cdmw_display_mode(mode);
+                        }
                     }
                 }
             })
@@ -2736,7 +3007,11 @@ impl LabApplication {
             .selected_text(crate::localization::tr(self.lighting_preset.label()))
             .show_ui(ui, |ui| {
                 for preset in cdmw_render_wgpu::LightingPreset::ALL {
-                    ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
+                    ui.selectable_value(
+                        &mut self.lighting_preset,
+                        preset,
+                        crate::localization::tr(preset.label()),
+                    );
                 }
             });
         ui.horizontal_wrapped(|ui| {
@@ -2776,14 +3051,20 @@ impl LabApplication {
             if ui.small_button(crate::localization::tr("Fit")).clicked() {
                 actions.push(UiAction::FrameAll);
             }
-            if ui.small_button(crate::localization::tr("Selected")).clicked() {
+            if ui
+                .small_button(crate::localization::tr("Selected"))
+                .clicked()
+            {
                 actions.push(UiAction::FrameSelected);
             }
         });
-        ui.add_enabled(false, Button::new(crate::localization::tr("Material Colour")))
-            .on_disabled_hover_text(
-                crate::localization::tr("Material Colour is deliberately unavailable in the Mesh Editor product contract"),
-            );
+        ui.add_enabled(
+            false,
+            Button::new(crate::localization::tr("Material Colour")),
+        )
+        .on_disabled_hover_text(crate::localization::tr(
+            "Material Colour is deliberately unavailable in the Mesh Editor product contract",
+        ));
         cdmw_section(
             ui,
             "cdmw-overlay-appearance",
@@ -2799,7 +3080,8 @@ impl LabApplication {
                     &mut self.overlay_live_selection_colour,
                 );
                 ui.add(
-                    crate::cdmw_ui::numeric::slider(&mut self.overlay_wire_width, 0.5..=6.0).text(crate::localization::tr("Wire width")),
+                    crate::cdmw_ui::numeric::slider(&mut self.overlay_wire_width, 0.5..=6.0)
+                        .text(crate::localization::tr("Wire width")),
                 );
                 ui.add(
                     crate::cdmw_ui::numeric::slider(&mut self.overlay_vertex_size, 0.5..=10.0)
@@ -2809,7 +3091,10 @@ impl LabApplication {
                 ui.add_enabled_ui(screen_grid_visible, |ui| {
                     colour_row(ui, "Screen grid", &mut self.viewport_grid_colour);
                 });
-                if ui.button(crate::localization::tr("Reset appearance")).clicked() {
+                if ui
+                    .button(crate::localization::tr("Reset appearance"))
+                    .clicked()
+                {
                     self.overlay_wire_colour = Color32::from_rgb(105, 125, 155);
                     self.overlay_vertex_colour = Color32::from_gray(205);
                     self.overlay_selection_colour = Color32::from_rgb(255, 145, 35);
@@ -2823,23 +3108,34 @@ impl LabApplication {
             },
         );
         ui.separator();
-        if ui.button(crate::localization::tr("Keyboard Shortcuts...")).clicked() {
+        if ui
+            .button(crate::localization::tr("Keyboard Shortcuts..."))
+            .clicked()
+        {
             self.shortcut_editor.open = true;
         }
     }
 
     /// The mapping step's Weights choice for a rigged import. Returns None when the
     /// import has no weights, otherwise the chosen policy ("" until one is chosen).
-    fn draw_cdmw_replacement_weights(ui: &mut egui::Ui, token: &str, weights: &Value) -> Option<String> {
+    fn draw_cdmw_replacement_weights(
+        ui: &mut egui::Ui,
+        token: &str,
+        weights: &Value,
+    ) -> Option<String> {
         if !weights["rigged"].as_bool().unwrap_or(false) {
             return None;
         }
         let options = weights["options"].as_array().cloned().unwrap_or_default();
         let enabled = |policy: &str| {
-            options.iter().any(|option| option["policy"] == policy && option["enabled"].as_bool().unwrap_or(false))
+            options.iter().any(|option| {
+                option["policy"] == policy && option["enabled"].as_bool().unwrap_or(false)
+            })
         };
         let id = egui::Id::new(("replacement_weights", token));
-        let mut policy = ui.ctx().data_mut(|data| data.get_temp::<String>(id))
+        let mut policy = ui
+            .ctx()
+            .data_mut(|data| data.get_temp::<String>(id))
             .unwrap_or_else(|| weights["default"].as_str().unwrap_or("").to_owned());
         if !policy.is_empty() && !enabled(&policy) {
             policy.clear();
@@ -2865,12 +3161,21 @@ impl LabApplication {
                 }
             }
         });
-        ui.ctx().data_mut(|data| data.insert_temp(id, policy.clone()));
-        if let Some(summary) = weights["summary"].as_str().filter(|summary| !summary.is_empty()) {
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(id, policy.clone()));
+        if let Some(summary) = weights["summary"]
+            .as_str()
+            .filter(|summary| !summary.is_empty())
+        {
             ui.small(crate::localization::tr(summary));
         }
         if policy.is_empty() {
-            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("Choose how to handle this model's weights before applying."));
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                crate::localization::tr(
+                    "Choose how to handle this model's weights before applying.",
+                ),
+            );
         } else if policy == "transfer" {
             ui.small(crate::localization::tr("Transferred weights follow the nearest original surface, so rigid pieces such as horns may bend with what they touch. Check and fix them in Rig & Weights after applying."));
         }
@@ -2878,17 +3183,26 @@ impl LabApplication {
     }
 
     fn draw_cdmw_output_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        ui.add_enabled_ui(!self.cdmw_busy() && !self.cdmw_morph_comparison_active(), |ui| {
-            ui.menu_button(crate::localization::tr("Export…"), |ui| {
-                for (format, label) in [("glb", "GLB (.glb)"), ("fbx", "FBX (.fbx)"), ("obj", "OBJ (.obj)")] {
-                    if ui.button(label).clicked() {
-                        actions.push(UiAction::ChooseCdmwExport(format));
-                        ui.close();
+        ui.add_enabled_ui(
+            !self.cdmw_busy() && !self.cdmw_morph_comparison_active(),
+            |ui| {
+                ui.menu_button(crate::localization::tr("Export…"), |ui| {
+                    for (format, label) in [
+                        ("glb", "GLB (.glb)"),
+                        ("fbx", "FBX (.fbx)"),
+                        ("obj", "OBJ (.obj)"),
+                    ] {
+                        if ui.button(label).clicked() {
+                            actions.push(UiAction::ChooseCdmwExport(format));
+                            ui.close();
+                        }
                     }
-                }
-                ui.small(crate::localization::tr("Keep the companion files to import your edits back into CDMW."));
-            });
-        });
+                    ui.small(crate::localization::tr(
+                        "Keep the companion files to import your edits back into CDMW.",
+                    ));
+                });
+            },
+        );
         ui.separator();
         ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
             self.draw_cdmw_output_policy(ui, actions, false);
@@ -2899,12 +3213,13 @@ impl LabApplication {
         ui.separator();
         if ui
             .add_enabled(
-                state_bool(&self.cdmw_state, "authoring_enabled") && !self.cdmw_morph_comparison_active(),
+                state_bool(&self.cdmw_state, "authoring_enabled")
+                    && !self.cdmw_morph_comparison_active(),
                 Button::new(crate::localization::tr("Open Package in CDMW...")),
             )
-            .on_disabled_hover_text(
-                crate::localization::tr("This session is read-only; choose an editable output route first"),
-            )
+            .on_disabled_hover_text(crate::localization::tr(
+                "This session is read-only; choose an editable output route first",
+            ))
             .clicked()
         {
             actions.push(UiAction::ChooseCdmwImportPackage);
@@ -2922,21 +3237,31 @@ impl LabApplication {
             return ("Archive Refit", "Archive Refit · original game files");
         }
         if self.cdmw_returns_to_new_item() {
-            return ("Create New Item", "Finish sends the edit back to Create New Item");
+            return (
+                "Create New Item",
+                "Finish sends the edit back to Create New Item",
+            );
         }
         match policy {
             "replacement_game_asset" => ("Replacement", "Replacement · prepared game-asset output"),
             "exact_game_asset" => ("Exact", "Protected game-asset output"),
             "free_edit_rebuild" if ready => ("Free Edit", "Free Edit package folder ready"),
             "free_edit_rebuild" => ("Free Edit", "Choose a writable package folder"),
-            _ => ("Read-only", "Read-only until an authoring output is selected"),
+            _ => (
+                "Read-only",
+                "Read-only until an authoring output is selected",
+            ),
         }
     }
 
     // Beside Finish, so the route that Finish follows is always visible.
     fn draw_cdmw_output_chip(&self, ui: &mut egui::Ui) {
         let (mode, status) = self.cdmw_output_summary();
-        let text = format!("{}: {}", crate::localization::tr("Output"), crate::localization::tr(mode));
+        let text = format!(
+            "{}: {}",
+            crate::localization::tr("Output"),
+            crate::localization::tr(mode)
+        );
         if ui
             .button(text)
             .on_hover_text(format!(
@@ -2959,7 +3284,12 @@ impl LabApplication {
     }
 
     // `heading` titles the controls where no Output header already does.
-    fn draw_cdmw_output_policy(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, heading: bool) {
+    fn draw_cdmw_output_policy(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        heading: bool,
+    ) {
         let policy = state_str(&self.cdmw_state, "output_policy").unwrap_or("exact_game_asset");
         let exact = policy == "exact_game_asset";
         let free_edit = policy == "free_edit_rebuild";
@@ -3004,8 +3334,13 @@ impl LabApplication {
                 "Change output folder..."
             };
             if ui
-                .add_enabled(!archive_refit, Button::new(crate::localization::tr(folder_label)))
-                .on_hover_text(crate::localization::tr("Choose the parent folder for a new OBJ package."))
+                .add_enabled(
+                    !archive_refit,
+                    Button::new(crate::localization::tr(folder_label)),
+                )
+                .on_hover_text(crate::localization::tr(
+                    "Choose the parent folder for a new OBJ package.",
+                ))
                 .clicked()
             {
                 actions.push(UiAction::ChooseCdmwFreeEdit);
@@ -3015,8 +3350,13 @@ impl LabApplication {
             }
         }
         if ui
-            .add_enabled(free_edit && ready, Button::new(crate::localization::tr("Export Free Edit Package")))
-            .on_disabled_hover_text(crate::localization::tr("Available only after a Free Edit package folder is proven"))
+            .add_enabled(
+                free_edit && ready,
+                Button::new(crate::localization::tr("Export Free Edit Package")),
+            )
+            .on_disabled_hover_text(crate::localization::tr(
+                "Available only after a Free Edit package folder is proven",
+            ))
             .clicked()
         {
             actions.push(UiAction::CdmwCommand {
@@ -3028,10 +3368,12 @@ impl LabApplication {
     }
 
     pub(super) fn cdmw_has_archive_refit(&self) -> bool {
-        !self.cdmw_has_item_set() && self.cdmw_state
-            .get("archive_refit_assets")
-            .and_then(Value::as_array)
-            .is_some_and(|assets| !assets.is_empty())
+        !self.cdmw_has_item_set()
+            && self
+                .cdmw_state
+                .get("archive_refit_assets")
+                .and_then(Value::as_array)
+                .is_some_and(|assets| !assets.is_empty())
     }
 
     pub(super) fn cdmw_has_item_set(&self) -> bool {
@@ -3046,8 +3388,16 @@ impl LabApplication {
                 SelectionDomain::Vertex,
                 crate::localization::tr("Vertex"),
             );
-            ui.selectable_value(&mut self.selection_domain, SelectionDomain::Edge, crate::localization::tr("Edge"));
-            ui.selectable_value(&mut self.selection_domain, SelectionDomain::Face, crate::localization::tr("Face"));
+            ui.selectable_value(
+                &mut self.selection_domain,
+                SelectionDomain::Edge,
+                crate::localization::tr("Edge"),
+            );
+            ui.selectable_value(
+                &mut self.selection_domain,
+                SelectionDomain::Face,
+                crate::localization::tr("Face"),
+            );
         });
         crate::localization::combo("Shape")
             .selected_text(crate::localization::tr(self.selection_tool.label()))
@@ -3058,11 +3408,18 @@ impl LabApplication {
                     SelectionTool::Rectangle,
                     SelectionTool::Lasso,
                 ] {
-                    ui.selectable_value(&mut self.selection_tool, tool, crate::localization::tr(tool.label()));
+                    ui.selectable_value(
+                        &mut self.selection_tool,
+                        tool,
+                        crate::localization::tr(tool.label()),
+                    );
                 }
             });
         crate::localization::combo("Operation")
-            .selected_text(crate::localization::tr(format!("{:?}", self.selection_operation)))
+            .selected_text(crate::localization::tr(format!(
+                "{:?}",
+                self.selection_operation
+            )))
             .show_ui(ui, |ui| {
                 for operation in [
                     SelectionOperation::Replace,
@@ -3079,11 +3436,22 @@ impl LabApplication {
             });
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Depth"));
-            ui.selectable_value(&mut self.selection_visible_only, true, crate::localization::tr("Visible"));
-            ui.selectable_value(&mut self.selection_visible_only, false, crate::localization::tr("X-Ray"));
+            ui.selectable_value(
+                &mut self.selection_visible_only,
+                true,
+                crate::localization::tr("Visible"),
+            );
+            ui.selectable_value(
+                &mut self.selection_visible_only,
+                false,
+                crate::localization::tr("X-Ray"),
+            );
         });
         if self.selection_tool == SelectionTool::Brush {
-            ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
+            ui.add(
+                crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0)
+                    .text(crate::localization::tr("Radius px")),
+            );
         }
         let selected = self.selected_counts().for_domain(self.selection_domain);
         ui.horizontal_wrapped(|ui| {
@@ -3093,7 +3461,10 @@ impl LabApplication {
             {
                 actions.push(UiAction::SelectLinked(self.selection_domain));
             }
-            if ui.add_enabled(selected > 0, Button::new(crate::localization::tr("Grow"))).clicked() {
+            if ui
+                .add_enabled(selected > 0, Button::new(crate::localization::tr("Grow")))
+                .clicked()
+            {
                 actions.push(UiAction::GrowSelection(self.selection_domain));
             }
             if ui
@@ -3109,10 +3480,14 @@ impl LabApplication {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         if ui
             .add_enabled(
-                free_edit && !self.cdmw_morph_comparison_active() && self.selected_counts().faces > 0,
+                free_edit
+                    && !self.cdmw_morph_comparison_active()
+                    && self.selected_counts().faces > 0,
                 Button::new(crate::localization::tr("Create Part")),
             )
-            .on_disabled_hover_text(crate::localization::tr("Create Part requires selected faces and Free Edit output"))
+            .on_disabled_hover_text(crate::localization::tr(
+                "Create Part requires selected faces and Free Edit output",
+            ))
             .clicked()
         {
             actions.push(UiAction::CdmwTopology {
@@ -3132,8 +3507,11 @@ impl LabApplication {
         let selected = self.selected_counts().total() > 0;
         match page {
             CdmwRailPage::Rotate => {
-                ui.label(crate::localization::tr("Angle °"))
-                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
+                ui.label(crate::localization::tr("Angle °")).on_hover_text(
+                    crate::localization::tr(
+                        "Drag a gizmo axis, ring, or center handle in the viewport.",
+                    ),
+                );
                 ui.add(
                     crate::cdmw_ui::numeric::value(&mut self.transform_rotate_step)
                         .speed(0.5)
@@ -3146,7 +3524,10 @@ impl LabApplication {
                         ("Rotate Y", Vec3::Y),
                         ("Rotate Z", Vec3::Z),
                     ] {
-                        if ui.add_enabled(selected, Button::new(crate::localization::tr(label))).clicked() {
+                        if ui
+                            .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                            .clicked()
+                        {
                             actions.push(UiAction::RotateStep { axis, degrees });
                         }
                     }
@@ -3154,7 +3535,9 @@ impl LabApplication {
             }
             CdmwRailPage::Scale => {
                 ui.label(crate::localization::tr("Factor"))
-                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
+                    .on_hover_text(crate::localization::tr(
+                        "Drag a gizmo axis, ring, or center handle in the viewport.",
+                    ));
                 ui.add(
                     crate::cdmw_ui::numeric::value(&mut self.transform_scale_factor)
                         .speed(0.01)
@@ -3168,7 +3551,10 @@ impl LabApplication {
                         ("Scale Z", Vec3::new(1.0, 1.0, factor)),
                         ("Scale Uniform", Vec3::splat(factor)),
                     ] {
-                        if ui.add_enabled(selected, Button::new(crate::localization::tr(label))).clicked() {
+                        if ui
+                            .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                            .clicked()
+                        {
                             actions.push(UiAction::ScaleStep(scale));
                         }
                     }
@@ -3176,8 +3562,12 @@ impl LabApplication {
             }
             _ => {
                 ui.label(crate::localization::tr("Axis step"))
-                    .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
-                ui.add(crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001));
+                    .on_hover_text(crate::localization::tr(
+                        "Drag a gizmo axis, ring, or center handle in the viewport.",
+                    ));
+                ui.add(
+                    crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001),
+                );
                 let step = self.transform_translate_step;
                 ui.horizontal_wrapped(|ui| {
                     for (label, axis, sign) in [
@@ -3188,7 +3578,10 @@ impl LabApplication {
                         ("-Z", "z", -1.0),
                         ("+Z", "z", 1.0),
                     ] {
-                        if ui.add_enabled(selected, Button::new(crate::localization::tr(label))).clicked() {
+                        if ui
+                            .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                            .clicked()
+                        {
                             let mut delta = [0.0_f32; 3];
                             let index = match axis {
                                 "x" => 0,
@@ -3203,17 +3596,24 @@ impl LabApplication {
             }
         }
         if !selected {
-            ui.small(crate::localization::tr("Select vertices, edges, faces, or parts before transforming."));
+            ui.small(crate::localization::tr(
+                "Select vertices, edges, faces, or parts before transforming.",
+            ));
         }
     }
 
     fn draw_cdmw_brush_page(&mut self, ui: &mut egui::Ui, page: CdmwRailPage) {
-        ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")))
-            .on_hover_text(crate::localization::tr(if self.selected_counts().total() == 0 {
+        ui.add(
+            crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0)
+                .text(crate::localization::tr("Radius px")),
+        )
+        .on_hover_text(crate::localization::tr(
+            if self.selected_counts().total() == 0 {
                 "No selection: the brush affects vertices under its painted area."
             } else {
                 "Selected: the painted brush area is clipped to the explicit selection."
-            }));
+            },
+        ));
         if page != CdmwRailPage::Grab {
             let range = if page == CdmwRailPage::Inflate {
                 -1.0..=1.0
@@ -3233,7 +3633,9 @@ impl LabApplication {
                     .text(crate::localization::tr("Strength")),
             );
             if page == CdmwRailPage::Inflate {
-                strength.on_hover_text(crate::localization::tr("Positive inflates; negative deflates along the surface normals."));
+                strength.on_hover_text(crate::localization::tr(
+                    "Positive inflates; negative deflates along the surface normals.",
+                ));
             }
         }
         crate::localization::combo("Falloff")
@@ -3244,7 +3646,11 @@ impl LabApplication {
                     BrushFalloff::Linear,
                     BrushFalloff::Constant,
                 ] {
-                    ui.selectable_value(&mut self.brush_falloff, falloff, crate::localization::tr(falloff.label()));
+                    ui.selectable_value(
+                        &mut self.brush_falloff,
+                        falloff,
+                        crate::localization::tr(falloff.label()),
+                    );
                 }
             });
         crate::localization::combo("Symmetry")
@@ -3256,15 +3662,23 @@ impl LabApplication {
                     SculptSymmetry::Y,
                     SculptSymmetry::Z,
                 ] {
-                    ui.selectable_value(&mut self.sculpt_symmetry, symmetry, crate::localization::tr(symmetry.label()));
+                    ui.selectable_value(
+                        &mut self.sculpt_symmetry,
+                        symmetry,
+                        crate::localization::tr(symmetry.label()),
+                    );
                 }
-            }).response.on_hover_text(crate::localization::tr(format!(
+            })
+            .response
+            .on_hover_text(crate::localization::tr(format!(
                 "{} mirrors in object space; unmatched vertices stay untouched.",
                 self.sculpt_symmetry.label()
             )));
         if page == CdmwRailPage::Smooth {
             crate::localization::combo("Passes")
-                .selected_text(crate::localization::tr(format_pass_count(self.smooth_iterations)))
+                .selected_text(crate::localization::tr(format_pass_count(
+                    self.smooth_iterations,
+                )))
                 .show_ui(ui, |ui| {
                     for passes in 1..=8 {
                         ui.selectable_value(
@@ -3293,7 +3707,9 @@ impl LabApplication {
                 ui.label(crate::localization::tr("Extrude axis"));
                 ComboBox::from_id_salt("cdmw_extrude_axis")
                     .width(44.0)
-                    .selected_text(crate::localization::tr(self.cdmw_extrude_axis.to_ascii_uppercase()))
+                    .selected_text(crate::localization::tr(
+                        self.cdmw_extrude_axis.to_ascii_uppercase(),
+                    ))
                     .show_ui(ui, |ui| {
                         for axis in ["x", "y", "z"] {
                             ui.selectable_value(
@@ -3374,16 +3790,21 @@ impl LabApplication {
                 ("Separate", "separate", free_edit && selected.faces > 0),
             ] {
                 if ui
-                    .add_enabled(availability, if action == "delete" {
-                        cdmw_danger_button(ui, crate::localization::tr(label))
-                    } else {
-                        Button::new(crate::localization::tr(label))
-                    })
-                    .on_disabled_hover_text(crate::localization::tr(if !free_edit && action != "delete" {
-                        "This topology action requires Free Edit output"
-                    } else {
-                        "Select the required mesh elements first"
-                    }))
+                    .add_enabled(
+                        availability,
+                        if action == "delete" {
+                            cdmw_danger_button(ui, crate::localization::tr(label))
+                        } else {
+                            Button::new(crate::localization::tr(label))
+                        },
+                    )
+                    .on_disabled_hover_text(crate::localization::tr(
+                        if !free_edit && action != "delete" {
+                            "This topology action requires Free Edit output"
+                        } else {
+                            "Select the required mesh elements first"
+                        },
+                    ))
                     .clicked()
                 {
                     let params = match action {
@@ -3440,7 +3861,10 @@ impl LabApplication {
                 });
             }
             if ui
-                .add_enabled(free_edit && selected.faces > 0, Button::new(crate::localization::tr("Inset")))
+                .add_enabled(
+                    free_edit && selected.faces > 0,
+                    Button::new(crate::localization::tr("Inset")),
+                )
                 .clicked()
             {
                 actions.push(UiAction::CdmwTopology {
@@ -3522,7 +3946,10 @@ impl LabApplication {
         ui.horizontal_wrapped(|ui| {
             for (label, axis) in [("Mirror X", "x"), ("Mirror Y", "y"), ("Mirror Z", "z")] {
                 if ui
-                    .add_enabled(free_edit && selected, Button::new(crate::localization::tr(label)))
+                    .add_enabled(
+                        free_edit && selected,
+                        Button::new(crate::localization::tr(label)),
+                    )
                     .on_disabled_hover_text(crate::localization::tr(if !free_edit {
                         "Mirrored geometry requires Free Edit output"
                     } else {
@@ -3543,10 +3970,13 @@ impl LabApplication {
     fn draw_cdmw_normals_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let selected =
             self.selected_counts().total() > 0 || !self.selected_part_indices().is_empty();
-        ui.checkbox(&mut self.show_normals, crate::localization::tr("Preview normal directions"))
-            .on_hover_text(
-                crate::localization::tr("Cyan sampled lines point away from the surface along the current vertex normals."),
-            );
+        ui.checkbox(
+            &mut self.show_normals,
+            crate::localization::tr("Preview normal directions"),
+        )
+        .on_hover_text(crate::localization::tr(
+            "Cyan sampled lines point away from the surface along the current vertex normals.",
+        ));
         ui.horizontal_wrapped(|ui| {
             for (label, action) in [
                 ("Recalculate Normals", "recalculate_normals"),
@@ -3595,8 +4025,13 @@ impl LabApplication {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         ui.label(RichText::new(crate::localization::tr("UV0 Editing")).strong());
         ui.horizontal_wrapped(|ui| {
-            if ui.button(crate::localization::tr("Show UV Checker"))
-                .on_hover_text(crate::localization::tr("UV tools move UV0, not the 3D mesh. Use the checker to see the result.")).clicked() {
+            if ui
+                .button(crate::localization::tr("Show UV Checker"))
+                .on_hover_text(crate::localization::tr(
+                    "UV tools move UV0, not the 3D mesh. Use the checker to see the result.",
+                ))
+                .clicked()
+            {
                 self.view_mode = ViewMode::UvChecker;
             }
         });
@@ -3616,7 +4051,10 @@ impl LabApplication {
                 ("V-", [0.0, -offset]),
                 ("V+", [0.0, offset]),
             ] {
-                if ui.add_enabled(selected, Button::new(crate::localization::tr(label))).clicked() {
+                if ui
+                    .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                    .clicked()
+                {
                     actions.push(UiAction::CdmwMeshAction {
                         action: "uv_transform",
                         label: "Move UV",
@@ -3644,7 +4082,10 @@ impl LabApplication {
                 ("Flip V", json!({"flip_v": true, "pivot": [0.5, 0.5]})),
                 ("Rotate 90°", json!({"rotate": 90.0, "pivot": [0.5, 0.5]})),
             ] {
-                if ui.add_enabled(selected, Button::new(crate::localization::tr(label))).clicked() {
+                if ui
+                    .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                    .clicked()
+                {
                     actions.push(UiAction::CdmwMeshAction {
                         action: "uv_transform",
                         label,
@@ -3717,7 +4158,10 @@ impl LabApplication {
                     .range(1..=32768),
             );
             if ui
-                .add_enabled(selected, Button::new(crate::localization::tr("Snap Pixels")))
+                .add_enabled(
+                    selected,
+                    Button::new(crate::localization::tr("Snap Pixels")),
+                )
                 .clicked()
             {
                 actions.push(UiAction::CdmwMeshAction {
@@ -3761,7 +4205,10 @@ impl LabApplication {
     }
 
     fn draw_cdmw_morph_meshes(
-        &mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value,
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
     ) {
         let blocked = if self.cdmw_morph_comparison_active() {
             "Turn outfit corrections back on to change the loaded meshes."
@@ -3795,18 +4242,47 @@ impl LabApplication {
                         .map_or(0, |lod| lod.submeshes.len() as u64))).collect::<Vec<_>>()
             }));
         }
-        let bound = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let bound = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         let step = cdmw_refit_setup_step(&body, &bound, &self.selected_part_indices());
-        let garments = if body.is_empty() { Vec::new() } else if bound.is_empty() {
-            self.document.as_ref().and_then(|doc| doc.lods.get(self.active_lod_index))
-                .map(|lod| (0..lod.submeshes.len() as u32)
-                    .filter(|part| !body.contains(part)).collect::<Vec<_>>()).unwrap_or_default()
-        } else { bound };
+        let garments = if body.is_empty() {
+            Vec::new()
+        } else if bound.is_empty() {
+            self.document
+                .as_ref()
+                .and_then(|doc| doc.lods.get(self.active_lod_index))
+                .map(|lod| {
+                    (0..lod.submeshes.len() as u32)
+                        .filter(|part| !body.contains(part))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            bound
+        };
         for (number, role, title, load, select, assigned) in [
-            (1, "body", "1 · Body", "Load body...", "Select body", body.as_slice()),
-            (2, "armor", "2 · Garments", "Load garments...", "Select garments", garments.as_slice()),
+            (
+                1,
+                "body",
+                "1 · Body",
+                "Load body...",
+                "Select body",
+                body.as_slice(),
+            ),
+            (
+                2,
+                "armor",
+                "2 · Garments",
+                "Load garments...",
+                "Select garments",
+                garments.as_slice(),
+            ),
         ] {
-            if role == "armor" { ui.separator(); }
+            if role == "armor" {
+                ui.separator();
+            }
             cdmw_step_heading(ui, title, step > number, step == number);
             if step == 1 && number == 1 {
                 ui.weak(crate::localization::tr("Load the body that garments should follow, or choose a loaded mesh under Use loaded parts."));
@@ -3828,30 +4304,64 @@ impl LabApplication {
             });
             for (asset_index, asset) in assets.iter().enumerate() {
                 let indices = value_u32_list(asset, "part_indices");
-                let shown = indices.iter().copied().filter(|part| {
-                    if role == "body" { body.contains(part) } else { !body.contains(part) }
-                }).collect::<Vec<_>>();
-                if shown.is_empty() { continue; }
+                let shown = indices
+                    .iter()
+                    .copied()
+                    .filter(|part| {
+                        if role == "body" {
+                            body.contains(part)
+                        } else {
+                            !body.contains(part)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if shown.is_empty() {
+                    continue;
+                }
                 let path = state_str(asset, "path").unwrap_or("");
                 ui.push_id(("refit-asset", role, asset_index), |ui| {
-                    ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate())
-                        .on_hover_text(path);
+                    ui.add(
+                        egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path))
+                            .truncate(),
+                    )
+                    .on_hover_text(path);
                     ui.horizontal_wrapped(|ui| {
                         // The step heading names the role; the row says how much of the file it covers.
                         let mixed = indices.iter().any(|part| body.contains(part))
                             && indices.iter().any(|part| !body.contains(part));
-                        let colour = if role == "body" { REFIT_BODY_COLOUR } else { REFIT_ARMOR_COLOUR };
-                        if body.is_empty() {
-                            ui.colored_label(cdmw_readable(ui, colour), cdmw_count(shown.len(), "1 Part · not assigned yet", "{} Parts · not assigned yet"));
-                        } else if mixed {
-                            ui.colored_label(cdmw_readable(ui, colour), crate::localization::tr(format!("{} of {} Parts", shown.len(), indices.len())))
-                                .on_hover_text(crate::localization::tr(if role == "body" {
-                                    "This file's other Parts are garment candidates."
-                                } else {
-                                    "This file's other Parts are the body."
-                                }));
+                        let colour = if role == "body" {
+                            REFIT_BODY_COLOUR
                         } else {
-                            ui.colored_label(cdmw_readable(ui, colour), cdmw_count(shown.len(), "1 Part", "{} Parts"));
+                            REFIT_ARMOR_COLOUR
+                        };
+                        if body.is_empty() {
+                            ui.colored_label(
+                                cdmw_readable(ui, colour),
+                                cdmw_count(
+                                    shown.len(),
+                                    "1 Part · not assigned yet",
+                                    "{} Parts · not assigned yet",
+                                ),
+                            );
+                        } else if mixed {
+                            ui.colored_label(
+                                cdmw_readable(ui, colour),
+                                crate::localization::tr(format!(
+                                    "{} of {} Parts",
+                                    shown.len(),
+                                    indices.len()
+                                )),
+                            )
+                            .on_hover_text(crate::localization::tr(if role == "body" {
+                                "This file's other Parts are garment candidates."
+                            } else {
+                                "This file's other Parts are the body."
+                            }));
+                        } else {
+                            ui.colored_label(
+                                cdmw_readable(ui, colour),
+                                cdmw_count(shown.len(), "1 Part", "{} Parts"),
+                            );
                         }
                         if ui.small_button(crate::localization::tr("Select")).clicked() {
                             actions.push(UiAction::SetPartSelection(shown));
@@ -3860,11 +4370,16 @@ impl LabApplication {
                 });
             }
             if role == "body" {
-                cdmw_section(ui, "refit-use-loaded-body", "Use loaded parts", None, |ui| {
-                    for (index, asset) in assets.iter().enumerate() {
-                        let indices = value_u32_list(asset, "part_indices");
-                        let path = state_str(asset, "path").unwrap_or("");
-                        ui.push_id(index, |ui| {
+                cdmw_section(
+                    ui,
+                    "refit-use-loaded-body",
+                    "Use loaded parts",
+                    None,
+                    |ui| {
+                        for (index, asset) in assets.iter().enumerate() {
+                            let indices = value_u32_list(asset, "part_indices");
+                            let path = state_str(asset, "path").unwrap_or("");
+                            ui.push_id(index, |ui| {
                             ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate()).on_hover_text(path);
                             if ui.small_button(crate::localization::tr("Select")).clicked() {
                                 actions.push(UiAction::SetPartSelection(indices.clone()));
@@ -3877,22 +4392,46 @@ impl LabApplication {
                                     arguments: json!({"submesh_indices": indices}), label: "Set refit body" });
                             }
                         });
-                    }
-                    let selected = self.selected_part_indices();
-                    if ui.add_enabled(blocked.is_empty() && !selected.is_empty(), Button::new(crate::localization::tr("Set body from selection")))
-                        .on_disabled_hover_text(crate::localization::tr(if blocked.is_empty() { "Select one or more body Parts" } else { blocked })).clicked()
-                    {
-                        actions.push(UiAction::CdmwCommand { command: "refit_set_driver",
-                            arguments: json!({"submesh_indices": selected}), label: "Set refit driver" });
-                    }
-                });
+                        }
+                        let selected = self.selected_part_indices();
+                        if ui
+                            .add_enabled(
+                                blocked.is_empty() && !selected.is_empty(),
+                                Button::new(crate::localization::tr("Set body from selection")),
+                            )
+                            .on_disabled_hover_text(crate::localization::tr(
+                                if blocked.is_empty() {
+                                    "Select one or more body Parts"
+                                } else {
+                                    blocked
+                                },
+                            ))
+                            .clicked()
+                        {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "refit_set_driver",
+                                arguments: json!({"submesh_indices": selected}),
+                                label: "Set refit driver",
+                            });
+                        }
+                    },
+                );
             }
         }
-        if !blocked.is_empty() { ui.weak(crate::localization::tr(blocked)); }
+        if !blocked.is_empty() {
+            ui.weak(crate::localization::tr(blocked));
+        }
         let selected = self.selected_part_indices();
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
-            ui.weak(cdmw_count(selected.len(), "1 Part selected", "{} Parts selected"));
-            if ui.button(crate::localization::tr("Open Selection tool")).clicked() {
+            ui.weak(cdmw_count(
+                selected.len(),
+                "1 Part selected",
+                "{} Parts selected",
+            ));
+            if ui
+                .button(crate::localization::tr("Open Selection tool"))
+                .clicked()
+            {
                 self.cancel_active_gesture("Open selection for Morph & Refit");
                 self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
             }
@@ -3913,20 +4452,24 @@ impl LabApplication {
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                 for (index, name) in parts {
                     let mut checked = selected.contains(&index);
-                    let row = ui
-                        .add_enabled(
-                            visible
-                                .as_ref()
-                                .is_none_or(|visible| visible.contains(&index)),
-                            egui::Checkbox::new(&mut checked, self.cdmw_part_name_atoms(index,
-                                crate::localization::tr(format!("{} · {name}", index + 1)))),
-                        );
+                    let row = ui.add_enabled(
+                        visible
+                            .as_ref()
+                            .is_none_or(|visible| visible.contains(&index)),
+                        egui::Checkbox::new(
+                            &mut checked,
+                            self.cdmw_part_name_atoms(
+                                index,
+                                crate::localization::tr(format!("{} · {name}", index + 1)),
+                            ),
+                        ),
+                    );
                     self.track_cdmw_part_hover(ui, index, &row);
                     if row
                         .on_hover_text(&name)
-                        .on_disabled_hover_text(
-                            crate::localization::tr("Show this Part in the Parts inspector before selecting it"),
-                        )
+                        .on_disabled_hover_text(crate::localization::tr(
+                            "Show this Part in the Parts inspector before selecting it",
+                        ))
                         .changed()
                     {
                         let mut next = selected.clone();
@@ -3941,15 +4484,13 @@ impl LabApplication {
         });
     }
 
-    fn draw_cdmw_refit_roles(
-        &self,
-        ui: &mut egui::Ui,
-        body: &[u32],
-        garments: &[u32],
-    ) {
+    fn draw_cdmw_refit_roles(&self, ui: &mut egui::Ui, body: &[u32], garments: &[u32]) {
         ui.horizontal_wrapped(|ui| {
-            ui.colored_label(cdmw_readable(ui, REFIT_BODY_COLOUR), cdmw_count(body.len(), "Body · 1 Part", "Body · {} Parts"))
-                .on_hover_text(self.cdmw_morph_part_names(body));
+            ui.colored_label(
+                cdmw_readable(ui, REFIT_BODY_COLOUR),
+                cdmw_count(body.len(), "Body · 1 Part", "Body · {} Parts"),
+            )
+            .on_hover_text(self.cdmw_morph_part_names(body));
             ui.colored_label(
                 cdmw_readable(ui, REFIT_ARMOR_COLOUR),
                 cdmw_count(garments.len(), "Bound · 1 Part", "Bound · {} Parts"),
@@ -3961,17 +4502,39 @@ impl LabApplication {
         });
     }
 
-    fn draw_cdmw_refit_setup(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value) -> bool {
+    fn draw_cdmw_refit_setup(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
+    ) -> bool {
         let profile_id = state_str(state, "profile_id").unwrap_or("");
         let selected_parts = self.selected_part_indices();
         let driver_parts = value_u32_list(state, "driver_submesh_indices");
-        let bound_garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
+        let bound_garments = value_u32_list(
+            state.get("refit").unwrap_or(&Value::Null),
+            "garment_submesh_indices",
+        );
         let morph_unbaked = state_bool(state, "unbaked");
         let step = cdmw_refit_setup_step(&driver_parts, &bound_garments, &selected_parts);
         cdmw_step_heading(ui, "3 · Bind to body", step > 3, step == 3);
-        ui.colored_label(cdmw_readable(ui, if bound_garments.is_empty() { REFIT_ARMOR_COLOUR } else { REFIT_READY_COLOUR }),
-            crate::localization::tr(if driver_parts.is_empty() { "Assign a body in step 1 first." }
-                else if bound_garments.is_empty() { "Select garments, then bind." } else { "Ready to fit" }));
+        ui.colored_label(
+            cdmw_readable(
+                ui,
+                if bound_garments.is_empty() {
+                    REFIT_ARMOR_COLOUR
+                } else {
+                    REFIT_READY_COLOUR
+                },
+            ),
+            crate::localization::tr(if driver_parts.is_empty() {
+                "Assign a body in step 1 first."
+            } else if bound_garments.is_empty() {
+                "Select garments, then bind."
+            } else {
+                "Ready to fit"
+            }),
+        );
         let has_driver = !driver_parts.is_empty();
         let can_bind = !profile_id.is_empty()
             && !morph_unbaked
@@ -3983,7 +4546,11 @@ impl LabApplication {
         if ui
             .add_enabled(
                 can_bind,
-                cdmw_primary_button(ui, crate::localization::tr("Bind selected garments"), can_bind && step == 3),
+                cdmw_primary_button(
+                    ui,
+                    crate::localization::tr("Bind selected garments"),
+                    can_bind && step == 3,
+                ),
             )
             .on_disabled_hover_text(crate::localization::tr(if profile_id.is_empty() {
                 "Activate a Morph profile before binding garments"
@@ -4007,12 +4574,21 @@ impl LabApplication {
                 label: "Bind refit garments",
             });
         }
-        let continue_to_fit = ui.add_enabled(!bound_garments.is_empty(),
-            cdmw_primary_button(ui, crate::localization::tr("Continue to Fit"), step == 4)).clicked();
+        let continue_to_fit = ui
+            .add_enabled(
+                !bound_garments.is_empty(),
+                cdmw_primary_button(ui, crate::localization::tr("Continue to Fit"), step == 4),
+            )
+            .clicked();
         ui.separator();
         if ui
-            .add_enabled(!profile_id.is_empty(), cdmw_danger_button(ui, crate::localization::tr("Clear Refit")))
-            .on_disabled_hover_text(crate::localization::tr("Activate a Morph profile before clearing Refit"))
+            .add_enabled(
+                !profile_id.is_empty(),
+                cdmw_danger_button(ui, crate::localization::tr("Clear Refit")),
+            )
+            .on_disabled_hover_text(crate::localization::tr(
+                "Activate a Morph profile before clearing Refit",
+            ))
             .clicked()
         {
             actions.push(UiAction::CdmwCommand {
@@ -4390,10 +4966,14 @@ impl LabApplication {
         let panel_id = egui::Id::new("cdmw_parts_panel_open");
         let tab_id = egui::Id::new("cdmw_parts_panel_islands");
         let mut parts_open = !self.hair.active()
-            && root_ui.ctx().data_mut(|data| data.get_temp::<bool>(panel_id).unwrap_or(false));
+            && root_ui
+                .ctx()
+                .data_mut(|data| data.get_temp::<bool>(panel_id).unwrap_or(false));
         let columns = cdmw_list_columns(root_ui, "Physics");
-        let min_width = (columns[1..].iter().sum::<f32>() + root_ui.spacing().item_spacing.x * 3.0 + 140.0)
-            .max(300.0).min((root_ui.available_width() - 120.0).max(300.0));
+        let min_width =
+            (columns[1..].iter().sum::<f32>() + root_ui.spacing().item_spacing.x * 3.0 + 140.0)
+                .max(300.0)
+                .min((root_ui.available_width() - 120.0).max(300.0));
         egui::Panel::right("cdmw_right_panels")
             .default_size(380.0)
             .min_size(min_width)
@@ -4770,35 +5350,76 @@ impl LabApplication {
             .collect::<Vec<_>>();
         let busy = self.cdmw_busy();
         ui.horizontal(|ui| {
-            ui.weak(crate::localization::tr(format!("{} / {} selected", selected.len(), parts.len())));
+            ui.weak(crate::localization::tr(format!(
+                "{} / {} selected",
+                selected.len(),
+                parts.len()
+            )));
         });
         let editing = self.cdmw_state["replacement"]["comparison"]
             .as_str()
             .is_none_or(|mode| mode == "edit");
         ui.add_enabled_ui(!busy && editing, |ui| {
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(!available.is_empty(), Button::new(crate::localization::tr("All"))).clicked() {
+                if ui
+                    .add_enabled(
+                        !available.is_empty(),
+                        Button::new(crate::localization::tr("All")),
+                    )
+                    .clicked()
+                {
                     actions.push(UiAction::SetPartSelection(available.clone()));
                 }
                 if ui.button(crate::localization::tr("None")).clicked() {
                     actions.push(UiAction::SetPartSelection(Vec::new()));
                 }
-                if ui.add_enabled(!available.is_empty(), Button::new(crate::localization::tr("Invert"))).clicked() {
-                    actions.push(UiAction::SetPartSelection(available.iter().copied()
-                        .filter(|index| !selected.contains(index)).collect()));
+                if ui
+                    .add_enabled(
+                        !available.is_empty(),
+                        Button::new(crate::localization::tr("Invert")),
+                    )
+                    .clicked()
+                {
+                    actions.push(UiAction::SetPartSelection(
+                        available
+                            .iter()
+                            .copied()
+                            .filter(|index| !selected.contains(index))
+                            .collect(),
+                    ));
                 }
                 ui.menu_button(crate::localization::tr("Visibility"), |ui| {
-                    if ui.add_enabled(!selected.is_empty(), Button::new(crate::localization::tr("Hide Selected"))).clicked() {
-                        actions.push(UiAction::SetPartVisibility { indices: selected.clone(), visible: false });
-                        ui.close();
-                    }
-                    if ui.add_enabled(!self.cdmw_hidden_parts.is_empty(), Button::new(crate::localization::tr("Show All"))).clicked() {
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            Button::new(crate::localization::tr("Hide Selected")),
+                        )
+                        .clicked()
+                    {
                         actions.push(UiAction::SetPartVisibility {
-                            indices: self.cdmw_hidden_parts.iter().copied().collect(), visible: true,
+                            indices: selected.clone(),
+                            visible: false,
                         });
                         ui.close();
                     }
-                }).response.on_hover_text(crate::localization::tr("Viewport visibility only; hidden parts remain in the output"));
+                    if ui
+                        .add_enabled(
+                            !self.cdmw_hidden_parts.is_empty(),
+                            Button::new(crate::localization::tr("Show All")),
+                        )
+                        .clicked()
+                    {
+                        actions.push(UiAction::SetPartVisibility {
+                            indices: self.cdmw_hidden_parts.iter().copied().collect(),
+                            visible: true,
+                        });
+                        ui.close();
+                    }
+                })
+                .response
+                .on_hover_text(crate::localization::tr(
+                    "Viewport visibility only; hidden parts remain in the output",
+                ));
             });
         });
         ui.horizontal_wrapped(|ui| {
@@ -4978,13 +5599,20 @@ impl LabApplication {
             return Some("This session is read-only");
         }
         if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild")
-            && self.cdmw_state["replacement"]["item_set"] != true {
+            && self.cdmw_state["replacement"]["item_set"] != true
+        {
             if action == "delete" {
                 if self.cdmw_has_archive_refit()
-                    || state_str(&self.cdmw_state, "output_policy") == Some("replacement_game_asset") {
-                    return Some("Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.");
+                    || state_str(&self.cdmw_state, "output_policy")
+                        == Some("replacement_game_asset")
+                {
+                    return Some(
+                        "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.",
+                    );
                 }
-                return Some("Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.");
+                return Some(
+                    "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
+                );
             }
             return Some("Choose Free Edit under Output to change the part structure");
         }
@@ -5108,7 +5736,10 @@ impl LabApplication {
             self.cdmw_layer_name_for.clone_from(&active_id);
             if let Some(name) = layers
                 .iter()
-                .find(|layer| state_str(layer, "layer_id") == Some(active_id.as_str()) && !state_bool(layer, "base"))
+                .find(|layer| {
+                    state_str(layer, "layer_id") == Some(active_id.as_str())
+                        && !state_bool(layer, "base")
+                })
                 .and_then(|layer| state_str(layer, "name"))
             {
                 self.cdmw_layer_name = name.to_owned();
@@ -5116,7 +5747,8 @@ impl LabApplication {
         }
         for layer in &layers {
             let id = state_str(layer, "layer_id").unwrap_or("");
-            let name = state_str(layer, "name").map(str::to_owned)
+            let name = state_str(layer, "name")
+                .map(str::to_owned)
                 .unwrap_or_else(|| crate::localization::tr("Layer"));
             let visible = state_bool(layer, "visible");
             let base = state_bool(layer, "base");
@@ -5193,10 +5825,12 @@ impl LabApplication {
         let active_base = active.is_some_and(|layer| state_bool(layer, "base"));
         let layer_geometry = authoring && !archive_refit && paste_available;
         // Why Copy, Paste and Delete are unavailable when the host has no writer.
-        let no_writer = |exact: &'static str| if free_edit {
-            "Choose an output folder under Output before adding or removing geometry."
-        } else {
-            exact
+        let no_writer = |exact: &'static str| {
+            if free_edit {
+                "Choose an output folder under Output before adding or removing geometry."
+            } else {
+                exact
+            }
         };
         let selected_elements = self.mesh.as_ref().map_or(0, |mesh| {
             mesh.selection.vertices.len() + mesh.selection.edges.len() + mesh.selection.faces.len()
@@ -5204,21 +5838,27 @@ impl LabApplication {
         let selected_parts = self.selected_part_indices().len();
         let has_selection = selected_elements > 0 || selected_parts > 0;
         if !authoring {
-            ui.small(crate::localization::tr("Geometry Layers are read-only in this session."));
+            ui.small(crate::localization::tr(
+                "Geometry Layers are read-only in this session.",
+            ));
         } else if archive_refit {
             ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), crate::localization::tr("Archive Refit · fixed geometry"))
                 .on_hover_text(crate::localization::tr("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files."));
         } else if !paste_available {
             ui.colored_label(
                 cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
-                crate::localization::tr(no_writer("Adding geometry needs Free Edit: export a new OBJ package to a folder.")),
+                crate::localization::tr(no_writer(
+                    "Adding geometry needs Free Edit: export a new OBJ package to a folder.",
+                )),
             );
         } else if has_selection {
             ui.small(crate::localization::tr(format!(
                 "Ready to copy · {selected_elements} selected element(s) · {selected_parts} selected Part(s)"
             )));
         } else {
-            ui.small(crate::localization::tr("Select mesh elements in the viewport or click one or more Parts above."));
+            ui.small(crate::localization::tr(
+                "Select mesh elements in the viewport or click one or more Parts above.",
+            ));
         }
         if layer_geometry && !free_edit {
             ui.small(crate::localization::tr(
@@ -5416,10 +6056,17 @@ fn colour_row(ui: &mut egui::Ui, label: &str, colour: &mut Color32) {
             let mut channels = colour.to_srgba_unmultiplied();
             let mut changed = false;
             for (channel, label) in channels.iter_mut().zip(["R", "G", "B", "A"]) {
-                changed |= ui.add(numeric::value(channel).range(0..=255).text(label)).changed();
+                changed |= ui
+                    .add(numeric::value(channel).range(0..=255).text(label))
+                    .changed();
             }
             if changed {
-                *colour = Color32::from_rgba_unmultiplied(channels[0], channels[1], channels[2], channels[3]);
+                *colour = Color32::from_rgba_unmultiplied(
+                    channels[0],
+                    channels[1],
+                    channels[2],
+                    channels[3],
+                );
             }
         });
     });
@@ -5499,10 +6146,11 @@ fn pair_number_list(state: &Value, key: &str) -> Vec<(String, f64)> {
         .collect()
 }
 
-
 impl LabApplication {
     pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let Some(state) = self.cdmw_state.get("translucency") else { return };
+        let Some(state) = self.cdmw_state.get("translucency") else {
+            return;
+        };
         crate::localization::collapsing("Translucency (experimental)")
             .id_salt("part_translucency").show(ui, |ui| {
                 ui.add(egui::Label::new(egui::RichText::new(

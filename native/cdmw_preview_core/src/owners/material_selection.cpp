@@ -51,9 +51,8 @@ static bool support_binding_rejected_before_scoring(
     // is already established and wrapper order has nothing left to disambiguate.
     const bool binding_declares_mesh_material =
         !normalized_material_key(binding.material_name).empty()
-        && material_keys_match_for_identity(
-            normalized_material_key(binding.material_name),
-            normalized_material_key(mesh.material));
+        && normalized_texture_family_key(binding.material_name)
+            == normalized_texture_family_key(mesh.material);
     if (
         binding.material_wrapper_order_authoritative
         && binding.material_wrapper_index >= 0
@@ -477,6 +476,9 @@ static std::string shader_rule_for_family(const std::string& family) {
     if (lower.find("skinnedmeshcloth") != std::string::npos) return "cloth";
     if (lower.find("skinnedmeshstandard_ver2") != std::string::npos) return "standard_v2";
     if (lower.find("skinnedmeshstandard") != std::string::npos) return "standard";
+    // BlendHeight uses the same authored RGB detail inputs and packed surface
+    // channels as Standard. Height displacement remains preview-only.
+    if (lower == "skinnedmeshblendheight") return "standard";
     if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
     // SkinnedMeshTear is a decal shell laid over a head. It declares a normal, a
     // surface map and an `_m` atlas whose R, G and B are three selectable tear

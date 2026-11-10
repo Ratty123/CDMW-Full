@@ -970,6 +970,23 @@ function Invoke-RustMeshEditorBuild {
     $stagedExecutable = Join-Path $outputDir "cdmw_mesh_lab.exe"
     Copy-Item -LiteralPath $builtExecutable -Destination $stagedExecutable -Force
 
+    # Ship the SDK compiler with the helper. Depending on an SDK on the user's
+    # PATH silently selected FXC and added seconds to every cold shader build.
+    $sdkBinRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+    $shaderCompilerDir = Get-ChildItem -LiteralPath $sdkBinRoot -Directory |
+        Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName "x64" } |
+        Where-Object { (Test-Path -LiteralPath (Join-Path $_ "dxcompiler.dll")) -and
+            (Test-Path -LiteralPath (Join-Path $_ "dxil.dll")) } | Select-Object -First 1
+    if (-not $shaderCompilerDir) {
+        throw "Rust Mesh Editor requires the Windows SDK x64 dxcompiler.dll and dxil.dll."
+    }
+    $shaderCompilerHashes = [ordered]@{}
+    foreach ($compilerFile in @("dxcompiler.dll", "dxil.dll")) {
+        $destination = Join-Path $outputDir $compilerFile
+        Copy-Item -LiteralPath (Join-Path $shaderCompilerDir $compilerFile) -Destination $destination
+        $shaderCompilerHashes[$compilerFile] = Get-Sha256Hex -LiteralPath $destination
+    }
+
     $controlContractPath = Join-Path $outputDir "cdmw_mesh_lab.control-contract.json"
     $contractProcess = Start-Process -FilePath $stagedExecutable -ArgumentList @(
         "--control-contract-json", "`"$controlContractPath`""
@@ -1015,6 +1032,7 @@ function Invoke-RustMeshEditorBuild {
         source_tree_sha256 = Get-RustMeshEditorSourceFingerprint
         cargo_lock_sha256 = Get-Sha256Hex -LiteralPath (Join-Path $rustRoot "Cargo.lock")
         executable_sha256 = Get-Sha256Hex -LiteralPath $stagedExecutable
+        shader_compiler_files = $shaderCompilerHashes
         control_contract_sha256 = Get-Sha256Hex -LiteralPath $controlContractPath
         cargo_version = [string]$cargoVersion
         rustc_version = [string]$rustcVersion

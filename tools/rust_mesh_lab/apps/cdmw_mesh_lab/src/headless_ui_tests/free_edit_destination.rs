@@ -2,8 +2,13 @@ use super::*;
 
 #[test]
 fn integrated_mesh_export_offers_glb_fbx_obj_and_routes_the_selected_format() -> TestResult {
-    for (label, format) in [("GLB (.glb)", "glb"), ("FBX (.fbx)", "fbx"), ("OBJ (.obj)", "obj")] {
-        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    for (label, format) in [
+        ("GLB (.glb)", "glb"),
+        ("FBX (.fbx)", "fbx"),
+        ("OBJ (.obj)", "obj"),
+    ] {
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
         ui.click("Output: Exact")?;
         ui.click("Export…")?;
         for available in ["GLB (.glb)", "FBX (.fbx)", "OBJ (.obj)"] {
@@ -85,7 +90,8 @@ fn integrated_free_edit_destination_can_be_changed_without_switching_output_mode
 
 #[test]
 fn output_chip_names_the_route_and_opens_its_own_section() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
     // Viewport keeps display settings only.
     ui.click_tool_button("Viewport")?;
     ui.reveal("Display")?;
@@ -94,7 +100,10 @@ fn output_chip_names_the_route_and_opens_its_own_section() -> TestResult {
     ui.click("Output: Exact")?;
     let status = ui.reveal("Protected game-asset output")?;
     let viewport = ui.application.viewport_rect.ok_or("viewport")?;
-    assert!(status.right() < viewport.left(), "the chip opens the rail's Output section");
+    assert!(
+        status.right() < viewport.left(),
+        "the chip opens the rail's Output section"
+    );
     ui.reveal("Free Edit")?;
     ui.reveal("Open Package in CDMW...")?;
 
@@ -107,14 +116,20 @@ fn output_chip_names_the_route_and_opens_its_own_section() -> TestResult {
     let window = ui.tool_window_rect("Output")?;
     let status = ui.reveal("Choose a writable package folder")?;
     assert!(window.contains_rect(status));
-    assert!(ui.last_actions.iter().all(|action| !matches!(action, UiAction::CdmwCommand { .. })),
-        "opening Output must not change the route: {:?}", ui.last_actions);
+    assert!(
+        ui.last_actions
+            .iter()
+            .all(|action| !matches!(action, UiAction::CdmwCommand { .. })),
+        "opening Output must not change the route: {:?}",
+        ui.last_actions
+    );
     Ok(())
 }
 
 #[test]
 fn output_stays_reachable_in_a_read_only_session() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
     ui.application.cdmw_state["authoring_enabled"] = json!(false);
     ui.application.cdmw_state["output_policy"] = json!("unavailable");
     ui.frame(Vec::new());

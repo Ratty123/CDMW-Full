@@ -11,7 +11,11 @@ pub(super) fn verify(
     camera: &mut CameraUniform,
     camera_buffer: &wgpu::Buffer,
     default_binding: &GpuMaterialBinding,
-    make_binding: impl Fn(&[u8], Option<&[u8]>, MaterialPreviewFactors) -> Result<GpuMaterialBinding, RenderError>,
+    make_binding: impl Fn(
+        &[u8],
+        Option<&[u8]>,
+        MaterialPreviewFactors,
+    ) -> Result<GpuMaterialBinding, RenderError>,
 ) -> Result<(), RenderError> {
     let saved_camera = *camera;
     let snapshot = DrawSnapshot {
@@ -81,7 +85,11 @@ pub(super) fn verify(
             ..Default::default()
         };
         camera.material_time = time;
-        camera.lighting_preset = if case.starts_with("dark") { 2 } else { saved_camera.lighting_preset };
+        camera.lighting_preset = if case.starts_with("dark") {
+            2
+        } else {
+            saved_camera.lighting_preset
+        };
         camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
         let bindings = BTreeMap::from([(0, make_binding(&dds, None, factors)?)]);
         let (buffer, width, height) = render_headless_readback_at(
@@ -111,7 +119,10 @@ pub(super) fn verify(
         );
         // Outside the square: a coloured surface alone cannot light this pixel.
         let outside = ((height / 2 * width + width - 2) * 4) as usize;
-        halos.insert(case, <[u8; 4]>::try_from(&pixels[outside..outside + 4]).unwrap());
+        halos.insert(
+            case,
+            <[u8; 4]>::try_from(&pixels[outside..outside + 4]).unwrap(),
+        );
     }
     let luma = |name| {
         samples[name][..3]
@@ -150,7 +161,9 @@ pub(super) fn verify(
         // emissive channel keeps its brightness even with restrained bloom.
         || samples["dark glow"][2].abs_diff(samples["static"][2]) > 2
     {
-        return Err(RenderError::Device(format!("Bloom/dark lighting mismatch: centres={samples:?}, halos={halos:?}")));
+        return Err(RenderError::Device(format!(
+            "Bloom/dark lighting mismatch: centres={samples:?}, halos={halos:?}"
+        )));
     }
     // Reproduce New Item's solid white glow over a textured material. Coloured
     // emission on a black surface did not catch 1x and 4x both clipping to white.
@@ -170,37 +183,72 @@ pub(super) fn verify(
             *camera = saved_camera;
             camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
             camera.lighting_preset = lighting;
-            let bindings = BTreeMap::from([(0, make_binding(&white, Some(&base), MaterialPreviewFactors {
-                emissive_color: Some([1.0; 3]), emissive_intensity: Some(strength),
-                specular: Some(0.0), roughness: Some(1.0), ..Default::default()
-            })?)]);
-            let (buffer, width, height) = render_headless_readback_at(device, queue, format,
-                &textured_mesh, default_binding, &bindings, camera_binding, pipelines, camera,
-                camera_buffer, ViewMode::TexturedSolid, 64, 64, Mat4::IDENTITY, None, false, None);
+            let bindings = BTreeMap::from([(
+                0,
+                make_binding(
+                    &white,
+                    Some(&base),
+                    MaterialPreviewFactors {
+                        emissive_color: Some([1.0; 3]),
+                        emissive_intensity: Some(strength),
+                        specular: Some(0.0),
+                        roughness: Some(1.0),
+                        ..Default::default()
+                    },
+                )?,
+            )]);
+            let (buffer, width, height) = render_headless_readback_at(
+                device,
+                queue,
+                format,
+                &textured_mesh,
+                default_binding,
+                &bindings,
+                camera_binding,
+                pipelines,
+                camera,
+                camera_buffer,
+                ViewMode::TexturedSolid,
+                64,
+                64,
+                Mat4::IDENTITY,
+                None,
+                false,
+                None,
+            );
             let pixels = read_headless_pixels(device, &buffer, width, height)?;
             let sample = |x| pixels[((height / 2 * width + x) * 4) as usize];
             strengths.push([sample(19), sample(45)]);
         }
         let unit = strengths[2];
         let strong = strengths[3];
-        if strengths.windows(2).any(|pair| (0..2).any(|i| pair[1][i] <= pair[0][i]))
+        if strengths
+            .windows(2)
+            .any(|pair| (0..2).any(|i| pair[1][i] <= pair[0][i]))
             || unit.iter().any(|value| *value >= 240)
             || strong.iter().any(|value| *value >= 254)
             || (0..2).any(|i| u16::from(strong[i]) < u16::from(unit[i]) + 12)
             || unit[0].abs_diff(unit[1]) < if lighting == 0 { 6 } else { 5 }
         {
             return Err(RenderError::Device(format!(
-                "White glow clips, loses texture detail or ignores strength (lighting {lighting}): {strengths:?}")));
+                "White glow clips, loses texture detail or ignores strength (lighting {lighting}): {strengths:?}"
+            )));
         }
-        eprintln!("White glow strength 0/0.1/1/4, textured dark/light samples (lighting {lighting}): {strengths:?}");
+        eprintln!(
+            "White glow strength 0/0.1/1/4, textured dark/light samples (lighting {lighting}): {strengths:?}"
+        );
     }
     // A hidden emitter must not bleed through an opaque foreground surface.
     // Transparent and cutout foregrounds must retain the visible source behind.
     let mut overlap = snapshot.clone();
-    overlap.positions.extend(snapshot.positions.iter().map(|p| [p[0], p[1], 0.25]));
+    overlap
+        .positions
+        .extend(snapshot.positions.iter().map(|p| [p[0], p[1], 0.25]));
     overlap.normals.extend(snapshot.normals.iter().copied());
     overlap.uvs.extend(snapshot.uvs.iter().copied());
-    overlap.indices.extend(snapshot.indices.iter().map(|index| index + 4));
+    overlap
+        .indices
+        .extend(snapshot.indices.iter().map(|index| index + 4));
     overlap.triangle_materials.extend([1; 2]);
     let overlap_mesh = GpuMeshBuffers::upload(device, &overlap)?;
     let dds = cdmw_texture::synthetic::rgba8_checker_dds();
@@ -212,25 +260,60 @@ pub(super) fn verify(
         ("cutout foreground", 0.0, false, Some(0.5)),
     ] {
         let bindings = BTreeMap::from([
-            (0, make_binding(&dds, None, MaterialPreviewFactors {
-                emissive_color: Some([1.0, 0.0, 0.0]), emissive_intensity: Some(10.0),
-                ..Default::default()
-            })?),
-            (1, make_binding(&dds, None, MaterialPreviewFactors {
-                emissive_intensity: Some(0.0), opacity: Some(opacity),
-                alpha_blend: Some(alpha_blend), alpha_cutoff,
-                ..Default::default()
-            })?),
+            (
+                0,
+                make_binding(
+                    &dds,
+                    None,
+                    MaterialPreviewFactors {
+                        emissive_color: Some([1.0, 0.0, 0.0]),
+                        emissive_intensity: Some(10.0),
+                        ..Default::default()
+                    },
+                )?,
+            ),
+            (
+                1,
+                make_binding(
+                    &dds,
+                    None,
+                    MaterialPreviewFactors {
+                        emissive_intensity: Some(0.0),
+                        opacity: Some(opacity),
+                        alpha_blend: Some(alpha_blend),
+                        alpha_cutoff,
+                        ..Default::default()
+                    },
+                )?,
+            ),
         ]);
-        let (buffer, width, height) = render_headless_readback_at(device, queue, format,
-            &overlap_mesh, default_binding, &bindings, camera_binding, pipelines, camera,
-            camera_buffer, ViewMode::TexturedSolid, 64, 64, Mat4::IDENTITY, None, false, None);
+        let (buffer, width, height) = render_headless_readback_at(
+            device,
+            queue,
+            format,
+            &overlap_mesh,
+            default_binding,
+            &bindings,
+            camera_binding,
+            pipelines,
+            camera,
+            camera_buffer,
+            ViewMode::TexturedSolid,
+            64,
+            64,
+            Mat4::IDENTITY,
+            None,
+            false,
+            None,
+        );
         let pixels = read_headless_pixels(device, &buffer, width, height)?;
         let outside = ((height / 2 * width + width - 2) * 4) as usize;
         let halo = <[u8; 4]>::try_from(&pixels[outside..outside + 4]).unwrap();
         let visible = halo[2] > halos["no glow"][2] + 5;
         if visible != (label != "opaque occluder") {
-            return Err(RenderError::Device(format!("Bloom visibility mismatch for {label}: {halo:?}")));
+            return Err(RenderError::Device(format!(
+                "Bloom visibility mismatch for {label}: {halo:?}"
+            )));
         }
     }
     *camera = saved_camera;

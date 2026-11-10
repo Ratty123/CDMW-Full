@@ -29,6 +29,7 @@ from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line, rust_theme_d
 
 _RUST_PROTOCOL_QUEUE_LIMIT = 128
 _RUST_READY_TIMEOUT_MS = 10_000
+_RUST_RENDERER_READY_TIMEOUT_MS = 60_000
 _RUST_FINISH_EXIT_TIMEOUT_MS = 3_000
 _RUST_DIAGNOSTIC_BUFFER_LIMIT = 16 * 1024
 _RUST_DIAGNOSTIC_TEXT_LIMIT = 2 * 1024
@@ -454,6 +455,11 @@ class MeshEditorRustProcessMixin:
             return
         self.standalone_rust_child_hwnd = child_hwnd
         self.standalone_rust_hello_received = True
+        # A validated child can still be compiling the driver's first shader
+        # pipelines. Keep initialization bounded without treating it as an
+        # incompatible protocol or enabling editing before the ready event.
+        self.standalone_rust_ready_timer.start(_RUST_RENDERER_READY_TIMEOUT_MS)
+        self._set_rust_status("Mesh Editor is preparing its renderer and textures...")
         self._send_rust_message(
             self._rust_host_message(
                 "hello",
@@ -859,6 +865,11 @@ class MeshEditorRustProcessMixin:
 
     def _handle_rust_ready_timeout(self) -> None:
         if self.standalone_rust_ready:
+            return
+        if self.standalone_rust_hello_received:
+            self._fail_rust_editor(
+                "Mesh Editor did not finish preparing its renderer and textures."
+            )
             return
         self._fail_rust_editor(
             "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",

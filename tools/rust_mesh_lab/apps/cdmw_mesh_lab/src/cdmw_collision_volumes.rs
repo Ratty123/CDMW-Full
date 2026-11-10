@@ -39,70 +39,122 @@ pub(super) enum Selection {
 }
 
 fn numbers(value: &Value) -> Vec<f64> {
-    value.as_array().into_iter().flatten().filter_map(Value::as_f64).collect()
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_f64)
+        .collect()
 }
 
 fn position(value: &Value) -> [f64; 3] {
     let values = numbers(value);
-    [values.first().copied().unwrap_or(0.0), values.get(1).copied().unwrap_or(0.0),
-     values.get(2).copied().unwrap_or(0.0)]
+    [
+        values.first().copied().unwrap_or(0.0),
+        values.get(1).copied().unwrap_or(0.0),
+        values.get(2).copied().unwrap_or(0.0),
+    ]
 }
 
 /// Draft values from the source rows and the saved edit, if any.
 pub(super) fn draft_from(source: &Value) -> (Vec<VolumeDraft>, Vec<CopyDraft>) {
     let rows = source["rows"].as_array().map(Vec::as_slice).unwrap_or(&[]);
-    let mut volumes: Vec<VolumeDraft> = rows.iter().map(|row| VolumeDraft {
-        parameters: numbers(&row["parameters"]), position: position(&row["position"]), removed: false,
-    }).collect();
+    let mut volumes: Vec<VolumeDraft> = rows
+        .iter()
+        .map(|row| VolumeDraft {
+            parameters: numbers(&row["parameters"]),
+            position: position(&row["position"]),
+            removed: false,
+        })
+        .collect();
     let edit = &source["edit"];
     for change in edit["changes"].as_array().into_iter().flatten() {
-        let Some(volume) = change["ordinal"].as_u64().and_then(|i| volumes.get_mut(i as usize)) else { continue };
+        let Some(volume) = change["ordinal"]
+            .as_u64()
+            .and_then(|i| volumes.get_mut(i as usize))
+        else {
+            continue;
+        };
         volume.removed = change["removed"].as_bool().unwrap_or(false);
-        if change["parameters"].is_array() { volume.parameters = numbers(&change["parameters"]); }
-        if change["position"].is_array() { volume.position = position(&change["position"]); }
+        if change["parameters"].is_array() {
+            volume.parameters = numbers(&change["parameters"]);
+        }
+        if change["position"].is_array() {
+            volume.position = position(&change["position"]);
+        }
     }
-    let copies = edit["copies"].as_array().into_iter().flatten().filter_map(|copy| {
-        let template = copy["template"].as_u64()? as usize;
-        let base_row = rows.get(template)?;
-        // An unnamed value is the template's authored one, whatever the template's own edit.
-        Some(CopyDraft {
-            template,
-            parameters: if copy["parameters"].is_array() { numbers(&copy["parameters"]) } else { numbers(&base_row["parameters"]) },
-            position: if copy["position"].is_array() { position(&copy["position"]) } else { position(&base_row["position"]) },
+    let copies = edit["copies"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|copy| {
+            let template = copy["template"].as_u64()? as usize;
+            let base_row = rows.get(template)?;
+            // An unnamed value is the template's authored one, whatever the template's own edit.
+            Some(CopyDraft {
+                template,
+                parameters: if copy["parameters"].is_array() {
+                    numbers(&copy["parameters"])
+                } else {
+                    numbers(&base_row["parameters"])
+                },
+                position: if copy["position"].is_array() {
+                    position(&copy["position"])
+                } else {
+                    position(&base_row["position"])
+                },
+            })
         })
-    }).collect();
+        .collect();
     (volumes, copies)
 }
 
 fn same(a: &[f64], b: &[f64]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-7 * x.abs().max(y.abs()).max(1.0))
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|(x, y)| (x - y).abs() <= 1e-7 * x.abs().max(y.abs()).max(1.0))
 }
 
 /// The command arguments: only what differs from the source rows.
-pub(super) fn edit_arguments(source: &Value, volumes: &[VolumeDraft], copies: &[CopyDraft]) -> Value {
+pub(super) fn edit_arguments(
+    source: &Value,
+    volumes: &[VolumeDraft],
+    copies: &[CopyDraft],
+) -> Value {
     let rows = source["rows"].as_array().map(Vec::as_slice).unwrap_or(&[]);
     let mut changes = Vec::new();
     for (ordinal, (row, draft)) in rows.iter().zip(volumes).enumerate() {
         if draft.removed {
-            changes.push(json!({"ordinal": ordinal, "removed": true, "parameters": null, "position": null}));
+            changes.push(
+                json!({"ordinal": ordinal, "removed": true, "parameters": null, "position": null}),
+            );
             continue;
         }
-        let parameters = (!same(&draft.parameters, &numbers(&row["parameters"]))).then(|| json!(draft.parameters));
-        let moved = (!same(&draft.position, &position(&row["position"]))).then(|| json!(draft.position));
+        let parameters = (!same(&draft.parameters, &numbers(&row["parameters"])))
+            .then(|| json!(draft.parameters));
+        let moved =
+            (!same(&draft.position, &position(&row["position"]))).then(|| json!(draft.position));
         if parameters.is_some() || moved.is_some() {
             changes.push(json!({"ordinal": ordinal, "removed": false, "parameters": parameters, "position": moved}));
         }
     }
     // A copy names only what differs from its template, so a mesh shape (no sizes)
     // and an authored value outside the edit limits are copied as they are.
-    let copies = copies.iter().map(|copy| {
-        let row = rows.get(copy.template);
-        let parameters = row.is_none_or(|row| !same(&copy.parameters, &numbers(&row["parameters"])))
-            .then(|| json!(copy.parameters)).filter(|_| !copy.parameters.is_empty());
-        let moved = row.is_none_or(|row| !same(&copy.position, &position(&row["position"])))
-            .then(|| json!(copy.position));
-        json!({"template": copy.template, "parameters": parameters, "position": moved})
-    }).collect::<Vec<_>>();
+    let copies = copies
+        .iter()
+        .map(|copy| {
+            let row = rows.get(copy.template);
+            let parameters = row
+                .is_none_or(|row| !same(&copy.parameters, &numbers(&row["parameters"])))
+                .then(|| json!(copy.parameters))
+                .filter(|_| !copy.parameters.is_empty());
+            let moved = row
+                .is_none_or(|row| !same(&copy.position, &position(&row["position"])))
+                .then(|| json!(copy.position));
+            json!({"template": copy.template, "parameters": parameters, "position": moved})
+        })
+        .collect::<Vec<_>>();
     json!({"source": source["source"], "changes": changes, "copies": copies})
 }
 
@@ -128,16 +180,26 @@ fn source_label(source: &Value) -> String {
 
 fn row_label(row: &Value, index: usize) -> String {
     let shape = crate::localization::tr(match row["shape"].as_str() {
-        Some("sphere") => "Sphere", Some("capsule") => "Capsule", Some("cylinder") => "Cylinder",
-        Some("box") => "Box", _ => "Mesh",
+        Some("sphere") => "Sphere",
+        Some("capsule") => "Capsule",
+        Some("cylinder") => "Cylinder",
+        Some("box") => "Box",
+        _ => "Mesh",
     });
-    let bone = row["bone"].as_str().filter(|bone| !bone.is_empty()).map(str::to_owned)
+    let bone = row["bone"]
+        .as_str()
+        .filter(|bone| !bone.is_empty())
+        .map(str::to_owned)
         .unwrap_or_else(|| format!("{:#010x}", row["bone_key"].as_u64().unwrap_or(0)));
     format!("{} · {shape} · {bone}", index + 1)
 }
 
 impl LabApplication {
-    pub(super) fn draw_collision_volume_authoring(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    pub(super) fn draw_collision_volume_authoring(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+    ) {
         let state = self.cdmw_state["collision_volumes"].clone();
         let sources = state["sources"].as_array().cloned().unwrap_or_default();
         let idle = !self.cdmw_busy();
@@ -267,20 +329,39 @@ fn draw_values(ui: &mut egui::Ui, shape: &str, parameters: &mut [f64], position:
             // The field clamps what it shows; only a real edit may change the draft, so
             // an authored value outside the range is not rewritten by looking at it.
             let mut shown = *value;
-            if ui.add(crate::cdmw_ui::numeric::value(&mut shown).range(0.0001..=100.0).speed(0.001)).changed() {
+            if ui
+                .add(
+                    crate::cdmw_ui::numeric::value(&mut shown)
+                        .range(0.0001..=100.0)
+                        .speed(0.001),
+                )
+                .changed()
+            {
                 *value = shown;
             }
         });
     }
     if shape == "mesh" {
-        ui.small(crate::localization::tr("Mesh shapes can be moved, copied or removed, not resized."));
+        ui.small(crate::localization::tr(
+            "Mesh shapes can be moved, copied or removed, not resized.",
+        ));
     }
     ui.horizontal(|ui| {
         ui.label(crate::localization::tr("Position"))
-            .on_hover_text(crate::localization::tr("Centre in the bone's own space, in metres."));
+            .on_hover_text(crate::localization::tr(
+                "Centre in the bone's own space, in metres.",
+            ));
         for value in position.iter_mut() {
             let mut shown = *value;
-            if ui.add(crate::cdmw_ui::numeric::value(&mut shown).range(-1000.0..=1000.0).speed(0.001).compact_width(56.0)).changed() {
+            if ui
+                .add(
+                    crate::cdmw_ui::numeric::value(&mut shown)
+                        .range(-1000.0..=1000.0)
+                        .speed(0.001)
+                        .compact_width(56.0),
+                )
+                .changed()
+            {
                 *value = shown;
             }
         }
@@ -307,30 +388,56 @@ mod tests {
         assert_eq!(empty["copies"], json!([]));
         volumes[0].parameters[0] = 0.05;
         volumes[1].removed = true;
-        copies.push(CopyDraft { template: 0, parameters: vec![0.05, 0.4], position: [0.0, 0.2, 0.0] });
+        copies.push(CopyDraft {
+            template: 0,
+            parameters: vec![0.05, 0.4],
+            position: [0.0, 0.2, 0.0],
+        });
         let edit = edit_arguments(&source, &volumes, &copies);
-        assert_eq!(edit["changes"], json!([
+        assert_eq!(
+            edit["changes"],
+            json!([
             {"ordinal": 0, "removed": false, "parameters": [0.05, 0.4], "position": null},
-            {"ordinal": 1, "removed": true, "parameters": null, "position": null}]));
+            {"ordinal": 1, "removed": true, "parameters": null, "position": null}])
+        );
         assert_eq!(edit["copies"][0]["template"], json!(0));
     }
 
     #[test]
     fn a_copy_names_only_what_differs_from_its_template() {
         let mut source = source();
-        source["rows"].as_array_mut().unwrap().push(json!({"shape": "mesh", "parameters": [], "position": [0.0, 0.0, 0.0]}));
+        source["rows"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"shape": "mesh", "parameters": [], "position": [0.0, 0.0, 0.0]}));
         let (volumes, _) = draft_from(&source);
         let copies = vec![
-            CopyDraft { template: 2, parameters: vec![], position: [0.0, 0.0, 0.0] },
-            CopyDraft { template: 2, parameters: vec![], position: [0.0, 0.1, 0.0] },
-            CopyDraft { template: 0, parameters: vec![0.1, 0.4], position: [0.0, 0.5, 0.0] },
+            CopyDraft {
+                template: 2,
+                parameters: vec![],
+                position: [0.0, 0.0, 0.0],
+            },
+            CopyDraft {
+                template: 2,
+                parameters: vec![],
+                position: [0.0, 0.1, 0.0],
+            },
+            CopyDraft {
+                template: 0,
+                parameters: vec![0.1, 0.4],
+                position: [0.0, 0.5, 0.0],
+            },
         ];
         let edit = edit_arguments(&source, &volumes, &copies);
-        assert_eq!(edit["copies"], json!([
+        assert_eq!(
+            edit["copies"],
+            json!([
             {"template": 2, "parameters": null, "position": null},
             {"template": 2, "parameters": null, "position": [0.0, 0.1, 0.0]},
-            {"template": 0, "parameters": null, "position": null}]));
-        let (_, restored) = draft_from(&json!({"source": "model", "rows": source["rows"], "edit": edit}));
+            {"template": 0, "parameters": null, "position": null}])
+        );
+        let (_, restored) =
+            draft_from(&json!({"source": "model", "rows": source["rows"], "edit": edit}));
         assert_eq!(restored, copies);
     }
 

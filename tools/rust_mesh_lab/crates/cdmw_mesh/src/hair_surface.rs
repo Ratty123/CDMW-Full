@@ -26,11 +26,7 @@ pub struct SurfaceHit {
 impl SurfaceIndex {
     /// Visit candidate faces inside a convex picking volume using the resident BVH.
     /// Leaf faces still need an exact brush test and a visible-surface check.
-    pub fn visit_frustum_candidates(
-        &self,
-        planes: &[glam::Vec4; 6],
-        mut visit: impl FnMut(usize),
-    ) {
+    pub fn visit_frustum_candidates(&self, planes: &[glam::Vec4; 6], mut visit: impl FnMut(usize)) {
         if self.nodes.is_empty() {
             return;
         }
@@ -41,9 +37,21 @@ impl SurfaceIndex {
             let node = &self.nodes[stack[pending]];
             if planes.iter().any(|plane| {
                 let support = Vec3::new(
-                    if plane.x >= 0.0 { node.max.x } else { node.min.x },
-                    if plane.y >= 0.0 { node.max.y } else { node.min.y },
-                    if plane.z >= 0.0 { node.max.z } else { node.min.z },
+                    if plane.x >= 0.0 {
+                        node.max.x
+                    } else {
+                        node.min.x
+                    },
+                    if plane.y >= 0.0 {
+                        node.max.y
+                    } else {
+                        node.min.y
+                    },
+                    if plane.z >= 0.0 {
+                        node.max.z
+                    } else {
+                        node.min.z
+                    },
                 );
                 plane.dot(support.extend(1.0)) < 0.0
             }) {
@@ -182,7 +190,9 @@ impl SurfaceIndex {
         // triangle the nearest surface. Resolve that new contact too, otherwise
         // an apparently clear guide can still carry its card into the crease.
         for _ in 0..4 {
-            let Some((surface, normal)) = self.nearest_within(positions, indices, corrected, nearest_reach) else {
+            let Some((surface, normal)) =
+                self.nearest_within(positions, indices, corrected, nearest_reach)
+            else {
                 break;
             };
             let offset = corrected - surface;
@@ -417,21 +427,35 @@ mod tests {
         let mut positions = vec![];
         let mut indices = vec![];
         for side in [-1.0, 1.0] {
-            for x in 0..32 { for z in 0..32 {
-                let x = side * (0.3 + x as f32 * 0.01);
-                let z = -0.16 + z as f32 * 0.01;
-                let first = positions.len() as u32;
-                positions.extend([[x,0.0,z],[x+side*0.009,0.0,z],[x,0.0,z+0.009]]);
-                indices.extend([first, first+2, first+1]);
-            }}
+            for x in 0..32 {
+                for z in 0..32 {
+                    let x = side * (0.3 + x as f32 * 0.01);
+                    let z = -0.16 + z as f32 * 0.01;
+                    let first = positions.len() as u32;
+                    positions.extend([
+                        [x, 0.0, z],
+                        [x + side * 0.009, 0.0, z],
+                        [x, 0.0, z + 0.009],
+                    ]);
+                    indices.extend([first, first + 2, first + 1]);
+                }
+            }
         }
         let surface = SurfaceIndex::new(&positions, &indices);
-        let points: Vec<_> = (0..500).map(|i| Vec3::new(0.0, 0.001, (i % 30) as f32 * 0.01 - 0.15)).collect();
+        let points: Vec<_> = (0..500)
+            .map(|i| Vec3::new(0.0, 0.001, (i % 30) as f32 * 0.01 - 0.15))
+            .collect();
         let start = std::time::Instant::now();
-        let original: Vec<_> = points.iter().map(|p| surface.contact(&positions, &indices, *p, 0.002)).collect();
+        let original: Vec<_> = points
+            .iter()
+            .map(|p| surface.contact(&positions, &indices, *p, 0.002))
+            .collect();
         let unbounded = start.elapsed();
         let start = std::time::Instant::now();
-        let bounded: Vec<_> = points.iter().map(|p| surface.motion_contact(&positions, &indices, *p, 0.002, 0.001)).collect();
+        let bounded: Vec<_> = points
+            .iter()
+            .map(|p| surface.motion_contact(&positions, &indices, *p, 0.002, 0.001))
+            .collect();
         let local = start.elapsed();
         assert_eq!(original, bounded);
         assert_eq!(bounded, points);
@@ -452,9 +476,12 @@ mod tests {
         }
         let mut index = SurfaceIndex::new(&positions, &indices);
         let planes = [
-            glam::vec4(1.0, 0.0, 0.0, 1.0), glam::vec4(-1.0, 0.0, 0.0, 1.0),
-            glam::vec4(0.0, 1.0, 0.0, 1.0), glam::vec4(0.0, -1.0, 0.0, 1.0),
-            glam::vec4(0.0, 0.0, 1.0, 0.0), glam::vec4(0.0, 0.0, -1.0, 1.0),
+            glam::vec4(1.0, 0.0, 0.0, 1.0),
+            glam::vec4(-1.0, 0.0, 0.0, 1.0),
+            glam::vec4(0.0, 1.0, 0.0, 1.0),
+            glam::vec4(0.0, -1.0, 0.0, 1.0),
+            glam::vec4(0.0, 0.0, 1.0, 0.0),
+            glam::vec4(0.0, 0.0, -1.0, 1.0),
         ];
         let mut faces = vec![];
         index.visit_frustum_candidates(&planes, |face| faces.push(face));

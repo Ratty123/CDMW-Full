@@ -102,8 +102,15 @@ mod tests {
 
     #[test]
     fn decoded_jiggle_each_bone_setting_changes_the_simulated_result() {
-        for (index, value) in [30.0, 0.25, 0.01, 0.001, 30.0, 0.25, 0.01, 0.001].into_iter().enumerate() {
-            let motion = if index < 4 { jiggle::Motion::UpDown } else { jiggle::Motion::Turn };
+        for (index, value) in [30.0, 0.25, 0.01, 0.001, 30.0, 0.25, 0.01, 0.001]
+            .into_iter()
+            .enumerate()
+        {
+            let motion = if index < 4 {
+                jiggle::Motion::UpDown
+            } else {
+                jiggle::Motion::Turn
+            };
             let mut baseline = simulation(true, vec![255, 240, 240]);
             let mut changed = simulation(true, vec![255, 240, 240]);
             let mut settings = Settings::default();
@@ -112,13 +119,21 @@ mod tests {
             for _ in 0..180 {
                 baseline.advance(STEP, motion, Settings::default()).unwrap();
                 changed.advance(STEP, motion, settings).unwrap();
-                assert_eq!(baseline.positions[0], changed.positions[0], "disabled contribution for setting {index}");
+                assert_eq!(
+                    baseline.positions[0], changed.positions[0],
+                    "disabled contribution for setting {index}"
+                );
                 for vertex in 1..3 {
-                    peak_difference = peak_difference.max(Vec3::from(baseline.positions[vertex])
-                        .distance(Vec3::from(changed.positions[vertex])));
+                    peak_difference = peak_difference.max(
+                        Vec3::from(baseline.positions[vertex])
+                            .distance(Vec3::from(changed.positions[vertex])),
+                    );
                 }
             }
-            assert!(peak_difference > 1e-4, "setting {index} did not affect deformation: {peak_difference}");
+            assert!(
+                peak_difference > 1e-4,
+                "setting {index} did not affect deformation: {peak_difference}"
+            );
         }
     }
 
@@ -136,10 +151,17 @@ mod tests {
                 regional.bone_settings.clear();
                 settings = Settings::default();
             }
-            shared.advance(STEP, jiggle::Motion::Turn, settings).unwrap();
-            regional.advance(STEP, jiggle::Motion::Turn, Settings::default()).unwrap();
+            shared
+                .advance(STEP, jiggle::Motion::Turn, settings)
+                .unwrap();
+            regional
+                .advance(STEP, jiggle::Motion::Turn, Settings::default())
+                .unwrap();
             assert_eq!(regional.positions, shared.positions);
-            assert_eq!(regional.frame.as_ref().unwrap().bone_states, shared.frame.as_ref().unwrap().bone_states);
+            assert_eq!(
+                regional.frame.as_ref().unwrap().bone_states,
+                shared.frame.as_ref().unwrap().bone_states
+            );
         }
     }
 
@@ -178,8 +200,11 @@ mod tests {
                 .unwrap();
         }
         assert_ne!(changed.positions, original.positions);
-        for motion in [jiggle::Motion::StartStop, jiggle::Motion::Turn,
-            jiggle::Motion::Freehand(Vec3::new(0.2, 0.15, -0.1))] {
+        for motion in [
+            jiggle::Motion::StartStop,
+            jiggle::Motion::Turn,
+            jiggle::Motion::Freehand(Vec3::new(0.2, 0.15, -0.1)),
+        ] {
             let mut a = simulation(true, vec![240; 3]);
             let mut b = simulation(true, vec![240; 3]);
             for _ in 0..20 {
@@ -363,21 +388,43 @@ struct WeaponReference {
 }
 
 impl WeaponReference {
-    fn prepare(self, rest: &DrawSnapshot, cancellation: &CancellationToken) -> Result<weapon::Reference> {
-        if self.positions.is_empty() || self.positions.len() > 100_000
-            || self.indices.is_empty() || self.indices.len() > 600_000 || !self.indices.len().is_multiple_of(3)
-            || self.positions.iter().flatten().any(|v| !v.is_finite() || v.abs() > 1e6)
-            || self.indices.iter().any(|&i| i as usize >= self.positions.len()) || !self.placement.valid() {
+    fn prepare(
+        self,
+        rest: &DrawSnapshot,
+        cancellation: &CancellationToken,
+    ) -> Result<weapon::Reference> {
+        if self.positions.is_empty()
+            || self.positions.len() > 100_000
+            || self.indices.is_empty()
+            || self.indices.len() > 600_000
+            || !self.indices.len().is_multiple_of(3)
+            || self
+                .positions
+                .iter()
+                .flatten()
+                .any(|v| !v.is_finite() || v.abs() > 1e6)
+            || self
+                .indices
+                .iter()
+                .any(|&i| i as usize >= self.positions.len())
+            || !self.placement.valid()
+        {
             bail!("Invalid weapon reference geometry.");
         }
         cancellation.check()?;
         let count = self.positions.len();
         let mut snapshot = DrawSnapshot {
-            mesh_identity: rest.mesh_identity, draw_revision: rest.draw_revision,
-            topology_generation: rest.topology_generation, positions: self.positions,
-            normals: vec![[0.; 3]; count], uvs: vec![[0.; 2]; count], shader_masks: vec![[0.; 3]; count],
-            triangle_materials: vec![u32::MAX; self.indices.len() / 3], indices: self.indices,
-            selected_vertices: Vec::new(), fingerprint: String::new(),
+            mesh_identity: rest.mesh_identity,
+            draw_revision: rest.draw_revision,
+            topology_generation: rest.topology_generation,
+            positions: self.positions,
+            normals: vec![[0.; 3]; count],
+            uvs: vec![[0.; 2]; count],
+            shader_masks: vec![[0.; 3]; count],
+            triangle_materials: vec![u32::MAX; self.indices.len() / 3],
+            indices: self.indices,
+            selected_vertices: Vec::new(),
+            fingerprint: String::new(),
         };
         let mut normals = vec![Vec3::ZERO; count];
         surface_normals(&snapshot, &mut normals);
@@ -385,7 +432,11 @@ impl WeaponReference {
             *normal = sum.normalize_or(Vec3::Y).to_array();
         }
         cancellation.check()?;
-        Ok(weapon::Reference { draw: snapshot, placement: self.placement, base_inverse: self.placement.transform().inverse() })
+        Ok(weapon::Reference {
+            draw: snapshot,
+            placement: self.placement,
+            base_inverse: self.placement.transform().inverse(),
+        })
     }
 }
 
@@ -462,18 +513,40 @@ pub(crate) fn prepare(
         cancellation.check()?;
         let reference_count = payload.weapon_reference.as_ref().map(|r| r.collider_count);
         let weapon_reference = if request.cloth {
-            payload.weapon_reference.map(|reference| reference.prepare(&request.rest, cancellation)).transpose()?
-        } else { None };
+            payload
+                .weapon_reference
+                .map(|reference| reference.prepare(&request.rest, cancellation))
+                .transpose()?
+        } else {
+            None
+        };
         let simulation = if request.cloth {
-            if !request.enabled { contributions.fill(63); }
+            if !request.enabled {
+                contributions.fill(63);
+            }
             let mut simulation = crate::cdmw_cloth::preview::Simulation::new(
-                payload.cloth.ok_or_else(|| anyhow::anyhow!("Cloth preview needs a decoded guide mesh."))?,
-                &payload.rig, &request.rest.positions, &records, &contributions, cancellation)?;
-            if let Some(count) = reference_count { simulation.set_weapon_reference(count)?; }
+                payload
+                    .cloth
+                    .ok_or_else(|| anyhow::anyhow!("Cloth preview needs a decoded guide mesh."))?,
+                &payload.rig,
+                &request.rest.positions,
+                &records,
+                &contributions,
+                cancellation,
+            )?;
+            if let Some(count) = reference_count {
+                simulation.set_weapon_reference(count)?;
+            }
             super::Simulation::Cloth(Box::new(simulation))
         } else {
             super::Simulation::Decoded(Box::new(Simulation::new(
-                payload.rig, &request.rest.positions, &records, contributions, request.enabled, cancellation)?))
+                payload.rig,
+                &request.rest.positions,
+                &records,
+                contributions,
+                request.enabled,
+                cancellation,
+            )?))
         };
         let mut rest_surface_normals = vec![Vec3::ZERO; request.rest.positions.len()];
         surface_normals(&request.rest, &mut rest_surface_normals);
@@ -672,7 +745,8 @@ impl Simulation {
             rotation,
             self.pivot + translation - rotation * self.pivot,
         );
-        let motion_matrix = motion_transform.to_cols_array_2d()
+        let motion_matrix = motion_transform
+            .to_cols_array_2d()
             .map(|row| row.map(f64::from));
         let poses = self
             .roots

@@ -463,6 +463,16 @@ the UI does not expose a misleading refraction slider.
 
 ## Opening meshes and preparing sessions
 
+The helper identifies its process and parent before compiling its renderer.
+Controls become available after `ready`; a validated child gets a separate,
+bounded initialization deadline. This avoids reporting a protocol failure while
+the first launch is still compiling shaders. Release packages include the
+verified DirectX shader compiler runtime.
+
+Detached mesh metadata uses scalar fast paths, and large numeric JSON arrays
+are encoded in bounded blocks. Copies, cancellation, canonical JSON bytes and
+exact per-file output remain part of the existing session contract.
+
 From an Item Finder set preview, **Open in Mesh Editor** edits the selected PAC
 and draws the other worn files as **Reference pieces**. Their Inspector **View**
 checkboxes affect display only. **Switch editable piece** lists the set's files
