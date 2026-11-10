@@ -23,12 +23,15 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
         assert not dialog.preview_ambient_occlusion_checkbox.isHidden()
         assert dialog.preview_shadows_checkbox.isChecked()
         assert dialog.preview_ambient_occlusion_checkbox.isChecked()
+        assert dialog.preview_lighting_preset_combo.currentData() == "neutral_studio"
         events = []
         dialog.settings_changed.connect(events.append)
         dialog.preview_shadows_checkbox.click()
         dialog.preview_ambient_occlusion_checkbox.click()
-        assert len(events) == 2
+        dialog.preview_lighting_preset_combo.setCurrentIndex(dialog.preview_lighting_preset_combo.findData("studio_fixed"))
+        assert len(events) == 3
         settings = events[-1]
+        assert settings.preview_lighting_preset == "studio_fixed"
         assert not settings.preview_shadows and not settings.preview_ambient_occlusion
         flags = model_preview_settings_change_flags(defaults, settings)
         assert flags.d3d11_render_tuning_changed
@@ -36,18 +39,22 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
         quality, _ = render_tuning_payloads(settings, {})
         assert quality['preview_shadows'] is False
         assert quality['preview_ambient_occlusion'] is False
+        assert quality['preview_lighting_preset'] == 'studio_fixed'
         store = QSettings(str(tmp_path / 'preview.ini'), QSettings.Format.IniFormat)
         shell = SimpleNamespace(settings=store, archive=SimpleNamespace(_current_model_preview_render_settings=lambda: settings))
         assert SettingsPersistenceMixin._save_model_preview_settings_if_loaded(shell)
         store.sync()
         restored = QSettings(str(tmp_path / 'preview.ini'), QSettings.Format.IniFormat)
         dialog.set_settings(replace(defaults,
+            preview_lighting_preset=restored.value('preview/preview_lighting_preset', 'neutral_studio'),
             preview_shadows=restored.value('preview/preview_shadows', True, type=bool),
             preview_ambient_occlusion=restored.value('preview/preview_ambient_occlusion', True, type=bool)))
         assert not dialog.current_settings().preview_shadows
         assert not dialog.current_settings().preview_ambient_occlusion
+        assert dialog.current_settings().preview_lighting_preset == 'studio_fixed'
         dialog.set_settings(defaults)
         assert dialog.current_settings().preview_shadows and dialog.current_settings().preview_ambient_occlusion
+        assert dialog.current_settings().preview_lighting_preset == 'neutral_studio'
     finally:
         shiboken6.delete(dialog)
         app.processEvents()

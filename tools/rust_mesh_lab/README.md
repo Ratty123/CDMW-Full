@@ -504,6 +504,14 @@ particles. Both controls default on and leave diagnostic modes unchanged. Icon c
 use transparent clear alpha, including the Dark preset. These are preview effects, not a
 game-lighting validation.
 
+The fourth preset, **Studio (fixed lights)**, keeps its key and two fill lights in
+world space. It uses GGX/height-correlated Smith visibility, a hemisphere and glossy
+environment lobe, normal-variance specular filtering, and a hue-preserving shoulder
+curve. Ambient occlusion multiplies linear radiance before that curve: a second
+layer of the shadow depth array stores camera depth, capped at 2048 pixels per side.
+The 16-texture compatibility path retains approximate post-curve AO. Other presets
+retain their existing rendering, and Neutral studio remains the default.
+
 The authoring Parts panel also exposes **Translucency (experimental)** for original
 PAC parts and imported replacements. Apply/Restore send selected stable part IDs
 to the host, which validates the material sidecar, preserves undo and drafts,

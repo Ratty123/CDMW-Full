@@ -51,7 +51,7 @@ DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
 # camera input and lighting depth; texture actions stay on their owning surfaces.
 ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": ("preview_shadows", "preview_ambient_occlusion"),
+    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": (),
 }
@@ -61,7 +61,7 @@ ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
 # .NET/Builder surfaces.
 DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": ("preview_shadows", "preview_ambient_occlusion"),
+    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS,
 }
@@ -139,6 +139,7 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
             "reset_tool_pbd_cloth_preview": dialog.reset_tool_pbd_cloth_button,
         },
         "Quality / Lighting": {
+            "preview_lighting_preset": dialog.preview_lighting_preset_combo,
             "preview_shadows": dialog.preview_shadows_checkbox,
             "preview_ambient_occlusion": dialog.preview_ambient_occlusion_checkbox,
             **{field: (
@@ -200,6 +201,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
     )
     dotnet = mesh_editor_dotnet or archive_dotnet
     dialog._set_form_field_visible(dialog.preview_shadows_checkbox, dotnet)
+    dialog._set_form_field_visible(dialog.preview_lighting_preset_combo, dotnet)
     dialog._set_form_field_visible(dialog.preview_ambient_occlusion_checkbox, dotnet)
     legacy = False
     supported_by_tab = supported_preview_settings_by_tab(dialog)
@@ -269,7 +271,9 @@ def sync_renderer_specific_controls(dialog: object) -> None:
                 dialog._set_form_field_visible(widget, supported)
                 widget.setProperty("previewSettingKey", field)
                 if supported:
-                    if field in {"preview_shadows", "preview_ambient_occlusion"}:
+                    if field == "preview_lighting_preset":
+                        tooltip = "Lighting for Textured and Game Outdoor views."
+                    elif field in {"preview_shadows", "preview_ambient_occlusion"}:
                         tooltip = "Adds depth in Textured and Game Outdoor views."
                     else:
                         tooltip = (

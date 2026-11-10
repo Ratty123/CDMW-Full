@@ -111,6 +111,9 @@ fn extend(bounds: &mut Option<(Vec3, Vec3)>, point: Vec3) {
 }
 
 fn key_direction(camera: &CameraUniform) -> Vec3 {
+    if camera.lighting_preset == 3 {
+        return Vec3::new(-0.45, 0.8, -0.55).normalize();
+    }
     let view = Vec3::from_slice(&camera.view_direction).normalize_or(-Vec3::Z);
     let right = Vec3::from_slice(&camera.camera_right).normalize_or(Vec3::X);
     let up = Vec3::from_slice(&camera.camera_up).normalize_or(Vec3::Y);
@@ -150,11 +153,21 @@ pub(super) fn shadow_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     if shadow_supported(device) {
         entries.extend([
             wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Texture {
                     sample_type: wgpu::TextureSampleType::Depth,
-                    view_dimension: wgpu::TextureViewDimension::D2,
+                    view_dimension: wgpu::TextureViewDimension::D2Array,
                     multisampled: false,
                 },
                 count: None,
@@ -176,10 +189,13 @@ pub(super) fn shadow_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 pub(super) struct ShadowResources {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
+    shadow_attachment: wgpu::TextureView,
+    studio_attachment: wgpu::TextureView,
     sampler: wgpu::Sampler,
     layout: wgpu::BindGroupLayout,
     camera_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
+    studio_depth_pipeline: wgpu::RenderPipeline,
 }
 
 pub(super) struct ShadowFrame {
@@ -199,7 +215,7 @@ impl ShadowResources {
             size: wgpu::Extent3d {
                 width: SHADOW_SIZE,
                 height: SHADOW_SIZE,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: 2,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -209,6 +225,17 @@ impl ShadowResources {
             view_formats: &[],
         });
         let view = texture.create_view(&Default::default());
+        let shadow_attachment = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            array_layer_count: Some(1),
+            ..Default::default()
+        });
+        let studio_attachment = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_array_layer: 1,
+            array_layer_count: Some(1),
+            ..Default::default()
+        });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("preview shadow comparison"),
             compare: Some(wgpu::CompareFunction::LessEqual),
@@ -258,13 +285,61 @@ impl ShadowResources {
             multiview_mask: None,
             cache: None,
         });
+        let layer_layout = material_layers::layout(device);
+        let mut studio_layouts = vec![Some(material_layout), Some(camera_layout)];
+        if let Some(layer) = &layer_layout {
+            studio_layouts.push(Some(layer));
+        }
+        let studio_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("fixed studio camera depth"),
+            bind_group_layouts: &studio_layouts,
+            immediate_size: 0,
+        });
+        let studio_shader=device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label:Some("fixed studio camera depth"),source:wgpu::ShaderSource::Wgsl(format!("{}\n@fragment fn fs_camera_depth(input:VertexOut,@builtin(front_facing) front_facing:bool) {{ let colour=shade_surface(input,front_facing,false,false); }}",material_layers::shader(device,false)).into()),
+        });
+        let studio_depth_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("fixed studio camera depth"),
+                layout: Some(&studio_layout),
+                vertex: wgpu::VertexState {
+                    module: &studio_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[Some(GpuVertex::layout())],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &studio_shader,
+                    entry_point: Some("fs_camera_depth"),
+                    compilation_options: Default::default(),
+                    targets: &[],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            });
         Self {
             _texture: texture,
             view,
+            shadow_attachment,
+            studio_attachment,
             sampler,
             layout: shadow_layout(device),
             camera_layout: camera_layout.clone(),
             pipeline,
+            studio_depth_pipeline,
         }
     }
 
@@ -279,16 +354,34 @@ impl ShadowResources {
         camera: &CameraUniform,
         mode: ViewMode,
         settings: LightingDepthSettings,
+        size: [u32; 2],
+        viewport: Option<[f32; 4]>,
     ) -> ShadowFrame {
         let (light, center, radius) = mesh.lighting_bounds.fit(camera, &mesh.material_ranges);
         let enabled = settings.shadows && textured(mode) && shadow_supported(device);
+        let studio_ao = camera.lighting_preset == 3
+            && settings.ambient_occlusion
+            && textured(mode)
+            && shadow_supported(device);
+        let [x, y, w, h] = viewport.unwrap_or([0.0, 0.0, size[0] as f32, size[1] as f32]);
+        let x = x.clamp(0.0, size[0].saturating_sub(1) as f32);
+        let y = y.clamp(0.0, size[1].saturating_sub(1) as f32);
+        let screen = [
+            x,
+            y,
+            w.max(1.0).min(size[0] as f32 - x),
+            h.max(1.0).min(size[1] as f32 - y),
+        ];
+        let ratio = (SHADOW_SIZE as f32 / screen[2].max(screen[3]).max(1.0)).min(1.0);
+        let ao_width = (screen[2] * ratio).floor().max(1.0);
+        let ao_height = (screen[3] * ratio).floor().max(1.0);
         let parameters = ShadowUniform {
             light_view_projection: light.to_cols_array_2d(),
             center_radius: center.extend(radius).to_array(),
             enabled: [
                 u32::from(enabled),
                 u32::from(settings.ambient_occlusion && textured(mode)),
-                0,
+                u32::from(studio_ao),
                 0,
             ],
         };
@@ -302,6 +395,23 @@ impl ShadowResources {
             resource: buffer.as_entire_binding(),
         }];
         if shadow_supported(device) {
+            let mut ao_parameters = Mat4::from_cols_array_2d(&camera.view_projection)
+                .inverse()
+                .to_cols_array()
+                .to_vec();
+            ao_parameters.extend([0.0, 0.0, ao_width, ao_height, radius, 0.0, 0.0, 0.0]);
+            ao_parameters.extend(screen);
+            let ao_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("fixed studio ambient parameters"),
+                contents: bytemuck::cast_slice(&ao_parameters),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+            // Bind groups retain their buffers; create this group while the
+            // per-frame AO buffer remains in scope.
+            entries.push(wgpu::BindGroupEntry {
+                binding: 4,
+                resource: ao_buffer.as_entire_binding(),
+            });
             entries.extend([
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -312,61 +422,119 @@ impl ShadowResources {
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ]);
+            let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("preview shadow frame"),
+                layout: &self.layout,
+                entries: &entries,
+            });
+            if enabled {
+                let mut light_camera = *camera;
+                light_camera.view_projection = light.to_cols_array_2d();
+                self.record_depth(
+                    device,
+                    encoder,
+                    mesh,
+                    default,
+                    materials,
+                    &light_camera,
+                    &self.shadow_attachment,
+                    false,
+                    None,
+                );
+            }
+            if studio_ao {
+                let mut depth_camera = *camera;
+                depth_camera.view_mode = ViewMode::BaseAlpha.shader_mode();
+                self.record_depth(
+                    device,
+                    encoder,
+                    mesh,
+                    default,
+                    materials,
+                    &depth_camera,
+                    &self.studio_attachment,
+                    true,
+                    Some([ao_width, ao_height]),
+                );
+            }
+            return ShadowFrame { binding, radius };
         }
         let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("preview shadow frame"),
             layout: &self.layout,
             entries: &entries,
         });
-        if enabled {
-            let mut light_camera = *camera;
-            light_camera.view_projection = light.to_cols_array_2d();
-            let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("preview shadow light camera"),
-                contents: bytemuck::bytes_of(&light_camera),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-            let camera_binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("preview shadow light camera"),
-                layout: &self.camera_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }],
-            });
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("preview key light shadow pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(1, &camera_binding, &[]);
-            pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-            pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
-            for range in &mesh.material_ranges {
-                let material = materials.get(&range.material).unwrap_or(default);
-                if material.alpha_blend || material.translucent {
-                    continue;
-                }
-                pass.set_bind_group(0, &material.bind_group, &[]);
-                pass.draw_indexed(
-                    range.first_index..range.first_index + range.index_count,
-                    0,
-                    range.part_id..range.part_id + 1,
-                );
-            }
-        }
         ShadowFrame { binding, radius }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_depth(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        mesh: &GpuMeshBuffers,
+        default: &GpuMaterialBinding,
+        materials: &BTreeMap<u32, GpuMaterialBinding>,
+        camera: &CameraUniform,
+        view: &wgpu::TextureView,
+        studio: bool,
+        size: Option<[f32; 2]>,
+    ) {
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("preview shadow light camera"),
+            contents: bytemuck::bytes_of(camera),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let camera_binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("preview shadow light camera"),
+            layout: &self.camera_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("preview key light shadow pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(if studio {
+            &self.studio_depth_pipeline
+        } else {
+            &self.pipeline
+        });
+        if let Some([width, height]) = size {
+            pass.set_viewport(0.0, 0.0, width, height, 0.0, 1.0);
+        }
+        pass.set_bind_group(1, &camera_binding, &[]);
+        pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+        pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
+        for range in &mesh.material_ranges {
+            let material = materials.get(&range.material).unwrap_or(default);
+            if material.alpha_blend || material.translucent {
+                continue;
+            }
+            if studio {
+                material_layers::bind(&mut pass, material);
+            } else {
+                pass.set_bind_group(0, &material.bind_group, &[]);
+            }
+            pass.draw_indexed(
+                range.first_index..range.first_index + range.index_count,
+                0,
+                range.part_id..range.part_id + 1,
+            );
+        }
     }
 }
 
@@ -379,6 +547,7 @@ impl AmbientOcclusion {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat, samples: u32) -> Self {
         let layout = effect_depth::layout(device, samples);
         let source = include_str!("ambient_occlusion.wgsl")
+            .replace("// AMBIENT_BINDINGS","@group(0) @binding(0) var scene_depth: DEPTH_TYPE;\n@group(0) @binding(1) var<uniform> ambient: AmbientParameters;")
             .replace(
                 "DEPTH_TYPE",
                 if samples > 1 {
@@ -397,7 +566,7 @@ impl AmbientOcclusion {
             );
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("preview ambient occlusion"),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
+            source: wgpu::ShaderSource::Wgsl(format!("{source}\n@fragment fn fs_ambient(@builtin(position) pixel:vec4<f32>,@builtin(sample_index) sample:u32) -> @location(0) vec4<f32> {{return vec4(vec3(ambient_visibility(pixel.xy,sample)),1.0);}}").into()),
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("preview ambient occlusion"),
@@ -462,7 +631,10 @@ impl AmbientOcclusion {
         mode: ViewMode,
         settings: LightingDepthSettings,
     ) {
-        if !settings.ambient_occlusion || !textured(mode) {
+        if !settings.ambient_occlusion
+            || !textured(mode)
+            || (camera.lighting_preset == 3 && shadow_supported(device))
+        {
             return;
         }
         let [x, y, w, h] = viewport.unwrap_or([0.0, 0.0, size[0] as f32, size[1] as f32]);
@@ -475,6 +647,7 @@ impl AmbientOcclusion {
             .to_cols_array()
             .to_vec();
         parameters.extend([x, y, w, h, radius, 0.0, 0.0, 0.0]);
+        parameters.extend([x, y, w, h]);
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("preview ambient parameters"),
             contents: bytemuck::cast_slice(&parameters),
@@ -554,6 +727,19 @@ mod tests {
             bounds.world(transform, &[range(1)]),
             (Vec3::new(100.0, 3.0, 0.0), Vec3::new(100.0, 5.0, 0.0))
         );
+    }
+
+    #[test]
+    fn studio_key_stays_fixed_as_camera_orbits() {
+        let mut camera = CameraUniform::new(true);
+        camera.lighting_preset = LightingPreset::StudioFixed.shader_value();
+        let expected = Vec3::new(-0.45, 0.8, -0.55).normalize();
+        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
+        camera.view_direction = [1.0, 0.0, 0.0, 0.0];
+        camera.camera_right = [0.0, 0.0, 1.0, 0.0];
+        assert!(key_direction(&camera).abs_diff_eq(expected, 1e-6));
+        camera.lighting_preset = LightingPreset::NeutralStudio.shader_value();
+        assert!(!key_direction(&camera).abs_diff_eq(expected, 0.1));
     }
 
     #[test]

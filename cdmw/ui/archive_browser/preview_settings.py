@@ -256,6 +256,7 @@ class ArchivePreviewSettingsMixin:
                     defaults.disable_all_support_maps,
                 ),
                 preview_shadows=self.shell._read_bool("preview/preview_shadows", defaults.preview_shadows),
+                preview_lighting_preset=str(self.shell.settings.value("preview/preview_lighting_preset", defaults.preview_lighting_preset)),
                 preview_ambient_occlusion=self.shell._read_bool("preview/preview_ambient_occlusion", defaults.preview_ambient_occlusion),
                 disable_lighting=self.shell._read_bool("preview/disable_lighting", defaults.disable_lighting),
                 disable_depth_test=self.shell._read_bool("preview/disable_depth_test", defaults.disable_depth_test),

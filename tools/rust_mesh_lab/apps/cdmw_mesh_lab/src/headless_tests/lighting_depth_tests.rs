@@ -1,10 +1,20 @@
 use super::*;
-use cdmw_render_wgpu::{HeadlessMaterialCaptureCamera, LightingDepthSettings};
+use cdmw_render_wgpu::{HeadlessMaterialCaptureCamera, LightingDepthSettings, LightingPreset};
 use cdmw_texture::TextureRole;
 
 #[test]
 #[ignore = "requires a D3D12 adapter"]
 fn offscreen_shadow_and_ambient_depth_preserve_diagnostics() -> TestResult {
+    verify_depth(LightingPreset::NeutralStudio)
+}
+
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_fixed_studio_depth_preserves_diagnostics() -> TestResult {
+    verify_depth(LightingPreset::StudioFixed)
+}
+
+fn verify_depth(preset: LightingPreset) -> TestResult {
     let mut snapshot = triangle_application()?
         .mesh
         .as_ref()
@@ -121,11 +131,12 @@ fn offscreen_shadow_and_ambient_depth_preserve_diagnostics() -> TestResult {
         let base = folder.join(format!("{name}-base.bmp"));
         let parts = folder.join(format!("{name}-parts.bmp"));
         pollster::block_on(
-            cdmw_render_wgpu::run_headless_layered_material_capture_with_depth(
+            cdmw_render_wgpu::run_headless_layered_material_capture_with_lighting(
                 &snapshot,
                 &textures,
                 &[],
                 &[],
+                preset,
                 LightingDepthSettings {
                     shadows,
                     ambient_occlusion,
@@ -240,11 +251,12 @@ fn offscreen_shadow_and_ambient_depth_preserve_diagnostics() -> TestResult {
         for shadows in [false, true] {
             let lit = folder.join(format!("{name}-{shadows}.bmp"));
             pollster::block_on(
-                cdmw_render_wgpu::run_headless_layered_material_capture_with_depth(
+                cdmw_render_wgpu::run_headless_layered_material_capture_with_lighting(
                     &snapshot,
                     &textures,
                     &factors,
                     &[],
+                    preset,
                     LightingDepthSettings {
                         shadows,
                         ambient_occlusion: false,
@@ -290,10 +302,12 @@ fn offscreen_shadow_and_ambient_depth_preserve_diagnostics() -> TestResult {
             }
         }
     }
-    let compatibility_cases = pollster::block_on(
-        cdmw_render_wgpu::verify_lighting_depth_compatibility(&snapshot),
-    )?;
-    assert!(compatibility_cases > 0);
-    eprintln!("Verified {compatibility_cases} orthographic/MSAA/texture-limit combinations");
+    if preset == LightingPreset::NeutralStudio {
+        let compatibility_cases = pollster::block_on(
+            cdmw_render_wgpu::verify_lighting_depth_compatibility(&snapshot),
+        )?;
+        assert!(compatibility_cases > 0);
+        eprintln!("Verified {compatibility_cases} orthographic/MSAA/texture-limit combinations");
+    }
     Ok(())
 }

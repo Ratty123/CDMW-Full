@@ -21,10 +21,13 @@ restarts, but sends only the changed fields to a running renderer. Display
 changes therefore preserve the user's live camera and do not request a geometry
 refresh. Shared Mesh Editor hosts continue to use their tab's presentation owner.
 
-Preview Settings > Quality / Lighting exposes **Shadows** and **Ambient occlusion**.
+Preview Settings > Quality / Lighting exposes a **Lighting preset** selector,
+**Shadows** and **Ambient occlusion**. **Studio (fixed lights)** is the fourth preset;
+Neutral studio remains the default. Explicit session lighting (such as the New Item
+dark preview) overrides the saved preference.
 Both default on, persist with preview preferences, and send live display-quality updates
 without rebuilding model packages. Mesh Editor has independent session switches in
-Viewport. These effects apply only to Textured and Game Outdoor modes. Icon mode
+Viewport, alongside its session lighting selector. These effects apply only to Textured and Game Outdoor modes. Icon mode
 requests a transparent capture background while keeping self-shadows.
 
 `preview/dotnet_host_prewarm.py` also owns one hidden spare Rust helper for the

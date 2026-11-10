@@ -551,7 +551,8 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
     let has_emission = material.emissive_color_and_intensity.a > 0.0
         && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
-    if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 && shader_kind == 0.0 {
+    let fixed_studio = camera.lighting_preset == 3u && (camera.view_mode == 0u || camera.view_mode == 9u);
+    if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 && shader_kind == 0.0 && !fixed_studio {
         if emission_only { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
         if camera.view_mode == 8u {
             let part_id = f32(input.part_id) + 1.0;
@@ -561,6 +562,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
+    if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
     let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u;
     let layer_surface = evaluate_material_layers(sample_uv, texel);
     if gpu_layered { texel = vec4<f32>(layer_surface.color, texel.a); }
@@ -1387,7 +1389,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // Archive materials lack the game's exposure context. Use a conservative
     // preview exposure instead of the old 2.2x boost, retaining texture detail
     // at ordinary strengths. Imported glTF keeps its authored radiance scale.
-    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr) + shader_glow;
+    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr || camera.lighting_preset == 3u) + shader_glow;
     if emission_only {
         // The game's translucent shaders never read their declared glow inputs.
         if eye_cover || layered || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
@@ -1395,6 +1397,37 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         // specular highlights must never become glow sources.
         return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
             select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+    }
+    if camera.lighting_preset == 3u {
+        let dx = dpdx(surface_normal);
+        let dy = dpdy(surface_normal);
+        let variance = max(dot(dx,dx),dot(dy,dy));
+        let studio_roughness = sqrt(clamp(roughness*roughness+min(variance,0.15),0.0,1.0));
+        let studio_spec = select(1.0,material.surface_factors.z,(material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
+        let studio_view = studio_view_direction(input.world_position);
+        let studio_tangent = safe_normalize(tangent-surface_normal*dot(tangent,surface_normal),tangent);
+        let terms = fixed_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
+            studio_roughness,metalness,studio_spec,select(raw_occlusion,layer_surface.orm.r,gpu_layered),
+            is_skin,is_hair,key_shadow);
+        let ao = studio_ambient_visibility(input.position.xy);
+        // AO acts on linear radiance before the shoulder curve. Keep the existing
+        // translucent coverage contracts, including reflections independent of alpha.
+        let reflection = fixed_studio_tone(terms.specular*ao);
+        let lit = fixed_studio_tone((terms.diffuse+terms.specular)*ao);
+        if eye_cover {
+            return present(max(lit-reflection,vec3(0.0))*material_alpha+reflection*eye_surface_alpha,material_alpha);
+        }
+        if layered {
+            if shader_kind == 10.0 {
+                return present(max(lit-reflection,vec3(0.0))*material_alpha+reflection,material_alpha);
+            }
+            return present(lit*layered_colour_coverage,material_alpha);
+        }
+        if material.translucency_factors.z > 0.5 {
+            return present(fixed_studio_tone((terms.diffuse*(vec3(1.0)-transmission)+terms.specular)*ao),material_alpha);
+        }
+        return present(fixed_studio_tone((terms.diffuse+terms.specular+emissive)*ao),
+            select(1.0,material_alpha,(material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
     // Keep enough fill to read the base texture under glow in the dark preview.
     let light_scale = select(1.0, 0.15, camera.lighting_preset == 2u);
@@ -1527,14 +1560,27 @@ pub enum LightingPreset {
     NeutralStudio,
     Showcase,
     Dark,
+    StudioFixed,
 }
 
 impl LightingPreset {
+    pub const ALL: [Self; 4] = [Self::NeutralStudio, Self::Showcase, Self::Dark, Self::StudioFixed];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::NeutralStudio => "Neutral studio",
+            Self::Showcase => "Showcase",
+            Self::Dark => "Dark",
+            Self::StudioFixed => "Studio (fixed lights)",
+        }
+    }
+
     const fn shader_value(self) -> u32 {
         match self {
             Self::NeutralStudio => 0,
             Self::Showcase => 1,
             Self::Dark => 2,
+            Self::StudioFixed => 3,
         }
     }
 }
@@ -4151,7 +4197,8 @@ impl WindowRenderer {
     ) {
         let shadow = self.mesh.as_ref().map(|mesh| self.shadow_resources.frame(
             &self.device, encoder, mesh, &self.default_material_binding, &self.active_material_bindings,
-            &self.camera_uniform, self.view_mode, self.lighting_depth_settings));
+            &self.camera_uniform, self.view_mode, self.lighting_depth_settings,
+            [output_width, output_height], viewport));
         let transparency = self.mesh.as_ref().and_then(|mesh| {
             material_transparency::prepare(
                 &self.device,
@@ -4744,8 +4791,19 @@ pub async fn run_headless_layered_material_capture_with_depth(
     settings: LightingDepthSettings, options: HeadlessMaterialCaptureOptions,
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
+    run_headless_layered_material_capture_with_lighting(snapshot, textures, factors, layers,
+        LightingPreset::NeutralStudio, settings, options, output).await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn run_headless_layered_material_capture_with_lighting(
+    snapshot: &DrawSnapshot, textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>], layers: &[MaterialLayerSet],
+    preset: LightingPreset, settings: LightingDepthSettings, options: HeadlessMaterialCaptureOptions,
+    output: HeadlessMaterialCaptureOutput<'_>,
+) -> Result<HeadlessMaterialCaptureReport, RenderError> {
     material_capture_batch(snapshot, textures, factors, layers,
-        &[HeadlessMaterialCaptureRequest { options, output }], None, &[], settings)
+        &[HeadlessMaterialCaptureRequest { options, output }], None, &[], settings, preset)
         .await?.pop().ok_or_else(|| RenderError::InvalidSnapshot("depth capture returned no frame".into()))
 }
 
@@ -4755,7 +4813,7 @@ pub async fn run_headless_material_capture_batch(
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[], LightingDepthSettings::default()).await
+    material_capture_batch(snapshot, textures, factors, &[], requests, None, &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
 }
 
 pub async fn run_headless_layered_material_capture_batch(
@@ -4765,7 +4823,7 @@ pub async fn run_headless_layered_material_capture_batch(
     layers: &[MaterialLayerSet],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[], LightingDepthSettings::default()).await
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
 }
 
 /// Digests must have been verified by the owning reader against each immutable DDS.
@@ -4778,7 +4836,7 @@ pub async fn run_headless_verified_layered_material_capture_batch(
     verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     if verified_sha256.len() != textures.len() { return Err(RenderError::ResourceLimit); }
-    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256, LightingDepthSettings::default()).await
+    material_capture_batch(snapshot, textures, factors, layers, requests, None, verified_sha256, LightingDepthSettings::default(), LightingPreset::NeutralStudio).await
 }
 
 /// Offscreen production shader/upload proof. Timings include CPU deformation,
@@ -4793,7 +4851,7 @@ pub async fn run_headless_motion_capture(
 ) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
     if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
     let mut run = MotionCapture { update, frame_count, timings: vec![] };
-    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[], LightingDepthSettings::default()).await?;
+    let mut reports = material_capture_batch(snapshot, textures, factors, &[], &[request], Some(&mut run), &[], LightingDepthSettings::default(), LightingPreset::NeutralStudio).await?;
     Ok((reports.remove(0), run.timings))
 }
 
@@ -4812,6 +4870,7 @@ async fn material_capture_batch(
     mut motion: Option<&mut MotionCapture<'_>>,
     verified_sha256: &[&str],
     depth_settings: LightingDepthSettings,
+    lighting_preset: LightingPreset,
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     let batch_started = std::time::Instant::now();
     let Some(first_request) = requests.first() else {
@@ -4973,6 +5032,7 @@ async fn material_capture_batch(
 
     let camera_layout = create_camera_bind_group_layout(&device);
     let mut camera_uniform = CameraUniform::new(format.is_srgb());
+    camera_uniform.lighting_preset = lighting_preset.shader_value();
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material capture camera uniform"),
         contents: bytemuck::bytes_of(&camera_uniform),
@@ -7180,7 +7240,7 @@ fn record_headless_pass(
     size: [u32; 2],
 ) {
     let shadow = pipelines.shadow_resources.frame(device, encoder, mesh, default_material_bind_group,
-        active_material_bindings, camera_uniform, mode, pipelines.lighting_depth_settings);
+        active_material_bindings, camera_uniform, mode, pipelines.lighting_depth_settings, size, None);
     let transparency = material_transparency::prepare(
         device,
         mesh,

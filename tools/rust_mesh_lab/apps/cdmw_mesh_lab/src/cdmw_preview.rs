@@ -1406,9 +1406,11 @@ impl PreviewApplication {
                 ambient_occlusion: quality.get("preview_ambient_occlusion").and_then(Value::as_bool).unwrap_or(true),
             });
             renderer.set_lighting_preset(
-                match display.get("lighting_preset").and_then(Value::as_str) {
+                match display.get("lighting_preset").and_then(Value::as_str)
+                    .or_else(|| quality.get("preview_lighting_preset").and_then(Value::as_str)) {
                     Some("showcase") => LightingPreset::Showcase,
                     Some("dark") => LightingPreset::Dark,
+                    Some("studio_fixed") => LightingPreset::StudioFixed,
                     _ => LightingPreset::NeutralStudio,
                 },
             );

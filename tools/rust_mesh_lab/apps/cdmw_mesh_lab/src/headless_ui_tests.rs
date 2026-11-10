@@ -557,6 +557,9 @@ fn lighting_depth_controls_toggle_without_editing_mesh() -> TestResult {
     let original = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
     assert!(ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion);
     ui.click_tool_button("Viewport")?;
+    ui.click("Neutral studio")?;
+    ui.click("Studio (fixed lights)")?;
+    assert_eq!(ui.application.lighting_preset, cdmw_render_wgpu::LightingPreset::StudioFixed);
     ui.click("Shadows")?;
     assert!(!ui.application.lighting_depth.shadows);
     assert!(ui.application.lighting_depth.ambient_occlusion);

@@ -183,7 +183,21 @@ pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
     } else {
         "fn shadow_visibility(world:vec3<f32>, normal:vec3<f32>) -> f32 { return 1.0; }"
     };
-    format!("{main}\n{shadows}\n{}", lighting_depth::SHADOW_FRAGMENT)
+    let ambient = if include_depth && lighting_depth::shadow_supported(device) {
+        include_str!("ambient_occlusion.wgsl")
+            .replace(
+                "// AMBIENT_BINDINGS",
+                "@group(3) @binding(4) var<uniform> ambient: AmbientParameters;",
+            )
+            .replace("LOAD_DEPTH", "textureLoad(shadow_depth,p,1,0)")
+    } else {
+        "fn studio_ambient_visibility(pixel:vec2<f32>) -> f32 { return 1.0; }\nfn studio_view_direction(world:vec3<f32>) -> vec3<f32> { return safe_normalize(camera.view_direction.xyz,vec3(0.0,0.0,-1.0)); }".to_owned()
+    };
+    format!(
+        "{main}\n{shadows}\n{ambient}\n{}\n{}",
+        include_str!("studio_lighting.wgsl"),
+        lighting_depth::SHADOW_FRAGMENT
+    )
 }
 
 pub(super) fn apply(

@@ -2171,6 +2171,7 @@ struct LabApplication {
     show_normals: bool,
     show_bounds: bool,
     lighting_depth: cdmw_render_wgpu::LightingDepthSettings,
+    lighting_preset: cdmw_render_wgpu::LightingPreset,
     show_bones: bool,
     deformation_heatmap_enabled: bool,
     deformation_heatmap_applied: bool,
@@ -2377,6 +2378,7 @@ impl LabApplication {
             show_normals: false,
             show_bounds: false,
             lighting_depth: Default::default(),
+            lighting_preset: cdmw_render_wgpu::LightingPreset::NeutralStudio,
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
@@ -4233,6 +4235,13 @@ impl LabApplication {
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"));
                     ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
+                    egui::ComboBox::from_id_salt("lighting_preset")
+                        .selected_text(crate::localization::tr(self.lighting_preset.label()))
+                        .show_ui(ui, |ui| {
+                            for preset in cdmw_render_wgpu::LightingPreset::ALL {
+                                ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
+                            }
+                        });
                     ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
                     ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
                     let bones_available = self
@@ -6933,6 +6942,7 @@ impl LabApplication {
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
             renderer.set_lighting_depth_settings(self.lighting_depth);
+            renderer.set_lighting_preset(self.lighting_preset);
             renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
             renderer.set_clear_colour([

@@ -727,7 +727,7 @@ class ItemPreviewFrame(QWidget):
     def set_lighting_preset(self, preset: object) -> None:
         normalized = str(preset or "neutral_studio").strip().lower()
         self._lighting_preset = (
-            normalized if normalized in {"neutral_studio", "showcase", "dark"} else "neutral_studio"
+            normalized if normalized in {"neutral_studio", "showcase", "dark", "studio_fixed"} else "neutral_studio"
         )
         if self.host is not None:
             lighting = getattr(self.host, "set_lighting_preset", None)

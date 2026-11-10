@@ -253,7 +253,7 @@ class NewItemStudioController(
         """Share a renderer-only lighting choice across this Studio session."""
 
         normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase"}:
+        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
             normalized = "neutral_studio"
         if normalized == self.preview_lighting_preset:
             return

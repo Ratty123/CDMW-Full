@@ -2011,6 +2011,8 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
 
     assert host.set_lighting_preset("dark")
     assert process.writes[-1]["display"] == {"lighting_preset": "dark"}
+    assert host.set_lighting_preset("studio_fixed")
+    assert process.writes[-1]["display"] == {"lighting_preset": "studio_fixed"}
     assert controller._resident_state["presentation"][1]["camera"]["yaw"] == 27.0
     assert host.set_lighting_preset("unknown")
     _event, payload = controller._resident_state["presentation"]  # noqa: SLF001

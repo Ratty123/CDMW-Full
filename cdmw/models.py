@@ -1787,6 +1787,7 @@ class ModelPreviewRenderSettings:
     high_quality_by_default: bool = True
     preview_shadows: bool = True
     preview_ambient_occlusion: bool = True
+    preview_lighting_preset: str = "neutral_studio"
     alignment_use_final_output_preview: bool = False
     visible_texture_mode: str = "mesh_base_first"
     render_diagnostic_mode: str = "lit"
@@ -1955,6 +1956,10 @@ def clamp_model_preview_render_settings(
                 for field_info in fields(ModelPreviewRenderSettings)
             }
         )
+
+    value.preview_lighting_preset = str(value.preview_lighting_preset or "").strip().lower()
+    if value.preview_lighting_preset not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
+        value.preview_lighting_preset = defaults.preview_lighting_preset
 
     int_fields = {
         "preview_texture_max_dimension",

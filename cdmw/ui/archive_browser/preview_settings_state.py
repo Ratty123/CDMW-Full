@@ -122,7 +122,8 @@ def model_preview_settings_change_flags(
         or getattr(previous_settings, "surface_contrast", None) != getattr(preview_settings, "surface_contrast", None)
     )
     d3d11_render_tuning_changed = (
-        previous_settings.preview_shadows != preview_settings.preview_shadows
+        previous_settings.preview_lighting_preset != preview_settings.preview_lighting_preset
+        or previous_settings.preview_shadows != preview_settings.preview_shadows
         or previous_settings.preview_ambient_occlusion != preview_settings.preview_ambient_occlusion
         or previous_settings.max_anisotropy != preview_settings.max_anisotropy
         or previous_settings.d3d11_mip_lod_bias != preview_settings.d3d11_mip_lod_bias
