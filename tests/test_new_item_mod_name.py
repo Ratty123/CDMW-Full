@@ -217,3 +217,29 @@ def test_existing_mod_is_explicit_and_new_export_does_not_overwrite_it(studio):
     assert panel._package_root() == folder
     _send(bridge, panel.add_to_mod, "toggle", False)
     assert tab.controller.mod_base_folder is None
+
+
+def test_send_to_dmm_updates_the_mod_chosen_with_add_to_existing_mod(studio, monkeypatch):
+    import cdmw.services.dmm_send as dmm_send
+
+    fixture, tab, bridge = studio
+    tab.show_step(1)
+    _send(bridge, tab.identity_panel.display_name, "text", "gloves")
+    tab.show_step(6)
+    panel = tab.output_panel
+    folder = fixture.root / "mods" / "armor"
+    folder.mkdir(parents=True)
+    sent = []
+
+    def send_plan(plan, mods, title, **options):
+        sent.append(options.get("mod_base"))
+        return dmm_send.DmmSendResult(folder, False, title)
+
+    monkeypatch.setattr(dmm_send, "send_plan", send_plan)
+    monkeypatch.setattr(panel, "_dmm_mods_folder", lambda: fixture.root / "dmm-mods")
+    _send(bridge, panel.add_to_mod, "toggle", True)
+    _send(bridge, panel.export_root, "text", str(folder))
+    _send(bridge, panel.build_button, "activate")
+    with patch("cdmw.ui.new_item.panels_output.QMessageBox.information"):
+        _send(bridge, panel.send_dmm_button, "activate")
+    assert sent == [folder]

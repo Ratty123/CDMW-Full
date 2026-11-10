@@ -89,6 +89,52 @@ def test_adding_an_item_to_a_dmm_mod_keeps_the_earlier_items_operations(tmp_path
     assert sum(len(target["intents"]) for target in targets) == 4
 
 
+def _stock_items(folder):
+    import json
+
+    from cdmw.services.dmm_send import OPERATIONS_FILE
+    targets = json.loads((folder / OPERATIONS_FILE).read_text(encoding="utf-8"))["targets"]
+    return sorted(intent["new"]["value"]["raw_q"] for target in targets if target["file"] == "storeinfo.pabgb"
+                  for intent in target["intents"])
+
+
+def _second_item_on(service, snapshot, folder):
+    from cdmw.services.new_item_mod_base import build_mod_base_snapshot
+    base = build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)
+    return service.plan(_shop_spec("DmmSecond"), base)
+
+
+def test_add_to_existing_mod_keeps_the_first_items_shop_and_groups(tmp_path):
+    service, snapshot = setup(tmp_path, dlc=True)
+    first = service.plan(_shop_spec("DmmFirst"), snapshot, capture_independent=True)
+    folder = tmp_path / "out" / "Armor"
+    service.export_loose(first, folder, manager="DMM")
+    assert _stock_items(folder) == [first.spec.item_key]
+    # A DMM mod keeps its shop lines only as operations, so the second plan's tables
+    # cannot restate the first item's.
+    second = _second_item_on(service, snapshot, folder)
+    assert second.spec.item_key != first.spec.item_key
+    service.export_loose(second, folder, manager="DMM", replace_existing=True)
+    assert _stock_items(folder) == sorted([first.spec.item_key, second.spec.item_key])
+    # Adding an item does not rename the mod.
+    import json
+    assert "DmmFirst" in json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["title"]
+
+
+def test_send_to_dmm_from_a_mod_base_sends_one_mod_with_both_items(tmp_path):
+    from cdmw.services.dmm_send import send_plan
+    from tests.test_dmm_send import _dmm
+    service, snapshot = setup(tmp_path, dlc=True)
+    first = service.plan(_shop_spec("DmmFirst"), snapshot, capture_independent=True)
+    _install, mods = _dmm(tmp_path)
+    send_plan(first, mods, "Armor", service=service)
+    second = _second_item_on(service, snapshot, mods / "Armor")
+    result = send_plan(second, mods, "Gloves", service=service, mod_base=mods / "Armor")
+    assert result.folder == mods / "Armor" and result.replaced
+    assert sorted(path.name for path in mods.iterdir()) == ["Armor"]
+    assert _stock_items(result.folder) == sorted([first.spec.item_key, second.spec.item_key])
+
+
 def test_a_swap_placement_is_refused_for_dmm_with_its_reason(tmp_path):
     from cdmw.domain.new_item.rules import validate_spec
     from cdmw.services.dmm_dlc_tables import plan_for_dmm

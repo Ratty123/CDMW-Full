@@ -347,6 +347,8 @@ class NewItemTaskControllerMixin:
             self.status_message.emit("Build the plan first.", True)
             return False
         plan, title, service = self.plan, self.export_title, self.service
+        # A current plan was built on this folder: changing it invalidates the plan.
+        mod_base = self.mod_base_folder
         spec = plan.spec
         package_info = ModPackageInfo(
             title=title,
@@ -354,7 +356,8 @@ class NewItemTaskControllerMixin:
         )
         def task(_log, stop):
             from cdmw.services.dmm_send import send_plan
-            return send_plan(plan, Path(mods_folder), title, service=service, package_info=package_info, stop_event=stop)
+            return send_plan(plan, Path(mods_folder), title, service=service, package_info=package_info,
+                             mod_base=mod_base, stop_event=stop)
         return self._run("export", task, self.export_finished.emit,
                          lambda message: self.status_message.emit(message, True), publishes_result=True)
 

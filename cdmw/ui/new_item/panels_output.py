@@ -777,10 +777,12 @@ class OutputPanel(QGroupBox):
             return
         # The DMM folder is named after the mod alone, so another item sent under
         # the same name would be replaced without a word.
-        from cdmw.services.dmm_send import destination
+        from cdmw.services.dmm_send import send_target
         title = self._controller.export_title
         try:
-            _folder, replaced = destination(mods, title)
+            # With Add to existing mod, the send updates that mod instead of adding a second one.
+            folder, replaced, _title = send_target(mods, title, self._controller.mod_base_folder)
+            title = folder.name
         except ValueError:
             replaced = False  # The send itself reports a folder CDMW did not write.
         if replaced and QMessageBox.question(

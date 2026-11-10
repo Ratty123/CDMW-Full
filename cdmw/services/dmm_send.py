@@ -84,11 +84,16 @@ def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> No
 
     DMM applies them to the base and the DLC's rows alike; a table copy would replace
     those rows instead and drop what the DLC adds there. Operations already in the
-    folder (earlier items of the same mod) are kept, except those for `owned_items`,
-    which `targets` restates; an identical operation is written once.
+    folder (earlier items of the same mod) are kept, except those for `owned_items`
+    (the items being written now) and those `targets` restates for the same table;
+    an identical operation is written once.
     """
     path = Path(folder) / OPERATIONS_FILE
     owned = {int(key) for key in owned_items}
+    restated: dict[str, set] = {}
+    for target in targets:
+        restated.setdefault(target["file"], set()).update(
+            item for item in map(_operation_item, target["intents"]) if item is not None)
     existing = []
     if path.is_file():
         try:
@@ -98,7 +103,8 @@ def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> No
     merged: dict[str, list] = {}
     for target in existing:
         for intent in target.get("intents") or ():
-            if _operation_item(intent) not in owned:
+            item = _operation_item(intent)
+            if item not in owned and item not in restated.get(target["file"], ()):
                 merged.setdefault(target["file"], []).append(intent)
     for target in targets:
         intents = merged.setdefault(target["file"], [])
@@ -128,22 +134,59 @@ def destination(mods: Path, title: str) -> tuple[Path, bool]:
                      "Rename the mod and send it again.")
 
 
+def existing_mod_title(folder: Path | str) -> str:
+    """The title an exported mod folder carries, or its folder name."""
+    folder = Path(folder)
+    try:
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        title = manifest.get("title") or manifest.get("name")
+    except (OSError, ValueError, AttributeError):
+        title = None
+    return title.strip() if isinstance(title, str) and title.strip() else folder.name
+
+
+def send_target(mods: Path, title: str, mod_base: Optional[Path] = None) -> tuple[Path, bool, str]:
+    """Where a send goes, whether it replaces CDMW's earlier copy, and the mod's title.
+
+    A plan built on an existing mod (Add to existing mod) holds that mod's items too,
+    so it is sent as that mod, under its folder name and title, instead of as a second
+    mod that would carry the same tables.
+    """
+    if mod_base is None:
+        return (*destination(mods, title), title)
+    base = Path(mod_base)
+    return (*destination(mods, base.name), existing_mod_title(base))
+
+
 def send_plan(plan, mods: Path, title: str, *, service=None, package_info=None,
+              mod_base: Optional[Path] = None,
               stop_event: Optional[threading.Event] = None) -> DmmSendResult:
-    """Write a planned new item as a DMM mod in DMM's mods folder."""
+    """Write a planned new item as a DMM mod in DMM's mods folder.
+
+    `mod_base` is the mod folder the plan was built on, if any; see `send_target`.
+    """
+    from dataclasses import replace
+
     from cdmw.models import ModPackageInfo
     from cdmw.services.new_item_service import NewItemService
 
-    folder, replaced = destination(mods, title)
+    folder, replaced, title = send_target(mods, title, mod_base)
     info = package_info or ModPackageInfo(title=title, description=f"{title}, sent to DMM by CDMW.")
+    info = replace(info, title=title)
     # Write beside DMM's folder, then swap it in: a failed or cancelled send leaves the
     # previous version in place, and a re-send never merges with it.
     with tempfile.TemporaryDirectory(prefix=".cdmw-send-", dir=folder.parent.parent) as staging:
         staged = Path(staging) / folder.name
+        earlier = Path(mod_base) / OPERATIONS_FILE if mod_base is not None else None
+        if earlier is not None and earlier.is_file():
+            # The plan carries the base mod's files; its shop, group and part
+            # registrations exist only as operations, so they are carried here.
+            staged.mkdir()
+            shutil.copyfile(earlier, staged / OPERATIONS_FILE)
         (service or NewItemService()).export_loose(plan, staged, manager="DMM", package_info=info,
-                                                   replace_existing=False, stop_event=stop_event)
+                                                   replace_existing=staged.is_dir(), stop_event=stop_event)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
-        destination(mods, title)  # Refuse a folder that appeared meanwhile.
+        send_target(mods, title, mod_base)  # Refuse a folder that appeared meanwhile.
         _publish(staged, folder, Path(staging))
     return DmmSendResult(folder, replaced, title)
 
@@ -310,5 +353,5 @@ class _ComposedMod:
     patches: tuple = ()
 
 
-__all__ = ["DMM_FOLDER_SETTING", "DmmSendResult", "destination", "dmm_mods_folder", "find_dmm",
-           "send_item_package", "send_item_packages", "send_plan", "write_operations"]
+__all__ = ["DMM_FOLDER_SETTING", "DmmSendResult", "destination", "dmm_mods_folder", "existing_mod_title", "find_dmm",
+           "send_item_package", "send_item_packages", "send_plan", "send_target", "write_operations"]

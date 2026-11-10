@@ -172,8 +172,12 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
     return result
 
 
-def plan_item_keys(manifest) -> set[int]:
-    """Every item a new-item plan adds: the item, its price perks and the items it carries forward."""
+def plan_item_keys(manifest, *, own_only: bool = False) -> set[int]:
+    """Every item a new-item plan adds: the item, its price perks and the items it carries forward.
+
+    `own_only` leaves out the carried items. A DMM mod holds their shop lines and group
+    members only as operations, which the plan's tables therefore cannot restate.
+    """
     keys = set()
 
     def collect(value):
@@ -192,6 +196,8 @@ def plan_item_keys(manifest) -> set[int]:
 
     collect(manifest.get("iteminfo"))
     collect(manifest.get("owned_price_perks"))
+    if own_only:
+        return keys
     collect(manifest.get("previous_items"))
     collect((manifest.get("mounted_base") or {}).get("items"))
     return keys

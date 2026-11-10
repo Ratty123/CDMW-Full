@@ -2287,6 +2287,15 @@ forward. Tick **Add to existing mod**, select the mod folder itself (for example
 `Desktop/mods/heahea`), then rebuild the plan for each additional item. This keeps its
 existing items and adds the new one to the same mod.
 
+A DMM mod holds each item's shop stock, item groups and part registration only as
+operations in `CDMW items - shops and groups.json`, not as tables, so a plan built on
+it cannot restate the earlier items' entries. The export therefore replaces only the
+operations of the item being written and keeps the rest, and the mod keeps its title.
+**Send to DMM** follows the same base: with **Add to existing mod** ticked it writes
+the combined mod under the chosen mod's folder name in DMM's mods folder, carrying
+that file along, and replaces the copy CDMW wrote there earlier after the usual
+confirmation. Without the option it sends a separate mod named after the item.
+
 Leaving the option unticked creates a separate named folder. Choosing the existing
 folder invalidates the previous plan and reuses the loaded archive reader when
 rebuilding. Separate New Item mod folders can replace the same shared tables, so

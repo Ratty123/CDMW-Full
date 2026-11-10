@@ -544,6 +544,10 @@ class NewItemService:
         except NewItemInstallRefused:
             game_root = None
         source_root = Path(existing_root) if existing_root is not None else root
+        if plan.manifest.get("previous_items") and (source_root / "manifest.json").is_file():
+            # Adding an item does not rename the mod it is added to.
+            from cdmw.services.dmm_send import existing_mod_title
+            info = replace(info, title=existing_mod_title(source_root))
         group = _existing_archive_group(source_root)
         carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
         targets = None
@@ -574,11 +578,13 @@ class NewItemService:
             stop_event=stop_event,
         )
         if targets is not None:
-            # Adding to an existing mod keeps the earlier items' operations in its folder.
+            # Adding to an existing mod keeps the earlier items' operations in its folder:
+            # a DMM mod has no shop or group tables for the plan to have read them from,
+            # so only this plan's own item is restated.
             from cdmw.services.dmm_dlc_tables import plan_item_keys
             from cdmw.services.dmm_send import write_operations
             write_operations(root, str(getattr(info, "title", "") or plan.spec.internal_name), targets,
-                             owned_items=plan_item_keys(plan.manifest))
+                             owned_items=plan_item_keys(plan.manifest, own_only=True))
         if group and group != written.group:
             # Older exports used the next free game slot. Their contents have
             # been carried into the standalone group; retire only the copied
