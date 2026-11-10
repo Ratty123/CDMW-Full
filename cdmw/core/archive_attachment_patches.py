@@ -24,6 +24,7 @@ from cdmw.domain.archives.attachments import (
     PrefabSocketNameField,
     PrefabSocketNamePatchResult,
 )
+from cdmw.domain.part_names import LEGACY_PART_PREFIX, is_part_role_name, part_name_like
 from cdmw.core.archive_binary_preview import _binary_sidecar_schema_declarations
 
 def _parse_socket_float_tuple(value: str) -> Tuple[float, ...]:
@@ -238,33 +239,35 @@ def infer_part_in_out_weapon_class(value: object) -> str:
     compact = re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
     path_name = PurePosixPath(normalized).name.casefold()
     path_stem = PurePosixPath(path_name).stem.casefold()
+    # Part roles lost their `CD_` prefix in the October 2026 update; read either form.
+    role = compact[len("cd_"):] if compact.startswith("cd_") else compact
 
     twohand_part_map = (
-        ("cd_twohandweapon_sword", "twohand_sword"),
-        ("cd_twohandweapon_axe", "axe"),
-        ("cd_twohandweapon_mace", "mace"),
-        ("cd_twohandweapon_spear", "spear"),
-        ("cd_twohandweapon_alebard", "spear"),
-        ("cd_twohandweapon_hammer", "hammer"),
-        ("cd_twohandweapon_warhammer", "warhammer"),
-        ("cd_twohandweapon_scythe", "scythe"),
-        ("cd_twohandweapon_rod", "rod"),
-        ("cd_twohandweapon_cannon", "cannon"),
-        ("cd_twohandweapon_thrower", "thrower"),
+        ("twohandweapon_sword", "twohand_sword"),
+        ("twohandweapon_axe", "axe"),
+        ("twohandweapon_mace", "mace"),
+        ("twohandweapon_spear", "spear"),
+        ("twohandweapon_alebard", "spear"),
+        ("twohandweapon_hammer", "hammer"),
+        ("twohandweapon_warhammer", "warhammer"),
+        ("twohandweapon_scythe", "scythe"),
+        ("twohandweapon_rod", "rod"),
+        ("twohandweapon_cannon", "cannon"),
+        ("twohandweapon_thrower", "thrower"),
     )
     for token, class_name in twohand_part_map:
-        if compact == token or compact.startswith(f"{token}_"):
+        if role == token or role.startswith(f"{token}_"):
             return class_name
 
     mainhand_part_map = (
-        ("cd_mainweapon_sword", "onehand_sword"),
-        ("cd_mainweapon_dagger", "onehand_dagger"),
-        ("cd_mainweapon_axe", "axe"),
-        ("cd_mainweapon_mace", "mace"),
-        ("cd_mainweapon_wand", "wand"),
+        ("mainweapon_sword", "onehand_sword"),
+        ("mainweapon_dagger", "onehand_dagger"),
+        ("mainweapon_axe", "axe"),
+        ("mainweapon_mace", "mace"),
+        ("mainweapon_wand", "wand"),
     )
     for token, class_name in mainhand_part_map:
-        if compact == token or compact.startswith(f"{token}_"):
+        if role == token or role.startswith(f"{token}_"):
             return class_name
 
     if "cd_phm_02_sword" in path_stem or ("/2_twohandweapon/" in normalized and "sword" in path_stem):
@@ -1006,7 +1009,7 @@ def inspect_prefab_attachment_profile_fields(data: bytes) -> Tuple[PrefabSocketN
     socket_file_field: Optional[PrefabSocketNameField] = None
     for length_offset, length, text in _iter_prefab_length_prefixed_ascii_values(data, start_offset=scan_start):
         lowered = text.casefold()
-        if part_field is None and text.startswith("CD_") and "/" not in text and "\\" not in text and "." not in text:
+        if part_field is None and _is_prefab_part_role_record(text, before_model=model_field is None):
             part_field = PrefabSocketNameField(
                 field_name="_partName",
                 value=text,
@@ -1043,6 +1046,24 @@ def inspect_prefab_attachment_profile_fields(data: bytes) -> Tuple[PrefabSocketN
     return tuple(fields)
 
 
+def _is_prefab_part_role_record(text: str, *, before_model: bool) -> bool:
+    """Whether a value record after the pivot socket is the component's part role.
+
+    Before the October 2026 update every role carried ``CD_`` (``CD_MainWeapon_Sword_R``),
+    which is what this used to require; current prefabs name it ``MainWeapon_Sword_R`` at
+    the same place, the component's name. The old form is still accepted where it always
+    was. The current form is an ordinary identifier, so it only counts ahead of the model
+    path, where the component's name is the only such record; after it come the shrink and
+    bone-offset tags (``Weapon``).
+    """
+
+    if "/" in text or "\\" in text or "." in text:
+        return False
+    if text.startswith(LEGACY_PART_PREFIX):
+        return True
+    return before_model and is_part_role_name(text) and "socket" not in text.casefold()
+
+
 def _validate_prefab_socket_name_replacement(field: PrefabSocketNameField, value: str) -> bytes:
     text = str(value or "").strip()
     try:
@@ -1074,8 +1095,8 @@ def _validate_prefab_attachment_profile_replacement(field: PrefabSocketNameField
         if "socket" not in lowered or "/" in text or "\\" in text or "." in text:
             raise ValueError(f"{field.field_name} replacement must be a socket name, not a path.")
     elif field.field_name == "_partName":
-        if not text.startswith("CD_") or "/" in text or "\\" in text or "." in text:
-            raise ValueError("_partName replacement must be a Crimson part role such as CD_MainWeapon_Sword_R.")
+        if not _is_prefab_part_role_record(text, before_model=True):
+            raise ValueError("_partName replacement must be a Crimson part role such as MainWeapon_Sword_R.")
     elif field.field_name == "_socketFileName":
         if "/" not in text or not lowered.endswith(".sockets.xml"):
             raise ValueError("_socketFileName replacement must be a socket descriptor path ending in .sockets.xml.")
@@ -1148,6 +1169,12 @@ def build_prefab_attachment_profile_patch(
         if not isinstance(field, PrefabSocketNameField):
             continue
         replacement = str(replacements.get(field_name) or "").strip()
+        requested = replacement
+        if field_name == "_partName" and replacement:
+            # A role copied from a source on the other side of the October 2026 rename is
+            # written the way the target prefab names its own role, which is the form the
+            # game the target came from reads.
+            replacement = part_name_like(replacement, field.value)
         if not replacement or replacement == field.value:
             continue
         encoded = _validate_prefab_attachment_profile_replacement(field, replacement)
@@ -1158,6 +1185,8 @@ def build_prefab_attachment_profile_patch(
             )
         edits.append((field, encoded, replacement))
         proof_lines.append(f"{field.field_name}: {field.value} -> {replacement}")
+        if replacement != requested:
+            proof_lines.append(f"{field.field_name}: requested {requested}, written in the target prefab's naming.")
     if not edits:
         return PrefabAttachmentProfilePatchResult(
             data=bytes(data or b""),

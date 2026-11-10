@@ -28,13 +28,15 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
+from cdmw.domain.part_names import same_part_name
+
 from .clip_names import socket_label
 from .editing import NUDGE_STEPS, EditError
 from .glossary import AIM_LABEL, tip
 from .report_style import inspector_html
 from .new_socket import NewSocketDialog, keyboard_hint
 from .skeleton import world_to_bone
-from .model import Vec3
+from .model import SWORD_ROW, Vec3
 
 
 #: Kept for callers that import it from here; Save as mod's owner is `save_mod.MOD_MANAGERS`.
@@ -901,7 +903,7 @@ class EditPanelMixin:
         )
         if binding is None:
             binding = next(
-                (b for b in session.bindings() if b.part_name == "CD_MainWeapon_Sword_R"), None
+                (b for b in session.bindings() if same_part_name(b.part_name, SWORD_ROW)), None
             )
         if binding is None:
             return

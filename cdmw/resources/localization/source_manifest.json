@@ -26,7 +26,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 324,
+          "line": 327,
           "sink": "setToolTip"
         }
       ]
@@ -181,7 +181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1130,
+          "line": 1272,
           "sink": "setToolTip"
         }
       ]
@@ -191,7 +191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 354,
+          "line": 374,
           "sink": "setPlainText"
         }
       ]
@@ -231,7 +231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 354,
+          "line": 374,
           "sink": "setPlainText"
         }
       ]
@@ -261,7 +261,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 727,
+          "line": 729,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -1006,7 +1006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 844,
+          "line": 846,
           "sink": "python-return:_warn_if_angle_is_wrong"
         }
       ]
@@ -1016,7 +1016,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 726,
+          "line": 728,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -1026,7 +1026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 716,
+          "line": 718,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -1036,7 +1036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 778,
+          "line": 780,
           "sink": "python-return:_orientation_diagnostic"
         }
       ]
@@ -1271,17 +1271,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 282,
+          "line": 285,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 336,
+          "line": 339,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 156,
+          "line": 158,
           "sink": "setSuffix"
         }
       ]
@@ -1386,27 +1386,27 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 164,
+          "line": 167,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 394,
+          "line": 397,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 421,
+          "line": 424,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 422,
+          "line": 425,
           "sink": "_spin"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 431,
+          "line": 434,
           "sink": "_spin"
         },
         {
@@ -1746,7 +1746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 375,
+          "line": 395,
           "sink": "addItem"
         }
       ]
@@ -1766,7 +1766,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 575,
+          "line": 717,
           "sink": "addItem"
         }
       ]
@@ -1831,7 +1831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1192,
+          "line": 1334,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -2026,7 +2026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 887,
+          "line": 889,
           "sink": "python-return:_borrow_child_socket"
         }
       ]
@@ -3331,7 +3331,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 242,
+          "line": 245,
           "sink": "QGroupBox"
         }
       ]
@@ -3436,7 +3436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 311,
+          "line": 314,
           "sink": "QGroupBox"
         }
       ]
@@ -3561,7 +3561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 414,
+          "line": 417,
           "sink": "QGroupBox"
         }
       ]
@@ -3596,7 +3596,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 453,
+          "line": 456,
           "sink": "QGroupBox"
         }
       ]
@@ -3626,7 +3626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 385,
+          "line": 388,
           "sink": "QGroupBox"
         }
       ]
@@ -4796,7 +4796,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 95,
+          "line": 99,
           "sink": "QRadioButton"
         }
       ]
@@ -4986,7 +4986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 161,
+          "line": 164,
           "sink": "setToolTip"
         }
       ]
@@ -5856,7 +5856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 418,
+          "line": 421,
           "sink": "setToolTip"
         }
       ]
@@ -6121,7 +6121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 178,
+          "line": 189,
           "sink": "QGroupBox"
         }
       ]
@@ -6161,7 +6161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 329,
+          "line": 350,
           "sink": "addTab"
         }
       ]
@@ -6171,7 +6171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 132,
+          "line": 143,
           "sink": "QLabel"
         }
       ]
@@ -7926,7 +7926,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 212,
+          "line": 215,
           "sink": "QPushButton"
         }
       ]
@@ -8026,7 +8026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1434,
+          "line": 1440,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -8156,17 +8156,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 81,
+          "line": 101,
           "sink": "QCheckBox"
         }
       ]
@@ -8336,12 +8336,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         },
         {
@@ -9131,7 +9131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 335,
+          "line": 338,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -9141,7 +9141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 200,
+          "line": 202,
           "sink": "setToolTip"
         }
       ]
@@ -9286,7 +9286,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 192,
+          "line": 203,
           "sink": "translate_active_ui_text"
         },
         {
@@ -9791,7 +9791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 266,
+          "line": 269,
           "sink": "addItem"
         }
       ]
@@ -10146,7 +10146,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 73,
+          "line": 93,
           "sink": "setToolTip"
         }
       ]
@@ -10176,7 +10176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 244,
+          "line": 289,
           "sink": "setToolTip"
         }
       ]
@@ -11076,7 +11076,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 183,
+          "line": 186,
           "sink": "Section"
         },
         {
@@ -11351,12 +11351,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -11396,7 +11396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 172,
+          "line": 183,
           "sink": "QGroupBox"
         }
       ]
@@ -12141,7 +12141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 127,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -12231,12 +12231,12 @@
         },
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 160,
+          "line": 171,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 167,
+          "line": 170,
           "sink": "QPushButton"
         },
         {
@@ -16136,12 +16136,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -16161,7 +16161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 114,
+          "line": 120,
           "sink": "setText"
         }
       ]
@@ -16201,7 +16201,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 167,
+          "line": 178,
           "sink": "showMessage"
         }
       ]
@@ -16911,7 +16911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 303,
+          "line": 348,
           "sink": "setHeaderLabels"
         }
       ]
@@ -16921,7 +16921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 149,
+          "line": 160,
           "sink": "QLabel"
         }
       ]
@@ -16941,7 +16941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 316,
+          "line": 337,
           "sink": "addTab"
         }
       ]
@@ -16951,12 +16951,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -17526,7 +17526,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 107,
+          "line": 111,
           "sink": "caption"
         },
         {
@@ -18656,7 +18656,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 221,
+          "line": 224,
           "sink": "setToolTip"
         }
       ]
@@ -19236,7 +19236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 154,
+          "line": 165,
           "sink": "setText"
         }
       ]
@@ -20131,12 +20131,12 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 182,
+          "line": 185,
           "sink": "add"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 183,
+          "line": 186,
           "sink": "Section"
         }
       ]
@@ -20686,7 +20686,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1100,
+          "line": 1242,
           "sink": "setText"
         }
       ]
@@ -21021,7 +21021,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 251,
+          "line": 254,
           "sink": "QLabel"
         }
       ]
@@ -21041,12 +21041,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 237,
+          "line": 282,
           "sink": "QCheckBox"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 166,
+          "line": 169,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -21096,7 +21096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 321,
+          "line": 342,
           "sink": "setTabToolTip"
         }
       ]
@@ -21156,7 +21156,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 467,
+          "line": 470,
           "sink": "QPushButton"
         }
       ]
@@ -21946,12 +21946,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -24256,7 +24256,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 93,
+          "line": 97,
           "sink": "setToolTip"
         }
       ]
@@ -26626,12 +26626,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -27041,7 +27041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 166,
+          "line": 169,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -28676,7 +28676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 345,
+          "line": 356,
           "sink": "setWindowTitle"
         }
       ]
@@ -28741,7 +28741,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 286,
+          "line": 331,
           "sink": "QPushButton"
         }
       ]
@@ -29856,7 +29856,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 272,
+          "line": 283,
           "sink": "getExistingDirectory"
         }
       ]
@@ -30711,7 +30711,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 252,
+          "line": 255,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -34131,7 +34131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 77,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -34411,7 +34411,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 302,
+          "line": 305,
           "sink": "QPushButton"
         }
       ]
@@ -34421,7 +34421,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 376,
+          "line": 379,
           "sink": "QPushButton"
         }
       ]
@@ -34676,12 +34676,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -34701,12 +34701,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -34746,7 +34746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 462,
+          "line": 464,
           "sink": "showMessage"
         }
       ]
@@ -34896,7 +34896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 337,
+          "line": 360,
           "sink": "showMessage"
         }
       ]
@@ -39951,12 +39951,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 471,
+          "line": 474,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 379,
+          "line": 382,
           "sink": "setText"
         }
       ]
@@ -40096,7 +40096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 575,
+          "line": 577,
           "sink": "warning"
         }
       ]
@@ -40611,7 +40611,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 257,
+          "line": 268,
           "sink": "showMessage"
         },
         {
@@ -40811,7 +40811,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 391,
+          "line": 394,
           "sink": "setText"
         }
       ]
@@ -41616,7 +41616,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 584,
+          "line": 586,
           "sink": "showMessage"
         }
       ]
@@ -41626,7 +41626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 388,
+          "line": 390,
           "sink": "showMessage"
         }
       ]
@@ -41636,7 +41636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 370,
+          "line": 372,
           "sink": "showMessage"
         }
       ]
@@ -41906,7 +41906,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1364,
+          "line": 1370,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -41921,7 +41921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1364,
+          "line": 1370,
           "sink": "getSaveFileName"
         }
       ]
@@ -43816,7 +43816,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 92,
+          "line": 96,
           "sink": "QRadioButton"
         }
       ]
@@ -44061,7 +44061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 166,
+          "line": 169,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -45766,7 +45766,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 303,
+          "line": 348,
           "sink": "setHeaderLabels"
         }
       ]
@@ -47241,7 +47241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 439,
+          "line": 442,
           "sink": "addRow"
         }
       ]
@@ -47251,7 +47251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 72,
+          "line": 92,
           "sink": "QCheckBox"
         }
       ]
@@ -48346,12 +48346,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -48401,12 +48401,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -48416,12 +48416,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -48431,12 +48431,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -48506,7 +48506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 393,
+          "line": 396,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -48526,7 +48526,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 381,
+          "line": 384,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -48606,7 +48606,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 253,
+          "line": 298,
           "sink": "setToolTip"
         }
       ]
@@ -48616,7 +48616,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 238,
+          "line": 283,
           "sink": "setToolTip"
         }
       ]
@@ -48666,12 +48666,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -48681,7 +48681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 200,
+          "line": 203,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -48696,7 +48696,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 320,
+          "line": 341,
           "sink": "addTab"
         }
       ]
@@ -48716,7 +48716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 292,
+          "line": 295,
           "sink": "showMessage"
         }
       ]
@@ -49786,7 +49786,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 262,
+          "line": 265,
           "sink": "QCheckBox"
         }
       ]
@@ -49946,12 +49946,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         },
         {
@@ -50481,12 +50481,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -50506,27 +50506,27 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 677,
+          "line": 680,
           "sink": "question"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 698,
+          "line": 701,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 962,
+          "line": 966,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1356,
+          "line": 1362,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1428,
+          "line": 1434,
           "sink": "warning"
         }
       ]
@@ -50826,7 +50826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 158,
+          "line": 161,
           "sink": "setToolTip"
         }
       ]
@@ -51166,7 +51166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1418,
+          "line": 1424,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -51361,7 +51361,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1163,
+          "line": 1168,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -53256,17 +53256,17 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 81,
+          "line": 101,
           "sink": "QCheckBox"
         }
       ]
@@ -53366,7 +53366,7 @@
         },
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 235,
+          "line": 246,
           "sink": "setText"
         }
       ]
@@ -53631,7 +53631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 317,
+          "line": 338,
           "sink": "setTabToolTip"
         }
       ]
@@ -53641,7 +53641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 366,
+          "line": 369,
           "sink": "setToolTip"
         }
       ]
@@ -53651,7 +53651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 333,
+          "line": 354,
           "sink": "setTabToolTip"
         }
       ]
@@ -53671,7 +53671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 258,
+          "line": 269,
           "sink": "showMessage"
         }
       ]
@@ -53691,12 +53691,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -53726,7 +53726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 208,
+          "line": 219,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -53736,7 +53736,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 193,
+          "line": 204,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -53811,7 +53811,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 88,
+          "line": 108,
           "sink": "setToolTip"
         }
       ]
@@ -54921,7 +54921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 150,
+          "line": 156,
           "sink": "setToolTip"
         }
       ]
@@ -55176,7 +55176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 215,
+          "line": 218,
           "sink": "QPushButton"
         }
       ]
@@ -56396,12 +56396,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1364,
+          "line": 1370,
           "sink": "getSaveFileName"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1377,
+          "line": 1383,
           "sink": "warning"
         }
       ]
@@ -56441,7 +56441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1245,
+          "line": 1250,
           "sink": "getExistingDirectory"
         }
       ]
@@ -56506,7 +56506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 229,
+          "line": 231,
           "sink": "QPushButton"
         }
       ]
@@ -56516,12 +56516,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 763,
+          "line": 766,
           "sink": "getSaveFileName"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 770,
+          "line": 773,
           "sink": "warning"
         }
       ]
@@ -57056,7 +57056,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1249,
+          "line": 1254,
           "sink": "information"
         }
       ]
@@ -57836,7 +57836,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 172,
+          "line": 175,
           "sink": "QPushButton"
         },
         {
@@ -58931,17 +58931,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 81,
+          "line": 101,
           "sink": "QCheckBox"
         }
       ]
@@ -59006,7 +59006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 393,
+          "line": 396,
           "sink": "QLabel"
         }
       ]
@@ -59546,7 +59546,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 332,
+          "line": 353,
           "sink": "addTab"
         }
       ]
@@ -59556,7 +59556,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1120,
+          "line": 1126,
           "sink": "_set_advanced_page_text"
         }
       ]
@@ -59911,7 +59911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 256,
+          "line": 301,
           "sink": "setToolTip"
         }
       ]
@@ -60616,7 +60616,7 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 95,
+          "line": 115,
           "sink": "checkbox_menu"
         }
       ]
@@ -62471,7 +62471,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 212,
+          "line": 214,
           "sink": "QPushButton"
         }
       ]
@@ -63066,7 +63066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 218,
+          "line": 221,
           "sink": "setToolTip"
         }
       ]
@@ -63076,7 +63076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 222,
+          "line": 225,
           "sink": "setToolTip"
         }
       ]
@@ -63106,7 +63106,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 200,
+          "line": 203,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -63426,7 +63426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 87,
+          "line": 98,
           "sink": "hint"
         }
       ]
@@ -64041,7 +64041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 200,
+          "line": 203,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -64586,7 +64586,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 359,
+          "line": 362,
           "sink": "setToolTip"
         }
       ]
@@ -69241,7 +69241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 319,
+          "line": 322,
           "sink": "QLabel"
         }
       ]
@@ -69251,7 +69251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 191,
+          "line": 202,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -71011,7 +71011,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 76,
+          "line": 80,
           "sink": "setText"
         }
       ]
@@ -71041,7 +71041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 354,
+          "line": 357,
           "sink": "setToolTip"
         }
       ]
@@ -71051,7 +71051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 433,
+          "line": 436,
           "sink": "addRow"
         }
       ]
@@ -71231,7 +71231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 93,
+          "line": 95,
           "sink": "setToolTip"
         }
       ]
@@ -71241,7 +71241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 79,
+          "line": 81,
           "sink": "setToolTip"
         }
       ]
@@ -71261,7 +71261,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 346,
+          "line": 349,
           "sink": "setToolTip"
         }
       ]
@@ -71281,7 +71281,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 436,
+          "line": 439,
           "sink": "setToolTip"
         }
       ]
@@ -71351,7 +71351,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 166,
+          "line": 169,
           "sink": "setToolTip"
         }
       ]
@@ -71371,7 +71371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 396,
+          "line": 399,
           "sink": "setToolTip"
         }
       ]
@@ -73211,7 +73211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 716,
+          "line": 719,
           "sink": "getOpenFileName"
         }
       ]
@@ -73301,12 +73301,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 739,
+          "line": 742,
           "sink": "warning"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 743,
+          "line": 746,
           "sink": "warning"
         }
       ]
@@ -74086,7 +74086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 747,
+          "line": 750,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -74271,7 +74271,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 167,
+          "line": 170,
           "sink": "QPushButton"
         }
       ]
@@ -75151,7 +75151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 82,
+          "line": 102,
           "sink": "setToolTip"
         }
       ]
@@ -75676,7 +75676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 232,
+          "line": 245,
           "sink": "showMessage"
         }
       ]
@@ -75716,7 +75716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 73,
+          "line": 64,
           "sink": "QLabel"
         }
       ]
@@ -75776,7 +75776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 109,
+          "line": 67,
           "sink": "QLabel"
         }
       ]
@@ -80311,7 +80311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 398,
+          "line": 401,
           "sink": "QPushButton"
         }
       ]
@@ -80641,7 +80641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 323,
+          "line": 326,
           "sink": "QCheckBox"
         }
       ]
@@ -80886,7 +80886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 325,
+          "line": 328,
           "sink": "setToolTip"
         }
       ]
@@ -80896,7 +80896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 432,
+          "line": 435,
           "sink": "setToolTip"
         }
       ]
@@ -81201,12 +81201,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 292,
+          "line": 295,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 366,
+          "line": 369,
           "sink": "QLabel"
         }
       ]
@@ -81266,7 +81266,7 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 98,
+          "line": 118,
           "sink": "caption"
         }
       ]
@@ -81641,7 +81641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 240,
+          "line": 285,
           "sink": "QCheckBox"
         }
       ]
@@ -82601,7 +82601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 334,
+          "line": 337,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -82741,7 +82741,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 358,
+          "line": 361,
           "sink": "QPushButton"
         }
       ]
@@ -83961,7 +83961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 319,
+          "line": 342,
           "sink": "showMessage"
         },
         {
@@ -84661,7 +84661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 365,
+          "line": 388,
           "sink": "showMessage"
         }
       ]
@@ -84876,7 +84876,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 158,
+          "line": 169,
           "sink": "showMessage"
         }
       ]
@@ -85311,7 +85311,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 400,
+          "line": 402,
           "sink": "showMessage"
         },
         {
@@ -85786,12 +85786,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -88711,7 +88711,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 162,
+          "line": 173,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88721,7 +88721,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 169,
+          "line": 180,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88741,7 +88741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 293,
+          "line": 296,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88751,7 +88751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 288,
+          "line": 291,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -88761,7 +88761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 283,
+          "line": 286,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -90041,12 +90041,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 1014,
+          "line": 1013,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 1015,
+          "line": 1014,
           "sink": "emit"
         }
       ]
@@ -92486,7 +92486,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 252,
+          "line": 297,
           "sink": "QCheckBox"
         }
       ]
@@ -93116,7 +93116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 440,
+          "line": 443,
           "sink": "QCheckBox"
         }
       ]
@@ -93531,7 +93531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 463,
+          "line": 466,
           "sink": "QLabel"
         }
       ]
@@ -94066,7 +94066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 387,
+          "line": 398,
           "sink": "setWindowTitle"
         }
       ]
@@ -96106,12 +96106,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         },
         {
@@ -96186,7 +96186,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 313,
+          "line": 316,
           "sink": "setToolTip"
         }
       ]
@@ -96211,7 +96211,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 207,
+          "line": 218,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -96326,7 +96326,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 113,
+          "line": 115,
           "sink": "setToolTip"
         }
       ]
@@ -96351,7 +96351,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 204,
+          "line": 215,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -96536,12 +96536,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 288,
+          "line": 291,
           "sink": "addRow"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 342,
+          "line": 345,
           "sink": "addRow"
         }
       ]
@@ -96581,7 +96581,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 405,
+          "line": 408,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -96961,7 +96961,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 86,
+          "line": 90,
           "sink": "setPlaceholderText"
         }
       ]
@@ -97136,17 +97136,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 69,
+          "line": 89,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 81,
+          "line": 101,
           "sink": "QCheckBox"
         }
       ]
@@ -97316,7 +97316,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 106,
+          "line": 110,
           "sink": "add"
         }
       ]
@@ -97396,7 +97396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 241,
+          "line": 286,
           "sink": "setToolTip"
         }
       ]
@@ -98611,7 +98611,7 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 190,
+          "line": 201,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -98666,7 +98666,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 173,
+          "line": 184,
           "sink": "setToolTip"
         }
       ]
@@ -98931,7 +98931,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 700,
+          "line": 703,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -98946,12 +98946,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -98976,7 +98976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 192,
+          "line": 194,
           "sink": "QPushButton"
         }
       ]
@@ -100211,7 +100211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 440,
+          "line": 442,
           "sink": "showMessage"
         }
       ]
@@ -100286,7 +100286,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 67,
+          "line": 71,
           "sink": "QLabel"
         }
       ]
@@ -100301,22 +100301,22 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 264,
+          "line": 267,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 505,
+          "line": 508,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 202,
+          "line": 205,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 404,
+          "line": 407,
           "sink": "setText"
         },
         {
@@ -100516,7 +100516,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 137,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -100656,7 +100656,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 511,
+          "line": 513,
           "sink": "python-return:_retarget_length_target"
         }
       ]
@@ -100676,7 +100676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 658,
+          "line": 660,
           "sink": "showMessage"
         }
       ]
@@ -100746,7 +100746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 306,
+          "line": 309,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -101011,7 +101011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 407,
+          "line": 410,
           "sink": "setToolTip"
         }
       ]
@@ -101041,12 +101041,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 256,
+          "line": 258,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 976,
+          "line": 978,
           "sink": "showMessage"
         }
       ]
@@ -101121,7 +101121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 99,
+          "line": 105,
           "sink": "setText"
         }
       ]
@@ -103426,7 +103426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 524,
+          "line": 526,
           "sink": "showMessage"
         }
       ]
@@ -104686,7 +104686,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1261,
+          "line": 1266,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -104786,7 +104786,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 750,
+          "line": 753,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -104816,12 +104816,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 354,
+          "line": 365,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 360,
+          "line": 371,
           "sink": "setWindowTitle"
         }
       ]
@@ -104831,7 +104831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 367,
+          "line": 378,
           "sink": "showMessage"
         }
       ]
@@ -105161,7 +105161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1409,
+          "line": 1415,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -105276,12 +105276,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 103,
+          "line": 105,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1152,
+          "line": 1157,
           "sink": "setText"
         }
       ]
@@ -105311,7 +105311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 569,
+          "line": 572,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -105321,7 +105321,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 153,
+          "line": 156,
           "sink": "QLabel"
         }
       ]
@@ -105821,7 +105821,7 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 225,
+          "line": 228,
           "sink": "QPushButton"
         },
         {
@@ -105891,7 +105891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 261,
+          "line": 306,
           "sink": "setToolTip"
         }
       ]
@@ -106321,7 +106321,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 53,
+          "line": 58,
           "sink": "QCheckBox"
         }
       ]
@@ -106941,7 +106941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 201,
+          "line": 246,
           "sink": "showMessage"
         }
       ]
@@ -107856,7 +107856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 391,
+          "line": 402,
           "sink": "addButton"
         }
       ]
@@ -108456,7 +108456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 351,
+          "line": 411,
           "sink": "setToolTip"
         }
       ]
@@ -108666,7 +108666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 928,
+          "line": 927,
           "sink": "emit"
         },
         {
@@ -109361,42 +109361,42 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 271,
+          "line": 272,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 273,
+          "line": 274,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 276,
+          "line": 277,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 280,
+          "line": 281,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 286,
+          "line": 287,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 684,
+          "line": 707,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 687,
+          "line": 710,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 689,
+          "line": 712,
           "sink": "raise_if_cancelled"
         },
         {
@@ -113161,7 +113161,7 @@
         },
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 344,
+          "line": 365,
           "sink": "caption"
         }
       ]
@@ -113981,7 +113981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 366,
+          "line": 369,
           "sink": "setToolTip"
         }
       ]
@@ -114106,7 +114106,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 460,
+          "line": 463,
           "sink": "QLabel"
         }
       ]
@@ -115601,7 +115601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 505,
+          "line": 508,
           "sink": "setText"
         }
       ]
@@ -116246,7 +116246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 244,
+          "line": 247,
           "sink": "setToolTip"
         }
       ]
@@ -116336,7 +116336,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1123,
+          "line": 1265,
           "sink": "showMessage"
         }
       ]
@@ -116436,7 +116436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 442,
+          "line": 444,
           "sink": "showMessage"
         }
       ]
@@ -116826,7 +116826,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 155,
+          "line": 200,
           "sink": "setWindowTitle"
         }
       ]
@@ -117306,7 +117306,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 744,
+          "line": 767,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -117316,7 +117316,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 738,
+          "line": 761,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -117326,7 +117326,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 740,
+          "line": 763,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -117721,7 +117721,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 353,
+          "line": 356,
           "sink": "QPushButton"
         }
       ]
@@ -117781,12 +117781,12 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 119,
+          "line": 131,
           "sink": "primary"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 356,
+          "line": 379,
           "sink": "setText"
         },
         {
@@ -117831,7 +117831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 688,
+          "line": 691,
           "sink": "showMessage"
         }
       ]
@@ -117841,7 +117841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 660,
+          "line": 663,
           "sink": "showMessage"
         }
       ]
@@ -117861,7 +117861,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 429,
+          "line": 432,
           "sink": "QCheckBox"
         }
       ]
@@ -117881,7 +117881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 760,
+          "line": 763,
           "sink": "showMessage"
         }
       ]
@@ -117906,7 +117906,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 387,
+          "line": 390,
           "sink": "setToolTip"
         }
       ]
@@ -117916,7 +117916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 711,
+          "line": 714,
           "sink": "showMessage"
         }
       ]
@@ -117926,7 +117926,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 119,
+          "line": 131,
           "sink": "primary"
         }
       ]
@@ -117986,7 +117986,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 157,
+          "line": 160,
           "sink": "QPushButton"
         }
       ]
@@ -117996,7 +117996,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 340,
+          "line": 343,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -118016,7 +118016,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 347,
+          "line": 358,
           "sink": "setText"
         }
       ]
@@ -118051,7 +118051,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 142,
+          "line": 153,
           "sink": "QGroupBox"
         }
       ]
@@ -118236,7 +118236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 94,
+          "line": 97,
           "sink": "QLabel"
         }
       ]
@@ -119416,7 +119416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 899,
+          "line": 898,
           "sink": "log"
         },
         {
@@ -120276,7 +120276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 947,
+          "line": 946,
           "sink": "log"
         },
         {
@@ -120541,7 +120541,7 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 331,
+          "line": 354,
           "sink": "showMessage"
         }
       ]
@@ -125956,7 +125956,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 230,
+          "line": 233,
           "sink": "setToolTip"
         }
       ]
@@ -125986,7 +125986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 187,
+          "line": 190,
           "sink": "setToolTip"
         }
       ]
@@ -126061,7 +126061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 186,
+          "line": 188,
           "sink": "setToolTip"
         }
       ]
@@ -126856,7 +126856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 168,
+          "line": 171,
           "sink": "setToolTip"
         }
       ]
@@ -127806,7 +127806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 733,
+          "line": 736,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -128166,12 +128166,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 945,
+          "line": 949,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1097,
+          "line": 1102,
           "sink": "showMessage"
         }
       ]
@@ -130491,7 +130491,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 225,
+          "line": 227,
           "sink": "QPushButton"
         },
         {
@@ -130551,7 +130551,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 227,
+          "line": 229,
           "sink": "setToolTip"
         }
       ]
@@ -132536,17 +132536,17 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 407,
+          "line": 410,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 475,
+          "line": 478,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 72,
+          "line": 76,
           "sink": "QPushButton"
         },
         {
@@ -132691,7 +132691,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 219,
+          "line": 230,
           "sink": "question"
         }
       ]
@@ -132716,7 +132716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 78,
+          "line": 82,
           "sink": "setToolTip"
         }
       ]
@@ -132726,7 +132726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 244,
+          "line": 255,
           "sink": "question"
         }
       ]
@@ -132806,12 +132806,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 299,
+          "line": 302,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 373,
+          "line": 376,
           "sink": "QPushButton"
         }
       ]
@@ -133231,7 +133231,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 219,
+          "line": 230,
           "sink": "question"
         }
       ]
@@ -133371,7 +133371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 225,
+          "line": 236,
           "sink": "showMessage"
         }
       ]
@@ -134301,7 +134301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 208,
+          "line": 211,
           "sink": "setToolTip"
         }
       ]
@@ -134311,7 +134311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 336,
+          "line": 347,
           "sink": "question"
         }
       ]
@@ -135126,7 +135126,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 228,
+          "line": 231,
           "sink": "caption"
         }
       ]
@@ -135836,7 +135836,7 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 229,
+          "line": 232,
           "sink": "QPushButton"
         },
         {
@@ -136141,7 +136141,7 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 186,
+          "line": 189,
           "sink": "QPushButton"
         },
         {
@@ -136211,7 +136211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 220,
+          "line": 223,
           "sink": "QPushButton"
         }
       ]
@@ -136436,7 +136436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 185,
+          "line": 187,
           "sink": "QPushButton"
         }
       ]
@@ -136521,7 +136521,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 415,
+          "line": 473,
           "sink": "QAction"
         }
       ]
@@ -139741,7 +139741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 260,
+          "line": 305,
           "sink": "QCheckBox"
         }
       ]
@@ -140331,7 +140331,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 143,
+          "line": 154,
           "sink": "setToolTip"
         }
       ]
@@ -140376,7 +140376,7 @@
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 98,
+          "line": 118,
           "sink": "caption"
         },
         {
@@ -140431,7 +140431,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 325,
+          "line": 346,
           "sink": "addTab"
         }
       ]
@@ -140441,7 +140441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 223,
+          "line": 226,
           "sink": "showMessage"
         }
       ]
@@ -141106,12 +141106,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         },
         {
@@ -141576,7 +141576,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 631,
+          "line": 633,
           "sink": "python-return:_route_hint"
         }
       ]
@@ -141606,7 +141606,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 679,
+          "line": 681,
           "sink": "showMessage"
         }
       ]
@@ -142791,7 +142791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 352,
+          "line": 363,
           "sink": "setText"
         }
       ]
@@ -142836,7 +142836,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 98,
+          "line": 102,
           "sink": "primary"
         }
       ]
@@ -142861,7 +142861,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 280,
+          "line": 291,
           "sink": "warning"
         }
       ]
@@ -143206,7 +143206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 286,
+          "line": 297,
           "sink": "getExistingDirectory"
         }
       ]
@@ -143251,7 +143251,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 109,
+          "line": 113,
           "sink": "add"
         }
       ]
@@ -143301,7 +143301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 200,
+          "line": 211,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -143661,12 +143661,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 267,
+          "line": 270,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 205,
+          "line": 208,
           "sink": "QLabel"
         }
       ]
@@ -143741,7 +143741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 385,
+          "line": 396,
           "sink": "showMessage"
         }
       ]
@@ -143751,7 +143751,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 379,
+          "line": 390,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -143761,7 +143761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 389,
+          "line": 400,
           "sink": "setText"
         }
       ]
@@ -144136,7 +144136,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 179,
+          "line": 182,
           "sink": "setToolTip"
         }
       ]
@@ -145746,7 +145746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 87,
+          "line": 107,
           "sink": "setPlaceholderText"
         }
       ]
@@ -145926,12 +145926,12 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 113,
+          "line": 116,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 127,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -147001,7 +147001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 216,
+          "line": 227,
           "sink": "showMessage"
         }
       ]
@@ -147026,7 +147026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 597,
+          "line": 599,
           "sink": "showMessage"
         }
       ]
@@ -147541,7 +147541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 654,
+          "line": 656,
           "sink": "showMessage"
         }
       ]
@@ -147551,7 +147551,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 605,
+          "line": 607,
           "sink": "showMessage"
         }
       ]
@@ -147851,7 +147851,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 204,
+          "line": 215,
           "sink": "QLabel"
         }
       ]
@@ -148141,7 +148141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 948,
+          "line": 950,
           "sink": "showMessage"
         }
       ]
@@ -149816,7 +149816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1079,
+          "line": 1084,
           "sink": "showMessage"
         }
       ]
@@ -149826,7 +149826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 928,
+          "line": 932,
           "sink": "showMessage"
         }
       ]
@@ -149836,7 +149836,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1326,
+          "line": 1332,
           "sink": "showMessage"
         }
       ]
@@ -149876,7 +149876,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 796,
+          "line": 798,
           "sink": "showMessage"
         }
       ]
@@ -151041,12 +151041,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 914,
+          "line": 916,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 928,
+          "line": 930,
           "sink": "showMessage"
         }
       ]
@@ -151886,12 +151886,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -152641,7 +152641,7 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 127,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -152846,7 +152846,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 326,
+          "line": 347,
           "sink": "setTabToolTip"
         }
       ]
@@ -154601,7 +154601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 54,
+          "line": 59,
           "sink": "setToolTip"
         }
       ]
@@ -155151,7 +155151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1174,
+          "line": 1179,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -156086,7 +156086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 283,
+          "line": 328,
           "sink": "QLabel"
         }
       ]
@@ -156096,7 +156096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1100,
+          "line": 1242,
           "sink": "setText"
         }
       ]
@@ -156381,7 +156381,7 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 108,
+          "line": 111,
           "sink": "QLabel"
         },
         {
@@ -157896,7 +157896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 217,
+          "line": 220,
           "sink": "QPushButton"
         }
       ]
@@ -157926,7 +157926,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 255,
+          "line": 300,
           "sink": "QCheckBox"
         }
       ]
@@ -158141,7 +158141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 297,
+          "line": 300,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -159511,7 +159511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 419,
+          "line": 422,
           "sink": "addRow"
         }
       ]
@@ -159551,7 +159551,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -159561,7 +159561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -159571,22 +159571,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -160271,12 +160271,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 180,
+          "line": 183,
           "sink": "add"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 183,
+          "line": 186,
           "sink": "Section"
         }
       ]
@@ -160341,12 +160341,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 77,
+          "line": 81,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 244,
+          "line": 255,
           "sink": "question"
         }
       ]
@@ -160356,7 +160356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 677,
+          "line": 680,
           "sink": "question"
         }
       ]
@@ -161466,7 +161466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 221,
+          "line": 224,
           "sink": "QPushButton"
         }
       ]
@@ -161781,7 +161781,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 97,
+          "line": 100,
           "sink": "QLabel"
         }
       ]
@@ -161911,12 +161911,12 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 166,
+          "line": 169,
           "sink": "setHorizontalHeaderLabels"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 237,
+          "line": 240,
           "sink": "QLabel"
         },
         {
@@ -161946,7 +161946,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 349,
+          "line": 352,
           "sink": "addRow"
         }
       ]
@@ -162776,7 +162776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 441,
+          "line": 444,
           "sink": "setToolTip"
         }
       ]
@@ -162846,22 +162846,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -162871,7 +162871,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -162881,7 +162881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -162971,7 +162971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 290,
+          "line": 293,
           "sink": "setText"
         }
       ]
@@ -163291,7 +163291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 226,
+          "line": 229,
           "sink": "setToolTip"
         }
       ]
@@ -163311,7 +163311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 455,
+          "line": 458,
           "sink": "setToolTip"
         }
       ]
@@ -163321,7 +163321,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 73,
+          "line": 77,
           "sink": "setToolTip"
         }
       ]
@@ -166611,22 +166611,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 939,
+          "line": 938,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 941,
+          "line": 940,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 946,
+          "line": 945,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 977,
+          "line": 976,
           "sink": "RuntimeError"
         },
         {
@@ -166836,7 +166836,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 575,
+          "line": 578,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -167496,7 +167496,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 664,
+          "line": 687,
           "sink": "python-return:character_reference_from_snapshot"
         }
       ]
@@ -167886,12 +167886,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 662,
+          "line": 685,
           "sink": "python-return:character_reference_from_snapshot"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 735,
+          "line": 758,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -167901,7 +167901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 371,
+          "line": 374,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -168426,7 +168426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 334,
+          "line": 345,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -168436,7 +168436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 378,
+          "line": 389,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -168446,7 +168446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 330,
+          "line": 341,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -168746,7 +168746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 134,
+          "line": 136,
           "sink": "setToolTip"
         }
       ]
@@ -168756,7 +168756,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 157,
+          "line": 159,
           "sink": "setToolTip"
         }
       ]
@@ -170026,7 +170026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 362,
+          "line": 373,
           "sink": "setText"
         }
       ]
@@ -170281,7 +170281,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 87,
+          "line": 91,
           "sink": "setToolTip"
         }
       ]
@@ -171046,7 +171046,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 179,
+          "line": 190,
           "sink": "setToolTip"
         }
       ]
@@ -173026,7 +173026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 161,
+          "line": 164,
           "sink": "setToolTip"
         }
       ]
@@ -173191,7 +173191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 231,
+          "line": 276,
           "sink": "setToolTip"
         }
       ]
@@ -174121,7 +174121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1394,
+          "line": 1400,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -175206,7 +175206,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 160,
+          "line": 163,
           "sink": "QPushButton"
         }
       ]
@@ -176016,7 +176016,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 313,
+          "line": 324,
           "sink": "showMessage"
         }
       ]
@@ -176166,12 +176166,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -176396,7 +176396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -176406,22 +176406,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 71,
+          "line": 73,
           "sink": "setItemData"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -176431,7 +176431,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 178,
+          "line": 180,
           "sink": "setAccessibleName"
         }
       ]
@@ -178301,7 +178301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 213,
+          "line": 215,
           "sink": "setAccessibleName"
         }
       ]
@@ -178441,7 +178441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 214,
+          "line": 216,
           "sink": "setToolTip"
         }
       ]
@@ -178481,7 +178481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 278,
+          "line": 281,
           "sink": "addRow"
         }
       ]
@@ -178501,7 +178501,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 816,
+          "line": 818,
           "sink": "showMessage"
         }
       ]
@@ -179586,7 +179586,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 221,
+          "line": 223,
           "sink": "QPushButton"
         },
         {
@@ -179676,7 +179676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 218,
+          "line": 221,
           "sink": "QPushButton"
         }
       ]
@@ -179731,7 +179731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 223,
+          "line": 225,
           "sink": "setToolTip"
         }
       ]
@@ -179771,7 +179771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 76,
+          "line": 82,
           "sink": "QPushButton"
         }
       ]
@@ -181166,7 +181166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 63,
+          "line": 67,
           "sink": "setToolTip"
         }
       ]
@@ -181176,7 +181176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 243,
+          "line": 288,
           "sink": "QCheckBox"
         }
       ]
@@ -181716,7 +181716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1144,
+          "line": 1149,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -182226,7 +182226,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 334,
+          "line": 337,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -182906,7 +182906,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 91,
+          "line": 102,
           "sink": "Section"
         }
       ]
@@ -183241,7 +183241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 156,
+          "line": 167,
           "sink": "QLabel"
         }
       ]
@@ -183676,7 +183676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 428,
+          "line": 431,
           "sink": "addRow"
         }
       ]
@@ -183726,7 +183726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 207,
+          "line": 210,
           "sink": "QPushButton"
         }
       ]
@@ -183756,7 +183756,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 376,
+          "line": 378,
           "sink": "question"
         }
       ]
@@ -184736,12 +184736,12 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 127,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 155,
+          "line": 158,
           "sink": "QLabel"
         },
         {
@@ -185161,7 +185161,7 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 107,
+          "line": 111,
           "sink": "add"
         }
       ]
@@ -187526,7 +187526,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 200,
+          "line": 203,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -187956,7 +187956,7 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 166,
+          "line": 169,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -188211,7 +188211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 163,
+          "line": 174,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -188476,12 +188476,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         }
       ]
@@ -188516,7 +188516,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 95,
+          "line": 115,
           "sink": "checkbox_menu"
         }
       ]
@@ -188526,7 +188526,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_tasks.py",
-          "line": 330,
+          "line": 351,
           "sink": "setTabToolTip"
         }
       ]
@@ -188556,7 +188556,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 97,
+          "line": 108,
           "sink": "Section"
         }
       ]
@@ -189586,7 +189586,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 72,
+          "line": 80,
           "sink": "Section"
         }
       ]
@@ -190066,7 +190066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 173,
+          "line": 176,
           "sink": "setToolTip"
         }
       ]
@@ -190076,7 +190076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 216,
+          "line": 219,
           "sink": "setToolTip"
         }
       ]
@@ -190086,7 +190086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 230,
+          "line": 232,
           "sink": "setToolTip"
         }
       ]
@@ -191061,12 +191061,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 772,
+          "line": 775,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1379,
+          "line": 1385,
           "sink": "showMessage"
         }
       ]
@@ -191076,7 +191076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1249,
+          "line": 1254,
           "sink": "information"
         }
       ]
@@ -191491,12 +191491,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 260,
+          "line": 263,
           "sink": "QGroupBox"
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 198,
+          "line": 201,
           "sink": "QGroupBox"
         }
       ]
@@ -191541,17 +191541,17 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 346,
+          "line": 405,
           "sink": "addTab"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 406,
           "sink": "setTabToolTip"
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 187,
+          "line": 198,
           "sink": "setTabText"
         }
       ]
@@ -191561,7 +191561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 187,
+          "line": 198,
           "sink": "setTabText"
         }
       ]
@@ -191571,7 +191571,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 184,
+          "line": 194,
           "sink": "setText"
         }
       ]
@@ -191581,7 +191581,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 184,
+          "line": 194,
           "sink": "setText"
         },
         {
@@ -191596,7 +191596,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 184,
+          "line": 194,
           "sink": "setText"
         }
       ]
@@ -192351,7 +192351,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 180,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -195426,7 +195426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1167,
+          "line": 1309,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -197551,7 +197551,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1257,
+          "line": 1262,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -199436,7 +199436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 423,
+          "line": 426,
           "sink": "QLabel"
         }
       ]
@@ -199476,7 +199476,7 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 365,
+          "line": 368,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -199601,7 +199601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 716,
+          "line": 719,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -199611,7 +199611,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 716,
+          "line": 719,
           "sink": "getOpenFileName"
         }
       ]
@@ -199651,7 +199651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 763,
+          "line": 766,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -199661,7 +199661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 763,
+          "line": 766,
           "sink": "getSaveFileName"
         }
       ]
@@ -200246,12 +200246,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 271,
+          "line": 316,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1167,
+          "line": 1309,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -200641,7 +200641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 271,
+          "line": 316,
           "sink": "addItem"
         }
       ]
@@ -201296,7 +201296,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1305,
+          "line": 1310,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -201406,7 +201406,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1303,
+          "line": 1308,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -203741,12 +203741,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -204666,7 +204666,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 329,
+          "line": 332,
           "sink": "setToolTip"
         }
       ]
@@ -205281,12 +205281,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -205601,7 +205601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 89,
+          "line": 93,
           "sink": "setPlaceholderText"
         }
       ]
@@ -205941,7 +205941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 365,
+          "line": 368,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -206186,12 +206186,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -206496,7 +206496,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1301,
+          "line": 1306,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -207461,7 +207461,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 272,
+          "line": 317,
           "sink": "addItem"
         }
       ]
@@ -209116,12 +209116,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -209181,12 +209181,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -211146,12 +211146,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 272,
+          "line": 317,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1167,
+          "line": 1309,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -212246,12 +212246,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -212281,7 +212281,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 425,
+          "line": 428,
           "sink": "QLabel"
         }
       ]
@@ -214656,7 +214656,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 246,
+          "line": 257,
           "sink": "setData"
         }
       ]
@@ -214766,7 +214766,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 336,
+          "line": 347,
           "sink": "question"
         }
       ]
@@ -215041,7 +215041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 358,
+          "line": 361,
           "sink": "setToolTip"
         }
       ]
@@ -215121,7 +215121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1130,
+          "line": 1272,
           "sink": "setToolTip"
         }
       ]
@@ -215151,7 +215151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 298,
+          "line": 321,
           "sink": "QListWidgetItem"
         }
       ]
@@ -215161,7 +215161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 513,
+          "line": 655,
           "sink": "addItem"
         }
       ]
@@ -215181,7 +215181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1316,
+          "line": 1321,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -215191,7 +215191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 339,
+          "line": 359,
           "sink": "addItem"
         }
       ]
@@ -215201,7 +215201,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1258,
+          "line": 1263,
           "sink": "setText"
         }
       ]
@@ -215221,7 +215221,7 @@
         },
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1291,
+          "line": 1296,
           "sink": "addItem"
         }
       ]
@@ -215271,7 +215271,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 335,
+          "line": 351,
           "sink": "python-return:describe"
         }
       ]
@@ -215291,7 +215291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 336,
+          "line": 339,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -215761,7 +215761,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 624,
+          "line": 626,
           "sink": "showMessage"
         }
       ]
@@ -216486,7 +216486,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 354,
+          "line": 374,
           "sink": "setPlainText"
         }
       ]
@@ -216531,7 +216531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 802,
+          "line": 804,
           "sink": "showMessage"
         }
       ]
@@ -216541,12 +216541,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 615,
+          "line": 617,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 665,
+          "line": 667,
           "sink": "showMessage"
         }
       ]
@@ -216566,7 +216566,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 344,
+          "line": 367,
           "sink": "showMessage"
         }
       ]
@@ -216886,7 +216886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 404,
+          "line": 407,
           "sink": "setText"
         }
       ]
@@ -217001,7 +217001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1177,
+          "line": 1319,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -217041,12 +217041,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -217056,12 +217056,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 92,
+          "line": 94,
           "sink": "addItem"
         }
       ]
@@ -217241,7 +217241,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 313,
+          "line": 316,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -217561,7 +217561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1116,
+          "line": 1121,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -217601,7 +217601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 309,
+          "line": 312,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -218036,7 +218036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation.py",
-          "line": 260,
+          "line": 271,
           "sink": "showMessage"
         }
       ]
@@ -218146,7 +218146,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 376,
+          "line": 378,
           "sink": "question"
         }
       ]
@@ -218511,7 +218511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 339,
+          "line": 350,
           "sink": "showMessage"
         }
       ]
@@ -218576,7 +218576,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 413,
+          "line": 415,
           "sink": "showMessage"
         }
       ]
@@ -218701,7 +218701,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 392,
+          "line": 408,
           "sink": "python-return:describe"
         }
       ]
@@ -218881,7 +218881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 141,
+          "line": 138,
           "sink": "setText"
         }
       ]
@@ -218891,7 +218891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 154,
+          "line": 165,
           "sink": "setText"
         }
       ]
@@ -218901,7 +218901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 166,
+          "line": 177,
           "sink": "setText"
         },
         {
@@ -219131,7 +219131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 328,
+          "line": 331,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -219156,7 +219156,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1192,
+          "line": 1334,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -219221,12 +219221,12 @@
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 336,
+          "line": 339,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "tools/placement_studio/window_timing.py",
-          "line": 336,
+          "line": 339,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -219236,7 +219236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1285,
+          "line": 1290,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -219246,7 +219246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_animation_editor.py",
-          "line": 1307,
+          "line": 1312,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -219456,7 +219456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1148,
+          "line": 1290,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -219506,7 +219506,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 458,
+          "line": 474,
           "sink": "python-return:describe"
         }
       ]
@@ -220636,7 +220636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 364,
+          "line": 367,
           "sink": "setText"
         }
       ]
@@ -220706,7 +220706,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 350,
+          "line": 353,
           "sink": "setText"
         }
       ]
@@ -220716,7 +220716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 310,
+          "line": 313,
           "sink": "setText"
         }
       ]
@@ -220806,17 +220806,17 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 364,
+          "line": 367,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 412,
+          "line": 415,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 423,
+          "line": 426,
           "sink": "setText"
         }
       ]
@@ -220956,7 +220956,7 @@
       "origins": [
         {
           "path": "cdmw/services/hair_registration.py",
-          "line": 138,
+          "line": 140,
           "sink": "source"
         },
         {
@@ -222126,12 +222126,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1100,
+          "line": 1242,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_armour.py",
-          "line": 241,
+          "line": 252,
           "sink": "setToolTip"
         },
         {
@@ -222141,7 +222141,7 @@
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
-          "line": 324,
+          "line": 327,
           "sink": "setText"
         },
         {
@@ -222151,7 +222151,7 @@
         },
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
-          "line": 239,
+          "line": 242,
           "sink": "setText"
         }
       ]
@@ -222771,7 +222771,7 @@
       "origins": [
         {
           "path": "cdmw/services/hair_registration.py",
-          "line": 137,
+          "line": 139,
           "sink": "source"
         },
         {
@@ -222906,7 +222906,7 @@
       "origins": [
         {
           "path": "cdmw/services/hair_registration.py",
-          "line": 123,
+          "line": 125,
           "sink": "validate_hair_prefab_donor"
         }
       ]
@@ -223041,7 +223041,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 78,
+          "line": 80,
           "sink": "addItem"
         }
       ]
@@ -223121,12 +223121,12 @@
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 348,
+          "line": 359,
           "sink": "setInformativeText"
         },
         {
           "path": "tools/placement_studio/window_save.py",
-          "line": 363,
+          "line": 374,
           "sink": "setInformativeText"
         }
       ]
@@ -223436,6 +223436,12 @@
       "symbol": "developer_harness",
       "source": "*",
       "reason": "Placement Studio validation-gate output; excluded developer harness."
+    },
+    {
+      "path": "tools/placement_studio/model.py",
+      "symbol": "sword_row",
+      "source": "MainWeapon_Sword_R",
+      "reason": "Game part role identifier from Kliff's character description, shown verbatim like the other descriptor row names."
     },
     {
       "path": "tools/placement_studio/gates_clipping.py",

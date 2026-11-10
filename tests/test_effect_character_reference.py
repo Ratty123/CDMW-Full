@@ -468,6 +468,51 @@ class HeldPoseTests(unittest.TestCase):
 
         self.assertEqual(route, ("RHand_Socket", "Basic_ChildSocket", "descriptor-name"))
 
+    def test_part_names_match_the_descriptor_across_the_cd_rename(self) -> None:
+        from dataclasses import replace
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from cdmw.services.effect_character_reference import _item_attachment_route, _part_names_in_prefab
+        from tools.placement_studio.model import DescriptorPart
+
+        # The current descriptor says `MainWeapon_Shield_L`; a mod prefab built before the
+        # October 2026 update still says `CD_MainWeapon_Shield_L`.
+        reference = replace(
+            self._reference(),
+            parts={
+                "MainWeapon_Shield_L": DescriptorPart(
+                    part_name="MainWeapon_Shield_L", out_socket="LForearm_Socket", out_child_socket="Basic_ChildSocket",
+                ),
+                "MainWeapon_HandCannon": DescriptorPart(
+                    part_name="MainWeapon_HandCannon", out_socket="RHand_Socket", out_child_socket="Basic_ChildSocket",
+                ),
+            },
+        )
+        fields = (
+            SimpleNamespace(field_name="_attachedSocketName", value="Spine2_B_Shield_Socket"),
+            SimpleNamespace(field_name="_pivotSocketName", value="Spine2_B_Shield_ChildSocket"),
+            SimpleNamespace(field_name="_partName", value="CD_MainWeapon_Shield_L"),
+        )
+        with patch(
+            "cdmw.core.archive_attachment_patches.inspect_prefab_attachment_profile_fields",
+            return_value=fields,
+        ):
+            route = _item_attachment_route(("shield.prefab",), lambda _path: b"prefab", reference)
+        self.assertEqual(route, ("LForearm_Socket", "Basic_ChildSocket", "descriptor"))
+
+        # Without a readable profile, a current name is found only because the descriptor
+        # knows it; an unrelated identifier in the same bytes is not a part.
+        payload = b"schema\x00Weapon\x00MainWeapon_HandCannon\x00MainWeapon_HandCannon_Aux\x00model"
+        self.assertEqual(("MainWeapon_HandCannon",), _part_names_in_prefab(payload, reference.parts))
+        self.assertEqual((), _part_names_in_prefab(payload))
+        with patch(
+            "cdmw.core.archive_attachment_patches.inspect_prefab_attachment_profile_fields",
+            return_value=(),
+        ):
+            route = _item_attachment_route(("cannon.prefab",), lambda _path: payload, reference)
+        self.assertEqual(route, ("RHand_Socket", "Basic_ChildSocket", "descriptor-name"))
+
     def test_the_resolved_body_socket_replaces_the_right_hand_in_the_effect_scene(self) -> None:
         from dataclasses import replace
         from unittest.mock import patch

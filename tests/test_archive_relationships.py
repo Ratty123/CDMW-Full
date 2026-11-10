@@ -309,6 +309,74 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
         self.assertEqual(len(same_length.data), len(target))
 
+    def _sword_profile(self, part: str) -> bytes:
+        return self._minimal_prefab_profile_payload(
+            attached="Pelvis_L_Socket",
+            pivot="Pelvis_L_ChildSocket",
+            part=part,
+            model="character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac",
+            socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml",
+        )
+
+    def test_prefab_part_role_is_read_in_both_namings(self):
+        # The October 2026 update renamed `CD_MainWeapon_Sword_R` to `MainWeapon_Sword_R`;
+        # requiring the prefix left every current prefab without a part role.
+        for part in ("MainWeapon_Sword_R", "CD_MainWeapon_Sword_R"):
+            with self.subTest(part=part):
+                fields = {field.field_name: field for field in inspect_prefab_attachment_profile_fields(self._sword_profile(part))}
+                self.assertEqual(part, fields["_partName"].value)
+                self.assertEqual(len(part), fields["_partName"].byte_length)
+                self.assertTrue(fields["_socketFileName"].value.endswith("_r.sockets.xml"))
+
+    def test_a_plain_identifier_after_the_model_path_is_not_a_part_role(self):
+        base = self._minimal_prefab_socket_payload()
+        prefix = base[: base.index(self._prefab_string("Spine2_B_Socket"))]
+        model = "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac"
+        sockets = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/x.sockets.xml"
+
+        def payload(after_model: str) -> bytes:
+            return (
+                prefix
+                + self._prefab_string("Pelvis_L_Socket")
+                + self._prefab_string("Pelvis_L_ChildSocket")
+                + b"\x00\x01\x00\x00"
+                + self._prefab_string(model)
+                + b"\x52\x00\x00\x00"
+                + self._prefab_string(after_model)
+                + b"\x01\x01\x00\x00"
+                + self._prefab_string(sockets)
+            )
+
+        tag_fields = {field.field_name for field in inspect_prefab_attachment_profile_fields(payload("Weapon"))}
+        self.assertNotIn("_partName", tag_fields)
+        legacy = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(payload("CD_MainWeapon_Sword_R"))}
+        self.assertEqual("CD_MainWeapon_Sword_R", legacy["_partName"])
+
+    def test_a_copied_part_role_is_written_in_the_target_prefab_s_naming(self):
+        current = build_prefab_attachment_profile_patch(
+            self._sword_profile("MainWeapon_Sword_R"), part_name="CD_MainWeapon_Sword_L"
+        )
+        self.assertIn(b"MainWeapon_Sword_L", current.data)
+        self.assertNotIn(b"CD_", current.data)
+        self.assertEqual(len(self._sword_profile("MainWeapon_Sword_R")), len(current.data))
+        self.assertIn("written in the target prefab's naming", "\n".join(current.proof_lines))
+
+        legacy = build_prefab_attachment_profile_patch(
+            self._sword_profile("CD_MainWeapon_Sword_R"), part_name="MainWeapon_Sword_L"
+        )
+        self.assertIn(b"CD_MainWeapon_Sword_L", legacy.data)
+        self.assertEqual(["_partName"], [field.field_name for field in legacy.changed_fields])
+
+        unchanged = build_prefab_attachment_profile_patch(
+            self._sword_profile("MainWeapon_Sword_R"), part_name="CD_MainWeapon_Sword_R"
+        )
+        self.assertEqual((), unchanged.changed_fields)
+
+    def test_a_part_role_replacement_must_still_be_a_role(self):
+        for bad in ("Spine2_B_Socket", "character/model/x.pac"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "part role such as MainWeapon_Sword_R"):
+                build_prefab_attachment_profile_patch(self._sword_profile("MainWeapon_Sword_R"), part_name=bad)
+
     def test_model_sidecar_resolves_exact_dds_paths(self):
         entries = self._entries(
             (
@@ -797,6 +865,33 @@ class ArchiveRelationshipTests(unittest.TestCase):
             ["CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"],
             [row.part_name for row in part_in_out_rows_for_weapon_class(document, "twohand_sword")],
         )
+
+    def test_current_part_names_keep_their_weapon_class_and_take_attach_point_patches(self):
+        # Kliff's descriptor as the October 2026 update ships it: no `CD_` prefix. Before the
+        # fix swords fell through to "mainhand"/"twohand" and the patch changed nothing.
+        text = """
+            <PartInOutSocket PartName="MainWeapon_Sword_R" InSocketBone="Pelvis_L_Socket" OutSocketBone="RHand_Socket"
+                InChildSocketBone="Pelvis_L_ChildSocket" WeaponCasePart="MainWeapon_Sword_IN_R" />
+            <PartInOutSocket PartName="MainWeapon_Sword_IN_R" InSocketBone="Pelvis_L_Socket" OutSocketBone="Pelvis_L_Socket"
+                InChildSocketBone="Pelvis_L_ChildSocket" OutChildSocketBone="Pelvis_L_ChildSocket" />
+            <PartInOutSocket PartName="TwoHandWeapon_Sword" InSocketBone="Spine2_B_SubWeapon_Socket" OutSocketBone="RHand_Socket" />
+            <PartInOutSocket PartName="TwoHandWeapon_Sword_IN" InSocketBone="Spine2_B_SubWeapon_Socket" />
+            <PartInOutSocket PartName="MainWeapon_Dagger_L" InSocketBone="Pelvis_R_Socket" />
+            <PartInOutSocket PartName="TwoHandWeapon_Alebard" InSocketBone="Spine2_B_SubWeapon_Socket" />
+            """
+        document = parse_part_in_out_socket_info_xml(text, "character/phm_description_player_kliff.xml")
+        classes = [infer_part_in_out_weapon_class(row.part_name) for row in document.rows]
+        self.assertEqual(
+            ["onehand_sword", "onehand_sword", "twohand_sword", "twohand_sword", "onehand_dagger", "spear"], classes
+        )
+        for row in document.rows:
+            self.assertEqual(infer_part_in_out_weapon_class(row.part_name), infer_part_in_out_weapon_class("CD_" + row.part_name))
+
+        result = build_part_in_out_socket_attach_point_patch(
+            text, weapon_class="onehand_sword", in_socket_bone="Spine2_R_Socket", in_child_socket_bone="Spine2_R_ChildSocket"
+        )
+        self.assertEqual(("MainWeapon_Sword_R", "MainWeapon_Sword_IN_R"), result.patched_part_names)
+        self.assertNotIn("CD_", result.text)
 
     def test_body_location_choices_use_stack_groups_and_descriptor_child_sockets(self):
         socket_document = parse_socket_bone_data_xml(

@@ -276,6 +276,52 @@ class EquipmentUnitTests(unittest.TestCase):
         self.assertNotIn("longsword", unit.donor_animation_families)
 
 
+class CurrentPartNameTests(unittest.TestCase):
+    """Kliff's descriptor as the October 2026 update ships it: the `CD_` prefix is gone."""
+
+    def _session(self) -> PlacementSession:
+        current = DESC_BYTES.replace(b'"CD_', b'"')
+        resolver = PlacementResolver()
+        resolver.add_files({**FILES, DESC: current, ALIAS: current})
+        return PlacementSession(MODEL, None, resolver)
+
+    def test_a_current_row_resolves_like_its_pre_update_twin(self) -> None:
+        session = self._session()
+        session.select_weapon(_weapon(session, "cd_phm_02_sword_0001"))
+        unit = session.resolve_equipment_unit(
+            "TwoHandWeapon_Sword", available_families={carry.family_of(c.name) for c in CLIP_INDEX}
+        )
+        legacy = _two_hand_unit(_session())
+        self.assertEqual(unit.handedness, legacy.handedness)
+        self.assertEqual([link.part_name for link in unit.linked_parts], ["TwoHandWeapon_Sword_IN"])
+        self.assertEqual(unit.linked_parts[0].role, "sheath")
+        self.assertEqual(set(unit.allowed_socket_files), set(legacy.allowed_socket_files))
+        self.assertEqual(unit.target_animation_families, legacy.target_animation_families)
+
+    def test_row_category_and_type_ignore_the_prefix(self) -> None:
+        from tools.placement_studio.model import DescriptorPart
+
+        for current, legacy in (("MainWeapon_Sword_IN_R", "CD_MainWeapon_Sword_IN_R"),
+                                ("TwoHandWeapon_Axe", "CD_TwoHandWeapon_Axe"), ("Tool_Hoe", "CD_Tool_Hoe")):
+            with self.subTest(current=current):
+                now, before = DescriptorPart(part_name=current), DescriptorPart(part_name=legacy)
+                self.assertNotEqual(now.category, "other")
+                self.assertEqual((now.category, now.weapon_type), (before.category, before.weapon_type))
+
+    def test_operation_sockets_get_one_name_from_either_form(self) -> None:
+        self.assertEqual(operation_socket_name("TwoHandWeapon_Sword", "hip"), "CDMW_Sword_hip_ChildSocket")
+        self.assertEqual(operation_socket_name("MainWeapon_Sword_IN_R", "back", role="sheath"),
+                         operation_socket_name("CD_MainWeapon_Sword_IN_R", "back", role="sheath"))
+        self.assertEqual(operation_socket_name("Upperbody", "back"), operation_socket_name("CD_Upperbody", "back"))
+
+    def test_the_default_sword_row_is_the_one_the_descriptor_has(self) -> None:
+        from tools.placement_studio.model import sword_row
+
+        self.assertEqual(sword_row(["MainWeapon_Sword_IN_R", "MainWeapon_Sword_R"]), "MainWeapon_Sword_R")
+        self.assertEqual(sword_row(["CD_MainWeapon_Sword_IN_R", "CD_MainWeapon_Sword_R"]), "CD_MainWeapon_Sword_R")
+        self.assertEqual(sword_row([]), "MainWeapon_Sword_R")
+
+
 # ── Workstream A: operation transactions ─────────────────────────────
 
 

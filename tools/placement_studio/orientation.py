@@ -19,6 +19,8 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.part_names import bare_part_name
+
 from .model import IDENTITY, Quat, Socket, Vec3
 
 #: Same limit `editing.socket_name_problem` enforces: a `.paac` socket reference is stored as
@@ -64,9 +66,11 @@ def operation_socket_name(
     zone_token = _NAME_SAFE.sub("_", str(zone or "dest")).strip("_") or "dest"
     role_token = _NAME_SAFE.sub("_", str(role or "")).strip("_")
     part_token = _NAME_SAFE.sub("_", str(part_name or "part")).strip("_") or "part"
-    # `CD_MainWeapon_Sword_IN_R` says the same thing as `MainWeapon_Sword_IN_R` with four
-    # characters of a fixed prefix that every row shares.
-    for prefix in ("CD_TwoHandWeapon_", "CD_MainWeapon_", "CD_Tool_", "CD_"):
+    # The role prefix (`MainWeapon_`) and the pre-update `CD_` say nothing every row does not
+    # also say. Both forms of a row give one name, so an operation planned on files from
+    # before the October 2026 update names its socket as it does on the current game.
+    part_token = bare_part_name(part_token) or part_token
+    for prefix in ("TwoHandWeapon_", "MainWeapon_", "Tool_"):
         if part_token.startswith(prefix):
             part_token = part_token[len(prefix) :]
             break

@@ -128,6 +128,19 @@ def test_postfix_copies_are_isolated_and_keep_other_hiding_and_non_hide_rules():
     assert {n.get("PartName") for n in xml(hair).find("./PostfixCondition[@SourcePartPrefabPostfix='new_item']")} == {"CD_Head", "CD_Hand"}
 
 
+def test_postfix_hiding_is_filtered_in_the_current_part_naming_too():
+    # Since the October 2026 update the shipped rules name `Hair`, not `CD_Hair`; before
+    # the fix no Hide target matched and kept hair stayed hidden.
+    current = POSTFIX.replace(b'PartName="CD_', b'PartName="')
+    result = clone_postfix_rules(current, (("helmet_r", "new_item", SKIN),))
+    nodes = xml(result).findall("./PostfixCondition[@SourcePartPrefabPostfix='new_item']")
+    assert [{n.get("PartName") for n in node} for node in nodes] == [{"Hair", "Beard", "Hand"}, {"Head"}]
+    hair = clone_postfix_rules(current, (("helmet_r", "new_item", HAIR),))
+    assert {n.get("PartName") for n in xml(hair).find("./PostfixCondition[@SourcePartPrefabPostfix='new_item']")} == {"Head", "Hand"}
+    assert BOTH.hides_part("Hair") and BOTH.hides_part("CD_Hair") and BOTH.hides_part("EyeLeft")
+    assert not HAIR.hides_part("Head") and not SKIN.hides_part("Hand")
+
+
 @pytest.mark.parametrize("data,match", [(b"<Shrink>", "Malformed"), (b'<!DOCTYPE Shrink []><Shrink/>', "Unsupported"),
                                        (SHRINK + b"<UsePostCutbox><Helm/></UsePostCutbox>", "not supported")])
 def test_unsupported_descriptor_cannot_silently_produce_rules(data, match):

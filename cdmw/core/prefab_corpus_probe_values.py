@@ -22,6 +22,7 @@ from cdmw.core.prefab_json import (
     build_prefab_edit_document,
     rebuild_prefab_no_edit_from_edit_document,
 )
+from cdmw.domain.part_names import is_part_role_name
 from cdmw.models import ArchiveEntry
 from cdmw.core.prefab_corpus_contracts import (
     EDIT_PROBES_DISABLED_REASON,
@@ -83,9 +84,11 @@ def _same_length_placement_probe_value(field_name: str, value: str) -> str:
             return ''
         candidate = _same_length_probe_value(text[:socket_index]) + text[socket_index:]
         return candidate if candidate != text and 'socket' in candidate.casefold() else ''
-    if field_name == '_partName' and text.startswith('CD_'):
-        candidate = 'CD_' + _same_length_probe_value(text[3:])
-        return candidate if candidate != text and candidate.startswith('CD_') else ''
+    if field_name == '_partName' and is_part_role_name(text):
+        # Either naming: `CD_MainWeapon_Sword_R` before the October 2026 update,
+        # `MainWeapon_Sword_R` after it. The probe changes the last letter, so the form stays.
+        candidate = _same_length_probe_value(text)
+        return candidate if candidate != text and is_part_role_name(candidate) else ''
     return ''
 
 
@@ -96,7 +99,7 @@ def _longer_placement_probe_value(field_name: str, value: str) -> str:
         if socket_index < 1:
             return ''
         return f'{text[:socket_index]}CDMWProbe_{text[socket_index:]}'
-    if field_name == '_partName' and text.startswith('CD_'):
+    if field_name == '_partName' and is_part_role_name(text):
         return f'{text}_CDMWPROBE'
     return ''
 

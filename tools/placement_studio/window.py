@@ -37,11 +37,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.domain.part_names import same_part_name
+
 from .corpus import Baseline
 from .layout_util import fit_popup as _fit_popup, let_header_shrink
 from .clip_names import part_label, socket_label
 from .editing import EditSession
-from .model import PlacementBinding, Vec3
+from .model import SWORD_ROW, PlacementBinding, Vec3, sword_row
 from .session import PlacementSession
 from .glossary import tip
 from .report_style import inspector_html
@@ -916,7 +918,7 @@ class PlacementStudioWindow(
         it is the file suffix on the weapon that says which one you chose.
         """
 
-        fallback = "CD_MainWeapon_Sword_R"
+        fallback = sword_row(b.part_name for b in self._bindings)
         weapon = self._weapon_box.currentData()
         if weapon is None:
             return fallback
@@ -1098,7 +1100,7 @@ class PlacementStudioWindow(
                 (
                     b
                     for b in bindings
-                    if b.part_name == "CD_MainWeapon_Sword_R" and not b.part.is_case_row
+                    if same_part_name(b.part_name, SWORD_ROW) and not b.part.is_case_row
                 ),
                 None,
             )
@@ -1234,7 +1236,7 @@ class PlacementStudioWindow(
                 text = "Sinks into the body: press Check for clipping"
                 health_state = ""
             else:
-                subject = self._selected_part or "CD_MainWeapon_Sword_R"
+                subject = self._selected_part or sword_row(b.part_name for b in self._bindings)
                 text = f"{subject}: {report.summary()}"
                 health_state = "unhealthy" if report.clipping else "healthy"
         self._clipping_label.setText(text)

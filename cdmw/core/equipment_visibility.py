@@ -254,7 +254,7 @@ def clone_postfix_rules(data: bytes, requests: tuple[tuple[str, str, BodyVisibil
                 continue
             removals = [(n.start-node.start, n.end-node.start, b"") for n in node.children
                         if node.attrs.get("Type") == "Hide" and n.name == "TargetPart"
-                        and n.attrs.get("PartName") in choice.hidden_parts]
+                        and choice.hides_part(n.attrs.get("PartName", ""))]
             fragment = _patch(data[node.start:node.end], removals)
             added.append(_attribute(fragment, "SourcePartPrefabPostfix", output_stem))
     if not added:

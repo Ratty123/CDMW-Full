@@ -10,6 +10,7 @@ from cdmw.domain.archives.weapon_swap import (
     WeaponSwapTemplate,
     WeaponSwapValidatedWeapon,
 )
+from cdmw.domain.part_names import bare_part_name, part_name_like
 from cdmw.models import AttachmentPartInOutPatchDiff, AttachmentPartInOutPatchResult
 
 TWOHAND_HIP_TILT_ROTATION: Tuple[float, float, float, float] = (0.0, 0.382683, 0.0, 0.923880)
@@ -414,35 +415,39 @@ def build_part_in_out_weapon_swap_template_patch(
     template = get_weapon_swap_template(template_id)
     if template.template_id not in {"dual_onehand_back_crossed", "dual_onehand_back_parallel"}:
         return AttachmentPartInOutPatchResult(text=str(base_text or ""))
+    # Keyed by the current part names. Descriptors from before the October 2026 update
+    # spell them `CD_MainWeapon_Sword_R`; both match, and a case part is written in the
+    # row's own form. The update removed the `_Aux` rows from Kliff's descriptor, so those
+    # two entries only apply to older files.
     desired: Mapping[str, Mapping[str, str]] = {
-        "CD_MainWeapon_Sword_R": {
+        "MainWeapon_Sword_R": {
             "InSocketBone": "Spine2_R_Socket",
             "InChildSocketBone": "Spine2_R_ChildSocket",
-            "WeaponCasePart": "CD_MainWeapon_Sword_IN_R",
+            "WeaponCasePart": "MainWeapon_Sword_IN_R",
         },
-        "CD_MainWeapon_Sword_IN_R": {
+        "MainWeapon_Sword_IN_R": {
             "InSocketBone": "Spine2_R_Socket",
             "OutSocketBone": "Spine2_R_Socket",
             "InChildSocketBone": "Spine2_R_ChildSocket",
             "OutChildSocketBone": "Spine2_R_ChildSocket",
         },
-        "CD_MainWeapon_Sword_L": {
+        "MainWeapon_Sword_L": {
             "InSocketBone": "Spine2_L_Socket",
             "InChildSocketBone": "Spine2_L_ChildSocket",
-            "WeaponCasePart": "CD_MainWeapon_Sword_IN_L",
+            "WeaponCasePart": "MainWeapon_Sword_IN_L",
         },
-        "CD_MainWeapon_Sword_IN_L": {
+        "MainWeapon_Sword_IN_L": {
             "InSocketBone": "Spine2_L_Socket",
             "OutSocketBone": "Spine2_L_Socket",
             "InChildSocketBone": "Spine2_L_ChildSocket",
             "OutChildSocketBone": "Spine2_L_ChildSocket",
         },
-        "CD_MainWeapon_Sword_R_Aux": {
+        "MainWeapon_Sword_R_Aux": {
             "InSocketBone": "Spine2_L_Socket",
             "InChildSocketBone": "Spine2_L_ChildSocket",
-            "WeaponCasePart": "CD_MainWeapon_Sword_IN_R_Aux",
+            "WeaponCasePart": "MainWeapon_Sword_IN_R_Aux",
         },
-        "CD_MainWeapon_Sword_IN_R_Aux": {
+        "MainWeapon_Sword_IN_R_Aux": {
             "InSocketBone": "Spine2_L_Socket",
             "OutSocketBone": "Spine2_L_Socket",
             "InChildSocketBone": "Spine2_L_ChildSocket",
@@ -456,12 +461,14 @@ def build_part_in_out_weapon_swap_template_patch(
         tag_text = match.group(0)
         current_attrs = _attrs(str(match.group("attrs") or ""))
         part_name = str(current_attrs.get("PartName") or "").strip()
-        fields = desired.get(part_name)
+        fields = desired.get(bare_part_name(part_name))
         if fields is None:
             return tag_text
         updated = tag_text
         changed = False
         for field_name, new_value in fields.items():
+            if field_name == "WeaponCasePart":
+                new_value = part_name_like(new_value, part_name)
             old_value = str(current_attrs.get(field_name) or "")
             if old_value == new_value:
                 continue
