@@ -101,6 +101,61 @@ def bind_authoring_preview_core_materials(mesh, package_path):
                 bind_preview_core_material_source(part, package, rows[0], manifest["material_conservation"])
 
 
+def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
+    """Resolve one original PAC's graph on the existing set preparation worker."""
+    from types import SimpleNamespace
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.models import ModelPreviewRenderSettings
+    from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
+    from cdmw.rendering.native_preview_package_cache import acquire_native_preview_package_cache_lease_for_path
+    from cdmw.services.mesh_archive_refit import ArchiveRefitPreviewLease
+    from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
+    from cdmw.services.mesh_rust_authoring import _rebase_rust_preview_texture_paths, _submesh_has_material_synthesis_inputs
+    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+    from cdmw.workers.archive_preview_native import native_preview_core_timeout_seconds
+
+    raise_if_cancelled(stop_event, "Item set loading cancelled")
+    if not any(_submesh_has_material_synthesis_inputs(part) for part in mesh.submeshes):
+        return None
+    entry = context.selected_entry
+    normalize = lambda value: str(value or "").replace("\\", "/").casefold()
+    if normalize(mesh.path) != normalize(entry.path) or context.entry_matching(entry) is None:
+        raise ValueError("Item set dependencies do not match the selected mesh")
+    settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    result = run_native_preview_core_preview_job(
+        entry, cache_root=Path(cache_root), render_settings=settings,
+        dependency_entries=tuple(context.entries), dependency_entries_complete=bool(context.remote),
+        timeout_seconds=native_preview_core_timeout_seconds(settings), stop_event=stop_event,
+    )
+    raise_if_cancelled(stop_event, "Item set loading cancelled")
+    if not result.succeeded:
+        # Unsupported native inputs retain the existing bounded CPU compositor.
+        return None
+    package = Path(result.package_path)
+    lease = acquire_native_preview_package_cache_lease_for_path(package)
+    if lease is None:
+        raise ValueError("The resolved Archive Browser texture package could not be leased.")
+    try:
+        path = package / "manifest.json"
+        if path.stat().st_size > 16 * 1024 * 1024:
+            raise ValueError("Preview Core manifest exceeds the 16 MiB limit")
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if normalize(manifest.get("source_path")) != normalize(entry.path):
+            raise ValueError("Item set dependencies do not match the selected mesh")
+        _validated_preview_core_source(package, manifest)
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        apply_dotnet_native_material_batch_bindings(mesh, manifest["batches"])
+        # Discard old CPU-preview paths outside this graph's declared resources.
+        # The native DDS sources themselves were validated above.
+        _rebase_rust_preview_texture_paths(mesh, package, stop_event=stop_event)
+        bind_authoring_preview_core_materials(mesh, package)
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        return ArchiveRefitPreviewLease(SimpleNamespace(material_package_lease=lease), context)
+    except BaseException:
+        lease.release()
+        raise
+
+
 def preview_core_material_contract(mesh):
     from cdmw.services.mesh_rust_authoring import _mesh_lods
     from cdmw.services.mesh_rust_preview_package import (

@@ -18,6 +18,7 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     """Called only by the existing cancellable session preparation worker."""
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.mesh_item_set_budget import prepare_item_set_budget
+    from cdmw.services.mesh_preview_material_source import prepare_item_set_material_source
     from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source
 
     stop_event = stop_event or threading.Event()
@@ -31,14 +32,18 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
         if hasattr(primary.mesh, name):
             setattr(material_mesh, name, getattr(primary.mesh, name))
     primary = replace(primary, mesh=material_mesh)
-    sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, None, contexts[0])]
+    material_cache = root.parent / "item-set-native-cache"
+    primary_lease = prepare_item_set_material_source(material_mesh, contexts[0], material_cache, stop_event)
+    sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, primary_lease, contexts[0])]
     for context in contexts[1:]:
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         progress("Preparing editable item set...")
         prepared = prepare_archive_refit_source({"_archive_entry": context.selected_entry,
                                                 "_archive_dependencies": context}, stop_event)
         source = prepared["_archive_snapshot"]
-        sources.append((context.selected_entry, source, prepared.get("_archive_neutral_appearance"), prepared.get("_archive_preview_lease"), context))
+        native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
+        leases = (prepared.get("_archive_preview_lease"), native_lease)
+        sources.append((context.selected_entry, source, prepared.get("_archive_neutral_appearance"), leases, context))
     progress("Preparing material textures for Mesh Editor...")
     admitted, bounded_references, materials = prepare_item_set_budget(sources, root, root_identity, stop_event)
     references = [contexts[0]]

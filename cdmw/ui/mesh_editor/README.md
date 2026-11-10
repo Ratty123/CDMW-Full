@@ -545,6 +545,10 @@ geometry edits retain these bindings, while changed or imported materials use
 the existing authoring compositor. Painted alpha retains its dedicated channel.
 Material updates and Undo replace or restore the graph with their owned texture
 state. Layer DDS files count against the existing set/session budgets. Sources
+in an editable set resolve a separate native graph for each original PAC before
+budgeting, even when the browser's combined package is not reused. Resolution
+runs on the cancellable preparation worker and retains each source's DDS lease.
+This keeps additional pieces' authored dye and layer settings intact. Sources
 without a native graph and view-only reference packages retain their baked path.
 Create New Item's ParsedMesh preview shares this rule. Material Authority,
 Fast preview, Exact and exported material output retain their existing meanings.
