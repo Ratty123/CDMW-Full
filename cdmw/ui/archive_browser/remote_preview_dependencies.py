@@ -120,6 +120,8 @@ class _PendingPreviewDependencies:
     selected: ArchiveEntryDto
     preferred_prefab_stems: tuple[str, ...] = ()
     scope_entry_ids: tuple[int, ...] = ()
+    component_entries: tuple[ArchiveEntryDto, ...] = ()
+    association_index: int = 0
     candidates: dict[int, ArchiveEntryDto] = field(default_factory=dict)
     prepared: dict[int, PrepareEntryResult] = field(default_factory=dict)
     total_candidates: int = 0
@@ -211,6 +213,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         ui_request_id: int,
         preferred_prefab_stems: tuple[str, ...] = (),
         scope_entry_ids: tuple[int, ...] = (),
+        component_entries: tuple[ArchiveEntryDto, ...] = (),
         reuse_prepared: bool = False,
     ) -> bool:
         normalized_prefab_stems = tuple(
@@ -227,6 +230,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 if not isinstance(entry_id, bool) and int(entry_id) >= 0
             )
         )[:MAX_ARCHIVE_PREVIEW_ENTRIES]
+        components = tuple({entry.entry_id: entry for entry in component_entries
+                            if entry.entry_id != selected.entry_id}.values())
+        if len(components) > 32 or any(entry.session_id != selected.session_id or entry.extension.casefold() != ".pac" for entry in component_entries):
+            self.cancel(clear_snapshot=True)
+            self.failed.emit(int(ui_request_id), "This choice has incomplete or ambiguous dependencies.")
+            return False
         pending = self._pending
         if (
             reuse_prepared
@@ -234,6 +243,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             and pending.selected == selected
             and pending.preferred_prefab_stems == normalized_prefab_stems
             and pending.scope_entry_ids == bounded_scope_entry_ids
+            and pending.component_entries == components
         ):
             # Open Mesh can ask for textures while this same row's dependency
             # lookup is still running. Retarget delivery instead of decoding
@@ -241,7 +251,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             pending.ui_request_id = int(ui_request_id)
             return True
         self.cancel(clear_snapshot=False)
-        reuse_key = (selected, normalized_prefab_stems, bounded_scope_entry_ids)
+        reuse_key = (selected, normalized_prefab_stems, bounded_scope_entry_ids, components)
         snapshot = self._snapshot
         if (
             reuse_prepared
@@ -293,6 +303,8 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             selected=selected,
             preferred_prefab_stems=normalized_prefab_stems,
             scope_entry_ids=bounded_scope_entry_ids,
+            component_entries=components,
+            candidates={entry.entry_id: entry for entry in components},
         )
         self.progress.emit(int(ui_request_id), "finding_files", 0, 0)
         return True
@@ -352,6 +364,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                     "This choice has incomplete or ambiguous dependencies."
                 )
                 return
+            if pending.association_index < len(pending.component_entries):
+                pending.association_index += 1
+                self._start_association_lookup(pending)
+                return
             self._prioritize_model_property_prefabs(pending)
             self._start_dependency_preparation(pending)
             return
@@ -374,7 +390,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
         self._snapshot_reuse_key = (
-            pending.selected, pending.preferred_prefab_stems, pending.scope_entry_ids,
+            pending.selected, pending.preferred_prefab_stems, pending.scope_entry_ids, pending.component_entries,
         )
         self._snapshot_file_identities = self._snapshot_file_stamps(snapshot)
         self._remember_snapshot(snapshot)
@@ -480,11 +496,17 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
     def _accept_payload(pending: _PendingPreviewDependencies, payload: object) -> bool:
         if not isinstance(payload, ArchiveAssociationResult):
             return False
-        if payload.session_id != pending.selected.session_id or payload.entry_id != pending.selected.entry_id:
+        owner = pending.component_entries[pending.association_index - 1] if pending.association_index else pending.selected
+        if payload.session_id != pending.selected.session_id or payload.entry_id != owner.entry_id:
             return False
         for candidate in payload.candidates:
-            pending.candidates.setdefault(candidate.entry_id, candidate)
-        pending.total_candidates = max(pending.total_candidates, int(payload.total_candidates))
+            if candidate.session_id != pending.selected.session_id:
+                return False
+            if candidate.entry_id != pending.selected.entry_id:
+                pending.candidates.setdefault(candidate.entry_id, candidate)
+        if len(pending.candidates) > MAX_ARCHIVE_PREVIEW_DEPENDENCIES:
+            return False
+        pending.total_candidates = max(len(pending.candidates), pending.total_candidates, int(payload.total_candidates))
         pending.truncated = pending.truncated or bool(payload.truncated)
         pending.secondary_index_pending = (
             pending.secondary_index_pending or bool(payload.secondary_index_pending)
@@ -572,14 +594,16 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self.progress.emit(pending.ui_request_id, "preparing_files", 0, len(entry_ids))
 
     def _start_association_lookup(self, pending: _PendingPreviewDependencies) -> None:
+        owner = pending.component_entries[pending.association_index - 1] if pending.association_index else pending.selected
         try:
             request_id = self._service.find_association_candidates(
                 ArchiveAssociationRequest(
                     pending.selected.session_id,
-                    pending.selected.entry_id,
+                    owner.entry_id,
                     limit=max(
                         1,
-                        MAX_ARCHIVE_PREVIEW_DEPENDENCIES - len(pending.candidates),
+                        MAX_ARCHIVE_PREVIEW_DEPENDENCIES
+                        - (len(pending.candidates) if not pending.association_index else 0),
                     ),
                     purpose=ArchiveAssociationPurpose.PREVIEW,
                 ),

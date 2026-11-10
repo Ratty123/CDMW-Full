@@ -40,6 +40,21 @@ def _app() -> QApplication:
     return _APPLICATION
 
 
+def test_queued_fetches_do_not_outlive_their_model() -> None:
+    from PySide6.QtCore import QCoreApplication, QEvent
+    app = _app()
+    for mode in (ArchiveViewMode.FLAT, ArchiveViewMode.FOLDERS):
+        model = RemoteArchiveBrowserModel()
+        requested = []
+        model.pageRequested.connect(requested.append)
+        model.childrenRequested.connect(requested.append)
+        model.publish_query(_handle(), view_mode=mode)
+        model.deleteLater()
+        QCoreApplication.sendPostedEvents(model, QEvent.DeferredDelete)
+        app.processEvents()
+        assert requested == []
+
+
 def _handle(*, query: str = "query-a", generation: int = 4, total: int = 2_000) -> ArchiveQueryHandle:
     return ArchiveQueryHandle("session-a", query, generation, total)
 

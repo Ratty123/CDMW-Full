@@ -33,6 +33,9 @@ class ArchivePreviewD3D11PartsMixin:
         if entry is None:
             current_entry = getattr(self, "_current_archive_entry", None)
             entry = current_entry() if callable(current_entry) else None
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is not None and hasattr(bridge, "preview_entry_for"):
+            entry = bridge.preview_entry_for(entry)
         entry_key = self._archive_d3d11_prefab_entry_key(entry)
         if not entry_key:
             return ()
@@ -46,6 +49,9 @@ class ArchivePreviewD3D11PartsMixin:
     ) -> bool:
         current_entry = getattr(self, "_current_archive_entry", None)
         entry = current_entry() if callable(current_entry) else None
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is not None and hasattr(bridge, "preview_entry_for"):
+            entry = bridge.preview_entry_for(entry)
         entry_key = self._archive_d3d11_prefab_entry_key(entry)
         if not entry_key:
             return False
@@ -68,6 +74,10 @@ class ArchivePreviewD3D11PartsMixin:
         return True
 
     def _clear_archive_d3d11_part_visibility_menu(self) -> None:
+        self._archive_item_set_visibility_active = False
+        panel = getattr(self, "archive_item_set_components", None)
+        if panel is not None:
+            panel.hide()
         menu = getattr(self, "archive_d3d11_part_visibility_menu", None)
         if menu is not None:
             menu.clear()
@@ -91,11 +101,26 @@ class ArchivePreviewD3D11PartsMixin:
             for index in tuple(getattr(self, "archive_character_context_pending_hidden_indices", ()) or ())
             if int(index) >= 0
         )
+        if getattr(self, "_archive_item_set_visibility_active", False):
+            hidden.extend(self.archive_item_set_components.hidden_indices)
         total_count = len(groups)
         self.archive_d3d11_part_visibility_button.setText(
             f"Parts {shown_count}/{total_count}" if total_count else "Parts"
         )
-        self.archive_d3d11_preview_host.set_hidden_source_submeshes(hidden)
+        self.archive_d3d11_preview_host.set_hidden_source_submeshes(sorted(set(hidden)))
+
+    def _archive_item_set_visibility_changed(self, _hidden: object = ()) -> None:
+        if not getattr(self, "_archive_item_set_visibility_active", False):
+            return
+        hidden = set(self.archive_item_set_components.hidden_indices)
+        self.archive_d3d11_part_visibility_bulk_update = True
+        try:
+            for action, indices, _prefab, _path in self.archive_d3d11_part_visibility_groups.values():
+                if indices:
+                    action.setChecked(any(index not in hidden for index in indices))
+        finally:
+            self.archive_d3d11_part_visibility_bulk_update = False
+        self._set_archive_d3d11_hidden_parts_from_menu()
 
     def _populate_archive_d3d11_part_visibility_menu(self, package_dir: Path) -> None:
         self._clear_archive_d3d11_part_visibility_menu()
@@ -109,6 +134,16 @@ class ArchivePreviewD3D11PartsMixin:
         batches = manifest.get("batches")
         if not isinstance(batches, list):
             return
+        bridge = getattr(self, "archive_remote_bridge", None)
+        panel = getattr(self, "archive_item_set_components", None)
+        if panel is not None:
+            if bridge is not None and bridge.item_set_contains(getattr(self, "archive_preview_request_entry", None)):
+                panel.set_parts(batches, tuple(entry.path for entry in bridge.item_set_members))
+                self._archive_item_set_visibility_active = panel.active
+                selected = self._current_archive_entry()
+                panel.highlight_path(str(getattr(selected, "path", "")))
+            else:
+                panel.reset()
         current_entry_getter = getattr(self, "_current_archive_entry", None)
         current_entry = current_entry_getter() if callable(current_entry_getter) else None
         self._sync_archive_character_context_source(current_entry)
@@ -234,6 +269,13 @@ class ArchivePreviewD3D11PartsMixin:
             )
 
         def _apply_bulk_prefab_selection(*, enabled: bool) -> None:
+            if getattr(self, "_archive_item_set_visibility_active", False):
+                hidden = () if enabled else tuple(
+                    index for _action, indices, prefab, _path in self.archive_d3d11_part_visibility_groups.values()
+                    if prefab for index in indices
+                )
+                self.archive_item_set_components.set_hidden_indices(hidden)
+                return
             selected_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
             self.archive_d3d11_part_visibility_bulk_update = True
             try:
@@ -268,7 +310,10 @@ class ArchivePreviewD3D11PartsMixin:
         hide_added_action.triggered.connect(_hide_added)
         self.archive_d3d11_part_visibility_button.setVisible(True)
         self.archive_d3d11_part_visibility_button.setEnabled(True)
-        self._set_archive_d3d11_hidden_parts_from_menu()
+        if getattr(self, "_archive_item_set_visibility_active", False):
+            self._archive_item_set_visibility_changed()
+        else:
+            self._set_archive_d3d11_hidden_parts_from_menu()
 
     def _handle_archive_d3d11_part_toggled(self, group_key: str, checked: bool) -> None:
         if bool(getattr(self, "archive_d3d11_part_visibility_bulk_update", False)):
@@ -277,6 +322,9 @@ class ArchivePreviewD3D11PartsMixin:
         if group is None:
             return
         _action, _source_indices, prefab_component, model_path = group
+        if (getattr(self, "_archive_item_set_visibility_active", False) and _source_indices
+                and self.archive_item_set_components.set_group_visible(model_path, checked)):
+            return
         if not prefab_component:
             self._set_archive_d3d11_hidden_parts_from_menu()
             return

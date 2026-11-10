@@ -499,6 +499,10 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
+            set_bridge = getattr(self, "archive_remote_bridge", None)
+            if set_bridge is not None and set_bridge.item_set_contains(entry):
+                preview_file_action = menu.addAction("Preview only this file")
+                preview_file_action.triggered.connect(set_bridge.preview_only_current_file)
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
             continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 

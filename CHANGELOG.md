@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Item Finder opens an item's worn pieces together in Browse Archives. **Set components** groups them by file, with visibility checkboxes, **Show all** and **Isolate**. Selecting another file keeps the set visible and highlights its parts; **Preview only this file** returns to one model. The item details show larger model lists.
+
 - Preview and Mesh Editor add **Shadows** and **Ambient occlusion** switches for Textured and Game Outdoor views. Both start on. Icon captures retain self-shadows on a transparent background. **Studio (fixed lights)** adds lighting that stays in place as you orbit, alongside the unchanged default preset.
 
 - Create New Item has experimental **Wearable by** choices and a separate **Fitting reference — preview only** section for models installed through DMM. Browse current Character Creator, Female Armor Fit and Female Armor Module files by equipment part and linked item name; their models and textures stay out of exports. Wearer choices travel with the new item, and unrestricted templates show all characters as allowed. New parts use additive registrations in DMM 4.4.0 or newer. Automatic fitting and in-game compatibility remain unverified.

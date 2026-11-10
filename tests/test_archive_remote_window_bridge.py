@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pytest
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -513,6 +514,94 @@ def test_item_scope_selection_prefers_a_model_for_preview() -> None:
     selected = bridge.model.entry_for_index(window.archive_tree.currentIndex())
     assert selected is not None
     assert selected.entry_id == 8
+
+
+def test_worn_set_scope_seeds_primary_beyond_first_page_and_preserves_file_selection(monkeypatch) -> None:
+    from cdmw.domain.archives.catalogue import ArchiveLookupResult
+    from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_clear_asset_scope_button = QPushButton()
+    bridge = ArchiveRemoteWindowBridge(window)
+    bridge.controller._current_session = ArchiveSessionHandle("session-a", "C:/Game", "fp", 900, 1, True)
+    requests, queries, renders = [], [], []
+    monkeypatch.setattr(bridge, "_begin_pending", lambda *args, **kwargs: None)
+    monkeypatch.setattr(window.archive_catalogue_service, "resolve_entries", lambda request, **_: requests.append(request) or "resolve-set", raising=False)
+    monkeypatch.setattr(bridge.controller, "apply_query", lambda query, **kwargs: queries.append((query, kwargs)) or 12)
+    lower, upper, dropped = _remote(1, "a_lb_01.pac"), _remote(800, "a_ub_01.pac"), _remote(3, "dropitem/a.pac")
+    assert bridge.apply_entry_id_scope((1, 800, 3), label="Armor", worn_set=True)
+    assert requests[0].entry_ids == (1, 800, 3)
+    window.archive_catalogue_service.result_ready.emit("resolve-set", "resolve_entries",
+        ArchiveLookupResult("session-a", (lower, dropped, upper), 3, False))
+    assert bridge.item_set_members == (upper, lower)
+    assert queries[0][1]["selection_identity"] == upper.identity
+    primary = ArchiveCatalogueService.compatibility_entry(upper)
+    key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(primary)
+    assert window.archive_d3d11_prefab_component_selections[key] == {lower.path}
+    handle = ArchiveQueryHandle("session-a", "set", 12, 2)
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
+    assert bridge.model.accept_page(ArchivePage("session-a", "set", 12, 2, 0, (lower, upper)))
+    window.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    # A shared prepared snapshot must never replace the selected row's output authority.
+    prepared = {dto.entry_id: PrepareEntryResult(ArchiveEntryRef(dto.session_id, dto.entry_id, dto.identity, dto.path),
+                                                f"C:/Cache/{dto.entry_id}.bin", dto.original_size, "sha256")
+                for dto in (upper, lower)}
+    snapshot = ArchivePreviewDependencySet.from_dtos(upper, (lower,), total_candidates=1, truncated=False, prepared=prepared)
+    monkeypatch.setattr(bridge, "prepared_dependencies_for", lambda _: snapshot)
+    assert bridge.current_compatibility_entry().path == lower.path
+    assert bridge.current_preview_entry().path == upper.path
+    snapshot = ArchivePreviewDependencySet.from_dtos(lower, (upper,), total_candidates=1, truncated=False, prepared=prepared)
+    assert bridge.current_preview_entry().path == upper.path
+    bridge.item_set_preview_requested = True
+    window.archive_preview_request_entry = primary
+    assert bridge.keep_item_set_preview(ArchiveCatalogueService.compatibility_entry(lower))
+    window._render_archive_preview = lambda entry, **kwargs: renders.append((entry, kwargs))
+    window.archive_remote_bridge = bridge
+    window._current_archive_entry = bridge.current_compatibility_entry
+    window._startup_benchmark_enabled = lambda: False
+    window._archive_tree_item_kind = lambda _: "file"
+    from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
+    ArchivePreviewResultMixin._handle_archive_current_item_change(window, object(), None)
+    assert not renders
+    bridge.preview_only_current_file()
+    assert not bridge.item_set_active and renders[-1][0].path == lower.path
+    assert renders[-1][1] == {"force": True}
+    assert key not in window.archive_d3d11_prefab_component_selections
+    window.archive_d3d11_prefab_component_selections[key] = {"previous-manual.pac"}
+    assert bridge.apply_entry_id_scope((1, 800), label="Armor", worn_set=True)
+    window.archive_catalogue_service.result_ready.emit("resolve-set", "resolve_entries",
+        ArchiveLookupResult("session-a", (lower, upper), 2, False))
+    bridge._clear_item_set_scope()
+    assert window.archive_d3d11_prefab_component_selections[key] == {"previous-manual.pac"}
+
+
+@pytest.mark.parametrize("lifecycle", ("shutdown", "destroy"))
+def test_item_set_discovery_cancels_on_shutdown_or_workspace_destruction(monkeypatch, lifecycle) -> None:
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from cdmw.domain.archives.catalogue import ArchiveLookupResult
+    _app()
+    window = _RemoteExportWindow()
+    service = _ShadowService()  # Outlives the workspace, like an in-flight worker reply.
+    window.archive_catalogue_service = service
+    window.archive_clear_asset_scope_button = QPushButton()
+    cancelled, queries = [], []
+    service.resolve_entries = lambda *args, **kwargs: "pending-set"
+    service.cancel = lambda request: cancelled.append(request)
+    bridge = ArchiveRemoteWindowBridge(window)
+    bridge.controller._current_session = ArchiveSessionHandle("session-a", "C:/Game", "fp", 900, 1, True)
+    monkeypatch.setattr(bridge, "_begin_pending", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bridge.controller, "apply_query", lambda *args, **kwargs: queries.append(args))
+    assert bridge.apply_entry_id_scope((1, 2), label="Armor", worn_set=True)
+    if lifecycle == "shutdown":
+        window._shutting_down = True
+        bridge.cancel_preview_dependencies(clear_snapshot=True)
+        assert not bridge.item_set_members
+    else:
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(window, QEvent.DeferredDelete)
+    service.result_ready.emit("pending-set", "resolve_entries", ArchiveLookupResult(
+        "session-a", (_remote(1), _remote(2)), 2, False))
+    assert cancelled == ["pending-set"] and not queries
 
 
 def test_remote_export_selection_represents_folder_and_filtered_query_server_side() -> None:

@@ -251,6 +251,30 @@ positions and pane widths. Closing while the initial results are loading keeps
 the saved browsing position. Older two-pane layouts gain the category pane
 without adding a new layout setting.
 
+### Worn-set preview
+
+Item Finder's **Show Exact Links**, **Show Related Set** and double-click resolve every
+scoped PAC before selecting a preview primary, independent of the current page.
+The upper-body file wins; otherwise the largest model wins. `dropitem` paths are
+excluded unless the scope contains just that model. Related Set retains its wider
+file scope. The details pane lists up to 32 model filenames and prefab stems.
+
+The primary and up to 32 other worn models share a bounded dependency request.
+Dependencies are gathered for each source before preparation; incomplete,
+cross-session or oversized results are refused. Explicit pieces take precedence
+over optional prefab suggestions in Preview Core. Geometry and material-sidecar
+lookup share the 32-component limit, with existing preview resource budgets.
+
+**Set components** groups the resident parts by source file. Per-file and per-part
+checkboxes, **Show all** and **Isolate** change helper visibility without rebuilding
+the package. The **Parts** menu uses the same state; visibility survives texture
+promotion by source path and local part identity. Selecting another scoped file
+highlights its parts while keeping the set on screen. File actions retain the
+selected row's own identity and prepared bytes. **Preview only this file** leaves
+set mode and reloads that file alone. Clearing/changing the scope restores any
+previous manual component selection. Cancellation, workspace destruction and
+shutdown reject late set-discovery replies.
+
 ## Scanner failures and recovery
 
 The older application scanner, shadow mode and **Use Legacy This Session** action

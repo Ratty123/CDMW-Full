@@ -21,6 +21,7 @@ from cdmw.domain.archives.catalogue import (
 )
 from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.services.settings_service import read_ignored_archive_folders
 from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
@@ -31,6 +32,9 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchiveRemotePreviewDependencyProvider,
 )
 from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_state
+from cdmw.ui.archive_browser.item_set_preview import ItemSetScopeResolver
+from cdmw.domain.archives.item_sets import worn_set_members
+from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 from cdmw.ui.archive_browser.remote_window_identity import (
     base_index_identity_key as _base_index_identity_key,
     dto_identity_key as _dto_identity_key,
@@ -101,6 +105,15 @@ class ArchiveRemoteWindowBridge(QObject):
         self._item_scope_selection_generation: int | None = None
         self._item_scope_preferred_prefab_stems: tuple[str, ...] = ()
         self._item_scope_entry_ids: tuple[int, ...] = ()
+        self.item_set_members: tuple[ArchiveEntryDto, ...] = ()
+        self.item_set_active = False
+        self.item_set_preview_requested = False
+        self._item_set_previous_components: set[str] | None = None
+        self._pending_item_set_query: ArchiveQuery | None = None
+        self._item_set_scope = ItemSetScopeResolver(window.archive.archive_catalogue_service, self)
+        self._item_set_scope.ready.connect(self._item_set_scope_ready)
+        self._item_set_scope.failed.connect(self._item_set_scope_failed)
+        window.destroyed.connect(self._item_set_scope.cancel)
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive.archive_catalogue_service,
@@ -183,6 +196,7 @@ class ArchiveRemoteWindowBridge(QObject):
             current_session.session_id if current_session is not None else None
         )
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._clear_item_set_scope()
         self._item_scope_preferred_prefab_stems = ()
         self._item_scope_entry_ids = ()
         self._window.archive._clear_archive_failure_display()
@@ -224,6 +238,7 @@ class ArchiveRemoteWindowBridge(QObject):
     def cancel_pending_update(self) -> bool:
         if not bool(getattr(self._window, "archive_remote_query_pending", False)):
             return False
+        self._clear_item_set_scope()
         self._controller.cancel_pending()
         self._clear_pending_progress()
         self._progress_operation = ""
@@ -257,6 +272,7 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def apply_current_query(self) -> None:
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._clear_item_set_scope()
         self._item_scope_preferred_prefab_stems = ()
         self._item_scope_entry_ids = ()
         session = self._controller.current_session
@@ -279,12 +295,14 @@ class ArchiveRemoteWindowBridge(QObject):
         *,
         label: str,
         preferred_prefab_stems: Iterable[str] = (),
+        worn_set: bool = False,
     ) -> bool:
         session = self._controller.current_session
         bounded_ids = tuple(dict.fromkeys(int(entry_id) for entry_id in entry_ids))[:MAX_REMOTE_EXPORT_ENTRY_IDS]
         if session is None or not bounded_ids:
             return False
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._clear_item_set_scope()
         self._item_scope_entry_ids = bounded_ids
         self._item_scope_preferred_prefab_stems = tuple(
             dict.fromkeys(
@@ -307,11 +325,107 @@ class ArchiveRemoteWindowBridge(QObject):
             view_mode=ArchiveViewMode.FLAT,
         )
         self._begin_pending(f"Applying {label} scope...", operation="query")
+        if worn_set:
+            self._pending_item_set_query = query
+            return self._item_set_scope.request(session.session_id, bounded_ids, self._controller.generation)
         self._item_scope_selection_generation = self._controller.apply_query(
             query,
             selection_identity=None,
         )
         return True
+
+    def _clear_item_set_scope(self) -> None:
+        self._item_set_scope.cancel()
+        if self.item_set_members:
+            primary = ArchiveCatalogueService.compatibility_entry(self.item_set_members[0])
+            key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(primary)
+            selections = getattr(self._window.archive, "archive_d3d11_prefab_component_selections", {})
+            if self._item_set_previous_components is None:
+                selections.pop(key, None)
+            else:
+                selections[key] = self._item_set_previous_components
+        self._item_set_previous_components = None
+        self._pending_item_set_query = None
+        self.item_set_members = ()
+        self.item_set_active = False
+        self.item_set_preview_requested = False
+        self._window.archive._archive_item_set_visibility_active = False
+        panel = getattr(self._window.archive, "archive_item_set_components", None)
+        if panel is not None:
+            panel.reset()
+
+    def _item_set_scope_ready(self, session_id: str, entries: object) -> None:
+        query, self._pending_item_set_query = self._pending_item_set_query, None
+        if (query is None or self.current_session is None or self.current_session.session_id != session_id
+                or getattr(self._window.shell, "_shutting_down", False)):
+            return
+        members = worn_set_members(tuple(entries))
+        if len(members) > 33:
+            self._handle_failure("item_set_scope", "A set preview supports at most 32 additional model files.")
+            return
+        self.item_set_members = members
+        self.item_set_active = len(members) > 1
+        if members:
+            primary = ArchiveCatalogueService.compatibility_entry(members[0])
+            key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(primary)
+            selections = getattr(self._window.archive, "archive_d3d11_prefab_component_selections", None)
+            if not isinstance(selections, dict):
+                selections = {}
+                self._window.archive.archive_d3d11_prefab_component_selections = selections
+            self._item_set_previous_components = set(selections[key]) if key in selections else None
+            selections[key] = {entry.path.replace("\\", "/").casefold() for entry in members[1:]}
+        self._item_scope_selection_generation = self._controller.apply_query(
+            query, selection_identity=members[0].identity if members else None,
+        )
+
+    def _item_set_scope_failed(self, message: str) -> None:
+        if self._pending_item_set_query is None or getattr(self._window.shell, "_shutting_down", False):
+            return
+        self._pending_item_set_query = None
+        self._handle_failure("item_set_scope", message)
+
+    def item_set_contains(self, entry: ArchiveEntry | None) -> bool:
+        return bool(self.item_set_active and entry is not None and any(
+            _legacy_identity_key(entry) == _dto_identity_key(member) for member in self.item_set_members
+        ))
+
+    def preview_entry_for(self, entry: ArchiveEntry | None) -> ArchiveEntry | None:
+        if not self.item_set_contains(entry):
+            return entry
+        primary = ArchiveCatalogueService.compatibility_entry(self.item_set_members[0])
+        prepared = self.prepared_dependencies_for(primary)
+        if prepared is not None:
+            return next((candidate for candidate in prepared.entries if candidate.identity == primary.identity), primary)
+        return primary
+
+    def current_preview_entry(self) -> ArchiveEntry | None:
+        return self.preview_entry_for(self.current_compatibility_entry())
+
+    def keep_item_set_preview(self, entry: ArchiveEntry) -> bool:
+        """Keep the resident/pending set while the file row retains action authority."""
+        if not self.item_set_preview_requested or not self.item_set_contains(entry):
+            return False
+        preview = getattr(self._window.archive, "archive_preview_request_entry", None)
+        if preview is None or _legacy_identity_key(preview) != _dto_identity_key(self.item_set_members[0]):
+            return False
+        panel = getattr(self._window.archive, "archive_item_set_components", None)
+        if panel is not None and panel.active:
+            panel.highlight_path(entry.path)
+        return True
+
+    def _preview_dto_for(self, entry: ArchiveEntry) -> ArchiveEntryDto | None:
+        if self.item_set_contains(entry):
+            return self.item_set_members[0]
+        return self._model.entry_for_index(self._window.archive_tree.currentIndex())
+
+    def preview_only_current_file(self) -> None:
+        entry = self.current_compatibility_entry()
+        if entry is None:
+            return
+        self._clear_item_set_scope()
+        key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(entry)
+        getattr(self._window.archive, "archive_d3d11_prefab_component_selections", {}).pop(key, None)
+        self._window.archive._render_archive_preview(entry, force=True)
 
     def current_selection_identity(self) -> ArchiveDurableIdentity | None:
         dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
@@ -325,11 +439,13 @@ class ArchiveRemoteWindowBridge(QObject):
                 self._model.request_visible_rows(index.row(), index.row())
             return None
         dependencies = self.prepared_dependencies_for(entry)
-        return dependencies.selected_entry if dependencies is not None else entry
+        if dependencies is not None:
+            return next((candidate for candidate in dependencies.entries if candidate.identity == entry.identity), entry)
+        return entry
 
     def request_preview_dependencies(self, ui_request_id: int, entry: ArchiveEntry) -> bool:
         provider = self._preview_dependencies
-        dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        dto = self._preview_dto_for(entry)
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
             return False
         return provider.request(
@@ -337,6 +453,7 @@ class ArchiveRemoteWindowBridge(QObject):
             ui_request_id=int(ui_request_id),
             preferred_prefab_stems=self._item_scope_preferred_prefab_stems,
             scope_entry_ids=self._item_scope_entry_ids,
+            component_entries=self.item_set_members[1:] if self.item_set_contains(entry) else (),
             reuse_prepared=bool(
                 getattr(self._window.archive, "_archive_texture_request_loading", False)
                 and int(getattr(self._window.archive, "_archive_texture_request_id", 0) or 0)
@@ -350,7 +467,7 @@ class ArchiveRemoteWindowBridge(QObject):
         entry: ArchiveEntry,
     ) -> ArchivePreviewDependencySet | None:
         provider = self._preview_dependencies
-        dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        dto = self._preview_dto_for(entry)
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
             return None
         return provider.snapshot_for(int(ui_request_id), dto.entry_id)
@@ -375,6 +492,8 @@ class ArchiveRemoteWindowBridge(QObject):
         return provider is not None and provider.pending_ui_request_id == int(ui_request_id)
 
     def cancel_preview_dependencies(self, *, clear_snapshot: bool = False) -> None:
+        if getattr(self._window.shell, "_shutting_down", False):
+            self._clear_item_set_scope()
         if self._preview_dependencies is not None:
             self._preview_dependencies.cancel(clear_snapshot=clear_snapshot)
 
@@ -717,6 +836,10 @@ class ArchiveRemoteWindowBridge(QObject):
                 self._item_scope_selection_generation = None
             return
         self._item_scope_selection_generation = None
+        if self.item_set_members:
+            # The controller restores the primary's durable identity, even when
+            # it is beyond the first page. Do not select an earlier unrelated row.
+            return
         if self._window.archive_tree.currentIndex().isValid():
             return
 

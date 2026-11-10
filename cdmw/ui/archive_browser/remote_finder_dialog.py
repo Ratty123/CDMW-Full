@@ -1044,6 +1044,7 @@ class RemoteArchiveFinderDialog(QDialog):
             result.entry_ids,
             label=label,
             preferred_prefab_stems=self._pending_scope_model_stems(),
+            worn_set=True,
         ):
             suffix = " (result capped)" if result.truncated else ""
             self._status.setText(f"Scoped the Archive Browser to {len(result.entry_ids):,} files{suffix}.")

@@ -712,7 +712,44 @@ static void run_shared_mask_wrapper_owner_contract_self_test() {
     }
 }
 
+static void run_item_set_components_self_test() {
+    EntryJob job;
+    job.path = "character/model/primary.pac";
+    job.extension = ".pac";
+    job.archive_dependency_entries_complete = true;
+    job.enabled_prefab_component_paths.push_back(job.path);
+    PamtIndex index;
+    for (int i = 0; i < 33; ++i) {
+        ArchiveEntryRef component;
+        component.path = "character/model/piece_" + std::to_string(i) + ".pac";
+        component.basename = basename_from_path(component.path);
+        component.extension = ".pac";
+        index.by_basename[component.basename].push_back(component);
+        job.enabled_prefab_component_paths.push_back(component.path);
+        job.enabled_prefab_component_paths.push_back(component.path);
+        ArchiveEntryRef sidecar;
+        sidecar.path = component.path + "_xml";
+        sidecar.basename = basename_from_path(sidecar.path);
+        sidecar.extension = ".pac_xml";
+        sidecar.comp_size = sidecar.orig_size = 1;
+        index.by_basename[sidecar.basename].push_back(sidecar);
+    }
+    const auto components = enabled_prefab_component_refs_for_job(job, index);
+    require_material_contract(components.size() == 32
+        && components.front().path == "character/model/piece_0.pac"
+        && components.back().path == "character/model/piece_31.pac",
+        "explicit set pieces were truncated, duplicated or displaced by the primary");
+    const auto sidecars = material_sidecar_candidates_for_job(job, index);
+    require_material_contract(std::any_of(sidecars.begin(), sidecars.end(), [](const ArchiveEntryRef& ref) {
+        return ref.path == "character/model/piece_31.pac_xml";
+    }), "the final supported set piece lost its material sidecar");
+    require_material_contract(std::none_of(sidecars.begin(), sidecars.end(), [](const ArchiveEntryRef& ref) {
+        return ref.path == "character/model/piece_32.pac_xml";
+    }), "set material lookup exceeded its component bound");
+}
+
 static void run_material_contract_self_test() {
+    run_item_set_components_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";
     ArchiveEntryRef other_texture;

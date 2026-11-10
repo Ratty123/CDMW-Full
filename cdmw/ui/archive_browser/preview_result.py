@@ -446,7 +446,10 @@ class ArchivePreviewResultMixin:
             else:
                 entry = self._current_archive_entry()
                 if entry is not None:
-                    self._render_archive_preview(entry)
+                    bridge = getattr(self, "archive_remote_bridge", None)
+                    keep_set = getattr(bridge, "keep_item_set_preview", None)
+                    if not callable(keep_set) or not keep_set(entry):
+                        self._render_archive_preview(entry)
                 else:
                     self._show_archive_folder_preview(current)
             self._schedule_archive_selection_state_update()

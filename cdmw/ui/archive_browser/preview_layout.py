@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
+from cdmw.ui.archive_browser.item_set_components import ItemSetComponentsWidget
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
 from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 from cdmw.ui.widgets import (
@@ -655,7 +656,18 @@ class ArchivePreviewLayoutMixin:
         archive_preview_tab_layout = QVBoxLayout(archive_preview_tab)
         archive_preview_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_tab_layout.setSpacing(6)
-        archive_preview_tab_layout.addWidget(self.archive_preview_stack)
+        preview_with_components = QSplitter(Qt.Horizontal)
+        self.archive_item_set_components = ItemSetComponentsWidget()
+        self.archive_item_set_components.visibilityChanged.connect(self._archive_item_set_visibility_changed)
+        self.archive_item_set_components.highlightRequested.connect(
+            self.archive_d3d11_preview_host.set_highlighted_source_submeshes
+        )
+        preview_with_components.addWidget(self.archive_preview_stack)
+        preview_with_components.addWidget(self.archive_item_set_components)
+        preview_with_components.setStretchFactor(0, 1)
+        preview_with_components.setStretchFactor(1, 0)
+        preview_with_components.setSizes([600, 220])
+        archive_preview_tab_layout.addWidget(preview_with_components)
         archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
         archive_details_tab = QWidget()

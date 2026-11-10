@@ -88,7 +88,9 @@ class _Bridge:
         *,
         label: str,
         preferred_prefab_stems: object = (),
+        worn_set: bool = False,
     ) -> bool:
+        assert worn_set, "Every Item Finder scope must request a worn-set preview"
         self.scopes.append((tuple(entry_ids), label, tuple(preferred_prefab_stems)))
         return True
 

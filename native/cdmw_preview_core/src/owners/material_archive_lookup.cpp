@@ -542,17 +542,19 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
 // companions were found: textured New Item previews dropped every model but
 // the primary. A caller that names its enabled components has already read
 // the item's own prefab, so those exact paths are authoritative as well.
+static constexpr size_t kMaxEnabledPrefabComponents = 32;
+
 static std::vector<ArchiveEntryRef> enabled_prefab_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
-    size_t max_components = 8
+    size_t max_components = kMaxEnabledPrefabComponents
 ) {
-    std::vector<ArchiveEntryRef> components = prefab_model_component_refs_for_job(job, index, max_components);
-    if (job.extension != ".pac" || job.enabled_prefab_component_paths.empty()) return components;
+    const std::vector<ArchiveEntryRef> discovered = prefab_model_component_refs_for_job(job, index, max_components);
+    if (job.extension != ".pac" || job.enabled_prefab_component_paths.empty()) return discovered;
+    // Explicitly enabled pieces take priority over optional prefab suggestions.
+    // The primary is already loaded and must not consume a component slot.
+    std::vector<ArchiveEntryRef> components;
     std::set<std::string> seen_paths;
-    for (const ArchiveEntryRef& component : components) {
-        seen_paths.insert(prefab_component_path_key(component.path));
-    }
     const std::string primary_key = prefab_component_path_key(job.path);
     for (const std::string& enabled_path : job.enabled_prefab_component_paths) {
         if (components.size() >= max_components) break;
@@ -564,6 +566,12 @@ static std::vector<ArchiveEntryRef> enabled_prefab_component_refs_for_job(
         if (resolved->extension != ".pac" && resolved->extension != ".pam" && resolved->extension != ".pamlod") continue;
         seen_paths.insert(key);
         components.push_back(*resolved);
+    }
+    for (const ArchiveEntryRef& component : discovered) {
+        if (components.size() >= max_components) break;
+        const std::string key = prefab_component_path_key(component.path);
+        if (key == primary_key || !seen_paths.insert(key).second) continue;
+        components.push_back(component);
     }
     return components;
 }
@@ -613,7 +621,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
         }
     }
     if (job.extension == ".pac" && !job.enabled_prefab_component_paths.empty()) {
-        for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index, 12)) {
+        for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index)) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
             if (!prefab_component_enabled_for_job(component, job)) continue;
             const std::string component_stem = stem_from_path(component.path);

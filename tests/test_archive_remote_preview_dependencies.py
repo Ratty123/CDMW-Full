@@ -91,6 +91,105 @@ def _prepared(dto: ArchiveEntryDto) -> PrepareEntryResult:
     )
 
 
+def test_set_dependencies_include_every_models_materials_and_keep_selected_authority() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    primary, lower, shoulder = (_dto(1, "a_ub_01.pac"), _dto(2, "a_lb_01.pac"), _dto(3, "shoulder.pac"))
+    own = (_dto(11, "upper.pac_xml"), _dto(12, "lower.pac_xml"), _dto(13, "shoulder.dds"))
+    ready = []
+    provider.ready.connect(lambda _, snapshot: ready.append(snapshot))
+    assert provider.request(primary, ui_request_id=61, component_entries=(lower, shoulder))
+    for number, (model, dependency) in enumerate(zip((primary, lower, shoulder), own), 1):
+        assert service.requests[-1][0].entry_id == model.entry_id
+        service.result_ready.emit(f"association-{number}", "find_association_candidates",
+            ArchiveAssociationResult("session-a", model.entry_id, (dependency,), 1, False))
+    request = service.requests[-1][0]
+    assert set(request.entry_ids) == {1, 2, 3, 11, 12, 13}
+    assert request.content_analysis_entry_id == 1
+    service.result_ready.emit("prepare-4", "prepare_entry", PrepareEntriesResult(
+        "session-a", tuple(_prepared(row) for row in (primary, lower, shoulder, *own)), 6, 6, 240))
+    assert len(ready) == 1
+    assert ready[0].selected_entry.path == primary.path
+    assert {entry.path for entry in ready[0].entries} == {entry.path for entry in (primary, lower, shoulder, *own)}
+
+
+def test_set_dependency_cancel_ignores_late_component_completion() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    primary, lower = _dto(1, "upper.pac"), _dto(2, "lower.pac")
+    ready = []
+    provider.ready.connect(lambda *_: ready.append(True))
+    assert provider.request(primary, ui_request_id=1, component_entries=(lower,))
+    service.result_ready.emit("association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (), 0, False))
+    provider.cancel(clear_snapshot=True)
+    service.result_ready.emit("association-2", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 2, (), 0, False))
+    assert service.cancelled == ["association-2"]
+    assert len(service.requests) == 2 and not ready
+
+
+@pytest.mark.parametrize("wrong_session,truncated", ((True, False), (False, True)))
+def test_item_set_rejects_invalid_component_dependencies(wrong_session, truncated) -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    failures, ready = [], []
+    provider.failed.connect(lambda *args: failures.append(args))
+    provider.ready.connect(lambda *args: ready.append(args))
+    assert provider.request(_dto(1, "upper.pac"), ui_request_id=1, component_entries=(_dto(2, "lower.pac"),))
+    service.result_ready.emit("association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (), 0, False))
+    service.result_ready.emit("association-2", "find_association_candidates",
+        ArchiveAssociationResult("other-session" if wrong_session else "session-a", 2, (), 0, truncated))
+    assert failures and not ready and len(service.requests) == 2
+
+
+def test_invalid_set_request_supersedes_pending_preview() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    ready, failures = [], []
+    provider.ready.connect(lambda *args: ready.append(args))
+    provider.failed.connect(lambda *args: failures.append(args))
+    primary = _dto(1, "upper.pac")
+    assert provider.request(primary, ui_request_id=1)
+    invalid = replace(_dto(2, "lower.pac"), session_id="other-session")
+    assert not provider.request(primary, ui_request_id=2, component_entries=(invalid,))
+    service.result_ready.emit("association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (), 0, False))
+    assert service.cancelled == ["association-1"] and failures and not ready
+    assert len(service.requests) == 1
+
+
+def test_item_set_scope_resolves_all_pages_and_rejects_stale_or_partial_results() -> None:
+    from cdmw.ui.archive_browser.item_set_preview import ItemSetScopeResolver
+    from cdmw.domain.archives.item_sets import worn_set_members
+    service = _CatalogueService()
+    resolver = ItemSetScopeResolver(service)
+    ready, failures = [], []
+    resolver.ready.connect(lambda session, rows: ready.append((session, rows)))
+    resolver.failed.connect(failures.append)
+    lower = replace(_dto(1, "a_lb_01.pac"), original_size=500)
+    upper = _dto(2, "a_ub_01.pac")
+    dropped = _dto(3, "dropitem/large.pac")
+    assert worn_set_members((lower, dropped, upper)) == (upper, lower)
+    assert worn_set_members((dropped,)) == (dropped,)
+    assert worn_set_members((lower, _dto(4, "a_ub_acc_01.pac"))) == (lower, _dto(4, "a_ub_acc_01.pac"))
+    assert resolver.request("session-a", (1, 2, 3), 8)
+    service.batch_ready.emit("resolve-1", "resolve_entries", ArchiveLookupResult("session-a", (lower, dropped), 3, False))
+    service.result_ready.emit("resolve-1", "resolve_entries", ArchiveLookupResult("session-a", (upper,), 3, False))
+    assert worn_set_members(ready[0][1]) == (upper, lower)
+    assert resolver.request("session-a", (1, 2), 9)
+    assert resolver.request("session-a", (3,), 10)
+    service.result_ready.emit("resolve-2", "resolve_entries", ArchiveLookupResult("session-a", (lower, upper), 2, False))
+    assert len(ready) == 1 and service.cancelled == ["resolve-2"]
+    service.result_ready.emit("resolve-3", "resolve_entries", ArchiveLookupResult("session-a", (), 1, False))
+    assert failures and len(ready) == 1
+    assert resolver.request("session-a", (3,), 11)
+    resolver.cancel()
+    service.result_ready.emit("resolve-4", "resolve_entries", ArchiveLookupResult("session-a", (dropped,), 1, False))
+    assert len(ready) == 1
+
+
 def test_remote_preview_rejects_incomplete_discovery_below_the_candidate_limit() -> None:
     service = _CatalogueService()
     provider = ArchiveRemotePreviewDependencyProvider(service)
@@ -348,7 +447,8 @@ def test_texture_followup_rebuilds_changed_or_ineligible_dependencies(tmp_path: 
     service, provider, selected = _reusable_provider(tmp_path)
     options = {"reuse_prepared": True}
     if change in {"pamt", "paz"}:
-        Path(selected.source_pamt if change == "pamt" else selected.paz_file).write_bytes(b"changed archive")
+        # Change size as well as content; Windows may coalesce rapid write timestamps.
+        Path(selected.source_pamt if change == "pamt" else selected.paz_file).write_bytes(b"changed archive contents")
     elif change == "prepared":
         (tmp_path / "8.dds").unlink()
     elif change == "scope":
