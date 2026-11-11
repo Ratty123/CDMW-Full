@@ -28,6 +28,7 @@ from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
     normalize_archive_model_renderer_backend,
 )
+from cdmw.ui.archive_browser.preview_settings_migration import migrate_textures_on_by_default
 from cdmw.ui.archive_browser.preview_settings_state import (
     model_preview_settings_change_flags,
     model_preview_settings_status,
@@ -66,6 +67,7 @@ class ArchivePreviewSettingsMixin:
         label.setVisible(False)
 
     def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
+        migrate_textures_on_by_default(self.shell.settings)
         defaults = clamp_model_preview_render_settings()
         legacy_lighting_version = 0
         try:

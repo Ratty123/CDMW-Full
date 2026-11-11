@@ -1785,7 +1785,9 @@ D3D11_TEXTURE_ADDRESS_MODE_LABELS: Dict[str, str] = {
 
 @dataclass(slots=True)
 class ModelPreviewRenderSettings:
-    use_textures_by_default: bool = False
+    # On by default since P3; stored profiles are moved once by
+    # cdmw/ui/archive_browser/preview_settings_migration.py.
+    use_textures_by_default: bool = True
     high_quality_by_default: bool = True
     preview_shadows: bool = True
     preview_ambient_occlusion: bool = True
