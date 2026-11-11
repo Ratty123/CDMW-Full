@@ -422,6 +422,21 @@ def should_persist_runtime_event(event: str) -> bool:
     return any(marker in normalized for marker in PERSISTED_RUNTIME_EVENT_MARKERS)
 
 
+# Callables that see every recorded runtime event (the automation bridge).
+# Empty in a normal run.
+_RUNTIME_EVENT_OBSERVERS: list[Callable[[Mapping[str, object]], None]] = []
+
+
+def add_runtime_event_observer(observer: Callable[[Mapping[str, object]], None]) -> None:
+    if observer not in _RUNTIME_EVENT_OBSERVERS:
+        _RUNTIME_EVENT_OBSERVERS.append(observer)
+
+
+def remove_runtime_event_observer(observer: Callable[[Mapping[str, object]], None]) -> None:
+    if observer in _RUNTIME_EVENT_OBSERVERS:
+        _RUNTIME_EVENT_OBSERVERS.remove(observer)
+
+
 class RuntimeEventRecorder:
     def __init__(
         self,
@@ -493,6 +508,11 @@ class RuntimeEventRecorder:
             self._runtime_event_ring.append(payload)
             if persist:
                 append_runtime_event_log(self.log_path, payload)
+        for observer in tuple(_RUNTIME_EVENT_OBSERVERS):
+            try:
+                observer(payload)
+            except Exception:
+                pass
         return payload
 
     def tail(self, *, limit: int = 120) -> list[dict[str, object]]:

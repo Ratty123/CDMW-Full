@@ -1,0 +1,350 @@
+"""The automation bridge inside the app.
+
+A listener thread accepts local clients (``pipe.LocalPipeServer``). Each
+command is handed to the UI thread through a queued signal and runs there,
+as a click's handler would; the listener never touches widgets. Commands
+that only read the event log or wait for an event stay on the client's
+thread, so a wait never blocks the UI.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+import time
+from collections.abc import Callable, Mapping
+from pathlib import Path
+
+from PySide6.QtCore import QObject, Qt, Signal
+
+from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
+from cdmw.automation.policy import AutomationSettings
+
+TITLE_MARK = " [automation]"
+_UI_COMMAND_TIMEOUT_S = 60.0
+_EVENT_LIMIT = 20_000
+
+
+def hide_top_level_windows() -> None:
+    """Show windows to Qt without putting them on screen (test harnesses)."""
+
+    from PySide6.QtWidgets import QWidget
+
+    original = QWidget.setVisible
+    if getattr(original, "_cdmw_hidden", False):
+        return
+
+    def set_visible(widget, visible):
+        if visible and widget.isWindow():
+            widget.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        return original(widget, visible)
+
+    set_visible._cdmw_hidden = True
+    QWidget.setVisible = set_visible
+
+
+def _process_start_epoch() -> float:
+    """This process's creation time, seconds since the epoch."""
+
+    if os.name != "nt":
+        return time.time()
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    times = [wintypes.FILETIME() for _ in range(4)]
+    kernel32.GetProcessTimes.argtypes = (wintypes.HANDLE, *([ctypes.POINTER(wintypes.FILETIME)] * 4))
+    if not kernel32.GetProcessTimes(kernel32.GetCurrentProcess(), *(ctypes.byref(t) for t in times)):
+        return time.time()
+    ticks = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+    return ticks / 10_000_000 - 11_644_473_600
+
+
+def _scalar_fields(fields: Mapping[str, object]) -> dict[str, object]:
+    return {str(k): v for k, v in fields.items() if isinstance(v, (str, int, float, bool)) or v is None}
+
+
+class _Request:
+    def __init__(self, command: str, args: Mapping[str, object]) -> None:
+        self.command = command
+        self.args = dict(args)
+        self.done = threading.Event()
+        self.result: object = None
+        self.error = ""
+
+
+class AutomationBridge(QObject):
+    """Owns the listener and runs commands on the UI thread."""
+
+    _ui_request = Signal(object)
+
+    def __init__(self, settings: AutomationSettings, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.settings = settings
+        self.window = None
+        self.process_start = _process_start_epoch()
+        self._events: list[dict[str, object]] = []
+        self._events_changed = threading.Condition()
+        self._server: LocalPipeServer | None = None
+        self._observer: Callable | None = None
+        self._ui_request.connect(self._run_on_ui, Qt.ConnectionType.QueuedConnection)
+        self._ui_commands: dict[str, Callable[[dict], object]] = {
+            "state": self._state,
+            "selection": self._selection,
+            "activate_tool": self._activate_tool,
+            "select_entry": self._select_entry,
+            "select_set": self._select_set,
+            "open_mesh_editor": self._open_mesh_editor,
+            "capture": self._capture,
+            "quit": self._quit,
+        }
+
+    # ----- lifecycle -------------------------------------------------------
+    def attach(self, window) -> None:
+        from cdmw.services.diagnostics_service import add_runtime_event_observer
+
+        self.window = window
+        self._observer = lambda payload: self._push(str(payload.get("event", "")), payload)
+        add_runtime_event_observer(self._observer)
+        self._mark_title()
+        window.windowTitleChanged.connect(lambda _title: self._mark_title())
+        self._watch_preview_host()
+        self._server = LocalPipeServer(self.settings.address, self.settings.token, self._serve,
+                                       refused=lambda reason: self._push("automation_refused", {"reason": reason}))
+        self._server.start()
+        self._push("automation_listening", {"address": self.settings.address})
+
+    def stop(self) -> None:
+        from cdmw.services.diagnostics_service import remove_runtime_event_observer
+
+        if self._observer is not None:
+            remove_runtime_event_observer(self._observer)
+            self._observer = None
+        if self._server is not None:
+            self._server.stop()
+            self._server = None
+
+    def _mark_title(self) -> None:
+        window = self.window
+        if window is not None and not window.windowTitle().endswith(TITLE_MARK):
+            window.setWindowTitle(window.windowTitle() + TITLE_MARK)
+
+    def _watch_preview_host(self) -> None:
+        host = getattr(getattr(self.window, "archive", None), "archive_d3d11_preview_host", None)
+        controller = getattr(host, "controller", None)
+        if controller is None:
+            return
+        keep = ("generation", "texture_uploads", "uploaded_bytes", "elapsed_ms", "package_path", "status")
+
+        def protocol(row):
+            row = dict(row or {})
+            name = str(row.get("event", ""))
+            if name in ("view_state_changed", "presentation_state_update_ack"):
+                return
+            self._push("preview:" + name, {k: row.get(k) for k in keep if k in row})
+
+        # A finished capture arrives here as "preview:capture_result".
+        controller.protocol_event.connect(protocol)
+
+    # ----- the event log ---------------------------------------------------
+    def _push(self, name: str, fields: Mapping[str, object]) -> None:
+        with self._events_changed:
+            entry = {"i": len(self._events), "t": time.time() - self.process_start, "event": name,
+                     **_scalar_fields(fields)}
+            entry.pop("timestamp", None)
+            if len(self._events) < _EVENT_LIMIT:
+                self._events.append(entry)
+            self._events_changed.notify_all()
+
+    def _events_since(self, since: int) -> list[dict[str, object]]:
+        with self._events_changed:
+            return self._events[max(0, int(since)):]
+
+    def _wait_event(self, args: dict) -> object:
+        name = str(args.get("event", ""))
+        match = dict(args.get("match") or {})
+        since = int(args.get("since", 0) or 0)
+        deadline = time.monotonic() + max(0.0, min(float(args.get("timeout", 30.0)), 600.0))
+        with self._events_changed:
+            while True:
+                for entry in self._events[since:]:
+                    if entry["event"] == name and all(entry.get(k) == v for k, v in match.items()):
+                        return entry
+                since = len(self._events)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"no {name} event within the timeout")
+                self._events_changed.wait(remaining)
+
+    # ----- serving a client (its own thread) -------------------------------
+    def _serve(self, conn) -> None:
+        while True:
+            try:
+                message = recv_json(conn)
+            except (EOFError, OSError):
+                return
+            if not isinstance(message, dict):
+                return
+            reply = {"id": message.get("id")}
+            try:
+                reply["result"] = self._dispatch(str(message.get("command", "")), dict(message.get("args") or {}))
+                reply["ok"] = True
+            except Exception as exc:
+                reply["ok"] = False
+                reply["error"] = str(exc) or type(exc).__name__
+            try:
+                send_json(conn, reply)
+            except OSError:
+                return
+
+    def _dispatch(self, command: str, args: dict) -> object:
+        if command == "ping":
+            return {"pid": os.getpid(), "process_start": self.process_start}
+        if command == "events":
+            return self._events_since(int(args.get("since", 0) or 0))
+        if command == "wait_event":
+            return self._wait_event(args)
+        if command == "processes":
+            return self._processes()
+        if command not in self._ui_commands:
+            raise ValueError(f"Unknown automation command: {command or '(none)'}")
+        request = _Request(command, args)
+        self._ui_request.emit(request)
+        if not request.done.wait(_UI_COMMAND_TIMEOUT_S):
+            raise TimeoutError(f"{command} did not finish on the UI thread")
+        if request.error:
+            raise RuntimeError(request.error)
+        return request.result
+
+    def _processes(self) -> dict[str, object]:
+        from cdmw.core.common import _windows_descendant_pids
+        from cdmw.ui.shell.diagnostics_controller import windows_process_memory_snapshot
+
+        pids = (os.getpid(), *_windows_descendant_pids(os.getpid()))
+        rows = []
+        for pid in pids:
+            snapshot = windows_process_memory_snapshot(pid)
+            rows.append({"pid": pid, **{k: int(v) for k, v in snapshot.items() if isinstance(v, int)}})
+        return {"count": len(rows), "processes": rows}
+
+    # ----- UI thread -------------------------------------------------------
+    def _run_on_ui(self, request: _Request) -> None:
+        try:
+            request.result = self._ui_commands[request.command](request.args)
+        except Exception as exc:
+            request.error = str(exc) or type(exc).__name__
+        finally:
+            request.done.set()
+
+    def _state(self, _args: dict) -> dict[str, object]:
+        from cdmw.ui.archive_browser.remote_entry_lookup import LiveCatalogueState, live_catalogue_state
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        window = self.window
+        archive = window.archive
+        current = getattr(archive, "current_archive_preview_result", None)
+        tab = created_tool_widget(window.shell.mesh_editor_tab)
+        return {
+            "title": window.windowTitle(),
+            "visible": bool(window.isVisible()),
+            "catalogue_ready": live_catalogue_state(archive) == LiveCatalogueState.READY,
+            "browse": {
+                "upgrade_pending": bool(getattr(archive, "archive_preview_texture_upgrade_pending", False)),
+                "texture_request_loading": bool(getattr(archive, "_archive_texture_request_loading", False)),
+                "worker_busy": getattr(archive, "archive_preview_worker", None) is not None,
+                "tier": getattr(current, "quality_tier", None),
+                "textures_visible": bool(getattr(archive, "_archive_textures_visible", False)),
+                "set_members": len(getattr(archive.archive_remote_bridge, "item_set_members", ()) or ()),
+            },
+            "mesh_editor": None if tab is None else {
+                "ready": bool(getattr(tab, "standalone_rust_ready", False)),
+                "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
+            },
+        }
+
+    def _selection(self, _args: dict) -> dict[str, object]:
+        entry = getattr(self.window.archive, "archive_preview_request_entry", None)
+        return {"path": str(getattr(entry, "path", "") or "")}
+
+    def _activate_tool(self, args: dict) -> bool:
+        self.window.shell._activate_tool_key(str(args["key"]))
+        return True
+
+    def _select_entry(self, args: dict) -> bool:
+        archive = self.window.archive
+        # A real click passes through the input filter, which holds the
+        # background warm-ups for a moment; do the same.
+        archive._note_archive_ui_activity()
+        if not archive._reveal_archive_path_in_live_catalogue(str(args["path"])):
+            raise ValueError(f"The archive has no entry {args['path']}")
+        return True
+
+    def _select_set(self, args: dict) -> bool:
+        """Open a worn set as Item Finder's "Open all parts" does after its lookup."""
+
+        from cdmw.domain.archives.catalogue import ArchiveLookupKind
+        from cdmw.ui.archive_browser.remote_entry_lookup import lookup_requests, start_live_catalogue_lookup
+
+        archive = self.window.archive
+        archive._note_archive_ui_activity()
+        bridge = archive.archive_remote_bridge
+        paths = [str(path) for path in args["paths"]]
+        wanted = [path.replace("\\", "/").casefold() for path in paths]
+        label = str(args.get("label") or "Item set")
+
+        def found(outcome):
+            by_path = {}
+            for dto in outcome.entries:
+                key = dto.path.replace("\\", "/").casefold()
+                if key in wanted and (key not in by_path or dto.is_active_override):
+                    by_path[key] = dto.entry_id
+            ids = [by_path[key] for key in wanted if key in by_path]
+            applied = len(ids) == len(wanted) and bridge.apply_entry_id_scope(ids, label=label, worn_set=True)
+            self._push("automation_set_applied", {"ok": bool(applied), "resolved": len(ids), "wanted": len(wanted)})
+
+        start_live_catalogue_lookup(
+            archive, "_automation_set_lookup",
+            lookup_requests(bridge.current_session.session_id, ArchiveLookupKind.EXACT_PATHS, paths),
+            on_done=found,
+            on_error=lambda message: self._push("automation_set_applied", {"ok": False, "error": str(message)}),
+        )
+        return True
+
+    def _open_mesh_editor(self, args: dict) -> bool:
+        if args.get("set"):
+            self.window.archive.archive_item_set_components.edit_set_button.click()
+        else:
+            self.window.shell._open_current_archive_mesh_editor()
+        return True
+
+    def _quit(self, _args: dict) -> bool:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self.window.close)
+        return True
+
+    def _capture(self, args: dict) -> bool:
+        from cdmw.app.app_folder import cdmw_folder
+
+        target = Path(str(args["path"]))
+        if not target.is_absolute() or not target.resolve().is_relative_to(cdmw_folder()):
+            raise ValueError("A capture is written inside the run's own profile folder only.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        host = self.window.archive.archive_d3d11_preview_host
+        if not host.request_frame_capture(target):
+            raise RuntimeError("The preview cannot capture a frame now.")
+        return True
+
+
+def start_automation_if_requested() -> AutomationBridge | None:
+    """Called before the main window exists. Raises AutomationRefused."""
+
+    from cdmw.automation.policy import automation_requested, automation_settings
+
+    if not automation_requested():
+        return None
+    settings = automation_settings()
+    if settings.hidden:
+        hide_top_level_windows()
+    return AutomationBridge(settings)

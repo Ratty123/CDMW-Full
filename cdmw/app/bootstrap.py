@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import sys
 import traceback
 from typing import Optional, Sequence
 
@@ -44,6 +45,19 @@ def _reap_stranded_helpers() -> None:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+
+    if args.automation:
+        os.environ["CDMW_AUTOMATION"] = "1"
+    if os.environ.get("CDMW_AUTOMATION", "").strip() == "1":
+        # Tests and harnesses only. Every rule is checked before a window or
+        # helper exists, and a refusal says why.
+        from cdmw.automation.policy import AutomationRefused, automation_settings
+
+        try:
+            automation_settings()
+        except AutomationRefused as refused:
+            print(f"Automation refused: {refused}", file=sys.stderr)
+            return 4
 
     if args.cditem_device_tests is not None:
         if any(value != parser.get_default(name) for name, value in vars(args).items()
@@ -125,7 +139,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             update_pyinstaller_boot_splash("Already running.")
             return 0
         write_current_pyinstaller_runtime_marker()
-        start_external_startup_splash()
+        if os.environ.get("CDMW_AUTOMATION_HIDDEN", "").strip() != "1":
+            start_external_startup_splash()
         schedule_startup_maintenance()
         update_pyinstaller_boot_splash("Loading...")
     elif args.cli:

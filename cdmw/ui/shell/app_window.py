@@ -526,6 +526,9 @@ def run_gui() -> int:
         )
 
         _write_heartbeat("main_window")
+        from cdmw.automation.bridge import start_automation_if_requested
+
+        automation = start_automation_if_requested()
         window = MainWindow(
             startup_splash=startup_splash,
             app_context=AppContext.from_settings(application_startup.settings),
@@ -541,8 +544,12 @@ def run_gui() -> int:
             normal_exit = _shutdown_qt(window, app)
             exit_code = 0 if normal_exit else 1
             return exit_code
+        if automation is not None:
+            automation.attach(window)
         queue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
         exit_code = run_shell_event_loop(app, _write_crash_report)
+        if automation is not None:
+            automation.stop()
         teardown_ok = _shutdown_qt(window, app)
         normal_exit = exit_code == 0 and teardown_ok
         if not teardown_ok:
