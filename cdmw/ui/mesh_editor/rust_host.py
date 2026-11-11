@@ -376,11 +376,16 @@ class RustMeshEditorHostFrame(QFrame):
         if int(user32.GetParent(child) or 0) != parent_hwnd:
             return False
         style = int(user32.GetWindowLongPtrW(child, _GWL_STYLE))
-        user32.SetWindowLongPtrW(
-            child,
-            _GWL_STYLE,
-            ctypes.c_ssize_t((style | _WS_CHILD) & ~_WS_POPUP),
-        )
+        embedded_style = (style | _WS_CHILD) & ~_WS_POPUP
+        if embedded_style != style:
+            # A style change on another process's window waits for that
+            # process to answer WM_STYLECHANGING. The helper creates its window
+            # as a child already, so this normally never blocks the UI.
+            user32.SetWindowLongPtrW(
+                child,
+                _GWL_STYLE,
+                ctypes.c_ssize_t(embedded_style),
+            )
         self._sync_child_geometry(force_frame_refresh=True)
         return True
 

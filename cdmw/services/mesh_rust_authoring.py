@@ -4247,7 +4247,18 @@ def _atomic_copy_texture_payload(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        with source.open("rb") as input_stream, temporary.open("xb") as output_stream:
+        # A session on the cache's volume shares the immutable cache file
+        # instead of rewriting it; the link is hashed and identity-checked
+        # exactly like a copy.
+        try:
+            os.link(source, temporary)
+            linked = True
+        except OSError:
+            linked = False
+        input_path = temporary if linked else source
+        with input_path.open("rb") as input_stream, (
+            nullcontext() if linked else temporary.open("xb")
+        ) as output_stream:
             source_before = os.fstat(input_stream.fileno())
             if expected_source_identity is not None and expected_source_identity != (
                 source_before.st_dev, source_before.st_ino,
@@ -4282,7 +4293,8 @@ def _atomic_copy_texture_payload(
                         "Mesh texture payload exceeds the 768 MiB aggregate limit"
                     )
                 digest.update(chunk)
-                output_stream.write(chunk)
+                if not linked:
+                    output_stream.write(chunk)
                 byte_length = next_byte_length
             source_after = os.fstat(input_stream.fileno())
         source_identity_before = (
@@ -7649,6 +7661,8 @@ class RustMeshAuthoringSession:
     item_set_contexts: tuple = ()
     bounded_item_set_references: dict = field(default_factory=dict, repr=False)
     prepared_item_set_materials: object | None = field(default=None, repr=False)
+    # The first morph query runs beside manifest writing; state_payload takes it.
+    morph_state_prefetch: tuple[threading.Thread, dict[str, object]] | None = field(default=None, repr=False)
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -8451,10 +8465,50 @@ class RustMeshAuthoringSession:
         stop_event: threading.Event | None = None,
         progress: Callable[[str], None] | None = None,
     ) -> None:
+        try:
+            self._write_initial_manifest_files(stop_event=stop_event, progress=progress)
+        finally:
+            # Never leave a query running against a session whose open failed.
+            prefetch = self.morph_state_prefetch
+            self.morph_state_prefetch = None
+            if prefetch is not None:
+                prefetch[0].join()
+
+    def _start_morph_state_prefetch(self) -> None:
+        """Ask the helper for the morph state while the files are written.
+
+        The query waits on the resident C++ session; the manifest writer only
+        reads the shadow mesh and writes into the session folder, so they
+        overlap instead of queueing.
+        """
+
+        service = self.shadow_service
+        session_id = self.shadow_session_id
+        result: dict[str, object] = {}
+
+        def query() -> None:
+            try:
+                result["state"] = service.cached_morph_state_from_runtime(session_id)
+            except BaseException as exc:  # handed to state_payload
+                result["error"] = exc
+
+        thread = threading.Thread(target=query, name="cdmw-morph-state-prefetch", daemon=True)
+        thread.start()
+        self.morph_state_prefetch = (thread, result)
+
+    def _write_initial_manifest_files(
+        self,
+        *,
+        stop_event: threading.Event | None,
+        progress: Callable[[str], None] | None,
+    ) -> None:
         # create() has not published this session yet. Its worker exclusively
         # owns the shadow until the complete package is returned, so serializers
         # can read that isolated document without another native clone/export.
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
+        # Started after the writer holds its mesh: the query keeps the
+        # session's export lock while it waits on the helper.
+        self._start_morph_state_prefetch()
         document = _atomic_write_payload(
             self.root,
             "document.bin",
@@ -8751,9 +8805,17 @@ class RustMeshAuthoringSession:
         with shadow_session.export_lock:
             weight_edit_capability = self._weight_edit_capability(shadow_session)
         try:
-            morph_state: object = self.shadow_service.cached_morph_state_from_runtime(
-                self.shadow_session_id
-            )
+            prefetch = self.morph_state_prefetch
+            if prefetch is not None:
+                self.morph_state_prefetch = None
+                prefetch[0].join()
+                if "error" in prefetch[1]:
+                    raise prefetch[1]["error"]
+                morph_state: object = prefetch[1]["state"]
+            else:
+                morph_state = self.shadow_service.cached_morph_state_from_runtime(
+                    self.shadow_session_id
+                )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             morph_state = {"available": False, "reason": str(exc)}
         morph_payload = _json_safe(morph_state)

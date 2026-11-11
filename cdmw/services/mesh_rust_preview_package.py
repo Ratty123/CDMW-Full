@@ -582,6 +582,7 @@ def _copy_preview_core_material_resource(
     next_index: int,
     aggregate_bytes: int,
     cancelled: Callable[[], bool] | None,
+    durable: bool = True,
 ) -> tuple[dict[str, object], int, int]:
     from cdmw.services.mesh_rust_authoring import (
         _session_root_identity,
@@ -597,23 +598,52 @@ def _copy_preview_core_material_resource(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        with source.open("rb") as reader, temporary.open("xb") as writer:
-            source_before = os.fstat(reader.fileno())
-            while True:
-                _cancelled(cancelled)
-                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
-                if not block:
-                    break
-                digest.update(block)
-                writer.write(block)
-                byte_length += len(block)
-                if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
-                    raise ValueError(
-                        "Preview Core material DDS resources exceed the 512 MiB package limit."
-                    )
-            writer.flush()
-            os.fsync(writer.fileno())
-            source_after = os.fstat(reader.fileno())
+        linked = False
+        if not durable:
+            # A Mesh Editor session on the cache's volume shares the immutable
+            # cache file instead of rewriting it; it is still hashed below.
+            try:
+                os.link(source, temporary)
+                linked = True
+            except OSError:
+                linked = False
+        if linked:
+            source_before = os.stat(source)
+            with temporary.open("rb") as reader:
+                while True:
+                    _cancelled(cancelled)
+                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                    if not block:
+                        break
+                    digest.update(block)
+                    byte_length += len(block)
+                    if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                        raise ValueError(
+                            "Preview Core material DDS resources exceed the 512 MiB package limit."
+                        )
+            source_after = os.stat(source)
+        else:
+            with source.open("rb") as reader, temporary.open("xb") as writer:
+                source_before = os.fstat(reader.fileno())
+                while True:
+                    _cancelled(cancelled)
+                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                    if not block:
+                        break
+                    digest.update(block)
+                    writer.write(block)
+                    byte_length += len(block)
+                    if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                        raise ValueError(
+                            "Preview Core material DDS resources exceed the 512 MiB package limit."
+                        )
+                writer.flush()
+                if durable:
+                    # Cache packages outlive this process. A Mesh Editor session
+                    # copy is rebuilt on every open and its helper re-verifies each
+                    # file's SHA-256, so it skips the per-file flush to disk.
+                    os.fsync(writer.fileno())
+                source_after = os.fstat(reader.fileno())
         before = (
             int(source_before.st_dev),
             int(source_before.st_ino),
@@ -701,7 +731,7 @@ def _preview_core_layer_parameter_index(parameters):
 
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
-    materials, source_edge_count, cancelled, expected_root_identity, parameter_index,
+    materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
 ):
     for material_index, raw_batch in enumerate(raw_batches):
         if not isinstance(raw_batch, Mapping):
@@ -824,6 +854,7 @@ def _copy_preview_core_material_layers(
                                     next_index=next_index,
                                     aggregate_bytes=aggregate_bytes,
                                     cancelled=cancelled,
+                                    durable=durable,
                                 )
                             )
                             source_after = source.stat()
@@ -1585,6 +1616,7 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
             [source["batch"]], Path(source["package"]), package_dir, quality, resources,
             next_index, aggregate_bytes, copied_sources, materials, source_edge_count, cancelled, root_identity,
             _preview_core_layer_parameter_index(source["conservation"].get("parameters", ())),
+            durable=False,
         )
         materials[-1].update(lod_index=lod_index, material_index=material_index,
                              material_slot_index=slots.get((lod_index, material_index), material_index))

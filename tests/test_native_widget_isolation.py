@@ -62,6 +62,10 @@ class _PreviewControllerStub:
     def reembed(self, hwnd: int) -> None:
         self.reembedded.append(int(hwnd))
 
+    def remember_state(self, *_args: object, **_kwargs: object) -> bool:
+        # Construction remembers the shared Preview settings for the renderer.
+        return True
+
     def retry_now(self) -> None:
         return
 

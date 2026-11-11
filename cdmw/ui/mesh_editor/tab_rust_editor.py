@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from collections.abc import Mapping
 from importlib import import_module
@@ -63,10 +64,59 @@ MESH_EDITOR_BACKEND_RUST = "rust"
 
 
 
+# Sessions older than this are leftovers of a crashed or killed run; a live
+# session is never this old because each open builds a new one.
+_STALE_EDITOR_SESSION_SECONDS = 24 * 60 * 60
 
 
+def _mesh_editor_session_parent(settings: object | None) -> Path:
+    """Editor sessions live beside the workspace cache.
+
+    Session textures are hard links to the preview cache when both share a
+    volume, which turns a copy of every DDS into a directory entry. The
+    archive cache pruner only touches its own prefixes, so it leaves this
+    folder alone.
+    """
+
+    file_name = getattr(settings, "fileName", None)
+    if callable(file_name):
+        try:
+            from cdmw.domain.workspace import workspace_paths
+
+            text = str(file_name() or "").strip()
+            if text:
+                return workspace_paths(Path(text).expanduser().parent)["archive_cache_root"] / "mesh_editor_sessions"
+        except (OSError, KeyError, TypeError, ValueError):
+            pass
+    return Path(tempfile.gettempdir()) / "cdmw-rust-mesh-editor"
 
 
+def _sweep_stale_editor_sessions(owned_root: Path) -> None:
+    """Remove session folders a crashed run left behind, off the UI thread."""
+
+    import shutil
+    import threading
+    import time
+
+    def sweep() -> None:
+        cutoff = time.time() - _STALE_EDITOR_SESSION_SECONDS
+        try:
+            entries = list(os.scandir(owned_root))
+        except OSError:
+            return
+        for entry in entries:
+            try:
+                if (
+                    entry.name.startswith("session-")
+                    and entry.is_dir(follow_symlinks=False)
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff
+                ):
+                    # Hard-linked textures only lose a link; the cache keeps its file.
+                    shutil.rmtree(entry.path, ignore_errors=True)
+            except OSError:
+                continue
+
+    threading.Thread(target=sweep, name="cdmw-editor-session-sweep", daemon=True).start()
 
 
 def _shared_preview_settings() -> dict[str, object]:
@@ -106,7 +156,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_process_generation = 0
         self.standalone_rust_target_controller: object | None = None
         self.standalone_rust_authoring_session: object | None = None
-        self.standalone_rust_owned_root = Path(tempfile.gettempdir()) / "cdmw-rust-mesh-editor"
+        self.standalone_rust_owned_root = _mesh_editor_session_parent(getattr(self, "settings", None))
+        self.standalone_rust_stale_sessions_swept = False
         self.standalone_rust_session_root: Path | None = None
         self.standalone_rust_executable_path: Path | None = None
         self.standalone_rust_launch_executable_signature = ""
@@ -680,6 +731,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_executable_path = Path(executable_text)
         self.standalone_rust_launch_executable_signature = executable_signature
         self.standalone_rust_session_root = self.standalone_rust_owned_root / f"session-{uuid4().hex}"
+        if not self.standalone_rust_stale_sessions_swept:
+            self.standalone_rust_stale_sessions_swept = True
+            _sweep_stale_editor_sessions(self.standalone_rust_owned_root)
         host = getattr(self, "standalone_native_host_frame", None)
         show_loading = getattr(host, "show_loading", None)
         if callable(show_loading):

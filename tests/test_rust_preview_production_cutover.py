@@ -1106,3 +1106,32 @@ def test_active_rust_material_and_preview_paths_have_no_vortice_launcher() -> No
         assert "resolve_mesh_dotnet_experiment_editor" not in source
         assert "mesh_dotnet_experiment_command" not in source
         assert "--export-material-layer-composites" not in source
+
+
+@pytest.mark.parametrize("durable", [True, False])
+def test_session_material_resource_links_cache_file_only_when_not_durable(tmp_path, durable):
+    import os
+
+    from cdmw.services import mesh_rust_preview_package as owner
+    from cdmw.services.mesh_rust_authoring import _session_root_identity
+
+    package = tmp_path / "session"
+    package.mkdir()
+    source = tmp_path / "cache" / "layer.dds"
+    source.parent.mkdir()
+    payload = b"DDS " + b"m" * 70_000
+    source.write_bytes(payload)
+    resources = {}
+
+    reference, next_index, aggregate = owner._copy_preview_core_material_resource(
+        package, source, expected_root_identity=_session_root_identity(package),
+        resources=resources, next_index=0, aggregate_bytes=0, cancelled=None, durable=durable,
+    )
+
+    published = package / reference["path"]
+    assert reference["sha256"] == hashlib.sha256(payload).hexdigest().upper()
+    assert (next_index, aggregate) == (1, len(payload))
+    assert published.read_bytes() == payload
+    # Durable cache packages own their bytes; a session may share the cache file.
+    assert os.path.samefile(source, published) is (not durable)
+    assert sorted(path.name for path in package.iterdir()) == [reference["path"]]

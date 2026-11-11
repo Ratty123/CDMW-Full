@@ -5518,6 +5518,11 @@ class RustMeshAuthoringTests(unittest.TestCase):
             with (
                 patch.object(Path, "stat", underreported_source_stat),
                 patch.object(Path, "open", tracked_open),
+                # The byte copy path: a session on another volume cannot link.
+                patch(
+                    "cdmw.services.mesh_rust_authoring.os.link",
+                    side_effect=OSError("cross-device link"),
+                ),
                 patch(
                     "cdmw.services.mesh_rust_authoring._SESSION_MAX_TOTAL_BYTES",
                     limit,
@@ -5533,6 +5538,41 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
             self.assertGreater(maximum_written, 0)
             self.assertLessEqual(maximum_written, limit)
+            self.assertEqual([], list(session_root.iterdir()))
+
+    def test_texture_copy_links_a_same_volume_source_and_still_hashes_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            session_root = temporary_root / "session"
+            session_root.mkdir()
+            root_identity = rust_authoring_module._session_root_identity(session_root)
+            source = temporary_root / "cached.dds"
+            payload = b"DDS " + b"L" * (3 * 1024 * 1024 + 17)
+            source.write_bytes(payload)
+            stat = source.stat()
+            identity = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+            row = rust_authoring_module._atomic_copy_texture_payload(
+                session_root, source, 3, expected_root_identity=root_identity,
+                expected_source_identity=identity,
+            )
+
+            destination = session_root / str(row["path"])
+            self.assertEqual(hashlib.sha256(payload).hexdigest().upper(), row["sha256"])
+            self.assertEqual(len(payload), row["byte_length"])
+            self.assertTrue(os.path.samefile(source, destination))
+            self.assertEqual([destination], list(session_root.iterdir()))
+            # Removing the session leaves the cache file intact.
+            destination.unlink()
+            self.assertEqual(payload, source.read_bytes())
+
+            # A source that changed since it was resolved is still refused.
+            source.write_bytes(payload + b"!")
+            with self.assertRaisesRegex(RustMeshProtocolError, "changed"):
+                rust_authoring_module._atomic_copy_texture_payload(
+                    session_root, source, 4, expected_root_identity=root_identity,
+                    expected_source_identity=identity,
+                )
             self.assertEqual([], list(session_root.iterdir()))
 
     def test_failed_geometry_preparation_removes_its_owned_session_root(self) -> None:

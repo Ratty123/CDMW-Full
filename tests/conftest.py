@@ -145,3 +145,14 @@ def pytest_unconfigure() -> None:
         os.environ[_CACHE_ENV] = _original_cache_root
     if _pytest_cache_root is not None:
         shutil.rmtree(_pytest_cache_root, ignore_errors=True)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Remove the native delta payloads tests allocated in the shared temp folder.
+
+    Each one is tiny, but a run leaves thousands, and every later app launch's
+    stale sweep has to walk them.
+    """
+    module = sys.modules.get("cdmw.modding.mesh_native_core_temp_paths")
+    if module is not None:
+        module.cleanup_native_preview_delta_paths()

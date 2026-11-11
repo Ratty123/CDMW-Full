@@ -32,7 +32,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Opening a model in the Mesh Editor soon after starting CDMW no longer waits on background work. Finder thumbnails and Create New Item's table preload pause until the Mesh Editor is ready; for the Honor Guard upper body this cut opening from over 20 seconds to about 8.
+- Opening a model in the Mesh Editor soon after starting CDMW no longer waits on background work. Finder thumbnails and Create New Item's table preload pause until the Mesh Editor is ready; for the Honor Guard upper body this cut opening from over 20 seconds to about 7. Mesh Editor sessions now sit in the workspace cache and share the preview's texture files when both are on the same drive instead of copying them; session folders left by a crash are removed after a day.
 - The cache check that runs shortly after startup reads the cache folders several times faster, so it no longer slows down the first previews when the workspace cache holds many files.
 - CDMW runs fewer background processes while you preview. Its helpers no longer each carry a hidden console host, and the spare preview window that makes dialogs open faster now starts after the first preview dialog instead of at startup, so the first dialog opens a little slower and later ones as before.
 - Preview settings are shared. Lighting, **Shadows**, **Ambient occlusion**, **Ground** and **Ground grid** apply to Browse Archives, preview dialogs, Create New Item and the Mesh Editor together, and a change in one shows up in the others while they are open. Create New Item's **Dark mode** stays a choice for its own preview; a preview with such a local choice says so and offers **Use global settings**.
