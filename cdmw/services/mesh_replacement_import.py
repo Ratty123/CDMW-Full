@@ -91,6 +91,11 @@ class PendingMeshReplacement:
     skin_notes: tuple[str, ...] = ()
     # The file the user chose when ``source_path`` is its converted GLB (FBX).
     source_label: str = ""
+    # ``state`` and ``skin_snapshot`` with the model's missing bones appended to
+    # the target palette, for the experimental Add Bones to Model choice.
+    extend_state: object = None
+    extend_snapshot: object = None
+    extend_bones: tuple[str, ...] = ()
 
     @property
     def label(self):
@@ -217,9 +222,13 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
     from cdmw.services.mesh_replacement_output import replacement_target_data
     from cdmw.services.mesh_skin_import_policy import apply_skin_policy, assess_imported_skin
     skin_snapshot = replace(snapshot, original_data=replacement_target_data(snapshot, state))
+    extend_state, extend_snapshot, extend_bones, extend_reason = _palette_extension_for(
+        source.mesh, snapshot, skin_snapshot, state)
     # A rig that cannot be kept is no longer refused here: the mapping step
-    # says why, and Apply can reduce or transfer instead.
-    skin = assess_imported_skin(source.mesh, skin_snapshot, state)
+    # says why, and Apply can reduce, fold, extend or transfer instead.
+    skin = assess_imported_skin(source.mesh, skin_snapshot, state,
+                                extended=(extend_snapshot, extend_state) if extend_state is not None else None,
+                                extend_reason=extend_reason)
     raw_mesh = source.mesh
     # Show and map the model as the likely choice leaves it: kept weights in
     # game bind space, or (when they cannot be kept) the transfer geometry.
@@ -251,20 +260,52 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
                                     tuple(captured.items()), tuple(material_files.items()), material_error,
                                     skin=skin, skin_snapshot=skin_snapshot, raw_mesh=raw_mesh,
                                     skin_policy=skin_policy if skin.rigged else "", skin_notes=skin_notes,
-                                    source_label=chosen_file.name if chosen_file is not None else "")
+                                    source_label=chosen_file.name if chosen_file is not None else "",
+                                    extend_state=extend_state, extend_snapshot=extend_snapshot,
+                                    extend_bones=extend_bones)
     verify_import_sources(pending)
     return pending
 
 
+def _palette_extension_for(mesh, snapshot, skin_snapshot, state):
+    """The target with the model's missing game bones appended to its palette.
+
+    Returns ``(state, snapshot, bones, reason)``: the extended replacement state
+    and skin snapshot with the appended bone names, or Nones and why not. A
+    previous import's extension is kept and added to, so its slots stay put.
+    """
+    from cdmw.services.mesh_skin_import_policy import missing_palette_bones
+    missing = missing_palette_bones(mesh, skin_snapshot)
+    if not missing:
+        return None, None, (), ""
+    skeleton = getattr(snapshot.mesh, "interchange_skeleton", None)
+    known = {str(bone.name) for bone in getattr(skeleton, "bones", ()) or ()}
+    foreign = [name for name in missing if name not in known]
+    if foreign:
+        return None, None, (), (f"Not in this model's game skeleton, so they cannot be added: {', '.join(foreign)}. "
+                                "Choose Move to Parent Bones, or weight to game bones only.")
+    if state.neutral_coordinates:
+        return None, None, (), "Bones can be added only in the original source-coordinate session."
+    from cdmw.modding.pac_palette_extension import extend_pac_palette
+    previous = state.palette_extension.appended_names if state.palette_extension is not None else ()
+    try:
+        data, contract = extend_pac_palette(snapshot.original_data, skeleton, (*previous, *missing))
+    except ValueError as exc:
+        return None, None, (), f"This model's bone list cannot be extended: {exc}"
+    extended = replace(state, palette_extension=contract)
+    return extended, replace(snapshot, original_data=data), missing, ""
+
+
 def pending_skin_source(pending, skin_policy=None):
-    """The imported model with the chosen weights policy applied, and its notes.
+    """The imported model with the chosen weights policy applied, its notes and state.
 
     ``None`` takes the assessment's default: Keep when the rig matches. A choice
-    the assessment ruled out is refused with its reason.
+    the assessment ruled out is refused with its reason. The state is the
+    pending one, or for ``extend`` the one carrying the extended palette.
     """
     skin = pending.skin
     if skin is None or not skin.rigged:
-        return pending.source.mesh, ()
+        return pending.source.mesh, (), pending.state
     policy = skin_policy or skin.default_policy
     if not policy:
         raise ValueError(f"Choose how to handle the imported weights. {skin.summary}")
@@ -273,17 +314,21 @@ def pending_skin_source(pending, skin_policy=None):
         raise ValueError(option.reason)
     if policy == pending.skin_policy:
         # Prepared with this choice already; reuse the shown geometry exactly.
-        return pending.source.mesh, pending.skin_notes
+        return pending.source.mesh, pending.skin_notes, pending.state
     from cdmw.services.mesh_skin_import_policy import apply_skin_policy
-    return apply_skin_policy(pending.raw_mesh, pending.skin_snapshot, pending.state, policy)
+    if policy == "extend":
+        mesh, notes = apply_skin_policy(pending.raw_mesh, pending.extend_snapshot, pending.extend_state, policy)
+        return mesh, (f"Added {', '.join(pending.extend_bones)} to this model's bone list. "
+                      "Experimental: a model with added bones has not been tested in game.", *notes), pending.extend_state
+    return (*apply_skin_policy(pending.raw_mesh, pending.skin_snapshot, pending.state, policy), pending.state)
 
 
 def compose_import(pending, source_targets, *, material_choice="original", companion_files=None,
                    skin_policy=None, skin_notes=None):
     """Compose a full editable candidate without collapsing any excluded part.
 
-    ``skin_policy`` is ``preserve``, ``reduce`` or ``transfer`` for a rigged
-    import (``None`` keeps a matching rig). What it did, and every weight
+    ``skin_policy`` is ``preserve``, ``reduce``, ``fold``, ``extend`` or
+    ``transfer`` for a rigged import (``None`` keeps a matching rig). What it did, and every weight
     transfer, is appended to the ``skin_notes`` list when one is given.
     """
     if material_choice not in {"original", "imported"}:
@@ -291,14 +336,14 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
     verify_import_sources(pending, include_materials=material_choice == "imported")
     if material_choice == "imported" and companion_files is None:
         raise ValueError("Imported materials require a complete prepared material and texture bundle.")
-    source_mesh, notes = pending_skin_source(pending, skin_policy)
+    source_mesh, notes, base_state = pending_skin_source(pending, skin_policy)
     if skin_notes is not None:
         skin_notes.extend(notes)
     targets = tuple(str(value) for value in source_targets)
     if len(targets) != len(source_mesh.submeshes) or any(key not in pending.target_part_ids for key in targets):
         raise ValueError("Choose a target part for every imported part before applying replacement.")
-    candidate = mesh_with_part_ids(pending.snapshot, pending.state)
-    indices = bound_part_indices(candidate, pending.state)
+    candidate = mesh_with_part_ids(pending.snapshot, base_state)
+    indices = bound_part_indices(candidate, base_state)
     mappings = [StaticSubmeshMapping(
         indices[key], candidate.submeshes[indices[key]].name,
         [index for index, target in enumerate(targets) if target == key], indices[key],
@@ -319,11 +364,11 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
     # surface would also make later transfers depend on import order. Weights
     # are transferred here rather than by the writer, so the editor holds them
     # and Rig & Weights can show and change them after Apply.
-    skin_reference = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
-    if pending.state.neutral_coordinates:
-        skin_reference = pending.state.neutral_appearance.to_neutral(skin_reference)
+    skin_reference = parse_mesh(pending.snapshot.original_data, base_state.target_path)
+    if base_state.neutral_coordinates:
+        skin_reference = base_state.neutral_appearance.to_neutral(skin_reference)
     parts = []
-    for binding in pending.state.parts:
+    for binding in base_state.parts:
         if binding.part_id not in pending.target_part_ids:
             parts.append(binding)
             continue
@@ -343,7 +388,7 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         from cdmw.modding.mesh_skinning import (
             ensure_final_target_skin_weights, has_valid_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY,
         )
-        if pending.state.neutral_appearance is not None:
+        if base_state.neutral_appearance is not None:
             # Transfer on the displayed target surface before any inverse
             # transform. Never let the writer guess weights in source space.
             imported.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
@@ -363,8 +408,8 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
     if material_choice == "original" and companion_files is None:
         from cdmw.services.mesh_replacement_materials import restore_original_materials
         companion_files = restore_original_materials(pending, targets)
-    state = replace(pending.state, parts=tuple(parts), revision=pending.state.revision + 1,
-                    companion_files=tuple(companion_files) if companion_files is not None else pending.state.companion_files)
+    state = replace(base_state, parts=tuple(parts), revision=base_state.revision + 1,
+                    companion_files=tuple(companion_files) if companion_files is not None else base_state.companion_files)
     return candidate, state
 
 

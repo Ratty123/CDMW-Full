@@ -78,7 +78,7 @@ pub fn try_run() -> Result<bool> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args.first().is_some_and(|a| a == "--capture-dds-texture") {
         if args.len() != 3 {
-            bail!("--capture-dds-texture <dds> <png> requires exactly two paths");
+            bail!("DDS capture requires exactly two paths: --capture-dds-texture <dds> <png>");
         }
         let output = Path::new(&args[2]);
         if !output
@@ -111,7 +111,7 @@ pub fn try_run() -> Result<bool> {
         return Ok(false);
     }
     if args.len() != 3 || args[1] != "--embedded-parent-hwnd" {
-        bail!("--cdmw-texture-view requires --embedded-parent-hwnd <decimal>");
+        bail!("The texture view requires --cdmw-texture-view --embedded-parent-hwnd <decimal>");
     }
     let parent: u64 = args[2].to_str().context("invalid parent HWND")?.parse()?;
     if parent == 0 {

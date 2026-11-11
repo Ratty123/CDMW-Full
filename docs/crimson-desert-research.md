@@ -774,8 +774,24 @@ four are skeletal; two packed slots and two half-float lanes at bytes 12–15
 address cloth guides. The weights at bytes 32–35 then have separate cloth
 meaning. They must not appear as invented named skeleton influences.
 
-A rigid attachment may have one full-weight slot and no palette. Its actual
-attachment comes from prefab/socket context. Conversely, a matching filename
+A rigid attachment has one full-weight slot, and its palette can be a single
+entry. A helmet, glasses or a mask names the rig bone it follows there (`Bip01
+Head`); a weapon names its own embedded `B_Weapon_` root, so its attachment
+comes from prefab/socket context. The palette has to be read in place by
+sequential decoding: a search for runs of bone hashes needs eight entries to
+tell a table from chance, and embedded collision data alone produces dozens of
+longer runs that are not palettes. On the 6,687 PACs under
+`character/model/1_pc` (installed post-DLC game, 2026-11-11, source `6e2c51b88`
+plus that day's change), the in-place read and the search agree on all 4,805
+models where both give a rig, and the in-place read alone resolves 269 more,
+each with every vertex slot inside its palette. 1,305 stay unresolved: 805 embed
+bones of their own (a weapon's palette names its embedded root), 481 have a
+metadata layout that is not decoded, and 19 name bones no indexed rig has.
+Across all 13,307 PACs the skeleton resolver names a rig for 890 models it
+refused before (265 player, 625 creature, mount and object), each through a
+prefab descriptor or a rig in a folder above the model. A palette shorter than
+eight entries does not select a rig elsewhere by itself: `B_Weapon_0001` is in
+one creature's rig and `Bone001` in a carriage's. Conversely, a matching filename
 does not prove that a smooth-skinned mesh belongs to a particular rig. Related
 character races can share the principal PHM, PHW or PTM skeletons; resolution
 must be demonstrated by the palette.
@@ -959,8 +975,11 @@ exports came from an isolated read-only Ghidra project copy without full analysi
 Older source-comment addresses are interior instructions in this build and were
 not treated as current function entries.
 
-Palette extension remains an internal experiment behind the consumer rollout
-gate. Final resource stride, matrix allocation/upload, draw/shader/partition and
+Palette extension remains an experiment. Since 2026-11-11 Mesh Editor Import
+Replacement offers it as the opt-in **Add Bones to Model (Experimental)** weights
+choice for existing skeleton bones a model uses but the target palette lacks; the
+default and the recommended **Move to Parent Bones** choice leave the palette
+unchanged. Final resource stride, matrix allocation/upload, draw/shader/partition and
 special-physics consumers remain unqualified. Source six-influence approval,
 selected PABC/companion appearance, full motion playback and game acceptance remain open.
 No packaging, installation or game launch was performed for this implementation.
@@ -2682,6 +2701,26 @@ Sources: [effect reflection reader][effect-binary], [constrained writer][effect-
 [dependency and authoring contracts][independent-items], [binary tests][effect-tests].
 
 ### 10.2 Registered names and attachment
+
+Reviewed 2026-11-10: a constrained PASEQ skinned-decal editor reads metadata 3
+and serialization 13/14, including indexed and inline strings. It edits only
+present texture references and supported scalar/transform settings, preserving
+absence separately from zero/false. The writer retains the original sequence
+bytes outside the changed values and required string-table, pointer and record
+length relocations; unchanged saves are byte-identical. Complete structural
+readback checks every decoded record for unintended changes. Archive Browser
+saves a loose copy through its cancellable utility worker.
+
+The supplied two blood sequences and finisher cover both serialization versions;
+their donor game build was not recorded. The supplied CDKit-edited material-path
+example independently exercises inline-string decoding. Owned fixtures and
+caller-supplied asset checks establish offline editing, not runtime attachment,
+normal-only blending or removal. General sequence authoring, new events and
+materializing omitted settings remain unsupported. The earlier `unexpected
+magic 0x0000` result came from passing PASEQ to the PAE/PAEM decoder, not from
+the supported read-only PASEQ analysis route. Exact contracts and tests:
+`cdmw/core/skinned_decal.py`, `cdmw/ui/archive_browser/README.md`, and
+`tests/test_skinned_decal.py`.
 
 The level/action/gimmick/system/sequencer registries establish effect namespaces.
 A clone of an `.action.effect` source must not acquire `.level.effect` merely

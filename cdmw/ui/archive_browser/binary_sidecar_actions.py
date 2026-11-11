@@ -45,9 +45,10 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     archive_workflow_dependency_context,
 )
 from cdmw.ui.shell.theme_controller import build_monospace_font
+from cdmw.ui.archive_browser.skinned_decal_actions import SkinnedDecalActionsMixin
 
 
-class ArchiveBinarySidecarActionsMixin:
+class ArchiveBinarySidecarActionsMixin(SkinnedDecalActionsMixin):
     """Binary sidecar decode, safe edit, and corpus report actions."""
     def _default_archive_hkx_json_path(self, entry: ArchiveEntry) -> Path:
         default_dir = self.shell.settings_file_path.parent / "hkx_geometry_json"

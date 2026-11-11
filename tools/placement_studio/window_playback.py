@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .playback import Playback, PlaybackError, PREVIEW_TICK_MS, frame_interval_ms
+from .playback import Playback, PlaybackError, PREVIEW_TICK_MS
 
 
 class PlaybackMixin:
@@ -35,11 +35,11 @@ class PlaybackMixin:
         self._playback = Playback()
         self._playback_timer = QTimer(self)
         self._playback_timer.setTimerType(Qt.PreciseTimer)
-        self._playback_timer.setSingleShot(True)
+        # Keep one timer running: restarting it after every paint adds Windows
+        # event-dispatch delays that change when a popup menu is open.
         self._playback_timer.setInterval(PREVIEW_TICK_MS)
         self._playback_timer.timeout.connect(self._on_playback_tick)
         self._playback_last_tick = 0.0
-        self._playback_update_seconds = 0.0
         self._playback_paint_pending = False
         self._viewport.frame_painted.connect(self._on_playback_painted)
         self._scrub_timer = QTimer(self)
@@ -132,7 +132,6 @@ class PlaybackMixin:
             return
         self._scrub_timer.stop()
         self._playback_paint_pending = False
-        self._playback_update_seconds = 0.0
         self._playback.playing = not self._playback.playing
         self._playback_play_button.setText("Pause" if self._playback.playing else "Play")
         viewport = getattr(self, "_viewport", None)
@@ -189,33 +188,25 @@ class PlaybackMixin:
         self._refresh_scene()
 
     def _on_playback_tick(self) -> None:
-        self._playback_timer.stop()
         if not self._playback.playing or not self._playback.loaded:
             self._stop_playback()
+            return
+        # A deferred mesh layer must finish painting before we pose again. Keep
+        # the previous timestamp so skipped ticks still count as animation time.
+        if self._playback_paint_pending:
             return
         now = time.monotonic()
         elapsed = now - (self._playback_last_tick or now)
         self._playback_last_tick = now
         if not self._playback.advance(elapsed):
             self._stop_playback()
-        started = time.monotonic()
         self._playback_paint_pending = self._playback.playing
         self._apply_playback_frame()
-        self._pace(time.monotonic() - started)
-
-    def _pace(self, frame_seconds: float) -> None:
-        """Wait for this pose to paint before scheduling another expensive update."""
-        self._playback_update_seconds = frame_seconds
 
     def _on_playback_painted(self, paint_seconds: float) -> None:
         if not self._playback.playing or not self._playback_paint_pending:
             return
         self._playback_paint_pending = False
-        elapsed = time.monotonic() - self._playback_last_tick
-        target = frame_interval_ms(self._playback_update_seconds, paint_seconds)
-        # Restarting a QTimer measures from now. Deduct work already done so an
-        # interval change cannot add the entire pose cost to every frame deadline.
-        self._playback_timer.start(max(1, int(target - elapsed * 1000)))
 
     def _apply_playback_frame(self) -> None:
         """Pose the session and repaint. The single place playback touches the scene."""

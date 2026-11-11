@@ -105,7 +105,9 @@ The exporter does not publish. It writes one native-named manual per language,
 localized contents sidebars and the language index. Manuals open with Home and
 fold the in-article contents for narrow screens. Translated manuals live in locale
 folders; public page names and URLs remain stable. Do not recreate separate guide
-pages for each locale. Direct Wiki edits must return through the workflow above
+pages for each locale. Keep one Documentation Index section for the tool paths;
+the contents navigation replaces repeated guide lists under Home and the index.
+Direct Wiki edits must return through the workflow above
 so they survive the next export and reach Help as well.
 
 When diagnostic messages change, regenerate the shared Help/Wiki error index

@@ -431,6 +431,8 @@ class AboutDocumentationEnglishMixin:
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
                 <p>If a model's referenced textures are unavailable, Preview shows its geometry with a Textures unavailable warning. Texture defaults from another material are not reused.</p>
+                <h3>Skinned decal sequences</h3>
+                <p>Right-click a PASEQ in Archive Browser and choose Edit Skinned Decal... to change existing texture paths and decal settings, then save a loose copy. Only stored settings are shown; missing settings keep their game defaults. Texture paths may change length. Unchanged saves preserve the original bytes; edited saves are reopened and checked for unrelated changes. This experimental editor supports metadata 3 and serialization 13/14 sequences with skinned decals. It does not add events or settings, install the effect, or verify in-game blending, attachment or removal.</p>
                 <h3>GLB / FBX / OBJ export</h3>
                 <p>Choose Export This Model as GLB... for one PAC, PAM or PAMLOD model. GLB is listed first for rigged editing; FBX and OBJ remain available. GLB includes companion metadata and resolved textures, plus weights when the skeleton and bone mapping resolve. Keep companion files together for Round-trip edit. Review export warnings; a missing skeleton or unresolved mapping means the export has no usable weights. OBJ is geometry-only.</p>
                 <p>OBJ export supports Chinese and other non-English characters in output folder and file names, regardless of the interface language.</p>
@@ -610,7 +612,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW.</li>
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
-                <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Base Color needs them too and shows each material's base color texture without lighting or reflections, so dark or very reflective models are easier to read. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
                 <p>Shadows and Ambient occlusion start on in Textured and Game Outdoor views. Studio (fixed lights) keeps its lights in place as you orbit; the default preset is unchanged. Icons retain self-shadows on a transparent background.</p>
                 <p>When declared by the asset, head previews load the eyes and teeth with the face and apply its authored shape. Iris and pupil textures keep their own colours.</p>
                 <p>Very large models with many materials compose their materials only while they fit the 768 MiB texture limit. The remaining parts show their plain game textures, and the status line says how many parts use simplified materials.</p>
@@ -630,6 +632,8 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li><b>Keep Imported Weights</b> uses the model's own weights. Its rig must be this model's game skeleton: choose Export Rig GLB... in Parts, weight your model to that rig in Blender, and do not move, rotate or rescale the bones.</li>
                   <li><b>Reduce to Six Influences</b> keeps each vertex's six strongest bones and rebalances them. A game vertex holds six.</li>
+                  <li><b>Move to Parent Bones</b> keeps the model's weights, but moves weight on a bone the original model does not use to its nearest parent bone that it does. Those vertices then follow that parent rigidly. Use it for a model merged from two game parts, such as two hairstyles.</li>
+                  <li><b>Add Bones to Model (Experimental)</b> keeps the weights exactly and adds the game bones the model uses to this model's bone list. A model with added bones has not been tested in game yet, so test it before sharing the mod.</li>
                   <li><b>Transfer from Original</b> replaces the model's weights with the original model's weights at the nearest surface. It works with any rig, or none.</li>
                 </ul>
                 <p>Hover an unavailable choice to see why, for example the bone that is furthest from the game skeleton. Parts without weights always take the original part's weights. After Apply, Weights from the last import lists what was done.</p>
@@ -702,6 +706,9 @@ class AboutDocumentationEnglishMixin:
                 <h4>Export Mesh File</h4>
                 <p>Open Output and choose Export…. Select GLB (.glb), FBX (.fbx) or OBJ (.obj), then choose a filename. GLB is listed first for rigged editing; OBJ has no armature or weights. Export saves the current edits and their CDMW companion files without finishing the edit. Keep the files together. To return an edited file with its companion, choose Open Package in CDMW... and select its folder. Separate .gltf export is not available.</p>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
+                <h4>Export PAC As…</h4>
+                <p>After Finish Edit Mesh, choose Export PAC As… to save just the PAC under a new name or path. The full destination is remembered; existing exports are overwritten. No mod folder or report is created.</p>
+                <p>If the edit needs companion files or multiple meshes, use Build Mod. The original source cannot be overwritten. Renaming the PAC does not change references in other game files.</p>
                 <h4>Build Mod</h4>
                 <p>Build Mod writes loose packages for DMM (Definitive Mod Manager). Other mod managers are not supported after the October 2026 DLC update.</p>
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
@@ -709,7 +716,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Keep layers underneath (experimental) in the Build Mod window stops an edited garment cutting the clothing layers you tick, such as Lowerbody for pants under a shortened coat. Whole-part hiding is unchanged. The mod ships partshrinkdesc.xml, so it conflicts with other mods that ship that file. Test in game; the preview does not show it.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
                 <ul>
-                  <li>Export Mesh File writes a separate rebuilt asset.</li>
+                  <li>Export PAC As… writes only the finished PAC to the chosen path.</li>
                   <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
                   <li>DMM Archive Group writes the mesh as an archive group in a package folder that DMM serves by path; nothing is installed into the game. Hairstyles are always built this way, with their barber choice.</li>
                 </ul>
@@ -1079,7 +1086,7 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Why does a hidden part still appear in the export?</b><br/>View only hides a part in the preview. Use Mod or Include to leave it out of an eligible game-model export, then check Output Preview. In Create New Item, untick the whole component or delete the unwanted faces.</p>
                 <p><b>How do I continue a saved mesh edit?</b><br/>Open Drafts &amp; Mods and choose Continue Editing on the draft or built mod. Finish your changes before closing; edits still open in the editor and Undo/Redo history are not saved.</p>
                 <p><b>Can I edit a model in Blender and bring it back?</b><br/>Use Export… to save GLB, FBX or OBJ with its companion files, then Open Package in CDMW... to return it. Keep the companions together. Exact return needs stable vertex and joint identities; topology edits can prevent it.</p>
-                <p><b>Which Mesh Editor import weight option should I choose?</b><br/>Keep Imported Weights needs the model's matching game rig. Reduce to Six Influences trims compatible weights to the game's limit. Transfer from Original copies weights from the original surface; check the result in Rig &amp; Weights.</p>
+                <p><b>Which Mesh Editor import weight option should I choose?</b><br/>Keep Imported Weights needs the model's matching game rig. Reduce to Six Influences trims compatible weights to the game's limit. Move to Parent Bones keeps weights on bones the original model does not use by moving them to a parent bone. Transfer from Original copies weights from the original surface; check the result in Rig &amp; Weights.</p>
                 <h4><a href="topic:new_item_studio">Create New Item</a></h4>
                 <p><b>How should I choose a new-item template?</b><br/>Start with the same equipment family and test its original model with one shop route first. The template supplies game behaviour and dependencies, not an automatic fit for any imported shape.</p>
                 <p><b>Why are my imported skin weights refused?</b><br/>Keep imported weights needs the template's own skeleton, with unchanged rest bones. Use Export rig GLB… to get that rig, or import with Transfer from template to copy its weights. Check the fit afterward.</p>

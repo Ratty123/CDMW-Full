@@ -500,7 +500,7 @@ class ArchiveBrowserActionMixin:
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
             set_bridge = getattr(self, "archive_remote_bridge", None)
-            if set_bridge is not None and set_bridge.item_set_contains(entry):
+            if callable(getattr(set_bridge, "item_set_contains", None)) and set_bridge.item_set_contains(entry):
                 open_set_action = menu.addAction(menu_icons["mesh"], "Open set in Mesh Editor")
                 from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
                 open_set_action.triggered.connect(lambda _checked=False, target=entry:
@@ -566,6 +566,12 @@ class ArchiveBrowserActionMixin:
             find_chart_action = menu.addAction(menu_icons["data"], "Find Action Chart by Character...")
             find_chart_action.setToolTip("Pick a character and weapon slot to open the chart it uses.")
             find_chart_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())
+
+        if entry.extension == ".paseq":
+            edit_decal_action = menu.addAction(menu_icons["data"], "Edit Skinned Decal...")
+            edit_decal_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._edit_archive_skinned_decal(current_entry)
+            )
 
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")

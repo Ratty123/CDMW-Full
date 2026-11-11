@@ -160,7 +160,18 @@ def workflow_for(extension: str) -> FormatWorkflow:
         mesh_policy.AUTHORABLE_MESH_FORMATS | mesh_policy.FREE_EDIT_WORKING_MESH_FORMATS
     ):
         return _mesh_workflow(extension)
-    if extension in {".paseq", ".paseqc", ".pastage"}:
+    if extension == ".paseq":
+        return FormatWorkflow(
+            operations=(
+                FormatOperation("inspect", "Inspect recovered sequence strings and references."),
+                FormatOperation("edit", "Edit validated fixed-size strings with Edit Structured Data Safely... and save an edited copy."),
+                FormatOperation("edit", "Edit stored decal texture paths and settings with Edit Skinned Decal..., then save a loose copy."),
+            ),
+            prerequisites=_ARCHIVE_SELECTION,
+            limits=("Skinned decal editing requires metadata 3 and serialization 13/14. Other sequence edits remain fixed-size. New events and missing settings cannot be added. In-game blending, attachment and removal are unverified.",),
+            editable=True,
+        )
+    if extension in {".paseqc", ".pastage"}:
         return FormatWorkflow(
             operations=(
                 FormatOperation("inspect", "Inspect recovered sequence strings and references."),

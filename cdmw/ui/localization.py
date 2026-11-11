@@ -738,6 +738,7 @@ class UiLocalizer(QObject):
         ] = {}
         self._registered_roots: list[weakref.ReferenceType[QWidget]] = []
         self._pending_objects: dict[int, weakref.ReferenceType[QWidget]] = {}
+        self._pending_child_parents: dict[int, weakref.ReferenceType[QWidget]] = {}
         self._application: QApplication | None = None
         self._runtime_tracking_active = False
         self._event_filter_busy = False
@@ -1564,6 +1565,7 @@ class UiLocalizer(QObject):
     def shutdown(self) -> None:
         self._runtime_tracking_active = False
         self._pending_objects.clear()
+        self._pending_child_parents.clear()
         self._registered_roots.clear()
         if self._application is not None:
             try:
@@ -1611,6 +1613,16 @@ class UiLocalizer(QObject):
         self._pending_flush_scheduled = True
         QTimer.singleShot(0, self._flush_pending_applies)
 
+    def _schedule_child_check(self, parent: QWidget) -> None:
+        # ChildAdded also reports QMainWindow's temporary geometry animations.
+        # Translating their parent changes layout again and repeats the cycle.
+        # Wait for construction, then look only for new widgets/actions; never
+        # resolve event.child() while its PySide wrapper may be incomplete.
+        self._pending_child_parents[id(parent)] = weakref.ref(parent)
+        if not self._pending_flush_scheduled:
+            self._pending_flush_scheduled = True
+            QTimer.singleShot(0, self._flush_pending_applies)
+
     def _flush_pending_applies(self) -> None:
         """Apply every widget that asked to be re-translated, in one pass.
 
@@ -1623,9 +1635,24 @@ class UiLocalizer(QObject):
         self._pending_flush_scheduled = False
         if not self._runtime_tracking_active:
             self._pending_objects.clear()
+            self._pending_child_parents.clear()
             return
         pending = self._pending_objects
         self._pending_objects = {}
+        child_parents = self._pending_child_parents
+        self._pending_child_parents = {}
+        for reference in child_parents.values():
+            parent = reference()
+            if parent is None or not qt_object_is_valid(parent):
+                continue
+            for child in parent.findChildren(QWidget, options=Qt.FindDirectChildrenOnly):
+                if child.property("_i18n_applied_revision") != self.revision:
+                    pending.setdefault(id(child), weakref.ref(child))
+            if any(
+                action.property("_i18n_applied_revision") != self.revision
+                for action in parent.findChildren(QAction, options=Qt.FindDirectChildrenOnly)
+            ):
+                pending.setdefault(id(parent), reference)
         # A weak reference outlives the C++ widget: shiboken keeps the Python
         # wrapper, and every call on it then raises. Anything queued before its
         # widget was destroyed has to be dropped here, not walked.
@@ -1669,10 +1696,9 @@ class UiLocalizer(QObject):
             # Qt sends ChildAdded from inside the child's constructor. Resolving
             # event.child() here can expose a partial PySide wrapper (notably
             # QThread) before its native metadata is ready. Walk the parent on
-            # the next GUI turn instead, even when it was already translated:
-            # its newly added widgets/actions still need their first pass.
+            # the next GUI turn for new widgets/actions, not internal objects.
             if isinstance(watched, QWidget):
-                self._schedule_widget_apply(watched)
+                self._schedule_child_check(watched)
         elif event_type in {QEvent.Type.Show, QEvent.Type.Polish}:
             if (
                 isinstance(watched, QWidget)
@@ -2750,6 +2776,7 @@ class UiLocalizer(QObject):
             "whatsThis",
             "setWhatsThis",
         )
+        action.setProperty("_i18n_applied_revision", self.revision)
 
     def _apply_menu(self, menu: QMenu) -> None:
         self._apply_setter(menu, "title", "title", "setTitle", mnemonic=True)

@@ -7,9 +7,18 @@ same choice gives the same weights whichever route imported the model.
   palette bone and the rig must share the game skeleton's bind frame.
 * ``reduce`` keeps the six strongest influences per vertex, renormalizes, then
   keeps them as ``preserve`` does.
+* ``fold`` keeps the authored weights, but a weight on a game bone the
+  original model's palette does not list moves to that bone's nearest ancestor
+  the palette does list. Those vertices then follow the ancestor rigidly.
+* ``extend`` keeps the authored weights and appends the missing game bones to
+  the original model's palette. It is experimental: the longer palette has not
+  been loaded in game. The caller supplies the extended target.
 * ``transfer`` drops the authored weights. The geometry moves into game bind
   space when the rig proves that frame, and is otherwise used as authored; the
   weights then come from the nearest original surface.
+
+``fold`` and ``extend`` also reduce a vertex with more than six bones, as
+``reduce`` does, since a model merged from two game parts often has some.
 """
 
 from __future__ import annotations
@@ -21,7 +30,7 @@ from cdmw.domain.mesh.skin_policy import reduce_influences
 from cdmw.modding.mesh_parser import PAC_SKIN_PALETTE_SLOTS
 from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
 
-POLICIES = ("preserve", "reduce", "transfer")
+POLICIES = ("preserve", "reduce", "fold", "extend", "transfer")
 
 
 def has_authored_rows(part) -> bool:
@@ -34,6 +43,28 @@ def joint_names(part) -> tuple[str, ...]:
     if not skin:
         raise ValueError(f"{part.name} has weights without their imported rig identity.")
     return tuple(str(skin["nodes"][joint].get("name", "")) for joint in skin["joints"])
+
+
+def missing_palette_bones(mesh, snapshot) -> tuple[str, ...]:
+    """Bones the model is weighted to that the target PAC's palette does not list."""
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+
+    skeleton = getattr(snapshot.mesh, "interchange_skeleton", None)
+    bones = tuple(getattr(skeleton, "bones", ()) or ())
+    if not bones or str(snapshot.mesh.format).casefold() != "pac":
+        return ()
+    try:
+        palette = {str(bones[index].name) for index in resolve_pac_bone_palette(snapshot.original_data, skeleton)}
+    except (IndexError, ValueError):
+        return ()
+    used = set()
+    for part in mesh.submeshes:
+        if not part.interchange_skin or not part.bone_indices:
+            continue
+        names = joint_names(part)
+        used.update(names[joint] for row, weights in zip(part.bone_indices, part.bone_weights)
+                    for joint, weight in zip(row, weights) if weight > 0 and 0 <= joint < len(names))
+    return tuple(sorted(name for name in used if name and name not in palette))
 
 
 def over_capacity_vertices(part, capacity: int = PAC_SKIN_PALETTE_SLOTS) -> int:
@@ -118,7 +149,8 @@ class SkinImportAssessment:
         for option in self.options:
             if option.policy == policy:
                 return option
-        raise ValueError("Choose Keep Imported Weights, Reduce to Six Influences or Transfer from Original.")
+        raise ValueError("Choose Keep Imported Weights, Reduce to Six Influences, Move to Parent Bones, "
+                         "Add Bones to Model (Experimental) or Transfer from Original.")
 
     @property
     def default_policy(self) -> str:
@@ -138,21 +170,40 @@ def _rigged_mesh(mesh, indices):
     return replace(mesh, submeshes=[copy.deepcopy(mesh.submeshes[index]) for index in indices])
 
 
-def assess_imported_skin(mesh, snapshot, state, *, retain=None) -> SkinImportAssessment:
+def _within_capacity(mesh):
+    """Each part reduced to six influences where it needs it, and the loss per part."""
+    mesh = replace(mesh, submeshes=list(mesh.submeshes))
+    losses = []
+    for index, part in enumerate(mesh.submeshes):
+        if has_authored_rows(part) and over_capacity_vertices(part):
+            mesh.submeshes[index], loss = reduce_part(part, PAC_SKIN_PALETTE_SLOTS, joint_names(part))
+            losses.append((part.name or f"Part {index}", loss))
+    return mesh, losses
+
+
+def _reduction_note(label, loss):
+    return (f"{label}: reduced {loss['reduced_vertices']:,} vertices to six bones; "
+            f"up to {loss['maximum_removed_mass']:.2%} of a vertex's weight removed, "
+            f"{loss['over_five_percent']:,} vertices lost more than 5%. "
+            f"Removed bones: {', '.join(loss['removed_bones']) or 'none'}.")
+
+
+def assess_imported_skin(mesh, snapshot, state, *, extended=None, extend_reason="") -> SkinImportAssessment:
     """Try each choice on a copy so the mapping step can say what will happen.
 
-    ``snapshot`` and ``state`` are what ``retain_imported_skinning`` takes. Only
+    ``snapshot`` and ``state`` are what ``retain_imported_skinning`` takes.
+    ``extended`` is the same pair with the missing bones appended to the target
+    palette, or None with ``extend_reason`` saying why it cannot be. Only
     malformed rows raise; a rig that cannot be kept is reported, not refused.
     """
-    if retain is None:
-        from cdmw.services.mesh_replacement_skinning import (
-            retain_imported_skinning as retain,
-        )
+    from cdmw.services.mesh_replacement_skinning import retain_imported_skinning as retain
+
     indices = tuple(index for index, part in enumerate(mesh.submeshes) if has_authored_rows(part))
     if not indices:
         return SkinImportAssessment()
     names = tuple(mesh.submeshes[index].name or f"Part {index}" for index in indices)
     over = sum(over_capacity_vertices(mesh.submeshes[index]) for index in indices)
+    missing = missing_palette_bones(_rigged_mesh(mesh, indices), snapshot)
     if over:
         keep = SkinPolicyOption("preserve", False,
                                 f"{over:,} vertices use more than six bones; a game vertex holds six. "
@@ -176,34 +227,58 @@ def assess_imported_skin(mesh, snapshot, state, *, retain=None) -> SkinImportAss
             reduce = SkinPolicyOption("reduce", False, str(exc))
         else:
             reduce = SkinPolicyOption("reduce", True)
+    if not missing:
+        nothing = "Every bone the model is weighted to is already in the original model, so there is nothing to move or add."
+        fold = SkinPolicyOption("fold", False, nothing)
+        extend = SkinPolicyOption("extend", False, nothing)
+    else:
+        try:
+            retain(_within_capacity(_rigged_mesh(mesh, indices))[0], snapshot, state, fold=True)
+        except ValueError as exc:
+            fold = SkinPolicyOption("fold", False, str(exc))
+        else:
+            fold = SkinPolicyOption("fold", True)
+        if extended is None:
+            extend = SkinPolicyOption("extend", False, extend_reason or
+                                      "The original model's bone list cannot be extended for this import.")
+        else:
+            try:
+                retain(_within_capacity(_rigged_mesh(mesh, indices))[0], *extended)
+            except ValueError as exc:
+                extend = SkinPolicyOption("extend", False, str(exc))
+            else:
+                extend = SkinPolicyOption("extend", True)
     # A static original takes no weights at all; transfer then just drops them.
     transfer = SkinPolicyOption("transfer", True)
-    if not any(part.bone_weights for part in snapshot.mesh.submeshes):
+    static = not any(part.bone_weights for part in snapshot.mesh.submeshes)
+    if static:
         summary = "The original model has no skin weights, so the imported weights are dropped."
     elif keep.available:
         summary = "The imported rig matches the original skeleton, so its weights can be kept."
     elif reduce.available:
         summary = f"The imported rig matches the original skeleton, but {over:,} vertices use more than six bones."
+    elif missing and (fold.available or extend.available):
+        summary = (f"The model is weighted to {len(missing)} bone(s) the original model does not use: "
+                   f"{', '.join(missing)}. Move their weights to parent bones, or add the bones to the model.")
     elif over:
         summary = "The imported weights cannot be kept or reduced: " + reduce.reason
     else:
         summary = "The imported weights cannot be kept: " + keep.reason
-    static = not any(part.bone_weights for part in snapshot.mesh.submeshes)
-    return SkinImportAssessment(names, (keep, reduce, transfer), over, summary, static)
+    return SkinImportAssessment(names, (keep, reduce, fold, extend, transfer), over, summary, static)
 
 
-def apply_skin_policy(mesh, snapshot, state, policy: str, *, retain=None) -> tuple[object, tuple[str, ...]]:
+def apply_skin_policy(mesh, snapshot, state, policy: str) -> tuple[object, tuple[str, ...]]:
     """Return a copy of ``mesh`` with ``policy`` applied to its rigged parts, and notes.
 
     ``transfer`` leaves the parts without weights; the caller transfers from
-    the original surface it maps each part onto.
+    the original surface it maps each part onto. For ``extend``, ``snapshot``
+    and ``state`` must already carry the extended palette.
     """
+    from cdmw.services.mesh_replacement_skinning import retain_imported_skinning as retain
+
     if policy not in POLICIES:
-        raise ValueError("Choose Keep Imported Weights, Reduce to Six Influences or Transfer from Original.")
-    if retain is None:
-        from cdmw.services.mesh_replacement_skinning import (
-            retain_imported_skinning as retain,
-        )
+        raise ValueError("Choose Keep Imported Weights, Reduce to Six Influences, Move to Parent Bones, "
+                         "Add Bones to Model (Experimental) or Transfer from Original.")
     indices = [index for index, part in enumerate(mesh.submeshes) if has_authored_rows(part)]
     if not indices:
         return mesh, ()
@@ -213,13 +288,10 @@ def apply_skin_policy(mesh, snapshot, state, policy: str, *, retain=None) -> tup
     for index in indices:
         part = copy.deepcopy(source.submeshes[index])
         label = part.name or f"Part {index}"
-        if policy == "reduce":
+        if policy == "reduce" or (policy in {"fold", "extend"} and over_capacity_vertices(part)):
             part, loss = reduce_part(part, PAC_SKIN_PALETTE_SLOTS, joint_names(part))
             if loss["reduced_vertices"]:
-                notes.append(f"{label}: reduced {loss['reduced_vertices']:,} vertices to six bones; "
-                             f"up to {loss['maximum_removed_mass']:.2%} of a vertex's weight removed, "
-                             f"{loss['over_five_percent']:,} vertices lost more than 5%. "
-                             f"Removed bones: {', '.join(loss['removed_bones']) or 'none'}.")
+                notes.append(_reduction_note(label, loss))
         elif policy == "transfer":
             part, note = bind_for_transfer(part, skeleton)
             if note:
@@ -227,7 +299,9 @@ def apply_skin_policy(mesh, snapshot, state, policy: str, *, retain=None) -> tup
             part = clear_authored_skin(part)
         source.submeshes[index] = part
     if policy != "transfer":
-        source = retain(source, snapshot, state)
+        # Rig drift notes stay with the new choices, as Keep and Reduce never showed them.
+        source = retain(source, snapshot, state, notes if policy in {"fold", "extend"} else None,
+                        fold=policy == "fold")
     else:
         from cdmw.modding.mesh_totals import refresh_mesh_totals
         refresh_mesh_totals(source)

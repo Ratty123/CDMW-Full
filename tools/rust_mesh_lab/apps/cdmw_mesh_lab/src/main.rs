@@ -2794,7 +2794,9 @@ impl LabApplication {
                 },
             )
         };
-        if !self.cdmw_textured_mode_available && self.view_mode == ViewMode::TexturedSolid {
+        if !self.cdmw_textured_mode_available
+            && cdmw_ui::cdmw_view_mode_needs_textures(self.view_mode)
+        {
             self.view_mode = ViewMode::Solid;
         }
     }

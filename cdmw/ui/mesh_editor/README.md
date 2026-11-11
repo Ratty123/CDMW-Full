@@ -254,10 +254,17 @@ Storage and ownership:
   their translucency, surface or shader settings again and refuses changed ones. Only
   Create New Item packages continue; others are listed. Remove from List keeps the .cdmw.
 
-Choose the output appropriate to the session. Archive-bound sessions can **Build
-Mod** with all generated companions. **Export Mesh File** is a separate rebuilt
-asset route and is unavailable when required replacement companions cannot travel
-with it. Free Edit uses **Export Free Edit Package**; Finish only accepts its
+After **Finish Edit Mesh**, choose **Export PAC As…** beside **Build Mod** to save
+only the validated PAC under a chosen name and path. The next export remembers
+the full destination of the last successful PAC export. Existing exports are
+replaced atomically; interruption before publication preserves the previous file. This
+route creates no mod folder or report sidecar and cannot overwrite its original
+source. A renamed PAC retains its contents' original references.
+
+Edits requiring material, texture, physics or other companion files, hairstyles,
+and combined multi-mesh refits explain why **Build Mod** is needed. Archive-bound
+sessions can **Build Mod** with all generated companions. Free Edit uses
+**Export Free Edit Package**; Finish only accepts its
 geometry after checking the chosen destination. Editable GLB/FBX/OBJ exchange
 packages retain their own [companion contract](#editable-mesh-exchange).
 

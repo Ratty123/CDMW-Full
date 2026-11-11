@@ -15,6 +15,33 @@ default lighting. Supported native material layers retain their tiled detail,
 dyes and metal; unsupported graphs use bounded composition. Grime is conserved
 but omitted from normal previews. Preview results do not establish game shading.
 
+## Skinned decal sequence copies
+
+Right-click a `.paseq` and choose **Edit Skinned Decal...**. The editor changes
+present texture references and typed properties in `GameSkinnedDecalEventData`,
+`SkinnedDecalProperty` and `SkinnedDecalDynamicProperty`, then saves a loose
+`.paseq` copy. Missing properties remain absent, including omitted booleans and
+opacity defaults. An unchanged save returns the original bytes.
+
+`cdmw/core/skinned_decal.py` owns the bounded metadata-3, serialization-13/14
+reader and writer. It requires a complete structural walk, one Sequencer root,
+an indexed string pool, and the recognized empty trailing container. New texture
+strings are appended without reordering the pool; inline strings are supported
+too. Only the selected values, directory offsets, walked self-pointers and
+enclosing record lengths change. Other object bytes, masks,
+collection metadata and trailing data are preserved. The writer reopens its
+output and compares every decoded record against the requested changes.
+Unknown containers and absent/unsupported fields refuse editing. This is
+distinct from the generic fixed-size structured-string editor.
+
+`skinned_decal_service.py` reads archives and atomically publishes the loose copy
+through the existing cancellable utility worker. `skinned_decal_actions.py`
+rejects stale results; the dialog validates typed values before closing.
+No PAMT/PAZ data is written. The three caller-supplied sequence donors exercise
+both serialization versions offline; their original game build is unrecorded.
+No game attachment, normal-only blending, playback or removal is established.
+Owned fixture and hidden-widget tests live in `tests/test_skinned_decal*.py`.
+
 Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
@@ -1014,7 +1041,9 @@ Mesh Replacement for incompatible geometry changes.
 FBX retains its rig and recovered morph support, merges repeated influences on the same
 bone, and connects the resolved diffuse DDS files using portable paths. OBJ uses the
 same resolved diffuse evidence. These interchange materials do not recreate the game's
-complete layered shader. Rigid attachments without a PAC bone palette retain their
+complete layered shader. A rigid attachment whose short palette names a rig bone, such
+as a helmet on `Bip01 Head`, exports bound to that bone. Rigid attachments whose palette
+names no bone of the rig, such as a weapon's own `B_Weapon_` root, retain their
 source geometry without guessing an attachment bone. Other unresolved palettes also
 export source coordinates: the summary marks neutral appearance as unavailable, and FBX
 includes an unbound armature. OBJ returns still retain the original PAC skin records.

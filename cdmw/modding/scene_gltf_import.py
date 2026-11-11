@@ -833,8 +833,27 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
                 )
             specular_ext = extensions.get("KHR_materials_specular")
             if isinstance(specular_ext, dict):
-                _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_specularFactor", specular_ext.get("specularFactor", 1.0)))
-                _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_specularColorFactor", specular_ext.get("specularColorFactor", (1.0, 1.0, 1.0))))
+                if specular_ext.get("specularTexture") is None and specular_ext.get("specularColorTexture") is None:
+                    # Factors with no map scale nothing the export writes: the game
+                    # material is built from roughness and metalness alone. Blender
+                    # writes specularFactor 0 for "Specular 0", and drawing that here
+                    # showed a matte surface the game then rendered mirror-smooth.
+                    # Keep the authored values under names no preview channel reads.
+                    _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_gltfSpecularStrength", specular_ext.get("specularFactor", 1.0)))
+                    _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_gltfSpecularTint", specular_ext.get("specularColorFactor", (1.0, 1.0, 1.0))))
+                    try:
+                        authored_specular = float(specular_ext.get("specularFactor", 1.0))
+                    except (TypeError, ValueError, OverflowError):
+                        authored_specular = 1.0
+                    if authored_specular < 0.999:
+                        payload.diagnostics.append(
+                            f"glTF material {material_names[material_index]} sets KHR_materials_specular specularFactor "
+                            f"{authored_specular:g}; the exported game material has no specular strength, so the preview "
+                            "ignores it and shine follows roughness."
+                        )
+                else:
+                    _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_specularFactor", specular_ext.get("specularFactor", 1.0)))
+                    _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_specularColorFactor", specular_ext.get("specularColorFactor", (1.0, 1.0, 1.0))))
                 texture_infos.append(("specular", "specular", specular_ext.get("specularTexture"), "_specularTexture"))
                 texture_infos.append(("specular_color", "specular", specular_ext.get("specularColorTexture"), "_specularColorTexture"))
             clearcoat_ext = extensions.get("KHR_materials_clearcoat")

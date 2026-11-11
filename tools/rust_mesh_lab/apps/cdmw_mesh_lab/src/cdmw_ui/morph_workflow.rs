@@ -47,6 +47,8 @@ struct MorphWorkflow {
     saved: SavedTab,
     create: bool,
     sculpted: bool,
+    /// Set when the creator opens: it scrolls into view once.
+    reveal: bool,
 }
 
 impl LabApplication {
@@ -179,12 +181,17 @@ impl LabApplication {
                     self.cdmw_morph_definition_edit_id.clear();
                     workflow.create = true;
                     workflow.sculpted = false;
+                    workflow.reveal = true;
                 }
                 if workflow.create {
-                    if ui
-                        .button(crate::localization::tr("Back to sliders"))
-                        .clicked()
-                    {
+                    let back = ui.button(crate::localization::tr("Back to sliders"));
+                    if std::mem::take(&mut workflow.reveal) {
+                        // The creator opens below whatever the rail shows
+                        // above it; bring it into view without scrolling.
+                        back.scroll_to_me(Some(egui::Align::Min));
+                        ui.ctx().request_repaint();
+                    }
+                    if back.clicked() {
                         workflow.create = false;
                         workflow.shape = ShapeTab::Sliders;
                     }
@@ -234,6 +241,7 @@ impl LabApplication {
                         }
                         workflow.create = true;
                         workflow.sculpted = state_bool(&state, "authoring_baseline_ready");
+                        workflow.reveal = true;
                     }
                     ui.add_enabled_ui(!pending, |ui| match workflow.shape {
                         ShapeTab::Body => self.draw_cdmw_body_controls(ui, actions, &state),
@@ -242,6 +250,7 @@ impl LabApplication {
                             if self.draw_cdmw_shape_sliders(ui, actions, &state) {
                                 workflow.create = true;
                                 workflow.sculpted = false;
+                                workflow.reveal = true;
                             }
                         }
                     });

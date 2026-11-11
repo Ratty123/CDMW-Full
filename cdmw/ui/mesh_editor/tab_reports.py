@@ -204,6 +204,7 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         action_text: str = "rebuild report",
         developer_override: bool = False,
         developer_override_reason: str = "",
+        pac_only: bool = False,
     ) -> None:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -213,6 +214,7 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
             self._standalone_action_worker_active()
             or self._standalone_validation_worker_active()
             or self._standalone_rebuild_report_worker_active()
+            or self._mesh_direct_output_busy()
         ):
             self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
             return
@@ -232,7 +234,9 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
             output_path=output_path_text,
             developer_override=bool(developer_override and output_path_text),
             developer_override_reason=developer_override_reason,
+            expected_mesh_revision=revision if pac_only else None,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
+            pac_only=pac_only,
         )
         thread = QThread(self)
         progress = QProgressDialog(f"Running {action_text}...", "Cancel", 0, 100, self)
@@ -278,6 +282,54 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         self._set_save_rebuild_report_button_enabled(False)
         self.status_message_requested.emit(f"Running {action_text} in the background...", False)
         thread.start(QThread.LowPriority)
+    def _start_standalone_export_pac_requested(self) -> None:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            return
+        session_id = controller.active_session_id
+        session = controller.mesh_service._session(session_id)
+        reason = ""
+        if self._standalone_action_worker_active() or self._standalone_validation_worker_active() or self._standalone_rebuild_report_worker_active() or self._mesh_direct_output_busy():
+            reason = "Wait for the current Mesh Editor task to finish."
+        elif str(session.working_mesh.format).lower() != "pac":
+            reason = "Export PAC As requires a PAC mesh and a .pac destination."
+        elif session.archive_refit_context is not None or session.hair_state is not None:
+            reason = "This edit needs multiple files. Use Build Mod to save the complete result."
+        elif self._standalone_replacement_companions_required():
+            reason = "This edit requires companion files. Use Build Mod to export the complete result."
+        elif session.committed_texture_resources or session.material_generation > 0:
+            reason = "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files."
+        elif not self._standalone_export_validation_ok():
+            reason = "Finish Edit Mesh or run Check mesh successfully before exporting the PAC."
+        if reason:
+            _tab.QMessageBox.warning(self, "Export PAC As…", reason)
+            return
+        revision = self.standalone_export_validation_revision
+        default_name = f"{Path(session.working_mesh.path).stem or 'mesh'}_rebuilt.pac"
+        default_path = str(self.settings.value("mesh_editor/last_pac_export_path", "") or default_name)
+        target, _selected_filter = _tab.QFileDialog.getSaveFileName(
+            self, "Export PAC As…", default_path, "PAC files (*.pac)",
+        )
+        if not target:
+            return
+        if (
+            self.standalone_controller is not controller
+            or controller.active_session_id != session_id
+            or self.standalone_export_validation_revision != revision
+            or not self._standalone_export_validation_ok()
+        ):
+            _tab.QMessageBox.warning(self, "Export PAC As…", "The mesh changed while choosing the destination. Finish or check it again before exporting.")
+            return
+        path = Path(target)
+        if not path.suffix:
+            path = path.with_suffix(".pac")
+        if path.suffix.lower() != ".pac":
+            _tab.QMessageBox.warning(self, "Export PAC As…", "Export PAC As requires a PAC mesh and a .pac destination.")
+            return
+        self._start_standalone_rebuild_report_requested(
+            output_path=path, action_text="PAC export", pac_only=True,
+        )
+
     def _start_standalone_rebuild_asset_requested(self) -> None:
         if self._standalone_replacement_companions_required():
             self.status_message_requested.emit("This replacement requires companion files. Use Build Mod to export the complete result.", True)
@@ -345,10 +397,15 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
             "update_rebuild_report",
             state.publish_ready(report),
         )
-        self.standalone_workspace._focus_right_panel("Rebuild")
+        pac_only = bool(getattr(self.standalone_rebuild_report_worker, "pac_only", False))
+        if not pac_only:
+            self.standalone_workspace._focus_right_panel("Rebuild")
         output_path = str(getattr(report, "output_path", "") or "").strip()
         self.standalone_last_rebuilt_asset_path = Path(output_path) if output_path else None
         text = f"Patched asset rebuilt: {output_path}" if output_path else "Rebuild report ready."
+        if pac_only and output_path:
+            self.settings.setValue("mesh_editor/last_pac_export_path", output_path)
+            text = f"PAC exported: {output_path}"
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
     def _handle_standalone_rebuild_report_cancelled(self, request_id: int, message: str) -> None:
@@ -365,6 +422,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         self._publish_standalone_rebuild_failure_state("rebuild_worker_failed", text)
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
+        if getattr(self.standalone_rebuild_report_worker, "pac_only", False):
+            _tab.QMessageBox.warning(self, "Export PAC As…", text)
     def _standalone_rebuilt_asset_handoff_payload(self, *, action: str) -> tuple[_tab.ArchiveEntry, Path] | None:
         if not self._standalone_rebuild_report_current():
             self.status_message_requested.emit(f"Rebuild a patched asset before {action} it.", True)

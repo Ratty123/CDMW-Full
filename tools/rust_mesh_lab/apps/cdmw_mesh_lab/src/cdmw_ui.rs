@@ -662,8 +662,9 @@ pub(super) mod layout {
     }
 }
 
-const CDMW_VIEW_MODES: [(ViewMode, &str); 9] = [
+const CDMW_VIEW_MODES: [(ViewMode, &str); 10] = [
     (ViewMode::TexturedSolid, "Solid (Textured)"),
+    (ViewMode::BaseColor, "Base Color"),
     (ViewMode::PartId, "Part colors"),
     (ViewMode::PartId, "Island colors"),
     (ViewMode::Solid, "Faces (No Textures)"),
@@ -1494,6 +1495,13 @@ fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
 pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
     context.data_mut(|data| data.insert_temp(egui::Id::new(id), expanded));
     context.request_repaint();
+}
+
+/// Display modes that sample the material textures. Without an uploaded
+/// texture they would draw a flat white model, so they are offered only once
+/// one is bound.
+pub(crate) const fn cdmw_view_mode_needs_textures(mode: ViewMode) -> bool {
+    matches!(mode, ViewMode::TexturedSolid | ViewMode::BaseColor)
 }
 
 fn cdmw_view_mode_label(mode: ViewMode, islands: bool) -> &'static str {
@@ -3005,12 +3013,15 @@ impl LabApplication {
         {
             self.view_mode = ViewMode::TexturedSolid;
         }
-        if self.view_mode == ViewMode::TexturedSolid && !self.cdmw_textured_mode_available {
+        if cdmw_view_mode_needs_textures(self.view_mode) && !self.cdmw_textured_mode_available {
             self.view_mode = ViewMode::Solid;
         }
         let display_label = ui.label(crate::localization::tr("Display"));
         ComboBox::from_id_salt("Display")
             .width(ui.available_width())
+            // Tall enough to show every mode: at the default 200 px the list
+            // scrolls and the last choice sits out of sight.
+            .height(320.0)
             .truncate()
             .selected_text(crate::localization::tr(cdmw_view_mode_label(
                 self.view_mode,
@@ -3019,7 +3030,7 @@ impl LabApplication {
             .show_ui(ui, |ui| {
                 for (mode, label) in CDMW_VIEW_MODES {
                     let islands = label == "Island colors";
-                    let enabled = (mode != ViewMode::TexturedSolid
+                    let enabled = (!cdmw_view_mode_needs_textures(mode)
                         || self.cdmw_textured_mode_available)
                         && (!islands || self.cdmw_state["mesh_islands"]["color_faces"].is_array());
                     let response = ui
@@ -3202,6 +3213,8 @@ impl LabApplication {
             for (value, title, help) in [
                 ("preserve", "Keep Imported Weights", "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are."),
                 ("reduce", "Reduce to Six Influences", "Keep each vertex's six strongest bones and rebalance them. A game vertex holds six."),
+                ("fold", "Move to Parent Bones", "Keep the model's weights, but move weight on a bone the original model does not use to its nearest parent bone that it does. Those vertices then follow that parent rigidly."),
+                ("extend", "Add Bones to Model (Experimental)", "Keep the model's weights exactly and add the game bones it uses to this model's bone list. Not yet tested in game."),
                 ("transfer", "Transfer from Original", "Replace the model's weights with the original model's weights at the nearest surface. Works with any rig, or none."),
             ] {
                 let available = enabled(value);
@@ -3235,6 +3248,8 @@ impl LabApplication {
             );
         } else if policy == "transfer" {
             ui.small(crate::localization::tr("Transferred weights follow the nearest original surface, so rigid pieces such as horns may bend with what they touch. Check and fix them in Rig & Weights after applying."));
+        } else if policy == "extend" {
+            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("A model with added bones has not been tested in game yet. Test it in game before sharing the mod; if it fails, import again with Move to Parent Bones."));
         }
         Some(policy)
     }
@@ -6327,6 +6342,7 @@ mod tests {
             CDMW_VIEW_MODES.map(|(_, label)| label),
             [
                 "Solid (Textured)",
+                "Base Color",
                 "Part colors",
                 "Island colors",
                 "Faces (No Textures)",
@@ -6340,7 +6356,6 @@ mod tests {
         let modes = CDMW_VIEW_MODES.map(|(mode, _)| mode);
         for diagnostic in [
             ViewMode::GameOutdoor,
-            ViewMode::BaseColor,
             ViewMode::NormalMap,
             ViewMode::UvChecker,
             ViewMode::BaseAlpha,
@@ -6429,10 +6444,18 @@ mod tests {
                 .contains("DDS upload validation failed")
         );
 
+        application.view_mode = ViewMode::BaseColor;
+        application.record_cdmw_texture_uploads(1, 0, 0, Some("DDS upload validation failed"));
+        assert_eq!(application.view_mode, ViewMode::Solid);
+
         application.view_mode = ViewMode::TexturedSolid;
         application.record_cdmw_texture_uploads(1, 1, 1, None);
         assert!(application.cdmw_textured_mode_available);
         assert_eq!(application.view_mode, ViewMode::TexturedSolid);
         assert!(application.cdmw_textured_mode_reason.is_empty());
+
+        application.view_mode = ViewMode::BaseColor;
+        application.record_cdmw_texture_uploads(1, 1, 1, None);
+        assert_eq!(application.view_mode, ViewMode::BaseColor);
     }
 }

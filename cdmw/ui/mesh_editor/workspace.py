@@ -140,6 +140,7 @@ class MeshEditorWorkspace(
     rebuild_report_requested = Signal()
     replace_from_archive_requested = Signal()
     export_mesh_file_requested = Signal()
+    export_pac_requested = Signal()
     build_mod_requested = Signal()
     add_to_archive_browser_requested = Signal()
     continue_modified_mesh_requested = Signal()

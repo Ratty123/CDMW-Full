@@ -143,6 +143,9 @@ def test_workflow_routes_use_registered_tools_and_state_prerequisites(rows):
         assert row.tool == "Browse Archives > Edit Structured Data Safely..."
         assert "select a file" in row.workflow.prerequisites
         assert row.write == "constrained"
+    sequence = next(row for row in rows if row.extension == ".paseq")
+    assert any("Edit Skinned Decal..." in operation.description for operation in sequence.workflow.operations)
+    assert "serialization 13/14" in " ".join(sequence.workflow.limits)
     for extension in (".pae", ".paem"):
         row = next(row for row in rows if row.extension == extension)
         assert row.tool == "Create New Item > Effects"
