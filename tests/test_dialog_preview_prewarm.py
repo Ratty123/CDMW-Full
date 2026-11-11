@@ -128,3 +128,24 @@ def test_exited_spare_is_discarded_and_can_be_prepared_again(spare, tmp_path):
     assert pool._controller is None
     pool.ensure(tmp_path, executable)
     assert len(tasks) == 1
+
+
+def test_startup_registration_waits_for_the_first_dialog(spare, tmp_path):
+    # Browse registers the pool at startup; a spare renderer process (its own
+    # GPU device and memory) starts only once a dialog has wanted one.
+    pool, tasks, processes, executable = spare
+    tasks.clear()
+    late = prewarm.DialogPreviewPrewarm(QApplication.instance())
+    try:
+        late.register(tmp_path, executable)
+        assert not tasks and late._controller is None
+        owner = QWidget()
+        try:
+            assert late.take(parent=owner, host_hwnd=lambda: 1, profile="preview",
+                configured=executable, terminate_on_close=True, direct_authoring=False) is None
+        finally:
+            shiboken6.delete(owner)
+        assert len(tasks) == 1, "the first dialog asks for the next spare"
+    finally:
+        late.shutdown()
+        late.deleteLater()

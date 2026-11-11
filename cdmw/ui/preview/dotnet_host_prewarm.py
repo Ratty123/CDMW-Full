@@ -83,12 +83,23 @@ class DialogPreviewPrewarm(QObject):
     def _configured_key(path: Path | str | None) -> str:
         return str(Path(path).resolve()).casefold() if path else ""
 
-    def ensure(self, cache_root: Path, configured=None, localizer=None) -> None:
+    def register(self, cache_root: Path, configured=None, localizer=None) -> None:
+        """Remember how to launch a spare without starting one.
+
+        Browse Archives registers at startup; the spare costs a renderer
+        process and its GPU device, so it starts only after the first preview
+        dialog has asked for one.
+        """
         if self._closed:
             return
         self._cache_root = Path(cache_root)
         self._configured = configured
         self._localizer = localizer
+
+    def ensure(self, cache_root: Path, configured=None, localizer=None) -> None:
+        if self._closed:
+            return
+        self.register(cache_root, configured, localizer)
         if self._task is None and self._controller is None:
             self._prepare()
 
@@ -164,6 +175,10 @@ class DialogPreviewPrewarm(QObject):
 
     def take(self, *, parent, host_hwnd, profile, configured, terminate_on_close, direct_authoring):
         controller = self._controller
+        if not self._closed and controller is None and terminate_on_close and self._task is None:
+            # A dialog wanted a spare and none was waiting: this one starts its
+            # own helper, and the next dialog finds one ready.
+            self._prepare()
         if self._closed or controller is None or not terminate_on_close:
             return None
         if (
@@ -205,7 +220,7 @@ class DialogPreviewPrewarm(QObject):
         self._parking.deleteLater()
 
 
-def ensure_dialog_preview_prewarm(cache_root: Path, configured=None, localizer=None) -> None:
+def ensure_dialog_preview_prewarm(cache_root: Path, configured=None, localizer=None, *, launch=True) -> None:
     application = QApplication.instance()
     if application is None:
         return
@@ -213,7 +228,10 @@ def ensure_dialog_preview_prewarm(cache_root: Path, configured=None, localizer=N
     if pool is None:
         pool = DialogPreviewPrewarm(application)
         application._cdmw_dialog_preview_prewarm = pool
-    pool.ensure(cache_root, configured, localizer)
+    if launch:
+        pool.ensure(cache_root, configured, localizer)
+    else:
+        pool.register(cache_root, configured, localizer)
 
 
 def take_dialog_preview_prewarm(**kwargs):

@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- CDMW talks to the worker through pipes; as a console program it also
+         got its own hidden conhost.exe. Release builds have no console. -->
+    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyName>cdmw-full-archive-worker</AssemblyName>
     <RootNamespace>Cdmw.FullArchive.Worker</RootNamespace>

@@ -105,3 +105,19 @@ class HiddenSubprocessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_detached_resident_helpers_get_no_console_but_keep_their_group():
+    # A console helper started with CREATE_NO_WINDOW still gets a hidden
+    # conhost.exe; resident pipe-only helpers start detached instead.
+    import os
+    import subprocess
+    from cdmw.core.common import hidden_process_group_kwargs
+
+    if os.name != "nt":
+        return
+    flags = hidden_process_group_kwargs(detached=True)["creationflags"]
+    assert flags & subprocess.DETACHED_PROCESS
+    assert not flags & subprocess.CREATE_NO_WINDOW
+    assert flags & subprocess.CREATE_NEW_PROCESS_GROUP
+    assert hidden_process_group_kwargs()["creationflags"] & subprocess.CREATE_NO_WINDOW

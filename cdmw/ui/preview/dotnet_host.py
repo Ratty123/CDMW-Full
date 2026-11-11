@@ -350,7 +350,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
     def prewarm_from_cache(self, cache_root: Path | str) -> bool:
         ensure_dialog_preview_prewarm(
             Path(cache_root), getattr(self.controller, "_configured_executable", None),
-            getattr(self.controller, "_ui_localizer", None),
+            getattr(self.controller, "_ui_localizer", None), launch=False,
         )
         if self._prewarm_task is not None:
             return False

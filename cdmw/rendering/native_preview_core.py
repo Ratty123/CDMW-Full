@@ -412,7 +412,7 @@ class NativePreviewCoreServiceClient:
             text=True,
             encoding="utf-8",
             errors="replace",
-            **hidden_process_group_kwargs(),
+            **hidden_process_group_kwargs(detached=True),
         )
         stderr = self._process.stderr
         self._stderr_tail = BoundedTextTail()

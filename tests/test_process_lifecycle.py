@@ -170,7 +170,7 @@ def test_persistent_mesh_helpers_drain_stderr_and_use_process_groups() -> None:
     preview_source = Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8")
     for source in (mesh_source, preview_source):
         assert "start_bounded_text_stream_drain(" in source
-        assert "hidden_process_group_kwargs()" in source
+        assert "hidden_process_group_kwargs(detached=True)" in source
         assert "finish_process_tree(" in source
         assert "stderr=subprocess.PIPE" in source
 

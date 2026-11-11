@@ -1,4 +1,8 @@
 #![forbid(unsafe_code)]
+// CDMW starts this helper through pipes. As a console program each instance
+// also got its own hidden conhost.exe; release builds are windows-subsystem
+// programs instead. Debug and test builds keep their console for development.
+#![cfg_attr(all(windows, not(test), not(debug_assertions)), windows_subsystem = "windows")]
 #![recursion_limit = "256"]
 
 mod camera;
