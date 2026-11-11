@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from .mesh_parser import PAC_SKIN_EXTRA_INDEX_SENTINEL, _parse_par_sections
 from .pabv_parser import decode_pac_embedded_volumes
 from .pac_cloth import pac_cloth_lods
-from .pac_cloth_guide_builder import _guide_block, _skin, guide_creation_layout
+from .pac_cloth_guide_builder import _guide_block, _skin, drop_flat_stored_triangles, guide_creation_layout
 from .pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_topology
 from .pac_cloth_paint import ClothPaintSamples, _nearest_values, apply_pac_cloth_paint, blend_for_paint
 
@@ -58,6 +58,8 @@ class PaintedGuideReport:
     removed_template_guides: int
     #: Painted pieces nothing holds: they get no guides and follow the nearest held cloth.
     riding_pieces: int = 0
+    #: Triangles with no area once the guide positions are stored; they make no guide face.
+    skipped_flat_triangles: int = 0
 
 
 def remove_pac_cloth_guides(data: bytes) -> tuple[bytes, int]:
@@ -377,6 +379,14 @@ def create_painted_cloth_guides(
     if reduced:
         order, faces, pins = reduce_guide_mesh(points, faces, pins, check_cancelled=check_cancelled)
         points, records = [points[i] for i in order], [records[i] for i in order]
+    # A triangle flat once stored makes no guide face; a piece it alone held rides like any other.
+    order, faces, flat = drop_flat_stored_triangles(points, faces)
+    renumber = {old: new for new, old in enumerate(order)}
+    points, records = [points[i] for i in order], [records[i] for i in order]
+    pins = {renumber[p] for p in pins if p in renumber}
+    if flat:
+        points, records, faces, pins, cut_off = held_guide_pieces(points, records, faces, pins)
+        riding += cut_off
     if len(points) < 3 or not faces:
         raise ValueError("The painted area is too small for cloth. Paint at least one whole face.")
     if not pins:
@@ -409,4 +419,4 @@ def create_painted_cloth_guides(
         guide_count=len(points), pinned_guides=len(pins), source_lod=lod, source_vertices=source_vertices,
         reduced=reduced, cloth_vertices=bind.cloth_vertices, rigid_vertices=bind.rigid_vertices,
         reduced_skin_vertices=bind.reduced_vertices, cloth_parts=bind.cloth_parts or names,
-        removed_template_guides=removed, riding_pieces=riding)
+        removed_template_guides=removed, riding_pieces=riding, skipped_flat_triangles=len(flat))

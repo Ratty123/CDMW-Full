@@ -98,7 +98,7 @@ def maintain_temp_data(
     return report
 
 
-# ``workspace	emp`` belongs to one copy of CDMW and nothing else writes there.
+# ``workspace\temp`` belongs to one copy of CDMW and nothing else writes there.
 # Folders a live process uses were touched since it started, so an entry no
 # file in which changed for a day is a leftover from a crash or a kill.
 WORKSPACE_TEMP_MAX_AGE_SECONDS = 24 * 60 * 60

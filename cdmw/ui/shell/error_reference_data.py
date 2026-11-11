@@ -32319,7 +32319,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1530
+      "cdmw/ui/new_item/panels_model.py": 1531
     }
   },
   {
@@ -35289,7 +35289,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty; scan the archives first.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/controller_task_mixin.py": 94
+      "cdmw/ui/new_item/controller_task_mixin.py": 95
     }
   },
   {
@@ -35628,7 +35628,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon could not be made from that selection: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 450
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 451
     }
   },
   {
@@ -36070,7 +36070,7 @@ MESSAGE_REFERENCE = [
     "message": "The snapshot finished with an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/controller_task_mixin.py": 133
+      "cdmw/ui/new_item/controller_task_mixin.py": 134
     }
   },
   {
@@ -38362,7 +38362,7 @@ MESSAGE_REFERENCE = [
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 448
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 449
     }
   },
   {
@@ -43321,7 +43321,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected part has no assignment in this variant.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 230
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 241
     }
   },
   {
@@ -43329,7 +43329,7 @@ MESSAGE_REFERENCE = [
     "message": "A selected profile could not be resolved from its exact source.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 242
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 253
     }
   },
   {
@@ -44317,7 +44317,7 @@ MESSAGE_REFERENCE = [
     "message": "Blocked by Morph & Refit",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 621,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 632,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs": 401
     }
   },
@@ -45810,7 +45810,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose included parts for guide creation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 108
+      "cdmw/services/mesh_rust_cloth_guides.py": 122
     }
   },
   {
@@ -45874,7 +45874,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose unique included parts for guide creation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 103
+      "cdmw/services/mesh_rust_cloth_guides.py": 117
     }
   },
   {
@@ -45898,7 +45898,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose whether painted pins hold the guides.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 114
+      "cdmw/services/mesh_rust_cloth_guides.py": 128
     }
   },
   {
@@ -45978,7 +45978,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth guide data could not be decoded; its availability is unknown.",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 536
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 547
     }
   },
   {
@@ -46002,7 +46002,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 844
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 855
     }
   },
   {
@@ -47716,7 +47716,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact physics profiles are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 521
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 532
     }
   },
   {
@@ -49328,7 +49328,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide rotation cannot be applied without orientation neighbors.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 604
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 615
     }
   },
   {
@@ -50325,7 +50325,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid guide creation request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 111
+      "cdmw/services/mesh_rust_cloth_guides.py": 125
     }
   },
   {
@@ -50341,7 +50341,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid guide reset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 99
+      "cdmw/services/mesh_rust_cloth_guides.py": 113
     }
   },
   {
@@ -50672,7 +50672,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid source value",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 317
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 328
     }
   },
   {
@@ -55504,7 +55504,7 @@ MESSAGE_REFERENCE = [
     "message": "No supported weapon collision geometry.",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 1043
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 1054
     }
   },
   {
@@ -59122,7 +59122,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile assignments are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 224
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 235
     }
   },
   {
@@ -59130,7 +59130,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile part assignments are unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 215
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 226
     }
   },
   {
@@ -59138,7 +59138,7 @@ MESSAGE_REFERENCE = [
     "message": "Profile values are unsupported by the cloth preview.",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 577
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 588
     }
   },
   {
@@ -59651,7 +59651,7 @@ MESSAGE_REFERENCE = [
     "message": "Render guide bindings exist, but their guide mesh is missing.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 731
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 742
     }
   },
   {
@@ -61220,7 +61220,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected parts use different profiles. Preview one assignment at a time.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 250
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 261
     }
   },
   {
@@ -62849,7 +62849,7 @@ MESSAGE_REFERENCE = [
     "message": "The exact profile source is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 247
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 258
     }
   },
   {
@@ -63806,7 +63806,7 @@ MESSAGE_REFERENCE = [
     "message": "This variant explicitly leaves a selected part without a profile.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 235
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs": 246
     }
   },
   {
@@ -75717,7 +75717,7 @@ MESSAGE_REFERENCE = [
     "message": "{rows[key].get('name') or key} has no painted pins. Paint pins on it, or pin the guides by height.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_cloth_guides.py": 128
+      "cdmw/services/mesh_rust_cloth_guides.py": 142
     }
   },
   {
@@ -76010,6 +76010,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A capture is written inside the run's own profile folder only.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/bridge.py": 428
+    }
+  },
+  {
+    "area": "other",
     "message": "A competing unfinished device run must be reconciled first.",
     "recovery": "input",
     "sources": {
@@ -76093,7 +76101,7 @@ MESSAGE_REFERENCE = [
     "message": "A guide-free PAC contains unexpected existing render guide bindings.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 108
+      "cdmw/modding/pac_cloth_guide_builder.py": 109
     }
   },
   {
@@ -76842,6 +76850,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Automation needs a private profile: set CDMW_PROFILE_DIR to a folder of its own.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/policy.py": 48
+    }
+  },
+  {
+    "area": "other",
+    "message": "Automation needs a token of at least {_MIN_TOKEN_BYTES} bytes, as hex, in {TOKEN_ENV}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/policy.py": 58
+    }
+  },
+  {
+    "area": "other",
+    "message": "Automation refuses the app's own folder as its profile.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/automation/policy.py": 51
+    }
+  },
+  {
+    "area": "other",
     "message": "Background task failed: %s",
     "recovery": "internal",
     "sources": {
@@ -76877,7 +76909,7 @@ MESSAGE_REFERENCE = [
     "message": "Blender could not be run: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/fbx_blender_conversion.py": 366
+      "cdmw/services/fbx_blender_conversion.py": 365
     }
   },
   {
@@ -76885,7 +76917,7 @@ MESSAGE_REFERENCE = [
     "message": "Blender could not convert {path.name} (exit {code}): {tail[-1][:300] if tail else ''}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/fbx_blender_conversion.py": 373
+      "cdmw/services/fbx_blender_conversion.py": 372
     }
   },
   {
@@ -76893,7 +76925,7 @@ MESSAGE_REFERENCE = [
     "message": "Blender did not finish converting {path.name} within {timeout_seconds}s.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/services/fbx_blender_conversion.py": 364
+      "cdmw/services/fbx_blender_conversion.py": 363
     }
   },
   {
@@ -77559,7 +77591,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a pin height or pins that leave both fixed and moving guides.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 152
+      "cdmw/modding/pac_cloth_guide_builder.py": 159
     }
   },
   {
@@ -77863,7 +77895,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth guide creation changed the retained bone palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 405
+      "cdmw/modding/pac_cloth_painted_guides.py": 415
     }
   },
   {
@@ -77935,7 +77967,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth paint needs a positive sample tolerance.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 348
+      "cdmw/modding/pac_cloth_painted_guides.py": 350
     }
   },
   {
@@ -77975,7 +78007,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth pins for {name} need the part's LOD0 geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 272
+      "cdmw/modding/pac_cloth_guide_builder.py": 310
     }
   },
   {
@@ -77991,7 +78023,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth pins on {name} no longer line up with its vertices. Create the cloth guides again; paint the pins first if they are gone.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 279
+      "cdmw/modding/pac_cloth_guide_builder.py": 317
     }
   },
   {
@@ -79814,7 +79846,7 @@ MESSAGE_REFERENCE = [
     "message": "Every cloth guide is pinned, so nothing would move. Paint a larger area or fewer pins.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 386
+      "cdmw/modding/pac_cloth_painted_guides.py": 396
     }
   },
   {
@@ -79827,10 +79859,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Every disconnected guide piece needs a fixed guide ({where} without one). Lower the pin height, paint a pin on each piece or select fewer parts.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/pac_cloth_guide_builder.py": 469
+    }
+  },
+  {
+    "area": "other",
     "message": "Every disconnected guide piece needs a fixed guide. Lower the pin height, paint a pin on each piece or select fewer parts.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 164
+      "cdmw/modding/pac_cloth_guide_builder.py": 171
     }
   },
   {
@@ -80310,7 +80350,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated guide topology did not pass independent decoding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 369
+      "cdmw/modding/pac_cloth_guide_builder.py": 499
     }
   },
   {
@@ -80414,7 +80454,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide bounds cannot be represented in the PAC format.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 210
+      "cdmw/modding/pac_cloth_guide_builder.py": 218
     }
   },
   {
@@ -80422,7 +80462,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide bounds must be finite.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 213
+      "cdmw/modding/pac_cloth_guide_builder.py": 221
     }
   },
   {
@@ -80462,7 +80502,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide constraints exceed the per-vertex format limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 184
+      "cdmw/modding/pac_cloth_guide_builder.py": 191
     }
   },
   {
@@ -80470,7 +80510,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation cannot locate every PAC descriptor.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 92
+      "cdmw/modding/pac_cloth_guide_builder.py": 93
     }
   },
   {
@@ -80478,7 +80518,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation cannot prove the PAC vertex/index section offsets.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 106
+      "cdmw/modding/pac_cloth_guide_builder.py": 107
     }
   },
   {
@@ -80486,7 +80526,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation cannot relocate undecoded data after the PAC sections.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 84
+      "cdmw/modding/pac_cloth_guide_builder.py": 85
     }
   },
   {
@@ -80494,7 +80534,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation cannot relocate undecoded trailing PAC metadata.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 60
+      "cdmw/modding/pac_cloth_guide_builder.py": 61
     }
   },
   {
@@ -80502,7 +80542,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation changed the retained bone palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 371
+      "cdmw/modding/pac_cloth_guide_builder.py": 501
     }
   },
   {
@@ -80510,7 +80550,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires a complete descriptor count.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 87
+      "cdmw/modding/pac_cloth_guide_builder.py": 88
     }
   },
   {
@@ -80518,7 +80558,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires a complete, decoded PAC metadata trailer.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 35
+      "cdmw/modding/pac_cloth_guide_builder.py": 36
     }
   },
   {
@@ -80526,7 +80566,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires an unambiguous existing bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 98
+      "cdmw/modding/pac_cloth_guide_builder.py": 99
     }
   },
   {
@@ -80534,7 +80574,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires complete PAC metadata.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 77
+      "cdmw/modding/pac_cloth_guide_builder.py": 78
     }
   },
   {
@@ -80542,7 +80582,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires complete PAC sections.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 69
+      "cdmw/modding/pac_cloth_guide_builder.py": 70
     }
   },
   {
@@ -80550,7 +80590,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires decoded PAC sections.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 73
+      "cdmw/modding/pac_cloth_guide_builder.py": 74
     }
   },
   {
@@ -80558,7 +80598,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires the decoded 2, 3 or 4 LOD section layout.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 82
+      "cdmw/modding/pac_cloth_guide_builder.py": 83
     }
   },
   {
@@ -80566,7 +80606,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation requires the known PAC 3/9 layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 66
+      "cdmw/modding/pac_cloth_guide_builder.py": 67
     }
   },
   {
@@ -80646,7 +80686,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide removal changed the retained bone palette.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 109
+      "cdmw/modding/pac_cloth_painted_guides.py": 111
     }
   },
   {
@@ -80654,7 +80694,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide removal left a guide block behind.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 106
+      "cdmw/modding/pac_cloth_painted_guides.py": 108
     }
   },
   {
@@ -80662,7 +80702,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide removal needs decompressed PAC metadata.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 97
+      "cdmw/modding/pac_cloth_painted_guides.py": 99
     }
   },
   {
@@ -80678,7 +80718,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide settings refer to an invalid PAC part.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 299
+      "cdmw/modding/pac_cloth_guide_builder.py": 388
     }
   },
   {
@@ -80686,7 +80726,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide tables exceed the uint16 format limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 192
+      "cdmw/modding/pac_cloth_guide_builder.py": 199
     }
   },
   {
@@ -80694,7 +80734,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide topology exceeds the format limits. Choose a simpler source LOD.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 219
+      "cdmw/modding/pac_cloth_guide_builder.py": 257
     }
   },
   {
@@ -82881,15 +82921,15 @@ MESSAGE_REFERENCE = [
     "message": "New cloth bindings require valid existing bone influences at every LOD.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 117
+      "cdmw/modding/pac_cloth_guide_builder.py": 118
     }
   },
   {
     "area": "other",
-    "message": "New cloth requires 3 to 1024 welded guides in total. Choose a lower source LOD or fewer parts.",
+    "message": "New cloth requires 3 to 1024 welded guides in total; these parts give {len(points)}. Choose a lower source LOD or fewer parts.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 340
+      "cdmw/modding/pac_cloth_guide_builder.py": 460
     }
   },
   {
@@ -83161,7 +83201,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing holds the painted cloth. Leave the area it hangs from unpainted, or paint pins where it attaches.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 383
+      "cdmw/modding/pac_cloth_painted_guides.py": 393
     }
   },
   {
@@ -83809,7 +83849,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC optional metadata arrays cannot be empty when enabled.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 54
+      "cdmw/modding/pac_cloth_guide_builder.py": 55
     }
   },
   {
@@ -83906,7 +83946,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_paint.py": 142,
-      "cdmw/modding/pac_cloth_painted_guides.py": 350
+      "cdmw/modding/pac_cloth_painted_guides.py": 352
     }
   },
   {
@@ -84114,7 +84154,7 @@ MESSAGE_REFERENCE = [
     "message": "Reading an FBX needs Blender, and the studio has not been pointed at one. Choose blender.exe on the Model step, or export the model as glTF, GLB, OBJ or DAE yourself.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/fbx_blender_conversion.py": 335
+      "cdmw/services/fbx_blender_conversion.py": 334
     }
   },
   {
@@ -84226,7 +84266,7 @@ MESSAGE_REFERENCE = [
     "message": "Recover the interrupted virtual profile transaction before changing this installation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/installation_lane.py": 45
+      "cdmw/services/installation_lane.py": 48
     }
   },
   {
@@ -85490,6 +85530,38 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The app did not start listening: {last}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/client.py": 90
+    }
+  },
+  {
+    "area": "other",
+    "message": "The app exited with {self.process.returncode} before listening.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/client.py": 83
+    }
+  },
+  {
+    "area": "other",
+    "message": "The app sent an unexpected reply.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/automation/client.py": 34
+    }
+  },
+  {
+    "area": "other",
+    "message": "The archive has no entry {args['path']}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/bridge.py": 376
+    }
+  },
+  {
+    "area": "other",
     "message": "The archive lookup for the look's models was cut short.",
     "recovery": "internal",
     "sources": {
@@ -85510,6 +85582,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/match_item_icon_reference.py": 381
+    }
+  },
+  {
+    "area": "other",
+    "message": "The automation pipe is Windows-only.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/pipe.py": 113
+    }
+  },
+  {
+    "area": "other",
+    "message": "The automation pipe needs a name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/policy.py": 37
     }
   },
   {
@@ -85621,7 +85709,7 @@ MESSAGE_REFERENCE = [
     "message": "The captured guide bone palette does not match this PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 304
+      "cdmw/modding/pac_cloth_guide_builder.py": 393
     }
   },
   {
@@ -85726,6 +85814,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/modding/collision_volume_edit.py": 124
+    }
+  },
+  {
+    "area": "other",
+    "message": "The command failed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/client.py": 36
     }
   },
   {
@@ -86141,7 +86237,7 @@ MESSAGE_REFERENCE = [
     "message": "The guide source LOD is not stored in this PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 306
+      "cdmw/modding/pac_cloth_guide_builder.py": 395
     }
   },
   {
@@ -86149,7 +86245,7 @@ MESSAGE_REFERENCE = [
     "message": "The guide source contains a degenerate triangle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 143
+      "cdmw/modding/pac_cloth_guide_builder.py": 150
     }
   },
   {
@@ -86157,7 +86253,7 @@ MESSAGE_REFERENCE = [
     "message": "The guide source has a non-manifold edge. Choose a simpler source LOD.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 150
+      "cdmw/modding/pac_cloth_guide_builder.py": 157
     }
   },
   {
@@ -86573,7 +86669,7 @@ MESSAGE_REFERENCE = [
     "message": "The new cloth guides did not pass independent decoding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 403
+      "cdmw/modding/pac_cloth_painted_guides.py": 413
     }
   },
   {
@@ -86821,7 +86917,7 @@ MESSAGE_REFERENCE = [
     "message": "The painted area cannot become a cloth guide mesh ({detail}). Paint whole faces of a single-layer surface.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 370
+      "cdmw/modding/pac_cloth_painted_guides.py": 372
     }
   },
   {
@@ -86829,7 +86925,7 @@ MESSAGE_REFERENCE = [
     "message": "The painted area could not be reduced to {target} cloth guides without breaking its surface (it stops at {len(alive)}). Paint a smaller area.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 241
+      "cdmw/modding/pac_cloth_painted_guides.py": 243
     }
   },
   {
@@ -86837,7 +86933,7 @@ MESSAGE_REFERENCE = [
     "message": "The painted area is too small for cloth. Paint at least one whole face.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 381
+      "cdmw/modding/pac_cloth_painted_guides.py": 391
     }
   },
   {
@@ -86846,6 +86942,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/cditem_device_cli.py": 81
+    }
+  },
+  {
+    "area": "other",
+    "message": "The preview cannot capture a frame now.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/automation/bridge.py": 432
     }
   },
   {
@@ -86861,7 +86965,7 @@ MESSAGE_REFERENCE = [
     "message": "The recovery manifest exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/installation_lane.py": 73
+      "cdmw/services/installation_lane.py": 76
     }
   },
   {
@@ -87069,7 +87173,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected guide source LOD has no geometry for this part.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 309
+      "cdmw/modding/pac_cloth_guide_builder.py": 398
     }
   },
   {
@@ -87174,6 +87278,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/skinned_decal.py": 180
+    }
+  },
+  {
+    "area": "other",
+    "message": "The shared Preview settings are not available.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/automation/bridge.py": 358
     }
   },
   {
@@ -87302,7 +87414,7 @@ MESSAGE_REFERENCE = [
     "message": "The template's cloth guide block could not be located exactly.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_painted_guides.py": 93
+      "cdmw/modding/pac_cloth_painted_guides.py": 95
     }
   },
   {
@@ -87438,7 +87550,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAC already has authored guides. Restore or edit those guides instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 80
+      "cdmw/modding/pac_cloth_guide_builder.py": 81
     }
   },
   {
@@ -87550,7 +87662,7 @@ MESSAGE_REFERENCE = [
     "message": "This installation is in use by another CDMW operation or virtual game session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/installation_lane.py": 40
+      "cdmw/services/installation_lane.py": 43
     }
   },
   {
@@ -87662,7 +87774,7 @@ MESSAGE_REFERENCE = [
     "message": "This source needs skeletal weight conversion. Enable Reduce skinning to four bones to allow it at every LOD.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 130
+      "cdmw/modding/pac_cloth_guide_builder.py": 131
     }
   },
   {
@@ -87839,6 +87951,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/pac_xml_editor.py": 214
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown automation command: {command or '(none)'}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/bridge.py": 263
     }
   },
   {
@@ -88850,14 +88970,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_weapon_collisions.py": 136
-    }
-  },
-  {
-    "area": "other",
-    "message": "Welding the guide source produces a degenerate triangle.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/pac_cloth_guide_builder.py": 334
     }
   },
   {
@@ -91000,6 +91112,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "no {name} event within the timeout",
+    "recovery": "timeout",
+    "sources": {
+      "cdmw/automation/bridge.py": 229
+    }
+  },
+  {
+    "area": "other",
     "message": "node {index} names animations {first}..{first + count} of {animation_count}",
     "recovery": "internal",
     "sources": {
@@ -92235,6 +92355,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{command} did not finish on the UI thread",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/bridge.py": 267
+    }
+  },
+  {
+    "area": "other",
     "message": "{count} {label} detected.",
     "recovery": "internal",
     "sources": {
@@ -92827,6 +92955,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{names[index]}, LOD {rule.source_lod}: all {flat[index] + collapsed[index]} triangles are too thin to store as guide faces, so there is nothing to build guides from. Choose another source LOD or leave this part out.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/modding/pac_cloth_guide_builder.py": 456
+    }
+  },
+  {
+    "area": "other",
     "message": "{name} gains or loses rows; DMM operations can only add to existing ones.",
     "recovery": "internal",
     "sources": {
@@ -92863,6 +92999,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/character_creator.py": 95
+    }
+  },
+  {
+    "area": "other",
+    "message": "{name}, LOD {rule.source_lod}: all {len(source.faces)} triangles collapse when the guide source is welded, so there is nothing to build guides from. Choose another source LOD or leave this part out.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/modding/pac_cloth_guide_builder.py": 431
     }
   },
   {
@@ -93062,7 +93206,7 @@ MESSAGE_REFERENCE = [
     "message": "{path.name} is not there to convert.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/fbx_blender_conversion.py": 340
+      "cdmw/services/fbx_blender_conversion.py": 339
     }
   },
   {
@@ -95452,7 +95596,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth influence editing is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 383
+      "cdmw/services/mesh_replacement_output.py": 387
     }
   },
   {
@@ -95476,7 +95620,7 @@ MESSAGE_REFERENCE = [
     "message": "Collision volume edits are supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 406
+      "cdmw/services/mesh_replacement_output.py": 410
     }
   },
   {
@@ -95709,7 +95853,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate replacement companion: {file.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 477
+      "cdmw/services/mesh_replacement_output.py": 481
     }
   },
   {
@@ -95885,7 +96029,7 @@ MESSAGE_REFERENCE = [
     "message": "Existing hair lost its original vertex record provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 338
+      "cdmw/services/mesh_replacement_output.py": 340
     }
   },
   {
@@ -95909,7 +96053,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental replacement is missing its neutral coordinate transform.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 55
+      "cdmw/services/mesh_replacement_output.py": 57
     }
   },
   {
@@ -96238,7 +96382,7 @@ MESSAGE_REFERENCE = [
     "message": "Guide creation is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 376
+      "cdmw/services/mesh_replacement_output.py": 379
     }
   },
   {
@@ -96799,7 +96943,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement companion: {file.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 475
+      "cdmw/services/mesh_replacement_output.py": 479
     }
   },
   {
@@ -96919,7 +97063,7 @@ MESSAGE_REFERENCE = [
     "message": "Jiggle editing is supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 390
+      "cdmw/services/mesh_replacement_output.py": 394
     }
   },
   {
@@ -96959,7 +97103,7 @@ MESSAGE_REFERENCE = [
     "message": "Lower LOD geometry transfer is unsupported: {part.material}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 159
+      "cdmw/services/mesh_replacement_output.py": 161
     }
   },
   {
@@ -96967,7 +97111,7 @@ MESSAGE_REFERENCE = [
     "message": "Lower LOD material has no target mapping: {part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 151
+      "cdmw/services/mesh_replacement_output.py": 153
     }
   },
   {
@@ -96975,7 +97119,7 @@ MESSAGE_REFERENCE = [
     "message": "Lower LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 143
+      "cdmw/services/mesh_replacement_output.py": 145
     }
   },
   {
@@ -96983,7 +97127,7 @@ MESSAGE_REFERENCE = [
     "message": "Lower LOD {level_index} changed its required section layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 147
+      "cdmw/services/mesh_replacement_output.py": 149
     }
   },
   {
@@ -98000,7 +98144,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM replacement index conversion could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 122
+      "cdmw/services/mesh_replacement_output.py": 124
     }
   },
   {
@@ -98056,7 +98200,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material has no target mapping: {lod_part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 455
+      "cdmw/services/mesh_replacement_output.py": 459
     }
   },
   {
@@ -98064,7 +98208,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 449
+      "cdmw/services/mesh_replacement_output.py": 453
     }
   },
   {
@@ -98072,7 +98216,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD writer changed the required section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 467
+      "cdmw/services/mesh_replacement_output.py": 471
     }
   },
   {
@@ -98442,7 +98586,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt replacement is invalid: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 420
+      "cdmw/services/mesh_replacement_output.py": 424
     }
   },
   {
@@ -98546,7 +98690,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement changed an authored vertex-channel part's mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 358
+      "cdmw/services/mesh_replacement_output.py": 360
     }
   },
   {
@@ -98634,7 +98778,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement mappings do not cover the original target sections.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 208
+      "cdmw/services/mesh_replacement_output.py": 210
     }
   },
   {
@@ -98706,7 +98850,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement target bytes no longer match the captured archive asset.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 87
+      "cdmw/services/mesh_replacement_output.py": 89
     }
   },
   {
@@ -98714,7 +98858,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement target identity changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 89
+      "cdmw/services/mesh_replacement_output.py": 91
     }
   },
   {
@@ -98722,7 +98866,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement target mapping is invalid or ambiguous.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 92
+      "cdmw/services/mesh_replacement_output.py": 94
     }
   },
   {
@@ -98730,7 +98874,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement writer changed the required LOD section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 164
+      "cdmw/services/mesh_replacement_output.py": 166
     }
   },
   {
@@ -98738,7 +98882,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement writer changed the required target section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 417
+      "cdmw/services/mesh_replacement_output.py": 421
     }
   },
   {
@@ -98746,7 +98890,7 @@ MESSAGE_REFERENCE = [
     "message": "Required companion {paired.path} could not be rebuilt: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 469
+      "cdmw/services/mesh_replacement_output.py": 473
     }
   },
   {
@@ -98810,7 +98954,7 @@ MESSAGE_REFERENCE = [
     "message": "Reversible island exclusion requires an original PAC mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 400
+      "cdmw/services/mesh_replacement_output.py": 404
     }
   },
   {
@@ -99271,7 +99415,7 @@ MESSAGE_REFERENCE = [
     "message": "The captured palette extension no longer matches this target/PAB.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 37
+      "cdmw/services/mesh_replacement_output.py": 39
     }
   },
   {
@@ -99623,7 +99767,7 @@ MESSAGE_REFERENCE = [
     "message": "This session has no replacement output state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 199
+      "cdmw/services/mesh_replacement_output.py": 201
     }
   },
   {
@@ -99839,7 +99983,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement material choice.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 94
+      "cdmw/services/mesh_replacement_output.py": 96
     }
   },
   {
@@ -101229,7 +101373,7 @@ MESSAGE_REFERENCE = [
     "message": "{submesh.name or part.part_id} has {count} vertices; a PAC/PAM draw section holds at most {_STATIC_REPLACEMENT_VERTEX_LIMIT}. Decimate it, or split it into parts imported over separate target parts.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 81
+      "cdmw/services/mesh_replacement_output.py": 83
     }
   },
   {
@@ -101397,7 +101541,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. Windows did not accept the application job object.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 98
+      "cdmw/app/bootstrap.py": 112
     }
   },
   {
@@ -101405,7 +101549,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 98
+      "cdmw/app/bootstrap.py": 112
     }
   },
   {
@@ -101413,7 +101557,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose isolated renderer host without --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 106
+      "cdmw/app/bootstrap.py": 120
     }
   },
   {
@@ -101421,7 +101565,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose only one of --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 104
+      "cdmw/app/bootstrap.py": 118
     }
   },
   {
@@ -101589,7 +101733,7 @@ MESSAGE_REFERENCE = [
     "message": "Legacy isolated renderer hosts were removed; model previews use the resident Preview renderer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 108
+      "cdmw/app/bootstrap.py": 122
     }
   },
   {
@@ -101901,7 +102045,7 @@ MESSAGE_REFERENCE = [
     "message": "Settings could not be saved.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/settings_service.py": 50
+      "cdmw/services/settings_service.py": 49
     }
   },
   {
@@ -102085,7 +102229,7 @@ MESSAGE_REFERENCE = [
     "message": "Use --cditem-device-tests without other application modes or options.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 51
+      "cdmw/app/bootstrap.py": 65
     }
   },
   {
@@ -107180,6 +107324,8 @@ DYNAMIC_REFERENCE = {
     "tools/rust_mesh_lab/crates/cdmw_win32_embed/src/lib.rs"
   ],
   "other": [
+    "cdmw/automation/bridge.py",
+    "cdmw/automation/client.py",
     "cdmw/core/action_chart_binary.py",
     "cdmw/core/appearance_composite.py",
     "cdmw/core/atomic_file.py",
@@ -107392,6 +107538,7 @@ DYNAMIC_REFERENCE = {
     "tools/weapon_placement_studio_ctf_smoke.py"
   ],
   "settings": [
+    "cdmw/app/app_folder.py",
     "cdmw/app/bootstrap.py",
     "cdmw/core/upscale_profiles.py",
     "cdmw/domain/localization.py",
@@ -107461,6 +107608,9 @@ SOURCE_COVERAGE = {
   "cdmw/__init__.py": {},
   "cdmw/app/__init__.py": {},
   "cdmw/app/activation.py": {},
+  "cdmw/app/app_folder.py": {
+    "raise": 1
+  },
   "cdmw/app/args.py": {},
   "cdmw/app/bootstrap.py": {
     "log": 4,
@@ -107478,6 +107628,21 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/app/startup_splash.py": {},
+  "cdmw/automation/__init__.py": {},
+  "cdmw/automation/bridge.py": {
+    "diagnostic_field": 4,
+    "raise": 8,
+    "report": 1
+  },
+  "cdmw/automation/client.py": {
+    "raise": 5
+  },
+  "cdmw/automation/pipe.py": {
+    "raise": 1
+  },
+  "cdmw/automation/policy.py": {
+    "raise": 4
+  },
   "cdmw/build_metadata.py": {},
   "cdmw/constants.py": {},
   "cdmw/core/__init__.py": {},
@@ -109098,7 +109263,7 @@ SOURCE_COVERAGE = {
     "raise": 11
   },
   "cdmw/modding/pac_cloth_guide_builder.py": {
-    "raise": 36
+    "raise": 38
   },
   "cdmw/modding/pac_cloth_guides.py": {
     "raise": 18

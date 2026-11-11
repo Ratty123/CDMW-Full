@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping
+from dataclasses import dataclass
 import math
 import struct
 
@@ -133,13 +134,19 @@ def _skin(data, offset, palette_count, reduce_skinning):
     return tuple(v[0] for v in live), tuple(v[1] for v in live)
 
 
+def _flat(points, face):
+    a, b, c = (points[v] for v in face)
+    ab = tuple(b[i] - a[i] for i in range(3))
+    ac = tuple(c[i] - a[i] for i in range(3))
+    cross = (ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0])
+    return math.hypot(*cross) <= 1e-12
+
+
 def _topology(points, faces, pins):
     edges, adjacent = {}, [set() for _ in points]
     for a, b, c in faces:
-        ab = tuple(points[b][i] - points[a][i] for i in range(3))
-        ac = tuple(points[c][i] - points[a][i] for i in range(3))
-        cross = (ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0])
-        if math.hypot(*cross) <= 1e-12:
+        # drop_flat_stored_triangles removes these first; this stays as the format's own guard.
+        if _flat(points, (a, b, c)):
             raise ValueError("The guide source contains a degenerate triangle.")
         for x, y, opposite in ((a, b, c), (b, c, a), (c, a, b)):
             edge = tuple(sorted((x, y)))
@@ -201,7 +208,8 @@ def _groups(rows):
     return _words((len(rows),)) + b"".join(_words((len(row), *row)) for row in rows)
 
 
-def _guide_block(points, skins, faces, pins):
+def _stored(points):
+    """The guide positions as the PAC stores them: 15 bits an axis across their bounds."""
     minimum = tuple(min(p[i] for p in points) for i in range(3))
     extent = tuple(max(p[i] for p in points) - minimum[i] for i in range(3))
     try:
@@ -214,6 +222,36 @@ def _guide_block(points, skins, faces, pins):
     quantized = [tuple(max(0, min(32767, round((p[i] - box[i]) / box[i+3] * 32767)))
                        if box[i+3] else 0 for i in range(3)) for p in points]
     decoded = [tuple(box[i] + q[i] / 32767 * box[i+3] for i in range(3)) for q in quantized]
+    return box_bytes, quantized, decoded
+
+
+def drop_flat_stored_triangles(points, faces):
+    """Drop triangles that have no area once the positions are stored.
+
+    A thin triangle can pass in the source and still be flat at 15 bits an axis.
+    Dropping one can leave a guide unused, and leaving it out changes the bounds
+    the others are stored against, so this repeats until nothing is flat; every
+    pass removes at least one triangle, so it ends. Returns the points still used
+    (indices into ``points``, in order), the remaining faces renumbered to them,
+    and the indices of the dropped faces.
+    """
+    alive, dropped, used = list(range(len(faces))), [], []
+    while True:
+        used = sorted({v for i in alive for v in faces[i]})
+        if not used:
+            break
+        stored = dict(zip(used, _stored([points[v] for v in used])[2]))
+        flat = {i for i in alive if _flat(stored, faces[i])}
+        if not flat:
+            break
+        dropped += sorted(flat)
+        alive = [i for i in alive if i not in flat]
+    index = {v: n for n, v in enumerate(used)}
+    return used, [tuple(index[v] for v in faces[i]) for i in alive], sorted(dropped)
+
+
+def _guide_block(points, skins, faces, pins):
+    box_bytes, quantized, decoded = _stored(points)
     edges, groups, records, refs, spans, linear = _topology(decoded, faces, pins)
     if max(len(records), len(refs), len(faces)*3, len(edges)*2) > 65535:
         raise ValueError("Guide topology exceeds the format limits. Choose a simpler source LOD.")
@@ -289,16 +327,67 @@ def _painted_pins(lod0, source, pinned_points, name):
     return [value > 0.5 for value in values]
 
 
+@dataclass(frozen=True, slots=True)
+class SkippedGuideTriangles:
+    """Triangles of one part's guide source that make no guide face."""
+
+    part: str
+    lod: int
+    #: Two corners welded into one guide (a sliver along a seam).
+    collapsed: int
+    #: No area once the guide positions are stored at 15 bits an axis.
+    flat: int
+
+
+@dataclass(frozen=True, slots=True)
+class GuideBuildReport:
+    guide_count: int
+    skipped: tuple[SkippedGuideTriangles, ...] = ()
+
+
+def _unheld_pieces(count, faces, pins):
+    """Connected guide pieces with no fixed guide, as sets of guide indices."""
+    parent = list(range(count))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b, c in faces:
+        parent[find(a)] = find(b)
+        parent[find(b)] = find(c)
+    held = {find(p) for p in pins}
+    pieces = {}
+    for vertex in range(count):
+        root = find(vertex)
+        if root not in held:
+            pieces.setdefault(root, set()).add(vertex)
+    return list(pieces.values())
+
+
 def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> bytes:
     """Generate guides, constraints and bindings at all LODs, or fail atomically."""
+    return create_pac_cloth_guides_with_report(data, rules, appearance=appearance)[0]
+
+
+def create_pac_cloth_guides_with_report(
+        data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> tuple[bytes, GuideBuildReport]:
+    """As ``create_pac_cloth_guides``, with what the build left out.
+
+    A triangle that welding collapses, or that is flat once stored, makes no guide
+    face and is reported per part; the render mesh is unchanged. The build is
+    refused only when what is left cannot work, and the refusal names the part.
+    """
     if not rules:
-        return data
+        return data, GuideBuildReport(0)
     metadata, insertion, palette, levels = guide_creation_layout(data)
     if any(type(i) is not int or not 0 <= i < len(levels[0].submeshes)
            or not isinstance(rule, PacClothGuideRule) for i, rule in rules.items()):
         raise ValueError("Guide settings refer to an invalid PAC part.")
-    points, skins, faces, pins, ranges = [], [], [], set(), {}
-    displayed = {}
+    points, skins, owners, faces, face_owners, pins = [], [], [], [], [], set()
+    names, collapsed, displayed = {}, {}, {}
     for index, rule in sorted(rules.items()):
         if rule.bone_palette != palette:
             raise ValueError("The captured guide bone palette does not match this PAC.")
@@ -307,37 +396,78 @@ def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule],
         source = levels[rule.source_lod].submeshes[index]
         if not source.faces or not source.vertices:
             raise ValueError("The selected guide source LOD has no geometry for this part.")
+        name = names[index] = source.name or str(index)
         for lod in {0, rule.source_lod}:
             if lod not in displayed:
                 displayed[lod] = appearance.to_neutral(levels[lod]) if appearance else levels[lod]
         heights = displayed[rule.source_lod].submeshes[index].vertices
-        painted = _painted_pins(displayed[0].submeshes[index].vertices, heights, rule.pinned_points,
-                                source.name or str(index))
+        painted = _painted_pins(displayed[0].submeshes[index].vertices, heights, rule.pinned_points, name)
         used = sorted({i for face in source.faces for i in face})
-        first, weld, mapping = len(points), {}, {}
+        weld, local, local_skins, local_pins, mapping = {}, [], [], set(), {}
         for vertex in used:
             point = tuple(source.vertices[vertex])
             skin = _skin(data, source.source_vertex_offsets[vertex], len(palette), rule.reduce_skinning)
             key = (point, skin)
             if key not in weld:
-                weld[key] = len(points)
-                points.append(point)
-                skins.append(skin)
+                weld[key] = len(local)
+                local.append(point)
+                local_skins.append(skin)
             if (rule.fixed_above is not None and heights[vertex][1] >= rule.fixed_above) or painted[vertex]:
-                pins.add(weld[key])
+                local_pins.add(weld[key])
             mapping[vertex] = weld[key]
-        ranges[index] = (first, len(points))
-        seen = set()
+        kept, seen = [], set()
+        collapsed[index] = 0
         for face in source.faces:
             row = tuple(mapping[v] for v in face)
             if len(set(row)) != 3:
-                raise ValueError("Welding the guide source produces a degenerate triangle.")
+                # Welding collapsed a sliver; its corners become guides only through other faces.
+                collapsed[index] += 1
+                continue
             identity = tuple(sorted(row))
             if identity not in seen:
-                faces.append(row)
+                kept.append(row)
                 seen.add(identity)
+        if not kept:
+            raise ValueError(f"{name}, LOD {rule.source_lod}: all {len(source.faces):,} triangles collapse when "
+                             "the guide source is welded, so there is nothing to build guides from. "
+                             "Choose another source LOD or leave this part out.")
+        # A guide only for a vertex a kept triangle uses: an unused one would count
+        # against the limit and, unpinned, be a piece that nothing holds.
+        keep = sorted({v for face in kept for v in face})
+        renumber = {v: len(points) + n for n, v in enumerate(keep)}
+        points += [local[v] for v in keep]
+        skins += [local_skins[v] for v in keep]
+        owners += [index] * len(keep)
+        pins |= {renumber[v] for v in local_pins if v in renumber}
+        faces += [tuple(renumber[v] for v in face) for face in kept]
+        face_owners += [index] * len(kept)
+    order, faces, dropped = drop_flat_stored_triangles(points, faces)
+    flat = dict.fromkeys(rules, 0)
+    for face in dropped:
+        flat[face_owners[face]] += 1
+    renumber = {old: new for new, old in enumerate(order)}
+    points, skins, owners = [points[i] for i in order], [skins[i] for i in order], [owners[i] for i in order]
+    pins = {renumber[p] for p in pins if p in renumber}
+    ranges = {}
+    for guide, index in enumerate(owners):
+        ranges[index] = (ranges.get(index, (guide, guide))[0], guide + 1)
+    for index, rule in sorted(rules.items()):
+        if index not in ranges:
+            raise ValueError(f"{names[index]}, LOD {rule.source_lod}: all {flat[index] + collapsed[index]:,} "
+                             "triangles are too thin to store as guide faces, so there is nothing to build "
+                             "guides from. Choose another source LOD or leave this part out.")
     if not 3 <= len(points) <= 1024:
-        raise ValueError("New cloth requires 3 to 1024 welded guides in total. Choose a lower source LOD or fewer parts.")
+        raise ValueError(f"New cloth requires 3 to 1024 welded guides in total; these parts give {len(points):,}. "
+                         "Choose a lower source LOD or fewer parts.")
+    if pins and len(pins) < len(points):
+        loose = {}
+        for piece in _unheld_pieces(len(points), faces, pins):
+            loose[owners[min(piece)]] = loose.get(owners[min(piece)], 0) + 1
+        if loose:
+            where = "; ".join(f"{count:,} on {names[index]}, LOD {rules[index].source_lod}"
+                              for index, count in sorted(loose.items()))
+            raise ValueError(f"Every disconnected guide piece needs a fixed guide ({where} without one). Lower the "
+                             "pin height, paint a pin on each piece or select fewer parts.")
     block, decoded = _guide_block(points, skins, faces, pins)
     patched = bytearray(data)
     for level in levels:
@@ -369,4 +499,6 @@ def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule],
         raise ValueError("Generated guide topology did not pass independent decoding.")
     if decode_pac_embedded_volumes(result).bone_palette != palette:
         raise ValueError("Guide creation changed the retained bone palette.")
-    return result
+    skipped = tuple(SkippedGuideTriangles(names[index], rules[index].source_lod, collapsed[index], flat[index])
+                    for index in sorted(rules) if collapsed[index] or flat[index])
+    return result, GuideBuildReport(len(points), skipped)

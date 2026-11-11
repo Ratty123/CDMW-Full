@@ -66,6 +66,17 @@ mod authoring {
                     });
                 let vertices: u64 = parts.iter().filter_map(|part| part["lod_vertices"][view.source_lod as usize].as_u64()).sum();
                 ui.small(crate::localization::tr(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts.")));
+                // What the last build left out; the render mesh keeps these triangles.
+                for row in state["skipped_triangles"].as_array().into_iter().flatten() {
+                    let (part, lod) = (state_str(row, "part").unwrap_or("?"), state_u64(row, "lod"));
+                    let (collapsed, flat) = (state_u64(row, "collapsed"), state_u64(row, "flat"));
+                    if collapsed > 0 {
+                        ui.small(crate::localization::tr(format!("Skipped {collapsed} collapsed triangles on {part}, LOD {lod}")));
+                    }
+                    if flat > 0 {
+                        ui.small(crate::localization::tr(format!("Skipped {flat} triangles too thin to store on {part}, LOD {lod}")));
+                    }
+                }
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut view.use_height, crate::localization::tr("Pin guides at or above Y"))
                         .on_hover_text(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));

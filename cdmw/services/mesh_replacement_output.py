@@ -24,6 +24,8 @@ class MeshReplacementOutput:
     report: MeshRebuildReport
     companion_files: tuple[ReplacementFile, ...]
     revision: tuple[int, int, int]
+    #: What guide creation left out (``GuideBuildReport``), or None when no guides were made.
+    guide_report: object = None
 
 
 def replacement_target_data(snapshot, state):
@@ -371,11 +373,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                                                     frozenset(edited_skin_targets))
     guide_rules = {part.target_index: part.cloth_guides for part in state.parts
                    if part.included and part.cloth_guides is not None}
+    guide_report = None
     if guide_rules:
         if original.format.lower() != "pac":
             raise ValueError("Guide creation is supported only for PAC meshes.")
-        from cdmw.modding.pac_cloth_guide_builder import create_pac_cloth_guides
-        data = create_pac_cloth_guides(data, guide_rules, appearance=state.neutral_appearance)
+        from cdmw.modding.pac_cloth_guide_builder import create_pac_cloth_guides_with_report
+        data, guide_report = create_pac_cloth_guides_with_report(
+            data, guide_rules, appearance=state.neutral_appearance)
     cloth_rules = {part.target_index: part.cloth for part in state.parts
                    if part.included and part.cloth is not None}
     if cloth_rules:
@@ -482,4 +486,5 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
         "replacement_revision": state.revision, "policy": "replacement_game_asset",
         "files": [{"path": f.path, "sha256": hashlib.sha256(f.data).hexdigest()} for f in files],
     })
-    return MeshReplacementOutput(data, report, tuple(files), (snapshot.mesh_revision, snapshot.native_edit_revision, snapshot.material_generation))
+    return MeshReplacementOutput(data, report, tuple(files), (snapshot.mesh_revision, snapshot.native_edit_revision, snapshot.material_generation),
+                                 guide_report)

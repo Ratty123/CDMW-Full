@@ -27,7 +27,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- CDMW keeps its temporary files in **workspace	emp** inside its own folder instead of the Windows temp folder, and removes what a crash left there after a day. Create New Item's Blender path, rig folder and preview choices, which were kept in the Windows registry and shared by every copy of CDMW, now live in the settings file; they are copied over once and the registry entry is left as it is. If the CDMW folder cannot be written to, CDMW says so at start instead of using another folder.
+- CDMW keeps its temporary files in **workspace\temp** inside its own folder instead of the Windows temp folder, and removes what a crash left there after a day. Create New Item's Blender path, rig folder and preview choices, which were kept in the Windows registry and shared by every copy of CDMW, now live in the settings file; they are copied over once and the registry entry is left as it is. If the CDMW folder cannot be written to, CDMW says so at start instead of using another folder.
 
 - Model previews open faster in Browse Archives, most of all the first time an item is shown, and reselecting an item no longer checks its prepared files again while you wait. **Open set in Mesh Editor** prepares the set's files side by side and opens about a second sooner.
 
@@ -44,6 +44,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Normal Map, UV Checker, Part ID, Layer Mask, Material Response, wireframe and the other diagnostic views show a darker background, as in CDMW Next, so the diagnostic colours stand out; Textured, Game Outdoor, Base Color and Solid keep the chosen background.
 
 ### Fixed
+
+- Mesh Editor's experimental **Create cloth guides** now builds when the chosen LOD has triangles that merge into a line where a seam is welded, or that are too thin to store; before, it refused the whole part with "Welding the guide source produces a degenerate triangle". Those triangles are left out of the guides only, the model itself is unchanged, and the panel says how many were skipped on which part and LOD. A part with nothing left, or a piece that nothing holds any more, is refused with its name. As before, the guides are not checked in game.
 
 - Helmets, masks, glasses, hair accessories and other models that follow only a few bones now find their skeleton. Create New Item no longer stops a rigged import onto such a template with "The selected template has no unique matching skeleton", and Archive Browser exports them to GLB or FBX with the armature, bound to the bone they follow, instead of asking to export without a skeleton. Weapons and other models that follow a bone of their own still export without the character armature.
 

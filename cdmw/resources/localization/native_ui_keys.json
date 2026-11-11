@@ -2160,6 +2160,8 @@
   "Skip",
   "Skip own model collisions",
   "SkipSelfMeshCollidable",
+  "Skipped {value_0} collapsed triangles on {value_1}, LOD {value_2}",
+  "Skipped {value_0} triangles too thin to store on {value_1}, LOD {value_2}",
   "Slider label",
   "Sliders",
   "Smooth",
