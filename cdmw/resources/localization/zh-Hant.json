@@ -15836,7 +15836,7 @@
     "Use Mesh Editor changes": "使用網格編輯器變更",
     "Use Mesh Editor to change an existing game model. Use Create New Item to make a separate item with its own identity, appearance and way to obtain it; you can open its imported model in Mesh Editor.": "要修改現有遊戲模型，請使用網格編輯器。要建立具有獨立識別資訊、外觀和取得方式的新物品，請使用建立新物品；也可以在網格編輯器中開啟它匯入的模型。",
     "Use Open Linked Value on a blue/value row to edit through the safe CDMW patch path.": "在藍色/值行上使用開啟連結值透過安全 CDMW 補丁路徑進行編輯。",
-    "Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.": "使用Orbit可在不編輯的情況下瀏覽：按住右鍵拖曳可環繞，按住中鍵拖曳可平移，滾輪可縮放。Fit將整個網格納入視野，Frame Selected將選取範圍納入視野。Solid (Textured)需要已解析的材質。Solid + Wire、X-Ray、法線、Bounds和骨骼提供檢查檢視。",
+    "Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Base Color needs them too and shows each material's base color texture without lighting or reflections, so dark or very reflective models are easier to read. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.": "使用Orbit可在不編輯的情況下瀏覽：按住右鍵拖曳可環繞，按住中鍵拖曳可平移，滾輪可縮放。Fit將整個網格納入視野，Frame Selected將選取範圍納入視野。Solid (Textured)需要已解析的材質。Base Color同樣需要已解析的材質，它不帶光照和反射地顯示每個材質的基礎色紋理，便於檢視較暗或反射很強的模型。Solid + Wire、X-Ray、法線、Bounds和骨骼提供檢查檢視。",
     "Use Original DDS Root": "使用原始 DDS Root",
     "Use Override": "使用覆蓋",
     "Use Part settings": "使用部件設定",

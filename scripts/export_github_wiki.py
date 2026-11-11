@@ -110,7 +110,7 @@ _CONTROLS = (
     "Build plan", "Apply placement", "Mod folder · DMM", "Mod folder", "Item package · .cdmw", "Apply changes",
     "Add to existing mod", "Include mounted items in a new mod", "Import Replacement...",
     "Open in Mesh Editor", "View", "Mod", "Include", "Output Preview", "Mesh islands",
-    "Solid (Textured)", "Solid + Wire", "X-Ray", "Bounds", "Bones", "Orbit", "Fit", "Frame Selected",
+    "Solid (Textured)", "Base Color", "Solid + Wire", "X-Ray", "Bounds", "Bones", "Orbit", "Fit", "Frame Selected",
     "Fit to body", "Reset", "Bake", "Modify Original", "Start next edit pass", "Resume current edit",
     "Add to Archive Browser", "Edited results", "Export Mesh File", "Import", "Settings",
     "Archive Locations", "Open Folder", "Auto-Match", "Reload Folder", "Review & Export",
