@@ -1221,6 +1221,10 @@ class RustPreviewSessionController(
                 f"Preview exited with code {exit_code}{suffix}",
                 static_failure=False,
             )
+        elif not self._closed:
+            # No retry for a hidden or empty host: say so, so an owner such as the
+            # dialog spare drops it instead of keeping a controller with no process.
+            self._set_state("inactive", f"Preview exited with code {exit_code}.")
 
     def _process_error(self, process: object, generation: int, error: object) -> None:
         if error == QProcess.ProcessError.FailedToStart:

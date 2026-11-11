@@ -73,7 +73,7 @@ use cdmw_render_wgpu::{
 };
 use cdmw_session::{
     CdmwBridge, CdmwMaterialUpdate, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage,
-    PreviewCoreMaterialGraph, SessionMaterialPresentation,
+    PendingRequest, PendingSessionInput, PreviewCoreMaterialGraph, SessionMaterialPresentation,
 };
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
@@ -166,7 +166,14 @@ fn main() -> Result<()> {
     }
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut application = if let Some(manifest_path) = options.cdmw_session {
+    let mut application = if options.cdmw_session_pending {
+        // Window, device and pipelines first; the session arrives as `open_session`.
+        let proxy = event_loop.create_proxy();
+        let input = PendingSessionInput::start(Some(Box::new(move || {
+            let _ = proxy.send_event(());
+        })));
+        LabApplication::new_pending(input, options.embedded_parent_hwnd)
+    } else if let Some(manifest_path) = options.cdmw_session {
         let (bridge, document) = CdmwBridge::open(&manifest_path)
             .with_context(|| format!("failed to open CDMW session {}", manifest_path.display()))?;
         LabApplication::new_cdmw(bridge, document, options.embedded_parent_hwnd)?
@@ -184,6 +191,7 @@ struct StartupOptions {
     mesh_path: Option<PathBuf>,
     archive_root: Option<PathBuf>,
     cdmw_session: Option<PathBuf>,
+    cdmw_session_pending: bool,
     cdmw_preview_session: Option<PathBuf>,
     capture_cdmw_session: Option<PathBuf>,
     capture_cdmw_preview_session: Option<PathBuf>,
@@ -218,6 +226,7 @@ fn parse_startup_options_from(
             "--cdmw-session" => {
                 options.cdmw_session = Some(required_path(&mut arguments, "--cdmw-session")?);
             }
+            "--cdmw-session-pending" => options.cdmw_session_pending = true,
             "--cdmw-preview-session" => {
                 options.cdmw_preview_session =
                     Some(required_path(&mut arguments, "--cdmw-preview-session")?);
@@ -356,11 +365,29 @@ fn parse_startup_options_from(
     {
         bail!("--cdmw-preview-session cannot be combined with standalone or contract options");
     }
+    if options.cdmw_session_pending
+        && (options.cdmw_session.is_some()
+            || options.cdmw_preview_session.is_some()
+            || options.mesh_path.is_some()
+            || options.archive_root.is_some()
+            || options.control_contract_json.is_some()
+            || capture_requested)
+    {
+        bail!(
+            "--cdmw-session-pending cannot be combined with a session, standalone, capture or contract option"
+        );
+    }
+    if options.cdmw_session_pending && options.embedded_parent_hwnd.is_none() {
+        bail!("--cdmw-session-pending requires --embedded-parent-hwnd");
+    }
     if options.embedded_parent_hwnd.is_some()
         && options.cdmw_session.is_none()
+        && !options.cdmw_session_pending
         && options.cdmw_preview_session.is_none()
     {
-        bail!("--embedded-parent-hwnd requires --cdmw-session or --cdmw-preview-session");
+        bail!(
+            "--embedded-parent-hwnd requires --cdmw-session, --cdmw-session-pending or --cdmw-preview-session"
+        );
     }
     if options.cdmw_preview_session.is_some() && options.embedded_parent_hwnd.is_none() {
         bail!("--cdmw-preview-session requires --embedded-parent-hwnd");
@@ -2363,6 +2390,8 @@ struct LabApplication {
     /// Numpad presses this frame, under the egui key each one produced.
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     cdmw_bridge: Option<CdmwBridge>,
+    /// Set while a pre-started helper waits for its session (`--cdmw-session-pending`).
+    cdmw_pending: Option<PendingSessionInput>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2571,6 +2600,7 @@ impl LabApplication {
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
             cdmw_bridge: None,
+            cdmw_pending: None,
             cdmw_state: Value::Null,
             vertex_inspector: cdmw_vertex_inspector::VertexInspector::default(),
             hair: HairEditor::default(),
@@ -2636,10 +2666,95 @@ impl LabApplication {
     }
 
     fn new_cdmw(
-        mut bridge: CdmwBridge,
+        bridge: CdmwBridge,
         document: MeshDocument,
         embedded_parent_hwnd: Option<u64>,
     ) -> Result<Self> {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = embedded_parent_hwnd;
+        application.install_cdmw(bridge, document)?;
+        Ok(application)
+    }
+
+    /// A helper that has its window, device and pipelines before it has a session.
+    fn new_pending(input: PendingSessionInput, embedded_parent_hwnd: Option<u64>) -> Self {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = embedded_parent_hwnd;
+        application.cdmw_pending = Some(input);
+        application.status = "Waiting for a CDMW session".to_owned();
+        application
+    }
+
+    /// Answer the pending helper's one request: open the session into the window and
+    /// renderer that already exist, then say hello and ready as a fresh launch does.
+    fn poll_pending_session(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(input) = self.cdmw_pending.as_ref() else {
+            return;
+        };
+        let Some(window) = self.window.clone() else {
+            return; // the request waits in the queue until the window exists
+        };
+        let request = match input.poll() {
+            Ok(None) => return,
+            Ok(Some(request)) => request,
+            Err(error) => {
+                error!("pending Mesh Editor helper refused: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+        let (Some(input), PendingRequest::Open(manifest_path)) =
+            (self.cdmw_pending.take(), request)
+        else {
+            event_loop.exit();
+            return;
+        };
+        let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
+        let parent_hwnd = self.embedded_parent_hwnd.unwrap_or(0);
+        let opened = CdmwBridge::open_pending(&manifest_path, input)
+            .map_err(|error| {
+                format!(
+                    "failed to open CDMW session {}: {error}",
+                    manifest_path.display()
+                )
+            })
+            .and_then(|(bridge, document)| {
+                // Install without a renderer, then configure the existing one once.
+                let renderer = self.renderer.take();
+                let installed = self
+                    .install_cdmw(bridge, document)
+                    .map_err(|error| error.to_string());
+                self.renderer = renderer;
+                installed
+            });
+        if let Err(error) = opened {
+            error!("{error}");
+            let _ = cdmw_session::announce_pending_ready(child_hwnd, parent_hwnd, Some(&error));
+            event_loop.exit();
+            return;
+        }
+        if let Some(mut renderer) = self.renderer.take() {
+            match self.configure_renderer(&mut renderer) {
+                Ok(()) => self.renderer = Some(renderer),
+                Err(error) => self.renderer_failed(error),
+            }
+        }
+        let announced = self.cdmw_bridge.as_ref().map(|bridge| {
+            bridge
+                .announce_hello(child_hwnd, parent_hwnd)
+                .and_then(|()| bridge.announce_ready())
+        });
+        if let Some(Err(error)) = announced {
+            error!("CDMW handshake failed: {error}");
+            event_loop.exit();
+            return;
+        }
+        window.set_title("CDMW — Mesh Editor");
+        self.status.push_str(" · waiting for CDMW");
+        window.request_redraw();
+    }
+
+    fn install_cdmw(&mut self, mut bridge: CdmwBridge, document: MeshDocument) -> Result<()> {
         let source_lod_index = bridge.source_lod_index();
         let source_path = bridge
             .manifest()
@@ -2680,10 +2795,9 @@ impl LabApplication {
             .iter()
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
-        let mut application = Self::new(None, None);
+        let application = self;
         application.cdmw_material_layers = bridge.take_layers();
         application.cdmw_reference_pieces = bridge.take_reference_pieces();
-        application.embedded_parent_hwnd = embedded_parent_hwnd;
         application.install_loaded_mesh_with_materials(
             LoadedMesh {
                 path: source_path,
@@ -2723,7 +2837,7 @@ impl LabApplication {
         );
         application.apply_cdmw_selection_state(true);
         application.restore_cdmw_hidden_parts();
-        Ok(application)
+        Ok(())
     }
 
     /// Start with the View ticks this mesh had when it was last finished.
@@ -7109,15 +7223,21 @@ impl LabApplication {
     }
 
     fn create_renderer(&mut self, window: Arc<Window>) -> Result<WindowRenderer, String> {
-        let renderer =
+        let mut renderer =
             pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?;
+        self.configure_renderer(&mut renderer)?;
+        Ok(renderer)
+    }
+
+    /// Upload this session's textures, materials and scene into a renderer. A
+    /// pre-started helper runs this when its session arrives.
+    fn configure_renderer(&mut self, renderer: &mut WindowRenderer) -> Result<(), String> {
         let adapter = renderer.adapter_report();
         let quality = renderer.quality_report();
         self.status = format!(
             "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering",
             adapter.name, adapter.driver_info, quality.sample_count, quality.anisotropy_clamp,
         );
-        let mut renderer = renderer;
         let mut texture_upload_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut texture_warning = None;
@@ -7139,7 +7259,7 @@ impl LabApplication {
                 }
             }
             if let Err(error) = add_cdmw_material_presentations(
-                &mut renderer,
+                renderer,
                 &self.cdmw_material_presentations,
                 self.document
                     .as_ref()
@@ -7169,7 +7289,7 @@ impl LabApplication {
         }
         self.refresh_jiggle_regions();
         if let Err(error) = cdmw_references::upload_materials(
-            &mut renderer,
+            renderer,
             &self.cdmw_reference_pieces,
             self.document.as_deref(),
         ) {
@@ -7201,7 +7321,7 @@ impl LabApplication {
                 None
             };
             if let Err(error) = cdmw_references::upload_scene(
-                &mut renderer,
+                renderer,
                 &snapshot,
                 &self.cdmw_reference_pieces,
                 cdmw_references::material_offset(self.document.as_deref()),
@@ -7231,8 +7351,7 @@ impl LabApplication {
                     " · texture warning: {warning}"
                 ))
         );
-        renderer.check_health().map_err(|error| error.to_string())?;
-        Ok(renderer)
+        renderer.check_health().map_err(|error| error.to_string())
     }
 
     fn renderer_failed(&mut self, reason: String) {
@@ -7733,6 +7852,13 @@ impl ApplicationHandler for LabApplication {
         let renderer = match self.create_renderer(window.clone()) {
             Ok(renderer) => renderer,
             Err(error) => {
+                if self.cdmw_pending.is_some() {
+                    let _ = cdmw_session::announce_pending_ready(
+                        child_hwnd,
+                        self.embedded_parent_hwnd.unwrap_or(0),
+                        Some(&error),
+                    );
+                }
                 self.renderer_failed(error);
                 event_loop.exit();
                 return;
@@ -7757,6 +7883,18 @@ impl ApplicationHandler for LabApplication {
             } else {
                 self.status.push_str(" · waiting for CDMW");
             }
+        } else if self.cdmw_pending.is_some() {
+            if let Err(error) = cdmw_session::announce_pending_ready(
+                child_hwnd,
+                self.embedded_parent_hwnd.unwrap_or(0),
+                None,
+            ) {
+                error!("pending Mesh Editor helper could not announce itself: {error}");
+                event_loop.exit();
+                return;
+            }
+            // A request that arrived while the window was being made is answered now.
+            self.poll_pending_session(event_loop);
         }
     }
 
@@ -7822,6 +7960,7 @@ impl ApplicationHandler for LabApplication {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.poll_pending_session(event_loop);
         let changed = self.poll_loader() | self.poll_cdmw();
         if self.gpu_recovery.take_due(Instant::now())
             && let Some(window) = self.window.clone()
@@ -7948,6 +8087,27 @@ mod tests {
                 .map(str::to_owned),
         );
         assert!(standalone.is_err());
+    }
+
+    #[test]
+    fn a_pending_helper_needs_a_parent_and_takes_no_session_of_its_own() {
+        let parse = |arguments: &[&str]| {
+            parse_startup_options_from(arguments.iter().map(|value| (*value).to_owned()))
+        };
+        let pending = parse(&["--cdmw-session-pending", "--embedded-parent-hwnd", "4242"])
+            .unwrap_or_else(|error| panic!("pending options failed: {error}"));
+        assert!(pending.cdmw_session_pending && pending.cdmw_session.is_none());
+        assert_eq!(pending.embedded_parent_hwnd, Some(4242));
+        assert!(parse(&["--cdmw-session-pending"]).is_err());
+        for other in [
+            &["--cdmw-session", "session.json"][..],
+            &["--cdmw-preview-session", "preview.json"][..],
+            &["--mesh", "model.pac"][..],
+        ] {
+            let mut arguments = vec!["--cdmw-session-pending", "--embedded-parent-hwnd", "4242"];
+            arguments.extend_from_slice(other);
+            assert!(parse(&arguments).is_err(), "{other:?}");
+        }
     }
 
     #[test]

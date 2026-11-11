@@ -575,13 +575,29 @@ def test_material_capture_failure_replaces_loading_overlay_with_retry(tmp_path: 
     host.show_loading("Preparing an isolated Mesh Editor session...")
     with (
         patch("cdmw.ui.mesh_editor.tab_rust_editor.resolve_rust_mesh_editor", return_value=resolution),
-        patch.object(tab, "_prime_rust_preview_material_context", side_effect=ValueError("bad materials")),
+        # The prime's inputs are gathered on the UI thread; the prime runs on the worker (P4 V1).
+        patch.object(tab, "_rust_preview_material_prime_call", side_effect=ValueError("bad materials")),
     ):
         tab._start_rust_editor_requested(object())
     assert "bad materials" in host._status_label.text()
     assert not host._retry_button.isHidden()
     assert tab.standalone_rust_prepare_thread is None
     _dispose(tab)
+
+
+def test_a_material_prime_that_fails_on_the_worker_is_reported_before_any_session(tmp_path: Path) -> None:
+    controller = SimpleNamespace(mesh_service=object(), active_session_id="session-1")
+    created = []
+    worker = MeshRustSessionPrepareWorker(
+        9, controller, tmp_path / "session", process_generation=1,
+        before_prepare=lambda: (_ for _ in ()).throw(ValueError("bad materials")))
+    errors = []
+    worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
+    with patch("cdmw.workers.mesh_rust_editor_workers.RustMeshAuthoringSession.create",
+               side_effect=lambda *a, **k: created.append(a)):
+        worker.run()
+    assert errors == [(9, "Mesh Editor could not bind the resolved preview textures: bad materials")]
+    assert created == []
 
 
 def test_archive_load_retry_retains_target_and_draft_and_close_clears_retry(tmp_path: Path) -> None:

@@ -56,8 +56,9 @@ class AutomatedApp:
         self.name = f"run-{os.getpid()}-{secrets.token_hex(4)}"
         self.address = pipe_address(self.name)
         env = dict(os.environ)
-        # A fresh run: nothing inherited from a parent CDMW process.
-        for key in ("CDMW_SYSTEM_TEMP", "CDMW_SINGLE_INSTANCE_SCOPE", "CDMW_TEMP_CACHE_ROOT"):
+        # A fresh run: nothing inherited from a parent CDMW process, nor the unit
+        # suite's switch that turns the pre-started Mesh Editor helper off.
+        for key in ("CDMW_SYSTEM_TEMP", "CDMW_SINGLE_INSTANCE_SCOPE", "CDMW_TEMP_CACHE_ROOT", "CDMW_EDITOR_SPARE"):
             env.pop(key, None)
         env.update({
             "CDMW_PROFILE_DIR": str(self.profile),

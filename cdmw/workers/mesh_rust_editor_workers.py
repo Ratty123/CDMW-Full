@@ -79,9 +79,13 @@ class MeshRustSessionPrepareWorker(QObject):
         hair_start_mode: str = "",
         item_set_contexts: tuple = (),
         edit_item_set: bool = False,
+        before_prepare=None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
+        #: Runs first on this thread: binding the resolved preview materials to the
+        #: controller, which used to take tens of milliseconds on the UI thread.
+        self.before_prepare = before_prepare
         self.authoritative_controller = authoritative_controller
         self.expected_controller_identity = id(authoritative_controller)
         self.expected_authoritative_service = getattr(
@@ -130,6 +134,14 @@ class MeshRustSessionPrepareWorker(QObject):
             if self._stop_event.is_set() or not self._controller_context_is_current():
                 self._stop_event.set()
                 return
+            if self.before_prepare is not None:
+                try:
+                    self.before_prepare()
+                except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    raise RuntimeError(f"Mesh Editor could not bind the resolved preview textures: {exc}") from exc
+                if self._stop_event.is_set() or not self._controller_context_is_current():
+                    self._stop_event.set()
+                    return
             session = RustMeshAuthoringSession.create(
                 self.authoritative_controller,
                 self.session_root,

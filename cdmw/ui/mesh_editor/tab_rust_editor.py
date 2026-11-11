@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
@@ -119,6 +120,21 @@ def _mesh_editor_session_parent(settings: object | None) -> Path:
         except (OSError, KeyError, TypeError, ValueError):
             pass
     return Path(tempfile.gettempdir()) / "cdmw-rust-mesh-editor"
+
+
+def _record_open_step_timings(tab: object, **timings: float) -> None:
+    """How long an open's two UI-thread steps took (executable check, material prime)."""
+
+    try:
+        window = tab.window()  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        return
+    recorder = getattr(window, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder("mesh_editor_open_ui_steps", **{key: round(value, 2) for key, value in timings.items()})
+        except (RuntimeError, TypeError, ValueError):
+            pass
 
 
 def _sweep_stale_editor_sessions(owned_root: Path) -> None:
@@ -661,6 +677,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         return True
 
     def _prime_rust_preview_material_context(self, controller: object) -> int:
+        return self._rust_preview_material_prime_call(controller)()
+
+    def _rust_preview_material_prime_call(self, controller: object):
+        """Gather the prime's inputs here (UI thread); the returned call runs on the prepare worker."""
+
         preview_model = getattr(
             self,
             "standalone_archive_material_preview_model",
@@ -685,21 +706,14 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             if callable(current_target)
             else getattr(self, "current_archive_selection", None)
         )
-        return int(
-            prime(
-                controller,
-                preview_model,
-                material_package_path=getattr(
-                    self,
-                    "archive_material_context_package_path",
-                    "",
-                ),
-                unavailable_reason=self.standalone_rust_texture_unavailable_reason,
-                target_entry=target_entry,
-                entries_by_basename=basename_index,
-                physics_profile_context=getattr(self, "archive_physics_profile_context", None),
-            )
-        )
+        arguments = {
+            "material_package_path": getattr(self, "archive_material_context_package_path", ""),
+            "unavailable_reason": self.standalone_rust_texture_unavailable_reason,
+            "target_entry": target_entry,
+            "entries_by_basename": basename_index,
+            "physics_profile_context": getattr(self, "archive_physics_profile_context", None),
+        }
+        return lambda: int(prime(controller, preview_model, **arguments))
 
     def _start_rust_editor_requested(self, controller: object) -> None:
         if self._rust_editor_task_active():
@@ -707,12 +721,14 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 return
             self._set_rust_status("Mesh Editor is already starting or running.")
             return
+        started = time.perf_counter()
         resolution = self._rust_executable_resolution()
         (
             executable_text,
             executable_signature,
             incompatibility_reason,
         ) = self._validate_rust_executable_resolution(resolution)
+        validated = time.perf_counter()
         self.standalone_rust_checked_executable = executable_text
         self.standalone_rust_checked_executable_signature = executable_signature
         self.standalone_rust_incompatible_reason = incompatibility_reason
@@ -726,7 +742,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             self._sync_mesh_editor_backend_controls()
             return
         try:
-            self._prime_rust_preview_material_context(controller)
+            # The prime itself (about 35 ms for the upper body) runs first on the
+            # prepare worker; only its inputs are gathered here (P4 V1).
+            prime_material_context = self._rust_preview_material_prime_call(controller)
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._set_rust_status(
                 f"Mesh Editor could not bind the resolved preview textures: {exc}",
@@ -734,6 +752,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
             self._sync_mesh_editor_backend_controls()
             return
+        gathered = time.perf_counter()
+        _record_open_step_timings(self, validate_ms=(validated - started) * 1000,
+                                  prime_inputs_ms=(gathered - validated) * 1000)
         try:
             theme = self._rust_theme_payload()
         except ValueError as exc:
@@ -760,6 +781,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_target_controller = controller
         self.standalone_rust_executable_path = Path(executable_text)
         self.standalone_rust_launch_executable_signature = executable_signature
+        # The helper's window, device and pipelines start now, beside the session
+        # preparation, unless a pending helper is already waiting (P4 V1).
+        self._ensure_rust_editor_spare(executable_text, executable_signature)
         self.standalone_rust_session_root = self.standalone_rust_owned_root / f"session-{uuid4().hex}"
         if not self.standalone_rust_stale_sessions_swept:
             self.standalone_rust_stale_sessions_swept = True
@@ -790,6 +814,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             **self._hair_start_options(),
             **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
             **({"edit_item_set": True} if getattr(self, "edit_item_set", False) else {}),
+            before_prepare=prime_material_context,
         )
         thread = QThread(self)
         worker.moveToThread(thread)

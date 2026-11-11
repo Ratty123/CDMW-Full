@@ -322,6 +322,10 @@ class AutomationBridge(QObject):
     def _editor_session_manifest(tab) -> str:
         from PySide6.QtCore import QProcess
 
+        # A pre-started helper gets its manifest through open_session, not its command line.
+        manifest = getattr(getattr(tab, "standalone_rust_authoring_session", None), "manifest_path", None)
+        if manifest:
+            return str(manifest)
         process = next((value for value in vars(tab).values() if isinstance(value, QProcess)), None)
         arguments = list(process.arguments()) if process is not None else []
         if "--cdmw-session" in arguments:

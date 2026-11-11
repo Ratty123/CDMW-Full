@@ -35,6 +35,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Opening a model in the Mesh Editor soon after starting CDMW no longer waits on background work. Finder thumbnails and Create New Item's table preload pause until the Mesh Editor is ready; for the Honor Guard upper body this cut opening from over 20 seconds to about 7. Mesh Editor sessions now sit in the workspace cache and share the preview's texture files when both are on the same drive instead of copying them; session folders left by a crash are removed after a day.
 
+- The Mesh Editor opens about two to three seconds sooner. Its 3D view now starts while the model's session is being prepared instead of afterwards, and once it is open a second one waits in the background for the next open. The waiting view uses about 100 MB of memory; it closes with CDMW.
+
 - The cache check that runs shortly after startup reads the cache folders several times faster, so it no longer slows down the first previews when the workspace cache holds many files.
 
 - CDMW runs fewer background processes while you preview. Its helpers no longer each carry a hidden console host, and the spare preview window that makes dialogs open faster now starts after the first preview dialog instead of at startup, so the first dialog opens a little slower and later ones as before.
@@ -44,6 +46,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Normal Map, UV Checker, Part ID, Layer Mask, Material Response, wireframe and the other diagnostic views show a darker background, as in CDMW Next, so the diagnostic colours stand out; Textured, Game Outdoor, Base Color and Solid keep the chosen background.
 
 ### Fixed
+
+- Preview dialogs open quickly again after the spare preview window behind them has stopped. Before, a stopped spare was never replaced, so every later dialog started its own preview from scratch.
 
 - Mesh Editor's experimental **Create cloth guides** now builds when the chosen LOD has triangles that merge into a line where a seam is welded, or that are too thin to store; before, it refused the whole part with "Welding the guide source produces a degenerate triangle". Those triangles are left out of the guides only, the model itself is unchanged, and the panel says how many were skipped on which part and LOD. A part with nothing left, or a piece that nothing holds any more, is refused with its name. As before, the guides are not checked in game.
 

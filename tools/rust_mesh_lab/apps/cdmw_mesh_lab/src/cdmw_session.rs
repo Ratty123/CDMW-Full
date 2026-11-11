@@ -794,6 +794,25 @@ impl CdmwBridge {
     }
 
     pub fn open(manifest_path: &Path) -> Result<(Self, MeshDocument), SessionError> {
+        let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
+        spawn_input_reader(incoming_tx.clone(), None);
+        Self::open_with_input(manifest_path, incoming_tx, incoming_rx)
+    }
+
+    /// Open the session a pending helper was asked for, keeping the stdin reader it
+    /// already runs, so no line the host sent after `open_session` is lost.
+    pub fn open_pending(
+        manifest_path: &Path,
+        input: PendingSessionInput,
+    ) -> Result<(Self, MeshDocument), SessionError> {
+        Self::open_with_input(manifest_path, input.sender, input.receiver)
+    }
+
+    fn open_with_input(
+        manifest_path: &Path,
+        incoming_tx: Sender<Incoming>,
+        incoming_rx: Receiver<Incoming>,
+    ) -> Result<(Self, MeshDocument), SessionError> {
         let package = LoadedCdmwSessionPackage::load(manifest_path)?;
         let LoadedCdmwSessionPackage {
             root,
@@ -806,9 +825,7 @@ impl CdmwBridge {
             material_composition_metrics: _,
             layers,
         } = package;
-        let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound_tx, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
-        spawn_input_reader(incoming_tx.clone());
         spawn_output_writer(
             root.clone(),
             manifest.session_id.clone(),
@@ -1746,6 +1763,10 @@ impl CdmwBridge {
                         .or_else(|| value.get("message"))
                         .and_then(Value::as_str)
                         .unwrap_or("CDMW reported a protocol error")
+                        .to_owned(),
+                )),
+                "open_session" => Ok(HostEvent::Fatal(
+                    "This Mesh Editor helper already has a session; each helper opens one."
                         .to_owned(),
                 )),
                 _ => Err(SessionError::Protocol(format!(
@@ -3492,16 +3513,130 @@ fn required_u64(value: &Value, key: &str) -> Result<u64, SessionError> {
         .ok_or_else(|| SessionError::Protocol(format!("host message {key} is invalid")))
 }
 
-fn spawn_input_reader(sender: Sender<Incoming>) {
+/// Wakes the event loop when a host line arrives (the session reader had none).
+pub type HostWake = Box<dyn Fn() + Send>;
+
+/// The stdin reader of a helper started with `--cdmw-session-pending`: it has a
+/// window and a device but no session until the host sends `open_session`.
+pub struct PendingSessionInput {
+    sender: Sender<Incoming>,
+    receiver: Receiver<Incoming>,
+}
+
+/// What a pending helper heard from the host.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PendingRequest {
+    Open(PathBuf),
+    Close,
+}
+
+impl PendingSessionInput {
+    #[must_use]
+    pub fn start(wake: Option<HostWake>) -> Self {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        spawn_input_reader(sender.clone(), wake);
+        Self { sender, receiver }
+    }
+
+    #[cfg(test)]
+    fn for_test() -> (Self, Sender<Incoming>) {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        (
+            Self {
+                sender: sender.clone(),
+                receiver,
+            },
+            sender,
+        )
+    }
+
+    /// The first request the host sent, if any. A pending helper accepts exactly one
+    /// `open_session` (or a close); any other line refuses the helper.
+    pub fn poll(&self) -> Result<Option<PendingRequest>, SessionError> {
+        let value = match self.receiver.try_recv() {
+            Ok(Incoming::Message(value)) => value,
+            Ok(Incoming::LocalError(message)) => return Err(SessionError::Protocol(message)),
+            Err(TryRecvError::Empty) => return Ok(None),
+            Err(TryRecvError::Disconnected) => return Ok(Some(PendingRequest::Close)),
+        };
+        if value.get("protocol").and_then(Value::as_str) != Some(PROTOCOL) {
+            return Err(SessionError::Protocol(
+                "a pending Mesh Editor helper accepts only its own protocol".to_owned(),
+            ));
+        }
+        match value
+            .get("event")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+        {
+            "open_session" => value
+                .get("manifest")
+                .and_then(Value::as_str)
+                .filter(|path| !path.trim().is_empty())
+                .map(|path| Some(PendingRequest::Open(PathBuf::from(path))))
+                .ok_or_else(|| {
+                    SessionError::Protocol("open_session needs a manifest path".to_owned())
+                }),
+            "cancel" | "close_request" => Ok(Some(PendingRequest::Close)),
+            event => Err(SessionError::Protocol(format!(
+                "a pending Mesh Editor helper cannot handle {event} before open_session"
+            ))),
+        }
+    }
+}
+
+/// The one line a pending helper writes before it has a session: its window and
+/// renderer exist, so the host can embed it while it waits.
+pub fn announce_pending_ready(
+    child_hwnd: u64,
+    embedded_parent_hwnd: u64,
+    error: Option<&str>,
+) -> Result<(), SessionError> {
+    let mut message = json!({
+        "event": "pending_ready",
+        "protocol": PROTOCOL,
+        "process_id": std::process::id(),
+        "renderer": RENDERER,
+        "edit_backend": EDIT_BACKEND,
+        "child_hwnd": child_hwnd,
+        "embedded_parent_hwnd": embedded_parent_hwnd,
+    });
+    if let Some(error) = error {
+        message["event"] = json!("pending_failed");
+        message["error"] = json!(error);
+    }
+    let mut stdout = std::io::stdout().lock();
+    serde_json::to_writer(&mut stdout, &message)?;
+    stdout.write_all(b"\n")?;
+    stdout.flush()?;
+    Ok(())
+}
+
+fn spawn_input_reader(sender: Sender<Incoming>, waker: Option<HostWake>) {
     thread::Builder::new()
         .name("cdmw-rust-control-input".to_owned())
         .spawn(move || {
+            // A pending helper's reader also reports the end of input, so the helper
+            // ends with its host instead of waiting for a session that never comes.
+            let reports_end = waker.is_some();
+            let wake = || {
+                if let Some(waker) = &waker {
+                    waker();
+                }
+            };
             let stdin = std::io::stdin();
             let mut reader = BufReader::new(stdin.lock());
             loop {
                 let mut line = Vec::new();
                 match reader.read_until(b'\n', &mut line) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        if reports_end {
+                            let _ = sender.send(Incoming::LocalError(
+                                "CDMW closed the control input".to_owned(),
+                            ));
+                        }
+                        break;
+                    }
                     Ok(_) if line.len() > MAX_CONTROL_LINE_BYTES => {
                         let _ = sender.send(Incoming::LocalError(
                             "CDMW control line exceeded 256 KiB".to_owned(),
@@ -3523,6 +3658,7 @@ fn spawn_input_reader(sender: Sender<Incoming>) {
                                     ));
                                     break;
                                 }
+                                wake();
                             }
                             Err(error) => {
                                 let _ = sender.send(Incoming::LocalError(format!(
@@ -3540,6 +3676,7 @@ fn spawn_input_reader(sender: Sender<Incoming>) {
                     }
                 }
             }
+            wake();
         })
         .expect("control input thread creation must succeed");
 }
@@ -5333,6 +5470,46 @@ mod tests {
                 .is_err()
         );
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn a_pending_helper_accepts_one_manifest_and_a_session_refuses_a_second() {
+        let (pending, host) = PendingSessionInput::for_test();
+        assert_eq!(pending.poll().unwrap(), None);
+        let open = |manifest: Value| json!({"protocol": PROTOCOL, "event": "open_session", "manifest": manifest});
+        for refused in [
+            json!({"protocol": "cdmw_rust_preview_protocol_v1", "event": "open_session", "manifest": "m.json"}),
+            json!({"protocol": PROTOCOL, "event": "theme_update", "payload": {}}),
+            open(json!("")),
+            open(json!(7)),
+        ] {
+            host.send(Incoming::Message(refused.clone())).unwrap();
+            assert!(pending.poll().is_err(), "{refused}");
+        }
+        host.send(Incoming::Message(open(json!("session/manifest.json"))))
+            .unwrap();
+        assert_eq!(
+            pending.poll().unwrap(),
+            Some(PendingRequest::Open(PathBuf::from("session/manifest.json")))
+        );
+        host.send(Incoming::Message(
+            json!({"protocol": PROTOCOL, "event": "cancel"}),
+        ))
+        .unwrap();
+        assert_eq!(pending.poll().unwrap(), Some(PendingRequest::Close));
+        host.send(Incoming::LocalError("CDMW closed the control input".into()))
+            .unwrap();
+        assert!(pending.poll().is_err());
+
+        let root = tempdir().unwrap();
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "pending", 3, 0);
+        let mut second = open(json!("other/manifest.json"));
+        second["session_id"] = json!("pending");
+        second["process_generation"] = json!(3);
+        let HostEvent::Fatal(reason) = bridge.decode_host_event(second) else {
+            panic!("a second open_session must be refused");
+        };
+        assert!(reason.contains("already has a session"), "{reason}");
     }
 
     #[test]

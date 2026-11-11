@@ -345,7 +345,10 @@ def _make_ready(controller: DotNetPreviewSessionController) -> None:
             "event": "ready",
             **identity,
             "child_hwnd": 7,
-            "embedded_parent_hwnd": 1,
+            # The window the controller embeds into. A dialog spare's parking widget
+            # has a real id, which under offscreen Qt depends on how many native
+            # windows earlier tests made; a fixed 1 made that test order-dependent.
+            "embedded_parent_hwnd": controller._safe_host_hwnd(),  # noqa: SLF001
         },
         generation,
     )
