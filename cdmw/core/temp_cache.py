@@ -295,26 +295,37 @@ def _collect_cache_unit(path: Path) -> Optional[_CacheUnit]:
         newest_mtime = float(root_stat.st_mtime)
     except OSError:
         pass
-    try:
-        descendants = path.rglob("*")
-        for descendant in descendants:
-            try:
-                if descendant.is_symlink():
-                    stat = descendant.lstat()
-                elif descendant.is_file():
-                    stat = descendant.stat()
-                else:
-                    try:
-                        newest_mtime = max(newest_mtime, float(descendant.stat().st_mtime))
-                    except OSError:
-                        pass
+    # os.scandir reports type, size and modification time from the directory
+    # listing itself on Windows, where the previous Path.is_symlink/is_file/
+    # stat sequence cost three or four filesystem calls per cached file. With
+    # tens of thousands of cached files this ran for seconds, at startup,
+    # alongside the first previews.
+    pending = [path]
+    while pending:
+        directory = pending.pop()
+        try:
+            iterator = os.scandir(directory)
+        except OSError:
+            if directory == path:
+                return None
+            continue
+        with iterator:
+            for entry in iterator:
+                try:
+                    if entry.is_symlink():
+                        stat = entry.stat(follow_symlinks=False)
+                    elif entry.is_dir(follow_symlinks=False):
+                        newest_mtime = max(newest_mtime, float(entry.stat(follow_symlinks=False).st_mtime))
+                        pending.append(Path(entry.path))
+                        continue
+                    elif entry.is_file(follow_symlinks=False):
+                        stat = entry.stat(follow_symlinks=False)
+                    else:
+                        continue
+                except OSError:
                     continue
                 total_size += max(0, int(stat.st_size))
                 newest_mtime = max(newest_mtime, float(stat.st_mtime))
-            except OSError:
-                continue
-    except OSError:
-        return None
     return _CacheUnit(path=path, size=total_size, mtime=newest_mtime, is_dir=True)
 
 

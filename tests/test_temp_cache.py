@@ -172,3 +172,28 @@ class AppTempCacheTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_cache_unit_walk_sums_nested_files_and_keeps_the_newest_time(tmp_path):
+    # The walk uses os.scandir; it must still see every nested file and the
+    # newest file or folder time, as the Path-based walk did.
+    import os
+    from cdmw.core.temp_cache import _collect_cache_unit
+
+    unit = tmp_path / "unit"
+    (unit / "a" / "b").mkdir(parents=True)
+    (unit / "one.bin").write_bytes(b"x" * 10)
+    (unit / "a" / "two.bin").write_bytes(b"x" * 20)
+    (unit / "a" / "b" / "three.bin").write_bytes(b"x" * 30)
+    for path in (unit / "one.bin", unit / "a" / "two.bin", unit / "a" / "b" / "three.bin", unit / "a", unit / "a" / "b", unit):
+        os.utime(path, (1_000_000, 1_000_000))
+    os.utime(unit / "a" / "b", (2_000_000, 2_000_000))
+
+    collected = _collect_cache_unit(unit)
+
+    assert collected is not None and collected.is_dir
+    assert collected.size == 60
+    assert collected.mtime == 2_000_000
+    single = _collect_cache_unit(unit / "one.bin")
+    assert single is not None and not single.is_dir and single.size == 10
+    assert _collect_cache_unit(tmp_path / "missing") is None
