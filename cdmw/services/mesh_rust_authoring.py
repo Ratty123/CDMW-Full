@@ -12,6 +12,7 @@ import copy
 import ctypes
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -125,7 +126,8 @@ _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.(?:json|bin)\Z")
 _MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
-_REFERENCE_FILE_RE = re.compile(r"reference-(?:0[1-9]|[12][0-9]|3[0-2])\.bin\Z")
+_LOGGER = logging.getLogger(__name__)
+_REFERENCE_FILE_RE = re.compile(r"(?:reference-(?:0[1-9]|[12][0-9]|3[0-2])|companion-(?:0[1-9]|[12][0-9]|3[0-3]))\.bin\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
     r"preview-geometry-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
 )
@@ -8611,6 +8613,10 @@ class RustMeshAuthoringSession:
                 self, self.item_set_contexts, stop_event, progress)
             manifest["item_set_files"] = [context.selected_entry.basename
                                           for context in self.item_set_contexts]
+        companion = self._native_companion_reference_piece(
+            len(manifest.get("reference_pieces", ())) + 1, stop_event)
+        if companion is not None:
+            manifest.setdefault("reference_pieces", []).append(companion)
         if self.shadow_service._session(self.shadow_session_id).replacement_state is not None:
             # Reopened replacements already have material snapshots before the
             # helper starts. Declare their exact files for its initial allowlist.
@@ -8689,6 +8695,52 @@ class RustMeshAuthoringSession:
 
     @_with_protocol_lock
     @_with_pinned_session_root
+    def _native_companion_reference_piece(self, index, stop_event):
+        """Read-only prefab companions of a plain archive edit, as Browse shows them."""
+        if self.shadow_service._session(self.shadow_session_id).archive_refit_context is not None:
+            return None
+        from cdmw.services.mesh_preview_material_source import native_companion_reference_mesh
+        from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+        stop_event = stop_event or threading.Event()
+        try:
+            return self._build_native_companion_reference_piece(index, stop_event)
+        except RunCancelled:
+            raise
+        except Exception:
+            # Companions are read-only context; they must never stop the
+            # editable session from opening.
+            _LOGGER.warning("Mesh Editor companion parts were skipped", exc_info=True)
+            return None
+
+    def _build_native_companion_reference_piece(self, index, stop_event):
+        from cdmw.services.mesh_preview_material_source import native_companion_reference_mesh
+        from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+        source = self.authoritative_service._session(self.authoritative_session_id)
+        mesh = native_companion_reference_mesh(source.base_mesh, self.material_package_path,
+                                               cancelled=stop_event.is_set)
+        if mesh is None:
+            return None
+        document = _atomic_write_payload(
+            self.root, f"companion-{index:02d}.bin",
+            PreparedMeshDocument(encode_mesh_document(
+                _mesh_document_arrays(mesh), max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES)),
+            data_type=BINARY_MESH_DOCUMENT_TYPE,
+            element_count=sum(len(level) for level in _mesh_lods(mesh)),
+            expected_root_identity=self.root_identity,
+        )
+        synthesis = _RustMaterialSynthesisState()
+        textures = _mesh_texture_payloads(self.root, mesh, expected_root_identity=self.root_identity,
+                                          stop_event=stop_event, synthesis_state=synthesis)
+        presentations = _mesh_material_presentations(mesh, generated_overrides=synthesis.presentation_overrides)
+        row = {"index": index, "name": "Companions of " + Path(str(source.base_mesh.path)).name,
+               "role": "companion", "document": document, "textures": textures,
+               "material_presentations": presentations}
+        graph = _composite_preview_core_material_graph(
+            self.root, mesh, textures, presentations, "full", self.root_identity, stop_event.is_set)
+        if graph is not None:
+            row["preview_core_material_graph"] = graph
+        return row
+
     def state_payload(self, *, include_document: bool = True) -> dict[str, object]:
         self._require_open()
         view = self.shadow_service.session_view(self.shadow_session_id)

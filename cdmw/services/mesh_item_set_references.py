@@ -49,27 +49,29 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
                 expected_root_identity=session.root_identity,
             )
             synthesis = authoring._RustMaterialSynthesisState()
-            if not editing_set:
-                # Reference-only packages retain their existing baked material
-                # contract. Editable parts carry the native authoring graph.
-                import copy
-                mesh = copy.copy(mesh)
-                mesh.lod_levels = [[copy.copy(part) for part in level] for level in authoring._mesh_lods(mesh)]
-                mesh.submeshes = mesh.lod_levels[0]
-                for level in mesh.lod_levels:
-                    for part in level:
-                        part.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
-                        part.preview_native_material_overrides.pop("preview_core_material_source", None)
             textures = [] if editing_set else authoring._mesh_texture_payloads(
                 session.root, mesh, expected_root_identity=session.root_identity,
                 stop_event=stop_event, synthesis_state=synthesis,
             )
-            rows.append({
+            presentations = authoring._mesh_material_presentations(
+                mesh, generated_overrides=synthesis.presentation_overrides)
+            row = {
                 "index": index, "name": entry.basename, "role": "reference",
                 "document": document, "textures": textures,
-                "material_presentations": authoring._mesh_material_presentations(
-                    mesh, generated_overrides=synthesis.presentation_overrides),
-            })
+                "material_presentations": presentations,
+            }
+            if not editing_set:
+                # A reference piece keeps its native material graph, so the
+                # helper composes it with the same layer rule as Browse and
+                # the editable document instead of a Python-synthesised map.
+                from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+                graph = _composite_preview_core_material_graph(
+                    session.root, mesh, textures, presentations, "full", session.root_identity,
+                    lambda: stop_event.is_set(),
+                )
+                if graph is not None:
+                    row["preview_core_material_graph"] = graph
+            rows.append(row)
         finally:
             # DDS files are owned copies by now; release the temporary cache lease.
             prepared.clear()

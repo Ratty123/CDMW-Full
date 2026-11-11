@@ -40,8 +40,11 @@ fn layer_rnm(base: vec3<f32>, detail: vec3<f32>) -> vec3<f32> {
     return safe_normalize(t * dot(t,u) / max(t.z,0.00001) - u, base);
 }
 
-fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface {
-    var out = LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0));
+fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurface {
+    // control.w == 1: no base colour map, so the surface beneath the layers is
+    // white rather than the grey placeholder bound for untextured geometry.
+    let base = vec4<f32>(select(sampled_base.rgb, vec3<f32>(1.0), layer_uniform.control.w == 1u), sampled_base.a);
+    var out = LayerSurface(sampled_base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0));
     if (material.flags & MATERIAL_GPU_LAYERS) == 0u { return out; }
     var mask = textureSampleBias(blend_mask, material_sampler, uv, 0.0).rgb;
     let sum = dot(mask, vec3<f32>(1.0));

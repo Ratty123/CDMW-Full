@@ -212,6 +212,29 @@ static void run_material_declaration_conservation_self_test() {
             && shared_logical_declarations.front().owner_wrapper_item_id == "712"
             && shared_logical_declarations.front().material_parameters.size() == 4,
         "source parameter declaration inventory is incomplete");
+    // cd_phm_02_sword_0015 shape: a source-layered wrapper with no declared
+    // base. The selector mask must not become a layer, and a support-map
+    // filename must not invent a base colour edge the source never declares.
+    const std::string layered_wrapper_sidecar =
+        "<Root><ModelProperty Index=\"0\"><SkinnedMeshMaterialWrapper ItemID=\"1334\" _subMeshName=\"flag\">"
+        "<Material _materialName=\"SkinnedMeshCloth_Ver2\"/>"
+        "<MaterialParameterTexture _name=\"_normalTexture\" Value=\"character/texture/flag_0001_n.dds\"/>"
+        "<MaterialParameterTexture _name=\"_colorBlendingMaskTexture\" Value=\"character/texture/flag_0001_ma.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailMaskTexture\" Value=\"character/texture/flag_0001_mg.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailDiffuseMaskG\" Value=\"character/texture/layer_002.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailNormalMaskR\" Value=\"character/texture/layer_001_n.dds\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty></Root>";
+    const std::vector<SidecarTextureRef> layered_refs = extract_sidecar_texture_refs(layered_wrapper_sidecar, 0);
+    require_material_contract(
+        std::none_of(layered_refs.begin(), layered_refs.end(), [](const SidecarTextureRef& ref) {
+            return lower_copy(ref.path) == "character/texture/flag_0001.dds";
+        }),
+        "a source-layered wrapper gained a guessed base colour or an unchannelled selector layer");
+    require_material_contract(
+        std::any_of(layered_refs.begin(), layered_refs.end(), [](const SidecarTextureRef& ref) {
+            return lower_copy(ref.path) == "character/texture/layer_001.dds";
+        }),
+        "a channelled detail layer lost its sibling colour map");
     require_material_contract(
         layer_channel_from_parameter("_detailMaskTexture").empty()
             && layer_channel_from_parameter("_colorBlendingMaskTexture").empty()

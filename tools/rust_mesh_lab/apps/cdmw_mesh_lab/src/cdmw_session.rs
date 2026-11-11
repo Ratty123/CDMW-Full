@@ -351,6 +351,10 @@ pub struct ReferencePieceManifest {
     pub document: FileReference,
     pub textures: Vec<SessionTextureReference>,
     pub material_presentations: Vec<SessionMaterialPresentation>,
+    /// The piece's own native material graph, when its source PAC has one.
+    /// Composed with the same layer rule as the editable document and Browse.
+    #[serde(default)]
+    pub preview_core_material_graph: Option<PreviewCoreMaterialGraph>,
 }
 
 #[derive(Debug)]
@@ -614,13 +618,29 @@ impl LoadedCdmwSessionPackage {
             let mut piece_manifest = manifest.clone();
             piece_manifest.textures = piece.textures.clone();
             piece_manifest.material_presentations = piece.material_presentations.clone();
-            piece_manifest.preview_core_material_graph = None;
+            piece_manifest.preview_core_material_graph = piece.preview_core_material_graph.clone();
+            piece_manifest.preview_core_geometry = None;
             validate_material_presentations(&piece_manifest, &reference_document)?;
-            let textures = read_texture_resources_with(
+            validate_document_material_graph(&piece_manifest, &reference_document)?;
+            let mut textures = read_texture_resources_with(
                 &piece_manifest,
                 &reference_document,
                 &mut read_texture,
             )?;
+            if let Some(graph) = piece.preview_core_material_graph.as_ref() {
+                // Reference pieces have no GPU layer slots; the CPU form of the
+                // same RGB-layer rule gives them the same pixels.
+                crate::preview_gpu_layers::prepare(
+                    graph,
+                    &piece.material_presentations,
+                    &reference_document,
+                    &mut textures,
+                    false,
+                    std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
+                    &mut read_texture,
+                    cancelled,
+                )?;
+            }
             reference_pieces.push(LoadedReferencePiece {
                 index: piece.index,
                 name: piece.name.clone(),
@@ -2762,7 +2782,9 @@ fn read_mesh_document_binary_reference(
         || components.next().is_some()
         || !(is_owned_mesh_document_binary_filename(&reference.path)
             || (reference_piece
-                && (1..=32).any(|index| reference.path == format!("reference-{index:02}.bin"))))
+                && ((1..=32).any(|index| reference.path == format!("reference-{index:02}.bin"))
+                    || (1..=33)
+                        .any(|index| reference.path == format!("companion-{index:02}.bin")))))
     {
         return Err(SessionError::InvalidPayload(
             "binary mesh path must be one owned document filename".into(),
@@ -3132,10 +3154,18 @@ fn reject_unexpected_initial_files(
     )
     .map(str::to_owned)
     .collect::<BTreeSet<_>>();
-    if manifest.reference_pieces.len() > 32
+    // Item-set references come first and are the set's other files; read-only
+    // companions of the editable PAC (prefab eyes, teeth, scabbards) follow.
+    let set_references = manifest
+        .reference_pieces
+        .iter()
+        .filter(|piece| piece.role == "reference")
+        .count();
+    if manifest.reference_pieces.len() > 33
+        || set_references > 32
         || manifest.item_set_files.len() > 33
         || (!manifest.item_set_files.is_empty()
-            && manifest.item_set_files.len() != manifest.reference_pieces.len() + 1)
+            && manifest.item_set_files.len() != set_references + 1)
         || (!manifest.reference_pieces.is_empty() && manifest.schema != PACKAGE_SCHEMA)
     {
         return Err(SessionError::InvalidManifest(
@@ -3143,12 +3173,22 @@ fn reject_unexpected_initial_files(
         ));
     }
     for (position, piece) in manifest.reference_pieces.iter().enumerate() {
+        let identity_valid = match piece.role.as_str() {
+            "reference" => {
+                position < set_references
+                    && manifest.item_set_files.get(piece.index) == Some(&piece.name)
+                    && piece.document.path == format!("reference-{:02}.bin", piece.index)
+            }
+            "companion" => {
+                position >= set_references
+                    && piece.document.path == format!("companion-{:02}.bin", piece.index)
+            }
+            _ => false,
+        };
         if piece.index != position + 1
-            || piece.role != "reference"
+            || !identity_valid
             || piece.name.is_empty()
             || piece.name.len() > 512
-            || manifest.item_set_files.get(piece.index) != Some(&piece.name)
-            || piece.document.path != format!("reference-{:02}.bin", piece.index)
         {
             return Err(SessionError::InvalidManifest(
                 "invalid item set reference identity".into(),
@@ -3160,6 +3200,17 @@ fn reject_unexpected_initial_files(
                 .textures
                 .iter()
                 .map(|texture| texture.file.path.clone()),
+        );
+        allowed.extend(
+            piece
+                .preview_core_material_graph
+                .iter()
+                .flat_map(|graph| &graph.materials)
+                .flat_map(|material| &material.layers)
+                .flat_map(PreviewCoreMaterialLayer::resources)
+                .filter_map(|(_role, _declared, _archive, reference)| {
+                    reference.map(|resource| resource.path.clone())
+                }),
         );
     }
     if let Some(reference) = manifest.state.get("hair").and_then(|h| h.get("file")) {
@@ -4150,6 +4201,33 @@ mod tests {
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
         manifest["reference_pieces"][0]["role"] = json!("reference");
         manifest["reference_pieces"][0]["document"]["sha256"] = json!("0".repeat(64));
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn companion_pieces_of_a_single_file_load_without_set_membership() {
+        // A head's eyes and teeth arrive as read-only companions; a session
+        // with one once failed: "binary mesh path must be one owned document
+        // filename".
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(&document());
+        let companion = mesh_binary_reference("companion-01.bin", &bytes);
+        fs::write(root.path().join("companion-01.bin"), &bytes).unwrap();
+        manifest["reference_pieces"] = json!([{
+            "index": 1, "name": "Companions of head.pac", "role": "companion",
+            "document": companion, "textures": manifest["textures"],
+            "material_presentations": manifest["material_presentations"],
+        }]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert_eq!(package.reference_pieces.len(), 1);
+        assert!(package.manifest().item_set_files.is_empty());
+        // A companion never poses as an item-set member.
+        manifest["item_set_files"] = json!(["head.pac", "Companions of head.pac"]);
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }

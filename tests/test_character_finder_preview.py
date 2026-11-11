@@ -1418,3 +1418,27 @@ def test_finder_passes_authored_shape_to_primary_and_attached_meshes(tmp_path, m
     assert len(context) == 1 and context[0].entry == attached and context[0].scale == 1.02
     assert context[0].presentation_geometry_source == changed._cdmw_skeleton_variation_source
     assert struct.unpack_from("<6f", context[0].presentation_geometry_payload, 24)[:3] == pytest.approx(changed.submeshes[0].vertices[0])
+
+
+def test_lane_results_are_attributed_without_qobject_sender():
+    # sender() took Qt's connection lock while holding the GIL and deadlocked
+    # against a worker thread; lanes are now passed explicitly.
+    from types import SimpleNamespace
+    from cdmw.ui.character_finder import preview_controller as module
+
+    owner = next(cls for cls in vars(module).values()
+                 if isinstance(cls, type) and hasattr(cls, "_lane_idle") and hasattr(cls, "_thumbnail_ready"))
+    lane = object()
+    emitted, scheduled, remembered = [], [], []
+    fake = SimpleNamespace(
+        _assigned={lane: "asset:1"}, _closed=False,
+        _remember_thumbnail=lambda key, result: remembered.append(key),
+        thumbnail_ready=SimpleNamespace(emit=lambda key, result: emitted.append(key)),
+        failed=SimpleNamespace(emit=lambda key, message: emitted.append(message)),
+        _schedule_timer=SimpleNamespace(start=lambda value: scheduled.append(value)),
+    )
+    owner._thumbnail_ready(fake, "asset:1", object(), lane)
+    assert fake._assigned == {} and emitted == ["asset:1"] and remembered == ["asset:1"]
+    fake._assigned[lane] = "asset:2"
+    owner._failed(fake, "asset:2", "Failed", lane)
+    assert fake._assigned == {} and emitted[-1] == "Failed"

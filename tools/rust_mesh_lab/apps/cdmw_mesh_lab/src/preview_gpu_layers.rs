@@ -233,6 +233,10 @@ fn build(
     result.uniform.control[2] = u32::from(family.contains("eye"));
     if let Some(base) = material.layers[0].diffuse.as_ref() {
         result.uniform.base_color[3] = mean(&layer_texture(base, TextureRole::BaseColor, sources))?;
+    } else {
+        // A layered material without a base colour map samples white beneath
+        // its layers (as CDMW Next does), not the grey untextured placeholder.
+        result.uniform.control[3] = 1;
     }
     for layer in material.layers.iter().skip(1) {
         let k = channel(layer).expect("eligible channel");
@@ -263,11 +267,9 @@ fn build(
                 0.0,
             ],
             properties: [
-                if result.uniform.control[0] == 2 {
-                    layer.blend_opacity.unwrap_or(layer.weight)
-                } else {
-                    layer.weight
-                },
+                // Next and the source use the per-channel _dyeingGlobalOpacity
+                // byte in both blend modes; `weight` is only its fallback.
+                layer.blend_opacity.unwrap_or(layer.weight),
                 mean(&color)?,
                 1.0,
                 0.0,
@@ -556,6 +558,109 @@ mod tests {
                     assert!((linear(f32::from(decoded.pixels[k]) / 255.0) - expected).abs() < 0.01);
                 }
                 assert_eq!(decoded.pixels[3], 255, "eye coverage stays opaque");
+            }
+        }
+    }
+
+    #[test]
+    fn layered_material_without_base_matches_on_gpu_uniform_and_cpu_fallback() {
+        // cd_phm_02_sword_0015 shape: channelled detail layers, one blend
+        // mask, no base colour map. Both routes use white beneath the layers,
+        // the normalised mask, and the authored _dyeingGlobalOpacity byte.
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let bytes = [
+            make([255, 0, 0, 255]),
+            make([0, 255, 0, 255]),
+            make([128, 128, 0, 255]),
+        ];
+        let refs = [
+            reference(&bytes[0], "red.dds"),
+            reference(&bytes[1], "green.dds"),
+            reference(&bytes[2], "mask.dds"),
+        ];
+        let mut base = layer("base", "r", &refs[0]);
+        base.diffuse = None;
+        base.mask = None;
+        let mut red = layer("detail", "r", &refs[0]);
+        red.mask = Some(refs[2].clone());
+        red.blend_opacity = Some(0.5);
+        red.blend_flags = Some(15);
+        let mut green = layer("detail", "g", &refs[1]);
+        green.mask = Some(refs[2].clone());
+        green.source_parameter = "_detailDiffuseMaskG".into();
+        let value = material(vec![base, red, green]);
+        assert!(eligible(&value));
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 4,
+            unique_resource_count: 3,
+            copied_resource_count: 3,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![value],
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        for gpu in [true, false] {
+            let mut resources = Vec::new();
+            let (_, layers) = prepare(
+                &graph,
+                &[],
+                &document,
+                &mut resources,
+                gpu,
+                false,
+                |r| {
+                    Ok(bytes[refs
+                        .iter()
+                        .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                        .unwrap()]
+                    .clone())
+                },
+                &|| false,
+            )
+            .unwrap();
+            if gpu {
+                assert_eq!(layers.len(), 1);
+                let uniform = &layers[0].uniform;
+                assert_eq!(uniform.control[0], 1, "one blend mask selects layers");
+                assert_eq!(uniform.control[3], 1, "missing base samples white");
+                assert_eq!(
+                    uniform.layers[0].properties[0], 0.5,
+                    "authored opacity byte"
+                );
+                assert_eq!(
+                    uniform.layers[1].properties[0], 1.0,
+                    "weight is the fallback"
+                );
+            } else {
+                assert!(layers.is_empty());
+                let base = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::BaseColor)
+                    .expect("composed base colour");
+                let decoded = cdmw_texture::decode_dds_rgba8(&base.bytes, base.role).unwrap();
+                // Half red, half green in linear light, no grey and no first-layer base.
+                let expected = (0.5_f32.powf(1.0 / 2.4) * 1.055 - 0.055) * 255.0;
+                assert!(
+                    (f32::from(decoded.pixels[0]) - expected).abs() <= 3.0,
+                    "{:?}",
+                    &decoded.pixels[..4]
+                );
+                assert!(
+                    (f32::from(decoded.pixels[1]) - expected).abs() <= 3.0,
+                    "{:?}",
+                    &decoded.pixels[..4]
+                );
+                assert!(decoded.pixels[2] <= 3, "{:?}", &decoded.pixels[..4]);
             }
         }
     }

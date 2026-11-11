@@ -413,6 +413,14 @@ static bool shader_rule_allows_visible_layer_family(const std::string& shader_fa
     return rule == "standard" || rule == "standard_v2" || rule == "cloth" || rule == "cloth_v2" || rule == "static_standard" || rule == "static_multitextured" || rule == "generic";
 }
 
+static bool wrapper_declares_source_layers(const std::vector<MaterialParameterRecord>& material_parameters) {
+    return std::any_of(material_parameters.begin(), material_parameters.end(), [](const MaterialParameterRecord& value) {
+        const std::string name = normalized_key(value.name);
+        return !value.texture_path.empty()
+            && (name == "detaildiffusemaskr" || name == "detaildiffusemaskg" || name == "detaildiffusemaskb");
+    });
+}
+
 static void add_support_base_sibling_ref(
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen,
@@ -440,6 +448,12 @@ static void add_support_base_sibling_ref(
         // Layer-family support maps are completed below with their authored
         // detail/grime parameter. Promoting their diffuse sibling to a generic
         // base edge makes that layer eligible to overpaint the whole material.
+        return;
+    }
+    if (wrapper_declares_source_layers(material_parameters)) {
+        // A source-layered wrapper (channelled detail diffuse maps, no base
+        // declared) takes its colour from those layers. The game and CDMW
+        // Next draw no base texture there; a filename guess would add one.
         return;
     }
     if (!texture_path_has_visual_support_suffix(path)) return;
@@ -474,6 +488,11 @@ static void add_layer_family_sibling_refs(
         const char last = static_cast<char>(std::tolower(static_cast<unsigned char>(parameter.back())));
         if (last == 'r' || last == 'g' || last == 'b' || last == 'a') channel.push_back(last);
     }
+    // Layers are per channel. An unchannelled layer-family parameter such as
+    // _detailMaskTexture is the layer selector itself, not a layer: stripping
+    // its "_mg" suffix would invent an unowned detail layer from the material's
+    // own colour map.
+    if (channel.empty()) return;
     const std::string suffix = channel.empty() ? "" : std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(channel.front()))));
     const std::string diffuse_parameter = key.find("grime") != std::string::npos ? ("_grimeDiffuseTexture" + suffix) : ("_detailDiffuseMask" + suffix);
     const std::string normal_parameter = key.find("grime") != std::string::npos ? ("_grimeNormalTexture" + suffix) : ("_detailNormalMask" + suffix);

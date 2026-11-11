@@ -1269,6 +1269,11 @@ fn compose_base_color(
         // Preserve authored compression, full resolution and mip filtering.
         return Ok(None);
     }
+    if is_gpu_layer_shaped(material) {
+        // The same RGB-layer rule as material_layers.wgsl, so a material looks
+        // the same whether the GPU path or this fallback composes it.
+        return compose_rgb_layer_base_color(material, cache);
+    }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
         return Ok(None);
     };
@@ -1393,6 +1398,210 @@ fn compose_base_color(
             target[offset + 1] = unit_byte(output[1]);
             target[offset + 2] = unit_byte(output[2]);
         }
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
+/// True when the material has the RGB-layer shape the GPU layer path draws
+/// (source detail layers selected by one blend mask; never eyes or grime).
+pub(crate) fn is_gpu_layer_shaped(material: &PreviewCoreMaterial) -> bool {
+    !material
+        .layers
+        .first()
+        .is_some_and(|base| base.shader_family.eq_ignore_ascii_case("SkinnedMeshEye"))
+        && crate::preview_gpu_layers::eligible(material)
+}
+
+fn srgb_to_linear(value: f32) -> f32 {
+    if value <= 0.04045 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn linear_to_srgb(value: f32) -> f32 {
+    let value = value.clamp(0.0, 1.0);
+    if value <= 0.003_130_8 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+/// Alpha-weighted mean linear luminance, the quantity the GPU path takes from
+/// the map's <=64 px mip. Here it comes from the full decoded map.
+fn mean_linear_luminance(image: &DecodedRgba8) -> f32 {
+    let mut luminance = 0.0_f64;
+    let mut alpha = 0.0_f64;
+    for pixel in image.pixels.chunks_exact(4) {
+        let weight = f64::from(pixel[3]) / 255.0;
+        luminance += f64::from(
+            0.2126 * srgb_to_linear(unit(pixel[0]))
+                + 0.7152 * srgb_to_linear(unit(pixel[1]))
+                + 0.0722 * srgb_to_linear(unit(pixel[2])),
+        ) * weight;
+        alpha += weight;
+    }
+    if alpha > 0.0 {
+        (luminance / alpha) as f32
+    } else {
+        1.0
+    }
+}
+
+/// `layer_dye` in material_layers.wgsl, on linear colour.
+fn rgb_layer_dye(color: [f32; 3], dye: [f32; 4], mean: f32, opacity: f32) -> [f32; 3] {
+    let luminance = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2];
+    let amount = (dye[3] * opacity).clamp(0.0, 1.0);
+    std::array::from_fn(|k| {
+        mix(
+            color[k],
+            (dye[k] * luminance / mean.max(0.0001)).clamp(0.0, 1.0),
+            amount,
+        )
+    })
+}
+
+struct RgbLayerChannel {
+    pixels: Option<ImagePixels>,
+    dye: [f32; 4],
+    opacity: f32,
+    mean: f32,
+    flags: u32,
+    seed: [f32; 4],
+}
+
+fn linear_pixel(pixels: &[u8], offset: usize) -> [f32; 3] {
+    std::array::from_fn(|c| srgb_to_linear(unit(pixels[offset + c])))
+}
+
+/// CPU form of the GPU RGB-layer colour (`evaluate_material_layers`, modes 1
+/// and 2). A missing base map is white beneath the layers, as on the GPU.
+fn compose_rgb_layer_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let pixel_count = checked_pixel_count(width, height)?;
+    let overlay = material
+        .layers
+        .iter()
+        .skip(1)
+        .any(|layer| layer.mask_parameter != "_colorBlendingMaskTexture");
+    let base_layer = &material.layers[0];
+    let base_mean = match base_layer.diffuse.as_ref() {
+        Some(reference) => mean_linear_luminance(cache.image(reference)?),
+        None => 1.0,
+    };
+    let base = base_layer
+        .diffuse
+        .as_ref()
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()?;
+    let mut mask = None;
+    let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
+        pixels: None,
+        dye: [0.0; 4],
+        opacity: 0.0,
+        mean: 1.0,
+        flags: 15,
+        seed: [0.0; 4],
+    });
+    for layer in material.layers.iter().skip(1) {
+        let k = channel_index(&layer.mask_channel).min(2);
+        if mask.is_none()
+            && let Some(reference) = layer.mask.as_ref()
+        {
+            mask = Some(cache.resized(reference, width, height)?);
+        }
+        let dye = [
+            srgb_to_linear(layer.tint[0]),
+            srgb_to_linear(layer.tint[1]),
+            srgb_to_linear(layer.tint[2]),
+            layer.tint[3],
+        ];
+        if layer.layer_role == "color_seed" {
+            channels[k].seed = [dye[0], dye[1], dye[2], dye[3] * layer.weight];
+            continue;
+        }
+        let Some(reference) = layer.diffuse.as_ref() else {
+            continue;
+        };
+        channels[k].mean = mean_linear_luminance(cache.image(reference)?);
+        channels[k].pixels = Some(cache.transformed(reference, width, height, layer)?);
+        channels[k].dye = dye;
+        channels[k].opacity = layer.blend_opacity.unwrap_or(layer.weight);
+        channels[k].flags = layer.blend_flags.unwrap_or(15);
+    }
+    let tint = material.base_color;
+    let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let (base_rgb, alpha) = match base.as_deref() {
+            Some(pixels) => (linear_pixel(pixels, offset), pixels[offset + 3]),
+            None => ([1.0_f32; 3], 255),
+        };
+        let mut weights: [f32; 3] = match mask.as_deref() {
+            Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+            None => [1.0, 0.0, 0.0],
+        };
+        let color = if overlay {
+            let mut color: [f32; 3] = std::array::from_fn(|k| base_rgb[k] * tint[k]);
+            for (k, channel) in channels.iter().enumerate() {
+                let Some(pixels) = channel.pixels.as_deref() else {
+                    continue;
+                };
+                let weight = (weights[k] * channel.opacity).clamp(0.0, 1.0);
+                if channel.flags & 1 != 0 {
+                    let dyed =
+                        rgb_layer_dye(linear_pixel(pixels, offset), channel.dye, channel.mean, 1.0);
+                    color = std::array::from_fn(|c| mix(color[c], dyed[c] * tint[c], weight));
+                } else {
+                    let dyed = rgb_layer_dye(color, channel.dye, base_mean, 1.0);
+                    color = std::array::from_fn(|c| mix(color[c], dyed[c], weight));
+                }
+            }
+            color
+        } else {
+            let sum = weights[0] + weights[1] + weights[2];
+            weights = if sum < 0.00001 {
+                [1.0, 0.0, 0.0]
+            } else {
+                weights.map(|value| value / sum)
+            };
+            let mut color = [0.0_f32; 3];
+            for (k, channel) in channels.iter().enumerate() {
+                let c = if let Some(pixels) = channel.pixels.as_deref() {
+                    rgb_layer_dye(
+                        linear_pixel(pixels, offset),
+                        channel.dye,
+                        channel.mean,
+                        channel.opacity,
+                    )
+                } else if channel.seed[3] > 0.0 {
+                    rgb_layer_dye(base_rgb, channel.seed, base_mean, 1.0)
+                } else {
+                    base_rgb
+                };
+                for (sum, value) in color.iter_mut().zip(c) {
+                    *sum += value * weights[k];
+                }
+            }
+            std::array::from_fn(|k| color[k] * tint[k])
+        };
+        target.extend_from_slice(&[
+            unit_byte(linear_to_srgb(color[0])),
+            unit_byte(linear_to_srgb(color[1])),
+            unit_byte(linear_to_srgb(color[2])),
+            alpha,
+        ]);
     }
     Ok(Some(DecodedRgba8 {
         width,

@@ -2919,6 +2919,42 @@ fn srgb_rgba_to_linear(colour: [f32; 4]) -> [f32; 4] {
     ]
 }
 
+/// Diagnostic views show the background as a raw linear value, without the
+/// display encoding the shaded views get, so it reads darker (as in CDMW Next,
+/// whose post pass applies tone mapping and sRGB only to Material and sRGB only
+/// to Albedo). Shaded views keep the configured colour.
+#[must_use]
+pub const fn view_mode_darkens_background(mode: ViewMode) -> bool {
+    !matches!(
+        mode,
+        ViewMode::TexturedSolid
+            | ViewMode::GameOutdoor
+            | ViewMode::BaseColor
+            | ViewMode::Solid
+            | ViewMode::SolidWire
+    )
+}
+
+fn view_mode_background(mode: ViewMode, colour: wgpu::Color) -> wgpu::Color {
+    if !view_mode_darkens_background(mode) {
+        return colour;
+    }
+    let linear = |value: f64| {
+        let value = value.clamp(0.0, 1.0);
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    wgpu::Color {
+        r: linear(colour.r),
+        g: linear(colour.g),
+        b: linear(colour.b),
+        a: colour.a,
+    }
+}
+
 fn clear_colour_for_target(colour: [f32; 4], output_is_srgb: bool) -> wgpu::Color {
     let colour = if output_is_srgb {
         srgb_rgba_to_linear(colour)
@@ -4362,14 +4398,17 @@ impl WindowRenderer {
                     view: mesh_color_view,
                     resolve_target,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(if self.camera_uniform.lighting_preset == 2 {
-                            clear_colour_for_target(
-                                [0.006, 0.008, 0.012, self.clear_colour.a as f32],
-                                self.config.format.is_srgb(),
-                            )
-                        } else {
-                            self.clear_colour
-                        }),
+                        load: wgpu::LoadOp::Clear(view_mode_background(
+                            self.view_mode,
+                            if self.camera_uniform.lighting_preset == 2 {
+                                clear_colour_for_target(
+                                    [0.006, 0.008, 0.012, self.clear_colour.a as f32],
+                                    self.config.format.is_srgb(),
+                                )
+                            } else {
+                                self.clear_colour
+                            },
+                        )),
                         store,
                     },
                     depth_slice: None,
@@ -7684,13 +7723,16 @@ fn record_headless_pass(
             view: color,
             resolve_target,
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(clear_colour_for_target(
-                    if camera_uniform.lighting_preset == 2 {
-                        [0.006, 0.008, 0.012, 1.0]
-                    } else {
-                        [0.025, 0.03, 0.04, 1.0]
-                    },
-                    camera_uniform.output_is_srgb != 0,
+                load: wgpu::LoadOp::Clear(view_mode_background(
+                    mode,
+                    clear_colour_for_target(
+                        if camera_uniform.lighting_preset == 2 {
+                            [0.006, 0.008, 0.012, 1.0]
+                        } else {
+                            [0.025, 0.03, 0.04, 1.0]
+                        },
+                        camera_uniform.output_is_srgb != 0,
+                    ),
                 )),
                 store: wgpu::StoreOp::Store,
             },
@@ -12086,6 +12128,34 @@ mod tests {
             SHADER
                 .contains("is_hair || is_stone || is_tooth || is_bone || is_organic || is_foliage")
         );
+    }
+
+    #[test]
+    fn diagnostic_view_modes_darken_the_background_like_next() {
+        let grey = wgpu::Color {
+            r: 0.2,
+            g: 0.2,
+            b: 0.2,
+            a: 1.0,
+        };
+        for mode in [
+            ViewMode::TexturedSolid,
+            ViewMode::GameOutdoor,
+            ViewMode::BaseColor,
+            ViewMode::Solid,
+        ] {
+            assert_eq!(view_mode_background(mode, grey), grey, "{mode:?}");
+        }
+        for mode in [
+            ViewMode::NormalMap,
+            ViewMode::UvChecker,
+            ViewMode::PartId,
+            ViewMode::Wireframe,
+            ViewMode::LayerMask,
+        ] {
+            let darker = view_mode_background(mode, grey);
+            assert!(darker.r < 0.05 && darker.a == 1.0, "{mode:?} {darker:?}");
+        }
     }
 
     #[test]

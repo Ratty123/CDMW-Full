@@ -8268,3 +8268,14 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_companion_reference_payload_names_are_owned_binary_names(tmp_path):
+    # A Mesh Editor session with prefab companions failed to open with
+    # "Mesh payload name does not match its owned encoding".
+    from cdmw.services import mesh_rust_authoring as authoring
+
+    assert authoring._REFERENCE_FILE_RE.fullmatch("companion-01.bin")
+    assert authoring._REFERENCE_FILE_RE.fullmatch("reference-32.bin")
+    assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-00.bin")
+    assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-01.json")

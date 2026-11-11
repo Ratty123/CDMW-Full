@@ -101,6 +101,48 @@ def bind_authoring_preview_core_materials(mesh, package_path):
                 bind_preview_core_material_source(part, package, rows[0], manifest["material_conservation"])
 
 
+def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False):
+    """The editable PAC's prefab and context companions (eyes, teeth, a
+    scabbard) as read-only parts, each bound to its own native material batch.
+
+    They come from the same Preview Core package Browse Archives shows, so the
+    Mesh Editor draws them with the same material layers. Returns None when the
+    package has no companions or does not belong to this mesh.
+    """
+    from cdmw.modding.mesh_parser import ParsedMesh
+    from cdmw.modding.mesh_totals import refresh_mesh_totals
+    from cdmw.services.mesh_dotnet_reference_composite import append_dotnet_native_reference_composite
+    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+
+    if not package_path:
+        return None
+    package = Path(package_path)
+    if package.is_file():
+        package = package.parent
+    path = package / "manifest.json"
+    if not path.is_file() or path.stat().st_size > 16 * 1024 * 1024:
+        return None
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version", 0) < 8:
+        return None
+    normalize = lambda value: str(value or "").replace("\\", "/").casefold()
+    if not normalize(manifest.get("source_path")) or normalize(manifest.get("source_path")) != normalize(getattr(mesh, "path", "")):
+        return None
+    _validated_preview_core_source(package, manifest)
+    reference = ParsedMesh(path=str(getattr(mesh, "path", "")), format="pac",
+                           bbox_min=getattr(mesh, "bbox_min", (0, 0, 0)), bbox_max=getattr(mesh, "bbox_max", (0, 0, 0)),
+                           has_uvs=True)
+    if not append_dotnet_native_reference_composite(reference, package, cancelled=cancelled):
+        return None
+    batches = {int(batch.get("index", -1)): batch for batch in manifest.get("batches", ()) if isinstance(batch, dict)}
+    for part in reference.submeshes:
+        batch = batches.get(int(getattr(part, "cdmw_mesh_edit_topology_source_submesh_index", -1)))
+        if batch is not None and batch.get("material_name") == getattr(part, "material", ""):
+            bind_preview_core_material_source(part, package, batch, manifest["material_conservation"])
+    refresh_mesh_totals(reference)
+    return reference
+
+
 def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
     """Resolve one original PAC's graph on the existing set preparation worker."""
     from types import SimpleNamespace

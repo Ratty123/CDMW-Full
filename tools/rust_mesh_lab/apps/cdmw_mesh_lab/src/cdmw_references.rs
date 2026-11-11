@@ -166,16 +166,24 @@ impl LabApplication {
         if self.cdmw_reference_pieces.is_empty() {
             return;
         }
-        ui.menu_button(crate::localization::tr("Switch editable piece"), |ui| {
-            if let Some(bridge) = &self.cdmw_bridge {
-                for (index, name) in bridge.manifest().item_set_files.iter().enumerate() {
-                    if ui.add_enabled(index > 0, egui::Button::new(name)).clicked() {
-                        actions.push(UiAction::SwitchItemPiece(index));
-                        ui.close();
+        let set_files = self
+            .cdmw_bridge
+            .as_ref()
+            .is_some_and(|bridge| !bridge.manifest().item_set_files.is_empty());
+        // Companions of a single file (eyes, teeth) are references too, but
+        // there is no other set file to switch to.
+        if set_files {
+            ui.menu_button(crate::localization::tr("Switch editable piece"), |ui| {
+                if let Some(bridge) = &self.cdmw_bridge {
+                    for (index, name) in bridge.manifest().item_set_files.iter().enumerate() {
+                        if ui.add_enabled(index > 0, egui::Button::new(name)).clicked() {
+                            actions.push(UiAction::SwitchItemPiece(index));
+                            ui.close();
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
         let mut changed = false;
         crate::localization::collapsing("Reference pieces").show(ui, |ui| {
             for piece in &mut self.cdmw_reference_pieces {
