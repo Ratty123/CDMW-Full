@@ -44,6 +44,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Open set in Mesh Editor** shows the set's textures. Each file's resolved DDS textures were discarded while the session was prepared, so the set opened on an untextured neutral surface. Background thumbnails and preloads now also pause from the moment you open a model or set in the Mesh Editor.
 - Portable builds no longer fail to start because an unrelated installed tool supplies an incompatible ICU library.
 - Layered materials without a colour texture of their own, such as the two-handed sword cd_phm_02_sword_0015, now show their authored colour layers in Browse Archives, the Mesh Editor and previews, as CDMW Next shows them. The preview no longer guesses a base texture from a similarly named file or adds the layer selector as an extra layer, which had turned some ribbons blotchy and some parts grey. Layer opacity follows the material's own value, and the same rule applies whether the graphics card or the fallback renderer draws the layers.
 - Set pieces shown as references in the Mesh Editor use the same material layers as Browse Archives instead of a separately synthesised colour map, and synthesised colour maps leave grime out by default, as every other preview does.

@@ -668,6 +668,11 @@ class MeshEditorShellBridgeMixin:
             return
         if self._mesh_editor_open_blocked():
             return
+        # Loading, texture resolution and session preparation all compete with
+        # Finder thumbnails and Create New Item's preload for Python's lock.
+        from cdmw.ui.mesh_editor.tab_rust_editor import hold_warmups_for_mesh_editor_open
+
+        hold_warmups_for_mesh_editor_open(self.archive, self)
         edited_resolver = getattr(self.archive, "edited_result_context", None)
         edited_context = edited_resolver(entry) if callable(edited_resolver) else None
         if edited_context is not None:

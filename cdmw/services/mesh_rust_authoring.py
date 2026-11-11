@@ -2549,6 +2549,7 @@ def _rust_material_package_declared_texture_paths(
     package_root: Path | None,
     *,
     stop_event: threading.Event | None = None,
+    extra_texture_roots: Sequence[Path] = (),
 ) -> frozenset[str]:
     """Snapshot exact readable DDS paths declared by one leased manifest.
 
@@ -2599,6 +2600,15 @@ def _rust_material_package_declared_texture_paths(
 
     package_root = package_root.resolve()
     external_roots = _rust_material_package_external_texture_roots(package_root)
+    for extra in extra_texture_roots:
+        # A caller-owned DDS cache the same native job wrote, such as an item
+        # set's; only files this manifest declares are admitted from it.
+        try:
+            extra_root = Path(extra).resolve(strict=True)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if extra_root.is_dir() and extra_root not in external_roots:
+            external_roots = (*external_roots, extra_root)
     paths: set[str] = set()
     descriptor_count = 0
 
@@ -2880,6 +2890,7 @@ def _rebase_rust_preview_texture_paths(
     material_package_path: object,
     *,
     stop_event: threading.Event | None = None,
+    extra_texture_roots: Sequence[Path] = (),
 ) -> tuple[int, str]:
     require_package_root = bool(str(material_package_path or "").strip())
     package_root, unavailable_reason = _rust_material_package_root(
@@ -2888,6 +2899,7 @@ def _rebase_rust_preview_texture_paths(
     declared_texture_paths = _rust_material_package_declared_texture_paths(
         package_root,
         stop_event=stop_event,
+        extra_texture_roots=extra_texture_roots,
     )
     owned_texture_aliases = _rust_material_package_owned_texture_aliases(
         package_root,

@@ -189,7 +189,10 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
         apply_dotnet_native_material_batch_bindings(mesh, manifest["batches"])
         # Discard old CPU-preview paths outside this graph's declared resources.
         # The native DDS sources themselves were validated above.
-        _rebase_rust_preview_texture_paths(mesh, package, stop_event=stop_event)
+        # The job's temporary package references DDS files in this set's own
+        # native cache, which the package location alone does not reveal.
+        _rebase_rust_preview_texture_paths(
+            mesh, package, stop_event=stop_event, extra_texture_roots=(Path(cache_root) / "dds",))
         bind_authoring_preview_core_materials(mesh, package)
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         return ArchiveRefitPreviewLease(SimpleNamespace(material_package_lease=lease), context)

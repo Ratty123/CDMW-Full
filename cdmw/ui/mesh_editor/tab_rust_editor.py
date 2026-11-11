@@ -10,7 +10,7 @@ from importlib import import_module
 from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QThread, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
@@ -67,6 +67,36 @@ MESH_EDITOR_BACKEND_RUST = "rust"
 # Sessions older than this are leftovers of a crashed or killed run; a live
 # session is never this old because each open builds a new one.
 _STALE_EDITOR_SESSION_SECONDS = 24 * 60 * 60
+
+
+#: The hold one Mesh Editor open keeps on background warm-ups, from the click
+#: in Browse Archives until the editor is ready or fails. The shell takes it
+#: before the mesh loads; the tab releases it.
+MESH_EDITOR_OPEN_WARMUP_HOLD = object()
+_WARMUP_HOLD_LIMIT_MS = 120_000
+
+
+def hold_warmups_for_mesh_editor_open(archive: object, timer_parent: object) -> None:
+    hold = getattr(archive, "hold_background_warmups", None)
+    if not callable(hold):
+        return
+    hold(MESH_EDITOR_OPEN_WARMUP_HOLD)
+    # An open that never reports back must not hold them forever.
+    release = lambda: release_warmups_for_mesh_editor_open(archive)  # noqa: E731
+    context = next((item for item in (timer_parent, archive) if isinstance(item, QObject)), None)
+    if context is not None:
+        QTimer.singleShot(_WARMUP_HOLD_LIMIT_MS, context, release)
+    else:
+        QTimer.singleShot(_WARMUP_HOLD_LIMIT_MS, release)
+
+
+def release_warmups_for_mesh_editor_open(archive: object) -> None:
+    release = getattr(archive, "release_background_warmups", None)
+    if callable(release):
+        try:
+            release(MESH_EDITOR_OPEN_WARMUP_HOLD)
+        except RuntimeError:  # the window closed first
+            pass
 
 
 def _mesh_editor_session_parent(settings: object | None) -> Path:
@@ -411,17 +441,17 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _hold_background_warmups(self) -> None:
         archive = self._background_warmup_owner()
         if archive is not None:
-            archive.hold_background_warmups(self)
-            # A preparation that never reports back must not hold them forever.
-            QTimer.singleShot(120_000, self, self._release_background_warmups)
+            hold_warmups_for_mesh_editor_open(archive, self)
 
     def _release_background_warmups(self) -> None:
         archive = self._background_warmup_owner()
         if archive is not None:
-            archive.release_background_warmups(self)
+            release_warmups_for_mesh_editor_open(archive)
 
     def _start_selected_mesh_editor(self, controller: object) -> None:
         if self._defer_rust_editor_for_material_context(controller):
+            # Texture resolution is part of the wait; keep warm-ups paused.
+            self._hold_background_warmups()
             return
         self._start_rust_editor_requested(controller)
 

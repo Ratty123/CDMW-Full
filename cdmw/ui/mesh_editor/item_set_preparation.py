@@ -130,4 +130,7 @@ def open_current_item_set(shell: object) -> None:
     bridge = getattr(shell.archive, "archive_remote_bridge", None)
     members = tuple(getattr(bridge, "item_set_members", ()))
     if members:
+        from cdmw.ui.mesh_editor.tab_rust_editor import hold_warmups_for_mesh_editor_open
+
+        hold_warmups_for_mesh_editor_open(shell.archive, shell)
         prepare_item_set_for_editor(shell, ArchiveCatalogueService.compatibility_entry(members[0]), edit_set=True)

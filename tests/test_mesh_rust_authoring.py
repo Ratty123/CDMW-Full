@@ -5540,6 +5540,27 @@ class RustMeshAuthoringTests(unittest.TestCase):
             self.assertLessEqual(maximum_written, limit)
             self.assertEqual([], list(session_root.iterdir()))
 
+    def test_declared_texture_paths_admit_a_named_native_cache_only_for_declared_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "job" / "package"
+            package.mkdir(parents=True)
+            cache = root / "item-set-native-cache" / "dds"
+            cache.mkdir(parents=True)
+            declared = cache / "declared_base.dds"
+            declared.write_bytes(b"DDS " + b"d" * 64)
+            undeclared = cache / "other.dds"
+            undeclared.write_bytes(b"DDS " + b"o" * 64)
+            (package / "manifest.json").write_text(json.dumps({"batches": [
+                {"dds_textures": {"base": {"source_path": str(declared)}}},
+            ]}), encoding="utf-8")
+            read = rust_authoring_module._rust_material_package_declared_texture_paths
+
+            # A temporary job package does not reveal where its DDS cache is.
+            self.assertEqual(frozenset(), read(package))
+            admitted = read(package, extra_texture_roots=(cache,))
+            self.assertEqual(frozenset({os.path.normcase(str(declared.resolve()))}), admitted)
+
     def test_texture_copy_links_a_same_volume_source_and_still_hashes_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             temporary_root = Path(temporary)
