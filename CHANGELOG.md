@@ -32,6 +32,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Model previews open faster in Browse Archives, most of all the first time an item is shown, and reselecting an item no longer checks its prepared files again while you wait. **Open set in Mesh Editor** prepares the set's files side by side and opens about a second sooner.
 - Model previews show textures by default. **Load textures automatically after geometry** is now on for new profiles, and profiles saved before this release are switched on once; turn it off in Settings or Preview settings to keep previews untextured, and that choice is kept.
 - Opening a model in the Mesh Editor soon after starting CDMW no longer waits on background work. Finder thumbnails and Create New Item's table preload pause until the Mesh Editor is ready; for the Honor Guard upper body this cut opening from over 20 seconds to about 7. Mesh Editor sessions now sit in the workspace cache and share the preview's texture files when both are on the same drive instead of copying them; session folders left by a crash are removed after a day.
 - The cache check that runs shortly after startup reads the cache folders several times faster, so it no longer slows down the first previews when the workspace cache holds many files.

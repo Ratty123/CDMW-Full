@@ -30,6 +30,12 @@ _VERIFIED_MIN_AGE_NS = 100_000_000
 _VERIFIED_COARSE_STEP_NS = 10_000_000
 _VERIFIED_COARSE_MIN_AGE_NS = 3_000_000_000
 _verified_files_lock = threading.Lock()
+
+# Preview cache packages (geometry, material DDS, manifests) are verified on
+# read and rebuilt when missing or damaged, so they are not flushed to disk
+# file by file (decision 6). Build output, drafts, saved work and settings,
+# which may be the only copy, keep their flush. Read at call time.
+PREVIEW_CACHE_FSYNC = False
 _verified_files: "OrderedDict[tuple[int, int, int, int], str]" = OrderedDict()
 
 

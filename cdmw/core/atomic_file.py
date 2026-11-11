@@ -21,8 +21,13 @@ def _temporary_file(target: Path) -> tuple[int, Path]:
 
 
 @contextmanager
-def atomic_binary_writer(path: Path | str) -> Iterator[BinaryIO]:
-    """Publish a complete binary file without exposing partial contents."""
+def atomic_binary_writer(path: Path | str, *, durable: bool = True) -> Iterator[BinaryIO]:
+    """Publish a complete binary file without exposing partial contents.
+
+    ``durable=False`` skips the flush to disk. Only for files that are verified
+    on read and rebuilt when missing, such as preview cache packages; build
+    output and anything that is the only copy keep the default.
+    """
 
     target = Path(path)
     descriptor, temporary = _temporary_file(target)
@@ -31,7 +36,8 @@ def atomic_binary_writer(path: Path | str) -> Iterator[BinaryIO]:
             descriptor = -1
             yield handle
             handle.flush()
-            os.fsync(handle.fileno())
+            if durable:
+                os.fsync(handle.fileno())
         os.replace(temporary, target)
     finally:
         if descriptor >= 0:
@@ -40,8 +46,13 @@ def atomic_binary_writer(path: Path | str) -> Iterator[BinaryIO]:
 
 
 @contextmanager
-def atomic_text_writer(path: Path | str, *, encoding: str = "utf-8") -> Iterator[TextIO]:
-    """Publish a complete text file without exposing partial contents."""
+def atomic_text_writer(
+    path: Path | str, *, encoding: str = "utf-8", durable: bool = True,
+) -> Iterator[TextIO]:
+    """Publish a complete text file without exposing partial contents.
+
+    ``durable`` as for :func:`atomic_binary_writer`.
+    """
 
     target = Path(path)
     descriptor, temporary = _temporary_file(target)
@@ -50,7 +61,8 @@ def atomic_text_writer(path: Path | str, *, encoding: str = "utf-8") -> Iterator
             descriptor = -1
             yield handle
             handle.flush()
-            os.fsync(handle.fileno())
+            if durable:
+                os.fsync(handle.fileno())
         os.replace(temporary, target)
     finally:
         if descriptor >= 0:
@@ -58,13 +70,15 @@ def atomic_text_writer(path: Path | str, *, encoding: str = "utf-8") -> Iterator
         temporary.unlink(missing_ok=True)
 
 
-def atomic_write_bytes(path: Path | str, data: bytes) -> None:
-    with atomic_binary_writer(path) as handle:
+def atomic_write_bytes(path: Path | str, data: bytes, *, durable: bool = True) -> None:
+    with atomic_binary_writer(path, durable=durable) as handle:
         handle.write(data)
 
 
-def atomic_write_text(path: Path | str, text: str, *, encoding: str = "utf-8") -> None:
-    with atomic_text_writer(path, encoding=encoding) as handle:
+def atomic_write_text(
+    path: Path | str, text: str, *, encoding: str = "utf-8", durable: bool = True,
+) -> None:
+    with atomic_text_writer(path, encoding=encoding, durable=durable) as handle:
         handle.write(text)
 
 

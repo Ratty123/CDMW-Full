@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.material_layer_uv import pac_layer_uv_transform
+from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -122,7 +123,7 @@ def _write_effect_texture_resources(
         if digest not in written:
             texture_dir.mkdir(parents=True, exist_ok=True)
             _session_root_identity(package_dir, expected_root_identity)
-            atomic_write_bytes(package_dir / Path(relative), data)
+            atomic_write_bytes(package_dir / Path(relative), data, durable=_preview_files.PREVIEW_CACHE_FSYNC)
             _session_root_identity(package_dir, expected_root_identity)
             written[digest] = {
                 "path": relative,
@@ -486,7 +487,8 @@ def _copy_preview_core_binary(
                 digest.update(block)
                 byte_length += len(block)
             writer.flush()
-            os.fsync(writer.fileno())
+            if _preview_files.PREVIEW_CACHE_FSYNC:
+                os.fsync(writer.fileno())
         source_after = source.stat()
         source_identity_before = (
             int(source_before.st_dev),
@@ -638,10 +640,9 @@ def _copy_preview_core_material_resource(
                             "Preview Core material DDS resources exceed the 512 MiB package limit."
                         )
                 writer.flush()
-                if durable:
-                    # Cache packages outlive this process. A Mesh Editor session
-                    # copy is rebuilt on every open and its helper re-verifies each
-                    # file's SHA-256, so it skips the per-file flush to disk.
+                if durable and _preview_files.PREVIEW_CACHE_FSYNC:
+                    # Cache packages are verified on read and rebuilt when
+                    # damaged, so they are not flushed file by file either.
                     os.fsync(writer.fileno())
                 source_after = os.fstat(reader.fileno())
         before = (
@@ -1505,6 +1506,7 @@ def build_rust_preview_package_from_preview_core(
     atomic_write_text(
         manifest_path,
         json.dumps(manifest_payload, separators=(",", ":"), sort_keys=True),
+        durable=_preview_files.PREVIEW_CACHE_FSYNC,
     )
     return RustPreviewPackage(
         package_dir=package_dir,
@@ -1886,7 +1888,7 @@ def build_rust_preview_package(
     manifest_json = json.dumps(manifest, separators=(",", ":"), sort_keys=True)
     if len(manifest_json) > _PREVIEW_MANIFEST_MAX_BYTES:  # ensure_ascii keeps bytes == characters
         raise ValueError("preview manifest exceeds its size limit")
-    atomic_write_text(manifest_path, manifest_json)
+    atomic_write_text(manifest_path, manifest_json, durable=_preview_files.PREVIEW_CACHE_FSYNC)
     return RustPreviewPackage(
         package_dir=package_dir,
         manifest_path=manifest_path,

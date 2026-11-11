@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from cdmw.core.atomic_file import atomic_write_text
+from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import (
     atomic_preview_publication,
     validate_preview_files,
@@ -108,6 +109,7 @@ def promote_rust_preview_package_from_preview_core(
     atomic_write_text(
         package_dir / "manifest.json",
         json.dumps(manifest, separators=(",", ":"), sort_keys=True),
+        durable=_preview_files.PREVIEW_CACHE_FSYNC,
     )
     return replace(
         direct_package,
