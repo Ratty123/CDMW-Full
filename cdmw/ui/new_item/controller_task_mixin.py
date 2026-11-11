@@ -11,6 +11,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
+from cdmw.services.settings_service import app_settings
 from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
@@ -158,9 +159,8 @@ class NewItemTaskControllerMixin:
                      if isValid(peer) and not peer._shutdown_requested)
 
     def _settings(self):
-        from PySide6.QtCore import QSettings
 
-        return QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        return app_settings()
 
     def persist_issued_identities(self) -> None:
         """Keep the identities this studio hands out in the user's settings, and take up

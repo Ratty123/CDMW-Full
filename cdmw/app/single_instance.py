@@ -18,6 +18,11 @@ _single_instance_lock_handle: Optional[object] = None
 
 def _single_instance_scope() -> str:
     raw_scope = os.environ.get(SINGLE_INSTANCE_SCOPE_ENV, "").strip()
+    if not raw_scope:
+        # A private profile is its own instance, beside the user's own copy.
+        from cdmw.app.app_folder import profile_scope
+
+        raw_scope = profile_scope()
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", raw_scope)[:64]
 
 

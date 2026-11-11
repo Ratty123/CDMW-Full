@@ -4,7 +4,6 @@ from functools import wraps
 import hashlib
 import os
 from pathlib import Path
-import tempfile
 import threading
 
 from cdmw.domain.virtual_loader import VirtualLoaderError
@@ -13,8 +12,12 @@ _local = threading.local()
 
 
 def lock_path(root):
+    # The virtual loader checks this lock inside the game, whose temp folder is
+    # the system's when the game is not started by CDMW, so it stays there.
+    from cdmw.app.app_folder import system_temp_dir
+
     key = hashlib.sha256(str(Path(root).resolve()).casefold().encode('utf-8')).hexdigest()
-    return Path(tempfile.gettempdir()) / ('cdmw-installation-' + key + '.lock')
+    return system_temp_dir() / ('cdmw-installation-' + key + '.lock')
 
 
 @contextmanager

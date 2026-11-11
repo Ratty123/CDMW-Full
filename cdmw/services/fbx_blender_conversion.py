@@ -51,9 +51,8 @@ BLENDER_SETTING = "new_item/blender_executable"
 
 def configured_blender() -> str:
     """Reuse the explicit Blender selection already saved by the Model step."""
-    from PySide6.QtCore import QSettings
-    scope = "CrimsonDesertModWorkbench"
-    stored = str(QSettings(scope, scope).value(BLENDER_SETTING, "") or "")
+    from cdmw.services.settings_service import app_settings
+    stored = str(app_settings().value(BLENDER_SETTING, "") or "")
     return stored if is_blender_executable(stored) else ""
 
 #: How long a conversion may take before it is abandoned. Blender starts in a second or

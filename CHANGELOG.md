@@ -27,6 +27,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- CDMW keeps its temporary files in **workspace	emp** inside its own folder instead of the Windows temp folder, and removes what a crash left there after a day. Create New Item's Blender path, rig folder and preview choices, which were kept in the Windows registry and shared by every copy of CDMW, now live in the settings file; they are copied over once and the registry entry is left as it is. If the CDMW folder cannot be written to, CDMW says so at start instead of using another folder.
+
 - Model previews open faster in Browse Archives, most of all the first time an item is shown, and reselecting an item no longer checks its prepared files again while you wait. **Open set in Mesh Editor** prepares the set's files side by side and opens about a second sooner.
 
 - Model previews show textures by default. **Load textures automatically after geometry** is now on for new profiles, and profiles saved before this release are switched on once; turn it off in Settings or Preview settings to keep previews untextured, and that choice is kept.

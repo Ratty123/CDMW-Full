@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
-import sys
 from typing import Any
 
 from cdmw.constants import APP_NAME, LEGACY_APP_NAMES
@@ -77,10 +76,9 @@ class SettingsService:
 
 def resolve_settings_file_path(*, app_name: str = APP_NAME, base_dir: Path | None = None) -> Path:
     if base_dir is None:
-        if getattr(sys, "frozen", False):
-            base_dir = Path(sys.executable).resolve().parent
-        else:
-            base_dir = Path(__file__).resolve().parents[2]
+        from cdmw.app.app_folder import cdmw_folder
+
+        base_dir = cdmw_folder()
     return Path(base_dir) / f"{app_name}.cfg"
 
 
@@ -128,8 +126,63 @@ def create_settings(
     return settings
 
 
+
+# Create New Item kept a few values in HKCU\Software\CrimsonDesertModWorkbench,
+# which every copy of the app on the machine shares. They live in the settings
+# file now; the registry key is read once to carry them over and never written
+# or deleted, because other copies may still read it.
+REGISTRY_SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
+REGISTRY_VALUES_COPIED_KEY = "migration/registry_values_copied_v1"
+_registry_copy_checked: set[str] = set()
+
+
+def copy_registry_values_once(settings: Any, *, registry: Any = None) -> int:
+    """Copy the registry's CDMW values into ``settings`` once; return how many.
+
+    Keys the settings file already holds win. Under a private profile
+    (``CDMW_PROFILE_DIR``) the registry is never read, so a test or harness
+    cannot pick up the user's own values.
+    """
+
+    marker = str(settings.value(REGISTRY_VALUES_COPIED_KEY, "") or "").strip().lower()
+    if marker in {"1", "true", "yes", "on"}:
+        return 0
+    from cdmw.app.app_folder import profile_override
+
+    copied = 0
+    if registry is None and profile_override() is None:
+        from PySide6.QtCore import QSettings
+
+        registry = QSettings(REGISTRY_SETTINGS_SCOPE, REGISTRY_SETTINGS_SCOPE)
+    if registry is not None:
+        for key in registry.allKeys():
+            if not settings.contains(key):
+                settings.setValue(key, registry.value(key))
+                copied += 1
+    settings.setValue(REGISTRY_VALUES_COPIED_KEY, True)
+    sync = getattr(settings, "sync", None)
+    if callable(sync):
+        sync()
+    return copied
+
+
+def app_settings() -> Any:
+    """The app's settings file, for values that used to live in the registry."""
+
+    from PySide6.QtCore import QSettings
+
+    path = resolve_settings_file_path()
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    key = str(path).casefold()
+    if key not in _registry_copy_checked:
+        _registry_copy_checked.add(key)
+        copy_registry_values_once(settings)
+    return settings
+
 __all__ = [
     "SettingsService",
+    "app_settings",
+    "copy_registry_values_once",
     "create_settings",
     "migrate_model_texture_setting_to_on_demand",
     "MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY",

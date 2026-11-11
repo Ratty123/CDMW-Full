@@ -31,6 +31,13 @@ def prepare_app_temp_cache_cleanup() -> None:
         maintain_temp_data(cache_roots=(app_temp_root(), legacy_temp_root),
                            report_path=paths["crash_reports_dir"] / "temp_data_cleanup.json",
                            cache_pruning=cache_pruning)
+        # Only the app's own workspace	emp, never the system's temp folder.
+        from cdmw.app.app_folder import workspace_temp_folder
+        from cdmw.services.temp_data_cleanup import prune_stale_workspace_temp
+
+        workspace_temp = workspace_temp_folder()
+        if Path(tempfile.gettempdir()).resolve() == workspace_temp.resolve():
+            prune_stale_workspace_temp(workspace_temp, keep=(legacy_temp_root.name,))
     except Exception:
         pass
 

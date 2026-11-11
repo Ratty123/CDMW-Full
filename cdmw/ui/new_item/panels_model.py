@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.services.settings_service import app_settings
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -1704,12 +1705,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
 
     def _rig_folder(self) -> str:
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         folder = str(settings.value(RIG_DIR_SETTING, "") or "")
         return folder if folder and Path(folder).is_dir() else str(Path.home())
 
     def _remember_rig_folder(self, folder: Path) -> None:
-        QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench").setValue(RIG_DIR_SETTING, str(folder))
+        app_settings().setValue(RIG_DIR_SETTING, str(folder))
 
     def _open_bone_editor(self, source) -> None:
         from PySide6.QtWidgets import QDialog

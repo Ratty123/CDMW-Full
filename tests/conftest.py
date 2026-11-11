@@ -126,12 +126,22 @@ def _canonicalize_temp_root() -> None:
             os.environ[variable] = resolved
 
 
+_PROFILE_ENV = "CDMW_PROFILE_DIR"
+_pytest_profile_root: Path | None = None
+
+
 def pytest_configure() -> None:
-    global _original_cache_root, _pytest_cache_root
+    global _original_cache_root, _pytest_cache_root, _pytest_profile_root
     _canonicalize_temp_root()
     _original_cache_root = os.environ.get(_CACHE_ENV)
     _pytest_cache_root = Path(tempfile.mkdtemp(prefix="cdmw-pytest-cache-"))
     os.environ[_CACHE_ENV] = str(_pytest_cache_root)
+    # The whole run is a private CDMW profile: settings, workspace and the
+    # values that used to live in the registry resolve inside it, so no test
+    # writes the project's settings file or reads the user's registry key.
+    if not os.environ.get(_PROFILE_ENV):
+        _pytest_profile_root = Path(tempfile.mkdtemp(prefix="cdmw-pytest-profile-"))
+        os.environ[_PROFILE_ENV] = str(_pytest_profile_root)
 
 
 def pytest_unconfigure() -> None:
@@ -155,6 +165,9 @@ def pytest_unconfigure() -> None:
         os.environ[_CACHE_ENV] = _original_cache_root
     if _pytest_cache_root is not None:
         shutil.rmtree(_pytest_cache_root, ignore_errors=True)
+    if _pytest_profile_root is not None:
+        os.environ.pop(_PROFILE_ENV, None)
+        shutil.rmtree(_pytest_profile_root, ignore_errors=True)
 
 
 def pytest_sessionfinish(session, exitstatus):

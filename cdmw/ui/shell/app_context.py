@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import QSettings
 
 from cdmw.app.events import AppEventBus
+from cdmw.services.settings_service import app_settings
 from cdmw.services.service_container import ServiceContainer
 
 
@@ -24,6 +25,6 @@ class AppContext:
 
     @classmethod
     def create_default(cls) -> "AppContext":
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         services = ServiceContainer.create_default(settings=settings)
         return cls(settings=settings, services=services, event_bus=AppEventBus())

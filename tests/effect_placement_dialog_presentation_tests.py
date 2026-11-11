@@ -110,7 +110,8 @@ class _DialogPresentationMixin:
             def setValue(self, key, value) -> None:
                 self.values[key] = value
 
-        with patch("PySide6.QtCore.QSettings", Settings):
+        # The preferences live in the app's settings file (once in the registry).
+        with patch("cdmw.services.settings_service.app_settings", Settings):
             self.assertEqual(remembered_orbit_inversion(), (True, False))
             remember_orbit_inversion(False, True)
             self.assertEqual(remembered_orbit_inversion(), (False, True))

@@ -96,3 +96,76 @@ def maintain_temp_data(
         _logger.warning("Could not save temporary-data cleanup report to %s", report_path, exc_info=True)
     _logger.info("Temporary-data cleanup: %s", {key: value for key, value in report.items() if key != "details"})
     return report
+
+
+# ``workspace	emp`` belongs to one copy of CDMW and nothing else writes there.
+# Folders a live process uses were touched since it started, so an entry no
+# file in which changed for a day is a leftover from a crash or a kill.
+WORKSPACE_TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
+_WORKSPACE_TEMP_SCAN_LIMIT = 20_000
+
+
+def _newest_mtime(path: Path) -> float | None:
+    """Newest modification time under ``path``; None when it cannot be told."""
+
+    import os
+
+    try:
+        newest = path.lstat().st_mtime
+    except OSError:
+        return None
+    if not path.is_dir() or path.is_symlink():
+        return newest
+    pending, seen = [path], 0
+    while pending:
+        try:
+            with os.scandir(pending.pop()) as entries:
+                for entry in entries:
+                    seen += 1
+                    if seen > _WORKSPACE_TEMP_SCAN_LIMIT:
+                        return None
+                    stat = entry.stat(follow_symlinks=False)
+                    newest = max(newest, stat.st_mtime)
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+        except OSError:
+            return None
+    return newest
+
+
+def prune_stale_workspace_temp(
+    root: Path, *, max_age_seconds: float = WORKSPACE_TEMP_MAX_AGE_SECONDS, now: float | None = None,
+    keep: Sequence[str] = (),
+) -> dict:
+    """Remove top-level entries of ``workspace\temp`` untouched for a day.
+
+    Owner-marked folders are left to :func:`maintain_temp_data`, links are
+    never followed or removed, and an entry whose age cannot be told stays.
+    """
+
+    import shutil
+
+    root = Path(root)
+    cutoff = (time.time() if now is None else now) - max_age_seconds
+    report = {"removed": 0, "kept": 0, "failed": 0}
+    try:
+        children = tuple(root.iterdir())
+    except OSError:
+        return report
+    for path in children:
+        try:
+            if path.name in keep or path.is_symlink() or (path.is_dir() and (path / OWNER_MARKER).exists()):
+                report["kept"] += 1
+                continue
+            newest = _newest_mtime(path)
+            if newest is None or newest >= cutoff:
+                report["kept"] += 1
+                continue
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            report["removed"] += 1
+        except OSError:
+            report["failed"] += 1
+    return report
