@@ -17,7 +17,7 @@ POINTS = ((0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (1., 1., 0.))
 FACES = ((0, 1, 2), (1, 3, 2))
 
 
-def guide_free_pac(*, lods=4, parts=1, extra=b"", flags=0, empty_last=False):
+def guide_free_pac(*, lods=4, parts=1, extra=b"", flags=0, empty_last=False, palette=PALETTE):
     metadata = bytearray(struct.pack("<IB", flags, lods) + bytes(8*lods) + struct.pack("<H", parts))
     geometry = [bytearray() for _ in range(lods)]
     indices = [bytearray() for _ in range(lods)]
@@ -46,7 +46,7 @@ def guide_free_pac(*, lods=4, parts=1, extra=b"", flags=0, empty_last=False):
         metadata += descriptor
     if flags & 0x2000:
         metadata += struct.pack("<6fHH", *([0.]*6), 0, 0)
-    metadata += struct.pack("<H8I6f", 8, *PALETTE, 0, 0, 0, 4, 1, 0)
+    metadata += struct.pack(f"<H{len(palette)}I6f", len(palette), *palette, 0, 0, 0, 4, 1, 0)
     if flags & 4:
         metadata += struct.pack("<6f", 0, 0, 0, 4, 1, 0)
     metadata += struct.pack("<H", 0)  # empty model collision table

@@ -995,7 +995,9 @@ Mesh Replacement for incompatible geometry changes.
 FBX retains its rig and recovered morph support, merges repeated influences on the same
 bone, and connects the resolved diffuse DDS files using portable paths. OBJ uses the
 same resolved diffuse evidence. These interchange materials do not recreate the game's
-complete layered shader. Rigid attachments without a PAC bone palette retain their
+complete layered shader. A rigid attachment whose short palette names a rig bone, such
+as a helmet on `Bip01 Head`, exports bound to that bone. Rigid attachments whose palette
+names no bone of the rig, such as a weapon's own `B_Weapon_` root, retain their
 source geometry without guessing an attachment bone. Other unresolved palettes also
 export source coordinates: the summary marks neutral appearance as unavailable, and FBX
 includes an unbound armature. OBJ returns still retain the original PAC skin records.

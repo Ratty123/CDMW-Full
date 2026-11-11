@@ -774,8 +774,24 @@ four are skeletal; two packed slots and two half-float lanes at bytes 12–15
 address cloth guides. The weights at bytes 32–35 then have separate cloth
 meaning. They must not appear as invented named skeleton influences.
 
-A rigid attachment may have one full-weight slot and no palette. Its actual
-attachment comes from prefab/socket context. Conversely, a matching filename
+A rigid attachment has one full-weight slot, and its palette can be a single
+entry. A helmet, glasses or a mask names the rig bone it follows there (`Bip01
+Head`); a weapon names its own embedded `B_Weapon_` root, so its attachment
+comes from prefab/socket context. The palette has to be read in place by
+sequential decoding: a search for runs of bone hashes needs eight entries to
+tell a table from chance, and embedded collision data alone produces dozens of
+longer runs that are not palettes. On the 6,687 PACs under
+`character/model/1_pc` (installed post-DLC game, 2026-11-11, source `6e2c51b88`
+plus that day's change), the in-place read and the search agree on all 4,805
+models where both give a rig, and the in-place read alone resolves 269 more,
+each with every vertex slot inside its palette. 1,305 stay unresolved: 805 embed
+bones of their own (a weapon's palette names its embedded root), 481 have a
+metadata layout that is not decoded, and 19 name bones no indexed rig has.
+Across all 13,307 PACs the skeleton resolver names a rig for 890 models it
+refused before (265 player, 625 creature, mount and object), each through a
+prefab descriptor or a rig in a folder above the model. A palette shorter than
+eight entries does not select a rig elsewhere by itself: `B_Weapon_0001` is in
+one creature's rig and `Bone001` in a carriage's. Conversely, a matching filename
 does not prove that a smooth-skinned mesh belongs to a particular rig. Related
 character races can share the principal PHM, PHW or PTM skeletons; resolution
 must be demonstrated by the palette.

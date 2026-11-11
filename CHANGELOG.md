@@ -13,6 +13,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Archive Browser's experimental **Edit Skinned Decal...** changes stored texture references and decal settings in supported PASEQ sequences and saves a loose copy. Missing settings retain their defaults; unchanged saves preserve the original file. In-game blending, attachment and removal remain unverified.
 - Mesh Editor's Import Replacement accepts a rigged model weighted to bones the original model does not use, such as two hairstyles merged in Blender. **Move to Parent Bones** keeps the weights and moves those bones' weight to their nearest parent bone the original model uses; Create New Item offers the same as **Move weights to parent bones**. The experimental **Add Bones to Model** keeps the weights exactly by adding the game bones to the model's bone list; such models have not been tested in game.
 
+### Fixed
+
+- Helmets, masks, glasses, hair accessories and other models that follow only a few bones now find their skeleton. Create New Item no longer stops a rigged import onto such a template with "The selected template has no unique matching skeleton", and Archive Browser exports them to GLB or FBX with the armature, bound to the bone they follow, instead of asking to export without a skeleton. Weapons and other models that follow a bone of their own still export without the character armature.
+
 ### Docs
 
 - The Wiki has one Documentation Index section in every language, with duplicate lists removed from Home and the index itself. Help and the Wiki now group the FAQ by tool, with concise answers about Mesh Editor exports, Blender, weights and saved work, plus Create New Item templates, fitting, placement, installation, body cuts and cloth limits.

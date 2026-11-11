@@ -28,10 +28,12 @@ def _nude(skeleton: str) -> bytes:
 
 @pytest.fixture
 def tied_rigs(monkeypatch):
-    # Both rigs resolve every palette bone: the resolver ties them.
-    monkeypatch.setattr(skeleton_resolver, "pac_bone_palette_candidates", lambda _data: ((1, 2, 3),))
-    monkeypatch.setattr(skeleton_resolver, "parse_pab", lambda _data, path: SimpleNamespace(bones=(1, 2, 3), path=path))
-    monkeypatch.setattr(skeleton_resolver, "_skeleton_palette_hits", lambda *_args, **_kwargs: 3)
+    # Both rigs resolve every palette bone: the resolver ties them. A head's palette is
+    # long; one shorter than eight entries does not count for a rig in another folder tree.
+    palette = tuple(range(1, 10))
+    monkeypatch.setattr(skeleton_resolver, "pac_bone_palette_candidates", lambda _data: (palette,))
+    monkeypatch.setattr(skeleton_resolver, "parse_pab", lambda _data, path: SimpleNamespace(bones=palette, path=path))
+    monkeypatch.setattr(skeleton_resolver, "_skeleton_palette_hits", lambda *_args, **_kwargs: len(palette))
 
 
 def _resolve(model: str, descriptors: dict[str, bytes]):

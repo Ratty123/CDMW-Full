@@ -122,6 +122,28 @@ def _shared_prefix_len(left: str, right: str) -> int:
     return count
 
 
+#: A palette this short names too few bones to pick a rig on its own; see
+#: :func:`_short_palette_rig_is_near`.
+_SHORT_PALETTE = 8
+_PLAYER_MODELS = ("character", "model", "1_pc")
+
+
+def _short_palette_rig_is_near(candidate_path: str, model_path: str) -> bool:
+    """Whether a short palette may count for this rig without a prefab descriptor.
+
+    One or two bone names recur in unrelated rigs: ``B_Weapon_0001`` in a single
+    creature's, ``Bone001`` in a carriage's, a horse's spine in every mount's. So
+    the rig has to sit in a folder above the model, or be a player rig for a
+    player model, where the shared rigs are told apart by name and by the
+    family's prefab descriptors.
+    """
+    rig_folder = PurePosixPath(candidate_path).parent.parts
+    model_parts = PurePosixPath(model_path).parts
+    if model_parts[:len(rig_folder)] == rig_folder:
+        return True
+    return rig_folder[:3] == _PLAYER_MODELS and model_parts[:3] == _PLAYER_MODELS
+
+
 def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes, *, palettes=None) -> int:
     if not pac_data:
         return 0
@@ -1016,6 +1038,9 @@ def resolve_skeleton_for_model(
                 if not bone_count:
                     raise ValueError(f"PAB contains no parsed bones: {entry.path}")
                 palette_hits = _skeleton_palette_hits(skeleton, pac_data, palettes=palettes)
+                if 0 < palette_hits < _SHORT_PALETTE and not _short_palette_rig_is_near(candidate_path, model_path):
+                    reasons.append(f"{palette_hits} palette bone hash(es) in an unrelated rig")
+                    palette_hits = 0
                 if palette_hits:
                     score += 200 + min(120, palette_hits * 6)
                     reasons.append(f"{palette_hits} matching palette bone hash(es)")

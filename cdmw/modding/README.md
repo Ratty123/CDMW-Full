@@ -92,8 +92,12 @@ Callers that require lossless influence coverage must reject wider rows before
 calling it. Do not reinterpret packed slots as four u8 indices or reduce
 named-bone inspection to the primary influence.
 
-Rigid attachments may have a single full-weight slot 0 and no bone palette.
-Their target bone must come from attachment or prefab data outside the mesh;
+Rigid attachments have a single full-weight slot 0. A helmet, glasses or a mask
+names the rig bone it follows in a one-entry palette (`Bip01 Head`), which
+`decoded_pac_bone_palette` reads in place; the byte scan cannot, because it needs
+eight entries to tell a table from chance. A weapon's one-entry palette names its
+own embedded `B_Weapon_` root instead, and some props name no rig bone at all:
+their target bone must come from attachment or prefab data outside the mesh, and
 an unresolved palette alone does not prove a corrupt rig.
 
 Races share rigs: the "other" races ship no `.pab` and skin against

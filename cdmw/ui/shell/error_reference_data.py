@@ -49931,7 +49931,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2832
+      "cdmw/modding/mesh_parser.py": 2840
     }
   },
   {
@@ -55403,7 +55403,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1452
+      "cdmw/modding/mesh_parser.py": 1460
     }
   },
   {
@@ -55411,7 +55411,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAM file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 673
+      "cdmw/modding/mesh_parser.py": 681
     }
   },
   {
@@ -55948,7 +55948,7 @@ MESSAGE_REFERENCE = [
     "message": "PAB contains no parsed bones: {entry.path}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 1017
+      "cdmw/core/skeleton_resolver.py": 1039
     }
   },
   {
@@ -56052,7 +56052,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2498
+      "cdmw/modding/mesh_parser.py": 2506
     }
   },
   {
@@ -56492,7 +56492,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2951
+      "cdmw/modding/mesh_parser.py": 2959
     }
   },
   {
@@ -56837,7 +56837,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2877
+      "cdmw/modding/mesh_parser.py": 2885
     }
   },
   {
@@ -56893,7 +56893,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD %s has no consistent level block table; scanning for its layout",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1126
+      "cdmw/modding/mesh_parser.py": 1134
     }
   },
   {
@@ -57021,7 +57021,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD geometry blocks are still LZ4-compressed; read the archive entry decoded.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1189
+      "cdmw/modding/mesh_parser.py": 1197
     }
   },
   {
@@ -57061,7 +57061,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2912
+      "cdmw/modding/mesh_parser.py": 2920
     }
   },
   {
@@ -57077,7 +57077,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1213
+      "cdmw/modding/mesh_parser.py": 1221
     }
   },
   {
@@ -57085,7 +57085,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
     "recovery": "locked",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1203
+      "cdmw/modding/mesh_parser.py": 1211
     }
   },
   {
@@ -74676,7 +74676,7 @@ MESSAGE_REFERENCE = [
     "message": "{descriptor_entry.path}: linked skeleton does not resolve the PAC bone palette",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 757
+      "cdmw/core/skeleton_resolver.py": 779
     }
   },
   {
@@ -74684,7 +74684,7 @@ MESSAGE_REFERENCE = [
     "message": "{descriptor_entry.path}: unresolved {attr} reference {raw_value}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/skeleton_resolver.py": 741
+      "cdmw/core/skeleton_resolver.py": 763
     }
   },
   {

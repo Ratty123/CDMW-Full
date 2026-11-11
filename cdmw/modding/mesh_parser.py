@@ -173,12 +173,20 @@ PAMLOD_VERTEX_STRIDE = 20
 # influence carrying the full 255, and slot 0 is the only slot value that ever appears. Both still
 # satisfy the six-weight layout, summing to 255 on every record.
 #
-# Those files carry no bone hash at all: a whole-file search finds seven scattered coincidences in
-# the accessory and none whatever in the 24 MB monster, so lowering pac_bone_palette_candidates'
-# minimum_entries does not help and was tried down to one. Which bone a rigid mesh follows is
-# therefore not recorded in the PAC, and resolve_pac_bone_palette returning nothing for them is the
-# right answer rather than a failure. Treat an unresolved palette as "rigid, bone named elsewhere"
-# and not as an error; identifying that bone needs the prefab or attachment data outside the mesh.
+# Those files carry no character-rig bone hash at all: a whole-file search finds seven scattered
+# coincidences in the accessory and none whatever in the 24 MB monster, so lowering
+# pac_bone_palette_candidates' minimum_entries does not help and was tried down to one. Which bone
+# such a mesh follows is not recorded in the PAC, and resolve_pac_bone_palette returning nothing for
+# them is the right answer rather than a failure. Treat an unresolved palette as "rigid, bone named
+# elsewhere" and not as an error; identifying that bone needs the prefab or attachment data outside
+# the mesh.
+#
+# Not every rigid mesh is like that. A helmet, glasses or a mask is one influence on slot 0 too, and
+# its palette is a single entry naming the rig bone it follows (cd_phw_00_hel_00_0151.pac: Bip01
+# Head). A weapon embeds a bone record of its own (B_Weapon_0001) and its one-entry palette names
+# that. The byte scan sees neither, because fewer than eight entries cannot be told from chance;
+# decoded_pac_bone_palette reads the palette in place instead. Measured 2026-11-11 on the 6,687 PACs
+# under character/model/1_pc: where both readings exist they agree on every one.
 PAC_SKIN_SLOT_GROUPS = (20, 24)      # two u32 groups, three 10-bit slots each
 PAC_SKIN_SLOT_BITS = 10
 PAC_SKIN_SLOTS_PER_GROUP = 3
@@ -2994,14 +3002,48 @@ def pac_bone_palette_candidates(
     A rigidly bound mesh carries no palette and needs none, so returning nothing
     here is an answer and not a failure — see the layout notes above.
 
-    Several byte runs can satisfy the shape, so every plausible table is
-    returned and the caller picks the one that actually resolves against a
+    Where the metadata decodes sequentially the palette is read in place and is
+    the only candidate, whatever its length: a helmet's is one entry, the head
+    bone. An empty result then means the PAC has no palette.
+
+    Otherwise several byte runs can satisfy the shape, so every plausible table
+    is returned and the caller picks the one that actually resolves against a
     skeleton — see :func:`resolve_pac_bone_palette`. Guessing here instead
     would silently mis-name bones.
     """
 
+    if search_limit is None and minimum_entries == 8 and maximum_entries == 512:
+        decoded = decoded_pac_bone_palette(data)
+        if decoded is not None:
+            return (decoded,) if decoded else ()
     return _pac_bone_palette_candidates(data, search_limit=search_limit,
         minimum_entries=minimum_entries, maximum_entries=maximum_entries)
+
+
+def decoded_pac_bone_palette(data: bytes) -> tuple[int, ...] | None:
+    """The PAC's own bone-hash palette read by sequential decoding, or None.
+
+    None means this metadata layout is not decoded, never that the palette is
+    empty. The scan in :func:`pac_bone_palette_candidates` cannot stand in for
+    this read on a short palette: it needs eight entries to tell a table from
+    chance, and embedded collision data alone yields dozens of longer runs that
+    are not palettes.
+
+    A PAC that embeds bones of its own is left undecoded here. A weapon's
+    palette is its embedded ``B_Weapon_0001`` root, and the one creature rig
+    that has a bone of that name is not the weapon's skeleton.
+    """
+
+    from .pabv_parser import decode_pac_embedded_volumes
+
+    try:
+        volumes = decode_pac_embedded_volumes(data)
+    except (ValueError, struct.error, IndexError):
+        return None
+    palette = volumes.bone_palette
+    if volumes.model_bones or len(set(palette)) != len(palette):
+        return None
+    return palette
 
 
 def _pac_bone_palette_candidates(data, *, search_limit=None, minimum_entries=8,
@@ -3046,10 +3088,12 @@ def _pac_bone_palette_candidates(data, *, search_limit=None, minimum_entries=8,
 def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
     """Map PAC influence slots to skeleton bone indices, or () if unresolved.
 
-    Picks the candidate table whose hashes all resolve against ``skeleton``,
-    so a mismatched or missing skeleton yields nothing rather than a wrong
-    palette. A rigidly bound mesh has no palette to find, so callers must treat
-    an empty result as "nothing to name here" rather than as an error.
+    Uses the palette read in place where the metadata decodes, and otherwise
+    picks the candidate table whose hashes all resolve against ``skeleton``, so
+    a mismatched or missing skeleton yields nothing rather than a wrong
+    palette. A mesh bound to a bone the skeleton lacks has no palette to find
+    here, so callers must treat an empty result as "nothing to name here"
+    rather than as an error.
     """
 
     bones = tuple(getattr(skeleton, "bones", ()) or ())
@@ -3062,6 +3106,11 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
         except (TypeError, ValueError):
             continue
         by_hash.setdefault(name_hash, position)
+    decoded = decoded_pac_bone_palette(data)
+    if decoded is not None:
+        if not decoded or any(value not in by_hash for value in decoded):
+            return ()
+        return tuple(by_hash[value] for value in decoded)
     best: tuple[int, ...] = ()
     for candidate in _pac_bone_palette_candidates(data, matching_hashes=by_hash):
         if len(candidate) <= len(best) or any(value not in by_hash for value in candidate):
