@@ -8729,8 +8729,11 @@ class RustMeshAuthoringSession:
             expected_root_identity=self.root_identity,
         )
         synthesis = _RustMaterialSynthesisState()
+        # The native graph composes these parts; Python synthesis would only
+        # repeat that work for maps the helper then replaces.
         textures = _mesh_texture_payloads(self.root, mesh, expected_root_identity=self.root_identity,
-                                          stop_event=stop_event, synthesis_state=synthesis)
+                                          stop_event=stop_event, synthesis_state=synthesis,
+                                          enable_material_synthesis=False)
         presentations = _mesh_material_presentations(mesh, generated_overrides=synthesis.presentation_overrides)
         row = {"index": index, "name": "Companions of " + Path(str(source.base_mesh.path)).name,
                "role": "companion", "document": document, "textures": textures,

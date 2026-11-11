@@ -352,6 +352,23 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 show_error(str(message or ""))
         self.status_message_requested.emit(str(message or ""), bool(error))
 
+    def _background_warmup_owner(self):
+        window = self.window() if hasattr(self, "window") else None
+        archive = getattr(window, "archive", None)
+        return archive if callable(getattr(archive, "hold_background_warmups", None)) else None
+
+    def _hold_background_warmups(self) -> None:
+        archive = self._background_warmup_owner()
+        if archive is not None:
+            archive.hold_background_warmups(self)
+            # A preparation that never reports back must not hold them forever.
+            QTimer.singleShot(120_000, self, self._release_background_warmups)
+
+    def _release_background_warmups(self) -> None:
+        archive = self._background_warmup_owner()
+        if archive is not None:
+            archive.release_background_warmups(self)
+
     def _start_selected_mesh_editor(self, controller: object) -> None:
         if self._defer_rust_editor_for_material_context(controller):
             return
@@ -675,6 +692,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_service = expected_service
         self.standalone_rust_prepare_session_id = expected_session_id
         self.standalone_rust_prepare_process_generation = process_generation
+        self._hold_background_warmups()
         worker_type = getattr(
             import_module("cdmw.workers.mesh_rust_editor_workers"),
             "MeshRustSessionPrepareWorker",

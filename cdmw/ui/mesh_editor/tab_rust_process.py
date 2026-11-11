@@ -488,6 +488,7 @@ class MeshEditorRustProcessMixin:
             return
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_ready = True
+        self._release_background_warmups()
         self._send_rust_theme_update()
         if not getattr(self, "_shared_preview_settings_connected", False):
             from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
@@ -985,6 +986,9 @@ class MeshEditorRustProcessMixin:
         self._schedule_rust_session_dispose()
 
     def _fail_rust_editor(self, message: str, *, incompatible: bool = False) -> None:
+        release = getattr(self, "_release_background_warmups", None)
+        if callable(release):
+            release()
         if self.standalone_rust_failure_reported:
             return
         self.standalone_rust_failure_reported = True

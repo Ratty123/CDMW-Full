@@ -361,9 +361,28 @@ class ArchiveBrowserRowPayloadMixin:
         if new_item_preload is not None:
             new_item_preload.pause()
 
+    def hold_background_warmups(self, owner: object) -> None:
+        """Pause Finder thumbnails and Create New Item's table preload while
+        foreground work the user is waiting for runs (for example the Mesh
+        Editor preparing a session). They compete with it for Python's lock."""
+        holders = self.__dict__.setdefault("_archive_foreground_holders", set())
+        holders.add(id(owner))
+        self._note_archive_ui_activity()
+
+    def release_background_warmups(self, owner: object) -> None:
+        holders = self.__dict__.setdefault("_archive_foreground_holders", set())
+        if id(owner) not in holders:
+            return
+        holders.discard(id(owner))
+        if not holders and not self._archive_ui_interactive_active():
+            self._clear_archive_ui_activity()
+
     def _clear_archive_ui_activity(self) -> None:
         self.archive_ui_activity_until = 0.0
         if self.shell._shutting_down:
+            return
+        if self.__dict__.get("_archive_foreground_holders"):
+            # Foreground work still holds the warm-ups; its release resumes them.
             return
         character_warmup = getattr(self, "archive_character_finder_warmup_controller", None)
         if character_warmup is not None:
