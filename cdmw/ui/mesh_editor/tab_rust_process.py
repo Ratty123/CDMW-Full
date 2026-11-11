@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer
 
 from cdmw.services.mesh_rust_contract import (
@@ -906,6 +907,14 @@ class MeshEditorRustProcessMixin:
         _exit_status: object,
     ) -> None:
         if process is not self.standalone_rust_process:
+            return
+        if not shiboken6.isValid(self.standalone_rust_ready_timer):
+            # The helper exited while the window tears this tab down: its Qt
+            # children are already destroyed, so only release the process.
+            self.standalone_rust_process = None
+            unregister_owned_qprocess_for_exit(process)
+            self.standalone_rust_ready = False
+            self.standalone_rust_child_hwnd = 0
             return
         self._drain_rust_process_output(process)
         self.standalone_rust_ready_timer.stop()

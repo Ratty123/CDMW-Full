@@ -265,3 +265,18 @@ def test_opening_hair_setup_after_finish_does_not_read_disposed_shadow(tmp_path)
         tab.standalone_controller = None
         service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
         _dispose(tab)
+
+
+def test_helper_exit_during_window_teardown_does_not_touch_destroyed_timers(tmp_path):
+    tab = _tab(tmp_path)
+    process = _BufferedProcess()
+    tab.standalone_rust_process = process
+    try:
+        # Window teardown destroys the tab's Qt children before the helper's
+        # finished signal arrives (seen in a real hidden-window run).
+        shiboken6.delete(tab.standalone_rust_ready_timer)
+        tab._handle_rust_process_finished(process, 0, QProcess.ExitStatus.NormalExit)
+        assert tab.standalone_rust_process is None
+        assert tab.standalone_rust_ready is False
+    finally:
+        _dispose(tab)
