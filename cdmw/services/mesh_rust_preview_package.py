@@ -1936,10 +1936,10 @@ def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
     )
 
 
-def validate_rust_preview_package(path: Path | str) -> tuple[str, ...]:
+def validate_rust_preview_package(path: Path | str, *, hash_unverified: bool = True) -> tuple[str, ...]:
     try:
         package_dir, payload = _read_preview_manifest(path)
-        validate_preview_files(package_dir, payload)
+        validate_preview_files(package_dir, payload, hash_unverified=hash_unverified)
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError, RecursionError) as exc:
         return (str(exc),)
     return ()

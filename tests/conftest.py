@@ -63,6 +63,16 @@ def _isolate_shared_preview_settings(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_verified_preview_files():
+    """Each test starts with no remembered preview file digests."""
+    from cdmw.services.mesh_rust_preview_files import forget_verified_preview_files
+
+    forget_verified_preview_files()
+    yield
+    forget_verified_preview_files()
+
+
+@pytest.fixture(autouse=True)
 def _restore_process_environment():
     """Undo environment changes a test leaves behind, whoever made them.
 

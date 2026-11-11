@@ -19,7 +19,7 @@ from cdmw.ui.archive_browser.preview_state import (
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.services.mesh_rust_preview_cache import (
-    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+    validate_resident_rust_preview_package as validate_dotnet_preview_package,
 )
 from cdmw.workers.archive_preview_workers import _merge_timing_maps
 

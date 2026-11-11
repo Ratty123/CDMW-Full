@@ -545,15 +545,29 @@ def build_or_lookup_rust_preview_package_with_builder(
             release_dotnet_preview_package_staging_dir(staging, cleanup=True)
 
 
-def _validate_rust_cache_package(package_dir: Path) -> tuple[bool, tuple[str, ...]]:
-    missing = validate_rust_preview_package(package_dir)
+def _validate_rust_cache_package(
+    package_dir: Path, *, hash_unverified: bool = True,
+) -> tuple[bool, tuple[str, ...]]:
+    missing = validate_rust_preview_package(package_dir, hash_unverified=hash_unverified)
     return not missing, missing
 
 
-def validate_rust_preview_cache_package(package_dir: Path | str) -> tuple[bool, tuple[str, ...]]:
+def validate_rust_preview_cache_package(
+    package_dir: Path | str, *, hash_unverified: bool = True,
+) -> tuple[bool, tuple[str, ...]]:
     """Validate one derived Rust package without touching its source package."""
 
-    return _validate_rust_cache_package(Path(package_dir))
+    return _validate_rust_cache_package(Path(package_dir), hash_unverified=hash_unverified)
+
+
+def validate_resident_rust_preview_package(package_dir: Path | str) -> tuple[bool, tuple[str, ...]]:
+    """The UI thread's check of a package this process already prepared.
+
+    It hashes nothing: structure, sizes and containment only, plus any digest
+    this process has already verified for the same unchanged file.
+    """
+
+    return _validate_rust_cache_package(Path(package_dir), hash_unverified=False)
 
 
 def _source_manifest(package_dir: Path) -> Mapping[str, object]:
@@ -1215,5 +1229,6 @@ __all__ = [
     "rust_preview_package_cache_root",
     "RUST_PREVIEW_CACHE_SCHEMA",
     "validate_rust_preview_package",
+    "validate_resident_rust_preview_package",
     "validate_rust_preview_cache_package",
 ]

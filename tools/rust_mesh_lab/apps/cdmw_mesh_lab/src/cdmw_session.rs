@@ -8,12 +8,13 @@ use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
 mod mesh_document_binary;
@@ -2572,7 +2573,7 @@ fn read_preview_core_reference(
         )));
     }
     let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(format!(
             "Preview Core {role} SHA-256 does not match"
         )));
@@ -2808,7 +2809,8 @@ fn read_mesh_document_binary_reference(
         ));
     }
     let file = fs::File::open(&candidate)?;
-    if file.metadata()?.len() != reference.byte_length {
+    let metadata = file.metadata()?;
+    if metadata.len() != reference.byte_length {
         return Err(SessionError::InvalidPayload(
             "binary mesh reference size does not match".into(),
         ));
@@ -2823,7 +2825,7 @@ fn read_mesh_document_binary_reference(
     file.take(reference.byte_length + 1)
         .read_to_end(&mut bytes)?;
     if bytes.len() as u64 != reference.byte_length
-        || sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase()
+        || !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256)
     {
         return Err(SessionError::InvalidPayload(
             "binary mesh reference size or SHA-256 does not match".into(),
@@ -2849,7 +2851,7 @@ fn read_json_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>
         ));
     }
     let bytes = read_limited(&path, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&path, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(
             "file reference SHA-256 does not match".to_owned(),
         ));
@@ -2890,7 +2892,7 @@ fn read_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u
         ));
     }
     let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(
             "texture reference SHA-256 does not match".to_owned(),
         ));
@@ -3934,11 +3936,152 @@ fn sha256_upper(bytes: &[u8]) -> String {
     format!("{:X}", Sha256::digest(bytes))
 }
 
+/// Files this process already verified, keyed by path and the metadata a
+/// rewrite changes. Package files are immutable once published, so a file is
+/// hashed when it is first loaded and trusted again while it is unchanged.
+const VERIFIED_FILE_LIMIT: usize = 16_384;
+/// A verification is remembered only this long after the file's last write:
+/// a same-size rewrite inside one timestamp tick would keep its time.
+const VERIFIED_FILE_MIN_AGE: Duration = Duration::from_millis(100);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct VerifiedFileKey {
+    path: PathBuf,
+    len: u64,
+    modified: SystemTime,
+    created: Option<SystemTime>,
+}
+
+fn verified_files() -> &'static Mutex<HashMap<VerifiedFileKey, String>> {
+    static VERIFIED: OnceLock<Mutex<HashMap<VerifiedFileKey, String>>> = OnceLock::new();
+    VERIFIED.get_or_init(Default::default)
+}
+
+fn verified_file_key(path: &Path, metadata: &fs::Metadata) -> Option<VerifiedFileKey> {
+    Some(VerifiedFileKey {
+        path: path.to_path_buf(),
+        len: metadata.len(),
+        modified: metadata.modified().ok()?,
+        created: metadata.created().ok(),
+    })
+}
+
+fn file_unchanged_since(path: &Path, key: &VerifiedFileKey) -> bool {
+    fs::metadata(path)
+        .ok()
+        .and_then(|now| verified_file_key(path, &now))
+        .is_some_and(|now| &now == key)
+}
+
+/// Whether `bytes`, read from `path` after `metadata` was taken, have the
+/// digest `expected`. Hashes only a file this process has not verified yet.
+fn sha256_matches_once(path: &Path, metadata: &fs::Metadata, bytes: &[u8], expected: &str) -> bool {
+    let expected = expected.trim().to_ascii_uppercase();
+    let key = verified_file_key(path, metadata);
+    if let Some(key) = &key {
+        let known = verified_files()
+            .lock()
+            .ok()
+            .and_then(|files| files.get(key).cloned());
+        // Re-read the metadata: the bytes were read after `metadata`.
+        if let Some(known) = known
+            && file_unchanged_since(path, key)
+        {
+            return known == expected;
+        }
+    }
+    if sha256_upper(bytes) != expected {
+        return false;
+    }
+    if let Some(key) = key {
+        let old_enough = SystemTime::now()
+            .duration_since(key.modified)
+            .is_ok_and(|age| age >= VERIFIED_FILE_MIN_AGE);
+        if old_enough
+            && file_unchanged_since(path, &key)
+            && let Ok(mut files) = verified_files().lock()
+        {
+            if files.len() >= VERIFIED_FILE_LIMIT {
+                files.clear();
+            }
+            files.insert(key, expected);
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
     use tempfile::tempdir;
+
+    fn aged_file(path: &Path, bytes: &[u8]) -> fs::Metadata {
+        fs::write(path, bytes).expect("write");
+        let file = OpenOptions::new().write(true).open(path).expect("open");
+        file.set_modified(SystemTime::now() - Duration::from_secs(60))
+            .expect("age");
+        drop(file);
+        fs::metadata(path).expect("metadata")
+    }
+
+    fn remembered(path: &Path, metadata: &fs::Metadata) -> bool {
+        let key = verified_file_key(path, metadata).expect("key");
+        verified_files().lock().unwrap().contains_key(&key)
+    }
+
+    #[test]
+    fn an_unchanged_verified_file_is_trusted_and_a_changed_one_is_hashed() {
+        let root = tempdir().expect("temp");
+        let path = root.path().join("texture-0000-000000000000.dds");
+        let metadata = aged_file(&path, b"first bytes");
+        let digest = sha256_upper(b"first bytes");
+        assert!(sha256_matches_once(
+            &path,
+            &metadata,
+            b"first bytes",
+            &digest
+        ));
+        assert!(remembered(&path, &metadata));
+        // Trusted: the remembered digest answers without these bytes.
+        assert!(sha256_matches_once(
+            &path,
+            &metadata,
+            b"other bytes",
+            &digest
+        ));
+        assert!(!sha256_matches_once(
+            &path,
+            &metadata,
+            b"first bytes",
+            &"0".repeat(64)
+        ));
+
+        // A rewrite of the same size gets a new time and is hashed again.
+        fs::write(&path, b"second byte").expect("rewrite");
+        let changed = fs::metadata(&path).expect("metadata");
+        assert!(!sha256_matches_once(
+            &path,
+            &changed,
+            b"second byte",
+            &digest
+        ));
+        assert!(sha256_matches_once(
+            &path,
+            &changed,
+            b"second byte",
+            &sha256_upper(b"second byte")
+        ));
+        // Moments after its write, a verification is not remembered.
+        assert!(!remembered(&path, &changed));
+        // Stale metadata from before the rewrite never reuses the old answer.
+        assert!(!sha256_matches_once(
+            &path,
+            &metadata,
+            b"second byte",
+            &digest
+        ));
+    }
 
     pub(super) fn document() -> MeshDocument {
         MeshDocument {

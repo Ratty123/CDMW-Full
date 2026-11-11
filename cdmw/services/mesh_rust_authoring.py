@@ -21,6 +21,7 @@ import stat
 import struct
 import tempfile
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
@@ -33,6 +34,10 @@ from types import MappingProxyType, SimpleNamespace
 from uuid import uuid4
 
 from cdmw.services.mesh_morph_file_data import ProfileFileData, write_profile_file
+from cdmw.services.mesh_rust_preview_files import (
+    remember_verified_preview_file,
+    verified_preview_file_digest,
+)
 from cdmw.services.mesh_service_history_files import _mesh_morph_profile_state_fingerprint
 from cdmw.core.archive import ensure_archive_preview_source
 from cdmw.core.common import (
@@ -2766,23 +2771,31 @@ def _rust_material_package_owned_texture_aliases(
             or stat_result.st_size > _TEXTURE_MAX_FILE_BYTES
         ):
             continue
-        digest = hashlib.sha256()
-        try:
-            with owned.open("rb") as stream:
-                if stream.read(4) != b"DDS ":
-                    continue
-                digest.update(b"DDS ")
-                while chunk := stream.read(1024 * 1024):
-                    if stop_event is not None and stop_event.is_set():
-                        raise RustMeshCancellationError(
-                            "Mesh texture preparation was cancelled"
-                        )
-                    digest.update(chunk)
-        except RustMeshCancellationError:
-            raise
-        except OSError:
-            continue
-        if digest.hexdigest().casefold() != fingerprint.casefold():
+        known_sha256 = verified_preview_file_digest(stat_result)
+        if known_sha256 is not None:
+            # Verified earlier in this process and unchanged since.
+            actual_sha256 = known_sha256
+        else:
+            digest = hashlib.sha256()
+            verified_at_ns = time.time_ns()
+            try:
+                with owned.open("rb") as stream:
+                    if stream.read(4) != b"DDS ":
+                        continue
+                    digest.update(b"DDS ")
+                    while chunk := stream.read(1024 * 1024):
+                        if stop_event is not None and stop_event.is_set():
+                            raise RustMeshCancellationError(
+                                "Mesh texture preparation was cancelled"
+                            )
+                        digest.update(chunk)
+            except RustMeshCancellationError:
+                raise
+            except OSError:
+                continue
+            actual_sha256 = digest.hexdigest().upper()
+            remember_verified_preview_file(stat_result, actual_sha256, verified_at_ns, path=owned)
+        if actual_sha256.casefold() != fingerprint.casefold():
             continue
         owned_text = str(owned)
         previous = aliases.get(source_key)
@@ -4279,7 +4292,21 @@ def _atomic_copy_texture_payload(
                 raise RustMeshProtocolError(
                     f"Mesh texture changed before it was packaged: {source.name}"
                 )
-            while True:
+            # A link is the same file: one this process already verified,
+            # unchanged since, needs neither a read nor a second hash.
+            known_sha256 = verified_preview_file_digest(source_before) if linked else None
+            verified_at_ns = time.time_ns()
+            if known_sha256 is not None:
+                byte_length = int(source_before.st_size)
+                if byte_length > _TEXTURE_MAX_FILE_BYTES:
+                    raise RustMeshProtocolError(
+                        f"Mesh texture payload exceeds 512 MiB: {source.name}"
+                    )
+                if aggregate_bytes_before + byte_length > _SESSION_MAX_TOTAL_BYTES:
+                    raise RustMeshProtocolError(
+                        "Mesh texture payload exceeds the 768 MiB aggregate limit"
+                    )
+            while known_sha256 is None:
                 _raise_if_texture_copy_cancelled(stop_event)
                 chunk = input_stream.read(1024 * 1024)
                 if not chunk:
@@ -4325,7 +4352,9 @@ def _atomic_copy_texture_payload(
             raise RustMeshProtocolError(
                 f"Mesh texture changed while it was being packaged: {source.name}"
             )
-        sha256 = digest.hexdigest().upper()
+        sha256 = known_sha256 or digest.hexdigest().upper()
+        if known_sha256 is None:
+            remember_verified_preview_file(source_before, sha256, verified_at_ns)
         name = f"texture-{file_index:04d}-{sha256[:12].lower()}.dds"
         destination = root / name
         _raise_if_texture_copy_cancelled(stop_event)
