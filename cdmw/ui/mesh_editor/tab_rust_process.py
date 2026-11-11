@@ -727,6 +727,9 @@ class MeshEditorRustProcessMixin:
         self._release_background_warmups()
         if editor_spare_enabled():
             QTimer.singleShot(_RUST_SPARE_REFILL_MS, self, self._refill_rust_editor_spare)
+        became_ready = getattr(self, "became_ready", None)  # the live-edit component's signal
+        if became_ready is not None and hasattr(became_ready, "emit"):
+            became_ready.emit()
         self._send_rust_theme_update()
         if not getattr(self, "_shared_preview_settings_connected", False):
             from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
@@ -1222,6 +1225,9 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_closing = True
         self.standalone_rust_dispose_pending = True
         self._schedule_rust_session_dispose()
+        closed = getattr(self, "closed", None)  # the live-edit component's signal
+        if closed is not None and hasattr(closed, "emit"):
+            closed.emit()
 
     def _fail_rust_editor(self, message: str, *, incompatible: bool = False) -> None:
         release = getattr(self, "_release_background_warmups", None)

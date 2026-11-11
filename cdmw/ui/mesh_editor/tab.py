@@ -30,7 +30,7 @@ _LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
 from cdmw.ui.mesh_editor.tab_shell import MeshEditorTabShellMixin
 from cdmw.ui.mesh_editor.tab_native_preview import MeshEditorNativePreviewMixin
 from cdmw.ui.mesh_editor.tab_packages import MeshEditorPackageMixin
-from cdmw.ui.mesh_editor.tab_rust_editor import MeshEditorRustEditorMixin
+from cdmw.ui.mesh_editor.live_edit import LiveEditComponent, install_live_edit_forwarders
 from cdmw.ui.mesh_editor.tab_dotnet_launch import MeshEditorDotNetLaunchMixin
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
 from cdmw.ui.mesh_editor.tab_dotnet_commands import MeshEditorDotNetCommandMixin
@@ -172,7 +172,7 @@ def __dir__() -> list[str]:
     return sorted((*globals(), *_LAZY_EXPORTS))
 
 
-class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorRustEditorMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorUiStateMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
+class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorUiStateMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
     """Direct resident mesh-authoring workspace host."""
 
     status_message_requested = Signal(str, bool)
@@ -217,6 +217,9 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             "modify_original_sessions_root"
         ]
         self.theme_key = str(theme_key or "graphite")
+        # The embedded editor (helper, protocol, viewport host) is a component with
+        # state of its own; this tab is its first host (P4 V2).
+        self.live_edit = LiveEditComponent(self)
         self._initialize_runtime_state(
             get_archive_texture_entries_by_normalized_path=get_archive_texture_entries_by_normalized_path,
             get_archive_texture_entries_by_basename=get_archive_texture_entries_by_basename,
@@ -344,3 +347,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
 
 
 __all__ = sorted(name for name in (*globals(), *_LAZY_EXPORTS) if not name.startswith("_"))
+
+
+# Tab code, other mixins and tests use the editor's names on the tab.
+install_live_edit_forwarders(MeshEditorTab)
