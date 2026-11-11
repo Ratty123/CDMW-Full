@@ -282,8 +282,8 @@ class ModelPanelPreviewMixin:
         if bones:
             self.import_problem_note.set_note(
                 text + "\n\nThe model is weighted to bones the template's skeleton does not have, so Keep imported "
-                "weights cannot use it. Import it again with Transfer from template, or weight it to the template's "
-                "rig in Blender (Model > Rig > Export rig GLB…).", WARN)
+                "weights cannot use it. Import it again with Move weights to parent bones or Transfer from template, "
+                "or weight it to the template's rig in Blender (Model > Rig > Export rig GLB…).", WARN)
         else:
             self.import_problem_note.set_note(text, WARN)
         self.retry_transfer_button.setVisible(bones and getattr(self, "_last_import_path", None) is not None)

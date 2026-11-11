@@ -81,6 +81,36 @@ fn unkeepable_rig_waits_for_a_choice_and_sends_transfer() -> TestResult {
 }
 
 #[test]
+fn bones_the_original_lacks_offer_fold_and_experimental_extend() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = pending_with_weights(json!({
+        "rigged": true, "default": "",
+        "summary": "The model is weighted to 1 bone(s) the original model does not use: bone8.",
+        "options": [{"policy": "preserve", "enabled": false, "reason": "bone8 has no match."},
+                    {"policy": "reduce", "enabled": false, "reason": "No vertex uses more than six bones, so there is nothing to reduce."},
+                    {"policy": "fold", "enabled": true, "reason": ""},
+                    {"policy": "extend", "enabled": true, "reason": ""},
+                    {"policy": "transfer", "enabled": true, "reason": ""}]
+    }));
+    ui.reveal(NO_CHOICE_WARNING)?;
+    ui.click("Move to Parent Bones")?;
+    assert_eq!(
+        applied_weights(&ui.actions_from_click("Apply Replacement")?),
+        Some(json!("fold"))
+    );
+    ui.click("Add Bones to Model (Experimental)")?;
+    ui.reveal("A model with added bones has not been tested in game yet. Test it in game before sharing the mod; if it fails, import again with Move to Parent Bones.")?;
+    assert_eq!(
+        applied_weights(&ui.actions_from_click("Apply Replacement")?),
+        Some(json!("extend"))
+    );
+    Ok(())
+}
+
+#[test]
 fn unrigged_import_sends_no_weights_choice() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

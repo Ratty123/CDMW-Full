@@ -988,8 +988,11 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.import_skin_policy.addItem("Keep imported weights", "preserve")
         self.import_skin_policy.addItem("Transfer from template", "transfer")
         self.import_skin_policy.addItem("Reduce to six influences", "reduce")
+        self.import_skin_policy.addItem("Move weights to parent bones", "fold")
         self.import_skin_policy.setToolTip("Used when importing a rigged model. Keeping weights refuses missing bones or excess influences. "
-                                         "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement.")
+                                         "Transfer deliberately replaces authored weights; reduction reports removed weights before Apply placement. "
+                                         "Moving to parent bones keeps the weights but moves weight on a bone the template does not use "
+                                         "to its nearest parent bone that it does.")
         self.rig_field = QWidget()
         rig_row = QHBoxLayout(self.rig_field)
         rig_row.setContentsMargins(0, 0, 0, 0)

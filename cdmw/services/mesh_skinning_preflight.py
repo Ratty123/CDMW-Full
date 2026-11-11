@@ -10,7 +10,9 @@ from cdmw.modding.mesh_parser import parse_pac, _decode_pac_skin_influences, res
 from cdmw.modding.mesh_skinning import pack_pac_skin_weights
 from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.services.mesh_replacement_skinning import retain_imported_skinning
-from cdmw.services.mesh_skin_import_policy import bind_for_transfer, clear_authored_skin, reduce_part
+from cdmw.services.mesh_skin_import_policy import (
+    bind_for_transfer, clear_authored_skin, over_capacity_vertices, reduce_part,
+)
 
 
 def has_authored_skin(mesh):
@@ -60,7 +62,7 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
                 raise ValueError(f"{part.name} has an invalid imported joint.")
             required = tuple(sorted({identities[joint] for row in part.bone_indices for joint in row}))
             report = replace(report, required_bones=required)
-            if choice.policy == "reduce":
+            if choice.policy == "reduce" or (choice.policy == "fold" and over_capacity_vertices(part, choice.capacity)):
                 part, loss = reduce_part(part, choice.capacity, identities)
                 report = replace(report, **loss)
             if transfer:
@@ -70,12 +72,13 @@ def preflight_imported_skin(mesh, target_data, skeleton, target_path, *, choices
             else:
                 names = {skeleton.bones[bone].name for bone in palette}
                 missing = sorted(set(report.required_bones) - names)
-                if missing:
+                if missing and choice.policy != "fold":
                     missing_parts[part.name] = missing
                     continue
                 single = replace(source, submeshes=[part])
                 rig_notes = []
-                part = retain_imported_skinning(single, snapshot, state, rig_notes).submeshes[0]
+                part = retain_imported_skinning(single, snapshot, state, rig_notes,
+                                                fold=choice.policy == "fold").submeshes[0]
                 if rig_notes:
                     report = replace(report, transfer_details=report.transfer_details + tuple(rig_notes))
                 quantization = 0.

@@ -169,13 +169,50 @@ def _target_bind_frame(skin, target_skin, used_joints=None, notes=None):
                  for row in range(3) for column in range(4)) + (0., 0., 0., 1.)
 
 
-def retain_imported_skinning(source, snapshot, state, notes=None):
+def fold_target(skin, node_index, bones, palette_names):
+    """The palette bone that takes a weight on ``node_index``, which the palette lacks.
+
+    The nearest ancestor the PAC's palette lists, by the game skeleton's own
+    hierarchy. A joint the game skeleton does not have climbs the imported rig
+    until it reaches one it has. Returns "" when no ancestor is in the palette.
+    """
+    nodes = skin["nodes"]
+    parents = _parents(nodes)
+    by_name, by_id = {}, {int(bone.index): bone for bone in bones}
+    for bone in bones:
+        by_name.setdefault(str(bone.name), []).append(bone)
+    seen = {node_index}
+    name = str(nodes[node_index].get("name", ""))
+    while name not in palette_names and name not in by_name:
+        node_index = parents.get(node_index)
+        if node_index is None or node_index in seen:
+            return ""
+        seen.add(node_index)
+        name = str(nodes[node_index].get("name", ""))
+    if name in palette_names:
+        return name
+    if len(by_name[name]) != 1:
+        return ""
+    bone, visited = by_name[name][0], set()
+    while bone is not None and int(bone.index) not in visited:
+        if str(bone.name) in palette_names:
+            return str(bone.name)
+        visited.add(int(bone.index))
+        bone = by_id.get(int(bone.parent_index))
+    return ""
+
+
+def retain_imported_skinning(source, snapshot, state, notes=None, *, fold=False):
     """Map used joints by exact name and one common bind-space transform.
 
     PAC vertex influences address palette slots, never skeleton indices. The
     captured target bytes are authoritative for that palette. No bone-name
-    guessing, palette extension, posed-geometry bake or donor-weight fallback
-    is allowed for an authored skin.
+    guessing, posed-geometry bake or donor-weight fallback is allowed for an
+    authored skin; a palette extension arrives as already-extended target bytes.
+
+    With ``fold`` a weight on a bone the palette lacks moves to that bone's
+    nearest ancestor in the palette (``fold_target``), so the vertices follow
+    that ancestor rigidly. ``notes`` receives which bones moved where.
     """
     skinned = {id(part) for part in source.submeshes if part.interchange_skin or part.bone_indices or part.bone_weights}
     if not skinned:
@@ -195,6 +232,8 @@ def retain_imported_skinning(source, snapshot, state, notes=None):
     slots_by_name = {}
     for slot, bone_index in enumerate(palette):
         slots_by_name.setdefault(str(bones[bone_index].name), []).append((slot, bone_index))
+    palette_names = {name for name, matches in slots_by_name.items() if len(matches) == 1}
+    folded_names = {}
     for index, part in enumerate(source.submeshes):
         if id(part) not in skinned:
             continue
@@ -203,21 +242,32 @@ def retain_imported_skinning(source, snapshot, state, notes=None):
             raise ValueError(f"Imported skin requires complete joint weights in {part.name}.")
         nodes, joints = skin["nodes"], skin["joints"]
         used = {joint for row in part.bone_indices for joint in row}
-        remap, used_names = {}, set()
+        remap, used_names, kept = {}, set(), set()
         for joint in sorted(used):
             if not 0 <= joint < len(joints):
                 raise ValueError(f"Imported skin references an invalid joint in {part.name}.")
             name = str(nodes[joints[joint]].get("name", ""))
+            if name and name not in used_names and fold and name not in slots_by_name:
+                target = fold_target(skin, joints[joint], bones, palette_names)
+                if not target:
+                    raise ValueError(f"Imported joint {name} has no parent bone in the target PAC bone palette, "
+                                     "so its weight has nowhere to move. Use the matching game armature and target item.")
+                used_names.add(name)
+                folded_names[name] = target
+                remap[joint] = slots_by_name[target][0][0]
+                continue
             matches = slots_by_name.get(name, ())
             if not name or name in used_names or len(matches) != 1:
                 raise ValueError(f"Imported joint {name or '<unnamed>'} has no unique match in the target PAC bone palette. Use the matching game armature and target item.")
             used_names.add(name)
+            kept.add(joint)
             slot, _bone_index = matches[0]
             remap[joint] = slot
         if not remap:
             raise ValueError(f"Imported skin has no non-zero influences in {part.name}.")
         try:
-            frame = _target_bind_frame(skin, target_skin, used, notes)
+            # A folded bone moves no vertex any more, so only the looser limit applies to it.
+            frame = _target_bind_frame(skin, target_skin, kept if fold else used, notes)
         except ValueError as exc:
             raise ValueError(f"Imported joint bind frames disagree in {part.name}: {exc} Rig retargeting is unavailable.") from exc
         indices, weights = [], []
@@ -240,6 +290,9 @@ def retain_imported_skinning(source, snapshot, state, notes=None):
         # Indices now address the game PAC palette, not the glTF joint array.
         mapped.interchange_skin = {}
         source.submeshes[index] = mapped
+    if folded_names and notes is not None:
+        notes.append("Moved weights to parent bones the original model uses: "
+                     + ", ".join(f"{name} to {target}" for name, target in sorted(folded_names.items())) + ".")
     refresh_mesh_totals(source)
     if state.neutral_coordinates:
         if state.neutral_appearance is None or tuple(state.neutral_appearance.bone_palette) != palette:

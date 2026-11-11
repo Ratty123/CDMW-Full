@@ -15,8 +15,8 @@ class SkinningChoice:
     def __post_init__(self):
         if type(self.part_index) is not int or self.part_index < 0:
             raise ValueError("A skinning choice requires a valid imported part index.")
-        if self.policy not in {"preserve", "transfer", "body_transfer", "reduce"}:
-            raise ValueError("Choose imported weights, template transfer, or explicit reduction.")
+        if self.policy not in {"preserve", "transfer", "body_transfer", "reduce", "fold"}:
+            raise ValueError("Choose imported weights, template transfer, explicit reduction, or moving weights to parent bones.")
         if self.capacity not in (4, 6):
             raise ValueError("The supported skeletal influence capacities are four and six.")
         if not isinstance(self.donor_parts, tuple) or any(type(index) is not int or index < 0 for index in self.donor_parts):
@@ -49,7 +49,9 @@ class SkinningPartReport:
             return (f"{self.part_name}: transfer from {self.donor_path or self.target_path}; review rigid pieces, close layers and distant surfaces. "
                     + " ".join(self.transfer_details))
         text = f"{self.part_name}: keep imported weights in game bind space."
-        if self.policy == "reduce":
+        if self.policy == "fold" and self.transfer_details:
+            text += " " + " ".join(self.transfer_details)
+        if self.policy == "reduce" or self.reduced_vertices:
             text += (f" Reduced {self.reduced_vertices} vertices; maximum removed weight "
                      f"{self.maximum_removed_mass:.2%}; {self.over_one_percent} over 1%, "
                      f"{self.over_five_percent} over 5%. Removed bones: {', '.join(self.removed_bones) or 'none'}. "

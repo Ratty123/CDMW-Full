@@ -50,7 +50,8 @@ def editor():
 
 
 def source_glb(tmp_path, *, names=("bone5", "bone2", "unused_other_rig"), mismatch=False,
-               zero_weights=False, extras=0, with_skin=True, extension="glb", seven_influences=False):
+               zero_weights=False, extras=0, with_skin=True, extension="glb", seven_influences=False,
+               children=None):
     chunks, views, accessors = [], [], []
     def accessor(rows, code, kind, component):
         width = {"VEC3": 3, "VEC2": 2, "VEC4": 4, "SCALAR": 1, "MAT4": 16}[kind]
@@ -85,6 +86,11 @@ def source_glb(tmp_path, *, names=("bone5", "bone2", "unused_other_rig"), mismat
                           *[{"name": name, "translation": [700 + i, 800, 900]} for i, name in enumerate(names)]],
                 "skins": [{"joints": list(range(1, len(names) + 1)), "inverseBindMatrices": inverse}],
                 "scenes": [{"nodes": list(range(len(names) + 1))}], "scene": 0}
+    for parent, kids in (children or {}).items():
+        # ``children`` maps a joint name to the joint names parented under it.
+        document["nodes"][names.index(parent) + 1]["children"] = [names.index(kid) + 1 for kid in kids]
+        document["scenes"][0]["nodes"] = [node for node in document["scenes"][0]["nodes"]
+                                          if node - 1 not in {names.index(kid) for kid in kids}]
     if with_skin:
         document["nodes"][0]["skin"] = 0
     if extras:

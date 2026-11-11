@@ -959,8 +959,11 @@ exports came from an isolated read-only Ghidra project copy without full analysi
 Older source-comment addresses are interior instructions in this build and were
 not treated as current function entries.
 
-Palette extension remains an internal experiment behind the consumer rollout
-gate. Final resource stride, matrix allocation/upload, draw/shader/partition and
+Palette extension remains an experiment. Since 2026-11-11 Mesh Editor Import
+Replacement offers it as the opt-in **Add Bones to Model (Experimental)** weights
+choice for existing skeleton bones a model uses but the target palette lacks; the
+default and the recommended **Move to Parent Bones** choice leave the palette
+unchanged. Final resource stride, matrix allocation/upload, draw/shader/partition and
 special-physics consumers remain unqualified. Source six-influence approval,
 selected PABC/companion appearance, full motion playback and game acceptance remain open.
 No packaging, installation or game launch was performed for this implementation.

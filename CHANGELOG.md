@@ -11,6 +11,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mesh Editor's **Export PAC As…**, available after Finish, saves just the PAC with a chosen name and path, remembers the destination and replaces existing exports. Edits needing companion files explain why Build Mod is required.
 - Archive Browser's experimental **Edit Skinned Decal...** changes stored texture references and decal settings in supported PASEQ sequences and saves a loose copy. Missing settings retain their defaults; unchanged saves preserve the original file. In-game blending, attachment and removal remain unverified.
+- Mesh Editor's Import Replacement accepts a rigged model weighted to bones the original model does not use, such as two hairstyles merged in Blender. **Move to Parent Bones** keeps the weights and moves those bones' weight to their nearest parent bone the original model uses; Create New Item offers the same as **Move weights to parent bones**. The experimental **Add Bones to Model** keeps the weights exactly by adding the game bones to the model's bone list; such models have not been tested in game.
 
 ### Docs
 

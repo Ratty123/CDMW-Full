@@ -139,6 +139,7 @@ _CONTROLS = (
     "Other Charts Playing This Clip...", "Change in Ticked Charts",
     "Refresh Research", "Extract Selected Set", "Find References", "Scan UI Rect References", "Save Note",
     "Import Replacement", "Apply Replacement", "Keep Imported Weights", "Reduce to Six Influences",
+    "Move to Parent Bones", "Add Bones to Model (Experimental)",
     "Imported Materials & Textures",
     "Transfer from Original", "Export Rig GLB...", "Export Rig GLB…", "Rig & Weights", "Weights from the last import",
     "Normalize Weights", "Weight colours", "Active bone", "Search bones", "Frame bone", "Frame influence",

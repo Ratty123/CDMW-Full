@@ -33,12 +33,14 @@ class SkinningDialog(QDialog):
                 combo.addItem("Keep imported weights", ("preserve", 6))
                 combo.addItem("Reduce to six influences", ("reduce", 6))
                 combo.addItem("Reduce to four influences", ("reduce", 4))
+                combo.addItem("Move weights to parent bones", ("fold", 6))
             combo.addItem("Transfer from template", ("transfer", 6))
             combo.addItem("Transfer from verified body", ("body_transfer", 6))
             choice = current.get(index, SkinningChoice(index, "preserve" if authored else "transfer"))
             combo.setCurrentIndex(max(0, combo.findData((choice.policy, choice.capacity))))
             combo.setToolTip("Keep preserves rigid attachments too. Transfer replaces the artist's weights. "
-                             "Reduction removes the weakest influences and reports lost mass; review deformation.")
+                             "Reduction removes the weakest influences and reports lost mass; review deformation. "
+                             "Moving to parent bones makes vertices on a bone the template does not use follow its parent rigidly.")
             table.setCellWidget(index, 1, combo)
             combos.append(combo)
             donor = QComboBox()

@@ -2839,6 +2839,8 @@ impl LabApplication {
             for (value, title, help) in [
                 ("preserve", "Keep Imported Weights", "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are."),
                 ("reduce", "Reduce to Six Influences", "Keep each vertex's six strongest bones and rebalance them. A game vertex holds six."),
+                ("fold", "Move to Parent Bones", "Keep the model's weights, but move weight on a bone the original model does not use to its nearest parent bone that it does. Those vertices then follow that parent rigidly."),
+                ("extend", "Add Bones to Model (Experimental)", "Keep the model's weights exactly and add the game bones it uses to this model's bone list. Not yet tested in game."),
                 ("transfer", "Transfer from Original", "Replace the model's weights with the original model's weights at the nearest surface. Works with any rig, or none."),
             ] {
                 let available = enabled(value);
@@ -2863,6 +2865,8 @@ impl LabApplication {
             ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("Choose how to handle this model's weights before applying."));
         } else if policy == "transfer" {
             ui.small(crate::localization::tr("Transferred weights follow the nearest original surface, so rigid pieces such as horns may bend with what they touch. Check and fix them in Rig & Weights after applying."));
+        } else if policy == "extend" {
+            ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("A model with added bones has not been tested in game yet. Test it in game before sharing the mod; if it fails, import again with Move to Parent Bones."));
         }
         Some(policy)
     }
