@@ -171,7 +171,10 @@ class NewItemStudioController(
         #: (import, transform) whose placement is applied once its weights are sampled there
         self._apply_after_skinning = None
         self.busy_changed.connect(self._run_pending_model_apply)
-        self.preview_lighting_preset = "neutral_studio"
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        self.preview_lighting_preset = str((hub.values() if hub is not None else {}).get(
+            "lighting_preset", "neutral_studio"))
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)
         self._template_models: Dict[tuple, object] = {}
@@ -258,6 +261,11 @@ class NewItemStudioController(
         if normalized == self.preview_lighting_preset:
             return
         self.preview_lighting_preset = normalized
+        # Stored with every other viewport's lighting, not only for this session.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.update(lighting_preset=normalized)
         self.preview_lighting_changed.emit(normalized)
 
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:

@@ -320,7 +320,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
             lighting.assert_called_once_with("dark")
             rebuild.assert_not_called()
             panel.dark_preview.setChecked(False)
-            self.assertEqual(lighting.call_args.args, ("neutral_studio",))
+            # Off returns to the shared Preview settings instead of a fixed preset.
+            self.assertEqual(lighting.call_args.args, (None,))
 
     def test_pending_post_install_refresh_is_cancelled_when_tab_is_deleted(self) -> None:
         from PySide6.QtCore import QCoreApplication, QEvent

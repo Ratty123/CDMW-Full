@@ -1575,6 +1575,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("preview/preview_shadows", preview_settings.preview_shadows)
         self.settings.setValue("preview/preview_lighting_preset", preview_settings.preview_lighting_preset)
         self.settings.setValue("preview/preview_ambient_occlusion", preview_settings.preview_ambient_occlusion)
+        self.settings.setValue("preview/preview_ground_visible", preview_settings.preview_ground_visible)
+        self.settings.setValue("preview/preview_ground_grid_visible", preview_settings.preview_ground_grid_visible)
         self.settings.setValue("preview/d3d11_ao_strength", preview_settings.d3d11_ao_strength)
         self.settings.setValue("preview/d3d11_roughness_bias", preview_settings.d3d11_roughness_bias)
         self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
@@ -1584,6 +1586,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("preview/d3d11_tone_contrast", preview_settings.d3d11_tone_contrast)
         self.settings.setValue("preview/d3d11_tone_gamma", preview_settings.d3d11_tone_gamma)
         self.settings.sync()
+        # Every open viewport follows the shared Preview settings just saved.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.refresh()
         self._apply_checkbox_states()
         if previous_capture_value != current_capture_value:
             self.crash_capture_changed.emit(current_capture_value)
@@ -2005,6 +2012,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                 preview_shadows=self._read_bool("preview/preview_shadows", defaults.preview_shadows),
                 preview_lighting_preset=str(self.settings.value("preview/preview_lighting_preset", defaults.preview_lighting_preset)),
                 preview_ambient_occlusion=self._read_bool("preview/preview_ambient_occlusion", defaults.preview_ambient_occlusion),
+                preview_ground_visible=self._read_bool("preview/preview_ground_visible", defaults.preview_ground_visible),
+                preview_ground_grid_visible=self._read_bool("preview/preview_ground_grid_visible", defaults.preview_ground_grid_visible),
                 d3d11_ao_strength=self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength),
                 d3d11_roughness_bias=self._read_float("preview/d3d11_roughness_bias", defaults.d3d11_roughness_bias),
                 d3d11_metalness_scale=self._read_float(
@@ -2125,6 +2134,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                 preview_shadows=stored.preview_shadows,
                 preview_lighting_preset=stored.preview_lighting_preset,
                 preview_ambient_occlusion=stored.preview_ambient_occlusion,
+                preview_ground_visible=stored.preview_ground_visible,
+                preview_ground_grid_visible=stored.preview_ground_grid_visible,
                 visible_texture_mode=str(
                     self.visible_texture_mode_combo.currentData() or ModelPreviewRenderSettings().visible_texture_mode
                 ),

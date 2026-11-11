@@ -51,7 +51,11 @@ def test_depth_toggles_and_icon_alpha_travel_in_live_presentation(tmp_path: Path
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)
     try:
         assert host.load_package(package)
-        assert host.set_render_tuning(SimpleNamespace(preview_shadows=False, preview_ambient_occlusion=True))
+        # Shadows and AO are shared Preview settings: the store wins over a
+        # caller's own settings object, and its changes reach live viewports.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        assert host.set_render_tuning(SimpleNamespace(preview_shadows=True, preview_ambient_occlusion=True))
+        assert preview_settings_hub().update(shadows=False)
         _, payload = controller._resident_state["presentation"]
         assert payload["display"]["quality"]["preview_shadows"] is False
         assert payload["display"]["quality"]["preview_ambient_occlusion"] is True
@@ -2014,7 +2018,11 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     assert host.set_lighting_preset("showcase")
     live = process.writes[-1]
     assert live["event"] == "presentation_state_update"
-    assert live["display"] == {"lighting_preset": "showcase"}
+    # A viewport's own lighting is a local setting carried with the shared
+    # display values (ground, grid); still a display-only update.
+    assert live["display"]["lighting_preset"] == "showcase"
+    assert set(live["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality"}
+    assert host.has_local_preview_settings
     assert not {"camera", "uv", "visibility", "part_transforms", "comparison_mode"}.intersection(live)
     event, payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert event == "presentation_state_update"
@@ -2025,9 +2033,10 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     ) == package_requests_before
 
     assert host.set_lighting_preset("dark")
-    assert process.writes[-1]["display"] == {"lighting_preset": "dark"}
+    assert process.writes[-1]["display"]["lighting_preset"] == "dark"
+    assert set(process.writes[-1]["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality"}
     assert host.set_lighting_preset("studio_fixed")
-    assert process.writes[-1]["display"] == {"lighting_preset": "studio_fixed"}
+    assert process.writes[-1]["display"]["lighting_preset"] == "studio_fixed"
     assert controller._resident_state["presentation"][1]["camera"]["yaw"] == 27.0
     assert host.set_lighting_preset("unknown")
     _event, payload = controller._resident_state["presentation"]  # noqa: SLF001

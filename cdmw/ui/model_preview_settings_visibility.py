@@ -51,7 +51,8 @@ DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
 # camera input and lighting depth; texture actions stay on their owning surfaces.
 ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion"),
+    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion",
+                           "preview_ground_visible", "preview_ground_grid_visible"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": (),
 }
@@ -61,7 +62,8 @@ ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
 # .NET/Builder surfaces.
 DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
-    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion"),
+    "Quality / Lighting": ("preview_lighting_preset", "preview_shadows", "preview_ambient_occlusion",
+                           "preview_ground_visible", "preview_ground_grid_visible"),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     "Gizmo": DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS,
 }
@@ -142,6 +144,8 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
             "preview_lighting_preset": dialog.preview_lighting_preset_combo,
             "preview_shadows": dialog.preview_shadows_checkbox,
             "preview_ambient_occlusion": dialog.preview_ambient_occlusion_checkbox,
+            "preview_ground_visible": dialog.preview_ground_visible_checkbox,
+            "preview_ground_grid_visible": dialog.preview_ground_grid_visible_checkbox,
             **{field: (
                 dialog.force_nearest_no_mipmaps_checkbox
                 if field == "force_nearest_no_mipmaps"
@@ -203,6 +207,8 @@ def sync_renderer_specific_controls(dialog: object) -> None:
     dialog._set_form_field_visible(dialog.preview_shadows_checkbox, dotnet)
     dialog._set_form_field_visible(dialog.preview_lighting_preset_combo, dotnet)
     dialog._set_form_field_visible(dialog.preview_ambient_occlusion_checkbox, dotnet)
+    dialog._set_form_field_visible(dialog.preview_ground_visible_checkbox, dotnet)
+    dialog._set_form_field_visible(dialog.preview_ground_grid_visible_checkbox, dotnet)
     legacy = False
     supported_by_tab = supported_preview_settings_by_tab(dialog)
     diagnostics_index = dialog.tabs.indexOf(dialog._diagnostics_tab)
@@ -275,6 +281,10 @@ def sync_renderer_specific_controls(dialog: object) -> None:
                         tooltip = "Lighting for Textured and Game Outdoor views."
                     elif field in {"preview_shadows", "preview_ambient_occlusion"}:
                         tooltip = "Adds depth in Textured and Game Outdoor views."
+                    elif field == "preview_ground_visible":
+                        tooltip = "Shows a floor under the model that receives its shadow. Applies to every preview."
+                    elif field == "preview_ground_grid_visible":
+                        tooltip = "Draws grid lines on the floor, with the X axis in red and the Z axis in blue."
                     else:
                         tooltip = (
                             f"Preview: {_DOTNET_SETTING_EFFECTS[field]}. "

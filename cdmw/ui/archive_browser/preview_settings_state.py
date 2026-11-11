@@ -125,6 +125,8 @@ def model_preview_settings_change_flags(
         previous_settings.preview_lighting_preset != preview_settings.preview_lighting_preset
         or previous_settings.preview_shadows != preview_settings.preview_shadows
         or previous_settings.preview_ambient_occlusion != preview_settings.preview_ambient_occlusion
+        or getattr(previous_settings, "preview_ground_visible", True) != getattr(preview_settings, "preview_ground_visible", True)
+        or getattr(previous_settings, "preview_ground_grid_visible", True) != getattr(preview_settings, "preview_ground_grid_visible", True)
         or previous_settings.max_anisotropy != preview_settings.max_anisotropy
         or previous_settings.d3d11_mip_lod_bias != preview_settings.d3d11_mip_lod_bias
         or getattr(previous_settings, "d3d11_background_color", "") != getattr(preview_settings, "d3d11_background_color", "")

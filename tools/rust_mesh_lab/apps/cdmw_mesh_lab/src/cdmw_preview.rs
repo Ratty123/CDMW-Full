@@ -1462,10 +1462,25 @@ impl PreviewApplication {
             .and_then(Value::as_str)
             .and_then(parse_color)
             .unwrap_or([1.0, 0.22, 0.28, 1.0]);
+        // The studio floor and its grid start on; icon captures never show it.
+        let icon_capture = display
+            .get("icon_capture_mode")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let ground = !icon_capture
+            && display
+                .get("ground_visible")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+        let ground_grid = display
+            .get("ground_grid_visible")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         if let Some(renderer) = &mut self.renderer {
             if let Some(background) = background {
                 renderer.set_clear_colour(background);
             }
+            renderer.set_ground(ground, ground_grid);
             renderer.set_overlay_colours(wire, vertex);
             renderer.set_lighting_depth_settings(LightingDepthSettings {
                 shadows: quality

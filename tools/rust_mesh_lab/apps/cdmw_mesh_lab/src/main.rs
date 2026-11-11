@@ -2,7 +2,10 @@
 // CDMW starts this helper through pipes. As a console program each instance
 // also got its own hidden conhost.exe; release builds are windows-subsystem
 // programs instead. Debug and test builds keep their console for development.
-#![cfg_attr(all(windows, not(test), not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(windows, not(test), not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 #![recursion_limit = "256"]
 
 mod camera;
@@ -2299,6 +2302,11 @@ struct LabApplication {
     show_normals: bool,
     show_bounds: bool,
     lighting_depth: cdmw_render_wgpu::LightingDepthSettings,
+    ground_visible: bool,
+    ground_grid: bool,
+    /// The shared Preview settings as last agreed with the host; a local
+    /// change is published once and becomes the new agreed value.
+    shared_preview_settings: Option<serde_json::Value>,
     lighting_preset: cdmw_render_wgpu::LightingPreset,
     show_bones: bool,
     deformation_heatmap_enabled: bool,
@@ -2508,6 +2516,9 @@ impl LabApplication {
             show_normals: false,
             show_bounds: false,
             lighting_depth: Default::default(),
+            ground_visible: true,
+            ground_grid: true,
+            shared_preview_settings: None,
             lighting_preset: cdmw_render_wgpu::LightingPreset::NeutralStudio,
             show_bones: false,
             deformation_heatmap_enabled: true,
@@ -3066,6 +3077,9 @@ impl LabApplication {
                 self.apply_cdmw_state(state);
             }
             HostEvent::Theme(theme) => {
+                if let Some(settings) = theme.get("preview_settings") {
+                    self.apply_shared_preview_settings(settings);
+                }
                 self.apply_cdmw_theme_payload(&theme);
                 if let Some(shortcuts) = theme.get("shortcuts") {
                     self.apply_shortcut_overrides(Some(shortcuts));
@@ -7301,6 +7315,7 @@ impl LabApplication {
             renderer.set_overlays(show_normals, show_bounds);
             renderer.set_lighting_depth_settings(self.lighting_depth);
             renderer.set_lighting_preset(self.lighting_preset);
+            renderer.set_ground(self.ground_visible, self.ground_grid);
             renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
             renderer.set_clear_colour([
@@ -7328,6 +7343,7 @@ impl LabApplication {
         } else {
             None
         };
+        self.publish_shared_preview_settings_if_changed();
         if let Some(error) = render_error {
             self.material_redraw_deadline = None;
             error!("frame failed: {error}");

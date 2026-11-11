@@ -339,6 +339,14 @@ class MeshEditorRustProcessMixin:
             if save_mesh_layout(self.settings, payload.get("layout")):
                 request_settings_sync(self.settings)
             return
+        if event == "preview_settings_changed":
+            from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+            hub = preview_settings_hub()
+            settings = payload.get("settings")
+            if hub is not None and isinstance(settings, Mapping):
+                hub.update(**{str(key): value for key, value in settings.items()})
+            return
         if event == "shortcuts_changed":
             from cdmw.services.mesh_editor_shortcuts import save_mesh_shortcuts
             from cdmw.ui.widgets import request_settings_sync
@@ -469,6 +477,11 @@ class MeshEditorRustProcessMixin:
             )
         )
 
+    def _shared_preview_settings_changed(self, _values: object = None) -> None:
+        """Another viewport changed the shared Preview settings: follow them."""
+        if getattr(self, "standalone_rust_ready", False) and self.standalone_rust_process is not None:
+            self._send_rust_theme_update()
+
     def _handle_rust_ready(self, _payload: Mapping[str, object]) -> None:
         if not self.standalone_rust_hello_received:
             self._fail_rust_editor("Mesh Editor became ready before hello.", incompatible=True)
@@ -476,6 +489,13 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_ready = True
         self._send_rust_theme_update()
+        if not getattr(self, "_shared_preview_settings_connected", False):
+            from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+            hub = preview_settings_hub()
+            if hub is not None:
+                hub.changed.connect(self._shared_preview_settings_changed)
+                self._shared_preview_settings_connected = True
         host = getattr(self, "standalone_native_host_frame", None)
         show_editor = getattr(host, "show_editor", None)
         if callable(show_editor):

@@ -34,6 +34,35 @@ def _isolate_mod_export_history(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_shared_preview_settings(tmp_path, monkeypatch):
+    """Give each test its own shared Preview settings store.
+
+    The real store writes the app's settings file next to the project; a test
+    must never change it or depend on what is in it.
+    """
+    try:
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from cdmw.ui.preview import preview_settings_hub as hub_module
+    except ImportError:
+        yield
+        return
+    path = tmp_path / "shared-preview-settings.ini"
+    monkeypatch.setattr(hub_module, "_open_settings",
+                        lambda: QSettings(str(path), QSettings.Format.IniFormat))
+    application = QApplication.instance()
+    previous = getattr(application, "_cdmw_preview_settings_hub", None) if application is not None else None
+    if application is not None:
+        application._cdmw_preview_settings_hub = None
+    try:
+        yield
+    finally:
+        application = QApplication.instance()
+        if application is not None:
+            application._cdmw_preview_settings_hub = previous
+
+
+@pytest.fixture(autouse=True)
 def _restore_process_environment():
     """Undo environment changes a test leaves behind, whoever made them.
 

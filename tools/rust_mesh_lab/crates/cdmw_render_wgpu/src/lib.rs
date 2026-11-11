@@ -19,6 +19,7 @@ pub use effect_mesh::{
 pub use effect_mesh_proof::run_headless_effect_mesh_deformation;
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
+mod ground;
 mod lighting_depth;
 mod material_layers;
 mod texture_upload;
@@ -1579,6 +1580,22 @@ impl LightingPreset {
         Self::StudioFixed,
     ];
 
+    /// The id CDMW stores in its shared Preview settings.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::NeutralStudio => "neutral_studio",
+            Self::Showcase => "showcase",
+            Self::Dark => "dark",
+            Self::StudioFixed => "studio_fixed",
+        }
+    }
+
+    #[must_use]
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|preset| preset.id() == id)
+    }
+
     pub const fn label(self) -> &'static str {
         match self {
             Self::NeutralStudio => "Neutral studio",
@@ -3041,6 +3058,9 @@ pub struct WindowRenderer {
     config: wgpu::SurfaceConfiguration,
     solid_pipeline: wgpu::RenderPipeline,
     blended_pipeline: wgpu::RenderPipeline,
+    ground: ground::Ground,
+    ground_visible: bool,
+    ground_grid: bool,
     glass_pipelines: GlassPipelines,
     wire_pipeline: wgpu::RenderPipeline,
     xray_wire_pipeline: wgpu::RenderPipeline,
@@ -3558,6 +3578,9 @@ impl WindowRenderer {
             config,
             solid_pipeline: pipelines.solid,
             blended_pipeline: pipelines.blended,
+            ground: pipelines.ground,
+            ground_visible: true,
+            ground_grid: true,
             glass_pipelines: pipelines.glass,
             wire_pipeline: pipelines.wire,
             xray_wire_pipeline: pipelines.xray_wire,
@@ -4341,6 +4364,18 @@ impl WindowRenderer {
         self.render_frame(&[], None)
     }
 
+    /// Show or hide the studio floor and its grid. Both start on; headless
+    /// and icon captures never draw the floor.
+    pub fn set_ground(&mut self, visible: bool, grid: bool) {
+        self.ground_visible = visible;
+        self.ground_grid = grid;
+    }
+
+    #[must_use]
+    pub fn ground(&self) -> (bool, bool) {
+        (self.ground_visible, self.ground_grid)
+    }
+
     pub fn render_egui(
         &mut self,
         paint_jobs: &[egui::ClippedPrimitive],
@@ -4463,6 +4498,25 @@ impl WindowRenderer {
                 );
                 if let Some(shadow) = &shadow {
                     pass.set_bind_group(3, &shadow.binding, &[]);
+                    if self.ground_visible {
+                        let (low, high) = mesh
+                            .lighting_bounds
+                            .world_bounds(&self.camera_uniform, &mesh.material_ranges);
+                        if high.cmpgt(low).any() {
+                            material_layers::bind(&mut pass, &self.default_material_binding);
+                            pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                            self.ground.draw(
+                                &self.queue,
+                                &mut pass,
+                                ground::quad(
+                                    low,
+                                    high,
+                                    self.ground_grid,
+                                    view_mode_darkens_background(self.view_mode),
+                                ),
+                            );
+                        }
+                    }
                 }
                 draw_mesh(
                     &mut pass,
@@ -8266,6 +8320,7 @@ struct Pipelines {
     bone: wgpu::RenderPipeline,
     guide: wgpu::RenderPipeline,
     effect: wgpu::RenderPipeline,
+    ground: ground::Ground,
 }
 
 fn create_effect_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -8521,7 +8576,14 @@ fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> Gl
     };
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Mesh Lab shader"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
+        source: wgpu::ShaderSource::Wgsl(
+            format!(
+                "{source}
+{}",
+                ground::WGSL
+            )
+            .into(),
+        ),
     });
     let surface_entry = if dual_source {
         "fs_surface"
@@ -8571,8 +8633,10 @@ fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> Gl
             sample_count,
         )
     };
+    let ground = ground::Ground::new(device, format, &layout, &shader, sample_count);
     Pipelines {
         sample_count,
+        ground,
         shadow_resources: lighting_depth::ShadowResources::new(
             device,
             texture_layout,

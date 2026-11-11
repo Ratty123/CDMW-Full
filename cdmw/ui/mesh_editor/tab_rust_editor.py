@@ -68,6 +68,13 @@ MESH_EDITOR_BACKEND_RUST = "rust"
 
 
 
+
+def _shared_preview_settings() -> dict[str, object]:
+    from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+    hub = preview_settings_hub()
+    return hub.values() if hub is not None else {}
+
 class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _initialize_rust_editor_runtime_state(self) -> None:
         # The legacy preference is deliberately ignored. Rust is the sole
@@ -501,6 +508,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "layout": load_mesh_layout(self.settings),
             # Its presence tells the editor this host saves shortcuts_changed.
             "shortcuts": load_mesh_shortcuts(self.settings),
+            # The shared Preview settings; the editor reports changes with
+            # preview_settings_changed and follows other viewports' changes.
+            "preview_settings": _shared_preview_settings(),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
             "palette": palette,

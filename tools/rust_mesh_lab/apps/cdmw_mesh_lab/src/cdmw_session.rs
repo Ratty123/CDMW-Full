@@ -1258,6 +1258,17 @@ impl CdmwBridge {
         }))
     }
 
+    /// Preview settings the user changed in the editor; the host stores them
+    /// as the shared Preview settings every viewport follows.
+    pub fn publish_preview_settings(&self, settings: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "preview_settings_changed", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "settings": settings
+        }))
+    }
+
     /// Shortcut overrides of the defaults; the host saves them for later sessions.
     pub fn publish_shortcuts(&self, shortcuts: Value) -> Result<(), SessionError> {
         self.send_message(json!({

@@ -38,6 +38,7 @@ from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _Dot
 from cdmw.ui.preview.dotnet_host_prewarm import ensure_dialog_preview_prewarm, take_dialog_preview_prewarm
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
 from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
+from cdmw.ui.preview.preview_settings_hub import normalize_preview_settings, preview_settings_hub
 from cdmw.ui.preview.dotnet_host_protocol import DotNetPreviewHostProtocolMixin
 from cdmw.ui.preview.dotnet_host_theme import DotNetPreviewHostThemeMixin
 from cdmw.ui.preview.dotnet_host_placement import (
@@ -167,6 +168,21 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._camera_hint.setContentsMargins(6, 3, 6, 3)
         layout.addWidget(self._camera_hint)
         self._update_camera_hint({})
+        # Shown only while this viewport holds a value the user set here
+        # instead of the shared Preview settings.
+        self._local_settings_row = QFrame(self)
+        self._local_settings_row.setObjectName("RustPreviewLocalSettings")
+        local_layout = QHBoxLayout(self._local_settings_row)
+        local_layout.setContentsMargins(6, 0, 6, 3)
+        self._local_settings_label = QLabel("Local preview settings", self._local_settings_row)
+        self._local_settings_label.setObjectName("RustPreviewLocalSettingsLabel")
+        local_layout.addWidget(self._local_settings_label, 1)
+        self._use_global_settings_button = QPushButton("Use global settings", self._local_settings_row)
+        self._use_global_settings_button.setObjectName("RustPreviewUseGlobalSettings")
+        local_layout.addWidget(self._use_global_settings_button)
+        layout.addWidget(self._local_settings_row)
+        self._local_settings_row.setVisible(False)
+        self._local_preview_settings: dict[str, object] = {}
         self._status_panel = QFrame(self)
         self._status_panel.setObjectName("DotNetPreviewStatusPanel")
         # These overlays must cover the renderer without native sibling promotion.
@@ -247,6 +263,69 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         if adopted is not None:
             self._remember_embedded_child_window(adopted[1])
             self._sync_embedded_child_geometry(force_frame_refresh=True)
+        self._use_global_settings_button.clicked.connect(self.use_global_preview_settings)
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.changed.connect(self._apply_shared_preview_settings)
+        self._apply_shared_preview_settings()
+
+    def effective_preview_settings(self) -> dict[str, object]:
+        """The shared Preview settings, with this viewport's explicit local values on top."""
+
+        hub = preview_settings_hub()
+        values = hub.values() if hub is not None else {}
+        values.update(self._local_preview_settings)
+        return values
+
+    def set_local_preview_setting(self, **values: object) -> bool:
+        """Hold a value the user chose in this viewport only (shown as local)."""
+
+        self._local_preview_settings.update(normalize_preview_settings(values))
+        return self._apply_shared_preview_settings()
+
+    def clear_local_preview_setting(self, *names: str) -> bool:
+        for name in names:
+            self._local_preview_settings.pop(name, None)
+        return self._apply_shared_preview_settings()
+
+    def use_global_preview_settings(self) -> bool:
+        self._local_preview_settings.clear()
+        return self._apply_shared_preview_settings()
+
+    @property
+    def has_local_preview_settings(self) -> bool:
+        return bool(self._local_preview_settings)
+
+    def _shared_quality(self, quality: Mapping[str, object]) -> dict[str, object]:
+        values = self.effective_preview_settings()
+        merged = dict(quality)
+        if "lighting_preset" in values:
+            merged["preview_lighting_preset"] = values["lighting_preset"]
+        if "shadows" in values:
+            merged["preview_shadows"] = values["shadows"]
+        if "ambient_occlusion" in values:
+            merged["preview_ambient_occlusion"] = values["ambient_occlusion"]
+        return merged
+
+    def _apply_shared_preview_settings(self, _values: object = None) -> bool:
+        if not qt_object_is_valid(self):
+            return False
+        values = self.effective_preview_settings()
+        self._local_settings_row.setVisible(bool(self._local_preview_settings))
+        display = dict(self._presentation_state.get("display", {}))
+        patch: dict[str, object] = {}
+        for name, key in (("lighting_preset", "lighting_preset"), ("ground", "ground_visible"),
+                          ("ground_grid", "ground_grid_visible")):
+            if name in values:
+                display[key] = values[name]
+                patch[key] = values[name]
+        if isinstance(display.get("quality"), Mapping):
+            display["quality"] = self._shared_quality(display["quality"])
+            patch["quality"] = display["quality"]
+        self._presentation_state["display"] = display
+        if not patch:
+            return False
+        return self._remember_presentation_state({"display": patch})
 
     @staticmethod
     def _find_ui_localizer(parent: QWidget | None) -> object | None:
@@ -535,15 +614,12 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         return self._remember_presentation_state({"display": {"mode": normalized}})
 
     def set_lighting_preset(self, preset: object) -> bool:
+        """Choose lighting for this viewport only; shown as a local setting."""
+
         normalized = str(preset or "neutral_studio").strip().lower()
         if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
             normalized = "neutral_studio"
-        display = dict(self._presentation_state.get("display", {}))
-        display["lighting_preset"] = normalized
-        self._presentation_state["display"] = display
-        return self._remember_presentation_state(
-            {"display": {"lighting_preset": normalized}}
-        )
+        return self.set_local_preview_setting(lighting_preset=normalized)
 
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
         if ratio is not None:
@@ -562,6 +638,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             settings,
             self._overlay_state.get("cloth", {}),
         )
+        # The shared Preview settings win over each caller's own copy.
+        quality = self._shared_quality(quality)
         display = dict(self._presentation_state.get("display", {}))
         display["quality"] = quality
         self._presentation_state["display"] = display

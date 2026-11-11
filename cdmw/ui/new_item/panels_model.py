@@ -609,7 +609,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.grid_visible.setChecked(True)
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
-        self.preview.set_lighting_preset("neutral_studio")
         self.dark_preview = QCheckBox("Dark mode")
         self.dark_preview.setToolTip("Dim the preview lighting and background to see emissive glow and its bloom. This changes only the viewport.")
         self.dark_preview.toggled.connect(self._preview_lighting_changed)
@@ -1410,7 +1409,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._sync_glow_preview()
 
     def _preview_lighting_changed(self, dark: bool) -> None:
-        self.preview.set_lighting_preset("dark" if dark else "neutral_studio")
+        # Dark mode is a local choice for this preview; off returns to the
+        # shared Preview settings.
+        self.preview.set_lighting_preset("dark" if dark else None)
 
     def _translucency_changed(self, choice) -> None:
         previous = self._controller.draft.translucency

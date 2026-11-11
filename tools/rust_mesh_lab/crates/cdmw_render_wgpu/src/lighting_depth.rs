@@ -87,6 +87,15 @@ impl SceneBounds {
         bounds.unwrap_or((Vec3::ZERO, Vec3::ZERO))
     }
 
+    /// World-space bounds of the visible parts, as the shadow fit uses them.
+    pub(super) fn world_bounds(
+        &self,
+        camera: &CameraUniform,
+        visible: &[GpuMaterialRange],
+    ) -> (Vec3, Vec3) {
+        self.world(Mat4::from_cols_array_2d(&camera.scene_model), visible)
+    }
+
     fn fit(&self, camera: &CameraUniform, visible: &[GpuMaterialRange]) -> (Mat4, Vec3, f32) {
         let (low, high) = self.world(Mat4::from_cols_array_2d(&camera.scene_model), visible);
         let center = (low + high) * 0.5;

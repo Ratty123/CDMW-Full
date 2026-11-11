@@ -1790,6 +1790,9 @@ class ModelPreviewRenderSettings:
     preview_shadows: bool = True
     preview_ambient_occlusion: bool = True
     preview_lighting_preset: str = "neutral_studio"
+    # Studio floor under the model (P2): on by default in every viewport.
+    preview_ground_visible: bool = True
+    preview_ground_grid_visible: bool = True
     alignment_use_final_output_preview: bool = False
     visible_texture_mode: str = "mesh_base_first"
     render_diagnostic_mode: str = "lit"

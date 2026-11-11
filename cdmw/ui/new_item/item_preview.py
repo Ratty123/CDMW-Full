@@ -620,7 +620,8 @@ class ItemPreviewFrame(QWidget):
         self._host_error = ""
         self._render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings()
         self._cache_mode = "off"
-        self._lighting_preset = "neutral_studio"
+        # None follows the shared Preview settings; a value is local to Create New Item.
+        self._lighting_preset: Optional[str] = None
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
@@ -706,9 +707,7 @@ class ItemPreviewFrame(QWidget):
         self.host.alignment_scale_changed.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), False))
         self.host.alignment_scale_finished.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), True))
         self.host.set_render_tuning(self._render_settings)
-        lighting = getattr(self.host, "set_lighting_preset", None)
-        if callable(lighting):
-            lighting(self._lighting_preset)
+        self._apply_lighting(self.host)
         return True
 
     def set_render_settings(self, settings: object | None) -> None:
@@ -725,14 +724,26 @@ class ItemPreviewFrame(QWidget):
         self._cache_mode = normalized if normalized in {"off", "balanced", "aggressive"} else "off"
 
     def set_lighting_preset(self, preset: object) -> None:
-        normalized = str(preset or "neutral_studio").strip().lower()
-        self._lighting_preset = (
-            normalized if normalized in {"neutral_studio", "showcase", "dark", "studio_fixed"} else "neutral_studio"
-        )
+        """A local lighting choice for this preview; None returns to the shared settings."""
+        if preset is None:
+            self._lighting_preset = None
+        else:
+            normalized = str(preset or "neutral_studio").strip().lower()
+            self._lighting_preset = (
+                normalized if normalized in {"neutral_studio", "showcase", "dark", "studio_fixed"} else "neutral_studio"
+            )
         if self.host is not None:
-            lighting = getattr(self.host, "set_lighting_preset", None)
-            if callable(lighting):
-                lighting(self._lighting_preset)
+            self._apply_lighting(self.host)
+
+    def _apply_lighting(self, host) -> None:
+        if self._lighting_preset is None:
+            clear = getattr(host, "clear_local_preview_setting", None)
+            if callable(clear):
+                clear("lighting_preset")
+            return
+        lighting = getattr(host, "set_lighting_preset", None)
+        if callable(lighting):
+            lighting(self._lighting_preset)
 
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
         """Show the bare `mesh` (None clears the view); a build already running is superseded."""
@@ -930,9 +941,7 @@ class ItemPreviewFrame(QWidget):
             return
         host.set_display_mode(self._view_mode)
         host.set_grid_visible(self._grid_visible)
-        lighting = getattr(host, "set_lighting_preset", None)
-        if callable(lighting):
-            lighting(self._lighting_preset)
+        self._apply_lighting(host)
         # no source highlight: the model draws as itself (textured), not as the Builder's yellow wire
         self.set_gizmo_enabled(self._gizmo_enabled)
         host.set_alignment_gizmo_tool(self._gizmo_tool)

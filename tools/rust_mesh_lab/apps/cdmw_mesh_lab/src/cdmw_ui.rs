@@ -1668,6 +1668,56 @@ impl LabApplication {
         self.apply_shortcut_overrides(shortcuts.as_ref());
     }
 
+    pub(super) fn current_shared_preview_settings(&self) -> serde_json::Value {
+        serde_json::json!({
+            "lighting_preset": self.lighting_preset.id(),
+            "shadows": self.lighting_depth.shadows,
+            "ambient_occlusion": self.lighting_depth.ambient_occlusion,
+            "ground": self.ground_visible,
+            "ground_grid": self.ground_grid,
+        })
+    }
+
+    /// Adopt the host's shared Preview settings (Browse, dialogs and Create New
+    /// Item use the same ones).
+    pub(super) fn apply_shared_preview_settings(&mut self, settings: &serde_json::Value) {
+        if let Some(preset) = settings
+            .get("lighting_preset")
+            .and_then(serde_json::Value::as_str)
+            .and_then(cdmw_render_wgpu::LightingPreset::from_id)
+        {
+            self.lighting_preset = preset;
+        }
+        let flag = |name: &str, current: bool| {
+            settings
+                .get(name)
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(current)
+        };
+        self.lighting_depth.shadows = flag("shadows", self.lighting_depth.shadows);
+        self.lighting_depth.ambient_occlusion =
+            flag("ambient_occlusion", self.lighting_depth.ambient_occlusion);
+        self.ground_visible = flag("ground", self.ground_visible);
+        self.ground_grid = flag("ground_grid", self.ground_grid);
+        self.shared_preview_settings = Some(self.current_shared_preview_settings());
+    }
+
+    pub(super) fn publish_shared_preview_settings_if_changed(&mut self) {
+        let Some(agreed) = &self.shared_preview_settings else {
+            // A host without shared settings (standalone runs) has nothing to follow.
+            return;
+        };
+        let current = self.current_shared_preview_settings();
+        if &current == agreed {
+            return;
+        }
+        if let Some(bridge) = &self.cdmw_bridge
+            && bridge.publish_preview_settings(current.clone()).is_ok()
+        {
+            self.shared_preview_settings = Some(current);
+        }
+    }
+
     pub(super) fn apply_cdmw_theme_payload(&self, theme: &Value) {
         crate::localization::configure(&self.egui_context, theme);
         crate::new_item_ui::fonts::configure_editor(&self.egui_context, theme);
@@ -3022,6 +3072,13 @@ impl LabApplication {
             ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
             ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
             ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
+            ui.checkbox(&mut self.ground_visible, crate::localization::tr("Ground"))
+                .on_hover_text(crate::localization::tr("Shows a floor under the model that receives its shadow."));
+            ui.add_enabled(
+                self.ground_visible,
+                egui::Checkbox::new(&mut self.ground_grid, crate::localization::tr("Ground grid")),
+            )
+            .on_hover_text(crate::localization::tr("Draws grid lines on the floor, with the X axis in red and the Z axis in blue."));
             let bones_ready = !self.skeleton_overlay_lines.is_empty();
             ui.add_enabled(
                 bones_ready,

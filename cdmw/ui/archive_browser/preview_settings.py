@@ -258,6 +258,8 @@ class ArchivePreviewSettingsMixin:
                 preview_shadows=self.shell._read_bool("preview/preview_shadows", defaults.preview_shadows),
                 preview_lighting_preset=str(self.shell.settings.value("preview/preview_lighting_preset", defaults.preview_lighting_preset)),
                 preview_ambient_occlusion=self.shell._read_bool("preview/preview_ambient_occlusion", defaults.preview_ambient_occlusion),
+                preview_ground_visible=self.shell._read_bool("preview/preview_ground_visible", defaults.preview_ground_visible),
+                preview_ground_grid_visible=self.shell._read_bool("preview/preview_ground_grid_visible", defaults.preview_ground_grid_visible),
                 disable_lighting=self.shell._read_bool("preview/disable_lighting", defaults.disable_lighting),
                 disable_depth_test=self.shell._read_bool("preview/disable_depth_test", defaults.disable_depth_test),
                 show_texture_debug_strip=self.shell._read_bool(
@@ -661,6 +663,17 @@ class ArchivePreviewSettingsMixin:
         previous_settings = self._current_model_preview_render_settings()
         preview_settings = settings if isinstance(settings, ModelPreviewRenderSettings) else self._current_model_preview_render_settings()
         preview_settings = clamp_model_preview_render_settings(preview_settings)
+        # The Preview Settings dialog edits the shared settings every viewport follows.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.update(
+                lighting_preset=preview_settings.preview_lighting_preset,
+                shadows=preview_settings.preview_shadows,
+                ambient_occlusion=preview_settings.preview_ambient_occlusion,
+                ground=preview_settings.preview_ground_visible,
+                ground_grid=preview_settings.preview_ground_grid_visible,
+            )
         self._model_preview_render_settings = preview_settings
         set_model_texture_display_preview_max_dimension(
             preview_settings.preview_texture_max_dimension,
