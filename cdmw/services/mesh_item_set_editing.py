@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import replace
 import hashlib
 import threading
@@ -12,6 +13,10 @@ from cdmw.services.mesh_asset_context import (
     ASSET_ATTRIBUTE, PART_ATTRIBUTE, ORIGIN_ATTRIBUTE, MeshAsset, MeshAssetContext,
     is_item_set, item_set_bindings,
 )
+
+# Set pieces prepared side by side (PAC parse, then the piece's Preview Core
+# job). Four keeps a five-file set's parses in flight without oversubscribing.
+ITEM_SET_PREPARATION_WORKERS = 4
 
 
 def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop_event, progress, root, root_identity):
@@ -33,17 +38,32 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
             setattr(material_mesh, name, getattr(primary.mesh, name))
     primary = replace(primary, mesh=material_mesh)
     material_cache = root.parent / "item-set-native-cache"
-    primary_lease = prepare_item_set_material_source(material_mesh, contexts[0], material_cache, stop_event)
-    sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, primary_lease, contexts[0])]
-    for context in contexts[1:]:
+
+    def prepare_piece(context):
         raise_if_cancelled(stop_event, "Item set loading cancelled")
-        progress("Preparing editable item set...")
         prepared = prepare_archive_refit_source({"_archive_entry": context.selected_entry,
                                                 "_archive_dependencies": context}, stop_event)
         source = prepared["_archive_snapshot"]
         native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
         leases = (prepared.get("_archive_preview_lease"), native_lease)
-        sources.append((context.selected_entry, source, prepared.get("_archive_neutral_appearance"), leases, context))
+        return (context.selected_entry, source, prepared.get("_archive_neutral_appearance"), leases, context)
+
+    progress("Preparing editable item set...")
+    # Each piece loads into its own mesh service and runs its own Preview Core
+    # job. The service runs one job at a time, so its jobs queue while the other
+    # pieces parse; preparing them side by side overlaps the two. Results keep
+    # the set's order, and a failure surfaces after the others have finished;
+    # their leases release themselves when dropped, as before.
+    workers = max(1, min(ITEM_SET_PREPARATION_WORKERS, len(contexts)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cdmw-item-set") as pool:
+        primary_future = pool.submit(prepare_item_set_material_source, material_mesh, contexts[0],
+                                     material_cache, stop_event)
+        piece_futures = [pool.submit(prepare_piece, context) for context in contexts[1:]]
+        wait([primary_future, *piece_futures])
+    primary_lease = primary_future.result()
+    sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, primary_lease, contexts[0])]
+    sources.extend(future.result() for future in piece_futures)
+    raise_if_cancelled(stop_event, "Item set loading cancelled")
     progress("Preparing material textures for Mesh Editor...")
     admitted, bounded_references, materials = prepare_item_set_budget(sources, root, root_identity, stop_event)
     references = [contexts[0]]

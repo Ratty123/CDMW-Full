@@ -462,3 +462,63 @@ def test_finish_accepts_set_topology_atomically_and_reopens(tmp_path, monkeypatc
         if reopened is not None:
             reopened.cancel()
         authority.close_edit_session(key, force_without_saving=True)
+
+
+def _set_preparation_stubs(tmp_path, monkeypatch, piece):
+    from cdmw.services import mesh_item_set_budget, mesh_preview_material_source
+    from cdmw.workers import mesh_archive_refit_worker
+
+    _source, service, controller, contexts = _sources(tmp_path)
+    primary = service.capture_export_snapshot(controller.active_session_id)
+    lower = replace(primary, mesh=copy.deepcopy(primary.mesh), base_mesh=copy.deepcopy(primary.base_mesh))
+    lower.mesh.path = lower.base_mesh.path = contexts[1].selected_entry.path
+    started = threading.Barrier(2, timeout=10)
+
+    def material_source(mesh, context, cache_root, stop_event):
+        started.wait()  # passes only while the piece is being prepared too
+        return None
+
+    monkeypatch.setattr(mesh_preview_material_source, "prepare_item_set_material_source", material_source)
+    monkeypatch.setattr(mesh_archive_refit_worker, "prepare_archive_refit_source",
+                        lambda args, stop_event: piece(args, lower, started))
+    monkeypatch.setattr(mesh_item_set_budget, "prepare_item_set_budget",
+                        lambda sources, root, identity, stop: (frozenset(range(len(sources))), {}, None))
+    return service, controller, contexts, primary
+
+
+def test_set_pieces_are_prepared_side_by_side_in_set_order(tmp_path, monkeypatch):
+    from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
+
+    threads = []
+
+    def piece(args, lower, started):
+        threads.append(threading.current_thread().name)
+        return {"_archive_snapshot": lower}
+
+    service, controller, contexts, primary = _set_preparation_stubs(tmp_path, monkeypatch, piece)
+    try:
+        mesh, context, references, _bounded, _materials = prepare_editable_item_set(
+            service, controller.active_session_id, copy.deepcopy(primary.mesh), contexts, threading.Event(),
+            lambda _message: None, tmp_path / "root", None)
+        assert [asset.entry.path for asset in context.assets] == ["upper.pac", "lower.pac"]
+        assert references == ()
+        assert threads and threads[0].startswith("cdmw-item-set")
+    finally:
+        service.close_edit_session(controller.active_session_id, force_without_saving=True)
+
+
+def test_a_failed_set_piece_still_fails_the_preparation(tmp_path, monkeypatch):
+    from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
+
+    def piece(args, lower, started):
+        started.wait()
+        raise ValueError("lower.pac could not be read")
+
+    service, controller, contexts, primary = _set_preparation_stubs(tmp_path, monkeypatch, piece)
+    try:
+        with pytest.raises(ValueError, match="lower.pac could not be read"):
+            prepare_editable_item_set(
+                service, controller.active_session_id, copy.deepcopy(primary.mesh), contexts, threading.Event(),
+                lambda _message: None, tmp_path / "root", None)
+    finally:
+        service.close_edit_session(controller.active_session_id, force_without_saving=True)
