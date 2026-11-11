@@ -196,3 +196,24 @@ def test_commands_run_on_the_ui_thread_and_waits_do_not_block_it(env, tmp_path) 
     app.processEvents()
     assert window.windowTitle().endswith(TITLE_MARK)
     window.widget.deleteLater()
+
+
+def test_windows_are_kept_off_screen_even_when_qt_itself_shows_them() -> None:
+    """A plain show() must not reach the screen; patching setVisible in Python missed these."""
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QSplashScreen, QWidget
+
+    from cdmw.automation.bridge import _WindowPlacement
+
+    app = QApplication.instance() or QApplication([])
+    placement = _WindowPlacement(hidden=True)
+    app.installEventFilter(placement)
+    try:
+        for widget in (QWidget(), QSplashScreen()):
+            widget.show()
+            assert widget.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen), type(widget).__name__
+            widget.close()
+            widget.deleteLater()
+    finally:
+        app.removeEventFilter(placement)

@@ -9,7 +9,8 @@ from dataclasses import dataclass
 AUTOMATION_ENV = "CDMW_AUTOMATION"
 TOKEN_ENV = "CDMW_AUTOMATION_TOKEN"
 PIPE_ENV = "CDMW_AUTOMATION_PIPE"
-# Test harnesses run the real window hidden, as the P0 harness did.
+# Off screen entirely. Breaks the embedded helpers, which need native
+# windows; runs use the secondary screen instead (bridge.automation_screen).
 HIDDEN_ENV = "CDMW_AUTOMATION_HIDDEN"
 PIPE_PREFIX = "\\\\.\\pipe\\cdmw-automation-"
 _MIN_TOKEN_BYTES = 16

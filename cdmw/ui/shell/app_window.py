@@ -506,6 +506,11 @@ def run_gui() -> int:
 
         apply_windows_app_user_model_id()
         app = QApplication(sys.argv)
+        # Before any window, the splash included: an automated run keeps every
+        # window off screen and off the user's main monitor. None otherwise.
+        from cdmw.automation.bridge import start_automation_if_requested
+
+        automation = start_automation_if_requested()
         # Off unless CDMW_SESSION_RECORDER is set; installs nothing otherwise.
         # Held on globals() for the same reason the filters below are: an event
         # filter the interpreter collects stops filtering.
@@ -526,9 +531,6 @@ def run_gui() -> int:
         )
 
         _write_heartbeat("main_window")
-        from cdmw.automation.bridge import start_automation_if_requested
-
-        automation = start_automation_if_requested()
         window = MainWindow(
             startup_splash=startup_splash,
             app_context=AppContext.from_settings(application_startup.settings),

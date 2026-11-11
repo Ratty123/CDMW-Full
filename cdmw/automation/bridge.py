@@ -25,22 +25,73 @@ _UI_COMMAND_TIMEOUT_S = 60.0
 _EVENT_LIMIT = 20_000
 
 
-def hide_top_level_windows() -> None:
-    """Show windows to Qt without putting them on screen (test harnesses)."""
+SCREEN_ENV = "CDMW_AUTOMATION_SCREEN"
 
-    from PySide6.QtWidgets import QWidget
 
-    original = QWidget.setVisible
-    if getattr(original, "_cdmw_hidden", False):
+def automation_screen():
+    """The screen automated runs use: CDMW_AUTOMATION_SCREEN, else a secondary one.
+
+    Test windows stay off the user's main monitor.
+    """
+
+    from PySide6.QtGui import QGuiApplication
+
+    screens = QGuiApplication.screens()
+    if not screens:
+        return None
+    text = os.environ.get(SCREEN_ENV, "").strip()
+    if text.isdigit() and int(text) < len(screens):
+        return screens[int(text)]
+    primary = QGuiApplication.primaryScreen()
+    return next((screen for screen in screens if screen is not primary), primary)
+
+
+def place_on_automation_screen(widget) -> None:
+    screen = automation_screen()
+    if screen is None:
         return
+    area = screen.availableGeometry()
+    widget.move(area.topLeft() + type(area.topLeft())(40, 40))
 
-    def set_visible(widget, visible):
-        if visible and widget.isWindow():
-            widget.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
-        return original(widget, visible)
 
-    set_visible._cdmw_hidden = True
-    QWidget.setVisible = set_visible
+class _WindowPlacement(QObject):
+    """Keep every top-level window off the user's main monitor (and hidden).
+
+    Acts on each window's Polish event, which Qt sends inside setVisible before
+    the native window is mapped, so the attribute and position apply to the
+    very first show, the start-up splash included. Patching setVisible in
+    Python does not see Qt's own show() calls.
+    """
+
+    def __init__(self, hidden: bool) -> None:
+        super().__init__()
+        self.hidden = hidden
+
+    def eventFilter(self, watched, event):  # noqa: N802 - Qt API
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QWidget
+
+        if event.type() == QEvent.Type.Polish and isinstance(watched, QWidget) and watched.isWindow():
+            if self.hidden:
+                watched.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            try:
+                place_on_automation_screen(watched)
+            except Exception:
+                pass
+        return False
+
+
+def hide_top_level_windows(hidden: bool = True) -> None:
+    """Install the placement filter on the application (once)."""
+
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None or getattr(app, "_cdmw_window_placement", None) is not None:
+        return
+    placement = _WindowPlacement(hidden)
+    app.installEventFilter(placement)
+    app._cdmw_window_placement = placement
 
 
 def _process_start_epoch() -> float:
@@ -98,6 +149,7 @@ class AutomationBridge(QObject):
             "open_mesh_editor": self._open_mesh_editor,
             "capture": self._capture,
             "quit": self._quit,
+            "set_preview_settings": self._set_preview_settings,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -257,11 +309,55 @@ class AutomationBridge(QObject):
                 "textures_visible": bool(getattr(archive, "_archive_textures_visible", False)),
                 "set_members": len(getattr(archive.archive_remote_bridge, "item_set_members", ()) or ()),
             },
+            "browse_package": str(getattr(current, "dotnet_preview_package_path", "") or ""),
             "mesh_editor": None if tab is None else {
                 "ready": bool(getattr(tab, "standalone_rust_ready", False)),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
+                "session_manifest": self._editor_session_manifest(tab),
             },
+            "preview_settings": self._preview_settings(archive, tab),
         }
+
+    @staticmethod
+    def _editor_session_manifest(tab) -> str:
+        from PySide6.QtCore import QProcess
+
+        process = next((value for value in vars(tab).values() if isinstance(value, QProcess)), None)
+        arguments = list(process.arguments()) if process is not None else []
+        if "--cdmw-session" in arguments:
+            return arguments[arguments.index("--cdmw-session") + 1]
+        return ""
+
+    @staticmethod
+    def _preview_settings(archive, tab) -> dict[str, object]:
+        """What each viewport would draw with: the store, Browse, the Mesh Editor."""
+
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+        hub = preview_settings_hub()
+        host = getattr(archive, "archive_d3d11_preview_host", None)
+        editor = None
+        if tab is not None and getattr(tab, "standalone_rust_ready", False):
+            try:
+                editor = dict(tab._rust_theme_payload().get("preview_settings") or {})
+            except Exception:
+                editor = None
+        return {
+            "shared": hub.values() if hub is not None else None,
+            "browse": host.effective_preview_settings() if host is not None else None,
+            "mesh_editor": editor,
+        }
+
+    def _set_preview_settings(self, args: dict) -> dict[str, object]:
+        """Change shared Preview settings as the Preview Settings dialog does."""
+
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+        hub = preview_settings_hub()
+        if hub is None:
+            raise RuntimeError("The shared Preview settings are not available.")
+        hub.update(**dict(args.get("values") or {}))
+        return hub.values()
 
     def _selection(self, _args: dict) -> dict[str, object]:
         entry = getattr(self.window.archive, "archive_preview_request_entry", None)
@@ -345,6 +441,7 @@ def start_automation_if_requested() -> AutomationBridge | None:
     if not automation_requested():
         return None
     settings = automation_settings()
-    if settings.hidden:
-        hide_top_level_windows()
+    # Every automated run keeps its windows on a secondary screen, and off
+    # screen entirely when hidden.
+    hide_top_level_windows(hidden=settings.hidden)
     return AutomationBridge(settings)

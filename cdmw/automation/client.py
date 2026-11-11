@@ -49,7 +49,7 @@ class AutomationClient:
 class AutomatedApp:
     """The real app in a child process, under a profile of its own."""
 
-    def __init__(self, profile: Path, *, hidden: bool = True, extra_env: Mapping[str, str] | None = None,
+    def __init__(self, profile: Path, *, hidden: bool = False, extra_env: Mapping[str, str] | None = None,
                  python: str | None = None, log_path: Path | None = None) -> None:
         self.profile = Path(profile).resolve()
         self.token = secrets.token_bytes(32)

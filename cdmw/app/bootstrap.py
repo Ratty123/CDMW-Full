@@ -139,7 +139,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             update_pyinstaller_boot_splash("Already running.")
             return 0
         write_current_pyinstaller_runtime_marker()
-        if os.environ.get("CDMW_AUTOMATION_HIDDEN", "").strip() != "1":
+        # An automated run places its own windows; this one is another process.
+        if os.environ.get("CDMW_AUTOMATION", "").strip() != "1":
             start_external_startup_splash()
         schedule_startup_maintenance()
         update_pyinstaller_boot_splash("Loading...")
