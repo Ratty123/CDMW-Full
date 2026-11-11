@@ -696,6 +696,9 @@ class AboutDocumentationEnglishMixin:
                 <h4>Export Mesh File</h4>
                 <p>Open Output and choose Export…. Select GLB (.glb), FBX (.fbx) or OBJ (.obj), then choose a filename. GLB is listed first for rigged editing; OBJ has no armature or weights. Export saves the current edits and their CDMW companion files without finishing the edit. Keep the files together. To return an edited file with its companion, choose Open Package in CDMW... and select its folder. Separate .gltf export is not available.</p>
                 <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
+                <h4>Export PAC As…</h4>
+                <p>After Finish Edit Mesh, choose Export PAC As… to save just the PAC under a new name or path. The full destination is remembered; existing exports are overwritten. No mod folder or report is created.</p>
+                <p>If the edit needs companion files or multiple meshes, use Build Mod. The original source cannot be overwritten. Renaming the PAC does not change references in other game files.</p>
                 <h4>Build Mod</h4>
                 <p>Build Mod writes loose packages for DMM (Definitive Mod Manager). Other mod managers are not supported after the October 2026 DLC update.</p>
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
@@ -703,7 +706,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Keep layers underneath (experimental) in the Build Mod window stops an edited garment cutting the clothing layers you tick, such as Lowerbody for pants under a shortened coat. Whole-part hiding is unchanged. The mod ships partshrinkdesc.xml, so it conflicts with other mods that ship that file. Test in game; the preview does not show it.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
                 <ul>
-                  <li>Export Mesh File writes a separate rebuilt asset.</li>
+                  <li>Export PAC As… writes only the finished PAC to the chosen path.</li>
                   <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
                   <li>DMM Archive Group writes the mesh as an archive group in a package folder that DMM serves by path; nothing is installed into the game. Hairstyles are always built this way, with their barber choice.</li>
                 </ul>

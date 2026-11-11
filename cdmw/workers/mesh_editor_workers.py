@@ -306,6 +306,7 @@ class MeshRebuildReportWorker(QObject):
         developer_override_reason: str = "",
         expected_mesh_revision: int | None = None,
         texture_updates_waiter: Callable[[float], bool] | None = None,
+        pac_only: bool = False,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -317,6 +318,7 @@ class MeshRebuildReportWorker(QObject):
         self.developer_override_reason = str(developer_override_reason or "")
         self.expected_mesh_revision = expected_mesh_revision
         self.texture_updates_waiter = texture_updates_waiter
+        self.pac_only = bool(pac_only)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -356,6 +358,8 @@ class MeshRebuildReportWorker(QObject):
             self.finished.emit()
 
     def _run_legacy_service(self) -> object:
+        if self.pac_only:
+            raise RuntimeError("PAC export requires a validated mesh snapshot.")
         kwargs = {
             "developer_override": True,
             "developer_override_reason": self.developer_override_reason,
@@ -365,6 +369,11 @@ class MeshRebuildReportWorker(QObject):
         return self.service.rebuild_asset(self.session_id, self.output_path, **kwargs)
 
     def _run_snapshot_export(self, snapshot: MeshExportSnapshot) -> object:
+        if self.pac_only:
+            if str(snapshot.mesh.format).lower() != "pac" or self.output_path is None or self.output_path.suffix.lower() != ".pac":
+                raise RuntimeError("Export PAC As requires a PAC mesh and a .pac destination.")
+            if snapshot.archive_refit_context is not None or snapshot.hair_state is not None:
+                raise RuntimeError("This edit needs multiple files. Use Build Mod to save the complete result.")
         result, report = self.service.rebuild_result_from_snapshot(
             snapshot,
             output_path=str(self.output_path or ""),
@@ -374,14 +383,15 @@ class MeshRebuildReportWorker(QObject):
         if self.output_path is None:
             return report
         if getattr(result, "companion_files", ()):
-            raise RuntimeError("This replacement requires companion files. Use Build Mod to export the complete result.")
+            raise RuntimeError("This edit requires companion files. Use Build Mod to export the complete result.")
         target = self.output_path
         source_text = str(getattr(snapshot.base_mesh or snapshot.mesh, "path", "") or "").strip()
         if source_text and target.resolve(strict=False) == Path(source_text).resolve(strict=False):
             raise RuntimeError("mesh rebuild output must not overwrite the original source asset")
         if snapshot.texture_resources or int(snapshot.material_generation) > 0:
             raise RuntimeError(
-                "Export Mesh File cannot contain texture or material authoring changes"
+                "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files."
+                if self.pac_only else "Export Mesh File cannot contain texture or material authoring changes"
             )
         target.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=f".{target.name}.rebuild-", dir=target.parent) as staging_raw:
@@ -405,8 +415,9 @@ class MeshRebuildReportWorker(QObject):
                 output_reparse=output_reparse,
             )
             report = replace(report, output_path=str(target), export_snapshot=export_report)
-            staged_report = staging_dir / f"{target.name}.export.json"
-            atomic_write_text(staged_report, json.dumps(asdict(report), indent=2) + "\n")
+            if not self.pac_only:
+                staged_report = staging_dir / f"{target.name}.export.json"
+                atomic_write_text(staged_report, json.dumps(asdict(report), indent=2) + "\n")
             _raise_export_cancelled(self.stop_event)
             staged_files = tuple(path for path in staging_dir.rglob("*") if path.is_file())
             atomic_publish_files(

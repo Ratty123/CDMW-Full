@@ -183,6 +183,7 @@ class MeshEditorTabShellMixin(
         page.rebuild_report_requested.connect(self._start_standalone_rebuild_report_requested)
         page.replace_from_archive_requested.connect(self._emit_replace_from_archive_requested)
         page.export_mesh_file_requested.connect(self._start_standalone_rebuild_asset_requested)
+        page.export_pac_requested.connect(self._start_standalone_export_pac_requested)
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.add_to_archive_browser_requested.connect(self._start_archive_browser_result_requested)
         page.continue_modified_mesh_requested.connect(self._continue_editing_modified_mesh_requested)

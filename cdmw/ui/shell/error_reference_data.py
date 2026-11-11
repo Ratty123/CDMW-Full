@@ -43028,6 +43028,15 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305,
+      "cdmw/workers/mesh_editor_workers.py": 392
+    }
+  },
+  {
+    "area": "mesh",
     "message": "A chain has 1 to 64 bones.",
     "recovery": "internal",
     "sources": {
@@ -43407,7 +43416,7 @@ MESSAGE_REFERENCE = [
     "message": "An archive result needs a workspace output folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 516
+      "cdmw/workers/mesh_editor_workers.py": 527
     }
   },
   {
@@ -43528,7 +43537,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 834
+      "cdmw/workers/mesh_editor_workers.py": 845
     }
   },
   {
@@ -43536,7 +43545,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 545
+      "cdmw/workers/mesh_editor_workers.py": 556
     }
   },
   {
@@ -43600,7 +43609,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 832
+      "cdmw/workers/mesh_editor_workers.py": 843
     }
   },
   {
@@ -46599,7 +46608,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 902
+      "cdmw/workers/mesh_editor_workers.py": 913
     }
   },
   {
@@ -46607,7 +46616,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 928
+      "cdmw/workers/mesh_editor_workers.py": 939
     }
   },
   {
@@ -46615,7 +46624,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 955
+      "cdmw/workers/mesh_editor_workers.py": 966
     }
   },
   {
@@ -47657,7 +47666,16 @@ MESSAGE_REFERENCE = [
     "message": "Export Mesh File cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 383
+      "cdmw/workers/mesh_editor_workers.py": 392
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Export PAC As requires a PAC mesh and a .pac destination.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305,
+      "cdmw/workers/mesh_editor_workers.py": 374
     }
   },
   {
@@ -47954,7 +47972,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 822
+      "cdmw/workers/mesh_editor_workers.py": 833
     }
   },
   {
@@ -47963,6 +47981,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/final_package_preview_model.py": 325
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305
     }
   },
   {
@@ -49711,7 +49737,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 525
+      "cdmw/workers/mesh_editor_workers.py": 536
     }
   },
   {
@@ -51253,7 +51279,7 @@ MESSAGE_REFERENCE = [
     "message": "Layers underneath apply only to Build Mod outputs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 489
+      "cdmw/workers/mesh_editor_workers.py": 500
     }
   },
   {
@@ -51325,7 +51351,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 820
+      "cdmw/workers/mesh_editor_workers.py": 831
     }
   },
   {
@@ -51954,7 +51980,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 934
+      "cdmw/ui/mesh_editor/tab_shell.py": 935
     }
   },
   {
@@ -52405,7 +52431,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh archive-group packages are supported only for the DMM manager profile",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 477
+      "cdmw/workers/mesh_editor_workers.py": 488
     }
   },
   {
@@ -53006,7 +53032,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 825
+      "cdmw/workers/mesh_editor_workers.py": 836
     }
   },
   {
@@ -53263,7 +53289,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 505
+      "cdmw/workers/mesh_editor_workers.py": 516
     }
   },
   {
@@ -53768,7 +53794,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 535
+      "cdmw/workers/mesh_editor_workers.py": 546
     }
   },
   {
@@ -55721,7 +55747,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 624
+      "cdmw/workers/mesh_editor_workers.py": 635
     }
   },
   {
@@ -56171,6 +56197,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/mesh_pac_builder.py": 875
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC export requires a validated mesh snapshot.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/workers/mesh_editor_workers.py": 362
     }
   },
   {
@@ -58294,7 +58328,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child window could not be attached to CDMW",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 339
+      "cdmw/ui/mesh_editor/rust_host.py": 342
     }
   },
   {
@@ -58302,7 +58336,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child-window validation failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 342
+      "cdmw/ui/mesh_editor/rust_host.py": 345
     }
   },
   {
@@ -58931,7 +58965,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 358
+      "cdmw/ui/mesh_editor/tab_reports.py": 415
     }
   },
   {
@@ -58939,7 +58973,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 365
+      "cdmw/ui/mesh_editor/tab_reports.py": 422
     }
   },
   {
@@ -59348,7 +59382,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 853
+      "cdmw/workers/mesh_editor_workers.py": 864
     }
   },
   {
@@ -59356,7 +59390,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 585
+      "cdmw/workers/mesh_editor_workers.py": 596
     }
   },
   {
@@ -59412,7 +59446,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 569
+      "cdmw/workers/mesh_editor_workers.py": 580
     }
   },
   {
@@ -62607,6 +62641,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The mesh changed while choosing the destination. Finish or check it again before exporting.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 321
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The mod folder no longer contains the edited mesh.",
     "recovery": "internal",
     "sources": {
@@ -63216,6 +63258,24 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "This edit needs multiple files. Use Build Mod to save the complete result.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305,
+      "cdmw/workers/mesh_editor_workers.py": 376
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This edit requires companion files. Use Build Mod to export the complete result.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305,
+      "cdmw/workers/mesh_editor_workers.py": 386
+    }
+  },
+  {
+    "area": "mesh",
     "message": "This folder contains no mesh files.",
     "recovery": "internal",
     "sources": {
@@ -63348,14 +63408,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_morph_recipes.py": 475
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "This replacement requires companion files. Use Build Mod to export the complete result.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 377
     }
   },
   {
@@ -63935,7 +63987,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 662
+      "cdmw/workers/mesh_editor_workers.py": 673
     }
   },
   {
@@ -64119,7 +64171,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh mod manager profile: {manager_profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 475
+      "cdmw/workers/mesh_editor_workers.py": 486
     }
   },
   {
@@ -64529,6 +64581,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/skeleton_writer.py": 158
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Wait for the current Mesh Editor task to finish.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_reports.py": 305
     }
   },
   {
@@ -68958,7 +69018,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_service_rebuild.py": 724,
-      "cdmw/workers/mesh_editor_workers.py": 381
+      "cdmw/workers/mesh_editor_workers.py": 390
     }
   },
   {
@@ -71295,7 +71355,7 @@ MESSAGE_REFERENCE = [
     "message": "no rebuild report is available",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 642
+      "cdmw/ui/mesh_editor/tab_reports.py": 701
     }
   },
   {
@@ -74624,7 +74684,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 698
+      "cdmw/workers/mesh_editor_workers.py": 709
     }
   },
   {
@@ -110683,6 +110743,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/mesh_editor/tab_reports.py": {
     "code": 6,
+    "dialog": 10,
     "display": 2,
     "failure": 7,
     "raise": 1,
@@ -111540,7 +111601,7 @@ SOURCE_COVERAGE = {
   "cdmw/workers/mesh_editor_export_support.py": {},
   "cdmw/workers/mesh_editor_workers.py": {
     "diagnostic_field": 8,
-    "raise": 30,
+    "raise": 34,
     "signal": 8
   },
   "cdmw/workers/mesh_export_readback.py": {},

@@ -615,6 +615,7 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     host.retry_requested.connect(lambda: emitted.append("retry"))
     host.run_validation_requested.connect(lambda: emitted.append("validate"))
     host.build_mod_requested.connect(lambda: emitted.append("build"))
+    host.export_pac_requested.connect(lambda: emitted.append("pac"))
     host.add_to_archive_browser_requested.connect(lambda: emitted.append("browser"))
     host.continue_modified_mesh_requested.connect(lambda: emitted.append("next_pass"))
     host.install_overlay_requested.connect(lambda: emitted.append("install"))
@@ -628,6 +629,7 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     for object_name in (
         "MeshEditorRustResultRunValidation",
         "MeshEditorRustResultBuildMod",
+        "MeshEditorRustResultExportPac",
         "MeshEditorRustResultAddtoArchiveBrowser",
         "MeshEditorRustResultContinueeditingmodifiedmesh",
         "MeshEditorRustResultReopenEdit",
@@ -635,7 +637,7 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     ):
         host.findChild(QPushButton, object_name).click()
 
-    assert emitted == ["retry", "validate", "build", "browser", "next_pass", "reopen", "close"]
+    assert emitted == ["retry", "validate", "build", "pac", "browser", "next_pass", "reopen", "close"]
     assert host.findChild(QPushButton, "MeshEditorRustResultInstallasOverlay") is None
     assert host.findChild(QPushButton, "MeshEditorRustResultRestoreLastOverlayInstall") is None
     host.deleteLater()
@@ -667,7 +669,7 @@ def test_result_page_groups_and_clickable_help_distinguish_editing_choices() -> 
         actions = [button for button in host.findChildren(QPushButton)
                    if button.objectName().startswith("MeshEditorRustResult")
                    and button.objectName() != "MeshEditorRustResultReturnToNewItem"]
-        assert len(actions) == 6
+        assert len(actions) == 7
         # Only a mesh opened from Create New Item offers the way back.
         assert host.findChild(QPushButton, "MeshEditorRustResultReturnToNewItem").isHidden()
         with patch("cdmw.ui.mesh_editor.rust_host.QWhatsThis.showText") as explain:

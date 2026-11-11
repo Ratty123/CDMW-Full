@@ -4532,6 +4532,21 @@
       ]
     },
     {
+      "key": "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 392,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "A QApplication is required for window interaction tracking",
       "origins": [
         {
@@ -8998,6 +9013,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 269,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "After Finish Edit Mesh, choose Export PAC As… to save just the PAC under a new name or path. The full destination is remembered; existing exports are overwritten. No mod folder or report is created.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -56102,16 +56127,6 @@
       ]
     },
     {
-      "key": "Export Mesh File writes a separate rebuilt asset.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 384,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "Export Model Preview",
       "origins": [
         {
@@ -56148,6 +56163,76 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Export PAC As requires a PAC mesh and a .pac destination.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 327,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 374,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Export PAC As…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 225,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 310,
+          "sink": "getSaveFileName"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 321,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 327,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 426,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Export PAC As… writes only the finished PAC to the chosen path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -61553,6 +61638,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 2840,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
         }
       ]
     },
@@ -72453,6 +72548,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 584,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "If the edit needs companion files or multiple meshes, use Build Mod. The original source cannot be overwritten. Renaming the PAC does not change references in other game files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 384,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -112587,6 +112692,71 @@
       ]
     },
     {
+      "key": "PAC export",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 329,
+          "sink": "_start_standalone_rebuild_report_requested"
+        }
+      ]
+    },
+    {
+      "key": "PAC export requires a validated mesh snapshot.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 362,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "PAC exported: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 384,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 385,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 409,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 410,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "PAC files",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 310,
+          "sink": "getSaveFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "PAC files (*.pac)",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 310,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "PAC model",
       "origins": [
         {
@@ -143121,12 +143291,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 213,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 210,
+          "line": 213,
+          "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 213,
           "sink": "QGroupBox"
         }
       ]
@@ -143348,6 +143523,26 @@
           "path": "cdmw/ui/new_item/item_definition_editor.py",
           "line": 26,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Save only the finished PAC with a new name or path. Remembers the full destination and replaces existing exports. Edits needing companion files require Build Mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 229,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 230,
+          "sink": "setWhatsThis"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 236,
+          "sink": "setWhatsThis"
         }
       ]
     },
@@ -170337,6 +170532,16 @@
       ]
     },
     {
+      "key": "The mesh changed while choosing the destination. Finish or check it again before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 321,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "The mesh changed while preparing decoded motion. Play again after the operation.",
       "origins": [
         {
@@ -174912,6 +175117,36 @@
       ]
     },
     {
+      "key": "This edit needs multiple files. Use Build Mod to save the complete result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 376,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "This edit requires companion files. Use Build Mod to export the complete result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 386,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "This editor contains changes that have not been exported to a mod package. Discard them and close?",
       "origins": [
         {
@@ -175806,18 +176041,13 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 283,
+          "line": 335,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
           "line": 200,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 377,
-          "sink": "RuntimeError"
         }
       ]
     },
@@ -186783,6 +187013,11 @@
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
           "line": 280,
           "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 305,
+          "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",

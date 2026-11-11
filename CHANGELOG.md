@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mesh Editor's **Export PAC As…**, available after Finish, saves just the PAC with a chosen name and path, remembers the destination and replaces existing exports. Edits needing companion files explain why Build Mod is required.
 - Archive Browser's experimental **Edit Skinned Decal...** changes stored texture references and decal settings in supported PASEQ sequences and saves a loose copy. Missing settings retain their defaults; unchanged saves preserve the original file. In-game blending, attachment and removal remain unverified.
 
 ### Docs

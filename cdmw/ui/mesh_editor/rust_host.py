@@ -81,6 +81,7 @@ class RustMeshEditorHostFrame(QFrame):
     focus_requested = Signal()
     run_validation_requested = Signal()
     build_mod_requested = Signal()
+    export_pac_requested = Signal()
     add_to_archive_browser_requested = Signal()
     continue_modified_mesh_requested = Signal()
     install_overlay_requested = Signal()
@@ -193,6 +194,8 @@ class RustMeshEditorHostFrame(QFrame):
                  "Rebuild the finished mesh and start a fresh editing pass from it. Your geometry changes, colours and textures carry over. Undo/Redo history and fitting setup start fresh. This is useful after baking a fit, before removing parts or mesh islands."),
                 ("Save and reuse", "BuildMod", "Build Mod...", self.build_mod_requested,
                  "Create a mod package for your chosen mod manager. Choose the mod name, output folder and package format in the next window."),
+                ("Save and reuse", "ExportPac", "Export PAC As…", self.export_pac_requested,
+                 "Save only the finished PAC with a new name or path. Remembers the full destination and replaces existing exports. Edits needing companion files require Build Mod."),
                 ("Save and reuse", "AddtoArchiveBrowser", "Add to Archive Browser", self.add_to_archive_browser_requested,
                  "Add the finished mesh to Archive Browser > Controls > Edited results. Open it there for a fresh editing pass, or choose another mesh from a combined Refit result. Results stay available until you close CDMW. This does not install a mod or change your game archives."),
                 ("Check or install", "RunValidation", "Check mesh", self.run_validation_requested,
