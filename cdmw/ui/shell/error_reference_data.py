@@ -46698,7 +46698,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 807
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 810
     }
   },
   {
@@ -51981,7 +51981,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 969
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 972
     }
   },
   {
@@ -52053,7 +52053,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 923,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 926,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 801
     }
   },
@@ -52120,7 +52120,8 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not bind the resolved preview textures: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 749
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 749,
+      "cdmw/workers/mesh_rust_editor_workers.py": 141
     }
   },
   {
@@ -52136,7 +52137,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not prepare its shadow session: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 985
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 986
     }
   },
   {
@@ -52152,7 +52153,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1134
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1137
     }
   },
   {
@@ -52160,7 +52161,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1130
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1133
     }
   },
   {
@@ -52291,7 +52292,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor preparation was cancelled because the mesh session changed.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 847
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 848
     }
   },
   {
@@ -52299,7 +52300,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1160
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1163
     }
   },
   {
@@ -52331,7 +52332,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 973
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 976
     }
   },
   {
@@ -52356,7 +52357,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1048
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1051
     }
   },
   {
@@ -52644,7 +52645,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable: {reason}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 743
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 741
     }
   },
   {
@@ -64410,7 +64411,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh protocol event: {event_name or '(empty)'}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/workers/mesh_rust_editor_workers.py": 280
+      "cdmw/workers/mesh_rust_editor_workers.py": 292
     }
   },
   {
@@ -75283,7 +75284,7 @@ MESSAGE_REFERENCE = [
     "message": "{exc} (session cleanup pending: {cleanup_exc})",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_rust_editor_workers.py": 169
+      "cdmw/workers/mesh_rust_editor_workers.py": 181
     }
   },
   {
@@ -75299,7 +75300,7 @@ MESSAGE_REFERENCE = [
     "message": "{failure} (session cleanup pending: {cleanup_exc})",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_rust_editor_workers.py": 418
+      "cdmw/workers/mesh_rust_editor_workers.py": 430
     }
   },
   {
@@ -76086,6 +76087,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/automation/bridge.py": 432
+    }
+  },
+  {
+    "area": "other",
+    "message": "A command id names its area and action, such as shell.settings: {self.id}",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 49
     }
   },
   {
@@ -78385,6 +78394,22 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/pabv_parser.py": 279
+    }
+  },
+  {
+    "area": "other",
+    "message": "Command {command.id} is already registered",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 74
+    }
+  },
+  {
+    "area": "other",
+    "message": "Command {self.id} needs a label",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 53
     }
   },
   {
@@ -83034,6 +83059,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/appearance_composite.py": 519
+    }
+  },
+  {
+    "area": "other",
+    "message": "No command {command_id}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 92
     }
   },
   {
@@ -87851,6 +87884,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "This tool cannot be moved to a window of its own.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/shell/shell_commands.py": 54
+    }
+  },
+  {
+    "area": "other",
     "message": "This will likely be grey in-game for: {detail}",
     "recovery": "internal",
     "sources": {
@@ -87971,6 +88012,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Unavailable: {exc}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 110
+    }
+  },
+  {
+    "area": "other",
     "message": "Undeclared effect type: {node.type_name}",
     "recovery": "internal",
     "sources": {
@@ -88039,6 +88088,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/iteminfo_dependency_graph.py": 167
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown command context {self.context} for {self.id}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 51
     }
   },
   {
@@ -107458,6 +107515,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/text_search_service.py",
     "cdmw/ui/character_finder/creator_look.py",
     "cdmw/ui/character_finder/dialog.py",
+    "cdmw/ui/commands/registry.py",
     "cdmw/ui/item_icons/tab.py",
     "cdmw/ui/item_icons/workers.py",
     "cdmw/ui/panel_widgets.py",
@@ -111432,6 +111490,12 @@ SOURCE_COVERAGE = {
   "cdmw/ui/character_finder/thumbnail_delegate.py": {},
   "cdmw/ui/character_finder/warmup.py": {},
   "cdmw/ui/combo_popup_limiter.py": {},
+  "cdmw/ui/commands/__init__.py": {},
+  "cdmw/ui/commands/adapters.py": {},
+  "cdmw/ui/commands/registry.py": {
+    "raise": 7,
+    "validation": 1
+  },
   "cdmw/ui/display_scaling.py": {},
   "cdmw/ui/item_icons/__init__.py": {},
   "cdmw/ui/item_icons/controller.py": {
@@ -111521,6 +111585,8 @@ SOURCE_COVERAGE = {
     "failure": 1,
     "signal": 3
   },
+  "cdmw/ui/mesh_editor/live_edit/__init__.py": {},
+  "cdmw/ui/mesh_editor/live_edit/component.py": {},
   "cdmw/ui/mesh_editor/live_stroke_dispatcher.py": {
     "diagnostic_text": 1,
     "finding": 2,
@@ -112242,6 +112308,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/shell/settings_bridge.py": {},
   "cdmw/ui/shell/settings_persistence.py": {},
+  "cdmw/ui/shell/shell_commands.py": {
+    "report": 1
+  },
   "cdmw/ui/shell/signal_wiring.py": {},
   "cdmw/ui/shell/startup_controller.py": {
     "display": 2
@@ -112568,7 +112637,7 @@ SOURCE_COVERAGE = {
   "cdmw/workers/mesh_rust_editor_workers.py": {
     "diagnostic_field": 3,
     "failure": 2,
-    "raise": 9,
+    "raise": 10,
     "signal": 3
   },
   "cdmw/workers/mod_merge_workers.py": {},

@@ -70,7 +70,7 @@ STATE_NAMES = (
 class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     """One embedded editor: its helper process, its protocol and its viewport host.
 
-    Public surface for a host: ``open(controller)``, ``discard(reason)``,
+    Public surface for a host: ``open(controller)``, ``close_edit(reason)``,
     ``is_ready``, ``is_busy``, ``finish_accepted``, and the signals ``became_ready``
     and ``closed``. The host provides the names in ``HOST_NAMES``.
     """
@@ -86,7 +86,7 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     def open(self, controller: object) -> None:
         self._start_rust_editor_requested(controller)
 
-    def discard(self, reason: str = "") -> None:
+    def close_edit(self, reason: str = "") -> None:
         self._stop_rust_editor_process(reason=reason)
 
     @property

@@ -135,17 +135,20 @@ class LogControllerMixin:
                 compact_workspace.set_status_snapshot(snapshot)
 
     def set_busy(self, busy: bool, build_mode: bool = False) -> None:
-        self.export_profile_action.setEnabled(not busy)
-        self.import_profile_action.setEnabled(not busy)
-        self.export_diagnostics_action.setEnabled(not busy)
-        self.copy_problem_summary_action.setEnabled(not busy)
-        self.open_crash_reports_action.setEnabled(not busy)
-        self.open_settings_action.setEnabled(not busy)
+        # The shell's commands read this; their menu entries follow (P12).
+        self._shell_busy = bool(busy)
+        registry = getattr(self, "command_registry", None)
+        if registry is not None:
+            from cdmw.ui.shell.shell_commands import SHELL
+            registry.refresh(SHELL)
+        else:  # before the commands are installed
+            for action in (self.export_profile_action, self.import_profile_action, self.export_diagnostics_action,
+                           self.copy_problem_summary_action, self.open_crash_reports_action, self.open_settings_action,
+                           self.open_documentation_action, self.open_about_action):
+                action.setEnabled(not busy)
         from cdmw import constants
         self.mod_package_tool_action.setEnabled(not busy and self.mod_management_tab.isEnabled()
                                                 and constants.MOD_FOLDER_TOOLS_ENABLED)
-        self.open_documentation_action.setEnabled(not busy)
-        self.open_about_action.setEnabled(not busy)
         self.textures.left_panel.setEnabled(not busy)
         self.textures.scan_button.setEnabled(not busy)
         self.textures.preview_policy_button.setEnabled(not busy)

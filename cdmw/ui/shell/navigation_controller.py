@@ -395,9 +395,19 @@ class NavigationControllerMixin:
             and current_key in self._detachable_tool_order
             and current_widget is current_navigation_widget
         )
-        self.detach_current_tab_action.setEnabled(current_is_docked_tool)
-        self.attach_current_tool_action.setEnabled(bool(current_key and current_key in self._detached_tool_windows))
-        self.attach_all_tools_action.setEnabled(bool(self._detached_tool_windows))
+        self._window_menu_state = (
+            current_is_docked_tool,
+            bool(current_key and current_key in self._detached_tool_windows),
+            bool(self._detached_tool_windows),
+        )
+        registry = getattr(self, "command_registry", None)
+        if registry is not None:
+            from cdmw.ui.shell.shell_commands import SHELL
+            registry.refresh(SHELL)  # the Window menu's entries are views of shell commands
+        else:  # before the commands are installed
+            for action, enabled in zip((self.detach_current_tab_action, self.attach_current_tool_action,
+                                        self.attach_all_tools_action), self._window_menu_state):
+                action.setEnabled(enabled)
 
 
 __all__ = ["NavigationControllerMixin"]

@@ -57,6 +57,12 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Command reasons (cdmw/ui/shell/shell_commands.py); the command views set
+        # them as tooltips at run time, where the localizer translates them.
+        "Wait for the current task to finish.",
+        "This tool cannot be moved to a window of its own.",
+        "This tool is not in a window of its own.",
+        "No tool is in a window of its own.",
         # Item-set preparation forwards these through worker callbacks/signals.
         "Preparing reference meshes...",
         "The archive catalogue changed while preparing the item set.",

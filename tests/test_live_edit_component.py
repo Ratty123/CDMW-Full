@@ -89,7 +89,7 @@ def test_a_second_host_carries_the_component(tmp_path):
         assert host.messages and host.messages[-1][1] is True
         assert host.standalone_status_label.text() == host.messages[-1][0]
         assert not component.is_busy
-        component.discard("test closed")
+        component.close_edit("test closed")
     finally:
         host.deleteLater()
         app.processEvents()
