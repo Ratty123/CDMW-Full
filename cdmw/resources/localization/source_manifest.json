@@ -17866,7 +17866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1650,
+          "line": 1663,
           "sink": "_fail_current_process"
         }
       ]
@@ -17876,7 +17876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1656,
+          "line": 1669,
           "sink": "_fail_current_process"
         }
       ]
@@ -40491,7 +40491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1475,
+          "line": 1488,
           "sink": "_fail_current_process"
         }
       ]
@@ -46261,7 +46261,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 690,
+          "line": 691,
           "sink": "addTab"
         },
         {
@@ -79156,7 +79156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 865,
+          "line": 877,
           "sink": "ValueError"
         }
       ]
@@ -86701,7 +86701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 177,
+          "line": 182,
           "sink": "QLabel"
         }
       ]
@@ -104446,7 +104446,7 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 128,
+          "line": 134,
           "sink": "_finish"
         }
       ]
@@ -122556,12 +122556,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 640,
+          "line": 641,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 689,
+          "line": 690,
           "sink": "addTab"
         },
         {
@@ -122626,7 +122626,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1410,
+          "line": 1423,
           "sink": "_set_state"
         },
         {
@@ -123546,7 +123546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1086,
+          "line": 1088,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -123556,7 +123556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1092,
+          "line": 1094,
           "sink": "_set_state"
         }
       ]
@@ -123681,7 +123681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1954,
+          "line": 1967,
           "sink": "_fail_current_process"
         }
       ]
@@ -123691,7 +123691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1978,
+          "line": 1991,
           "sink": "_fail_current_process"
         }
       ]
@@ -123771,7 +123771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1206,
+          "line": 1211,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -123781,7 +123781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1238,
+          "line": 1243,
           "sink": "_set_state"
         }
       ]
@@ -124026,7 +124026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1851,
+          "line": 1864,
           "sink": "_set_state"
         }
       ]
@@ -124046,7 +124046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1187,
+          "line": 1189,
           "sink": "_set_state"
         }
       ]
@@ -124056,7 +124056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1590,
+          "line": 1603,
           "sink": "_set_state"
         }
       ]
@@ -124066,7 +124066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1456,
+          "line": 1469,
           "sink": "_fail_current_process"
         }
       ]
@@ -124086,12 +124086,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 678,
+          "line": 680,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1808,
+          "line": 1821,
           "sink": "_set_state"
         }
       ]
@@ -124101,12 +124101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1519,
+          "line": 1532,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1535,
+          "line": 1548,
           "sink": "_set_state"
         }
       ]
@@ -124126,12 +124126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 861,
+          "line": 863,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1725,
+          "line": 1738,
           "sink": "_set_state"
         }
       ]
@@ -124141,7 +124141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1182,
+          "line": 1184,
           "sink": "_set_state"
         }
       ]
@@ -124261,7 +124261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1968,
+          "line": 1981,
           "sink": "_fail_current_process"
         }
       ]
@@ -124621,7 +124621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1997,
+          "line": 2010,
           "sink": "_set_state"
         }
       ]
@@ -124771,7 +124771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 839,
+          "line": 841,
           "sink": "_set_state"
         }
       ]
@@ -124881,7 +124881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1253,
+          "line": 1258,
           "sink": "_fail_current_process"
         }
       ]
@@ -124891,7 +124891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1297,
+          "line": 1310,
           "sink": "_fail_current_process"
         }
       ]
@@ -124901,7 +124901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1273,
+          "line": 1278,
           "sink": "_fail_current_process"
         }
       ]
@@ -124911,7 +124911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1446,
+          "line": 1459,
           "sink": "_fail_current_process"
         }
       ]
@@ -125121,7 +125121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1490,
+          "line": 1503,
           "sink": "_fail_current_process"
         }
       ]
@@ -125131,7 +125131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1481,
+          "line": 1494,
           "sink": "_fail_current_process"
         }
       ]
@@ -125241,7 +125241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 433,
+          "line": 435,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -125496,7 +125496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 870,
+          "line": 882,
           "sink": "ValueError"
         }
       ]
@@ -139706,7 +139706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 908,
+          "line": 910,
           "sink": "_fail_current_process"
         }
       ]
@@ -141006,7 +141006,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 224,
+          "line": 229,
           "sink": "QPushButton"
         }
       ]
@@ -141036,7 +141036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 208,
+          "line": 213,
           "sink": "QPushButton"
         }
       ]
@@ -149241,17 +149241,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 194,
+          "line": 199,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 780,
+          "line": 782,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 859,
+          "line": 861,
           "sink": "_set_state"
         }
       ]
@@ -150266,7 +150266,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 644,
+          "line": 645,
           "sink": "MediaPreviewWidget"
         },
         {
@@ -173196,7 +173196,7 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 115,
+          "line": 121,
           "sink": "RuntimeError"
         }
       ]
@@ -173206,7 +173206,12 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 158,
+          "line": 164,
+          "sink": "_finish"
+        },
+        {
+          "path": "cdmw/services/engine_capture.py",
+          "line": 178,
           "sink": "_finish"
         }
       ]
@@ -185571,7 +185576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 180,
+          "line": 185,
           "sink": "QPushButton"
         }
       ]
@@ -196041,22 +196046,22 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 593,
+          "line": 595,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 594,
+          "line": 596,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 611,
+          "line": 613,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 612,
+          "line": 614,
           "sink": "_set_state"
         }
       ]
@@ -198156,7 +198161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1092,
+          "line": 1094,
           "sink": "_set_state"
         }
       ]
@@ -198441,7 +198446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1187,
+          "line": 1189,
           "sink": "_set_state"
         }
       ]
@@ -200276,12 +200281,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 780,
+          "line": 782,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 859,
+          "line": 861,
           "sink": "_set_state"
         }
       ]
@@ -200516,7 +200521,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1822,
+          "line": 1835,
           "sink": "emit"
         },
         {
@@ -202871,7 +202876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1439,
+          "line": 1452,
           "sink": "_fail_current_process"
         }
       ]
@@ -203261,17 +203266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 839,
+          "line": 841,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1238,
+          "line": 1243,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2041,
+          "line": 2054,
           "sink": "_set_state"
         }
       ]
@@ -203801,7 +203806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1182,
+          "line": 1184,
           "sink": "_set_state"
         }
       ]
@@ -209216,17 +209221,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 678,
+          "line": 680,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1590,
+          "line": 1603,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1808,
+          "line": 1821,
           "sink": "_set_state"
         }
       ]
@@ -209521,22 +209526,22 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 593,
+          "line": 595,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 594,
+          "line": 596,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 611,
+          "line": 613,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 612,
+          "line": 614,
           "sink": "_set_state"
         }
       ]
@@ -209736,17 +209741,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1519,
+          "line": 1532,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1535,
+          "line": 1548,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1851,
+          "line": 1864,
           "sink": "_set_state"
         }
       ]
@@ -210341,7 +210346,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1410,
+          "line": 1423,
           "sink": "_set_state"
         }
       ]
@@ -211526,12 +211531,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 861,
+          "line": 863,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1725,
+          "line": 1738,
           "sink": "_set_state"
         }
       ]
@@ -211576,7 +211581,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2054,
+          "line": 2067,
           "sink": "_set_state"
         }
       ]
@@ -218561,7 +218566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 661,
+          "line": 673,
           "sink": "setText"
         }
       ]
@@ -219086,7 +219091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2054,
+          "line": 2067,
           "sink": "_set_state"
         }
       ]
