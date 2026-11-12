@@ -152,6 +152,18 @@ def current_contexts(shell) -> tuple[str, ...]:
     return (context,) if context else ()
 
 
+def keymap_keys(registry: CommandRegistry, shell):
+    """Each command's keys as the keymap has them now (a command's ``keys`` are its defaults)."""
+
+    settings = getattr(shell, "settings", None)
+    if settings is None:
+        return None
+    from cdmw.ui.commands.keymap import keymap_rows
+
+    keys = {row.command_id: row.keys for row in keymap_rows(registry, settings)}
+    return lambda command: keys.get(command.id, command.keys)
+
+
 def open_command_palette(shell) -> CommandPalette | None:
     registry = getattr(shell, "command_registry", None)
     if not isinstance(registry, CommandRegistry):
@@ -162,7 +174,7 @@ def open_command_palette(shell) -> CommandPalette | None:
             previous.close()
         except RuntimeError:
             pass
-    palette = CommandPalette(registry, current_contexts(shell), shell)
+    palette = CommandPalette(registry, current_contexts(shell), shell, keys_for=keymap_keys(registry, shell))
     shell._command_palette = palette
     geometry = shell.geometry()
     palette.move(geometry.x() + (geometry.width() - palette.width()) // 2, geometry.y() + 80)

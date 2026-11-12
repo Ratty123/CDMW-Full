@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QKeyCombination, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -45,37 +45,92 @@ def _translate(text: str) -> str:
         return text
 
 
+class KeyEdit(QKeySequenceEdit):
+    """One recorded key. Qt's editor drops the numpad; with ``keep_numpad`` it is kept (``Num+1``)."""
+
+    def __init__(self, text: str, parent: QWidget | None = None, *, keep_numpad: bool = False) -> None:
+        super().__init__(QKeySequence(text), parent)
+        self.setMaximumSequenceLength(1)
+        self._keep_numpad = keep_numpad
+        self.touched = False
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().keyPressEvent(event)
+        self.touched = True
+        numpad = Qt.KeyboardModifier.KeypadModifier
+        sequence = self.keySequence()
+        if self._keep_numpad and event.modifiers() & numpad and sequence.count():
+            combination = sequence[0]
+            if not combination.keyboardModifiers() & numpad:
+                self.setKeySequence(QKeySequence(QKeyCombination(combination.keyboardModifiers() | numpad,
+                                                                 combination.key())))
+
+    def text(self) -> str:
+        return self.keySequence().toString(QKeySequence.SequenceFormat.PortableText)
+
+
 class KeyDialog(QDialog):
-    """Record one key for a command; leave it empty to unbind."""
+    """Record a command's keys (a first and a second); leave both empty to unbind.
+
+    ``check`` turns the recorded keys into the keys to save, or names why they
+    cannot be saved; the Mesh Editor helper's commands use its grammar there.
+    """
 
     def __init__(self, label: str, keys: tuple[str, ...], parent: QWidget | None = None,
-                 *, conflict_for=None) -> None:
+                 *, conflict_for=None, check=None, shown=None, keep_numpad: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle("Change Shortcut")
+        self._original = tuple(keys)
+        self._check = check or (lambda recorded: (recorded, ""))
+        shown = shown or (lambda key: key)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(_translate(label)))
-        self.editor = QKeySequenceEdit(QKeySequence(keys[0] if keys else ""), self)
-        self.editor.setMaximumSequenceLength(1)
-        layout.addWidget(self.editor)
-        # The conflict is named while the key is chosen, before anything is saved.
+        self.editors: list[KeyEdit] = []
+        for slot, title in enumerate(("First key", "Second key")):
+            layout.addWidget(QLabel(_translate(title), self))
+            editor = KeyEdit(shown(keys[slot]) if slot < len(keys) else "", self, keep_numpad=keep_numpad)
+            editor.keySequenceChanged.connect(lambda _sequence: self._show_state())
+            layout.addWidget(editor)
+            self.editors.append(editor)
+        self.editor = self.editors[0]
+        # The conflict, or why a key cannot be used, is named before anything is saved.
         self.conflict = QLabel(self)
         self.conflict.setObjectName("HintLabel")
         self.conflict.setWordWrap(True)
         layout.addWidget(self.conflict)
         self._conflict_for = conflict_for or (lambda _keys: "")
-        self.editor.keySequenceChanged.connect(lambda _sequence: self._show_conflict())
-        self._show_conflict()
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, self)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+        self._show_state()
 
-    def _show_conflict(self) -> None:
-        self.conflict.setText(self._conflict_for(self.keys()))
+    def recorded(self) -> list[str]:
+        """Each slot's key: what was recorded in it, or the key it had when nothing was."""
+
+        result: list[str] = []
+        for slot, editor in enumerate(self.editors):
+            key = editor.text() if editor.touched or slot >= len(self._original) else self._original[slot]
+            if key and key not in result:
+                result.append(key)
+        return result
+
+    def refusal(self) -> str:
+        return self._check(self.recorded())[1]
+
+    def _show_state(self) -> None:
+        refusal = self.refusal()
+        self.conflict.setText(_translate(refusal) if refusal else self._conflict_for(self.keys()))
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(not refusal)
 
     def keys(self) -> list[str]:
-        text = self.editor.keySequence().toString(QKeySequence.SequenceFormat.PortableText)
-        return [text] if text else []
+        keys, refusal = self._check(self.recorded())
+        return [] if refusal else list(keys)
+
+    def accept(self) -> None:
+        if not self.refusal():
+            super().accept()
 
 
 class ShortcutsPage(QWidget):
@@ -187,9 +242,21 @@ class ShortcutsPage(QWidget):
         row = next((r for r in self.rows() if r.command_id == command_id), None)
         if row is None:
             return
-        dialog = KeyDialog(row.label, row.keys, self, conflict_for=lambda keys: self.conflict_text(row, keys))
+        dialog = self.key_dialog(row)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._save(command_id, dialog.keys())
+
+    def key_dialog(self, row) -> KeyDialog:
+        """The dialog that changes ``row``'s keys; the helper's commands follow its grammar."""
+
+        options = {}
+        if row.helper:
+            from cdmw.ui.commands.helper_keys import check_helper_keys, qt_key_text
+
+            options = dict(check=lambda keys: check_helper_keys(keys, takes_modifier=row.takes_modifier),
+                           shown=qt_key_text, keep_numpad=True)
+        return KeyDialog(row.label, row.keys, self, conflict_for=lambda keys: self.conflict_text(row, keys),
+                         **options)
 
     def conflict_text(self, row, keys: list[str]) -> str:
         """Which commands the proposed keys would clash with, if any."""

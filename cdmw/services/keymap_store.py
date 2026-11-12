@@ -26,6 +26,8 @@ TEXTURE_PREFIX = "texture_editor."
 MAX_OVERRIDES = 1024
 MAX_BINDINGS = 2
 MAX_BINDING_LENGTH = 32
+#: The Texture Editor's second key for a command is its shortcut id plus this.
+_ALT = "_alt"
 _COMMAND_ID = re.compile(r"[a-z0-9_]{1,32}\.[a-z0-9_.+-]{1,64}")
 
 
@@ -63,13 +65,29 @@ def _legacy_overrides(settings) -> dict[str, list[str]]:
         mesh = {}
     for helper_id, bindings in validated_mesh_shortcuts(mesh).items():
         result[MESH_PREFIX + helper_id] = bindings
+    texture = {}
     for key, default in default_texture_editor_shortcuts().items():
         stored = settings.value(LEGACY_TEXTURE_PREFIX + key, None)
-        if stored is None:
-            continue
-        text = str(stored).strip()
-        if text != default:
-            result[TEXTURE_PREFIX + key] = [text] if _valid_binding(text) else []
+        text = default if stored is None else str(stored).strip()
+        texture[key] = text if _valid_binding(text) else ""
+    result.update(_texture_overrides(texture))
+    return result
+
+
+def _texture_overrides(keys: Mapping[str, str]) -> dict[str, list[str]]:
+    """The Texture Editor's keys by its own ids, as keymap overrides (``<id>_alt`` is ``<id>``'s second key)."""
+
+    from cdmw.domain.texture_editor_shortcuts import default_texture_editor_shortcuts
+
+    defaults = default_texture_editor_shortcuts()
+    result: dict[str, list[str]] = {}
+    for key in defaults:
+        if key.endswith(_ALT) and key[:-len(_ALT)] in defaults:
+            continue  # saved with its command, as that command's second key
+        slots = [key, key + _ALT] if key + _ALT in defaults else [key]
+        chosen = [str(keys.get(slot, defaults[slot]) or "").strip() for slot in slots]
+        if chosen != [defaults[slot] for slot in slots]:
+            result[TEXTURE_PREFIX + key] = list(dict.fromkeys(text for text in chosen if text))
     return result
 
 
@@ -135,20 +153,18 @@ def texture_editor_keys(settings) -> dict[str, str]:
 
     keys = default_texture_editor_shortcuts()
     for command_id, bindings in load_keymap(settings).items():
-        if command_id.startswith(TEXTURE_PREFIX) and command_id[len(TEXTURE_PREFIX):] in keys:
-            keys[command_id[len(TEXTURE_PREFIX):]] = bindings[0] if bindings else ""
+        key = command_id[len(TEXTURE_PREFIX):]
+        if command_id.startswith(TEXTURE_PREFIX) and key in keys and not key.endswith(_ALT):
+            keys[key] = bindings[0] if bindings else ""
+            # A command's second key is its ``<id>_alt`` shortcut: an override sets or clears it too.
+            if key + _ALT in keys:
+                keys[key + _ALT] = bindings[1] if len(bindings) > 1 else ""
     return keys
 
 
 def save_texture_editor_keys(settings, keys: Mapping[str, str]) -> None:
     """The Texture Editor's own shortcut dialog saved: keep only what differs from the defaults."""
 
-    from cdmw.domain.texture_editor_shortcuts import default_texture_editor_shortcuts
-
-    defaults = default_texture_editor_shortcuts()
     keymap = {key: value for key, value in load_keymap(settings).items() if not key.startswith(TEXTURE_PREFIX)}
-    for key, text in keys.items():
-        text = str(text or "").strip()
-        if key in defaults and text != defaults[key]:
-            keymap[TEXTURE_PREFIX + key] = [text] if text else []
+    keymap.update(_texture_overrides(keys))
     save_keymap(settings, keymap)
