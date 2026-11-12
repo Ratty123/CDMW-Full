@@ -1698,18 +1698,28 @@ class _MeshServiceSessionLayerCore(
             if timer is not None:
                 timer.cancel()
 
+        from cdmw.services.mesh_history_journal import read_journal
+
         if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
             self._save_mesh_layer_project_locked(session)
+        # A redo state the journal holds is at a depth it has a record for: any edit
+        # drops the redo stack and the deeper records together. Only the others are
+        # exported, and the position comes back even when one fails (section 8.8 R7).
+        journalled = {record.depth for record in read_journal(Path(session.mesh_layer_project_path).parent).records}
         steps = 0
-        while session.redo_stack:
-            self._redo_locked(session)
-            settle()
+        try:
+            while session.redo_stack:
+                self._redo_locked(session)
+                settle()
+                steps += 1
+                if session.history_journal_depth not in journalled:
+                    self._save_mesh_layer_project_locked(session)
+        finally:
+            for _ in range(steps):
+                self._undo_locked(session)
+                settle()
+        if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
             self._save_mesh_layer_project_locked(session)
-            steps += 1
-        for _ in range(steps):
-            self._undo_locked(session)
-            settle()
-        self._save_mesh_layer_project_locked(session)
 
     def clear_editor_recovery_after_next_save(self, session_id: str) -> None:
         """Remove the editor's recovery point once the draft's next save is on disk (8.7 A1).

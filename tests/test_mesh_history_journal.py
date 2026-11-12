@@ -516,3 +516,52 @@ def test_a_late_draft_save_never_clears_a_newer_editor_s_recovery_point(tmp_path
         assert kept is not None and kept["generation"] == newer, kept
     finally:
         service.close_edit_session(session_id)
+
+
+def _three_saved_steps_then_two_undone(tmp_path):
+    service, session_id = _open(tmp_path)
+    for _ in range(3):
+        _move(service, session_id, 0.25)
+        service.retry_mesh_layer_autosave(session_id)
+    service.undo(session_id)
+    service.undo(session_id)  # in memory: two redo states, both already journalled
+    service.retry_mesh_layer_autosave(session_id)
+    return service, session_id
+
+
+def test_a_journal_undo_saves_only_the_redo_states_the_journal_lacks(tmp_path, monkeypatch) -> None:
+    """Section 8.8 R7: every redo state was exported again under the export lock."""
+
+    service, session_id = _three_saved_steps_then_two_undone(tmp_path)
+    saves = []
+    original = service._save_mesh_layer_project_locked
+    monkeypatch.setattr(service, "_save_mesh_layer_project_locked",
+                        lambda session: saves.append(session.revision) or original(session))
+    try:
+        service._session(session_id).undo_stack.clear()  # past the in-memory history
+        service.step_history_journal(session_id, -1)
+        assert len(saves) <= 1, f"journalled redo states were exported again: {len(saves)} saves"
+    finally:
+        service.close_edit_session(session_id)
+
+
+def test_a_failed_redo_save_puts_the_position_back(tmp_path, monkeypatch) -> None:
+    """Section 8.8 R7: no rollback when one of the redo saves failed."""
+
+    service, session_id = _three_saved_steps_then_two_undone(tmp_path)
+    session = service._session(session_id)
+    session.redo_stack[-1].journal_depth = 99  # a state the journal does not hold
+    x_before, redo_before = _x(service, session_id), len(session.redo_stack)
+
+    def fail(_session):
+        raise OSError("the disk is full")
+
+    monkeypatch.setattr(service, "_save_mesh_layer_project_locked", fail)
+    try:
+        with pytest.raises((OSError, MeshHistoryJournalError)):
+            service._save_redo_states_locked(session)
+        assert _x(service, session_id) == pytest.approx(x_before)
+        assert len(session.redo_stack) == redo_before
+    finally:
+        monkeypatch.undo()
+        service.close_edit_session(session_id)
