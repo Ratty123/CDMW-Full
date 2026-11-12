@@ -202,6 +202,27 @@ def pytest_unconfigure() -> None:
         shutil.rmtree(_pytest_profile_root, ignore_errors=True)
 
 
+_CHECKOUT_WORKSPACE = Path(__file__).resolve().parents[1] / "workspace"
+_workspace_files_at_start: frozenset[str] | None = None
+
+
+def _checkout_workspace_files() -> frozenset[str]:
+    """Every file under the checkout's own workspace folder, relative to it."""
+
+    if not _CHECKOUT_WORKSPACE.is_dir():
+        return frozenset()
+    found = set()
+    for folder, _dirs, files in os.walk(_CHECKOUT_WORKSPACE):
+        for name in files:
+            found.add(os.path.relpath(os.path.join(folder, name), _CHECKOUT_WORKSPACE))
+    return frozenset(found)
+
+
+def pytest_sessionstart(session):
+    global _workspace_files_at_start
+    _workspace_files_at_start = _checkout_workspace_files()
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Remove the native delta payloads tests allocated in the shared temp folder.
 
@@ -211,3 +232,19 @@ def pytest_sessionfinish(session, exitstatus):
     module = sys.modules.get("cdmw.modding.mesh_native_core_temp_paths")
     if module is not None:
         module.cleanup_native_preview_delta_paths()
+    # Tests write inside the run's private profile, never the checkout's own
+    # workspace: in the main checkout that is the user's real workspace.
+    if _workspace_files_at_start is not None:
+        added = sorted(_checkout_workspace_files() - _workspace_files_at_start)
+        if added:
+            shown = "\n".join(f"  workspace{os.sep}{path}" for path in added[:20])
+            more = f"\n  ... and {len(added) - 20} more" if len(added) > 20 else ""
+            reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+            message = ("This test run wrote into the checkout's workspace folder; "
+                       f"tests must write under the run's profile or tmp_path:\n{shown}{more}")
+            if reporter is not None:
+                reporter.write_sep("=", "files written into the checkout's workspace", red=True)
+                reporter.write_line(message)
+            else:
+                print(message, file=sys.stderr)
+            session.exitstatus = pytest.ExitCode.TESTS_FAILED

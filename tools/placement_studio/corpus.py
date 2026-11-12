@@ -33,7 +33,6 @@ REPO_ROOT = _install_root()
 
 DEFAULT_GAME_ROOT = Path(r"C:\games\Steam\steamapps\common\Crimson Desert")
 DEFAULT_GOLDEN_ROOT = Path(r"E:\Working mods\Placement and Animations")
-DEFAULT_WORK_ROOT = REPO_ROOT / "workspace" / "placement_studio"
 
 # Manager layouts differ in where the game-relative tree starts. CDUMM nests it under
 # files/; the others put it at the package root. Anything outside these roots is
@@ -57,8 +56,23 @@ def golden_root() -> Path:
     return env_path("CDMW_PS_GOLDEN_ROOT", DEFAULT_GOLDEN_ROOT)
 
 
+def default_work_root() -> Path:
+    """`placement_studio` in the app's workspace folder.
+
+    The app's own rule decides that folder (`cdmw.app.app_folder`): a private
+    profile when CDMW_PROFILE_DIR is set (tests, timing runs, the automation
+    bridge), the launcher's folder for the single-file start, else the
+    executable's folder or the repository. It used to be the install root's
+    `workspace` always, so test runs wrote into the checkout's real workspace.
+    """
+
+    from cdmw.app.app_folder import workspace_folder
+
+    return workspace_folder() / "placement_studio"
+
+
 def work_root() -> Path:
-    return env_path("CDMW_PS_WORK_ROOT", DEFAULT_WORK_ROOT)
+    return env_path("CDMW_PS_WORK_ROOT", default_work_root())
 
 
 def baseline_root() -> Path:
