@@ -399,9 +399,18 @@ def test_after_a_crash_the_session_files_are_written_again_at_the_accepted_step(
         request["candidate"] = _candidate_reference(session, request_id=1, first_x=0.75)
         request["label"] = "Move"
         session.apply_candidate(request)
+        # Files the dead helper left, and a texture named for the first open.
+        (session.root / "candidate-99-dead_helper.json").write_text("{}", encoding="utf-8")
+        (session.root / "texture-0000-0123456789ab.dds").write_bytes(b"DDS ")
         session.rewrite_for_relaunch(8)
         manifest = json.loads(session.manifest_path.read_text(encoding="utf-8"))
         assert manifest["process_generation"] == 8 and session.process_generation == 8
+        # The new helper finds only what the manifest names (it refuses anything else).
+        from cdmw.services.mesh_rust_authoring import _manifest_file_names
+
+        on_disk = {entry.name for entry in session.root.iterdir() if entry.is_file()}
+        assert on_disk <= _manifest_file_names(manifest) | {"manifest.json"}, on_disk
+        assert "document.bin" in on_disk or any(name.endswith(".bin") for name in on_disk)
         assert manifest["shadow_revision"] == 1  # the accepted Move is what the new helper opens
         # The undo history stays in the shadow session.
         assert session.shadow_service.session_view(session.shadow_session_id).undo_count == 1

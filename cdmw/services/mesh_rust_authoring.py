@@ -1760,6 +1760,41 @@ def _with_protocol_lock(method):
     return wrapped
 
 
+def _manifest_file_names(value: object) -> set[str]:
+    """Every session file a manifest names: the plain names under its ``path`` keys."""
+
+    names: set[str] = set()
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, Mapping):
+            for key, child in item.items():
+                if key == "path" and isinstance(child, str) and child and "/" not in child and "\\" not in child:
+                    names.add(child)
+                elif isinstance(child, (Mapping, list, tuple)):
+                    stack.append(child)
+        elif isinstance(item, (list, tuple)):
+            stack.extend(item)
+    return names
+
+
+def _prune_unlisted_session_files(root: Path) -> list[str]:
+    """Remove top-level session files the manifest does not name (P4 V3 crash recovery).
+
+    Folders (slider profiles, effect textures) are the helper's to check and stay.
+    Returns the removed names.
+    """
+
+    manifest_path = Path(root) / "manifest.json"
+    listed = {"manifest.json"} | _manifest_file_names(json.loads(manifest_path.read_text(encoding="utf-8")))
+    removed = []
+    for entry in Path(root).iterdir():
+        if entry.is_file() and not entry.is_symlink() and entry.name not in listed:
+            entry.unlink()
+            removed.append(entry.name)
+    return sorted(removed)
+
+
 def _cleanup_failed_session_root(
     root: Path,
     expected_identity: tuple[int, int],
@@ -8616,6 +8651,11 @@ class RustMeshAuthoringSession:
         self._require_open()
         self.process_generation = int(process_generation)
         self._write_initial_manifest()
+        # The helper opens a session folder holding only what its manifest lists.
+        # The first write's files the new manifest no longer names (textures named
+        # for the first open, the dead helper's transaction files) would make it
+        # refuse the session, so they go.
+        _prune_unlisted_session_files(self.root)
 
     def query_deferred_morph_state(self, done: Callable[[dict[str, object]], None]) -> bool:
         """Ask the morph state of a deferred open in the background (P4 V3).

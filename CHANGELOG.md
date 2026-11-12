@@ -63,6 +63,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Mesh Editor** brings an edit back after its 3D view stops unexpectedly, as intended: reopening it no longer fails on files left from the first open, which had discarded the changes.
 - Preview dialogs open quickly again after the spare preview window behind them has stopped. Before, a stopped spare was never replaced, so every later dialog started its own preview from scratch.
 
 - Mesh Editor's experimental **Create cloth guides** now builds when the chosen LOD has triangles that merge into a line where a seam is welded, or that are too thin to store; before, it refused the whole part with "Welding the guide source produces a degenerate triangle". Those triangles are left out of the guides only, the model itself is unchanged, and the panel says how many were skipped on which part and LOD. A part with nothing left, or a piece that nothing holds any more, is refused with its name. As before, the guides are not checked in game.

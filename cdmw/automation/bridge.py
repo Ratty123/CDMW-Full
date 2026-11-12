@@ -320,6 +320,7 @@ class AutomationBridge(QObject):
                                                      "controller", None), "process_id", 0) or 0),
             "mesh_editor": None if tab is None else {
                 "ready": bool(getattr(tab, "standalone_rust_ready", False)),
+                "status": self._editor_status(tab),
                 # P4 V3: the edit is in Browse's viewport, in Browse's process.
                 "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
                 "process_id": self._editor_process_id(tab),
@@ -465,6 +466,14 @@ class AutomationBridge(QObject):
             return False
         archive._promote_edit_to_tab()
         return True
+
+    @staticmethod
+    def _editor_status(tab) -> str:
+        label = getattr(tab, "standalone_status_label", None)
+        try:
+            return str(label.text()) if label is not None else ""
+        except RuntimeError:
+            return ""
 
     def _quit(self, _args: dict) -> bool:
         from PySide6.QtCore import QTimer
