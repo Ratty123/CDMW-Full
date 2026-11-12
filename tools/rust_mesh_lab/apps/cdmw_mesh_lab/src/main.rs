@@ -2419,6 +2419,8 @@ struct LabApplication {
     cdmw_tool_groups: tool_groups::ToolGroupState,
     /// Parts hidden while the editor showed Browse's model, kept for the session.
     kept_hidden_parts: Option<HashSet<u32>>,
+    /// Parts selected while the editor showed Browse's model, kept for the session.
+    kept_selected_parts: Option<HashSet<u32>>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2691,6 +2693,7 @@ impl LabApplication {
             kept_camera: None,
             cdmw_tool_groups: tool_groups::ToolGroupState::default(),
             kept_hidden_parts: None,
+            kept_selected_parts: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2773,6 +2776,10 @@ impl LabApplication {
             })
             .collect::<serde_json::Map<_, _>>();
         self.cdmw_tool_groups = tool_groups::ToolGroupState::from_host(&json!({"groups": groups}));
+        // Clicks in the view orbit until the session arrives; parts are picked in
+        // the Parts list (whole parts only), which carries over to the session.
+        self.cdmw_rail_page = None;
+        self.cdmw_orbit_mode = true;
         self.status = reason.to_owned();
         if let Some(window) = &self.window {
             window.request_redraw();
@@ -2798,9 +2805,41 @@ impl LabApplication {
         };
         self.kept_camera = Some(self.camera.clone());
         self.kept_hidden_parts = Some(self.cdmw_hidden_parts.clone());
+        // Only whole parts can be selected before the session (P4 V4); they carry over.
+        self.kept_selected_parts = self
+            .mesh
+            .as_ref()
+            .map(|mesh| mesh.selection.submeshes.clone())
+            .filter(|parts| !parts.is_empty());
         self.cdmw_tool_groups = tool_groups::ToolGroupState::default();
         input.requeue(line);
         self.cdmw_pending = Some(input);
+    }
+
+    /// Parts hidden or selected while the editor showed Browse's model carry over
+    /// to the session when its part list matches (P4 V4).
+    fn apply_kept_view_parts(&mut self) {
+        let parts = self.document.as_ref().map_or(0, |document| {
+            document
+                .lods
+                .get(self.active_lod_index)
+                .map_or(0, |lod| lod.submeshes.len())
+        });
+        let fits = |kept: &HashSet<u32>| kept.iter().all(|part| (*part as usize) < parts);
+        if let Some(hidden) = self.kept_hidden_parts.take()
+            && fits(&hidden)
+        {
+            self.cdmw_hidden_parts = hidden;
+        }
+        if let Some(selected) = self.kept_selected_parts.take()
+            && fits(&selected)
+            && let Some(mesh) = self.mesh.as_mut()
+        {
+            let _ = mesh.set_selection(cdmw_mesh::Selection {
+                submeshes: selected,
+                ..cdmw_mesh::Selection::default()
+            });
+        }
     }
 
     /// An editor that shows Browse's model first (P4 V4): the window and renderer
@@ -2923,18 +2962,7 @@ impl LabApplication {
             // Browse's view, kept: same angle, target and distance (P4 V3).
             self.camera.keep_orbit_of(&camera);
         }
-        if let Some(hidden) = self.kept_hidden_parts.take() {
-            // Parts hidden while the editor showed Browse's model stay hidden (P4 V4).
-            let parts = self.document.as_ref().map_or(0, |document| {
-                document
-                    .lods
-                    .get(self.active_lod_index)
-                    .map_or(0, |lod| lod.submeshes.len())
-            });
-            if hidden.iter().all(|part| (*part as usize) < parts) {
-                self.cdmw_hidden_parts = hidden;
-            }
-        }
+        self.apply_kept_view_parts();
         if let Some(mut renderer) = self.renderer.take() {
             match self.configure_renderer(&mut renderer) {
                 Ok(()) => self.renderer = Some(renderer),
@@ -8589,6 +8617,44 @@ mod tests {
             .map(|point| point.screen.x)
             .fold(f32::NEG_INFINITY, f32::max);
         assert!(maximum_x - minimum_x > viewport.width() * 0.75);
+    }
+
+    #[test]
+    fn parts_picked_while_viewing_carry_over_to_the_session() {
+        let root = tempfile::tempdir().unwrap_or_else(|error| panic!("tempdir failed: {error}"));
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "kept-parts", 1, 0);
+        let mut application = LabApplication::new_cdmw(bridge, z_elongated_document(), None)
+            .unwrap_or_else(|error| panic!("integrated application failed: {error}"));
+
+        application.kept_hidden_parts = Some(HashSet::from([0]));
+        application.kept_selected_parts = Some(HashSet::from([0]));
+        application.apply_kept_view_parts();
+        assert_eq!(application.cdmw_hidden_parts, HashSet::from([0]));
+        let selected = &application
+            .mesh
+            .as_ref()
+            .map(|mesh| mesh.selection.submeshes.clone());
+        assert_eq!(selected.as_ref(), Some(&HashSet::from([0])));
+
+        // A part list that does not match the session's keeps nothing.
+        application.cdmw_hidden_parts.clear();
+        let _ = application
+            .mesh
+            .as_mut()
+            .map(|mesh| mesh.set_selection(cdmw_mesh::Selection::default()));
+        application.kept_hidden_parts = Some(HashSet::from([3]));
+        application.kept_selected_parts = Some(HashSet::from([3]));
+        application.apply_kept_view_parts();
+        assert!(application.cdmw_hidden_parts.is_empty());
+        assert!(
+            application
+                .mesh
+                .as_ref()
+                .is_some_and(|mesh| mesh.selection.submeshes.is_empty())
+        );
+        assert!(
+            application.kept_hidden_parts.is_none() && application.kept_selected_parts.is_none()
+        );
     }
 
     #[test]
