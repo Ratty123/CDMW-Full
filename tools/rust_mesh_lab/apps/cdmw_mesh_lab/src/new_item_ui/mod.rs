@@ -6,8 +6,9 @@ mod model;
 mod view;
 
 use anyhow::{Context, Result, bail};
+pub(crate) use model::MAX_MESSAGE_BYTES;
 pub(crate) use model::PROTOCOL;
-use model::{Input, MAX_MESSAGE_BYTES, State};
+use model::{Input, State};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::io::{BufRead, Read, Write};

@@ -46,7 +46,7 @@ use cdmw_render_wgpu::WindowRenderer;
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tracing::error;
@@ -55,8 +55,11 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{WindowAttributes, WindowId};
 
-/// A line on either protocol may carry a large state; the editor's bound is the larger.
+/// A preview or editor line is small; a page line can carry a whole page state
+/// (the New Item UI protocol's own bound, 16 MiB). A line over its protocol's
+/// bound is dropped and reported; it never ends the reader (section 8.7 B2).
 const MAX_ENGINE_LINE_BYTES: usize = 256 * 1024;
+const MAX_PAGE_LINE_BYTES: usize = crate::new_item_ui::MAX_MESSAGE_BYTES;
 const EDITOR_QUEUE_BOUND: usize = 256;
 
 #[derive(Debug)]
@@ -136,10 +139,16 @@ impl EngineApplication {
     /// The edit a host line addresses: the one its `session_id` names, or the
     /// only edit when it names none.
     fn edit_index(&self, id: &str) -> Option<usize> {
-        let edits: Vec<(&str, bool)> = self
+        let edits: Vec<(&str, bool, bool)> = self
             .edits
             .iter()
-            .map(|edit| (edit.id.as_str(), edit.app.showing_view()))
+            .map(|edit| {
+                (
+                    edit.id.as_str(),
+                    edit.app.showing_view(),
+                    edit.own_window.is_none(),
+                )
+            })
             .collect();
         addressed_edit(&edits, id)
     }
@@ -400,6 +409,7 @@ impl EngineApplication {
     fn wait_pages(&mut self, event_loop: &ActiveEventLoop, mut flow: ControlFlow) -> ControlFlow {
         for page in &mut self.pages {
             ApplicationHandler::user_event(page, event_loop, ());
+            event_loop.set_control_flow(ControlFlow::Wait);
             ApplicationHandler::about_to_wait(page, event_loop);
             flow = earliest(flow, event_loop.control_flow());
         }
@@ -624,6 +634,13 @@ impl EngineApplication {
             return;
         }
         let mut edit = self.edits.remove(index);
+        if !edit.app.engine_finished()
+            && let Some(path) = edit.app.engine_source_path()
+        {
+            for preview in std::iter::once(&mut self.preview).chain(self.viewports.iter_mut()) {
+                preview.stop_following(&path);
+            }
+        }
         if edit.own_window.is_some() {
             // Its own window and renderer close with it; Browse's view was never lent.
             let id = edit.id.clone();
@@ -701,10 +718,17 @@ impl ApplicationHandler for EngineApplication {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.poll_editor_lines(event_loop);
         // While editing, the Preview only reads its messages and loads; the edit
-        // state draws and sets the wait.
+        // state draws and sets the wait. Every part starts from Wait, so one that
+        // sets nothing (Browse's preview while lent) never inherits a deadline that
+        // already passed and spins the loop (section 8.7 B4).
+        event_loop.set_control_flow(ControlFlow::Wait);
+        self.preview.set_device_shared(
+            !self.edits.is_empty() || !self.viewports.is_empty() || !self.pages.is_empty(),
+        );
         self.preview.about_to_wait(event_loop);
         let mut preview_flow = event_loop.control_flow();
         for viewport in &mut self.viewports {
+            event_loop.set_control_flow(ControlFlow::Wait);
             viewport.wait(event_loop);
             preview_flow = earliest(preview_flow, event_loop.control_flow());
         }
@@ -714,6 +738,7 @@ impl ApplicationHandler for EngineApplication {
         self.drop_closed_viewports();
         let mut flow = preview_flow;
         for edit in &mut self.edits {
+            event_loop.set_control_flow(ControlFlow::Wait);
             edit.app.about_to_wait(event_loop);
             // Every view may be live (edits in windows of their own): each set the
             // wait for its own deadlines, so keep the earliest.
@@ -760,6 +785,13 @@ pub(crate) struct FollowedRevision {
     pub(crate) topology: u64,
 }
 
+/// Whether a preview that follows (or not) an edit of `left` goes back to its
+/// own mesh when that edit leaves: only a follower of that file, and only when
+/// the edit was not finished (section 8.7 B8).
+pub(crate) fn restores_on_leave(following: bool, own: &str, left: &str, finished: bool) -> bool {
+    following && !finished && same_source(own, left)
+}
+
 /// Whether two source paths name the same archive file (case and separators aside).
 pub(crate) fn same_source(first: &str, second: &str) -> bool {
     let normalize = |path: &str| path.replace('\\', "/").trim_matches('/').to_lowercase();
@@ -780,24 +812,25 @@ fn earliest(first: ControlFlow, second: ControlFlow) -> ControlFlow {
 
 /// Which of the open edits (their ids, and whether each still waits for its
 /// session) a host line naming `id` addresses (P15).
-fn addressed_edit(edits: &[(&str, bool)], id: &str) -> Option<usize> {
+fn addressed_edit(edits: &[(&str, bool, bool)], id: &str) -> Option<usize> {
     if let Some(index) = edits
         .iter()
-        .position(|(edit_id, _)| !id.is_empty() && *edit_id == id)
+        .position(|(edit_id, _, _)| !id.is_empty() && *edit_id == id)
     {
         return Some(index);
     }
-    // One edit, as before P15: a line naming no id, or an edit that never named one.
-    if edits.len() == 1 && (id.is_empty() || edits[0].0.is_empty()) {
-        return Some(0);
-    }
-    // An edit opened before its session existed (P4 V4) takes the first id named.
+    // A line naming no session is Browse's own (`enter_edit`, an early
+    // `leave_edit`): it addresses the edit in Browse's view, never a document
+    // editing in a window of its own (section 8.7 B1).
     if id.is_empty() {
-        return None;
+        return edits.iter().position(|(_, _, in_view)| *in_view);
     }
+    // An edit opened before its session existed (P4 V4) takes the first id
+    // named; so does an edit from a host that names none (before P15).
     edits
         .iter()
-        .position(|(edit_id, viewing)| edit_id.is_empty() && *viewing)
+        .position(|(edit_id, viewing, in_view)| edit_id.is_empty() && *viewing && *in_view)
+        .or_else(|| (edits.len() == 1 && edits[0].0.is_empty()).then_some(0))
 }
 
 /// The parent window an `open_session` asks its own viewport under, if any.
@@ -824,11 +857,14 @@ fn spawn_engine_input(
             let mut reader = BufReader::new(stdin.lock());
             loop {
                 let mut line = Vec::new();
-                match reader.read_until(b'\n', &mut line) {
-                    Ok(0) => break,
-                    Ok(_) if line.len() > MAX_ENGINE_LINE_BYTES => {
-                        preview.error("Preview protocol line exceeded its safety limit".to_owned());
-                        break;
+                match read_bounded_line(&mut reader, &mut line, MAX_PAGE_LINE_BYTES) {
+                    Ok((0, _)) => break,
+                    Ok((bytes, true)) => {
+                        // Logged only: an unknown stdout event would fail the editor.
+                        error!(
+                            bytes,
+                            "engine input line over every protocol's bound; dropped"
+                        );
                     }
                     Ok(_) => {
                         while matches!(line.last(), Some(b'\n' | b'\r')) {
@@ -838,6 +874,12 @@ fn spawn_engine_input(
                             continue;
                         }
                         match serde_json::from_slice::<Value>(&line) {
+                            Ok(value) if line_over_bound(&value, line.len()) => {
+                                error!(
+                                    bytes = line.len(),
+                                    "engine input line over its protocol's bound; dropped"
+                                );
+                            }
                             Ok(value) => {
                                 if is_editor_line(&value) {
                                     if editor.try_send(EditorLine::Message(value)).is_err() {
@@ -855,6 +897,10 @@ fn spawn_engine_input(
                                     route_page_line(&page_routes, &editor, value);
                                 } else if let Some(route) = viewport_route(&routes, &value) {
                                     route.message(value);
+                                } else if names_a_viewport(&value) {
+                                    // A closed or unknown viewport's line: never Browse's
+                                    // own preview, whose close_request would end the
+                                    // process (section 8.7 B3).
                                 } else {
                                     preview.message(value);
                                 }
@@ -931,6 +977,59 @@ fn write_page_line(value: &Value) {
 }
 
 /// The route of the other viewport this preview line names, if any.
+/// Read one line of at most `max` bytes (newline excluded). A longer line is
+/// consumed to its end without being kept, and reported as `(bytes, true)`.
+fn read_bounded_line(
+    reader: &mut impl BufRead,
+    line: &mut Vec<u8>,
+    max: usize,
+) -> std::io::Result<(usize, bool)> {
+    let read = Read::take(&mut *reader, max as u64 + 1).read_until(b'\n', line)?;
+    if line.len() <= max || line.last() == Some(&b'\n') {
+        return Ok((read, false));
+    }
+    line.clear();
+    let mut skipped = read;
+    loop {
+        let buffer = reader.fill_buf()?;
+        if buffer.is_empty() {
+            break;
+        }
+        match buffer.iter().position(|byte| *byte == b'\n') {
+            Some(end) => {
+                reader.consume(end + 1);
+                skipped += end + 1;
+                break;
+            }
+            None => {
+                let length = buffer.len();
+                reader.consume(length);
+                skipped += length;
+            }
+        }
+    }
+    Ok((skipped, true))
+}
+
+/// A line longer than its protocol allows (pages carry whole states; others are small).
+fn line_over_bound(value: &Value, bytes: usize) -> bool {
+    let page = value.get("protocol").and_then(Value::as_str) == Some(PAGE_PROTOCOL);
+    bytes
+        > if page {
+            MAX_PAGE_LINE_BYTES
+        } else {
+            MAX_ENGINE_LINE_BYTES
+        }
+}
+
+/// Whether a preview line names another viewport of this process.
+fn names_a_viewport(value: &Value) -> bool {
+    value
+        .get("viewport_id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+}
+
 fn viewport_route(routes: &PreviewRoutes, value: &Value) -> Option<PreviewRoute> {
     let viewport_id = value.get("viewport_id").and_then(Value::as_str)?;
     routes.lock().ok()?.get(viewport_id).cloned()
@@ -1103,20 +1202,97 @@ mod tests {
     }
 
     #[test]
+    fn a_long_page_line_is_accepted_and_a_long_preview_line_dropped() {
+        let page = json!({"protocol": PAGE_PROTOCOL, "event": "state"});
+        let preview = json!({"protocol": "cdmw_rust_preview_protocol_v1", "event": "state"});
+        // Section 8.7 B2: a page state over 256 KiB is a normal page line.
+        assert!(!line_over_bound(&page, 2 * 1024 * 1024));
+        assert!(line_over_bound(&page, MAX_PAGE_LINE_BYTES + 1));
+        assert!(line_over_bound(&preview, MAX_ENGINE_LINE_BYTES + 1));
+        assert!(!line_over_bound(&preview, 1024));
+    }
+
+    #[test]
+    fn an_oversized_line_is_skipped_and_the_next_line_still_read() {
+        let mut input = std::io::Cursor::new(b"0123456789\n{\"ok\":1}\n12345\n".to_vec());
+        let mut line = Vec::new();
+        assert_eq!(
+            read_bounded_line(&mut input, &mut line, 5).unwrap(),
+            (11, true)
+        );
+        assert!(line.is_empty());
+        line.clear();
+        assert_eq!(
+            read_bounded_line(&mut input, &mut line, 8).unwrap(),
+            (9, false)
+        );
+        assert_eq!(line, b"{\"ok\":1}\n");
+        line.clear();
+        // Exactly at the bound, newline excluded: kept.
+        assert_eq!(
+            read_bounded_line(&mut input, &mut line, 5).unwrap(),
+            (6, false)
+        );
+        line.clear();
+        assert_eq!(
+            read_bounded_line(&mut input, &mut line, 5).unwrap(),
+            (0, false)
+        );
+    }
+
+    #[test]
+    fn a_follower_goes_back_to_its_own_mesh_only_after_a_discard() {
+        let own = "character/sword_01.pac";
+        assert!(restores_on_leave(
+            true,
+            own,
+            "Character\\sword_01.pac",
+            false
+        ));
+        assert!(!restores_on_leave(true, own, own, true));
+        assert!(!restores_on_leave(false, own, own, false));
+        assert!(!restores_on_leave(
+            true,
+            own,
+            "character/shield_01.pac",
+            false
+        ));
+    }
+
+    #[test]
+    fn a_line_for_an_unknown_viewport_never_reaches_browse() {
+        // Section 8.7 B3: a late close_request for a closed dialog is dropped.
+        assert!(names_a_viewport(
+            &json!({"viewport_id": "dialog-7", "event": "close_request"})
+        ));
+        assert!(!names_a_viewport(&json!({"event": "close_request"})));
+        assert!(!names_a_viewport(
+            &json!({"viewport_id": "", "event": "state"})
+        ));
+    }
+
+    #[test]
     fn a_line_goes_to_the_edit_its_session_names() {
-        let edits = [("draft-a", false), ("draft-b", false)];
+        // (session id, showing Browse's model before its session, in Browse's view)
+        let edits = [("draft-a", false, false), ("draft-b", false, false)];
         assert_eq!(addressed_edit(&edits, "draft-b"), Some(1));
         assert_eq!(addressed_edit(&edits, "draft-c"), None);
-        // With several edits a line naming none addresses none of them.
         assert_eq!(addressed_edit(&edits, ""), None);
-        // With one edit, as before P15, a line naming none is that edit's.
-        assert_eq!(addressed_edit(&[("draft-a", false)], ""), Some(0));
+        // Section 8.7 B1: a line naming no session is Browse's, never the one
+        // document editing in a window of its own.
+        assert_eq!(addressed_edit(&[("draft-a", false, false)], ""), None);
+        let with_browse = [("draft-a", false, false), ("draft-b", false, true)];
+        assert_eq!(addressed_edit(&with_browse, ""), Some(1));
         // An edit showing Browse's model before its session takes the first id named.
-        let viewing = [("draft-a", false), ("", true)];
+        let viewing = [("draft-a", false, false), ("", true, true)];
         assert_eq!(addressed_edit(&viewing, "draft-new"), Some(1));
-        assert_eq!(addressed_edit(&[("", false)], "draft-new"), Some(0));
+        // A host from before P15 names no session at all.
+        assert_eq!(addressed_edit(&[("", false, true)], "draft-new"), Some(0));
         assert_eq!(
-            addressed_edit(&[("", false), ("draft-a", false)], "draft-new"),
+            addressed_edit(
+                &[("", false, false), ("draft-a", false, false)],
+                "draft-new"
+            ),
             None
         );
     }

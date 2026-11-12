@@ -1205,16 +1205,7 @@ class RustPreviewSessionController(
         self._read_stdout(process, generation)
         self._read_stderr(process, generation)
         self._process = None
-        channel, self._edit_channel = self._edit_channel, None
-        if channel is not None:
-            channel.process_lost(exit_code)
-        window_channels, self._window_edit_channels = list(self._window_edit_channels), []
-        for window_channel in window_channels:
-            window_channel.process_lost(exit_code)
-        viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
-        pages, self._page_channels = list(self._page_channels.values()), {}
-        for viewport in (*viewports, *pages):
-            viewport.process_lost(exit_code)
+        self._tell_borrowers_process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
@@ -2027,9 +2018,26 @@ class RustPreviewSessionController(
             f"Preview package load failed: {detail} The current model was kept; retry when ready.",
         )
 
+    def _tell_borrowers_process_lost(self, exit_code: int) -> None:
+        """Every edit, window and page borrowing this process: it is gone."""
+
+        channel, self._edit_channel = self._edit_channel, None
+        if channel is not None:
+            channel.process_lost(exit_code)
+        window_channels, self._window_edit_channels = list(self._window_edit_channels), []
+        for window_channel in window_channels:
+            window_channel.process_lost(exit_code)
+        viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
+        pages, self._page_channels = list(self._page_channels.values()), {}
+        for viewport in (*viewports, *pages):
+            viewport.process_lost(exit_code)
+
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
         process = self._process
         self._process = None
+        # Its exit arrives as a retired process and tells no one: tell them now
+        # (section 8.7 B6).
+        self._tell_borrowers_process_lost(-1)
         self._fail_pending_captures(reason)
         self._ready_timer.stop()
         self._package_timer.stop()

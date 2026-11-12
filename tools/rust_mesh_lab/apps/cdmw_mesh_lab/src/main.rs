@@ -2958,6 +2958,25 @@ impl LabApplication {
         self.engine_leave_requested
     }
 
+    /// Whether CDMW accepted this edit's Finish (its followers then wait for the
+    /// finished package instead of going back to their own mesh).
+    fn engine_finished(&self) -> bool {
+        self.cdmw_finish_accepted
+    }
+
+    /// The archive file this edit edits, as followers match it.
+    fn engine_source_path(&self) -> Option<String> {
+        Some(
+            self.cdmw_bridge
+                .as_ref()?
+                .manifest()
+                .source
+                .get("path")?
+                .as_str()?
+                .to_owned(),
+        )
+    }
+
     fn engine_camera_report(&self) -> Value {
         camera_report(&self.camera)
     }

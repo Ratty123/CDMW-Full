@@ -3510,6 +3510,10 @@ impl WindowRenderer {
     /// shared, so a fault seen by one renderer is seen by all. Fails when the
     /// adapter cannot present to this window; the caller then uses `new`.
     pub fn new_on(gpu: &SharedGpu, window: Arc<Window>) -> Result<Self, RenderError> {
+        // A device that has faulted stays faulted for every renderer on it: refuse
+        // it, so the caller makes a device of its own instead of failing its
+        // health check on every retry (section 8.7 B7).
+        gpu.faults.check()?;
         let surface = gpu
             .instance
             .create_surface(window.clone())

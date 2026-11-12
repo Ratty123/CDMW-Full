@@ -433,6 +433,17 @@ impl PreviewRendererIdle {
         self.release_at = None;
     }
 
+    /// Due, unless another window, page or capture draws on this device: then the
+    /// release waits another idle period, so the device is never dropped under
+    /// them and never made twice (section 8.7 B5).
+    fn take_due_unless_shared(&mut self, now: Instant, shared: bool) -> bool {
+        if shared && self.release_at.is_some_and(|deadline| now >= deadline) {
+            self.release_at = Some(now + Duration::from_secs(15));
+            return false;
+        }
+        self.take_due(now)
+    }
+
     fn take_due(&mut self, now: Instant) -> bool {
         if self.release_at.is_some_and(|deadline| now >= deadline) {
             self.release_at = None;
@@ -460,6 +471,8 @@ pub struct PreviewApplication {
     parent_hwnd: u64,
     renderer: Option<WindowRenderer>,
     renderer_idle: PreviewRendererIdle,
+    /// Set by the engine: other windows or pages of this process draw on this device.
+    device_shared: bool,
     bridge: PreviewBridge,
     package: LoadedCdmwSessionPackage,
     document: MeshDocument,
@@ -580,6 +593,7 @@ impl PreviewApplication {
             parent_hwnd,
             renderer: None,
             renderer_idle: PreviewRendererIdle::default(),
+            device_shared: false,
             bridge,
             package,
             document,
@@ -804,6 +818,32 @@ impl PreviewApplication {
         }
     }
 
+    /// The followed edit left without a Finish: show this preview's own mesh
+    /// again (section 8.7 B8). After a Finish the finished package replaces it.
+    pub(crate) fn stop_following(&mut self, source_path: &str) {
+        if !crate::engine::restores_on_leave(
+            self.followed_revision.is_some(),
+            self.package
+                .manifest()
+                .source
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            source_path,
+            false,
+        ) {
+            return;
+        }
+        self.followed_revision = None;
+        if let Err(error) = self.rebuild_working_mesh() {
+            tracing::warn!("preview could not show its own mesh again: {error}");
+            return;
+        }
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     /// A viewport asked to close (or failed to open): the engine drops it.
     pub(crate) fn wants_close(&self) -> bool {
         self.exit_requested
@@ -832,6 +872,11 @@ impl PreviewApplication {
 
     pub(crate) fn wait(&mut self, event_loop: &ActiveEventLoop) {
         ApplicationHandler::about_to_wait(self, event_loop);
+    }
+
+    /// Whether other windows or pages of the engine process draw on this device.
+    pub(crate) fn set_device_shared(&mut self, shared: bool) {
+        self.device_shared = shared;
     }
 
     /// This process's device, for another window or an off-screen capture (P4 V5).
@@ -3487,7 +3532,11 @@ impl ApplicationHandler for PreviewApplication {
             }
             return;
         }
-        if self.renderer_idle.take_due(Instant::now()) {
+        let shared = self.device_shared || self.package_captures.is_some();
+        if self
+            .renderer_idle
+            .take_due_unless_shared(Instant::now(), shared)
+        {
             self.renderer = None;
         }
         if self.gpu_recovery.take_due(Instant::now()) && self.visible {
@@ -4419,6 +4468,17 @@ mod tests {
         idle.pause(now + Duration::from_secs(30));
         assert!(!idle.take_due(now + Duration::from_secs(44)));
         assert!(idle.take_due(now + Duration::from_secs(45)));
+    }
+
+    #[test]
+    fn preview_idle_keeps_the_device_while_another_window_draws_on_it() {
+        let now = Instant::now();
+        let mut idle = PreviewRendererIdle::default();
+        idle.pause(now);
+        // Section 8.7 B5: an edit, viewport, page or capture shares the device.
+        assert!(!idle.take_due_unless_shared(now + Duration::from_secs(15), true));
+        assert!(!idle.take_due_unless_shared(now + Duration::from_secs(29), false));
+        assert!(idle.take_due_unless_shared(now + Duration::from_secs(30), false));
     }
 
     #[test]
