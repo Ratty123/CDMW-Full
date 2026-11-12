@@ -13,6 +13,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - **Open in Mesh Editor** on a model Browse Archives already shows now edits it right there: the view keeps its angle and textures, the file and control panes fold into narrow strips that open under the pointer, and a banner names the file. Selecting another file shows its details; **Preview selected file instead** asks first. The editor appears on the model at once and every tool is ready within about two seconds for a single file; tools that are still being prepared say so when you use them and unlock by themselves, and parts you select in the Parts list meanwhile stay selected. Sets, comparison views and files Browse is not showing still open in the Mesh Editor tab.
 
+- Sets and other files opened in the **Mesh Editor** tab are edited in a window of the 3D preview that is already running instead of a separate editor program, so opening the tab starts nothing new in the background.
+
 - Character Finder's thumbnails are drawn by the 3D preview that is already running instead of starting a renderer for each, so fewer programs run in the background while you browse.
 
 - If CDMW closes unexpectedly while you edit a mesh, the next start tells you which drafts were saved and offers to open **Drafts & Mods** on them. Meshes opened from a file on disk are not autosaved, so there is nothing to offer for them.

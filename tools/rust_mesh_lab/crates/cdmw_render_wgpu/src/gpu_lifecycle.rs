@@ -46,7 +46,7 @@ impl GpuRecovery {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct GpuFaults(Arc<Mutex<Option<String>>>);
 
 impl GpuFaults {

@@ -23,6 +23,8 @@ from cdmw.services.mesh_rust_contract import RUST_MESH_EDITOR_PROTOCOL
 
 #: What a Preview helper announces when it can edit in place.
 EDIT_IN_PLACE_CAPABILITY = "edit_in_place_v1"
+#: What it announces when an edit can also have a window of its own there (P4 V5).
+OWN_VIEWPORT_EDIT_CAPABILITY = "own_viewport_edit_v1"
 
 _LEAVE_EVENTS = frozenset({"edit_left", "edit_refused"})
 #: The engine's own report; the editor component does not read it.
@@ -56,6 +58,8 @@ class EngineEditChannel(QObject):
         self.refusal = ""
         self.entered_report: dict = {}
         self.viewing = False
+        #: The edit has a window of its own in this process instead of Browse's (P4 V5).
+        self.own_window = False
 
     # ----- fed by the Preview controller --------------------------------------
     def feed(self, raw_line: bytes) -> None:
@@ -163,4 +167,4 @@ class EngineEditChannel(QObject):
         QTimer.singleShot(0, self, lambda: self.finished.emit(int(exit_code), status))
 
 
-__all__ = ["EDIT_IN_PLACE_CAPABILITY", "EngineEditChannel"]
+__all__ = ["EDIT_IN_PLACE_CAPABILITY", "OWN_VIEWPORT_EDIT_CAPABILITY", "EngineEditChannel"]

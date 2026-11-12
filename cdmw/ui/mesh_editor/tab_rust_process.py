@@ -269,6 +269,8 @@ class MeshEditorRustProcessMixin:
             )
             return
         self.standalone_rust_launch_parent_hwnd = parent_hwnd
+        if self._open_in_engine_window(session, parent_hwnd):
+            return
         spare = getattr(self, "_rust_spare", None)
         if editor_spare_enabled() and spare is not None and spare.matches(
             executable, executable_signature, parent_hwnd
@@ -309,6 +311,37 @@ class MeshEditorRustProcessMixin:
         self._set_rust_status("Opening the edit in Browse's viewport...")
         self._adopt_rust_editor_process(channel, session, keep_view=True)
         return True
+
+    def _open_in_engine_window(self, session: object, parent_hwnd: int) -> bool:
+        """Edit in a window of Browse's process under the tab (P4 V5): no process of its own.
+
+        Falls back to the usual launch when Browse's process cannot hold it, and
+        does not ask again for a session it once refused.
+        """
+
+        if getattr(self, "_engine_window_refused_session", None) is session:
+            return False
+        from cdmw.services.engine_capture import engine_capture_router
+
+        controller = engine_capture_router().resident_controller()
+        borrow = getattr(controller, "borrow_for_window_edit", None)
+        channel = borrow(self) if callable(borrow) else None
+        if channel is None:
+            return False
+        self._set_rust_status("Opening the embedded Mesh Editor...")
+        self._adopt_rust_editor_process(channel, session, own_window_parent=parent_hwnd)
+        return True
+
+    @staticmethod
+    def _engine_can_hold_editor_window() -> bool:
+        from cdmw.services.engine_capture import engine_capture_router
+        from cdmw.ui.preview.engine_channel import OWN_VIEWPORT_EDIT_CAPABILITY
+
+        controller = engine_capture_router().resident_controller()
+        try:
+            return controller is not None and OWN_VIEWPORT_EDIT_CAPABILITY in controller.capabilities
+        except RuntimeError:
+            return False
 
     def _leave_bound_viewport(self, reason: str) -> None:
         """Stop using Browse's viewport; the next launch uses the host's own."""
@@ -369,21 +402,27 @@ class MeshEditorRustProcessMixin:
             rust_theme_digest(theme) if isinstance(theme, Mapping) else ""
         )
 
-    def _adopt_rust_editor_process(self, process: QProcess, session: object, *, keep_view: bool = False) -> None:
+    def _adopt_rust_editor_process(self, process: QProcess, session: object, *, keep_view: bool = False,
+                                   own_window_parent: int = 0) -> None:
         """Give a pre-started helper its session; it answers hello and ready as a launch does.
 
         ``keep_view``: the helper is Browse's, already showing the model (P4 V3); it
         keeps its camera, view and every texture whose digest matches.
+        ``own_window_parent``: the helper is Browse's and the edit gets a window of
+        its own under this one, the tab's host (P4 V5).
         """
 
         self._connect_rust_process_signals(process)
         self._take_rust_process(process, session)
-        line = json.dumps({
+        message = {
             "event": "open_session",
             "protocol": RUST_MESH_EDITOR_PROTOCOL,
             "manifest": str(session.manifest_path),
             "keep_view": bool(keep_view),
-        }, separators=(",", ":")).encode("utf-8") + b"\n"
+        }
+        if own_window_parent > 0:
+            message.update(viewport="own", parent_hwnd=int(own_window_parent))
+        line = json.dumps(message, separators=(",", ":")).encode("utf-8") + b"\n"
         try:
             written = int(process.write(line))
         except RuntimeError:
@@ -412,6 +451,8 @@ class MeshEditorRustProcessMixin:
             return
         if getattr(self, "_viewport_binding", None) is not None:
             return  # an edit in Browse's viewport needs no spare of the tab's
+        if self._engine_can_hold_editor_window():
+            return  # the tab's edit opens in a window of Browse's process (P4 V5)
         host = getattr(self, "standalone_native_host_frame", None)
         host_hwnd = getattr(host, "host_hwnd", None)
         try:
@@ -1313,7 +1354,11 @@ class MeshEditorRustProcessMixin:
             # host's own viewport with the same prepared session.
             self.standalone_rust_process = None
             self.standalone_rust_ready_timer.stop()
-            self._leave_bound_viewport(refusal)
+            if getattr(process, "own_window", False):
+                # Browse's process could not hold the tab's window: a process of its own.
+                self._engine_window_refused_session = session
+            else:
+                self._leave_bound_viewport(refusal)
             self._launch_rust_editor_process(session)
             return
         if not shiboken6.isValid(self.standalone_rust_ready_timer):

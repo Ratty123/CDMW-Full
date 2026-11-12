@@ -248,7 +248,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         )
         # Its process may take Character Finder's thumbnails (P4 V5).
         from cdmw.services.engine_capture import engine_capture_router
-        engine_capture_router().register(self.controller)
+        # Browse's host lives as long as the app and may hold the tab's editor window.
+        engine_capture_router().register(self.controller, resident=not terminate_on_close)
         self._terminate_on_close = bool(terminate_on_close)
         self.controller.state_changed.connect(self._handle_controller_state)
         self.controller.protocol_event.connect(self._handle_protocol_event)

@@ -70,6 +70,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "dialog_prewarm_hold_v1",
     "edit_in_place_v1",
     "package_capture_v1",
+    "own_viewport_edit_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -704,6 +705,14 @@ impl PreviewApplication {
 
     /// Hand the window, the renderer (with every texture it holds) and the view
     /// to the edit state. Nothing is dropped; `return_view` takes them back.
+    /// This process's device, for another window or an off-screen capture (P4 V5).
+    pub(crate) fn shared_gpu(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
+        self.renderer
+            .as_ref()
+            .map(WindowRenderer::shared_gpu)
+            .or_else(|| self.lent_gpu.clone())
+    }
+
     pub(crate) fn lend_view(&mut self) -> Result<LentView, String> {
         if let Some(reason) = self.edit_in_place_blocker() {
             return Err(reason.to_owned());
@@ -1132,12 +1141,7 @@ impl PreviewApplication {
             Err(message) => return refuse(&self.bridge, message),
         };
         if self.package_captures.is_none() {
-            let gpu = self
-                .renderer
-                .as_ref()
-                .map(WindowRenderer::shared_gpu)
-                .or_else(|| self.lent_gpu.clone());
-            let Some(gpu) = gpu else {
+            let Some(gpu) = self.shared_gpu() else {
                 return refuse(&self.bridge, "the renderer is not ready".to_owned());
             };
             let outbound = self.bridge.outbound.clone();

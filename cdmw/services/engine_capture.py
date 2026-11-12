@@ -45,19 +45,38 @@ class EngineCaptureRouter(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._controllers: list[weakref.ref] = []
+        self._resident: list[weakref.ref] = []
         self._pending: dict[tuple[int, int], tuple[weakref.ref, _Job]] = {}
         self._submit.connect(self._send, Qt.ConnectionType.QueuedConnection)
 
-    def register(self, controller: QObject) -> None:
-        """A preview controller that may take captures (UI thread)."""
+    def register(self, controller: QObject, *, resident: bool = False) -> None:
+        """A preview controller that may take captures (UI thread).
+
+        ``resident``: its process lives as long as the app (Browse's), so it may
+        also hold the Mesh Editor tab's editor window (P4 V5).
+        """
 
         if any(ref() is controller for ref in self._controllers):
             return
         ref = weakref.ref(controller)
         self._controllers.append(ref)
+        if resident:
+            self._resident.append(ref)
         controller.protocol_event.connect(lambda payload, ref=ref: self._event(ref, payload))
         controller.state_changed.connect(lambda _state, _message, ref=ref: self._state(ref))
         controller.destroyed.connect(lambda *_args, ref=ref: self._forget(ref))
+
+    def resident_controller(self) -> QObject | None:
+        """The newest live resident preview controller (UI thread), if any."""
+
+        for ref in reversed(self._resident):
+            controller = ref()
+            try:
+                if controller is not None and controller.is_running:
+                    return controller
+            except RuntimeError:
+                continue
+        return None
 
     def _capable(self) -> list[QObject]:
         live = []

@@ -9,6 +9,13 @@
 //! edit ends (Finish, Discard, Cancel or `leave_edit`), the edit state gives the
 //! renderer and the camera back and the Preview shows its resident scene again.
 //!
+//! An edit can also have a window of its own (P4 V5): `open_session` with
+//! `viewport: "own"` and a `parent_hwnd` makes a child window under that parent
+//! (the Mesh Editor tab) with a renderer on the Preview's device, so the tab's
+//! editor is not a process of its own. Browse's view keeps drawing meanwhile;
+//! window events go to the window they name, and leaving closes the edit's
+//! window instead of giving a view back.
+//!
 //! One stdin reader serves both states: each line names its protocol and is
 //! routed by it. Both states write whole lines to stdout through their own
 //! writers, each locking the stream per line.
@@ -16,15 +23,17 @@
 use crate::LabApplication;
 use crate::cdmw_preview::{PreviewApplication, PreviewRoute};
 use crate::cdmw_session::{EditorRoute, PROTOCOL, PendingSessionInput};
+use cdmw_render_wgpu::WindowRenderer;
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
+use std::sync::Arc;
 use std::thread;
 use tracing::error;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
-use winit::window::WindowId;
+use winit::window::{WindowAttributes, WindowId};
 
 /// A line on either protocol may carry a large state; the editor's bound is the larger.
 const MAX_ENGINE_LINE_BYTES: usize = 256 * 1024;
@@ -44,6 +53,8 @@ pub struct EngineApplication {
     parent_hwnd: u64,
     /// GPU texture uploads before the edit was entered, until it reports them.
     uploads_before_edit: Option<u64>,
+    /// The edit's own window, when it has one instead of Browse's.
+    edit_window: Option<WindowId>,
     lent_camera_report: Option<Value>,
 }
 
@@ -64,11 +75,12 @@ impl EngineApplication {
             editor_lines,
             parent_hwnd,
             uploads_before_edit: None,
+            edit_window: None,
             lent_camera_report: None,
         }
     }
 
-    fn poll_editor_lines(&mut self) {
+    fn poll_editor_lines(&mut self, event_loop: &ActiveEventLoop) {
         loop {
             let line = match self.editor_lines.try_recv() {
                 Ok(line) => line,
@@ -80,12 +92,12 @@ impl EngineApplication {
                         route.error("CDMW closed the control input".to_owned());
                     }
                 }
-                EditorLine::Message(value) => self.route_editor_message(value),
+                EditorLine::Message(value) => self.route_editor_message(value, event_loop),
             }
         }
     }
 
-    fn route_editor_message(&mut self, value: Value) {
+    fn route_editor_message(&mut self, value: Value, event_loop: &ActiveEventLoop) {
         let event = value
             .get("event")
             .and_then(Value::as_str)
@@ -100,6 +112,9 @@ impl EngineApplication {
         }
         if self.edit.is_none() {
             match event.as_str() {
+                "open_session" if own_viewport_parent(&value).is_some() => {
+                    self.enter_edit_own_window(value, event_loop);
+                }
                 "open_session" => self.enter_edit(value),
                 "enter_edit" => self.enter_edit_view(&value),
                 // A cancel for an edit that already ended needs no answer.
@@ -150,6 +165,52 @@ impl EngineApplication {
             lent.window,
             lent.renderer,
             keep_view.then_some(lent.camera),
+        ));
+        self.edit_route = Some(route);
+    }
+
+    /// `open_session {manifest, viewport: "own", parent_hwnd}`: the edit gets a
+    /// child window of its own under `parent_hwnd`, drawn on the Preview's device.
+    fn enter_edit_own_window(&mut self, open_session: Value, event_loop: &ActiveEventLoop) {
+        let Some(parent_hwnd) = own_viewport_parent(&open_session) else {
+            return;
+        };
+        let refuse = |reason: String| {
+            write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
+        };
+        let Some(gpu) = self.preview.shared_gpu() else {
+            return refuse("the preview's renderer is not ready".to_owned());
+        };
+        let attributes = match cdmw_win32_embed::with_parent_window(
+            WindowAttributes::default()
+                .with_title("CDMW — Mesh Editor")
+                .with_decorations(false)
+                .with_visible(false),
+            parent_hwnd,
+        ) {
+            Ok(attributes) => attributes,
+            Err(error) => return refuse(format!("the editor's parent window is invalid: {error}")),
+        };
+        let window = match event_loop.create_window(attributes) {
+            Ok(window) => Arc::new(window),
+            Err(error) => {
+                return refuse(format!("the editor's window could not be created: {error}"));
+            }
+        };
+        let renderer = match WindowRenderer::new_on(&gpu, window.clone()) {
+            Ok(renderer) => renderer,
+            Err(error) => return refuse(format!("the editor's renderer could not start: {error}")),
+        };
+        let (input, route) = PendingSessionInput::routed();
+        let _ = route.message(open_session);
+        self.uploads_before_edit = Some(renderer.texture_upload_count());
+        self.edit_window = Some(window.id());
+        self.edit = Some(LabApplication::new_engine_edit(
+            input,
+            parent_hwnd,
+            window,
+            renderer,
+            None,
         ));
         self.edit_route = Some(route);
     }
@@ -211,6 +272,12 @@ impl EngineApplication {
         };
         self.edit_route = None;
         self.uploads_before_edit = None;
+        if self.edit_window.take().is_some() {
+            // Its own window and renderer close with it; Browse's view was never lent.
+            drop(edit);
+            write_editor_line(&json!({"event": "edit_left"}));
+            return;
+        }
         let (renderer, camera) = edit.give_back_view();
         drop(edit);
         self.preview.return_view(renderer, Some(camera));
@@ -240,7 +307,13 @@ impl ApplicationHandler for EngineApplication {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(edit) = &mut self.edit {
+        // An edit in Browse's view gets that window's events; one in its own
+        // window gets only those of its window.
+        let to_edit = self
+            .edit
+            .as_ref()
+            .is_some_and(|_| self.edit_window.is_none_or(|own| own == window_id));
+        if to_edit && let Some(edit) = &mut self.edit {
             edit.window_event(event_loop, window_id, event);
             self.leave_if_requested();
         } else {
@@ -249,7 +322,7 @@ impl ApplicationHandler for EngineApplication {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        self.poll_editor_lines();
+        self.poll_editor_lines(event_loop);
         // While editing, the Preview only reads its messages and loads; the edit
         // state draws and sets the wait.
         self.preview.about_to_wait(event_loop);
@@ -286,6 +359,14 @@ impl ApplicationHandler for EngineApplication {
         }
         self.leave_if_requested();
     }
+}
+
+/// The parent window an `open_session` asks its own viewport under, if any.
+fn own_viewport_parent(open_session: &Value) -> Option<u64> {
+    (open_session.get("viewport").and_then(Value::as_str) == Some("own"))
+        .then(|| open_session.get("parent_hwnd").and_then(Value::as_u64))
+        .flatten()
+        .filter(|hwnd| *hwnd != 0)
 }
 
 /// The one stdin reader of an engine process: each line goes to the state its
@@ -370,6 +451,26 @@ fn write_editor_line(value: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_edit_asks_for_its_own_viewport_with_a_parent_window() {
+        let own = json!({"event": "open_session", "viewport": "own", "parent_hwnd": 4242});
+        assert_eq!(own_viewport_parent(&own), Some(4242));
+        // Browse's view (the default) and a missing or null parent are not one.
+        assert_eq!(
+            own_viewport_parent(&json!({"event": "open_session", "keep_view": true})),
+            None
+        );
+        assert_eq!(own_viewport_parent(&json!({"viewport": "own"})), None);
+        assert_eq!(
+            own_viewport_parent(&json!({"viewport": "own", "parent_hwnd": 0})),
+            None
+        );
+        assert_eq!(
+            own_viewport_parent(&json!({"viewport": "browse", "parent_hwnd": 9})),
+            None
+        );
+    }
 
     #[test]
     fn each_line_goes_to_the_state_its_protocol_names() {

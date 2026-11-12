@@ -169,6 +169,8 @@ class RustPreviewSessionController(
         self._capabilities: set[str] = set()
         # P4 V3: an edit borrowing this helper's viewport (cdmw.ui.preview.engine_channel).
         self._edit_channel = None
+        # P4 V5: an edit in a window of its own in this process (the Mesh Editor tab).
+        self._window_edit_channel = None
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._authoring_scene_modes: dict[str, str] = {}
@@ -1198,6 +1200,9 @@ class RustPreviewSessionController(
         channel, self._edit_channel = self._edit_channel, None
         if channel is not None:
             channel.process_lost(exit_code)
+        window_channel, self._window_edit_channel = self._window_edit_channel, None
+        if window_channel is not None:
+            window_channel.process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
@@ -1276,7 +1281,7 @@ class RustPreviewSessionController(
                 continue
             if isinstance(payload, Mapping) and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
                 # The editor's half of this process (P4 V3) belongs to the borrowed edit.
-                channel = self._edit_channel
+                channel = self._edit_channel or self._window_edit_channel
                 if channel is not None:
                     channel.feed(raw_line)
                 if payload.get("event") in {"edit_entered", "edit_viewing", "edit_left", "edit_refused"}:
@@ -2085,6 +2090,8 @@ class RustPreviewSessionController(
             return "this viewport's helper cannot edit in place"
         if self._edit_channel is not None:
             return "this viewport is already editing"
+        if self._window_edit_channel is not None:
+            return "the Mesh Editor tab is editing in this viewport's process"
         if self._pending_package_generation:
             return "the viewport is still loading a model"
         return ""
@@ -2109,6 +2116,53 @@ class RustPreviewSessionController(
         channel = EngineEditChannel(write, lambda: self.process_id, self._release_edit_channel, parent)
         self._edit_channel = channel
         return channel
+
+    def window_edit_blocker(self) -> str:
+        """Why this process cannot hold an edit in a window of its own now, or ""."""
+
+        from cdmw.ui.preview.engine_channel import OWN_VIEWPORT_EDIT_CAPABILITY
+
+        if not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if OWN_VIEWPORT_EDIT_CAPABILITY not in self._capabilities:
+            return "this preview process cannot hold an editor window"
+        if self._edit_channel is not None or self._window_edit_channel is not None:
+            return "this preview process is already editing"
+        return ""
+
+    def borrow_for_window_edit(self, parent: QObject | None = None):
+        """A channel for an edit in a window of its own in this process (P4 V5), or None.
+
+        Browse keeps previewing meanwhile: unlike an edit in its viewport, this one
+        holds back no package load.
+        """
+
+        from cdmw.ui.preview.engine_channel import EngineEditChannel
+
+        if self.window_edit_blocker():
+            return None
+        process, generation = self._process, self._process_generation
+
+        def write(data: bytes) -> int:
+            if self._process is not process or self._process_generation != generation:
+                return -1
+            try:
+                return int(process.write(data))
+            except (AttributeError, RuntimeError, TypeError):
+                return -1
+
+        channel = EngineEditChannel(write, lambda: self.process_id, self._release_window_edit_channel, parent)
+        channel.own_window = True
+        self._window_edit_channel = channel
+        return channel
+
+    def _release_window_edit_channel(self, channel: object) -> None:
+        if self._window_edit_channel is channel:
+            self._window_edit_channel = None
+
+    @property
+    def editing_in_own_window(self) -> bool:
+        return self._window_edit_channel is not None
 
     def _release_edit_channel(self, channel: object) -> None:
         if self._edit_channel is not channel:

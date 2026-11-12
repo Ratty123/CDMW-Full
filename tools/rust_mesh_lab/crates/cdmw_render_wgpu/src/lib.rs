@@ -3050,9 +3050,11 @@ impl PendingFrameCapture {
 /// handles, so a capture reuses the device instead of creating its own.
 #[derive(Clone, Debug)]
 pub struct SharedGpu {
+    instance: wgpu::Instance,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    faults: GpuFaults,
 }
 
 pub struct WindowRenderer {
@@ -3137,9 +3139,11 @@ impl WindowRenderer {
     #[must_use]
     pub fn shared_gpu(&self) -> SharedGpu {
         SharedGpu {
+            instance: self._instance.clone(),
             adapter: self.adapter.clone(),
             device: self.device.clone(),
             queue: self.queue.clone(),
+            faults: self.gpu_faults.clone(),
         }
     }
 
@@ -3450,7 +3454,52 @@ impl WindowRenderer {
             faults.record(error.to_string());
             wake.request_redraw();
         }));
-        let size = window.inner_size();
+        Self::with_device(
+            instance,
+            surface,
+            adapter,
+            device,
+            queue,
+            gpu_faults,
+            window.inner_size(),
+        )
+    }
+
+    /// A renderer for another window on `gpu`'s device (P4 V5): one device and
+    /// queue for every viewport of the process. The device's fault record is
+    /// shared, so a fault seen by one renderer is seen by all. Fails when the
+    /// adapter cannot present to this window; the caller then uses `new`.
+    pub fn new_on(gpu: &SharedGpu, window: Arc<Window>) -> Result<Self, RenderError> {
+        let surface = gpu
+            .instance
+            .create_surface(window.clone())
+            .map_err(|error| RenderError::Surface(error.to_string()))?;
+        if !gpu.adapter.is_surface_supported(&surface) {
+            return Err(RenderError::Surface(
+                "the shared adapter cannot present to this window".to_owned(),
+            ));
+        }
+        Self::with_device(
+            gpu.instance.clone(),
+            surface,
+            gpu.adapter.clone(),
+            gpu.device.clone(),
+            gpu.queue.clone(),
+            gpu.faults.clone(),
+            window.inner_size(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_device(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        gpu_faults: GpuFaults,
+        size: winit::dpi::PhysicalSize<u32>,
+    ) -> Result<Self, RenderError> {
         let capabilities = surface.get_capabilities(&adapter);
         let format =
             preferred_surface_format(&capabilities.formats).ok_or(RenderError::SurfaceFormat)?;
@@ -5377,9 +5426,11 @@ async fn material_capture_device() -> Result<SharedGpu, RenderError> {
         .await
         .map_err(|error| RenderError::Device(error.to_string()))?;
     Ok(SharedGpu {
+        instance,
         adapter,
         device,
         queue,
+        faults: GpuFaults::default(),
     })
 }
 
@@ -5416,6 +5467,7 @@ async fn material_capture_batch(
         adapter,
         device,
         queue,
+        ..
     } = match gpu {
         Some(gpu) => gpu.clone(),
         None => material_capture_device().await?,
