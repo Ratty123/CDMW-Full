@@ -250,7 +250,12 @@ class PacXmlCodeEditor(QPlainTextEdit):
             return
         self._theme_colors = _active_editor_colors()
         self._apply_theme_palette()
-        self.highlighter.setDocument(None)
+        # The document parents each highlighter, so dropping the reference alone
+        # kept every replaced one alive. Deferred: this runs inside an app-wide
+        # palette or style change, which walks a copied list of objects.
+        replaced = self.highlighter
+        replaced.setDocument(None)
+        replaced.deleteLater()
         self.highlighter = self._build_highlighter()
         self.line_number_area.update()
 

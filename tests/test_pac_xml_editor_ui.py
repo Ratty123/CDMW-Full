@@ -446,3 +446,24 @@ def test_compatibility_facade_wires_three_tabs_validation_graph_preview_and_orig
     assert "original_payload=document.original_payload" in source
     assert "edited_payload=preparation.edit_result.payload or None" in source
     assert "task_accepts_cancel=True" in source
+
+
+def test_palette_changes_replace_the_highlighter_without_keeping_old_ones() -> None:
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtGui import QSyntaxHighlighter
+    from cdmw.ui.archive_browser.pac_xml_editor_source_view import PacXmlCodeEditor
+
+    app = _app()
+    editor = PacXmlCodeEditor("<root><child/></root>")
+    first = editor.highlighter
+    try:
+        for _ in range(3):
+            QApplication.sendEvent(editor, QEvent(QEvent.Type.PaletteChange))
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert editor.highlighter is not first, "The palette change did not reach the editor"
+        assert editor.document().findChildren(QSyntaxHighlighter) == [editor.highlighter]
+        assert editor.highlighter.document() is editor.document()
+    finally:
+        editor.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
