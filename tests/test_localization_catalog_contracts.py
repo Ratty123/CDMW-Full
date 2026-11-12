@@ -673,6 +673,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
         )
     )
+    child_profile = tmp_path / "child-profile"
+    child_profile.mkdir()
     result = subprocess.run(
         [sys.executable, "-c", script],
         cwd=Path(__file__).resolve().parents[1],
@@ -680,6 +682,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             **os.environ,
             "QT_QPA_PLATFORM": "offscreen",
             "CDMW_GUI_STARTUP_SMOKE": "1",
+            # A profile of its own, so the fault log below is this child's.
+            "CDMW_PROFILE_DIR": str(child_profile),
         },
         text=True,
         stdout=subprocess.PIPE,
@@ -688,9 +692,9 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
     )
     native_fault = ""
     if result.returncode:
-        # MainWindow redirects faulthandler to the app log. Preserve this
-        # child's trace before the next startup scenario replaces that log.
-        fault_path = Path(__file__).resolve().parents[1] / "workspace/logs/native_fault_current.log"
+        # MainWindow redirects faulthandler to the app log in the profile's
+        # workspace, so a native fault's stack is there and not on stderr.
+        fault_path = child_profile / "workspace/logs/native_fault_current.log"
         if fault_path.is_file():
             with fault_path.open("rb") as fault_file:
                 fault_file.seek(max(0, fault_path.stat().st_size - 8192))
