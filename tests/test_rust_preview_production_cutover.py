@@ -1029,7 +1029,8 @@ def test_gpu_startup_errors_use_the_paused_renderer_failure_protocol() -> None:
     assert "self.renderer_failed(error.to_string())" in gpu_startup
     assert "self.renderer_failed(error)" in gpu_startup
     assert "self.exit_requested = true" not in gpu_startup
-    assert resumed.index("self.window = Some(window.clone())") < resumed.index("WindowRenderer::new")
+    # The renderer goes through make_renderer (P4 V5: another viewport draws on the engine's device).
+    assert resumed.index("self.window = Some(window.clone())") < resumed.index("self.make_renderer(")
 
 
 def test_hidden_preview_retains_renderer_until_the_idle_release_is_due() -> None:

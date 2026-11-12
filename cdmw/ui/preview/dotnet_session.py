@@ -171,6 +171,8 @@ class RustPreviewSessionController(
         self._edit_channel = None
         # P4 V5: an edit in a window of its own in this process (the Mesh Editor tab).
         self._window_edit_channel = None
+        # P4 V5: other previews' windows in this process, by viewport id.
+        self._viewport_channels: dict[str, object] = {}
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._authoring_scene_modes: dict[str, str] = {}
@@ -1203,6 +1205,9 @@ class RustPreviewSessionController(
         window_channel, self._window_edit_channel = self._window_edit_channel, None
         if window_channel is not None:
             window_channel.process_lost(exit_code)
+        viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
+        for viewport in viewports:
+            viewport.process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
@@ -1278,6 +1283,14 @@ class RustPreviewSessionController(
             try:
                 payload = json.loads(line)
             except ValueError:
+                continue
+            viewport_id = payload.get("viewport_id") if isinstance(payload, Mapping) else None
+            if viewport_id:
+                # Another preview's window in this process (P4 V5); a closed one's
+                # late lines are dropped, never taken as this preview's.
+                viewport = self._viewport_channels.get(str(viewport_id))
+                if viewport is not None:
+                    viewport.feed(raw_line)
                 continue
             if isinstance(payload, Mapping) and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
                 # The editor's half of this process (P4 V3) belongs to the borrowed edit.
@@ -2116,6 +2129,53 @@ class RustPreviewSessionController(
         channel = EngineEditChannel(write, lambda: self.process_id, self._release_edit_channel, parent)
         self._edit_channel = channel
         return channel
+
+    def viewport_blocker(self) -> str:
+        """Why this process cannot open another preview's window now, or ""."""
+
+        from cdmw.ui.preview.engine_viewport import VIEWPORT_OPEN_CAPABILITY
+
+        if self._closed or not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if VIEWPORT_OPEN_CAPABILITY not in self._capabilities:
+            return "this preview process cannot open other windows"
+        return ""
+
+    def open_viewport(self, channel: object, manifest: str, parent_hwnd: int) -> bool:
+        """Ask this process to open another preview's window (P4 V5)."""
+
+        if self.viewport_blocker():
+            return False
+        viewport_id = str(getattr(channel, "viewport_id", "") or "")
+        if not viewport_id or viewport_id in self._viewport_channels:
+            return False
+        self._viewport_channels[viewport_id] = channel
+        written = self.write_for_viewport(json.dumps({
+            "protocol": RUST_PREVIEW_PROTOCOL, "event": "viewport_open", "viewport_id": viewport_id,
+            "manifest": str(manifest), "parent_hwnd": int(parent_hwnd),
+        }, separators=(",", ":")).encode("utf-8") + b"\n")
+        if written <= 0:
+            self._viewport_channels.pop(viewport_id, None)
+            return False
+        return True
+
+    def write_for_viewport(self, data: bytes) -> int:
+        process = self._process
+        if process is None or not qprocess_is_running(process):
+            return -1
+        try:
+            return int(process.write(bytes(data)))
+        except (AttributeError, RuntimeError, TypeError):
+            return -1
+
+    def release_viewport(self, channel: object) -> None:
+        viewport_id = str(getattr(channel, "viewport_id", "") or "")
+        if self._viewport_channels.get(viewport_id) is channel:
+            del self._viewport_channels[viewport_id]
+
+    @property
+    def viewport_count(self) -> int:
+        return len(self._viewport_channels)
 
     def window_edit_blocker(self) -> str:
         """Why this process cannot hold an edit in a window of its own now, or ""."""

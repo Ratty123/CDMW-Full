@@ -62,9 +62,14 @@ class EngineCaptureRouter(QObject):
         self._controllers.append(ref)
         if resident:
             self._resident.append(ref)
-        controller.protocol_event.connect(lambda payload, ref=ref: self._event(ref, payload))
-        controller.state_changed.connect(lambda _state, _message, ref=ref: self._state(ref))
-        controller.destroyed.connect(lambda *_args, ref=ref: self._forget(ref))
+        for name, slot in (
+            ("protocol_event", lambda payload, ref=ref: self._event(ref, payload)),
+            ("state_changed", lambda _state, _message, ref=ref: self._state(ref)),
+            ("destroyed", lambda *_args, ref=ref: self._forget(ref)),
+        ):
+            connect = getattr(getattr(controller, name, None), "connect", None)
+            if callable(connect):
+                connect(slot)
 
     def resident_controller(self) -> QObject | None:
         """The newest live resident preview controller (UI thread), if any."""
@@ -72,7 +77,7 @@ class EngineCaptureRouter(QObject):
         for ref in reversed(self._resident):
             controller = ref()
             try:
-                if controller is not None and controller.is_running:
+                if controller is not None and getattr(controller, "is_running", False):
                     return controller
             except RuntimeError:
                 continue
@@ -85,7 +90,8 @@ class EngineCaptureRouter(QObject):
             if controller is None:
                 continue
             try:
-                if controller.is_running and PACKAGE_CAPTURE_CAPABILITY in controller.capabilities:
+                if (getattr(controller, "is_running", False)
+                        and PACKAGE_CAPTURE_CAPABILITY in getattr(controller, "capabilities", ())):
                     live.append(controller)
             except RuntimeError:  # deleted on the C++ side
                 continue
@@ -143,7 +149,7 @@ class EngineCaptureRouter(QObject):
     def _state(self, ref: weakref.ref) -> None:
         controller = ref()
         try:
-            running = controller is not None and controller.is_running
+            running = controller is not None and bool(getattr(controller, "is_running", False))
         except RuntimeError:
             running = False
         if not running:
@@ -164,6 +170,15 @@ class EngineCaptureRouter(QObject):
 
     def pending_count(self) -> int:
         return len(self._pending)
+
+    def forget_all(self) -> None:
+        """Forget every registered controller and fail pending captures (for tests)."""
+
+        for _owner, job in list(self._pending.values()):
+            self._finish(job, "unavailable", "The preview process stopped during the capture.")
+        self._pending.clear()
+        self._controllers.clear()
+        self._resident.clear()
 
 
 _router: EngineCaptureRouter | None = None

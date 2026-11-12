@@ -71,6 +71,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "edit_in_place_v1",
     "package_capture_v1",
     "own_viewport_edit_v1",
+    "viewport_open_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -163,6 +164,9 @@ struct PreviewBridge {
     outbound: Sender<Value>,
     session_id: String,
     process_generation: u64,
+    /// Set for another viewport of the engine (P4 V5): every line it writes
+    /// names it, since sessions follow the packages and are not unique.
+    viewport_id: Option<String>,
 }
 
 impl PreviewBridge {
@@ -195,6 +199,7 @@ impl PreviewBridge {
                 outbound,
                 session_id,
                 process_generation: process_generation.max(1),
+                viewport_id: None,
             },
             route,
         )
@@ -221,6 +226,18 @@ impl PreviewRoute {
     pub fn closed(&self) {
         let _ = self.0.send(Incoming::Closed);
     }
+
+    /// A route and a count of the messages that reached it, for routing tests.
+    #[cfg(test)]
+    pub(crate) fn for_test() -> (Self, impl Fn() -> usize) {
+        let (sender, receiver) = bounded(8);
+        (Self(sender), move || {
+            receiver
+                .try_iter()
+                .filter(|item| matches!(item, Incoming::Message(_)))
+                .count()
+        })
+    }
 }
 
 impl PreviewBridge {
@@ -235,6 +252,9 @@ impl PreviewBridge {
             object
                 .entry("process_generation".to_owned())
                 .or_insert_with(|| json!(self.process_generation));
+            if let Some(viewport_id) = &self.viewport_id {
+                object.insert("viewport_id".to_owned(), json!(viewport_id));
+            }
         }
         let _ = self.outbound.try_send(value);
     }
@@ -492,6 +512,9 @@ pub struct PreviewApplication {
     package_captures: Option<crate::package_capture::PackageCaptures>,
     /// The device's handles while an edit holds the renderer.
     lent_gpu: Option<cdmw_render_wgpu::SharedGpu>,
+    /// Another viewport of the engine process (P4 V5): it draws on this device,
+    /// and closing it closes its window, not the process.
+    secondary_on: Option<cdmw_render_wgpu::SharedGpu>,
 }
 
 /// The mode drawn: an icon capture is always textured, so a view mode chosen
@@ -604,6 +627,7 @@ impl PreviewApplication {
             lent: false,
             package_captures: None,
             lent_gpu: None,
+            secondary_on: None,
             icon_capture: false,
         };
         application.refresh_visible_snapshot();
@@ -705,6 +729,68 @@ impl PreviewApplication {
 
     /// Hand the window, the renderer (with every texture it holds) and the view
     /// to the edit state. Nothing is dropped; `return_view` takes them back.
+    /// A renderer for this preview's window: on the engine's device for another
+    /// viewport (P4 V5), else on a device of its own.
+    fn make_renderer(
+        &self,
+        window: Arc<Window>,
+    ) -> std::result::Result<WindowRenderer, cdmw_render_wgpu::RenderError> {
+        if let Some(gpu) = &self.secondary_on {
+            match WindowRenderer::new_on(gpu, window.clone()) {
+                Ok(renderer) => return Ok(renderer),
+                Err(error) => {
+                    tracing::warn!("viewport falls back to a device of its own: {error}");
+                }
+            }
+        }
+        pollster::block_on(WindowRenderer::new(window))
+    }
+
+    /// Make this preview another viewport of the engine process, drawn on `gpu`;
+    /// its lines name `viewport_id`.
+    pub(crate) fn make_secondary(&mut self, gpu: cdmw_render_wgpu::SharedGpu, viewport_id: String) {
+        self.secondary_on = Some(gpu);
+        self.bridge.viewport_id = Some(viewport_id);
+    }
+
+    pub(crate) fn viewport_id(&self) -> Option<&str> {
+        self.bridge.viewport_id.as_deref()
+    }
+
+    pub(crate) fn window_id(&self) -> Option<WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
+    /// A viewport asked to close (or failed to open): the engine drops it.
+    pub(crate) fn wants_close(&self) -> bool {
+        self.exit_requested
+    }
+
+    /// Exit the process, unless this is another viewport of the engine (which
+    /// only closes; the engine drops it).
+    fn exit_loop(&self, event_loop: &ActiveEventLoop) {
+        if self.secondary_on.is_none() {
+            event_loop.exit();
+        }
+    }
+
+    pub(crate) fn resume(&mut self, event_loop: &ActiveEventLoop) {
+        ApplicationHandler::resumed(self, event_loop);
+    }
+
+    pub(crate) fn route_window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        ApplicationHandler::window_event(self, event_loop, window_id, event);
+    }
+
+    pub(crate) fn wait(&mut self, event_loop: &ActiveEventLoop) {
+        ApplicationHandler::about_to_wait(self, event_loop);
+    }
+
     /// This process's device, for another window or an off-screen capture (P4 V5).
     pub(crate) fn shared_gpu(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
         self.renderer
@@ -777,7 +863,8 @@ impl PreviewApplication {
         self.gpu_recovery.cancel_pending();
         let window = self.window.clone().ok_or("Preview window is unavailable")?;
         self.renderer = Some(
-            pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?,
+            self.make_renderer(window)
+                .map_err(|error| error.to_string())?,
         );
         if let Err(error) = self
             .configure_renderer()
@@ -1147,11 +1234,15 @@ impl PreviewApplication {
             let outbound = self.bridge.outbound.clone();
             let session_id = self.bridge.session_id.clone();
             let generation = self.bridge.process_generation;
+            let viewport_id = self.bridge.viewport_id.clone();
             let send = move |mut line: Value| {
                 if let Some(object) = line.as_object_mut() {
                     object.insert("protocol".to_owned(), json!(PREVIEW_PROTOCOL));
                     object.insert("session_id".to_owned(), json!(session_id));
                     object.insert("process_generation".to_owned(), json!(generation));
+                    if let Some(viewport_id) = &viewport_id {
+                        object.insert("viewport_id".to_owned(), json!(viewport_id));
+                    }
                 }
                 let _ = outbound.try_send(line);
             };
@@ -3058,7 +3149,7 @@ impl ApplicationHandler for PreviewApplication {
         // Retain the hidden window on GPU failure. The paused helper can deliver
         // renderer_failed and wait for Close/Retry without another resumed init.
         self.window = Some(window.clone());
-        let renderer = match pollster::block_on(WindowRenderer::new(window.clone())) {
+        let renderer = match self.make_renderer(window.clone()) {
             Ok(renderer) => renderer,
             Err(error) => {
                 self.renderer_failed(error.to_string());
@@ -3337,7 +3428,7 @@ impl ApplicationHandler for PreviewApplication {
             _ => {}
         }
         if self.exit_requested {
-            event_loop.exit();
+            self.exit_loop(event_loop);
         }
     }
 
@@ -3347,7 +3438,7 @@ impl ApplicationHandler for PreviewApplication {
         if self.lent {
             // The edit state draws and sets the wait; only messages and loads run here.
             if self.exit_requested {
-                event_loop.exit();
+                self.exit_loop(event_loop);
             }
             return;
         }
@@ -3388,7 +3479,7 @@ impl ApplicationHandler for PreviewApplication {
                 .min()
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
-        if self.exit_requested {
+        if self.exit_requested && self.secondary_on.is_none() {
             // winit 0.30 on Windows prepares AboutToWait before entering its
             // OS wait. Make this final wait nonblocking when closing hidden.
             event_loop.set_control_flow(ControlFlow::Poll);

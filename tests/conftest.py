@@ -63,6 +63,22 @@ def _isolate_shared_preview_settings(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_engine_router():
+    """Each test starts with no preview process registered as Browse's engine (P4 V5)."""
+    from cdmw.services import engine_capture
+
+    # One router object for the run: dropping a parentless QObject lets the
+    # collector destroy it in the middle of another test's Qt work.
+    router = engine_capture._router
+    if router is not None:
+        router.forget_all()
+    yield
+    router = engine_capture._router
+    if router is not None:
+        router.forget_all()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_verified_preview_files():
     """Each test starts with no remembered preview file digests."""
     from cdmw.services.mesh_rust_preview_files import forget_verified_preview_files

@@ -16,8 +16,16 @@
 //! window events go to the window they name, and leaving closes the edit's
 //! window instead of giving a view back.
 //!
-//! One stdin reader serves both states: each line names its protocol and is
-//! routed by it. Both states write whole lines to stdout through their own
+//! Other previews can be windows of this process too (P4 V5): a
+//! `viewport_open {viewport_id, manifest, parent_hwnd}` line on the preview
+//! protocol opens another preview state with a child window under that parent,
+//! drawn on the same device. Every line it writes names its `viewport_id`, and a
+//! line naming it is routed to it (sessions follow the packages they load, so
+//! they are not unique). Closing it (`close_request` naming it) drops its window
+//! and says `viewport_closed`; the process keeps running.
+//!
+//! One stdin reader serves every state: each line names its protocol and is
+//! routed by it, a preview line also by its session. Both states write whole lines to stdout through their own
 //! writers, each locking the stream per line.
 
 use crate::LabApplication;
@@ -26,8 +34,9 @@ use crate::cdmw_session::{EditorRoute, PROTOCOL, PendingSessionInput};
 use cdmw_render_wgpu::WindowRenderer;
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use tracing::error;
 use winit::application::ApplicationHandler;
@@ -42,11 +51,20 @@ const EDITOR_QUEUE_BOUND: usize = 256;
 #[derive(Debug)]
 enum EditorLine {
     Message(Value),
+    /// `viewport_open`: the engine opens another preview state.
+    Viewport(Value),
     Closed,
 }
 
+/// Preview routes by viewport id, shared with the stdin reader.
+type PreviewRoutes = Arc<Mutex<HashMap<String, PreviewRoute>>>;
+
 pub struct EngineApplication {
     preview: PreviewApplication,
+    /// Other previews' windows in this process (P4 V5).
+    viewports: Vec<PreviewApplication>,
+    routes: PreviewRoutes,
+    proxy: EventLoopProxy<()>,
     edit: Option<LabApplication>,
     edit_route: Option<EditorRoute>,
     editor_lines: Receiver<EditorLine>,
@@ -67,9 +85,13 @@ impl EngineApplication {
         proxy: EventLoopProxy<()>,
     ) -> Self {
         let (editor_tx, editor_lines) = bounded(EDITOR_QUEUE_BOUND);
-        spawn_engine_input(preview_route, editor_tx, proxy);
+        let routes = PreviewRoutes::default();
+        spawn_engine_input(preview_route, Arc::clone(&routes), editor_tx, proxy.clone());
         Self {
             preview,
+            viewports: Vec::new(),
+            routes,
+            proxy,
             edit: None,
             edit_route: None,
             editor_lines,
@@ -93,6 +115,7 @@ impl EngineApplication {
                     }
                 }
                 EditorLine::Message(value) => self.route_editor_message(value, event_loop),
+                EditorLine::Viewport(value) => self.open_viewport(&value, event_loop),
             }
         }
     }
@@ -167,6 +190,77 @@ impl EngineApplication {
             keep_view.then_some(lent.camera),
         ));
         self.edit_route = Some(route);
+    }
+
+    /// `viewport_open {viewport_id, manifest, parent_hwnd}`: another preview's
+    /// window in this process, on the main preview's device.
+    fn open_viewport(&mut self, value: &Value, event_loop: &ActiveEventLoop) {
+        let viewport_id = value
+            .get("viewport_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let refuse = |reason: String| {
+            write_preview_line(&json!({
+                "event": "viewport_refused",
+                "viewport_id": viewport_id,
+                "reason": reason,
+            }));
+        };
+        let manifest = value
+            .get("manifest")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let parent_hwnd = value
+            .get("parent_hwnd")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if viewport_id.is_empty() || manifest.is_empty() || parent_hwnd == 0 {
+            return refuse(
+                "viewport_open needs a viewport id, a manifest and a parent window".to_owned(),
+            );
+        }
+        if self
+            .viewports
+            .iter()
+            .any(|view| view.viewport_id() == Some(viewport_id.as_str()))
+        {
+            return refuse("that viewport is already open here".to_owned());
+        }
+        let Some(gpu) = self.preview.shared_gpu() else {
+            return refuse("the preview's renderer is not ready".to_owned());
+        };
+        let (mut viewport, route) = match PreviewApplication::open_routed(
+            std::path::Path::new(manifest),
+            parent_hwnd,
+            self.proxy.clone(),
+        ) {
+            Ok(opened) => opened,
+            Err(error) => return refuse(format!("{error:#}")),
+        };
+        viewport.make_secondary(gpu, viewport_id.clone());
+        if let Ok(mut routes) = self.routes.lock() {
+            routes.insert(viewport_id, route);
+        }
+        // Its window, renderer and `protocol_ready`/`ready`, as a launch does.
+        viewport.resume(event_loop);
+        self.viewports.push(viewport);
+    }
+
+    /// Drop the viewports that closed; CDMW hears `viewport_closed` for each.
+    fn drop_closed_viewports(&mut self) {
+        let (closed, open): (Vec<_>, Vec<_>) = std::mem::take(&mut self.viewports)
+            .into_iter()
+            .partition(PreviewApplication::wants_close);
+        self.viewports = open;
+        for viewport in closed {
+            let viewport_id = viewport.viewport_id().unwrap_or_default().to_owned();
+            if let Ok(mut routes) = self.routes.lock() {
+                routes.remove(&viewport_id);
+            }
+            drop(viewport);
+            write_preview_line(&json!({"event": "viewport_closed", "viewport_id": viewport_id}));
+        }
     }
 
     /// `open_session {manifest, viewport: "own", parent_hwnd}`: the edit gets a
@@ -316,6 +410,12 @@ impl ApplicationHandler for EngineApplication {
         if to_edit && let Some(edit) = &mut self.edit {
             edit.window_event(event_loop, window_id, event);
             self.leave_if_requested();
+        } else if let Some(viewport) = self
+            .viewports
+            .iter_mut()
+            .find(|view| view.window_id() == Some(window_id))
+        {
+            viewport.route_window_event(event_loop, window_id, event);
         } else {
             self.preview.window_event(event_loop, window_id, event);
         }
@@ -326,7 +426,13 @@ impl ApplicationHandler for EngineApplication {
         // While editing, the Preview only reads its messages and loads; the edit
         // state draws and sets the wait.
         self.preview.about_to_wait(event_loop);
-        let preview_flow = event_loop.control_flow();
+        let mut preview_flow = event_loop.control_flow();
+        for viewport in &mut self.viewports {
+            viewport.wait(event_loop);
+            preview_flow = earliest(preview_flow, event_loop.control_flow());
+        }
+        event_loop.set_control_flow(preview_flow);
+        self.drop_closed_viewports();
         if let Some(edit) = &mut self.edit {
             edit.about_to_wait(event_loop);
             // Both views may be live (an edit in a window of its own): each set the
@@ -389,6 +495,7 @@ fn own_viewport_parent(open_session: &Value) -> Option<u64> {
 /// protocol names.
 fn spawn_engine_input(
     preview: PreviewRoute,
+    routes: PreviewRoutes,
     editor: Sender<EditorLine>,
     proxy: EventLoopProxy<()>,
 ) {
@@ -418,6 +525,14 @@ fn spawn_engine_input(
                                     if editor.try_send(EditorLine::Message(value)).is_err() {
                                         preview.error("CDMW control queue overflowed".to_owned());
                                     }
+                                } else if value.get("event").and_then(Value::as_str)
+                                    == Some("viewport_open")
+                                {
+                                    if editor.try_send(EditorLine::Viewport(value)).is_err() {
+                                        preview.error("CDMW control queue overflowed".to_owned());
+                                    }
+                                } else if let Some(route) = viewport_route(&routes, &value) {
+                                    route.message(value);
                                 } else {
                                     preview.message(value);
                                 }
@@ -435,12 +550,42 @@ fn spawn_engine_input(
                 }
             }
             preview.closed();
+            if let Ok(routes) = routes.lock() {
+                for route in routes.values() {
+                    route.closed();
+                }
+            }
             let _ = editor.send(EditorLine::Closed);
             let _ = proxy.send_event(());
         });
     if let Err(spawn_error) = spawned {
         error!("engine input thread could not start: {spawn_error}");
     }
+}
+
+/// The route of the other viewport this preview line names, if any.
+fn viewport_route(routes: &PreviewRoutes, value: &Value) -> Option<PreviewRoute> {
+    let viewport_id = value.get("viewport_id").and_then(Value::as_str)?;
+    routes.lock().ok()?.get(viewport_id).cloned()
+}
+
+/// A line the engine itself says on the preview protocol (`viewport_closed`).
+fn write_preview_line(value: &Value) {
+    let mut value = value.clone();
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "protocol".to_owned(),
+            json!(crate::cdmw_session::PREVIEW_PROTOCOL),
+        );
+        object.insert("process_id".to_owned(), json!(std::process::id()));
+    }
+    let Ok(mut line) = serde_json::to_vec(&value) else {
+        return;
+    };
+    line.push(b'\n');
+    let stdout = std::io::stdout();
+    let mut output = stdout.lock();
+    let _ = output.write_all(&line).and_then(|()| output.flush());
 }
 
 /// Lines on the editor protocol go to the edit state; everything else is the Preview's.
@@ -467,6 +612,24 @@ fn write_editor_line(value: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_preview_line_goes_to_the_viewport_it_names() {
+        let routes = PreviewRoutes::default();
+        let (route, incoming) = crate::cdmw_preview::PreviewRoute::for_test();
+        routes
+            .lock()
+            .unwrap_or_else(|_| panic!("routes"))
+            .insert("dialog".to_owned(), route);
+        let line = json!({"event": "package_load_request", "session_id": "shared", "viewport_id": "dialog"});
+        let found = viewport_route(&routes, &line).unwrap_or_else(|| panic!("no route"));
+        found.message(line);
+        assert_eq!(incoming(), 1);
+        // A session id alone (Browse's, or one a dialog shares with it) names no viewport.
+        assert!(viewport_route(&routes, &json!({"session_id": "dialog"})).is_none());
+        assert!(viewport_route(&routes, &json!({"viewport_id": "browse"})).is_none());
+        assert!(viewport_route(&routes, &json!({"event": "cancel"})).is_none());
+    }
 
     #[test]
     fn the_engine_waits_for_the_earlier_of_both_views() {

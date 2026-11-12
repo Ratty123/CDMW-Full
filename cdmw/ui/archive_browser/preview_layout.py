@@ -620,6 +620,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_preview_host = RustPreviewHostFrame(
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=False,
+            resident_engine=True,
         )
         self.archive_d3d11_preview_host.setObjectName("DotNetVorticePreviewHost")
         self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)

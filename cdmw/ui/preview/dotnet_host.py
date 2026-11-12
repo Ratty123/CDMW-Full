@@ -86,7 +86,12 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         ui_localizer: object | None = None,
         direct_authoring: bool = False,
         theme_key: str = "",
+        resident_engine: bool = False,
     ) -> None:
+        """``resident_engine``: this host's process lives as long as the app
+        (Browse Archives'); other previews and the Mesh Editor tab's editor become
+        windows of it (P4 V5). Every other host asks it for a window first."""
+
         super().__init__(parent)
         ensure_native_host_clipping(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
@@ -235,11 +240,18 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         )
         if adopted is not None:
             controller = adopted[0]
+        if controller is None and not resident_engine:
+            # Another preview: a window of Browse's process when it can open one (P4 V5).
+            from cdmw.ui.preview.engine_viewport import engine_viewport_factory
+            process_factory = engine_viewport_factory()
+        else:
+            process_factory = None
         self.controller = controller or RustPreviewSessionController(
             host_hwnd=self._host_hwnd,
             profile=self._profile,
             configured_executable=configured_executable,
             terminate_on_close=terminate_on_close,
+            process_factory=process_factory,
             direct_authoring=direct_authoring,
             parent=self,
         )
@@ -248,8 +260,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         )
         # Its process may take Character Finder's thumbnails (P4 V5).
         from cdmw.services.engine_capture import engine_capture_router
-        # Browse's host lives as long as the app and may hold the tab's editor window.
-        engine_capture_router().register(self.controller, resident=not terminate_on_close)
+        # Browse's host lives as long as the app and may hold other windows.
+        engine_capture_router().register(self.controller, resident=resident_engine)
         self._terminate_on_close = bool(terminate_on_close)
         self.controller.state_changed.connect(self._handle_controller_state)
         self.controller.protocol_event.connect(self._handle_protocol_event)
