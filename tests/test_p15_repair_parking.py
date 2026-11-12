@@ -133,13 +133,20 @@ def test_an_own_process_crash_keeps_its_session_while_a_request_finishes(tmp_pat
     # The real failure path and dispose scheduling: with a request running it only marks the session.
     tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch, stub_dispose=False)
     monkeypatch.setattr(tab, "_fail_rust_editor", _fail)
+    from PySide6.QtCore import QThread
+
     process = _Process()
     tab.standalone_rust_process = process
-    tab.standalone_rust_protocol_thread = object()  # a request is still running
+    request = QThread()  # a request still running when the helper dies (section 8.8: a real thread)
+    tab.standalone_rust_protocol_thread = request
+    disposed: list[bool] = []
+    monkeypatch.setattr(tab, "_start_rust_dispose_worker", lambda *_args: disposed.append(True))
     try:
         tab._handle_rust_process_error(process, QProcess.ProcessError.Crashed)  # noqa: SLF001
         tab._handle_rust_process_finished(process, 1, QProcess.ExitStatus.CrashExit)  # noqa: SLF001
-        assert not tab.standalone_rust_dispose_pending, "the kept session is disposed when the request ends"
+        # The request ends through the real completion path.
+        tab._handle_rust_protocol_thread_finished(request)  # noqa: SLF001
+        assert not disposed, "the kept session was disposed when the request ended"
         assert tab.standalone_rust_authoring_session is session
     finally:
         tab.standalone_rust_protocol_thread = None
@@ -194,8 +201,10 @@ def test_a_crash_while_editing_in_browse_continues_in_browse_s_viewport(tmp_path
     monkeypatch.setattr(tab, "_adopt_rust_editor_process",
                         lambda channel, current, **kw: adopted.append((channel, kw)))
     tab.live_edit.moved_to_own_viewport.connect(moved.append)
+    # The shared process crashed: the real crash path records it (section 8.8: not by hand).
+    monkeypatch.setattr(tab, "_rewrite_rust_session_after_crash", lambda current: None)
+    assert tab._recover_rust_editor_after_crash()
     # Browse's process is restarting after the crash: not ready yet.
-    tab._rust_last_crash_at = time.monotonic()
     assert tab._open_in_bound_viewport(session)
     assert tab.live_edit.viewport_binding is binding and not moved
     _make_ready(controller)
