@@ -182,7 +182,6 @@ def read_mesh_build(
         data = _payload_bytes(payload, stop_event)
         row = rows.get(key) or {}
         path = _original_case_path(payload, key, rows)
-        entry = getattr(payload, "entry", None)
         group = str(row.get("package_group") or "")
         files.append(MeshBuildFile(
             path=path,
@@ -193,7 +192,7 @@ def read_mesh_build(
             note=str(row.get("note") or ""),
             is_new=bool(row.get("is_new")),
         ))
-        by_key[key] = payload if entry is None else payload
+        by_key[key] = payload
     compatibility = None
     try:
         compatibility = read_compatibility(root, stop_event=stop_event)
