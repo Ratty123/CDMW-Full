@@ -1,14 +1,13 @@
-"""Archive patch, audio patch, and backup restore actions."""
+"""Audio loose mods, and Restore Backup for what an older CDMW patched into the game."""
 from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
-from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
 from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_workflow_service import (
@@ -22,53 +21,11 @@ from cdmw.services.archive_workflow_service import (
     wwise_media_source_id,
 )
 from cdmw.models import ArchiveEntry
-from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.ui.archive_browser.sound_bank_editor import SoundBankEditorDialog
 
 
 class ArchivePatchActionsMixin:
-    def _apply_archive_patch_result(self, patch_result: ArchivePatchResult) -> None:
-        lookup_indexes = self._archive_lookup_indexes_snapshot()
-        if lookup_indexes is None:
-            pending = list(getattr(self, "_archive_patch_results_pending_index", ()) or ())
-            pending.append(patch_result)
-            self._archive_patch_results_pending_index = pending[-16:]
-            self.archive_preview_cache.clear()
-            self.shell.set_status_message(
-                "Archive patch completed; resident cache update is waiting for path indexing."
-            )
-            return
-        path_index, _basename_index = lookup_indexes
-        for normalized_path, updated_entry in patch_result.changed_entries.items():
-            for existing_entry in path_index.get(normalized_path, []):
-                if existing_entry.pamt_path.resolve() != updated_entry.pamt_path.resolve():
-                    continue
-                existing_entry.paz_file = updated_entry.paz_file
-                existing_entry.offset = updated_entry.offset
-                existing_entry.comp_size = updated_entry.comp_size
-                existing_entry.orig_size = updated_entry.orig_size
-                existing_entry.flags = updated_entry.flags
-                existing_entry.paz_index = updated_entry.paz_index
-        self.archive_preview_cache.clear()
-        changed_paths = tuple(str(path or "").replace("\\", "/").strip().lower() for path in patch_result.changed_entries)
-        if any(
-            _is_material_sidecar_extension(
-                PurePosixPath(path).suffix,
-                PurePosixPath(path).name,
-            )
-            or path.endswith(".dds")
-            for path in changed_paths
-        ):
-            self.archive_sidecar_generation += 1
-            self._clear_archive_asset_family_cache()
-            self.archive_sidecar_entries_by_texture_path = {}
-            self.archive_sidecar_entries_by_texture_basename = {}
-            if self.archive_entries and self.shell._current_archive_performance_settings().enable_sidecar_indexing:
-                self.archive_sidecar_pending_start = True
-                QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
-            else:
-                self.archive_sidecar_pending_start = False
-
     def _start_archive_audio_export(self, entry: ArchiveEntry) -> None:
         default_dir = self.shell.settings_file_path.parent / "audio_export"
         default_target = default_dir / f"{Path(entry.basename).stem}.wav"

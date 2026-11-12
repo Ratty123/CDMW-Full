@@ -874,8 +874,13 @@ of these values are unverified.
 ## Read-only boundary and exports
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
-Actions that can write route through service-owned confirmation and
-`ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.
+Nothing in this package writes into the game's archives: mesh, audio and texture
+replacements are written as mods. The one game write left is **Restore Backup...**
+([actions](patch_actions.py)), which puts back the files an older CDMW version
+patched, from the backup it made then, through `ArchiveMutationService.restore_backup`
+after a confirmation. The direct "Patch Game Files" route was removed (2026-11-12);
+`tests/test_no_game_archive_writes.py` fails if a route that writes into the game
+comes back.
 
 **Actions > Extract Selected / Extract Filtered** exports original files of any
 type, including mixed extensions. Both commands also appear in a file's right-click

@@ -1,119 +1,101 @@
+"""ArchiveMutationService after the direct patch route was removed (decision 35).
+
+What remains is Restore Backup (putting back what an older CDMW patched into the
+game) and the backup/restore pair the switched-off overlay installs use. Every
+test works on an owned archive written into a temporary folder.
+"""
+
 from __future__ import annotations
 
 import ast
+import os
 import threading
 import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from cdmw.app.app_folder import SYSTEM_TEMP_ENV
 from cdmw.core import archive_patching
 from cdmw.models import RunCancelled
-from cdmw.services.archive_mutation_service import ArchiveMutationService, ArchivePatchRequest
+from cdmw.services.archive_mutation_service import ArchiveMutationService
 from tests.test_archive_patch_preflight import _write_test_archive
 
 
-def test_shutdown_retains_archive_write_ownership_until_rollback_finishes(tmp_path, monkeypatch):
+def _archive_files(root: Path, entry) -> tuple[Path, ...]:
+    return (root / "meta" / "0.papgt", entry.pamt_path, entry.paz_file)
+
+
+def test_the_patch_plan_entry_points_are_gone():
+    service = ArchiveMutationService()
+    for name in ("prepare_patch", "validate_patch", "create_backup", "apply_patch"):
+        assert not hasattr(service, name), name
+
+
+def test_restore_holds_archive_write_ownership_and_refuses_while_closing(tmp_path, monkeypatch):
     from cdmw.services import application_shutdown_service as shutdown
 
     monkeypatch.setattr(shutdown, "_shutdown_started_at", None)
+    monkeypatch.setattr(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", tmp_path / "backups")
     entry = _write_test_archive(tmp_path)
-    originals = {path: path.read_bytes() for path in (tmp_path / "meta" / "0.papgt", entry.pamt_path, entry.paz_file)}
+    originals = {path: path.read_bytes() for path in _archive_files(tmp_path, entry)}
     service = ArchiveMutationService()
-    plan = service.prepare_patch(ArchivePatchRequest(entry, b"new-payload"), confirmed=True)
-    stop = threading.Event()
-    write = archive_patching._write_paz_payload
+    backup_dir = service.backup_files(_archive_files(tmp_path, entry), description="Test backup")
+    entry.paz_file.write_bytes(b"damaged by an older CDMW")
     restore = archive_patching.restore_archive_patch_backup
-    restored = []
+    owned = []
 
-    def write_then_close(request_entry, payload):
-        assert shutdown.archive_write_in_progress()
-        result = write(request_entry, payload)
-        shutdown._shutdown_started_at = 0.0
-        stop.set()
-        return result
-
-    def restore_during_close(backup, **kwargs):
-        assert shutdown.archive_write_in_progress()
-        restored.append(backup)
+    def restore_and_check(backup, **kwargs):
+        owned.append(shutdown.archive_write_in_progress())
         return restore(backup, **kwargs)
 
-    monkeypatch.setattr(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", tmp_path / "backups")
-    monkeypatch.setattr(archive_patching, "_write_paz_payload", write_then_close)
-    monkeypatch.setattr(archive_patching, "restore_archive_patch_backup", restore_during_close)
-    with pytest.raises(RunCancelled, match="restoring the backup"):
-        service.apply_patch(plan, stop_event=stop)
-    assert restored
-    assert not shutdown.archive_write_in_progress()
+    monkeypatch.setattr(archive_patching, "restore_archive_patch_backup", restore_and_check)
+    assert service.restore_backup(backup_dir, confirmed=True) == backup_dir
+    assert owned == [True] and not shutdown.archive_write_in_progress()
     assert {path: path.read_bytes() for path in originals} == originals
+    entry.paz_file.write_bytes(b"damaged again")
+    shutdown._shutdown_started_at = 0.0
     with pytest.raises(RunCancelled, match="CDMW is closing"):
-        service.apply_patch(plan)
-    assert {path: path.read_bytes() for path in originals} == originals
+        service.restore_backup(backup_dir, confirmed=True)
+    assert entry.paz_file.read_bytes() == b"damaged again"
+
+
+def test_restore_lists_the_backups_an_older_cdmw_made_in_the_system_temp_folder(tmp_path, monkeypatch):
+    from cdmw.constants import APP_NAME
+
+    monkeypatch.setattr(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", tmp_path / "workspace" / "temp" / "backups")
+    monkeypatch.setenv(SYSTEM_TEMP_ENV, str(tmp_path / "system-temp"))
+    older = tmp_path / "system-temp" / APP_NAME / "archive_patch_backups" / "20260901_120000"
+    older.mkdir(parents=True)
+    (older / "backup_manifest.json").write_text('{"files": []}', encoding="utf-8")
+    (older.parent / "not-a-backup").mkdir()
+    entry = _write_test_archive(tmp_path / "game")
+    service = ArchiveMutationService()
+    newer = service.backup_files((entry.paz_file,), description="Made now")
+
+    assert service.backup_roots() == (tmp_path / "workspace" / "temp" / "backups", older.parent)
+    assert service.list_backups() == [newer, older]
+    assert service.list_backups(limit=1) == [newer]
 
 
 class ArchiveMutationServiceTests(unittest.TestCase):
-    def test_confirmed_plan_applies_with_core_preflight_and_backup(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root)
-            service = ArchiveMutationService()
-            plan = service.prepare_patch(
-                ArchivePatchRequest(entry, b"new-payload"),
-                confirmed=True,
-                description="Test archive patch",
-            )
-
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
-                result = service.apply_patch(plan)
-
-            self.assertTrue(plan.confirmed)
-            self.assertEqual((entry.path,), plan.target_paths)
-            self.assertEqual("Test archive patch", plan.safety.description)
-            self.assertIn(entry.path.casefold(), result.changed_entries)
-            self.assertTrue((result.backup_dir / "backup_manifest.json").is_file())
-
-    def test_unconfirmed_plan_never_reaches_low_level_apply(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            entry = _write_test_archive(Path(temp_dir))
-            service = ArchiveMutationService()
-            plan = service.prepare_patch(ArchivePatchRequest(entry, b"new"))
-
-            with patch.object(archive_patching, "patch_archive_entries") as low_level_apply:
-                with self.assertRaisesRegex(PermissionError, "explicit confirmation"):
-                    service.apply_patch(plan)
-
-            low_level_apply.assert_not_called()
-
-    def test_read_only_preflight_rejects_stale_entry_before_backup(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root, "character/model/existing.pac")
-            stale_entry = replace(entry, path="character/model/missing.pac")
-            plan = ArchiveMutationService().prepare_patch(
-                ArchivePatchRequest(stale_entry, b"new"),
-                confirmed=True,
-            )
-
-            with patch.object(archive_patching, "_create_backup") as create_backup:
-                with self.assertRaisesRegex(ValueError, "Could not locate"):
-                    ArchiveMutationService().validate_patch(plan)
-
-            create_backup.assert_not_called()
-
     def test_backup_listing_and_confirmed_restore_use_core_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             entry = _write_test_archive(root)
             original_payload = entry.paz_file.read_bytes()
             service = ArchiveMutationService()
-            plan = service.prepare_patch(ArchivePatchRequest(entry, b"unused"), confirmed=True)
             backup_root = root / "backups"
+            (root / "system-temp").mkdir()
 
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", backup_root):
-                backup_dir = service.create_backup(plan)
+            with (
+                patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", backup_root),
+                patch.dict(os.environ, {SYSTEM_TEMP_ENV: str(root / "system-temp")}),
+            ):
+                backup_dir = service.backup_files(_archive_files(root, entry), description="Test backup")
+                self.assertTrue((backup_dir / "backup_manifest.json").is_file())
                 entry.paz_file.write_bytes(b"damaged")
                 self.assertEqual([backup_dir], service.list_backups())
                 with self.assertRaisesRegex(PermissionError, "explicit confirmation"):
@@ -123,55 +105,9 @@ class ArchiveMutationServiceTests(unittest.TestCase):
             self.assertEqual(backup_dir, restored_dir)
             self.assertEqual(original_payload, entry.paz_file.read_bytes())
 
-    def test_cancellation_after_append_rolls_back_complete_backup(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root)
-            original_files = {
-                path: path.read_bytes()
-                for path in (root / "meta" / "0.papgt", entry.pamt_path, entry.paz_file)
-            }
-            stop_event = threading.Event()
-            service = ArchiveMutationService()
-            plan = service.prepare_patch(ArchivePatchRequest(entry, b"new-payload"), confirmed=True)
-            original_write = archive_patching._write_paz_payload
-
-            def write_then_cancel(request_entry, payload: bytes) -> int:
-                offset = original_write(request_entry, payload)
-                stop_event.set()
-                return offset
-
-            with (
-                patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"),
-                patch.object(archive_patching, "_write_paz_payload", side_effect=write_then_cancel),
-            ):
-                with self.assertRaisesRegex(RunCancelled, "restoring the backup"):
-                    service.apply_patch(plan, stop_event=stop_event)
-
-            for path, expected in original_files.items():
-                self.assertEqual(expected, path.read_bytes(), path)
-
-    def test_post_commit_reporting_failure_restores_backup(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root)
-            original_files = {
-                path: path.read_bytes()
-                for path in (root / "meta" / "0.papgt", entry.pamt_path, entry.paz_file)
-            }
-            service = ArchiveMutationService()
-            plan = service.prepare_patch(ArchivePatchRequest(entry, b"new-payload"), confirmed=True)
-
-            def fail_after_commit(message: str) -> None:
-                if message.startswith("Refreshing changed archive entries"):
-                    raise RuntimeError("report failed")
-
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
-                with self.assertRaisesRegex(RuntimeError, "report failed"):
-                    service.apply_patch(plan, on_log=fail_after_commit)
-
-            for path, expected in original_files.items():
-                self.assertEqual(expected, path.read_bytes(), path)
+    def test_a_backup_needs_files(self) -> None:
+        with self.assertRaisesRegex(ValueError, "at least one file"):
+            ArchiveMutationService().backup_files(())
 
     def test_cancelled_restore_stops_before_writing(self) -> None:
         service = ArchiveMutationService()
@@ -183,87 +119,6 @@ class ArchiveMutationServiceTests(unittest.TestCase):
                 service.restore_backup("unused", confirmed=True, stop_event=stop_event)
 
         restore.assert_not_called()
-
-    def test_plan_with_additions_routes_through_apply_archive_mutations(self) -> None:
-        from cdmw.core.archive_extraction import read_archive_entry_data
-        from cdmw.core.archive_format import parse_archive_pamt
-        from cdmw.services.archive_mutation_service import ArchiveAddRequest
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root, "character/model/existing.pac")
-            service = ArchiveMutationService()
-            addition = ArchiveAddRequest.from_template(entry, "character/model/brand_new.pac", b"brand-new payload")
-            plan = service.prepare_patch((), additions=addition, confirmed=True)
-            self.assertEqual(plan.target_paths, ("character/model/brand_new.pac",))
-            self.assertEqual(plan.safety.description, "Add 1 archive entrie(s)")
-
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
-                service.validate_patch(plan)
-                backup_dir = service.create_backup(plan)
-                result = service.apply_patch(plan)
-
-            self.assertTrue((backup_dir / "backup_manifest.json").is_file())
-            self.assertEqual(result.added_paths, ["character/model/brand_new.pac"])
-            entries = {e.path.lower(): e for e in parse_archive_pamt(entry.pamt_path)}
-            self.assertEqual(read_archive_entry_data(entries["character/model/brand_new.pac"])[0], b"brand-new payload")
-            self.assertEqual(read_archive_entry_data(entries["character/model/existing.pac"])[0], b"old-payload")
-
-    def test_additions_of_the_wrong_type_or_an_empty_plan_are_refused(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            entry = _write_test_archive(Path(temp_dir))
-            service = ArchiveMutationService()
-            with self.assertRaisesRegex(ValueError, "No archive modifications"):
-                service.prepare_patch(())
-            with self.assertRaisesRegex(TypeError, "ArchiveAddRequest"):
-                service.prepare_patch((ArchivePatchRequest(entry, b"x"),), additions=("character/model/x.pac",))  # type: ignore[arg-type]
-            with self.assertRaisesRegex(TypeError, "MetaFileWrite"):
-                service.prepare_patch((ArchivePatchRequest(entry, b"x"),), meta_files=("meta/0.pathc",))  # type: ignore[arg-type]
-
-    def test_meta_files_are_written_backed_up_and_restored_with_the_patch(self) -> None:
-        from cdmw.core.archive_extraction import read_archive_entry_data
-        from cdmw.core.archive_format import parse_archive_pamt
-        from cdmw.domain.archives.mutation import MetaFileWrite
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root, "character/model/existing.pac")
-            pathc = entry.pamt_path.parent.parent / "meta" / "0.pathc"
-            pathc.write_bytes(b"registry v1")
-            service = ArchiveMutationService()
-            plan = service.prepare_patch((ArchivePatchRequest(entry, b"new-payload"),), meta_files=MetaFileWrite("meta/0.pathc", b"registry v2"), confirmed=True)
-            self.assertEqual(plan.target_paths, ("character/model/existing.pac", "meta/0.pathc"))
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
-                result = service.apply_patch(plan)
-                self.assertEqual(result.meta_paths, ["meta/0.pathc"])
-                self.assertEqual(pathc.read_bytes(), b"registry v2")
-                entries = {e.path.lower(): e for e in parse_archive_pamt(entry.pamt_path)}
-                self.assertEqual(read_archive_entry_data(entries["character/model/existing.pac"])[0], b"new-payload")
-                service.restore_backup(result.backup_dir, confirmed=True)
-            self.assertEqual(pathc.read_bytes(), b"registry v1")
-            # a meta file that does not ship is not created, and one outside the root is refused
-            missing = service.prepare_patch((ArchivePatchRequest(entry, b"x"),), meta_files=MetaFileWrite("meta/1.pathc", b"?"), confirmed=True)
-            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
-                with self.assertRaisesRegex(FileNotFoundError, "does not exist"):
-                    service.apply_patch(missing)
-            with self.assertRaisesRegex(ValueError, "relative path"):
-                MetaFileWrite("../outside.bin", b"?")
-
-    def test_addition_preflight_refuses_a_path_that_already_exists_before_backup(self) -> None:
-        from cdmw.services.archive_mutation_service import ArchiveAddRequest
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            entry = _write_test_archive(root, "character/model/existing.pac")
-            plan = ArchiveMutationService().prepare_patch(
-                (),
-                additions=ArchiveAddRequest.from_template(entry, "character/model/existing.pac", b"dup"),
-                confirmed=True,
-            )
-            with patch.object(archive_patching, "_create_backup") as create_backup:
-                with self.assertRaisesRegex(ValueError, "already exists"):
-                    ArchiveMutationService().apply_patch(plan)
-            create_backup.assert_not_called()
 
     def test_destructive_ui_modules_have_no_direct_low_level_patch_calls(self) -> None:
         forbidden = {

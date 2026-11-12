@@ -43,6 +43,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- CDMW no longer contains the route that patched rebuilt meshes straight into the game's archive files, which nothing in the interface could reach any more. Mesh, audio and texture replacements are always written as mods. **Restore Backup...** in **Browse Archives** stays: it puts back the archive files an older CDMW version changed, from the backup it made then, and asks first. It again finds the backups those versions kept in the Windows temp folder.
+
 - Font sizes in **Settings > Appearance** are labelled in points, as they always were, and the interface, list and log fonts all accept 6 to 16 pt. The Mesh Editor, Create New Item and Mod Management follow the same smallest size and density as the rest of the app, and the static replacement dialog's text now matches it. Buttons, fields and tabs grow and shrink with the chosen text size.
 - Browse Archives, preview windows and the Mesh Editor now share **one view mode** and **one background colour**: every viewport offers the same list (Browse's material views and the editor's Faces, Wire, Vertices and X-Ray views), and changing either in one viewport changes it in the others. Your earlier Preview view choice carries over. Icon captures are always textured.
 
