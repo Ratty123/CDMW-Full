@@ -122,17 +122,28 @@ class ShortcutsPage(QWidget):
         registry.keymap_changed.connect(self.refill)
         # Bound methods: Qt drops these connections when the page is destroyed.
         registry.changed.connect(self._registry_changed)
+        self._stale = False
         self.refill()
 
     def _registry_changed(self, _context: str = "") -> None:
+        # Settings builds this page before the shell registers its commands, and
+        # tools register theirs later still: a change while hidden is read on show.
         if self.isVisible():
             self.refill()
+        else:
+            self._stale = True
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._stale:
+            self.refill()
+        super().showEvent(event)
 
     # ----- content -------------------------------------------------------------
     def rows(self):
         return keymap_rows(self.registry, self.settings)
 
     def refill(self, *_args) -> None:
+        self._stale = False
         text = self.search.text().casefold().split()
         rows = self.rows()
         clashes = conflicts(rows)

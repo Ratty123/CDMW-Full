@@ -77,11 +77,10 @@ class TextureEditorShortcutsUiMixin:
         }
         for key, callback in bindings.items():
             self._register_shortcut(shortcut_map.get(key, ""), callback)
-        if not self.workspace_embedded:
-            # The standalone editor's actions are registry commands (P12).
-            from cdmw.ui.texture_workflow.editor_commands import install_texture_editor_commands
+        # The editor's actions are registry commands (P12), embedded or not.
+        from cdmw.ui.texture_workflow.editor_commands import install_texture_editor_commands
 
-            install_texture_editor_commands(self, bindings, shortcut_map)
+        install_texture_editor_commands(self, bindings, shortcut_map)
 
     def open_shortcuts_dialog(self) -> None:
         from cdmw.services.keymap_store import save_texture_editor_keys, texture_editor_keys
