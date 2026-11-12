@@ -17,9 +17,10 @@ OpenCV is imported here and nowhere else. Three groups:
 - written and pinned, but OpenCV first: the numpy version is many times slower
   on a 4096 x 4096 layer, and these run per stroke or per composite, so they
   call OpenCV while it is installed and fall back to numpy without it (gray,
-  HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp);
-- OpenCV only, not written yet (flood fill, antialiased polygon fill,
-  contours, Canny, bilateral and median filters).
+  HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp,
+  both flood fills, Canny);
+- OpenCV only, not written yet (antialiased polygon fill, contours,
+  bilateral and median filters).
 
 ``uses_opencv`` lists the last two groups; a test keeps it complete.
 """
@@ -86,11 +87,8 @@ uses_opencv: Tuple[str, ...] = (
 )
 # Of those, the ones with no numpy version yet: they need OpenCV to run at all.
 opencv_only: Tuple[str, ...] = (
-    "flood_fill_mask_only",
-    "flood_fill_value",
     "fill_polygon_antialiased",
     "find_outer_contours_ccomp",
-    "canny_edges",
     "bilateral_filter",
     "median_blur",
 )
@@ -662,9 +660,15 @@ def resize(image: np.ndarray, width: int, height: int, interpolation: str) -> np
 
 
 def flood_fill_mask_only(rgb: np.ndarray, seed: Tuple[int, int], tolerance: int) -> np.ndarray:
-    """The paint bucket's contiguous fill on an RGB image: a (h + 2, w + 2) mask, 255 where filled."""
+    """The paint bucket's contiguous fill on an RGB image: a (h + 2, w + 2) mask, 255 where filled.
 
-    cv2 = _cv2()
+    ``cv2.floodFill(bgr, mask, seed, 0, tol, tol, 4 | 255 << 8 | FLOODFILL_MASK_ONLY)``;
+    the mask's one-pixel frame is 1, as OpenCV leaves it.
+    """
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _flood_fill_mask_only_numpy(rgb, seed, tolerance)
     source = cv2.cvtColor(np.asarray(rgb, dtype=np.uint8), cv2.COLOR_RGB2BGR).copy()
     mask = np.zeros((source.shape[0] + 2, source.shape[1] + 2), dtype=np.uint8)
     diff = (int(tolerance),) * 3
@@ -676,9 +680,121 @@ def flood_fill_mask_only(rgb: np.ndarray, seed: Tuple[int, int], tolerance: int)
 def flood_fill_value(mask: np.ndarray, seed: Tuple[int, int], value: int, tolerance: int, connectivity: int) -> np.ndarray:
     """The selection fill: ``cv2.floodFill(mask, None, seed, value, tolerance, tolerance, connectivity)``."""
 
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _flood_fill_value_numpy(mask, seed, value, tolerance, connectivity)
     working = np.ascontiguousarray(mask, dtype=np.uint8).copy()
-    _cv2().floodFill(working, None, (int(seed[0]), int(seed[1])), int(value), loDiff=int(tolerance),
-                     upDiff=int(tolerance), flags=int(connectivity))
+    cv2.floodFill(working, None, (int(seed[0]), int(seed[1])), int(value), loDiff=int(tolerance),
+                  upDiff=int(tolerance), flags=int(connectivity))
+    return working
+
+
+def _segment_close(row: np.ndarray, links: np.ndarray) -> np.ndarray:
+    """Spread ``row`` along each run of linked pixels (``links[x]`` joins x and x + 1)."""
+
+    starts = np.empty(row.size, dtype=bool)
+    starts[0] = True
+    starts[1:] = ~links
+    segment = np.cumsum(starts) - 1
+    hit = np.bincount(segment, weights=row.astype(np.float64), minlength=int(segment[-1]) + 1) > 0
+    return hit[segment]
+
+
+def _reach(seeds: np.ndarray, h_links: np.ndarray, v_links: Optional[np.ndarray],
+           enter: Optional[np.ndarray], diagonal: bool,
+           d_links: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> np.ndarray:
+    """Every pixel reachable from ``seeds``.
+
+    Within a row, pixels x and x + 1 are joined where ``h_links`` says so.
+    Between rows either links join neighbours both ways (``v_links[y]`` joins
+    (y, x) and (y + 1, x); ``d_links`` = (a, b) with ``a[y, x]`` joining (y, x)
+    and (y + 1, x + 1) and ``b[y, x]`` joining (y, x + 1) and (y + 1, x)), or a
+    pixel can be entered from a reached pixel in the next row up or down (also
+    diagonally when ``diagonal``) where ``enter`` allows it. The rows are swept
+    down and up until a sweep reaches nothing new.
+    """
+
+    height = seeds.shape[0]
+    reached = np.zeros_like(seeds, dtype=bool)
+    for y in range(height):
+        if seeds[y].any():
+            reached[y] = _segment_close(seeds[y], h_links[y])
+    changed = True
+    while changed:
+        changed = False
+        for rows, step in ((range(1, height), -1), (range(height - 2, -1, -1), 1)):
+            for y in rows:
+                source = reached[y + step]
+                if not source.any():
+                    continue
+                if v_links is not None:
+                    link_row = min(y, y + step)
+                    incoming = source & v_links[link_row]
+                    if d_links is not None:
+                        a, b = d_links[0][link_row], d_links[1][link_row]
+                        incoming = incoming.copy()
+                        if step == -1:  # from row y - 1
+                            incoming[1:] |= source[:-1] & a  # (y - 1, x - 1) to (y, x)
+                            incoming[:-1] |= source[1:] & b  # (y - 1, x + 1) to (y, x)
+                        else:  # from row y + 1
+                            incoming[1:] |= source[:-1] & b  # (y + 1, x - 1) to (y, x)
+                            incoming[:-1] |= source[1:] & a  # (y + 1, x + 1) to (y, x)
+                else:
+                    if diagonal:
+                        source = source.copy()
+                        source[1:] |= reached[y + step][:-1]
+                        source[:-1] |= reached[y + step][1:]
+                    incoming = source & enter[y]
+                if (incoming & ~reached[y]).any():
+                    reached[y] = _segment_close(reached[y] | incoming, h_links[y])
+                    changed = True
+    return reached
+
+
+def _flood_fill_mask_only_numpy(rgb: np.ndarray, seed: Tuple[int, int], tolerance: int) -> np.ndarray:
+    """OpenCV's floating-range fill, mask only, 4-connected (exact).
+
+    Without painting, each step compares a pixel with the neighbour it is
+    reached from, so the result is the seed's component of the graph whose
+    neighbours differ by at most the tolerance in every channel.
+    """
+
+    source = np.asarray(rgb, dtype=np.uint8).astype(np.int16)
+    tol = int(tolerance)
+    height, width = source.shape[:2]
+    h_links = np.all(np.abs(source[:, 1:] - source[:, :-1]) <= tol, axis=-1)
+    v_links = np.all(np.abs(source[1:] - source[:-1]) <= tol, axis=-1)
+    seeds = np.zeros((height, width), dtype=bool)
+    seeds[int(seed[1]), int(seed[0])] = True
+    reached = _reach(seeds, h_links, v_links, None, False)
+    mask = np.ones((height + 2, width + 2), dtype=np.uint8)
+    mask[1:-1, 1:-1] = np.where(reached, 255, 0)
+    return mask
+
+
+def _flood_fill_value_numpy(mask: np.ndarray, seed: Tuple[int, int], value: int, tolerance: int,
+                            connectivity: int) -> np.ndarray:
+    """OpenCV's floating-range fill that paints ``value`` into an 8-bit image (exact).
+
+    Each step compares a pixel with the unpainted neighbour it is reached
+    from (OpenCV paints a segment after scanning beside it), so the filled area
+    is the seed's component of the graph whose 4- or 8-neighbours differ by at
+    most the tolerance; a tolerance of 0 fills the seed's equal-valued area.
+    """
+
+    working = np.ascontiguousarray(mask, dtype=np.uint8).copy()
+    source = working.astype(np.int16)
+    tol = int(tolerance)
+    x, y = int(seed[0]), int(seed[1])
+    seeds = np.zeros(source.shape, dtype=bool)
+    seeds[y, x] = True
+    h_links = np.abs(source[:, 1:] - source[:, :-1]) <= tol
+    v_links = np.abs(source[1:] - source[:-1]) <= tol
+    d_links = None
+    if int(connectivity) == 8:
+        d_links = (np.abs(source[1:, 1:] - source[:-1, :-1]) <= tol, np.abs(source[1:, :-1] - source[:-1, 1:]) <= tol)
+    reached = _reach(seeds, h_links, v_links, None, False, d_links)
+    working[reached] = np.uint8(int(value) & 255)
     return working
 
 
@@ -879,7 +995,59 @@ def approx_polygon(contour: np.ndarray, epsilon: float, closed: bool) -> np.ndar
 
 
 def canny_edges(gray: np.ndarray, low: float, high: float) -> np.ndarray:
-    return _cv2().Canny(gray, low, high)
+    """``cv2.Canny(gray, low, high)``: aperture 3, L1 gradient."""
+
+    cv2 = _opencv_or_none()
+    return _canny_numpy(gray, low, high) if cv2 is None else cv2.Canny(gray, low, high)
+
+
+_CANNY_TG22 = 13573  # tan(22.5 degrees) in OpenCV's 15-bit fixed point
+
+
+def _canny_numpy(gray: np.ndarray, low: float, high: float) -> np.ndarray:
+    """OpenCV 4.13's Canny on an 8-bit image (exact).
+
+    Sobel 3 x 3 with a replicated border, |dx| + |dy|, OpenCV's fixed-point
+    direction test for non-maximum suppression, then hysteresis: weak edge
+    pixels 8-connected to a strong one are kept.
+    """
+
+    low, high = sorted((float(low), float(high)))
+    low_i, high_i = math.floor(low), math.floor(high)
+    source = np.asarray(gray, dtype=np.uint8).astype(np.int32)
+    padded = np.pad(source, 1, mode="edge")
+    dx = (padded[:-2, 2:] + 2 * padded[1:-1, 2:] + padded[2:, 2:]) - (padded[:-2, :-2] + 2 * padded[1:-1, :-2] + padded[2:, :-2])
+    dy = (padded[2:, :-2] + 2 * padded[2:, 1:-1] + padded[2:, 2:]) - (padded[:-2, :-2] + 2 * padded[:-2, 1:-1] + padded[:-2, 2:])
+    magnitude = np.abs(dx) + np.abs(dy)
+    height, width = magnitude.shape
+    m = np.zeros((height + 2, width + 2), dtype=np.int64)
+    m[1:-1, 1:-1] = magnitude
+    centre = m[1:-1, 1:-1]
+    left, right = m[1:-1, :-2], m[1:-1, 2:]
+    up, down = m[:-2, 1:-1], m[2:, 1:-1]
+    up_left, up_right = m[:-2, :-2], m[:-2, 2:]
+    down_left, down_right = m[2:, :-2], m[2:, 2:]
+    ax = np.abs(dx).astype(np.int64)
+    ay = np.abs(dy).astype(np.int64) << 15
+    tg22x = ax * _CANNY_TG22
+    tg67x = tg22x + (ax << 16)
+    horizontal = ay < tg22x
+    vertical = ~horizontal & (ay > tg67x)
+    diagonal = ~horizontal & ~vertical
+    negative = (dx ^ dy) < 0  # s = -1: compare up-right and down-left
+    peak = np.where(
+        horizontal,
+        (centre > left) & (centre >= right),
+        np.where(
+            vertical,
+            (centre > up) & (centre >= down),
+            np.where(negative, (centre > up_right) & (centre > down_left), (centre > up_left) & (centre > down_right)),
+        ),
+    )
+    candidate = (centre > low_i) & peak
+    strong = candidate & (centre > high_i)
+    edges = _reach(strong, candidate[:, 1:] & candidate[:, :-1], None, candidate, True)
+    return np.where(edges, 255, 0).astype(np.uint8)
 
 
 def bilateral_filter(rgb: np.ndarray, diameter: int, sigma_colour: float, sigma_space: float) -> np.ndarray:

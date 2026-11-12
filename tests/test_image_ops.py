@@ -330,6 +330,31 @@ def test_warp_affine_matches_opencv_on_random_rotations():
         assert np.array_equal(image_ops._warp_affine_linear_numpy(image, matrix, out_w, out_h), expected)
 
 
+def test_flood_fills_and_canny_match_opencv_on_random_images():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(9)
+    for trial in range(40):
+        height, width = (int(value) for value in rng.integers(1, 60, 2))
+        rgb = rng.integers(0, 256, (height, width, 3)).astype(np.uint8)
+        if trial % 2:
+            rgb = cv2.GaussianBlur(rgb, (0, 0), float(rng.uniform(0.5, 4.0)))
+        seed = (int(rng.integers(0, width)), int(rng.integers(0, height)))
+        tolerance = int(rng.choice([0, 1, 5, 24, 60, 255]))
+        source = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR).copy()
+        mask = np.zeros((height + 2, width + 2), np.uint8)
+        cv2.floodFill(source, mask, seed, (0, 0, 0), loDiff=(tolerance,) * 3, upDiff=(tolerance,) * 3,
+                      flags=4 | (255 << 8) | cv2.FLOODFILL_MASK_ONLY)
+        assert np.array_equal(image_ops._flood_fill_mask_only_numpy(rgb, seed, tolerance), mask)
+        gray = rgb[..., 1].copy()
+        for connectivity in (4, 8):
+            for value in (255, 0, 100):
+                expected = gray.copy()
+                cv2.floodFill(expected, None, seed, value, loDiff=tolerance, upDiff=tolerance, flags=connectivity)
+                assert np.array_equal(image_ops._flood_fill_value_numpy(gray, seed, value, tolerance, connectivity), expected)
+        for low, high in ((10, 23), (44, 98), (94, 210), (30.7, 20.2)):
+            assert np.array_equal(image_ops._canny_numpy(gray, low, high), cv2.Canny(gray, low, high))
+
+
 def test_morphology_matches_opencv_on_random_masks():
     cv2 = pytest.importorskip("cv2")
     rng = np.random.default_rng(8)
@@ -371,7 +396,7 @@ def test_without_opencv_the_replaced_functions_answer_and_the_rest_say_what_is_m
     assert image_ops.resize(RGBA, 20, 15, "area").shape == (15, 20, 4)
     assert image_ops.gaussian_blur(RGB_F, 1.3).dtype == np.float32
     with pytest.raises(ImportError, match="still needs OpenCV"):
-        image_ops.canny_edges(GRAY, 10, 20)
+        image_ops.median_blur(RGB, 3)
 
 
 def test_the_list_of_functions_still_on_opencv_is_complete():
