@@ -54,6 +54,27 @@ def _alignment_dialog_font_sizes(context: dict[str, object]) -> dict[str, int]:
     data_size = _read_size("appearance/data_font_size", DEFAULT_UI_DATA_FONT_SIZE)
     return {"ui": ui_size, "data": data_size, "hint": int(small_font_points(ui_size))}
 
+
+def _alignment_dialog_control_heights(context: dict[str, object], ui_size: int, data_size: int) -> dict[str, int]:
+    """The dialog's control heights from the shared layout metrics (P11), not literal floors.
+
+    At Compact and 10 pt they are the heights the dialog had: 16, 17 and 18 px.
+    """
+
+    from cdmw.constants import DEFAULT_UI_DENSITY
+    from cdmw.ui.layout_metrics import layout_metrics, stylesheet_metrics
+
+    settings = context.get("settings")
+    if settings is None:
+        settings = getattr(context.get("self"), "settings", None)
+    try:
+        density = settings.value("appearance/ui_density", DEFAULT_UI_DENSITY)  # type: ignore[attr-defined]
+    except AttributeError:
+        density = DEFAULT_UI_DENSITY
+    button = stylesheet_metrics(layout_metrics(density, ui_size))["button_min_h"]
+    field = stylesheet_metrics(layout_metrics(density, data_size))["button_min_h"] + 1
+    return {"button": button, "field": field, "help_button": button + 2}
+
 from cdmw.ui.archive_browser.static_replacement_dialog_factory_owners import (
     create_alignment_setup_options_transform_section as _create_alignment_setup_options_transform_section,
     create_alignment_mesh_geometry_preview_section as _create_alignment_mesh_geometry_preview_section,

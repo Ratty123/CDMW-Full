@@ -68,6 +68,11 @@ class _RecordingController:
         self.reembedded.append(int(parent_hwnd))
         return True
 
+    def remember_state(self, key: str, event: str, payload, *, live_patch=None) -> bool:
+        # The host frame keeps its presentation state through the controller, as
+        # DotNetSessionController.remember_state does; this stand-in only accepts it.
+        return True
+
 
 def _host_frame() -> tuple[DotNetPreviewHostFrame, _RecordingController]:
     controller = _RecordingController()

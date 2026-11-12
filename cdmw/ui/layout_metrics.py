@@ -47,6 +47,12 @@ def font_pixels(points: float, dpi: float = 96.0) -> int:
 MIN_FONT_PIXELS = font_pixels(UI_FONT_SIZE_MIN)
 
 
+def icon_letter_pixels(side: int, share: float = 0.34) -> int:
+    """A letter drawn into an icon of ``side`` pixels: artwork, so it follows the icon, not the text range."""
+
+    return max(1, round(int(side) * float(share)))
+
+
 # ----- spacing (P11 step 4) ------------------------------------------------------
 
 #: Next's compact metrics, in pixels at 100 %: the starting point for Compact.
@@ -173,6 +179,6 @@ def stylesheet_metrics(metrics: LayoutMetrics) -> dict[str, int]:
 
 
 __all__ = [
-    "LayoutMetrics", "MIN_FONT_PIXELS", "clamp_font_points", "font_pixels", "layout_metrics",
+    "LayoutMetrics", "MIN_FONT_PIXELS", "clamp_font_points", "font_pixels", "icon_letter_pixels", "layout_metrics",
     "small_font_points", "stylesheet_metrics", "title_font_points",
 ]

@@ -940,3 +940,16 @@ def test_late_category_rows_are_localized_without_changing_the_backend_filter(tm
         localizer.shutdown()
         window.deleteLater()
         _drain()
+
+
+def test_the_status_line_and_the_fallback_letter_follow_their_own_sizes() -> None:
+    """Plan 8.7 E10: no fixed 38 px for the status line (the letter is covered by test_font_range)."""
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    try:
+        _drain()
+        assert dialog._status.minimumHeight() == 2 * dialog._status.fontMetrics().lineSpacing()
+    finally:
+        dialog.close()
+        dialog.deleteLater()

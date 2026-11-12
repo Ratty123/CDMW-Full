@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from cdmw.services import keymap_store
-from cdmw.ui.commands.registry import CommandRefused, CommandRegistry
+from cdmw.ui.commands.registry import CommandRegistry
 
 RESOURCE = Path(__file__).resolve().parents[2] / "resources" / "mesh_editor_commands.json"
 #: Contexts whose commands get Qt shortcuts from this module.
@@ -33,10 +33,24 @@ class KeymapRow:
     label: str
     defaults: tuple[str, ...]
     keys: tuple[str, ...]
+    #: The Mesh Editor helper's group for its own commands ("" otherwise).
+    helper_group: str = ""
 
     @property
     def changed(self) -> bool:
         return self.keys != self.defaults
+
+    @property
+    def helper(self) -> bool:
+        """Keys the Mesh Editor helper reads, in its own grammar (``helper_keys``)."""
+
+        return bool(self.helper_group)
+
+    @property
+    def takes_modifier(self) -> bool:
+        """The helper's selection modifiers take Ctrl, Alt or Shift on its own."""
+
+        return self.helper_group == "SelectionModifiers"
 
 
 @lru_cache(maxsize=1)
@@ -68,7 +82,8 @@ def keymap_rows(registry: CommandRegistry, settings) -> list[KeymapRow]:
         command_id = keymap_store.MESH_PREFIX + str(spec.get("id", ""))
         defaults = tuple(str(key) for key in spec.get("defaults", ()))
         keys = tuple(overrides[command_id]) if command_id in overrides else defaults
-        rows[command_id] = KeymapRow(command_id, "mesh_editor", str(spec.get("label", "")), defaults, keys)
+        rows[command_id] = KeymapRow(command_id, "mesh_editor", str(spec.get("label", "")), defaults, keys,
+                                     str(spec.get("group", "") or "Tools"))
     return sorted(rows.values(), key=lambda row: (row.context, row.label.casefold(), row.command_id))
 
 
@@ -122,10 +137,7 @@ class QtShortcutBinder(QObject):
                 self._shortcuts.append(shortcut)
 
     def _run(self, command_id: str) -> None:
-        try:
-            self.registry.run(command_id)
-        except (CommandRefused, KeyError):
-            pass
+        self.registry.run_or_reason(command_id)  # a refusal is silent, as before; a failure is logged
 
 
 def save_keys(registry: CommandRegistry, settings, command_id: str, keys: list[str] | None) -> None:

@@ -17,6 +17,11 @@ class TextureEditorUiShellMixin:
         self.canvas.set_editable(mode == "edit")
         for shortcut in self._shortcut_objects:
             shortcut.setEnabled(mode == "edit")
+        from cdmw.ui.commands.registry import command_registry
+
+        registry = command_registry()
+        if registry is not None:
+            registry.refresh("texture_editor")  # its commands follow the mode, as its keys do
         self._refresh_canvas()
         self._apply_empty_state_layout(self.document is not None)
 
@@ -262,18 +267,7 @@ class TextureEditorUiShellMixin:
         self.send_replace_button.clicked.connect(self.send_to_replace_assistant)
         self.send_workflow_button.clicked.connect(self.send_to_texture_workflow)
         self.send_item_icons_button.clicked.connect(self.send_to_item_icons)
-        if self.workspace_embedded:
-            # The standalone editor's menu entries are registry commands instead (P12).
-            self.action_open_file.triggered.connect(self.open_file_dialog)
-            self.action_open_archive.triggered.connect(self.request_browse_archive)
-            self.action_open_project.triggered.connect(self.open_project_dialog)
-            self.action_save_project.triggered.connect(self.save_project_dialog)
-            self.action_export_png.triggered.connect(self.save_flattened_png_dialog)
-            self.action_export_dds.triggered.connect(self.export_dds_dialog)
-            self.action_preview_compressed.triggered.connect(self.preview_compressed_dds)
-            self.action_send_replace.triggered.connect(self.send_to_replace_assistant)
-            self.action_send_workflow.triggered.connect(self.send_to_texture_workflow)
-            self.action_send_item_icons.triggered.connect(self.send_to_item_icons)
+        # The Actions menu entries are views of registry commands (P12), embedded or not.
         self.native_dds_preset_combo.currentIndexChanged.connect(self._handle_native_dds_preset_changed)
         self.undo_button.clicked.connect(self.undo)
         self.redo_button.clicked.connect(self.redo)

@@ -1,6 +1,6 @@
 """The command palette (P12 step 3): every command of the current context, searchable.
 
-Ctrl+Shift+P opens it, as in CDMW Next. It lists the shell's commands and the
+Ctrl+Shift+P opens it by default, as in CDMW Next. It lists the shell's commands and the
 active tool's, recent ones first, each with its keys; an unavailable command
 is shown with its reason and does not run. Labels are shown and searched in
 the interface language as well as in English.
@@ -9,12 +9,13 @@ the interface language as well as in English.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
-from cdmw.ui.commands.registry import Command, CommandRefused, CommandRegistry
+from cdmw.ui.commands.registry import UNAVAILABLE_REASON, Command, CommandRegistry, display_label
 
 PALETTE_KEYS = "Ctrl+Shift+P"
+PALETTE_COMMAND = "shell.command_palette"
+PALETTE_LABEL = "Command Palette"
 #: Tool key in the shell -> command context.
 TOOL_CONTEXTS = {
     "archive_browser": "browse",
@@ -44,8 +45,13 @@ class CommandPalette(QDialog):
     command_run = Signal(str)
 
     def __init__(self, registry: CommandRegistry, contexts: tuple[str, ...], parent: QWidget | None = None,
-                 *, keys_for=None) -> None:
-        super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+                 *, keys_for=None, popup: bool = True) -> None:
+        # A popup takes the keyboard only while the app is the foreground one; opened
+        # from a helper's window it is a frameless tool window that asks for focus and
+        # closes when it loses it, as the popup closes on a click outside.
+        flags = Qt.WindowType.Popup if popup else Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint
+        super().__init__(parent, flags | Qt.WindowType.FramelessWindowHint)
+        self._closes_on_deactivate = not popup
         self.setObjectName("CommandPalette")
         self.registry = registry
         self.contexts = tuple(dict.fromkeys(("shell", *contexts)))
@@ -90,8 +96,8 @@ class CommandPalette(QDialog):
             if not self.matches(command, text):
                 continue
             keys = ", ".join(self._keys_for(command))
-            label = _translate(command.label).replace("&", "")
-            reason = self.registry.reason(command.id)
+            label = display_label(_translate(command.label))
+            reason = self._reason(command.id)
             item = QListWidgetItem(f"{label}\t{keys}" if keys else label)
             item.setData(_COMMAND_ROLE, command.id)
             item.setToolTip(reason or command.id)
@@ -106,7 +112,13 @@ class CommandPalette(QDialog):
 
     def _show_reason(self, *_args) -> None:
         command_id = self.current_command_id()
-        self.reason.setText(self.registry.reason(command_id) if command_id else "")
+        self.reason.setText(_translate(self._reason(command_id)) if command_id else "")
+
+    def _reason(self, command_id: str) -> str:
+        try:
+            return self.registry.reason(command_id)
+        except KeyError:  # a helper's mirror was replaced while the palette was open
+            return UNAVAILABLE_REASON
 
     def current_command_id(self) -> str:
         item = self.list.currentItem()
@@ -117,14 +129,21 @@ class CommandPalette(QDialog):
         command_id = self.current_command_id()
         if not command_id:
             return False
-        try:
-            self.registry.run(command_id)
-        except CommandRefused as exc:
-            self.reason.setText(str(exc))
+        refusal = self.registry.run_or_reason(command_id)
+        if refusal:
+            self.reason.setText(_translate(refusal))
             return False
         self.command_run.emit(command_id)
         self.accept()
         return True
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        from PySide6.QtCore import QEvent
+
+        if (self._closes_on_deactivate and event.type() == QEvent.Type.ActivationChange
+                and not self.isActiveWindow() and self.isVisible()):
+            self.reject()
+        super().changeEvent(event)
 
     def eventFilter(self, watched, event):  # noqa: N802 - Qt API
         from PySide6.QtCore import QEvent
@@ -152,30 +171,87 @@ def current_contexts(shell) -> tuple[str, ...]:
     return (context,) if context else ()
 
 
-def open_command_palette(shell) -> CommandPalette | None:
-    registry = getattr(shell, "command_registry", None)
-    if not isinstance(registry, CommandRegistry):
+def keymap_keys(registry: CommandRegistry, shell):
+    """Each command's keys as the keymap has them now (a command's ``keys`` are its defaults)."""
+
+    settings = getattr(shell, "settings", None)
+    if settings is None:
         return None
+    from cdmw.ui.commands.keymap import keymap_rows
+
+    keys = {row.command_id: row.keys for row in keymap_rows(registry, settings)}
+    return lambda command: keys.get(command.id, command.keys)
+
+
+def _shell_and_host(window):
+    """The main window that owns the registry, and the window the palette opens over.
+
+    ``window`` is the main window (its shortcut) or a tool's own window: a
+    detached tool window when a helper inside it sent the palette chord. A
+    shortcut pressed in a detached window reaches the main window's command, so
+    the active window decides there.
+    """
+
+    shell = window if isinstance(getattr(window, "command_registry", None), CommandRegistry) else None
+    if shell is None:
+        owner = getattr(window, "owner", None)
+        if isinstance(getattr(owner, "command_registry", None), CommandRegistry):
+            shell, host = owner, window
+            return shell, host
+        return None, None
+    host = shell
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        active = QApplication.activeWindow()
+    except RuntimeError:
+        active = None
+    if active is not None and active is not shell and getattr(active, "owner", None) is shell:
+        host = active
+    return shell, host
+
+
+def open_command_palette(window) -> CommandPalette | None:
+    shell, host = _shell_and_host(window)
+    if shell is None:
+        return None
+    registry = shell.command_registry
     previous = getattr(shell, "_command_palette", None)
     if previous is not None:
         try:
             previous.close()
         except RuntimeError:
             pass
-    palette = CommandPalette(registry, current_contexts(shell), shell)
+    tool_key = getattr(host, "tool_key", "") if host is not shell else ""
+    contexts = ((TOOL_CONTEXTS[tool_key],) if tool_key in TOOL_CONTEXTS else ()) if tool_key else current_contexts(shell)
+    from PySide6.QtWidgets import QApplication
+
+    foreground = QApplication.applicationState() == Qt.ApplicationState.ApplicationActive
+    palette = CommandPalette(registry, contexts, host, keys_for=keymap_keys(registry, shell), popup=foreground)
     shell._command_palette = palette
-    geometry = shell.geometry()
+    geometry = host.geometry()
     palette.move(geometry.x() + (geometry.width() - palette.width()) // 2, geometry.y() + 80)
     palette.show()
+    # Opened from a helper's window, the app is not the foreground one: a popup
+    # would get no keys. Ask for activation so typing reaches the search field.
+    palette.raise_()
+    palette.activateWindow()
     palette.search.setFocus()
     return palette
 
 
-def install_command_palette(shell) -> QShortcut:
-    """Ctrl+Shift+P anywhere in the app's own windows opens the palette."""
+def install_command_palette(shell) -> Command | None:
+    """The palette is a shell command (``shell.command_palette``), Ctrl+Shift+P by default.
 
-    shortcut = QShortcut(QKeySequence(PALETTE_KEYS), shell)
-    shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
-    shortcut.activated.connect(lambda: open_command_palette(shell))
-    shell.command_palette_shortcut = shortcut
-    return shortcut
+    Its key is a keymap row like any other: it can be rebound in Settings >
+    Shortcuts, conflicts see it, and ``QtShortcutBinder`` binds it in every
+    window of the app. (The Mesh Editor helper still reserves Ctrl+Shift+P
+    itself; following the keymap there is the helper's part, see plan 8.7 E5.)
+    """
+
+    registry = getattr(shell, "command_registry", None)
+    if not isinstance(registry, CommandRegistry):
+        return None
+    command = Command(PALETTE_COMMAND, PALETTE_LABEL, "shell", lambda: open_command_palette(shell),
+                      keys=(PALETTE_KEYS,), keywords=("palette", "commands", "search"))
+    return registry.register(command, replace=True)

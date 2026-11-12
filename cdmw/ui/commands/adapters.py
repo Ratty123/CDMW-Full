@@ -10,7 +10,7 @@ from __future__ import annotations
 import shiboken6
 from PySide6.QtGui import QAction
 
-from cdmw.ui.commands.registry import CommandRefused, CommandRegistry
+from cdmw.ui.commands.registry import CommandRegistry
 
 _BOUND = "_cdmw_command_id"
 
@@ -33,9 +33,8 @@ def bind_action(action: QAction, registry: CommandRegistry, command_id: str) -> 
         action.setStatusTip(reason)
 
     def trigger(_checked: bool = False) -> None:
-        try:
-            registry.run(command_id)
-        except CommandRefused:
+        # A refusal or a failure shows as the entry's state; a failure is also logged.
+        if registry.run_or_reason(command_id):
             sync()
 
     action.triggered.connect(trigger)

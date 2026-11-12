@@ -38,7 +38,8 @@ def test_a_command_is_defined_once_and_refuses_with_its_reason(app):
 def test_a_broken_check_reads_as_unavailable_not_as_a_crash(app):
     registry = CommandRegistry()
     registry.register(Command("shell.broken", "Broken", "shell", lambda: None, lambda: 1 / 0))
-    assert registry.reason("shell.broken").startswith("Unavailable:")
+    # The exception's text goes to the log, not into the reason (plan 8.7 E8).
+    assert registry.reason("shell.broken") == "Unavailable"
 
 
 def test_every_view_of_a_command_shows_its_state_and_reason(app):
@@ -79,8 +80,13 @@ def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
     shell = Shell()
     for attribute in SHELL_ACTIONS.values():
         setattr(shell, attribute, QAction(attribute, shell))
+    from cdmw.ui.commands.palette import PALETTE_COMMAND
+
     registry = install_shell_commands(shell)
-    assert {c.id for c in registry.commands("shell") if not c.id.startswith(TOOL_COMMAND_PREFIX)} == set(SHELL_ACTIONS)
+    # The registry is the application's, so a main window built by an earlier test file leaves
+    # its palette command (installed with the window's shortcuts, not by install_shell_commands).
+    assert {c.id for c in registry.commands("shell") if not c.id.startswith(TOOL_COMMAND_PREFIX)} - {
+        PALETTE_COMMAND} == set(SHELL_ACTIONS)
     shell._shell_busy = True
     shell._window_menu_state = (True, False, False)
     registry.refresh("shell")

@@ -12,6 +12,8 @@ worker its button always started.
 
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
@@ -20,10 +22,19 @@ from PySide6.QtCore import QCoreApplication, QObject, Signal
 #: Where a command applies. ``shell`` commands are available everywhere.
 CONTEXTS = ("shell", "browse", "mesh_editor", "texture_editor", "new_item", "mod_management")
 RECENT_LIMIT = 12
+UNAVAILABLE_REASON = "Unavailable"
+COMMAND_FAILED_REASON = "The command failed. The log has the details."
+_LOGGER = logging.getLogger(__name__)
 
 
 def _always() -> str:
     return ""
+
+
+def display_label(label: str) -> str:
+    """A label as plain text: "&&" and an "&" before a space are ampersands; "&" before a letter marks a mnemonic."""
+
+    return re.sub(r"&(&|(?=[^\s&]))", lambda match: match.group(1), str(label or ""))
 
 
 class CommandDefinitionError(ValueError):
@@ -115,12 +126,13 @@ class CommandRegistry(QObject):
     def reason(self, command_id: str) -> str:
         """Why the command cannot run now, or "" when it can."""
 
+        command = self.get(command_id)
         try:
-            return str(self.get(command_id).reason() or "")
-        except KeyError:
-            raise
-        except Exception as exc:  # a broken check must not break the menu that asks
-            return f"Unavailable: {exc}"
+            return str(command.reason() or "")
+        except Exception:  # a broken check must not break the menu that asks
+            # The exception's own text is for the log, not for the user (plan 8.7 E8).
+            _LOGGER.exception("The availability check of %s failed", command_id)
+            return UNAVAILABLE_REASON
 
     def available(self, command_id: str) -> bool:
         return not self.reason(command_id)
@@ -140,6 +152,25 @@ class CommandRegistry(QObject):
         self._recent = [command_id, *[i for i in self._recent if i != command_id]][:RECENT_LIMIT]
         self.ran.emit(command_id)
         return result
+
+    def run_or_reason(self, command_id: str) -> str:
+        """Run a command for a menu, the palette or a key: "" when it ran, else why it did not.
+
+        A refusal gives the command's reason; a command that is gone (a helper's
+        mirror was replaced) or that raised gives a fixed text, and the error goes
+        to the log. Nothing escapes into the Qt slot that called it (plan 8.7 E9).
+        """
+
+        try:
+            self.run(command_id)
+        except CommandRefused as exc:
+            return str(exc)
+        except KeyError:
+            return UNAVAILABLE_REASON
+        except Exception:
+            _LOGGER.exception("Command %s failed", command_id)
+            return COMMAND_FAILED_REASON
+        return ""
 
     def recent(self) -> list[str]:
         return [i for i in self._recent if i in self._commands]

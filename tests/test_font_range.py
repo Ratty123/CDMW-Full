@@ -70,3 +70,51 @@ def test_the_mesh_editor_theme_sends_the_range_and_the_resolved_sizes(tmp_path) 
         assert payload["density"] in {"compact", "normal", "comfortable"}
     finally:
         _dispose(tab)
+
+
+def _literal_sizes(path: Path) -> list[str]:
+    """A font set to a literal size, or to another size minus more than one (plan 8.7 E10)."""
+
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found = []
+    for call in ast.walk(tree):
+        if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                and call.func.attr in _FONT_SETTERS and call.args):
+            continue
+        size = call.args[0]
+        if isinstance(size, ast.Constant):
+            found.append(f"{path.relative_to(ROOT)}:{call.lineno} (literal size)")
+        elif any(isinstance(node, ast.BinOp) and isinstance(node.op, ast.Sub) and isinstance(node.right, ast.Constant)
+                 and node.right.value not in (0, 1) for node in ast.walk(size)):
+            found.append(f"{path.relative_to(ROOT)}:{call.lineno} (size minus a literal step)")
+    return found
+
+
+def test_no_ui_code_sets_a_literal_font_size_or_its_own_small_step() -> None:
+    offenders = [hit for path in sorted((ROOT / "cdmw" / "ui").rglob("*.py")) for hit in _literal_sizes(path)]
+    assert offenders == [], ("small text is small_font_points, an icon's letter is icon_letter_pixels: "
+                             + ", ".join(offenders))
+
+
+def test_the_replacement_dialog_s_control_heights_follow_the_layout_metrics() -> None:
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import _alignment_dialog_control_heights
+
+    source = (ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py").read_text(encoding="utf-8")
+    assert "max(14," not in source and "max(15," not in source and "max(16," not in source
+    settings = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, "cdmw-tests", "font-range")
+    settings.clear()
+    context = {"settings": settings}
+    assert _alignment_dialog_control_heights(context, 10, 10) == {"button": 16, "field": 17, "help_button": 18}
+    small = _alignment_dialog_control_heights(context, 6, 6)
+    assert small["button"] < 14  # the old floor kept 6 pt controls as tall as 8 pt ones
+    settings.setValue("appearance/ui_density", "comfortable")
+    assert _alignment_dialog_control_heights(context, 10, 10)["button"] > 16
+    settings.clear()
+
+
+def test_the_splash_detail_text_is_small_text_and_its_label_fits_two_lines() -> None:
+    source = (ROOT / "cdmw/ui/startup_splash_host.py").read_text(encoding="utf-8")
+    assert "pointSize() - 2" not in source and "setMinimumHeight(32)" not in source
+    assert "small_font_points(detail_font.pointSizeF())" in source

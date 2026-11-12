@@ -3,8 +3,9 @@
 Every shortcut id the editor already had (``open_file``, ``tool_paint`` ...) is
 a command ``texture_editor.<id>``, so saved shortcuts keep their ids; the two
 menu entries without a shortcut (Export DDS, Preview Compressed) are commands
-too. The standalone editor's Actions menu entries are views of them. Embedded
-editors (inside Texture Workflow) keep their own wiring and register nothing.
+too, and the editor's Actions menu entries are views of them. The app builds
+the editor embedded in the Textures workspace (``workspace_embedded``); there
+its commands, like its keys, work only in the workspace's Edit mode.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from cdmw.ui.texture_workflow.editor_action_state import texture_editor_main_act
 CONTEXT = "texture_editor"
 BUSY_REASON = "Wait for the current task to finish."
 NO_IMAGE_REASON = "Open an image first."
+EDIT_MODE_REASON = "Switch Textures to Edit first."
 #: Commands that open a document; they do not need one.
 OPENING = frozenset({"open_file", "open_archive", "open_project"})
 #: Menu-only commands: id -> (label, editor method name).
@@ -46,6 +48,8 @@ def command_id(key: str) -> str:
 def texture_editor_commands(editor, bindings: dict, keys: dict) -> list[Command]:
     def reason_for(key: str):
         def reason() -> str:
+            if getattr(editor, "workspace_embedded", False) and getattr(editor.job, "mode", "edit") != "edit":
+                return EDIT_MODE_REASON
             state = texture_editor_main_action_state(editor.document, busy=editor._busy())
             if not state.open_enabled:
                 return BUSY_REASON
@@ -69,7 +73,7 @@ def texture_editor_commands(editor, bindings: dict, keys: dict) -> list[Command]
 
 
 def install_texture_editor_commands(editor, bindings: dict, keys: dict) -> CommandRegistry | None:
-    """Register the standalone editor's commands and make its Actions menu views of them."""
+    """Register the editor's commands and make its Actions menu views of them."""
 
     registry = command_registry()
     if registry is None:
