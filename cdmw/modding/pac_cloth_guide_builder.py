@@ -343,6 +343,8 @@ class SkippedGuideTriangles:
 class GuideBuildReport:
     guide_count: int
     skipped: tuple[SkippedGuideTriangles, ...] = ()
+    #: The build's non-blocking findings (`cdmw.domain.mesh.findings.MeshFinding`), such as skipped triangles.
+    findings: tuple = ()
 
 
 def _unheld_pieces(count, faces, pins):
@@ -367,41 +369,175 @@ def _unheld_pieces(count, faces, pins):
     return list(pieces.values())
 
 
-def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> bytes:
-    """Generate guides, constraints and bindings at all LODs, or fail atomically."""
-    return create_pac_cloth_guides_with_report(data, rules, appearance=appearance)[0]
+# ------------------------------------------------------------ check, then build
+
+GUIDE_LIMIT = 1024
+CATEGORY = "cloth_guides"
+# Finding kinds. The check produces them and the builder refuses on the blockers,
+# so the status shown before a build and the refusal at build time are one result.
+CODE_LAYOUT = "cloth_guide.layout"
+CODE_RULE = "cloth_guide.rule"
+CODE_PINS_MISALIGNED = "cloth_guide.pins_misaligned"
+CODE_INVALID_INFLUENCES = "cloth_guide.invalid_influences"
+CODE_NEEDS_REDUCE_SKINNING = "cloth_guide.needs_reduce_skinning"
+CODE_COLLAPSED_TRIANGLES = "cloth_guide.collapsed_triangles"
+CODE_FLAT_TRIANGLES = "cloth_guide.flat_triangles"
+CODE_NOTHING_LEFT = "cloth_guide.nothing_left"
+CODE_GUIDE_LIMIT = "cloth_guide.guide_limit"
+CODE_UNHELD_PIECE = "cloth_guide.unheld_piece"
+CODE_NON_MANIFOLD = "cloth_guide.non_manifold_edge"
+CODE_PINS = "cloth_guide.pins"
 
 
-def create_pac_cloth_guides_with_report(
-        data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> tuple[bytes, GuideBuildReport]:
-    """As ``create_pac_cloth_guides``, with what the build left out.
+@dataclass(frozen=True, slots=True)
+class ClothGuideCheck:
+    """What a guide build of these rules would do, without building it."""
 
-    A triangle that welding collapses, or that is flat once stored, makes no guide
-    face and is reported per part; the render mesh is unchanged. The build is
-    refused only when what is left cannot work, and the refusal names the part.
+    findings: tuple
+    guide_count: int
+    #: Guides per part index, after welding and skipping.
+    part_guides: tuple[tuple[int, int], ...] = ()
+
+    @property
+    def blockers(self):
+        return tuple(finding for finding in self.findings if finding.is_blocker)
+
+    @property
+    def builds(self) -> bool:
+        return not self.blockers
+
+
+@dataclass(frozen=True, slots=True)
+class ClothGuideLodStatus:
+    """Whether one part builds from one source LOD, measured with that part alone."""
+
+    part_index: int
+    part: str
+    lod: int
+    guide_count: int
+    collapsed: int
+    flat: int
+    findings: tuple
+
+    @property
+    def builds(self) -> bool:
+        return not any(finding.is_blocker for finding in self.findings) and self.guide_count <= GUIDE_LIMIT
+
+    @property
+    def blockers(self):
+        return tuple(finding for finding in self.findings if finding.is_blocker)
+
+
+@dataclass(slots=True)
+class _GuidePlan:
+    findings: list
+    metadata: object = None
+    insertion: int = 0
+    palette: tuple = ()
+    levels: tuple = ()
+    points: list = None
+    skins: list = None
+    owners: list = None
+    faces: list = None
+    pins: set = None
+    ranges: dict = None
+    names: dict = None
+    collapsed: dict = None
+    flat: dict = None
+
+
+def _finding(severity, code, message, **values):
+    from cdmw.domain.mesh.findings import mesh_finding
+
+    return mesh_finding(severity, code, message, category=CATEGORY, **values)
+
+
+def _skin_findings(data, levels, index, name, palette_count, reduce_skinning):
+    """Blockers for render vertices of one part, at every LOD, that guides cannot bind."""
+    from cdmw.domain.mesh.findings import ELEMENT_VERTEX, FIX_CLOTH_REDUCE_SKINNING
+
+    found = []
+    for lod, level in enumerate(levels):
+        if index >= len(level.submeshes):
+            continue
+        invalid, heavy = [], []
+        for vertex, offset in enumerate(level.submeshes[index].source_vertex_offsets):
+            try:
+                _skin(data, offset, palette_count, reduce_skinning)
+            except ValueError as exc:
+                (heavy if "Reduce skinning" in str(exc) else invalid).append(vertex)
+        if invalid:
+            found.append(_finding(
+                "blocker", CODE_INVALID_INFLUENCES,
+                f"{name}, LOD {lod}: {len(invalid):,} vertices have no valid bone influence. "
+                "New cloth bindings require valid existing bone influences at every LOD.",
+                part=name, lod=lod, submesh=index, element_kind=ELEMENT_VERTEX, elements=invalid))
+        if heavy:
+            found.append(_finding(
+                "blocker", CODE_NEEDS_REDUCE_SKINNING,
+                f"{name}, LOD {lod}: {len(heavy):,} vertices need skeletal weight conversion. "
+                "Enable Reduce skinning to four bones to allow it at every LOD.",
+                part=name, lod=lod, submesh=index, element_kind=ELEMENT_VERTEX, elements=heavy,
+                fix_command=FIX_CLOTH_REDUCE_SKINNING, fix_arguments={"part": index}))
+    return found
+
+
+def _plan_guides(data, rules, appearance) -> _GuidePlan:
+    """Everything the build decides, as findings plus the inputs the writer needs.
+
+    Never raises for a problem with the source; each becomes a finding. Only an
+    invalid rule mapping (a programming error) raises.
     """
-    if not rules:
-        return data, GuideBuildReport(0)
-    metadata, insertion, palette, levels = guide_creation_layout(data)
+    from cdmw.domain.mesh.findings import (
+        ELEMENT_FACE, ELEMENT_GUIDE, FIX_CLEAN_UP_MESH, FIX_CLOTH_FEWER_PARTS, FIX_CLOTH_PINS, FIX_CLOTH_SOURCE_LOD,
+    )
+
+    plan = _GuidePlan(findings=[])
+    try:
+        plan.metadata, plan.insertion, plan.palette, plan.levels = guide_creation_layout(data)
+    except ValueError as exc:
+        plan.findings.append(_finding("blocker", CODE_LAYOUT, str(exc)))
+        return plan
+    levels, palette = plan.levels, plan.palette
     if any(type(i) is not int or not 0 <= i < len(levels[0].submeshes)
            or not isinstance(rule, PacClothGuideRule) for i, rule in rules.items()):
         raise ValueError("Guide settings refer to an invalid PAC part.")
-    points, skins, owners, faces, face_owners, pins = [], [], [], [], [], set()
-    names, collapsed, displayed = {}, {}, {}
+    points, skins, owners, faces, face_owners, face_sources, pins = [], [], [], [], [], [], set()
+    names, collapsed, displayed, usable = {}, {}, {}, []
     for index, rule in sorted(rules.items()):
+        names[index] = str(index)
+        collapsed[index] = 0
         if rule.bone_palette != palette:
-            raise ValueError("The captured guide bone palette does not match this PAC.")
+            plan.findings.append(_finding("blocker", CODE_RULE, "The captured guide bone palette does not match this PAC.",
+                                          submesh=index))
+            continue
         if rule.source_lod >= len(levels):
-            raise ValueError("The guide source LOD is not stored in this PAC.")
+            plan.findings.append(_finding("blocker", CODE_RULE, "The guide source LOD is not stored in this PAC.",
+                                          submesh=index, fix_command=FIX_CLOTH_SOURCE_LOD,
+                                          fix_arguments={"part": index}))
+            continue
         source = levels[rule.source_lod].submeshes[index]
-        if not source.faces or not source.vertices:
-            raise ValueError("The selected guide source LOD has no geometry for this part.")
         name = names[index] = source.name or str(index)
+        if not source.faces or not source.vertices:
+            plan.findings.append(_finding(
+                "blocker", CODE_RULE, "The selected guide source LOD has no geometry for this part.",
+                part=name, lod=rule.source_lod, submesh=index, fix_command=FIX_CLOTH_SOURCE_LOD,
+                fix_arguments={"part": index}))
+            continue
         for lod in {0, rule.source_lod}:
             if lod not in displayed:
                 displayed[lod] = appearance.to_neutral(levels[lod]) if appearance else levels[lod]
         heights = displayed[rule.source_lod].submeshes[index].vertices
-        painted = _painted_pins(displayed[0].submeshes[index].vertices, heights, rule.pinned_points, name)
+        try:
+            painted = _painted_pins(displayed[0].submeshes[index].vertices, heights, rule.pinned_points, name)
+        except ValueError as exc:
+            plan.findings.append(_finding("blocker", CODE_PINS_MISALIGNED, str(exc), part=name, lod=rule.source_lod,
+                                          submesh=index, fix_command=FIX_CLOTH_PINS, fix_arguments={"part": index}))
+            continue
+        skin_problems = _skin_findings(data, levels, index, name, len(palette), rule.reduce_skinning)
+        if skin_problems:
+            plan.findings.extend(skin_problems)
+            continue
         used = sorted({i for face in source.faces for i in face})
         weld, local, local_skins, local_pins, mapping = {}, [], [], set(), {}
         for vertex in used:
@@ -415,22 +551,35 @@ def create_pac_cloth_guides_with_report(
             if (rule.fixed_above is not None and heights[vertex][1] >= rule.fixed_above) or painted[vertex]:
                 local_pins.add(weld[key])
             mapping[vertex] = weld[key]
-        kept, seen = [], set()
-        collapsed[index] = 0
-        for face in source.faces:
+        kept, kept_sources, seen, collapsed_faces = [], [], set(), []
+        for face_index, face in enumerate(source.faces):
             row = tuple(mapping[v] for v in face)
             if len(set(row)) != 3:
                 # Welding collapsed a sliver; its corners become guides only through other faces.
-                collapsed[index] += 1
+                collapsed_faces.append(face_index)
                 continue
             identity = tuple(sorted(row))
             if identity not in seen:
                 kept.append(row)
+                kept_sources.append(face_index)
                 seen.add(identity)
+        collapsed[index] = len(collapsed_faces)
         if not kept:
-            raise ValueError(f"{name}, LOD {rule.source_lod}: all {len(source.faces):,} triangles collapse when "
-                             "the guide source is welded, so there is nothing to build guides from. "
-                             "Choose another source LOD or leave this part out.")
+            plan.findings.append(_finding(
+                "blocker", CODE_NOTHING_LEFT,
+                f"{name}, LOD {rule.source_lod}: all {len(source.faces):,} triangles collapse when "
+                "the guide source is welded, so there is nothing to build guides from. "
+                "Choose another source LOD or leave this part out.",
+                part=name, lod=rule.source_lod, submesh=index, element_kind=ELEMENT_FACE, elements=collapsed_faces,
+                fix_command=FIX_CLOTH_SOURCE_LOD, fix_arguments={"part": index}))
+            continue
+        if collapsed_faces:
+            plan.findings.append(_finding(
+                "warning", CODE_COLLAPSED_TRIANGLES,
+                f"Skipped {len(collapsed_faces):,} collapsed triangles on {name}, LOD {rule.source_lod}.",
+                part=name, lod=rule.source_lod, submesh=index, element_kind=ELEMENT_FACE, elements=collapsed_faces,
+                fix_command=FIX_CLEAN_UP_MESH, fix_arguments={"lod": rule.source_lod, "part": index}))
+        usable.append(index)
         # A guide only for a vertex a kept triangle uses: an unused one would count
         # against the limit and, unpinned, be a piece that nothing holds.
         keep = sorted({v for face in kept for v in face})
@@ -441,33 +590,163 @@ def create_pac_cloth_guides_with_report(
         pins |= {renumber[v] for v in local_pins if v in renumber}
         faces += [tuple(renumber[v] for v in face) for face in kept]
         face_owners += [index] * len(kept)
+        face_sources += kept_sources
+    plan.names, plan.collapsed = names, collapsed
+    if any(finding.is_blocker for finding in plan.findings):
+        # Measured parts still report their guides; nothing below can change the refusal.
+        plan.flat = dict.fromkeys(rules, 0)
+        return plan
     order, faces, dropped = drop_flat_stored_triangles(points, faces)
-    flat = dict.fromkeys(rules, 0)
+    flat_faces = {index: [] for index in rules}
     for face in dropped:
-        flat[face_owners[face]] += 1
+        flat_faces[face_owners[face]].append(face_sources[face])
+    plan.flat = {index: len(values) for index, values in flat_faces.items()}
+    gone = set(dropped)
+    face_sources = [source for face, source in enumerate(face_sources) if face not in gone]
     renumber = {old: new for new, old in enumerate(order)}
     points, skins, owners = [points[i] for i in order], [skins[i] for i in order], [owners[i] for i in order]
     pins = {renumber[p] for p in pins if p in renumber}
     ranges = {}
     for guide, index in enumerate(owners):
         ranges[index] = (ranges.get(index, (guide, guide))[0], guide + 1)
-    for index, rule in sorted(rules.items()):
+    for index in usable:
+        rule = rules[index]
+        if flat_faces[index]:
+            plan.findings.append(_finding(
+                "warning", CODE_FLAT_TRIANGLES,
+                f"Skipped {len(flat_faces[index]):,} triangles too thin to store on {names[index]}, "
+                f"LOD {rule.source_lod}.",
+                part=names[index], lod=rule.source_lod, submesh=index, element_kind=ELEMENT_FACE,
+                elements=flat_faces[index], fix_command=FIX_CLEAN_UP_MESH,
+                fix_arguments={"lod": rule.source_lod, "part": index}))
         if index not in ranges:
-            raise ValueError(f"{names[index]}, LOD {rule.source_lod}: all {flat[index] + collapsed[index]:,} "
-                             "triangles are too thin to store as guide faces, so there is nothing to build "
-                             "guides from. Choose another source LOD or leave this part out.")
-    if not 3 <= len(points) <= 1024:
-        raise ValueError(f"New cloth requires 3 to 1024 welded guides in total; these parts give {len(points):,}. "
-                         "Choose a lower source LOD or fewer parts.")
-    if pins and len(pins) < len(points):
-        loose = {}
-        for piece in _unheld_pieces(len(points), faces, pins):
-            loose[owners[min(piece)]] = loose.get(owners[min(piece)], 0) + 1
-        if loose:
-            where = "; ".join(f"{count:,} on {names[index]}, LOD {rules[index].source_lod}"
-                              for index, count in sorted(loose.items()))
-            raise ValueError(f"Every disconnected guide piece needs a fixed guide ({where} without one). Lower the "
-                             "pin height, paint a pin on each piece or select fewer parts.")
+            plan.findings.append(_finding(
+                "blocker", CODE_NOTHING_LEFT,
+                f"{names[index]}, LOD {rule.source_lod}: all {plan.flat[index] + collapsed[index]:,} "
+                "triangles are too thin to store as guide faces, so there is nothing to build "
+                "guides from. Choose another source LOD or leave this part out.",
+                part=names[index], lod=rule.source_lod, submesh=index, element_kind=ELEMENT_FACE,
+                elements=flat_faces[index], fix_command=FIX_CLOTH_SOURCE_LOD, fix_arguments={"part": index}))
+    plan.points, plan.skins, plan.owners, plan.faces, plan.pins, plan.ranges = (
+        points, skins, owners, faces, pins, ranges)
+    if any(finding.is_blocker for finding in plan.findings):
+        return plan
+    if not 3 <= len(points) <= GUIDE_LIMIT:
+        plan.findings.append(_finding(
+            "blocker", CODE_GUIDE_LIMIT,
+            f"New cloth requires 3 to 1024 welded guides in total; these parts give {len(points):,}. "
+            "Choose a lower source LOD or fewer parts.",
+            element_kind=ELEMENT_GUIDE, element_count=len(points), fix_command=FIX_CLOTH_FEWER_PARTS))
+        return plan
+    edges = {}
+    for face_index, face in enumerate(faces):
+        for x, y in ((face[0], face[1]), (face[1], face[2]), (face[2], face[0])):
+            edges.setdefault(tuple(sorted((x, y))), []).append(face_index)
+    shared = {}
+    for edge, users in edges.items():
+        if len(users) > 2:
+            shared.setdefault(owners[edge[0]], []).append(users)
+    for index, users in sorted(shared.items()):
+        rule = rules[index]
+        plan.findings.append(_finding(
+            "blocker", CODE_NON_MANIFOLD,
+            f"{names[index]}, LOD {rule.source_lod}: {len(users):,} edges are shared by more than two "
+            "triangles, which cloth guides cannot use. Choose a simpler source LOD.",
+            part=names[index], lod=rule.source_lod, submesh=index, element_kind=ELEMENT_FACE,
+            elements=(face_sources[face] for faces_on_edge in users for face in faces_on_edge),
+            fix_command=FIX_CLOTH_SOURCE_LOD, fix_arguments={"part": index}))
+    if shared:
+        return plan
+    if not pins or len(pins) == len(points):
+        plan.findings.append(_finding("blocker", CODE_PINS,
+                                      "Choose a pin height or pins that leave both fixed and moving guides.",
+                                      fix_command=FIX_CLOTH_PINS))
+        return plan
+    loose = {}
+    for piece in _unheld_pieces(len(points), faces, pins):
+        loose.setdefault(owners[min(piece)], []).append(piece)
+    # One refusal text naming every part, as it always has; one finding per part.
+    where = "; ".join(f"{len(pieces):,} on {names[index]}, LOD {rules[index].source_lod}"
+                      for index, pieces in sorted(loose.items()))
+    for index, pieces in sorted(loose.items()):
+        plan.findings.append(_finding(
+            "blocker", CODE_UNHELD_PIECE,
+            f"Every disconnected guide piece needs a fixed guide ({where} without one). Lower the "
+            "pin height, paint a pin on each piece or select fewer parts.",
+            part=names[index], lod=rules[index].source_lod, submesh=index, element_kind=ELEMENT_GUIDE,
+            elements=(guide for piece in pieces for guide in piece),
+            fix_command=FIX_CLOTH_PINS, fix_arguments={"part": index}))
+    return plan
+
+
+def check_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> ClothGuideCheck:
+    """The findings a guide build of ``rules`` would act on, without building anything.
+
+    A pure function of the PAC bytes and the rules: ``create_pac_cloth_guides``
+    runs this same check and refuses on its blockers, so a status shown before
+    the build and the refusal at build time cannot disagree. Pass the bytes the
+    build will read (the output prepared for the current edit), not the original.
+    """
+    if not rules:
+        return ClothGuideCheck((), 0)
+    plan = _plan_guides(data, rules, appearance)
+    counts = {}
+    for owner in plan.owners or ():
+        counts[owner] = counts.get(owner, 0) + 1
+    return ClothGuideCheck(tuple(plan.findings), len(plan.points or ()), tuple(sorted(counts.items())))
+
+
+def cloth_guide_lod_statuses(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None):
+    """For each part of ``rules`` and each stored LOD: would guides build from it?
+
+    Each part is measured alone, with its own rule at that LOD, so a user can pick
+    a source LOD that works before building. The 1,024-guide limit applies to
+    all chosen parts together; ``check_pac_cloth_guides`` measures that.
+    """
+    from dataclasses import replace
+
+    try:
+        levels = pac_cloth_lods(data)
+    except ValueError:
+        levels = ()
+    statuses = []
+    for index, rule in sorted(rules.items()):
+        for lod in range(len(levels)):
+            plan = _plan_guides(data, {index: replace(rule, source_lod=lod)}, appearance)
+            guides = len(plan.points or ())
+            name = (plan.names or {}).get(index, str(index))
+            findings = list(plan.findings)
+            if guides > GUIDE_LIMIT and not any(f.code == CODE_GUIDE_LIMIT for f in findings):
+                findings.append(_finding("blocker", CODE_GUIDE_LIMIT,
+                                         f"{name}, LOD {lod}: {guides:,} guides; at most 1,024 are allowed.",
+                                         part=name, lod=lod, submesh=index, element_count=guides))
+            statuses.append(ClothGuideLodStatus(index, name, lod, guides, (plan.collapsed or {}).get(index, 0),
+                                                (plan.flat or {}).get(index, 0), tuple(findings)))
+    return tuple(statuses)
+
+
+def create_pac_cloth_guides(data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> bytes:
+    """Generate guides, constraints and bindings at all LODs, or fail atomically."""
+    return create_pac_cloth_guides_with_report(data, rules, appearance=appearance)[0]
+
+
+def create_pac_cloth_guides_with_report(
+        data: bytes, rules: Mapping[int, PacClothGuideRule], *, appearance=None) -> tuple[bytes, GuideBuildReport]:
+    """As ``create_pac_cloth_guides``, with what the build left out.
+
+    A triangle that welding collapses, or that is flat once stored, makes no guide
+    face and is reported per part; the render mesh is unchanged. The build runs
+    ``check_pac_cloth_guides`` first and is refused on its first blocker, whose
+    message names the part, LOD and count; the error carries every finding.
+    """
+    from cdmw.domain.mesh.findings import raise_for_blockers
+
+    if not rules:
+        return data, GuideBuildReport(0)
+    plan = _plan_guides(data, rules, appearance)
+    raise_for_blockers(plan.findings)
+    metadata, insertion, palette, levels = plan.metadata, plan.insertion, plan.palette, plan.levels
+    points, skins, faces, pins, ranges = plan.points, plan.skins, plan.faces, plan.pins, plan.ranges
     block, decoded = _guide_block(points, skins, faces, pins)
     patched = bytearray(data)
     for level in levels:
@@ -499,6 +778,10 @@ def create_pac_cloth_guides_with_report(
         raise ValueError("Generated guide topology did not pass independent decoding.")
     if decode_pac_embedded_volumes(result).bone_palette != palette:
         raise ValueError("Guide creation changed the retained bone palette.")
+    names, collapsed, flat = plan.names, plan.collapsed, plan.flat
     skipped = tuple(SkippedGuideTriangles(names[index], rules[index].source_lod, collapsed[index], flat[index])
                     for index in sorted(rules) if collapsed[index] or flat[index])
-    return result, GuideBuildReport(len(points), skipped)
+    warnings = tuple(finding for finding in plan.findings if not finding.is_blocker)
+    return result, GuideBuildReport(len(points), skipped, warnings)
+
+

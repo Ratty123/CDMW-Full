@@ -60,6 +60,15 @@ class PaintedGuideReport:
     riding_pieces: int = 0
     #: Triangles with no area once the guide positions are stored; they make no guide face.
     skipped_flat_triangles: int = 0
+    #: What the build noted on the way (`MeshFinding`s): LODs it could not use, skipped triangles,
+    #: pieces that ride, a reduction. A refusal carries its blockers in `MeshFindingError.findings`.
+    findings: tuple = ()
+
+
+def _painted_finding(severity, code, message, **values):
+    from cdmw.domain.mesh.findings import mesh_finding
+
+    return mesh_finding(severity, code, message, category="cloth_guides", **values)
 
 
 def remove_pac_cloth_guides(data: bytes) -> tuple[bytes, int]:
@@ -352,25 +361,33 @@ def create_painted_cloth_guides(
         raise ValueError("Paint at least one area as cloth.")
     stripped, removed = remove_pac_cloth_guides(data)
     metadata, insertion, palette, levels = guide_creation_layout(stripped)
+    from cdmw.domain.mesh.findings import FIX_CLOTH_PINS, raise_for_blockers
+
     check_cancelled()
-    candidates, reasons = [], []
+    candidates, reasons, findings = [], [], []
     for lod in range(len(levels)):
         points, records, faces, pins, names = painted_guide_source(
             stripped, samples, max_sample_distance=max_sample_distance, lod=lod)
         if not faces:
             reasons.append(f"LOD {lod}: no painted faces")
+            findings.append(_painted_finding("info", "cloth_guide.painted_lod_unused",
+                                             f"LOD {lod}: no painted faces", lod=lod))
             continue
         points, records, faces, pins, riding = held_guide_pieces(points, records, faces, pins)
         problem = manifold_problem(faces)
         if problem:
             reasons.append(f"LOD {lod}: {problem}")
+            findings.append(_painted_finding("info", "cloth_guide.painted_lod_unused", f"LOD {lod}: {problem}",
+                                             lod=lod))
             continue
         candidates.append((lod, points, records, faces, pins, names, riding))
         if len(points) <= GUIDE_LIMIT:
             break
     if not candidates:
-        raise ValueError("The painted area cannot become a cloth guide mesh ("
-                         + "; ".join(reasons) + "). Paint whole faces of a single-layer surface.")
+        raise_for_blockers((*findings, _painted_finding(
+            "blocker", "cloth_guide.painted_no_source",
+            "The painted area cannot become a cloth guide mesh (" + "; ".join(reasons)
+            + "). Paint whole faces of a single-layer surface.")))
     fitting = [row for row in candidates if len(row[1]) <= GUIDE_LIMIT]
     lod, points, records, faces, pins, names, riding = (
         fitting[0] if fitting else min(candidates, key=lambda row: len(row[1])))
@@ -387,13 +404,32 @@ def create_painted_cloth_guides(
     if flat:
         points, records, faces, pins, cut_off = held_guide_pieces(points, records, faces, pins)
         riding += cut_off
+    if reduced:
+        findings.append(_painted_finding(
+            "info", "cloth_guide.reduced", f"Reduced LOD {lod} from {source_vertices:,} to {len(points):,} guides.",
+            lod=lod, element_kind="guide", element_count=source_vertices))
+    if flat:
+        findings.append(_painted_finding(
+            "warning", "cloth_guide.flat_triangles",
+            f"Skipped {len(flat):,} triangles too thin to store at LOD {lod}.",
+            lod=lod, element_kind="face", element_count=len(flat)))
+    if riding:
+        findings.append(_painted_finding(
+            "info", "cloth_guide.riding_pieces",
+            f"{riding:,} painted pieces have no fixed guide and follow the nearest held cloth.", lod=lod))
     if len(points) < 3 or not faces:
-        raise ValueError("The painted area is too small for cloth. Paint at least one whole face.")
-    if not pins:
-        raise ValueError("Nothing holds the painted cloth. Leave the area it hangs from unpainted, "
-                         "or paint pins where it attaches.")
-    if len(pins) == len(points):
-        raise ValueError("Every cloth guide is pinned, so nothing would move. Paint a larger area or fewer pins.")
+        findings.append(_painted_finding("blocker", "cloth_guide.nothing_left",
+                                         "The painted area is too small for cloth. Paint at least one whole face.",
+                                         lod=lod))
+    elif not pins:
+        findings.append(_painted_finding("blocker", "cloth_guide.pins",
+                                         "Nothing holds the painted cloth. Leave the area it hangs from unpainted, "
+                                         "or paint pins where it attaches.", lod=lod, fix_command=FIX_CLOTH_PINS))
+    elif len(pins) == len(points):
+        findings.append(_painted_finding("blocker", "cloth_guide.pins",
+                                         "Every cloth guide is pinned, so nothing would move. "
+                                         "Paint a larger area or fewer pins.", lod=lod, fix_command=FIX_CLOTH_PINS))
+    raise_for_blockers(findings)
     skins = [_skin(stripped, offset, len(palette), True) for offset in records]
     check_cancelled()
     block, _decoded = _guide_block(points, skins, faces, pins)
@@ -419,4 +455,5 @@ def create_painted_cloth_guides(
         guide_count=len(points), pinned_guides=len(pins), source_lod=lod, source_vertices=source_vertices,
         reduced=reduced, cloth_vertices=bind.cloth_vertices, rigid_vertices=bind.rigid_vertices,
         reduced_skin_vertices=bind.reduced_vertices, cloth_parts=bind.cloth_parts or names,
-        removed_template_guides=removed, riding_pieces=riding, skipped_flat_triangles=len(flat))
+        removed_template_guides=removed, riding_pieces=riding, skipped_flat_triangles=len(flat),
+        findings=tuple(findings))
