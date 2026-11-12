@@ -516,6 +516,9 @@ pub struct PreviewApplication {
     /// Another viewport of the engine process (P4 V5): it draws on this device,
     /// and closing it closes its window, not the process.
     secondary_on: Option<cdmw_render_wgpu::SharedGpu>,
+    /// The edit revision this preview shows instead of its package's mesh, while
+    /// it follows an edit of the same file (P4 V5); cleared by a package load.
+    followed_revision: Option<crate::engine::FollowedRevision>,
 }
 
 /// The mode drawn: an icon capture is always textured, so a view mode chosen
@@ -629,6 +632,7 @@ impl PreviewApplication {
             package_captures: None,
             lent_gpu: None,
             secondary_on: None,
+            followed_revision: None,
             icon_capture: false,
         };
         application.refresh_visible_snapshot();
@@ -760,6 +764,43 @@ impl PreviewApplication {
 
     pub(crate) fn window_id(&self) -> Option<WindowId> {
         self.window.as_ref().map(|window| window.id())
+    }
+
+    /// Whether this preview shows `source_path` with `parts` parts, so it can
+    /// follow an edit of that file read-only (P4 V5). Not while lent: then it is
+    /// the edit's own view.
+    pub(crate) fn can_follow(&self, source_path: &str, parts: usize) -> bool {
+        !self.lent
+            && self.renderer.is_some()
+            && crate::engine::same_source(
+                self.package
+                    .manifest()
+                    .source
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                source_path,
+            )
+            && self.mesh.submesh_indices().len() == parts
+    }
+
+    /// Show the edit's mesh, read-only, unless this revision is already shown.
+    pub(crate) fn follow(&mut self, revision: crate::engine::FollowedRevision, mesh: &WorkingMesh) {
+        if self.followed_revision == Some(revision) {
+            return;
+        }
+        if self.followed_revision.is_none() {
+            self.bridge.send(json!({"event": "edit_followed"}));
+        }
+        self.followed_revision = Some(revision);
+        self.mesh = mesh.clone();
+        self.mesh.selection = Selection::default();
+        self.geometry = PreviewGeometry::from_mesh(&self.mesh);
+        self.scene_revision = self.scene_revision.saturating_add(1);
+        self.refresh_visible_snapshot();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     /// A viewport asked to close (or failed to open): the engine drops it.
@@ -1152,6 +1193,8 @@ impl PreviewApplication {
                         .unwrap_or(Value::Null),
                 );
                 let old_package = std::mem::replace(&mut self.package, loaded.package);
+                // A new package shows its own mesh until an edit of it is followed again.
+                self.followed_revision = None;
                 let retained_placement =
                     retain_live_placement(&old_scene, &mut self.state.scene, request.reset_view);
                 let old_revision = self.scene_revision;

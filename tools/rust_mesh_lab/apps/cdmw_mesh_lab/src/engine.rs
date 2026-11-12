@@ -351,6 +351,24 @@ impl EngineApplication {
         flow
     }
 
+    /// Other viewports showing the edited file follow the edit read-only (P4 V5).
+    /// Browse's own view does not while it is the edit's view.
+    fn follow_edit(&mut self) {
+        let Some(edit) = self.edit.as_mut() else {
+            return;
+        };
+        let Some((path, revision, mesh)) = edit.mesh_for_followers(std::time::Instant::now())
+        else {
+            return;
+        };
+        let parts = mesh.submesh_indices().len();
+        for preview in std::iter::once(&mut self.preview).chain(self.viewports.iter_mut()) {
+            if preview.can_follow(&path, parts) {
+                preview.follow(revision, mesh);
+            }
+        }
+    }
+
     /// Drop the viewports that closed; CDMW hears `viewport_closed` for each.
     fn drop_closed_viewports(&mut self) {
         let (closed, open): (Vec<_>, Vec<_>) = std::mem::take(&mut self.viewports)
@@ -589,6 +607,7 @@ impl ApplicationHandler for EngineApplication {
             preview_flow = earliest(preview_flow, event_loop.control_flow());
         }
         let preview_flow = self.wait_pages(event_loop, preview_flow);
+        self.follow_edit();
         event_loop.set_control_flow(preview_flow);
         self.drop_closed_viewports();
         if let Some(edit) = &mut self.edit {
@@ -627,6 +646,20 @@ impl ApplicationHandler for EngineApplication {
         }
         self.leave_if_requested();
     }
+}
+
+/// Which edit mesh a following viewport shows (P4 V5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FollowedRevision {
+    pub(crate) mesh: u64,
+    pub(crate) geometry: u64,
+    pub(crate) topology: u64,
+}
+
+/// Whether two source paths name the same archive file (case and separators aside).
+pub(crate) fn same_source(first: &str, second: &str) -> bool {
+    let normalize = |path: &str| path.replace('\\', "/").trim_matches('/').to_lowercase();
+    !first.trim().is_empty() && normalize(first) == normalize(second)
 }
 
 /// The wait that wakes for both: polling beats any deadline, the earlier deadline
@@ -872,6 +905,17 @@ mod tests {
             json!({"protocol": PAGE_PROTOCOL, "type": "state", "page_id": "gone"}),
         );
         assert!(received.try_recv().is_err() && lines.try_recv().is_err());
+    }
+
+    #[test]
+    fn a_follower_shows_only_the_same_archive_file() {
+        assert!(same_source(
+            "character/cd_phm_00_ub_00_0374.pac",
+            "Character\\CD_PHM_00_UB_00_0374.PAC"
+        ));
+        assert!(same_source("/character/a.pac", "character/a.pac/"));
+        assert!(!same_source("character/a.pac", "character/b.pac"));
+        assert!(!same_source("", ""));
     }
 
     #[test]

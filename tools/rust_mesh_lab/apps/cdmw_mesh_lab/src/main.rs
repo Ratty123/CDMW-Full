@@ -2428,6 +2428,8 @@ struct LabApplication {
     kept_hidden_parts: Option<HashSet<u32>>,
     /// Parts selected while the editor showed Browse's model, kept for the session.
     kept_selected_parts: Option<HashSet<u32>>,
+    /// When other viewports last saw this edit's mesh (P4 V5's read-only follower).
+    followers_seen_at: Option<Instant>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2701,6 +2703,7 @@ impl LabApplication {
             cdmw_tool_groups: tool_groups::ToolGroupState::default(),
             kept_hidden_parts: None,
             kept_selected_parts: None,
+            followers_seen_at: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2897,6 +2900,36 @@ impl LabApplication {
         window.request_redraw();
         self.window = Some(window);
         Ok((lent, self.camera.clone()))
+    }
+
+    /// The edited file and its mesh for viewports that follow it read-only
+    /// (P4 V5): at most every quarter of a second, so a stroke shows in steps.
+    pub(crate) fn mesh_for_followers(
+        &mut self,
+        now: Instant,
+    ) -> Option<(String, crate::engine::FollowedRevision, &WorkingMesh)> {
+        if self
+            .followers_seen_at
+            .is_some_and(|at| now < at + std::time::Duration::from_millis(250))
+        {
+            return None;
+        }
+        let path = self
+            .cdmw_bridge
+            .as_ref()?
+            .manifest()
+            .source
+            .get("path")?
+            .as_str()?
+            .to_owned();
+        let mesh = self.mesh.as_ref()?;
+        self.followers_seen_at = Some(now);
+        let revision = crate::engine::FollowedRevision {
+            mesh: mesh.identity(),
+            geometry: mesh.geometry_revision,
+            topology: mesh.topology_generation,
+        };
+        Some((path, revision, mesh))
     }
 
     /// Hand the renderer and the camera back to the Preview when the edit ends.
