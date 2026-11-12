@@ -24,8 +24,12 @@ class _Shell(NavigationControllerMixin):
         self.activated.append(key)
 
 
-def test_switching_to_the_mesh_editor_takes_an_edit_in_browse_with_it() -> None:
+def test_in_the_legacy_shell_switching_to_the_mesh_editor_takes_an_edit_in_browse_with_it() -> None:
+    """The legacy shell keeps a page per tool; the compact shell keeps the edit in
+    Browse's page instead (P15 step 5a, ``tests/test_p15_step5a.py``)."""
+
     shell = _Shell(editing=True)
+    shell.classic_navigation = object()
     shell._activate_tool_key("mesh_editor")
     # The edit moved once, and the Mesh Editor was shown by the move itself.
     assert shell.promotions == 1 and shell.activated == ["mesh_editor"]

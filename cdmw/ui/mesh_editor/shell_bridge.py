@@ -946,10 +946,33 @@ class MeshEditorShellBridgeMixin:
             live_edit.moved_to_own_viewport.connect(self._browse_edit_moved_to_tab)
             connected.add(id(live_edit))
         live_edit.edit_in_viewport(binding)
+        self._watch_documents_for_browse_edit()
         if fresh:
             # View first (P4 V4): the editor shows Browse's model now; the session follows.
             binding.show_view_now()
         return binding
+
+    def _watch_documents_for_browse_edit(self) -> None:
+        """The Mesh page's tab of the document Browse is editing shows Browse's page
+        as the Mesh workspace (P15 step 5a): its window is Browse's."""
+
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        view = created_tool_widget(self.mesh_editor_tab)
+        changed = getattr(view, "document_changed", None)
+        connected = self.__dict__.setdefault("_documents_watched_for_browse_edit", set())
+        if changed is None or id(view) in connected:
+            return
+        connected.add(id(view))
+
+        def shown(index: int, view=view) -> None:
+            documents = tuple(getattr(view, "documents", ()) or ())
+            browse = getattr(view, "browse_document", lambda: None)()
+            if (0 <= index < len(documents) and browse is not None and documents[index] is browse
+                    and self._current_navigation_widget() is self.mesh_editor_tab):
+                QTimer.singleShot(0, self._move_browse_edit_to_mesh_workspace)
+
+        changed.connect(shown)
 
     def _browse_edit_moved_to_tab(self, reason: str) -> None:
         """Browse's viewport could not hold the edit: the Mesh Editor tab shows it."""

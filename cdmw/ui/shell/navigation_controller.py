@@ -278,6 +278,11 @@ class NavigationControllerMixin:
             return
         if key == "mesh_editor" and self._move_browse_edit_to_mesh_workspace():
             return
+        if key != "mesh_editor":
+            # Browse's page stops being the Mesh workspace (P15 step 5a).
+            leave = getattr(getattr(self, "archive", None), "leave_mesh_workspace_view", None)
+            if callable(leave):
+                leave()
         if key == 'mod_package_retrofit':
             widget = self._tool_widgets_by_key.get('mod_management')
             if widget is not None:
@@ -298,26 +303,55 @@ class NavigationControllerMixin:
             self._activate_tool_widget(widget)
 
     def _move_browse_edit_to_mesh_workspace(self) -> bool:
-        """Switching to the Mesh Editor takes an edit in Browse's view with it (P15 step 1).
+        """Switching to the Mesh Editor while an edit is in Browse's view (P15 step 5a).
 
-        The edit moves into the Mesh workspace without reopening (Promote to tab):
-        the scene, its camera, selection and history stay, and Browse's view
-        follows it read-only. True when the move started; the move itself shows
-        the Mesh Editor.
+        Browse's page stays on screen as the Mesh workspace: the same window, in its
+        edit layout, with the Mesh Editor's document tabs above it. Nothing moves,
+        reloads or uploads, and the rail shows the Mesh Editor. The legacy shell
+        keeps a page per tool, so there the edit moves to the tab as before
+        (Promote to tab, P15 step 1). True when the Mesh workspace is shown.
         """
 
         if getattr(self, "_moving_edit_to_mesh_workspace", False):
             return False
         archive = getattr(self, "archive", None)
-        promote = getattr(archive, "_promote_edit_to_tab", None)
-        if not getattr(archive, "editing_in_place", False) or not callable(promote):
+        if not getattr(archive, "editing_in_place", False):
             return False
         self._moving_edit_to_mesh_workspace = True
         try:
-            promote()
+            if getattr(self, "classic_navigation", None) is not None:
+                promote = getattr(archive, "_promote_edit_to_tab", None)
+                if not callable(promote):
+                    return False
+                promote()
+                return True
+            show = getattr(archive, "show_edit_as_mesh_workspace", None)
+            if not callable(show) or not show(self._show_mesh_document_from_browse):
+                return False
+            if self._current_navigation_widget() is not self.archive_browser_tab:
+                self._activate_tool_widget(self.archive_browser_tab)
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self, "mesh_editor")
+            recorder = getattr(self, "_record_runtime_event", None)
+            if callable(recorder):
+                recorder("mesh_workspace_in_browse", shown=True)
         finally:
             self._moving_edit_to_mesh_workspace = False
         return True
+
+    def _show_mesh_document_from_browse(self, index: int) -> None:
+        """A document tab chosen above Browse's edit: the Mesh Editor page shows it,
+        unless it is the edit Browse already shows."""
+
+        archive = getattr(self, "archive", None)
+        view = archive._mesh_documents_view() if archive is not None else None
+        documents = tuple(getattr(view, "documents", ()) or ())
+        if not 0 <= index < len(documents) or documents[index] is archive._browse_edit_document():
+            return
+        archive.leave_mesh_workspace_view()
+        self._activate_tool_widget(self.mesh_editor_tab)
+        view.set_active(index)
 
     def _activate_tool_widget(self, widget: QWidget) -> None:
         if not widget.isEnabled():

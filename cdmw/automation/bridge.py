@@ -154,6 +154,7 @@ class AutomationBridge(QObject):
             "end_edit": self._end_edit,
             "promote_edit": self._promote_edit,
             "show_document": self._show_document,
+            "run_editor_command": self._run_editor_command,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -325,13 +326,61 @@ class AutomationBridge(QObject):
                 # P4 V3: the edit is in Browse's viewport, in Browse's process.
                 "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
                 "process_id": self._editor_process_id(tab),
+                "revision": self._editor_revision(tab),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
                 "session_manifest": self._editor_session_manifest(tab),
             },
             "preview_settings": self._preview_settings(archive, tab),
             # P15: the Mesh Editor's open documents, the shown one first by index.
             "mesh_documents": self._mesh_documents(tab),
+            # P15 step 5a: what the rail shows and which 3D windows are on screen.
+            **self._workspace_state(window, archive, tab),
         }
+
+    @classmethod
+    def _workspace_state(cls, window, archive, view) -> dict[str, object]:
+        shell = window.shell
+        host = getattr(archive, "archive_d3d11_preview_host", None)
+        compact = getattr(shell, "compact_workspace", None)
+
+        def visible(widget) -> bool:
+            try:
+                return bool(widget is not None and widget.isVisible())
+            except RuntimeError:
+                return False
+
+        def frame_hwnd(widget) -> int:
+            try:
+                return int(widget.winId()) if widget is not None else 0
+            except (RuntimeError, TypeError, ValueError):
+                return 0
+
+        browse_view = visible(host) and visible(getattr(shell, "archive_browser_tab", None))
+        own_windows = 0
+        for document in tuple(getattr(view, "documents", ()) or ()):
+            in_browse = getattr(getattr(document, "live_edit", None), "viewport_binding", None) is not None
+            if (not in_browse and int(getattr(document, "standalone_rust_child_hwnd", 0) or 0)
+                    and visible(getattr(document, "standalone_native_host_frame", None))):
+                own_windows += 1
+        return {
+            "workspace": str(getattr(compact, "_active_tool_key", "") or ""),
+            "browse_page_visible": visible(getattr(shell, "archive_browser_tab", None)),
+            "mesh_page_visible": visible(getattr(shell, "mesh_editor_tab", None)),
+            "browse_frame_hwnd": frame_hwnd(host),
+            "browse_edit_as_mesh": bool(getattr(archive, "edit_shown_as_mesh_workspace", False)),
+            # Browse's 3D view and every document window drawn on screen.
+            "visible_viewports": int(browse_view) + own_windows,
+        }
+
+    def _run_editor_command(self, args: dict) -> bool:
+        """Run one of the shown Mesh Editor's commands, as the palette does (P15 journey 3)."""
+
+        from cdmw.ui.commands import registry as registry_module
+        from cdmw.ui.mesh_editor.editor_commands import registry_id
+
+        registry = getattr(self.window, "command_registry", None) or registry_module.command_registry()
+        registry.run(registry_id(str(args["id"])))
+        return True
 
     @classmethod
     def _mesh_documents(cls, view) -> dict:
@@ -361,6 +410,12 @@ class AutomationBridge(QObject):
             return False
         view.set_active(index)
         return True
+
+    @staticmethod
+    def _editor_revision(tab) -> int:
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import pending_edit_revision
+
+        return int(pending_edit_revision(tab))
 
     @staticmethod
     def _editor_process_id(tab) -> int:

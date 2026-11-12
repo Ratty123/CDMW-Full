@@ -100,9 +100,92 @@ def test_journey_2_a_five_file_set_opens_textured(run):
         "the set opened untextured: " + editor["texture_unavailable_reason"])
 
 
-def test_journey_3_edit_restart_recover_the_draft():
-    pytest.skip("The app offers a draft only when the same file is opened again, and an edit cannot yet be "
-                "sent from outside the editor's window; written with P4 V4 (and its history with P14).")
+def _editor_ready(run):
+    run.wait(lambda: (run.state()["mesh_editor"] or {}).get("ready"), timeout=90, what="the editor to be ready")
+
+
+def _one_edit(run, before: int) -> int:
+    """Delete a few faces through the editor's own commands, as the palette runs them."""
+
+    for command in ("selection.target.face", "session.select_all", "selection.shrink", "selection.shrink",
+                    "selection.shrink", "topology.delete_selection"):
+        run.call("run_editor_command", id=command)
+    return run.wait(lambda: (run.state()["mesh_editor"]["revision"] > before) and run.state()["mesh_editor"]["revision"],
+                    timeout=60, what="the edit to be accepted")
+
+
+def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspace(run):
+    """P15 step 5a (step 5 item 7): an edit sent through the bridge lands while the edit
+    is in Browse's view, and again after the rail switched to the Mesh Editor, which
+    keeps the same window. The restart-and-recover half of the stage B journey is
+    not written yet."""
+
+    run.select(driver.SWORD)
+    hwnd = run.state()["browse_frame_hwnd"]
+    run.open_mesh_editor()
+    _editor_ready(run)
+    assert run.state()["mesh_editor"]["in_browse"]
+    first = _one_edit(run, run.state()["mesh_editor"]["revision"])
+    index = len(run.call("events"))
+    run.call("activate_tool", key="mesh_editor")
+    state = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
+                     what="Browse's page to be the Mesh workspace")
+    assert state["workspace"] == "mesh_editor" and state["browse_page_visible"], state
+    assert state["browse_frame_hwnd"] == hwnd and state["mesh_editor"]["in_browse"], state
+    second = _one_edit(run, first)
+    assert second > first
+    assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"]
+    assert run.call("end_edit", answer="discard")
+
+
+def test_journey_4_switch_workspaces_around_one_window(run):
+    """P15 step 5a (step 5 item 7, and stage B's journey 4): switching Browse, the Mesh
+    Editor and Create New Item and back keeps Browse's window, its selection and its
+    picture, uploads nothing, and never shows two 3D views; a capture requested as
+    the switch starts still completes."""
+
+    run.select(driver.SWORD)
+    first = run.state()
+    hwnd, selected = first["browse_frame_hwnd"], run.call("selection").get("selected", "")
+    assert hwnd and first["visible_viewports"] == 1, first
+    index = len(run.call("events"))
+    assert run.call("capture", path=str(run.profile / "captures" / "before.png"))
+    run.call("activate_tool", key="mesh_editor")
+    captured = run.wait(lambda: [e for e in run.call("events", since=index) if e["event"] == "preview:capture_result"],
+                        timeout=60, what="the capture requested before the switch")
+    assert captured[-1].get("status") == "captured", captured
+    state = run.state()
+    assert state["mesh_page_visible"] and not state["browse_page_visible"] and state["visible_viewports"] <= 1, state
+    run.call("activate_tool", key="new_item_studio")
+    run.wait(lambda: not run.state()["mesh_page_visible"], timeout=60, what="Create New Item to show")
+    assert run.state()["visible_viewports"] == 0
+    run.call("activate_tool", key="archive_browser")
+    back = run.wait(lambda: run.state()["browse_page_visible"] and run.state(), timeout=30, what="Browse to show")
+    assert back["browse_frame_hwnd"] == hwnd and back["visible_viewports"] == 1, back
+    assert run.call("selection").get("selected", "") == selected
+    loads = [e for e in run.call("events", since=index)
+             if e["event"].startswith("preview:package") or e["event"] == "preview:edit_entered"]
+    assert not loads, loads
+    # With an edit in Browse's view, the Mesh workspace is Browse's page and window.
+    run.open_mesh_editor()
+    _editor_ready(run)
+    index = len(run.call("events"))
+    run.call("activate_tool", key="mesh_editor")
+    mesh = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
+                    what="Browse's page to be the Mesh workspace")
+    assert mesh["browse_frame_hwnd"] == hwnd and mesh["visible_viewports"] == 1 and not mesh["mesh_page_visible"], mesh
+    run.call("activate_tool", key="new_item_studio")
+    run.wait(lambda: not run.state()["browse_page_visible"], timeout=60, what="Create New Item to show")
+    assert run.state()["visible_viewports"] == 0
+    run.call("activate_tool", key="mesh_editor")
+    again = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
+                     what="the Mesh workspace in Browse's page again")
+    assert again["browse_frame_hwnd"] == hwnd and again["mesh_editor"]["in_browse"], again
+    run.call("activate_tool", key="archive_browser")
+    browse = run.wait(lambda: not run.state()["browse_edit_as_mesh"] and run.state(), timeout=20, what="Browse again")
+    assert browse["browse_frame_hwnd"] == hwnd and browse["mesh_editor"]["in_browse"], browse
+    assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"]
+    assert run.call("end_edit", answer="discard")
 
 
 def test_journey_5_a_preview_setting_changed_once_reaches_every_viewport(run):

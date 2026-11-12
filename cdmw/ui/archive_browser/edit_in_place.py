@@ -14,12 +14,20 @@ While editing:
 - a banner says which file is being edited. Selecting another file shows its
   details only; the banner then offers to preview it instead, which asks
   Finish, Discard or Keep editing first.
+
+P15 step 5a: switching to the Mesh Editor while editing here keeps this page
+and its window on screen, in the same layout, with the Mesh Editor's document
+tabs above it (``show_edit_as_mesh_workspace``). Nothing moves or loads again.
+Choosing another document's tab shows the Mesh Editor page, which hides this
+page and its window, so only one 3D view is ever visible.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QEvent, QObject, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QTabBar, QWidget
 
 #: Width of a collapsed pane while editing.
 STRIP_WIDTH = 28
@@ -60,6 +68,9 @@ class BrowseEditLayout:
         self._hidden: list[QWidget] = []
         self._hover = _StripHover(self)
         self.banner = self._build_banner()
+        #: The Mesh Editor's document tabs while this page is the Mesh workspace (P15 step 5a).
+        self.document_selected: Callable[[int], None] | None = None
+        self.documents_bar = self._build_documents_bar()
 
     # ----- banner -------------------------------------------------------------
     def _build_banner(self) -> QFrame:
@@ -83,6 +94,47 @@ class BrowseEditLayout:
         if layout is not None:
             layout.insertWidget(0, banner)
         return banner
+
+    def _build_documents_bar(self) -> QTabBar:
+        bar = QTabBar()
+        bar.setObjectName("ArchiveEditingDocumentTabs")
+        bar.setDocumentMode(True)
+        bar.setExpanding(False)
+        bar.setVisible(False)
+        bar.tabBarClicked.connect(self._document_clicked)
+        layout = getattr(self.browser, "archive_preview_main_layout", None)
+        if layout is not None:
+            layout.insertWidget(0, bar)
+        return bar
+
+    def show_documents(self, labels: list[str], current: int) -> None:
+        """Show the Mesh Editor's document tabs above the edit, ``current`` selected."""
+
+        bar = self.documents_bar
+        bar.blockSignals(True)
+        try:
+            while bar.count():
+                bar.removeTab(0)
+            for label in labels:
+                bar.addTab(label)
+            if 0 <= current < bar.count():
+                bar.setCurrentIndex(current)
+        finally:
+            bar.blockSignals(False)
+        bar.setVisible(True)
+        self.promote_button.setVisible(False)  # it is already the Mesh workspace
+
+    def hide_documents(self) -> None:
+        self.documents_bar.setVisible(False)
+        self.promote_button.setVisible(True)
+
+    @property
+    def showing_documents(self) -> bool:
+        return not self.documents_bar.isHidden()
+
+    def _document_clicked(self, index: int) -> None:
+        if index >= 0 and callable(self.document_selected):
+            self.document_selected(index)
 
     def set_status(self, message: str) -> None:
         label = getattr(self.entry, "basename", "") or getattr(self.entry, "path", "") or ""
@@ -158,6 +210,7 @@ class BrowseEditLayout:
         self._hidden = []
         self.banner.setVisible(False)
         self.preview_selected_button.setVisible(False)
+        self.hide_documents()
         self.entry = None
 
     def collapse_strips(self) -> None:
@@ -262,9 +315,13 @@ class BrowseEditInPlaceMixin:
         if live is None or getattr(live, "viewport_binding", None) is None:
             return
         self._show_browse_edit_document(tab)
-        activate = getattr(shell, "_activate_tool_key", None)
-        if callable(activate):
-            activate("mesh_editor")  # its host window exists and has its size first
+        self.leave_mesh_workspace_view()
+        # The Mesh page itself, not the rail key: the rail keeps an edit in this view
+        # (P15 step 5a), and the move needs the page's host window with its size.
+        activate = getattr(shell, "_activate_tool_widget", None)
+        page = getattr(shell, "mesh_editor_tab", None)
+        if callable(activate) and page is not None:
+            activate(page)
 
         def promote() -> None:
             if not live.promote_to_tab():
@@ -299,6 +356,45 @@ class BrowseEditInPlaceMixin:
         binding = getattr(self, "_edit_in_place_binding", None)
         return binding is not None and not binding.is_ended
 
+    # ----- the Mesh workspace in this page (P15 step 5a) ----------------------
+    @property
+    def edit_shown_as_mesh_workspace(self) -> bool:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        return bool(self.editing_in_place and layout is not None and layout.active and layout.showing_documents)
+
+    def show_edit_as_mesh_workspace(self, select_document: Callable[[int], None]) -> bool:
+        """Be the Mesh workspace: this page, its window and its edit layout stay, with
+        the Mesh Editor's document tabs above. ``select_document(index)`` shows
+        another document. False when no edit is in this viewport."""
+
+        layout = self._archive_edit_layout()
+        if not self.editing_in_place or not layout.active:
+            return False
+        view = self._mesh_documents_view()
+        documents = tuple(getattr(view, "documents", ()) or ())
+        if not documents:
+            return False
+        from cdmw.ui.mesh_editor.documents import document_label
+
+        browse = self._browse_edit_document()
+        layout.document_selected = select_document
+        layout.show_documents([document_label(document) for document in documents],
+                              documents.index(browse) if browse in documents else -1)
+        return True
+
+    def leave_mesh_workspace_view(self) -> None:
+        """Browse again: the edit stays in this view, without the document tabs."""
+
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is not None:
+            layout.hide_documents()
+
+    def _mesh_documents_view(self):
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        return created() if callable(created) else owner
+
     def _edit_in_place_status(self, kind: int, message: str) -> None:
         layout = self._archive_edit_layout()
         from cdmw.ui.mesh_editor.live_edit.browse_viewport import STATUS_EDITING
@@ -307,7 +403,14 @@ class BrowseEditInPlaceMixin:
 
     def _edit_in_place_ended(self) -> None:
         self._edit_in_place_binding = None
-        self._archive_edit_layout().leave()
+        layout = self._archive_edit_layout()
+        was_mesh_workspace = layout.showing_documents
+        layout.leave()
+        if was_mesh_workspace:
+            # This page shows Browse again; the rail says so (P15 step 5a).
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self, "archive_browser")
 
     def _edit_in_place_selection_changed(self) -> None:
         layout = getattr(self, "_edit_in_place_layout", None)

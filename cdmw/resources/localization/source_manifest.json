@@ -14196,7 +14196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1978,
+          "line": 1981,
           "sink": "ValueError"
         }
       ]
@@ -19501,7 +19501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1182,
+          "line": 1184,
           "sink": "ValueError"
         },
         {
@@ -19516,7 +19516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1107,
+          "line": 1109,
           "sink": "ValueError"
         }
       ]
@@ -19526,7 +19526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1164,
+          "line": 1166,
           "sink": "ValueError"
         },
         {
@@ -19541,7 +19541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1135,
+          "line": 1137,
           "sink": "ValueError"
         },
         {
@@ -35796,7 +35796,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 980,
+          "line": 982,
           "sink": "question"
         }
       ]
@@ -47531,7 +47531,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 980,
+          "line": 982,
           "sink": "question"
         }
       ]
@@ -52001,7 +52001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/edit_in_place.py",
-          "line": 92,
+          "line": 144,
           "sink": "setText"
         },
         {
@@ -52091,7 +52091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/edit_in_place.py",
-          "line": 92,
+          "line": 144,
           "sink": "setText"
         }
       ]
@@ -54801,7 +54801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1996,
+          "line": 1999,
           "sink": "ValueError"
         }
       ]
@@ -65236,7 +65236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2024,
+          "line": 2027,
           "sink": "ValueError"
         }
       ]
@@ -65246,7 +65246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1879,
+          "line": 1882,
           "sink": "RuntimeError"
         }
       ]
@@ -65261,7 +65261,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2020,
+          "line": 2023,
           "sink": "ValueError"
         }
       ]
@@ -65281,7 +65281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2022,
+          "line": 2025,
           "sink": "ValueError"
         }
       ]
@@ -65301,7 +65301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2011,
+          "line": 2014,
           "sink": "ValueError"
         }
       ]
@@ -74091,7 +74091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1982,
+          "line": 1985,
           "sink": "ValueError"
         }
       ]
@@ -83431,7 +83431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1098,
+          "line": 1100,
           "sink": "ValueError"
         }
       ]
@@ -90751,7 +90751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2937,
+          "line": 2940,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -91091,7 +91091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1083,
+          "line": 1106,
           "sink": "set_status_message"
         }
       ]
@@ -91151,7 +91151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1081,
+          "line": 1104,
           "sink": "set_status_message"
         }
       ]
@@ -91411,7 +91411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1040,
+          "line": 1042,
           "sink": "RuntimeError"
         }
       ]
@@ -91696,32 +91696,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 972,
+          "line": 995,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 992,
+          "line": 1015,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 999,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1019,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1028,
+          "line": 1022,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
           "line": 1042,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 1051,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 1065,
           "sink": "set_status_message"
         }
       ]
@@ -91731,7 +91731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1928,
+          "line": 1931,
           "sink": "RuntimeError"
         }
       ]
@@ -92016,7 +92016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1058,
+          "line": 1060,
           "sink": "RuntimeError"
         }
       ]
@@ -92121,7 +92121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1490,
+          "line": 1492,
           "sink": "RuntimeError"
         }
       ]
@@ -92386,7 +92386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1085,
+          "line": 1108,
           "sink": "set_status_message"
         }
       ]
@@ -97506,7 +97506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2936,
+          "line": 2939,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -97886,7 +97886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/edit_in_place.py",
-          "line": 76,
+          "line": 87,
           "sink": "QPushButton"
         }
       ]
@@ -101961,7 +101961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1025,
+          "line": 1027,
           "sink": "RuntimeError"
         }
       ]
@@ -110721,7 +110721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 958,
+          "line": 981,
           "sink": "set_status_message"
         }
       ]
@@ -110827,7 +110827,7 @@
       ]
     },
     {
-      "key": "Opening another mesh while the shown one has an unfinished edit opens it in a new tab above the Mesh Editor, and the first keeps its edit, selection, view and history. Finish and Discard act on the shown tab; closing a tab with an unfinished edit asks first. Up to 4 tabs keep their 3D view open; showing more parks the one shown longest ago, which opens again with its edits when you show it. Switching to Mesh Editor while you edit in Browse Archives takes that edit along, and Browse's view keeps showing it.",
+      "key": "Opening another mesh while the shown one has an unfinished edit opens it in a new tab above the Mesh Editor, and the first keeps its edit, selection, view and history. Finish and Discard act on the shown tab; closing a tab with an unfinished edit asks first. Up to 4 tabs keep their 3D view open; showing more parks the one shown longest ago, which opens again with its edits when you show it. Switching to Mesh Editor while you edit in Browse Archives keeps the edit where it is: Browse's view stays, folded for editing, with the Mesh Editor's tabs above it. Choosing another tab shows that mesh instead.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -114436,7 +114436,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1030,
+          "line": 1053,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -122836,7 +122836,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1021,
+          "line": 1044,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -125486,7 +125486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/edit_in_place.py",
-          "line": 72,
+          "line": 83,
           "sink": "QPushButton"
         }
       ]
@@ -131146,7 +131146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1009,
+          "line": 1032,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -131201,7 +131201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1007,
+          "line": 1030,
           "sink": "set_status_message"
         }
       ]
@@ -132071,7 +132071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1593,
+          "line": 1595,
           "sink": "_push_history"
         }
       ]
@@ -136561,7 +136561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1395,
+          "line": 1397,
           "sink": "RuntimeError"
         }
       ]
@@ -136666,7 +136666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1399,
+          "line": 1401,
           "sink": "RuntimeError"
         }
       ]
@@ -150046,7 +150046,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 966,
+          "line": 989,
           "sink": "set_status_message"
         }
       ]
@@ -150111,7 +150111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1090,
+          "line": 1113,
           "sink": "set_status_message"
         }
       ]
@@ -181136,7 +181136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2209,
+          "line": 2212,
           "sink": "RuntimeError"
         }
       ]
@@ -182531,7 +182531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1980,
+          "line": 1983,
           "sink": "ValueError"
         }
       ]
@@ -183441,7 +183441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 989,
+          "line": 991,
           "sink": "ValueError"
         }
       ]
@@ -183471,7 +183471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1976,
+          "line": 1979,
           "sink": "ValueError"
         }
       ]
@@ -183686,7 +183686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2213,
+          "line": 2216,
           "sink": "ValueError"
         }
       ]
@@ -199326,7 +199326,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 788,
+          "line": 790,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -200806,32 +200806,32 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2290,
+          "line": 2293,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2298,
+          "line": 2301,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2309,
+          "line": 2312,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2328,
+          "line": 2331,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2352,
+          "line": 2355,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2386,
+          "line": 2389,
           "sink": "_result"
         },
         {
@@ -205831,7 +205831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 834,
+          "line": 836,
           "sink": "TypeError"
         },
         {
@@ -206941,7 +206941,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 991,
+          "line": 993,
           "sink": "RuntimeError"
         }
       ]
@@ -206951,7 +206951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1015,
+          "line": 1017,
           "sink": "RuntimeError"
         }
       ]
@@ -206961,7 +206961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1001,
+          "line": 1003,
           "sink": "RuntimeError"
         }
       ]
@@ -206971,7 +206971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1026,
+          "line": 1028,
           "sink": "RuntimeError"
         }
       ]
@@ -207076,7 +207076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2779,
+          "line": 2782,
           "sink": "RuntimeError"
         }
       ]
@@ -207151,7 +207151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3068,
+          "line": 3071,
           "sink": "RuntimeError"
         }
       ]
@@ -207161,7 +207161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2163,
+          "line": 2166,
           "sink": "RuntimeError"
         }
       ]
@@ -207171,12 +207171,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2140,
+          "line": 2143,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2174,
+          "line": 2177,
           "sink": "RuntimeError"
         }
       ]
@@ -207186,7 +207186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2152,
+          "line": 2155,
           "sink": "RuntimeError"
         }
       ]
@@ -207226,12 +207226,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2001,
+          "line": 2004,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2120,
+          "line": 2123,
           "sink": "RuntimeError"
         },
         {
@@ -207246,7 +207246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2658,
+          "line": 2661,
           "sink": "RuntimeError"
         }
       ]
@@ -207256,7 +207256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2049,
+          "line": 2052,
           "sink": "RuntimeError"
         }
       ]
@@ -207351,7 +207351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2440,
+          "line": 2443,
           "sink": "RuntimeError"
         }
       ]
@@ -207381,7 +207381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3115,
+          "line": 3118,
           "sink": "RuntimeError"
         }
       ]
@@ -207391,7 +207391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3094,
+          "line": 3097,
           "sink": "RuntimeError"
         }
       ]
@@ -207411,7 +207411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2969,
+          "line": 2972,
           "sink": "RuntimeError"
         }
       ]
@@ -207421,7 +207421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3250,
+          "line": 3253,
           "sink": "RuntimeError"
         }
       ]
@@ -207836,22 +207836,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1757,
+          "line": 1760,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1775,
+          "line": 1778,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2261,
+          "line": 2264,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2316,
+          "line": 2319,
           "sink": "_result"
         },
         {
@@ -216341,12 +216341,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2623,
+          "line": 2626,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2662,
+          "line": 2665,
           "sink": "RuntimeError"
         }
       ]
@@ -219651,7 +219651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2621,
+          "line": 2624,
           "sink": "RuntimeError"
         },
         {
@@ -220051,7 +220051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2242,
+          "line": 2245,
           "sink": "RuntimeError"
         }
       ]
@@ -220061,7 +220061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2035,
+          "line": 2038,
           "sink": "ValueError"
         }
       ]
@@ -221226,7 +221226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2236,
+          "line": 2239,
           "sink": "RuntimeError"
         }
       ]
@@ -222221,7 +222221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1009,
+          "line": 1032,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -222806,7 +222806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1009,
+          "line": 1032,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -225081,7 +225081,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/edit_in_place.py",
-          "line": 92,
+          "line": 144,
           "sink": "setText"
         },
         {
