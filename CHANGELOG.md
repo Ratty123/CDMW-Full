@@ -55,7 +55,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - The cache check that runs shortly after startup reads the cache folders several times faster, so it no longer slows down the first previews when the workspace cache holds many files.
 
-- CDMW runs fewer background processes while you preview. Its helpers no longer each carry a hidden console host, and the spare preview window that makes dialogs open faster now starts after the first preview dialog instead of at startup, so the first dialog opens a little slower and later ones as before.
+- CDMW runs fewer background processes while you preview: its helpers no longer each carry a hidden console host.
 
 - Preview settings are shared. Lighting, **Shadows**, **Ambient occlusion**, **Ground** and **Ground grid** apply to Browse Archives, preview dialogs, Create New Item and the Mesh Editor together, and a change in one shows up in the others while they are open. Create New Item's **Dark mode** stays a choice for its own preview; a preview with such a local choice says so and offers **Use global settings**.
 
@@ -64,7 +64,6 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - **Mesh Editor** brings an edit back after its 3D view stops unexpectedly, as intended: reopening it no longer fails on files left from the first open, which had discarded the changes.
-- Preview dialogs open quickly again after the spare preview window behind them has stopped. Before, a stopped spare was never replaced, so every later dialog started its own preview from scratch.
 
 - Mesh Editor's experimental **Create cloth guides** now builds when the chosen LOD has triangles that merge into a line where a seam is welded, or that are too thin to store; before, it refused the whole part with "Welding the guide source produces a degenerate triangle". Those triangles are left out of the guides only, the model itself is unchanged, and the panel says how many were skipped on which part and LOD. A part with nothing left, or a piece that nothing holds any more, is refused with its name. As before, the guides are not checked in game.
 
