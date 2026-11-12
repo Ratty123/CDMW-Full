@@ -20,12 +20,7 @@ try:
 except ImportError:
     winreg = None
 
-try:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
-except ImportError:
-    Cipher = None
-    algorithms = None
-
+from cdmw.core.chacha20 import chacha20_xor
 from cdmw.constants import (
     ARCHIVE_AUDIO_EXTENSIONS,
     ARCHIVE_IMAGE_EXTENSIONS,
@@ -255,13 +250,8 @@ def derive_chacha20_key_iv(filename: str) -> Tuple[bytes, bytes]:
 
 
 def crypt_chacha20_filename(data: bytes, filename: str) -> bytes:
-    if Cipher is None or algorithms is None:
-        raise ValueError(
-            "ChaCha20 support requires the cryptography package. Install it with: pip install cryptography"
-        )
     key, nonce = derive_chacha20_key_iv(filename)
-    cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None)
-    return cipher.encryptor().update(data)
+    return chacha20_xor(data, key, nonce)
 
 
 def _looks_like_plain_text_payload(data: bytes) -> bool:
