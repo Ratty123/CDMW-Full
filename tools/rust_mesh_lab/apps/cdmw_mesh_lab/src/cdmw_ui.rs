@@ -4,7 +4,7 @@ use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
 mod delete_guidance;
-mod keyboard;
+pub(crate) mod keyboard;
 mod morph_authoring;
 mod morph_body_controls;
 mod morph_outfit_workflows;

@@ -604,6 +604,13 @@ class MeshEditorRustProcessMixin:
 
             if save_mesh_shortcuts(self.settings, payload.get("shortcuts")):
                 request_settings_sync(self.settings)
+                registry = self._rust_command_registry()
+                if registry is not None:  # Settings > Shortcuts shows the new keys
+                    self._rust_keymap_echo = True
+                    try:
+                        registry.keymap_changed.emit()
+                    finally:
+                        self._rust_keymap_echo = False
             return
         if event in {"renderer_failed", "renderer_recovered"}:
             self.standalone_rust_gpu_failed = event == "renderer_failed"
@@ -1091,6 +1098,16 @@ class MeshEditorRustProcessMixin:
 
         mirror_helper_commands(registry, [row for row in commands if isinstance(row, Mapping)],
                                self._send_rust_command, lambda: bool(self.standalone_rust_ready))
+        if not getattr(self, "_rust_follows_keymap", False):
+            # A key changed in Settings > Shortcuts reaches the running editor at once.
+            self._rust_follows_keymap = True
+            registry.keymap_changed.connect(self._rust_keymap_changed)
+
+    def _rust_keymap_changed(self) -> None:
+        if getattr(self, "_rust_keymap_echo", False):
+            return  # the editor itself just saved these keys
+        if getattr(self, "standalone_rust_ready", False) and self.standalone_rust_process is not None:
+            self._send_rust_theme_update()
 
     def _send_rust_command(self, helper_id: str) -> bool:
         return self._send_rust_message(

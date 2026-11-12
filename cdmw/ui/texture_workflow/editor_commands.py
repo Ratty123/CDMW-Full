@@ -75,6 +75,10 @@ def install_texture_editor_commands(editor, bindings: dict, keys: dict) -> Comma
     if registry is None:
         return None
     registry.register_all(texture_editor_commands(editor, bindings, keys), replace=True)
+    if not getattr(editor, "_cdmw_follows_keymap", False):
+        # A key changed in Settings > Shortcuts rebinds this editor's shortcuts at once.
+        editor._cdmw_follows_keymap = True
+        registry.keymap_changed.connect(editor._rebuild_shortcuts)
     for attribute, key in MENU_ACTIONS.items():
         action = getattr(editor, attribute, None)
         if action is not None and action.property("_cdmw_command_id") != command_id(key):

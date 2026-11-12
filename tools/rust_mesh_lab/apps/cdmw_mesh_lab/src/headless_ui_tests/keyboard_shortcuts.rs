@@ -497,3 +497,23 @@ fn run_command_must_name_an_editor_command() {
         HostEvent::Fatal(_)
     ));
 }
+
+/// CDMW's Shortcuts page lists the editor's commands from this file when no
+/// editor runs. Set CDMW_WRITE_MESH_COMMANDS=1 to rewrite it after changing the keymap.
+#[test]
+fn the_committed_command_list_matches_the_editor_s_keymap() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../cdmw/resources/mesh_editor_commands.json");
+    let expected = crate::cdmw_ui::keyboard::mesh_editor_commands_resource();
+    let text = serde_json::to_string_pretty(&expected).expect("json") + "\n";
+    if std::env::var("CDMW_WRITE_MESH_COMMANDS").as_deref() == Ok("1") {
+        std::fs::write(&path, &text).expect("write the command list");
+    }
+    let committed: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).expect("read the command list"))
+            .expect("valid json");
+    assert_eq!(
+        committed, expected,
+        "cdmw/resources/mesh_editor_commands.json is stale; rerun with CDMW_WRITE_MESH_COMMANDS=1"
+    );
+}

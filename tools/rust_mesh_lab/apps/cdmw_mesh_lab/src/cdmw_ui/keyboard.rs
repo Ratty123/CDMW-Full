@@ -11,6 +11,27 @@ use cdmw_mesh::hair::GroupMode;
 
 pub(super) const CDMW_REVEAL_VIEWPORT: &str = "cdmw_reveal_viewport_section";
 
+/// Every editor command with its label, group, scope and default keys, as
+/// `cdmw/resources/mesh_editor_commands.json` lists them for CDMW's Shortcuts
+/// page when no editor is running (a test keeps the two equal).
+#[cfg(test)]
+pub(crate) fn mesh_editor_commands_resource() -> Value {
+    Value::Array(
+        SHORTCUTS
+            .iter()
+            .map(|spec| {
+                json!({
+                    "id": spec.id,
+                    "label": shortcut_label(spec.action),
+                    "group": format!("{:?}", spec.group),
+                    "scope": format!("{:?}", spec.scope),
+                    "defaults": spec.defaults,
+                })
+            })
+            .collect(),
+    )
+}
+
 fn shortcut_label(action: ShortcutAction) -> &'static str {
     use ShortcutAction as A;
     match action {

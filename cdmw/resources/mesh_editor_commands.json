@@ -1,0 +1,529 @@
+[
+  {
+    "defaults": [
+      "Q"
+    ],
+    "group": "Tools",
+    "id": "tool.select",
+    "label": "Select",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "G"
+    ],
+    "group": "Tools",
+    "id": "tool.move",
+    "label": "Move",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "R"
+    ],
+    "group": "Tools",
+    "id": "tool.rotate",
+    "label": "Rotate",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "S"
+    ],
+    "group": "Tools",
+    "id": "tool.scale",
+    "label": "Scale",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Shift+G"
+    ],
+    "group": "Tools",
+    "id": "tool.grab",
+    "label": "Grab",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Shift+W"
+    ],
+    "group": "Tools",
+    "id": "tool.bend",
+    "label": "Bend",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Shift+S"
+    ],
+    "group": "Tools",
+    "id": "tool.smooth",
+    "label": "Smooth",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "I"
+    ],
+    "group": "Tools",
+    "id": "tool.inflate",
+    "label": "Inflate",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "P"
+    ],
+    "group": "Tools",
+    "id": "tool.pinch",
+    "label": "Pinch",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Tools",
+    "id": "camera.orbit",
+    "label": "Orbit",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.viewport",
+    "label": "Viewport",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.output",
+    "label": "Output",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.vertex_parameters",
+    "label": "Vertex Parameters",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.topology",
+    "label": "Topology",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.cleanup",
+    "label": "Cleanup",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.normals",
+    "label": "Normals & Tangents",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.uv",
+    "label": "UV",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.cloth",
+    "label": "Cloth",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.jiggle",
+    "label": "Jiggle",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Pages",
+    "id": "page.morph_refit",
+    "label": "Morph & Refit",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "1"
+    ],
+    "group": "Selection",
+    "id": "selection.target.vertex",
+    "label": "Vertex",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "2"
+    ],
+    "group": "Selection",
+    "id": "selection.target.edge",
+    "label": "Edge",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "3"
+    ],
+    "group": "Selection",
+    "id": "selection.target.face",
+    "label": "Face",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.shape.click",
+    "label": "Click",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "C"
+    ],
+    "group": "Selection",
+    "id": "selection.shape.brush",
+    "label": "Brush",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "B"
+    ],
+    "group": "Selection",
+    "id": "selection.shape.rectangle",
+    "label": "Rectangle",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.shape.lasso",
+    "label": "Lasso",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.operation.replace",
+    "label": "Replace",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.operation.add",
+    "label": "Add",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.operation.subtract",
+    "label": "Subtract",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Selection",
+    "id": "selection.operation.toggle",
+    "label": "Toggle",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "A"
+    ],
+    "group": "Selection",
+    "id": "session.select_all",
+    "label": "Select All",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Alt+A"
+    ],
+    "group": "Selection",
+    "id": "session.clear_selection",
+    "label": "Clear Selection",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+I"
+    ],
+    "group": "Selection",
+    "id": "session.invert",
+    "label": "Invert",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "L"
+    ],
+    "group": "Selection",
+    "id": "selection.linked",
+    "label": "Linked",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Ctrl+NumPlus"
+    ],
+    "group": "Selection",
+    "id": "selection.grow",
+    "label": "Grow",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Ctrl+NumMinus"
+    ],
+    "group": "Selection",
+    "id": "selection.shrink",
+    "label": "Shrink",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Shift+Z"
+    ],
+    "group": "Selection",
+    "id": "selection.xray",
+    "label": "Visible / X-Ray",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Shift"
+    ],
+    "group": "SelectionModifiers",
+    "id": "selection.extend_modifier",
+    "label": "Add while held (a click toggles)",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "Ctrl"
+    ],
+    "group": "SelectionModifiers",
+    "id": "selection.subtract_modifier",
+    "label": "Subtract while held",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [
+      "F",
+      "NumDecimal"
+    ],
+    "group": "View",
+    "id": "camera.frame_selected",
+    "label": "Frame Selected",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Home"
+    ],
+    "group": "View",
+    "id": "camera.fit",
+    "label": "Fit",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Num1"
+    ],
+    "group": "View",
+    "id": "camera.front",
+    "label": "Front",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+Num1"
+    ],
+    "group": "View",
+    "id": "camera.back",
+    "label": "Back",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Num3"
+    ],
+    "group": "View",
+    "id": "camera.right",
+    "label": "Right",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+Num3"
+    ],
+    "group": "View",
+    "id": "camera.left",
+    "label": "Left",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Num7"
+    ],
+    "group": "View",
+    "id": "camera.top",
+    "label": "Top",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+Num7"
+    ],
+    "group": "View",
+    "id": "camera.bottom",
+    "label": "Bottom",
+    "scope": "Global"
+  },
+  {
+    "defaults": [],
+    "group": "View",
+    "id": "camera.yaw_minus_15",
+    "label": "Yaw -15°",
+    "scope": "Global"
+  },
+  {
+    "defaults": [],
+    "group": "View",
+    "id": "camera.yaw_plus_15",
+    "label": "Yaw +15°",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+Z"
+    ],
+    "group": "History",
+    "id": "session.undo",
+    "label": "Undo",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Ctrl+Shift+Z",
+      "Ctrl+Y"
+    ],
+    "group": "History",
+    "id": "session.redo",
+    "label": "Redo",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
+      "Delete"
+    ],
+    "group": "Editing",
+    "id": "topology.delete_selection",
+    "label": "Delete selection",
+    "scope": "Mesh"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.select",
+    "label": "Select",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.move",
+    "label": "Move",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.draw",
+    "label": "Draw",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.erase",
+    "label": "Erase",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.cut",
+    "label": "Cut",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.lengthen",
+    "label": "Lengthen",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.comb",
+    "label": "Comb",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.smooth",
+    "label": "Smooth",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.curl",
+    "label": "Curl",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.clump",
+    "label": "Clump",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [],
+    "group": "Hair",
+    "id": "hair.tool.physics",
+    "label": "Physics",
+    "scope": "Hair"
+  },
+  {
+    "defaults": [
+      "Delete"
+    ],
+    "group": "Hair",
+    "id": "hair.delete_guides",
+    "label": "Delete selected hair",
+    "scope": "Hair"
+  }
+]

@@ -40,6 +40,15 @@ def bind_action(action: QAction, registry: CommandRegistry, command_id: str) -> 
 
     action.triggered.connect(trigger)
     registry.changed.connect(sync)
+
+    def forget(*_args) -> None:
+        try:
+            registry.changed.disconnect(sync)
+        except (RuntimeError, TypeError):
+            pass
+
+    # A view that is gone stops listening; otherwise every refresh would visit it.
+    action.destroyed.connect(forget)
     sync()
     return action
 

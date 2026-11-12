@@ -69,24 +69,20 @@ def shell_commands(shell) -> list[Command]:
 
 
 def install_shell_commands(shell) -> CommandRegistry:
-    """Give the window its registry, register the shell's commands and bind its menu actions.
+    """Register the shell's commands in the application's registry and bind its menu actions.
 
-    One main window has one registry; it is also the application's
-    (``command_registry()``), which in practice has one main window.
+    The application has one registry (``command_registry()``), owned by the
+    application, so tools that register before the shell (Browse Archives builds
+    first) and the shell share it. The window keeps a reference as
+    ``command_registry``.
     """
 
-    from PySide6.QtCore import QCoreApplication, QObject
     from PySide6.QtGui import QAction
 
-    from cdmw.ui.commands.registry import _ATTRIBUTE
+    from cdmw.ui.commands.registry import command_registry
 
-    registry = getattr(shell, "command_registry", None)
-    if not isinstance(registry, CommandRegistry):
-        registry = CommandRegistry(shell if isinstance(shell, QObject) else None)
-        shell.command_registry = registry
-    app = QCoreApplication.instance()
-    if app is not None:
-        setattr(app, _ATTRIBUTE, registry)
+    registry = command_registry() or CommandRegistry()
+    shell.command_registry = registry
     registry.register_all(shell_commands(shell), replace=True)
     for command_id, attribute in SHELL_ACTIONS.items():
         action = getattr(shell, attribute, None)

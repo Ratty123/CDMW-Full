@@ -9,7 +9,6 @@ from PySide6.QtWidgets import QDialog
 from cdmw.ui.texture_workflow.editor_dialogs import ShortcutEditorDialog
 from cdmw.ui.texture_workflow.editor_shortcuts import (
     default_texture_editor_shortcuts,
-    load_texture_editor_shortcuts,
     texture_editor_shortcut_labels,
     texture_editor_shortcuts_updated_status_text,
 )
@@ -31,7 +30,10 @@ class TextureEditorShortcutsUiMixin:
             shortcut.setEnabled(False)
             shortcut.deleteLater()
         self._shortcut_objects = []
-        shortcut_map = load_texture_editor_shortcuts(self.settings.value)
+        # The app's one keymap (P12) holds the Texture Editor's keys by its own ids.
+        from cdmw.services.keymap_store import texture_editor_keys
+
+        shortcut_map = texture_editor_keys(self.settings)
         bindings = {
             "open_file": self.open_file_dialog,
             "open_archive": self.request_browse_archive,
@@ -82,16 +84,17 @@ class TextureEditorShortcutsUiMixin:
             install_texture_editor_commands(self, bindings, shortcut_map)
 
     def open_shortcuts_dialog(self) -> None:
+        from cdmw.services.keymap_store import save_texture_editor_keys, texture_editor_keys
+
         dialog = ShortcutEditorDialog(
-            shortcuts=load_texture_editor_shortcuts(self.settings.value),
+            shortcuts=texture_editor_keys(self.settings),
             labels=texture_editor_shortcut_labels(),
             defaults=default_texture_editor_shortcuts(),
             parent=self,
         )
         if dialog.exec() != QDialog.Accepted:
             return
-        for key, sequence_text in dialog.shortcut_map().items():
-            self.settings.setValue(f"texture_editor/shortcuts/{key}", sequence_text)
+        save_texture_editor_keys(self.settings, dialog.shortcut_map())
         self._rebuild_shortcuts()
         self._set_status(texture_editor_shortcuts_updated_status_text(), False)
 

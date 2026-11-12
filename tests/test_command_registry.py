@@ -212,3 +212,30 @@ def test_the_texture_editor_s_actions_are_registry_commands(app, monkeypatch, tm
         assert editor.action_open_file.property("_cdmw_command_id") == command_id("open_file")
     finally:
         editor.deleteLater()
+
+
+def test_a_browse_command_shows_its_button_s_state_and_reason(app, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QPushButton
+
+    from cdmw.ui.archive_browser import browse_commands
+    from cdmw.ui.archive_browser.actions import ArchiveBrowserActionMixin
+
+    registry = CommandRegistry()
+    monkeypatch.setattr(browse_commands, "command_registry", lambda: registry)
+    button = QPushButton("Open in Mesh Editor")
+    pressed = []
+    button.clicked.connect(lambda: pressed.append(1))
+    browser = SimpleNamespace(archive_model_open_mesh_editor_button=button)
+    browse_commands.install_browse_commands(browser)
+    command = browse_commands.command_id("open_in_mesh_editor")
+    assert registry.get(command).label == "Open in Mesh Editor"
+    ArchiveBrowserActionMixin._set_action_button_state(button, False, "Open it.", "select a mesh/model archive entry first")
+    assert registry.reason(command) == "Select a mesh/model archive entry first"
+    assert button.toolTip().startswith("Unavailable: select a mesh")
+    ArchiveBrowserActionMixin._set_action_button_state(button, True, "Open it.", "select a mesh")
+    assert registry.available(command)
+    registry.run(command)
+    assert pressed == [1]
+    button.deleteLater()

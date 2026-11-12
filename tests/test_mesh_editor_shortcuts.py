@@ -70,7 +70,10 @@ def test_editor_event_saves_shortcuts_and_the_next_theme_carries_them(tmp_path: 
             "process_generation": 4,
             "shortcuts": {"tool.scale": ["G"], "tool.move": []},
         })
-        assert json.loads(tab.settings.value(MESH_SHORTCUTS_KEY)) == {"tool.move": [], "tool.scale": ["G"]}
+        # Saved in the app's one keymap (P12), under the editor's ids.
+        from cdmw.services.keymap_store import load_keymap
+
+        assert load_keymap(tab.settings) == {"mesh_editor.tool.move": [], "mesh_editor.tool.scale": ["G"]}
         assert tab._rust_theme_payload()["shortcuts"] == {"tool.move": [], "tool.scale": ["G"]}
     finally:
         tab.standalone_rust_authoring_session = None

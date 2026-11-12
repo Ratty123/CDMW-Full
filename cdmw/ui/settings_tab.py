@@ -1147,6 +1147,18 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Appearance",
             "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
         )
+        self.shortcuts_page_layout = _add_settings_page(
+            "shortcuts",
+            "Shortcuts",
+            "Keys for every command, in every tool. Search, change, unbind or reset them; a key used twice is named.",
+        )
+        from cdmw.ui.commands.registry import command_registry
+        from cdmw.ui.commands.shortcuts_page import ShortcutsPage
+
+        registry = command_registry()
+        if registry is not None:
+            self.shortcuts_page = ShortcutsPage(registry, self.settings)
+            self.shortcuts_page_layout.addWidget(self.shortcuts_page)
         self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
         self.section_nav_list.setCurrentRow(0)
 

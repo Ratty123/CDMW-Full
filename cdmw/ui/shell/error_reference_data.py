@@ -12693,6 +12693,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Not available for the current selection.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/browse_commands.py": 16
+    }
+  },
+  {
+    "area": "archive",
     "message": "Not found in current index.",
     "recovery": "missing",
     "sources": {
@@ -43867,7 +43875,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2399,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 353
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 374
     }
   },
   {
@@ -44927,7 +44935,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no embedded Mesh Editor host.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 707
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 714
     }
   },
   {
@@ -46562,7 +46570,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save keyboard shortcuts: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 275
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 296
     }
   },
   {
@@ -46698,7 +46706,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 825
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 832
     }
   },
   {
@@ -51981,7 +51989,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 987
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 994
     }
   },
   {
@@ -52045,7 +52053,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 738
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 745
     }
   },
   {
@@ -52053,7 +52061,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 941,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 948,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 801
     }
   },
@@ -52104,7 +52112,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor command queue is full",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 650
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 657
     }
   },
   {
@@ -52153,7 +52161,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1178
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1195
     }
   },
   {
@@ -52161,7 +52169,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1174
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1191
     }
   },
   {
@@ -52169,7 +52177,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor does not support the required embedded child-window contract.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 674
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 681
     }
   },
   {
@@ -52177,7 +52185,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor embedding failed: {reason or 'child window was rejected'}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 711
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 718
     }
   },
   {
@@ -52242,7 +52250,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor is not ready for authoring commands",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 628
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 635
     }
   },
   {
@@ -52300,7 +52308,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1204
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1221
     }
   },
   {
@@ -52324,7 +52332,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor provenance does not match the packaged renderer/backend contract.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 662
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 669
     }
   },
   {
@@ -52332,7 +52340,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 991
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 998
     }
   },
   {
@@ -52349,7 +52357,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor repeated its hello handshake.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 657
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 664
     }
   },
   {
@@ -52357,7 +52365,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1066
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1073
     }
   },
   {
@@ -52365,7 +52373,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request was replayed or out of order",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 635
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 642
     }
   },
   {
@@ -52381,7 +52389,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor sent unsupported event '{event or '(empty)'}'.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 625
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 632
     }
   },
   {
@@ -60804,7 +60812,7 @@ MESSAGE_REFERENCE = [
     "message": "Rust renderer reported an error",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 622
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 629
     }
   },
   {
@@ -63679,7 +63687,7 @@ MESSAGE_REFERENCE = [
     "message": "This hair draft requires an updated Hair-capable Rust helper.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 691
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 698
     }
   },
   {
@@ -78409,7 +78417,7 @@ MESSAGE_REFERENCE = [
     "message": "Command {command.id} is already registered",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 74
+      "cdmw/ui/commands/registry.py": 76
     }
   },
   {
@@ -83074,7 +83082,7 @@ MESSAGE_REFERENCE = [
     "message": "No command {command_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 103
+      "cdmw/ui/commands/registry.py": 105
     }
   },
   {
@@ -88023,7 +88031,7 @@ MESSAGE_REFERENCE = [
     "message": "Unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/commands/registry.py": 121
+      "cdmw/ui/commands/registry.py": 123
     }
   },
   {
@@ -92495,7 +92503,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.id} is not a {context} helper command",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/commands/registry.py": 90
+      "cdmw/ui/commands/registry.py": 92
     }
   },
   {
@@ -109099,6 +109107,7 @@ SOURCE_COVERAGE = {
   "cdmw/domain/packages/layout.py": {},
   "cdmw/domain/packages/retrofit.py": {},
   "cdmw/domain/part_names.py": {},
+  "cdmw/domain/texture_editor_shortcuts.py": {},
   "cdmw/domain/textures/__init__.py": {},
   "cdmw/domain/textures/editor_brush.py": {},
   "cdmw/domain/textures/editor_common.py": {},
@@ -109907,6 +109916,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/iteminfo_dependency_graph.py": {
     "raise": 12
   },
+  "cdmw/services/keymap_store.py": {},
   "cdmw/services/localization_file_service.py": {
     "raise": 18,
     "report": 1
@@ -110666,6 +110676,9 @@ SOURCE_COVERAGE = {
     "dialog": 1,
     "display": 3,
     "report": 3
+  },
+  "cdmw/ui/archive_browser/browse_commands.py": {
+    "diagnostic_text": 1
   },
   "cdmw/ui/archive_browser/character_dependency_export.py": {
     "diagnostic_text": 1,
@@ -111508,11 +111521,13 @@ SOURCE_COVERAGE = {
   "cdmw/ui/combo_popup_limiter.py": {},
   "cdmw/ui/commands/__init__.py": {},
   "cdmw/ui/commands/adapters.py": {},
+  "cdmw/ui/commands/keymap.py": {},
   "cdmw/ui/commands/palette.py": {},
   "cdmw/ui/commands/registry.py": {
     "raise": 8,
     "validation": 1
   },
+  "cdmw/ui/commands/shortcuts_page.py": {},
   "cdmw/ui/display_scaling.py": {},
   "cdmw/ui/item_icons/__init__.py": {},
   "cdmw/ui/item_icons/controller.py": {

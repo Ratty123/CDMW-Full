@@ -85,6 +85,10 @@ class ArchiveBrowserActionMixin:
         button.setEnabled(bool(enabled))
         active_text = str(active_tooltip or "").strip()
         reason_text = str(disabled_reason or "").strip()
+        # The button's command (P12) shows this same state and reason in the palette.
+        from cdmw.ui.archive_browser.browse_commands import remember_button_reason
+
+        remember_button_reason(button, bool(enabled), reason_text)
         if enabled or not reason_text:
             button.setToolTip(active_text)
         elif active_text:

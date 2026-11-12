@@ -62,6 +62,8 @@ class CommandRegistry(QObject):
 
     changed = Signal(str)
     ran = Signal(str)
+    #: A key was rebound, unbound or reset; every place that binds keys reads the keymap again.
+    keymap_changed = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

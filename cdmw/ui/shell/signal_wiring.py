@@ -18,9 +18,14 @@ class ShellSignalWiringMixin:
         from PySide6.QtWidgets import QWidget
 
         if isinstance(self, QWidget):  # a real window, not a wiring stub
+            from cdmw.ui.commands.keymap import QtShortcutBinder
             from cdmw.ui.commands.palette import install_command_palette
 
             install_command_palette(self)
+            # Keys from the one keymap for shell and Browse Archives commands (P12).
+            self.command_shortcut_binder = QtShortcutBinder(
+                self.command_registry, self.settings, shell_parent=self,
+                browse_parent=getattr(self, "archive_browser_tab", None))
         self.mod_package_tool_action.triggered.connect(lambda _checked=False: self._activate_tool_key('mod_package_retrofit'))
         self.support_corner_button.clicked.connect(self.show_support_dialog)
         self.textures.scan_button.clicked.connect(self.textures.start_scan)

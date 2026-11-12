@@ -45,6 +45,10 @@ class ArchiveWorkspaceLayoutMixin:
         )
         from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
         build_archive_command_strip(self, self)
+        # Its action buttons are registry commands as well (P12).
+        from cdmw.ui.archive_browser.browse_commands import install_browse_commands
+
+        install_browse_commands(self)
 
 
 __all__ = ["ArchiveWorkspaceLayoutMixin"]

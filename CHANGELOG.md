@@ -9,6 +9,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- A **command palette** (Ctrl+Shift+P) lists the commands of the tool you are in and of the app, with their keys, recent ones first. A command that cannot run says why, as its button does. It opens from the Mesh Editor's 3D view and the Create New Item and Mod Management pages too; Ctrl+Shift+P can no longer be given to an editor command.
+
+- **Settings > Shortcuts** shows the keys of every command, including the Mesh Editor's and the Texture Editor's, in one list. Search it, change, unbind or reset a key, or reset all; a key already used where it would clash is named before you save it. Keys you set in the Mesh Editor's or the Texture Editor's own shortcut windows appear here and carry over.
+
 - Mesh Editor's **Export PAC As…**, available after Finish, saves just the PAC with a chosen name and path, remembers the destination and replaces existing exports. Edits needing companion files explain why Build Mod is required.
 
 - Archive Browser's experimental **Edit Skinned Decal...** changes stored texture references and decal settings in supported PASEQ sequences and saves a loose copy. Missing settings retain their defaults; unchanged saves preserve the original file. In-game blending, attachment and removal remain unverified.

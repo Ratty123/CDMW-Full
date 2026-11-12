@@ -7,7 +7,6 @@ list unbinds it. Unknown IDs are kept so an older helper never erases them.
 
 from __future__ import annotations
 
-import json
 import re
 
 MESH_SHORTCUTS_KEY = "mesh_editor/shortcuts/v1"
@@ -43,17 +42,21 @@ def validated_mesh_shortcuts(value: object) -> dict[str, list[str]]:
 
 
 def load_mesh_shortcuts(settings) -> dict[str, list[str]]:
-    try:
-        value = json.loads(str(settings.value(MESH_SHORTCUTS_KEY, "{}")))
-    except (TypeError, ValueError):
-        return {}
-    return validated_mesh_shortcuts(value)
+    """The helper's overrides by its own ids, from the app's one keymap (P12).
+
+    Until the keymap has been written, that is this module's older store.
+    """
+
+    from cdmw.services.keymap_store import mesh_editor_overrides
+
+    return validated_mesh_shortcuts(mesh_editor_overrides(settings))
 
 
 def save_mesh_shortcuts(settings, value: object) -> bool:
     # Unlike the panel layout, shortcuts are kept regardless of the layout memory option.
     if not isinstance(value, dict):
         return False
-    shortcuts = validated_mesh_shortcuts(value)
-    settings.setValue(MESH_SHORTCUTS_KEY, json.dumps(shortcuts, separators=(",", ":"), sort_keys=True))
+    from cdmw.services.keymap_store import save_mesh_editor_overrides
+
+    save_mesh_editor_overrides(settings, validated_mesh_shortcuts(value))
     return True
