@@ -318,6 +318,9 @@ class MeshEditSessionView:
     face_count: int
     undo_count: int = 0
     redo_count: int = 0
+    # P14: a saved step before or after the in-memory history, in the draft's journal.
+    journal_undo_available: bool = False
+    journal_redo_available: bool = False
     history_entries: tuple[MeshEditHistoryEntry, ...] = ()
     history_cursor: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)

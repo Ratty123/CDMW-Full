@@ -402,7 +402,9 @@ def test_status_line_compares_the_original_game_file(tmp_path):
     assert saved_work_status(mod, found=True, current_sha256="a" * 64) == STATUS_MOD_MISSING
 
 
-def test_autosave_keeps_only_the_current_and_previous_generation(game, tmp_path):
+def test_autosave_keeps_each_finished_step_in_the_history_journal(game, tmp_path):
+    from cdmw.services.mesh_history_journal import read_journal
+
     loaded = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
     try:
         x = _first_x(loaded)
@@ -412,7 +414,11 @@ def test_autosave_keeps_only_the_current_and_previous_generation(game, tmp_path)
         project = loaded.draft_manifest_path.parent / "mesh_layers"
         descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
         generations = sorted(path.name for path in project.iterdir() if path.name.startswith("generation-"))
-        assert generations == sorted((descriptor["current_generation"], descriptor["previous_generation"]))
+        records = read_journal(project).records
+        # P14: one saved step per Finish; nothing else stays on disk.
+        assert [record.depth for record in records] == [1, 2, 3]
+        assert records[-1].generation == descriptor["current_generation"]
+        assert generations == sorted(record.generation for record in records)
     finally:
         _close(loaded)
 

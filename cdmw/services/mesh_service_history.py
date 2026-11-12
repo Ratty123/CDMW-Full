@@ -229,6 +229,31 @@ def _dispose_history_snapshot_without_state_failure(
         return False
 
 
+def _reconcile_journal_depth(session: _MeshEditSession) -> None:
+    """Tag the entries pushed since the last look with the journal depth they restore (P14).
+
+    Every edit path pushes its own entries, so the depth is worked out from the
+    stack instead of at each push: untagged entries on top of the undo stack are
+    new steps, each one deeper than the last. A selection-only step changes no
+    saved state and keeps the depth.
+    """
+
+    pending: list[_MeshHistorySnapshot] = []
+    for snapshot in reversed(session.undo_stack):
+        if snapshot.journal_depth is not None:
+            break
+        pending.append(snapshot)
+    for snapshot in reversed(pending):
+        snapshot.journal_depth = session.history_journal_depth
+        if snapshot.selection_only:
+            continue
+        session.history_journal_depth += 1
+        session.history_journal_edited = True
+        label = str(snapshot.history_label or snapshot.history_action or "")
+        if label and len(session.history_journal_labels) < 64:
+            session.history_journal_labels.append(label)
+
+
 class MeshHistoryServiceMixin:
     def _publish_history_reciprocal_locked(
         self,
@@ -344,6 +369,11 @@ class MeshHistoryServiceMixin:
         # Keep the snapshot boundary visible while capturing the reciprocal.
         # Native markers behind it belong to its saved runtime, not the current one.
         snapshot = session.undo_stack[-1]
+        _reconcile_journal_depth(session)
+        journal_depth_before = session.history_journal_depth
+        journal_depth_after = (
+            snapshot.journal_depth if snapshot.journal_depth is not None else max(0, journal_depth_before - 1)
+        )
         native_editor_history = snapshot.native_editor_history
         if native_editor_history:
             outcome = _service_call("_restore_native_editor_history", session, snapshot, "undo")
@@ -352,12 +382,14 @@ class MeshHistoryServiceMixin:
         session.undo_stack.pop()
         if snapshot.morph_profile_root is not None and snapshot.morph_session_state is None:
             self._morph_sessions.pop(session.session_id, None)
+        outcome.snapshot.journal_depth = journal_depth_before
         history_publication_cleanup_ok = self._publish_history_reciprocal_locked(
             session,
             outcome.snapshot,
             target="redo",
             metrics=outcome.metrics,
         )
+        session.history_journal_depth = journal_depth_after
         history_snapshot_cleanup_ok = _dispose_history_snapshot_without_state_failure(
             snapshot
         )
@@ -447,6 +479,11 @@ class MeshHistoryServiceMixin:
             raise RuntimeError("native mesh editor redo requires native history; Python mesh state is stale")
         _service_call("_validate_mesh_morph_profile_history_state", session.redo_stack[-1])
         snapshot = session.redo_stack[-1]
+        _reconcile_journal_depth(session)
+        journal_depth_before = session.history_journal_depth
+        journal_depth_after = (
+            snapshot.journal_depth if snapshot.journal_depth is not None else journal_depth_before + 1
+        )
         native_editor_history = snapshot.native_editor_history
         if native_editor_history:
             outcome = _service_call("_restore_native_editor_history", session, snapshot, "redo")
@@ -455,12 +492,14 @@ class MeshHistoryServiceMixin:
         session.redo_stack.pop()
         if snapshot.morph_profile_root is not None and snapshot.morph_session_state is None:
             self._morph_sessions.pop(session.session_id, None)
+        outcome.snapshot.journal_depth = journal_depth_before
         history_publication_cleanup_ok = self._publish_history_reciprocal_locked(
             session,
             outcome.snapshot,
             target="undo",
             metrics=outcome.metrics,
         )
+        session.history_journal_depth = journal_depth_after
         history_snapshot_cleanup_ok = _dispose_history_snapshot_without_state_failure(
             snapshot
         )
@@ -806,6 +845,8 @@ class MeshHistoryServiceMixin:
                 changed_items.append((submesh_index, normalized_indices))
         result_metrics = _coerce_metrics(metrics)
         result_metrics.update(_history_metrics(session))
+        if status == "ok" and action not in {"select", "state"} and len(session.history_journal_parts) < 4096:
+            session.history_journal_parts.update(int(index) for index in affected)
         session_view = (
             self._session_view_locked(session, selection_is_authoritative=True)
             if action == "select" or topology_changed

@@ -213,6 +213,8 @@ from cdmw.services.mesh_service_payloads import (
     _stop_event_from_params,
 )
 from cdmw.services.mesh_service_history import (
+    _dispose_history_snapshot_without_state_failure,
+    _reconcile_journal_depth,
     _capture_history_material_state,
     _capture_history_session_state,
     _restore_history_session_state,
@@ -655,6 +657,108 @@ def _apply_loaded_mesh_layer_project(
     session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
 
 
+class MeshHistoryJournalError(RuntimeError):
+    """A saved history step could not be restored; the current state is unchanged."""
+
+
+def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None:
+    """Place a reopened draft at its step in the history journal (P14)."""
+
+    from cdmw.services.mesh_history_journal import read_journal
+
+    try:
+        journal = read_journal(Path(project_path).parent)
+    except OSError:
+        return
+    record = journal.record_for(session.mesh_layer_loaded_generation) if session.mesh_layer_loaded_generation else None
+    if record is not None:
+        session.history_journal_depth = record.depth
+    elif journal.records:
+        session.history_journal_depth = journal.records[-1].depth + 1
+
+
+def _history_journal_of(session: _MeshEditSession):
+    """The session's journal, read again only when its file changed."""
+
+    from cdmw.services.mesh_history_journal import Journal, journal_path, read_journal
+
+    if session.mesh_layer_project_path is None:
+        return Journal()
+    project_root = Path(session.mesh_layer_project_path).parent
+    try:
+        stat = journal_path(project_root).stat()
+    except OSError:
+        return Journal()
+    key = (str(project_root), stat.st_mtime_ns, stat.st_size)
+    cached = session.history_journal_cache
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    journal = read_journal(project_root)
+    session.history_journal_cache = (key, journal)
+    return journal
+
+
+def _journal_step_target(session: _MeshEditSession, direction: int):
+    """The draft step a journal undo (-1) or redo (+1) would load, or None (P14)."""
+
+    from cdmw.services.mesh_history_journal import KIND_DRAFT
+
+    if session.undo_stack or (direction > 0 and session.redo_stack):
+        return None  # the in-memory history goes first
+    _reconcile_journal_depth(session)
+    if direction > 0 and session.history_journal_edited:
+        return None  # an edit since the last record ends the journal's future
+    try:
+        journal = _history_journal_of(session)
+    except OSError:
+        return None
+    depth = session.history_journal_depth
+    candidates = [record for record in journal.records if record.kind == KIND_DRAFT]
+    if direction < 0:
+        earlier = [record for record in candidates if record.depth < depth]
+        return earlier[-1] if earlier else None
+    later = [record for record in candidates if record.depth > depth]
+    return later[0] if later else None
+
+
+def _journal_snapshot(session: _MeshEditSession, mesh: ParsedMesh, loaded: Mapping[str, object]) -> _MeshHistorySnapshot:
+    """A full-state history entry holding one loaded journal generation."""
+
+    layers = _geometry_layers_from_project_payload(loaded, len(mesh.submeshes))
+    active = str(loaded.get("active_layer_id") or "base")
+    if not any(layer.layer_id == active and layer.visible for layer in layers):
+        active = "base"
+    raw_transform = loaded.get("object_transform")
+    transform = session.object_transform
+    if isinstance(raw_transform, Mapping) and raw_transform:
+        transform = MeshObjectTransformState(
+            location=tuple(raw_transform.get("location", (0.0, 0.0, 0.0))),
+            rotation_degrees=tuple(raw_transform.get("rotation_degrees", (0.0, 0.0, 0.0))),
+            scale=tuple(raw_transform.get("scale", (1.0, 1.0, 1.0))),
+            pivot=tuple(raw_transform.get("pivot", session.object_transform.pivot)),
+        )
+    return _MeshHistorySnapshot(
+        mesh=mesh,
+        mode=session.mode,
+        selection=MeshEditSelection(),
+        edit_operations=tuple(loaded.get("edit_operations") or ()),
+        history_action="journal_step",
+        history_label="Saved step",
+        geometry_layers=layers,
+        active_geometry_layer_id=active,
+        geometry_layer_copy_counter=_project_non_negative_int(loaded.get("copy_counter"), field="copy counter"),
+        restore_geometry_layer_state=True,
+        object_transform=transform,
+        archive_refit_context=loaded.get("archive_refit_context"),
+        restore_archive_refit_context=True,
+        replacement_state=loaded.get("replacement_state"),
+        restore_replacement_state=True,
+        hair_state=loaded.get("hair_state"),
+        restore_hair_state=True,
+        requires_edit_operations=bool(loaded.get("requires_edit_operations", False)),
+    )
+
+
 @dataclass(slots=True)
 class _MeshServiceSessionLayerCore(
     MeshRiggingServiceMixin,
@@ -794,6 +898,8 @@ class _MeshServiceSessionLayerCore(
             loaded_layer_project,
             len(working_mesh.submeshes),
         )
+        if project_path is not None:
+            _open_history_journal(session, project_path)
         if project_path is not None and draft_plan is not None:
             session.mesh_draft_plan = draft_plan
             # An untouched session has nothing to save; its first accepted
@@ -1252,7 +1358,32 @@ class _MeshServiceSessionLayerCore(
         from cdmw.services.mesh_morph_draft import capture_morph_draft
         morph_payload = capture_morph_draft(self, session)
         promote = len(session.geometry_layers) > 1 or session.replacement_state is not None or session.hair_state is not None
-        descriptor = save_mesh_layer_project(
+        from cdmw.services.mesh_history_journal import project_lock
+
+        journal_lock = project_lock(Path(session.mesh_layer_project_path).parent)
+        journal_lock.acquire()
+        try:
+            descriptor = self._save_mesh_layer_generation_locked(
+                session, layer_payload, morph_payload, promote, stop_event,
+            )
+            self._record_history_journal_locked(session, descriptor)
+        finally:
+            journal_lock.release()
+        session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
+        session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+        session.mesh_layer_autosave_error = ""
+        if promote and session.mesh_layer_workspace_mode == "internal_app_session":
+            session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def _save_mesh_layer_generation_locked(
+        self,
+        session: _MeshEditSession,
+        layer_payload: Mapping[str, object],
+        morph_payload: Mapping[str, object] | None,
+        promote: bool,
+        stop_event: threading.Event | None,
+    ) -> dict[str, object]:
+        return save_mesh_layer_project(
             session_id=session.session_id,
             mesh=session.working_mesh,
             project_path=session.mesh_layer_project_path,
@@ -1278,12 +1409,121 @@ class _MeshServiceSessionLayerCore(
             requires_edit_operations=session.requires_edit_operations,
             morph_payload=morph_payload,
             viewport_hidden_parts=session.viewport_hidden_parts,
+            prune_superseded=False,
         )
-        session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
-        session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
-        session.mesh_layer_autosave_error = ""
-        if promote and session.mesh_layer_workspace_mode == "internal_app_session":
-            session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def _record_history_journal_locked(self, session: _MeshEditSession, descriptor: Mapping[str, object]) -> None:
+        """Append the generation just saved to the draft's history journal (P14).
+
+        The draft is saved whatever happens here; a journal that cannot be
+        written only leaves its history behind, which the next save retries.
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+
+        project_root = Path(session.mesh_layer_project_path).parent
+        generation = str(descriptor.get("current_generation") or "")
+        keep = (generation, str(descriptor.get("previous_generation") or ""))
+        _reconcile_journal_depth(session)
+        try:
+            record = journal.new_record(
+                project_root, generation, depth=session.history_journal_depth, kind=journal.KIND_DRAFT,
+                labels=session.history_journal_labels, part_ids=session.history_journal_parts,
+            )
+            journal.record_state(
+                project_root, record, future_valid=not session.history_journal_edited,
+                max_steps=self.max_history, max_bytes=self.max_history_bytes, keep=keep,
+            )
+            journal.prune_unjournaled_generations(project_root, keep=keep)
+        except (OSError, ValueError) as exc:
+            session.history_journal_error = f"{type(exc).__name__}: {exc}"
+            return
+        session.history_journal_error = ""
+        session.history_journal_labels.clear()
+        session.history_journal_parts.clear()
+        session.history_journal_edited = False
+
+    def step_history_journal(self, session_id: str, direction: int) -> MeshEditResult:
+        """Load the draft's saved step before (-1) or after (+1) this one (P14).
+
+        Only past the in-memory history: undo and redo use it first. The step's
+        digest is checked before anything changes; a step that does not match
+        stops here, says so, and leaves the current state and the draft as they
+        were. The loaded state is the one that was saved, not an edit run again.
+        """
+
+        from cdmw.services.mesh_history_journal import verify_record
+        from cdmw.services.mesh_layer_project_service import publish_generation
+
+        session = self._session(session_id)
+        action = "journal_undo" if int(direction) < 0 else "journal_redo"
+        with session.export_lock:
+            self._require_no_pending_refit_shape_restore_locked(session)
+            if session.mesh_layer_project_path is None:
+                return self._result(session, action, status="noop")
+            if self._morph_sessions.get(session.session_id) is not None:
+                raise MeshHistoryJournalError(
+                    "Saved steps are not restored while Morph & Refit is open; its history ends with the session."
+                )
+            # The state being left must be on disk first, or stepping away loses it.
+            if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+                timer = session.mesh_layer_autosave_timer
+                if timer is not None:
+                    timer.cancel()
+                self._save_mesh_layer_project_locked(session)
+            target = _journal_step_target(session, -1 if int(direction) < 0 else 1)
+            if target is None:
+                return self._result(session, action, status="noop")
+            project_path = Path(session.mesh_layer_project_path)
+            problem = verify_record(project_path.parent, target)
+            if problem:
+                raise MeshHistoryJournalError(
+                    f"The saved step could not be restored ({problem}). History stops at the last good step; "
+                    "the draft is unchanged."
+                )
+            template = copy.copy(session.base_mesh)
+            try:
+                loaded = load_mesh_layer_project(
+                    template, project_path,
+                    expected_source_asset_sha256=session.mesh_asset_source_hash,
+                    generation=(target.generation, target.digest),
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise MeshHistoryJournalError(
+                    f"The saved step could not be restored ({exc}). History stops at the last good step; "
+                    "the draft is unchanged."
+                ) from exc
+            if loaded is None or loaded.get("morph_payload") is not None:
+                raise MeshHistoryJournalError(
+                    "This saved step holds Morph & Refit state, which is restored only when the draft reopens."
+                )
+            if session.native_editor_mesh_dirty:
+                self._working_mesh_locked(session, clone=False)
+            _close_native_editor_session(session)
+            outcome = _restore_snapshot(session, _journal_snapshot(session, template, loaded))
+            _dispose_history_snapshot_without_state_failure(outcome.snapshot)
+            # The in-memory history led to and from the state that was left.
+            _clear_history_stack(session.undo_stack)
+            _clear_history_stack(session.redo_stack)
+            session.viewport_hidden_parts = _loaded_viewport_hidden_parts(loaded, len(session.working_mesh.submeshes))
+            refresh_mesh_totals(session.working_mesh)
+            session.revision += 1
+            session.history_journal_depth = target.depth
+            session.history_journal_labels.clear()
+            session.history_journal_parts.clear()
+            session.history_journal_edited = False
+            publish_generation(project_path, target.generation, target.digest)
+            session.mesh_layer_loaded_generation = target.generation
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+            submesh_count = len(session.working_mesh.submeshes)
+            return self._result(
+                session, action,
+                affected=set(range(submesh_count)) | set(outcome.affected_submesh_indices),
+                topology_changed=True,
+                submesh_count_delta=outcome.submesh_count_delta,
+                submesh_counts=outcome.submesh_counts,
+                metrics={"journal_depth": float(target.depth)},
+            )
 
     def retry_mesh_layer_autosave(self, session_id: str) -> None:
         session = self._session(session_id)
@@ -1533,6 +1773,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             face_count=int(session.working_mesh.total_faces or 0),
             undo_count=len(session.undo_stack),
             redo_count=len(session.redo_stack),
+            journal_undo_available=_journal_step_target(session, -1) is not None,
+            journal_redo_available=_journal_step_target(session, 1) is not None,
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,

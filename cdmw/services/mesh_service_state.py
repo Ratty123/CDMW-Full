@@ -98,6 +98,8 @@ class _MeshHistorySnapshot:
     restore_hair_state: bool = False
     hair_vertex_deltas: tuple[_MeshHairVertexDelta, ...] = ()
     requires_edit_operations: bool | None = None
+    # P14: the history journal depth of the state this entry restores.
+    journal_depth: int | None = None
 
 
 @dataclass(slots=True)
@@ -282,6 +284,14 @@ class _MeshEditSession:
     mesh_layer_autosave_saved_key: tuple[int, int] = (-1, -1)
     mesh_layer_autosave_error: str = ""
     mesh_layer_loaded_generation: str = ""
+    # P14: where this state sits in the draft's history journal, and what the
+    # steps since the last journal record were.
+    history_journal_depth: int = 0
+    history_journal_labels: list[str] = field(default_factory=list)
+    history_journal_parts: set[int] = field(default_factory=set)
+    history_journal_edited: bool = False
+    history_journal_error: str = ""
+    history_journal_cache: tuple[object, object] | None = field(default=None, repr=False)
     skeleton: object | None = None
     skeleton_source: str = ""
     skeleton_resolution_reason: str = ""

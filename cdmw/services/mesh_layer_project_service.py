@@ -131,8 +131,17 @@ def save_mesh_layer_project(
     requires_edit_operations: bool = False,
     morph_payload: Mapping[str, object] | None = None,
     viewport_hidden_parts: Sequence[int] = (),
+    prune_superseded: bool = True,
+    publish: bool = True,
 ) -> dict[str, object]:
-    """Write one complete generation, then atomically point the project at it."""
+    """Write one complete generation, then atomically point the project at it.
+
+    With ``prune_superseded`` False older generations stay for the history
+    journal (P14), which prunes them itself. With ``publish`` False the
+    generation is written but the project keeps pointing where it did (a Mesh
+    Editor state that was not finished yet); the returned descriptor then names
+    it as ``current_generation`` without having been written.
+    """
 
     stop = stop_event or threading.Event()
     source_hash = str(source_asset_sha256 or "").strip().lower()
@@ -324,8 +333,11 @@ def save_mesh_layer_project(
     if morph_payload is not None:
         descriptor["format"] = MESH_MORPH_PROJECT_FORMAT
     raise_if_cancelled(stop, "Mesh layer autosave cancelled.")
+    if not publish:
+        return descriptor
     atomic_write_text(target, json.dumps(descriptor, indent=2, sort_keys=True))
-    _prune_superseded_generations(project_root, previous_generation)
+    if prune_superseded:
+        _prune_superseded_generations(project_root, previous_generation)
     if workspace_manifest_path is not None:
         _update_modify_original_manifest(
             workspace_manifest_path,
@@ -342,8 +354,13 @@ def load_mesh_layer_project(
     *,
     expected_source_asset_sha256: str,
     stop_event: threading.Event | None = None,
+    generation: tuple[str, str] | None = None,
 ) -> dict[str, object] | None:
-    """Restore the newest valid exact-fingerprint generation, then its fallback."""
+    """Restore the newest valid exact-fingerprint generation, then its fallback.
+
+    ``generation`` (a name and its ``generation.json`` SHA-256) restores that one
+    generation instead, as a history journal step does (P14).
+    """
 
     stop = stop_event or threading.Event()
     target = Path(project_path).expanduser().resolve()
@@ -365,7 +382,7 @@ def load_mesh_layer_project(
             str(descriptor.get("previous_generation") or ""),
             str(descriptor.get("previous_generation_manifest_sha256") or "").strip().lower(),
         ),
-    )
+    ) if generation is None else ((str(generation[0] or ""), str(generation[1] or "").strip().lower()),)
     failures: list[str] = []
     seen: set[str] = set()
     for generation_name, expected_manifest_sha256 in candidates:
@@ -439,6 +456,28 @@ def load_mesh_layer_project(
         except (OSError, RuntimeError, ValueError) as exc:
             failures.append(f"{generation_name}: {exc}")
     raise RuntimeError("No valid Mesh Editor layer-project generation: " + "; ".join(failures))
+
+
+def publish_generation(project_path: Path, generation: str, manifest_sha256: str) -> dict[str, object]:
+    """Point the project at an existing generation, as a history journal step does.
+
+    The generation it pointed at becomes the fallback. Nothing is written into
+    the generation itself.
+    """
+
+    target = Path(project_path).expanduser().resolve()
+    descriptor = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(descriptor, Mapping) or not str(descriptor.get("current_generation") or ""):
+        raise ValueError("Mesh Editor layer project has no generation to step from")
+    updated = dict(descriptor)
+    if str(descriptor.get("current_generation")) != generation:
+        updated["previous_generation"] = descriptor.get("current_generation")
+        updated["previous_generation_manifest_sha256"] = descriptor.get("current_generation_manifest_sha256", "")
+    updated["current_generation"] = generation
+    updated["current_generation_manifest_sha256"] = str(manifest_sha256 or "").strip().lower()
+    updated["saved_at"] = time.time()
+    atomic_write_text(target, json.dumps(updated, indent=2, sort_keys=True))
+    return updated
 
 
 def _load_generation(
