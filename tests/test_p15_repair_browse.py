@@ -109,3 +109,18 @@ def test_replace_mesh_from_file_says_why_it_is_unavailable(qapp=None) -> None:
     button = browse.archive_model_import_mesh_button
     assert not button.isEnabled()
     assert button.property(REASON_PROPERTY) == MESH_REPLACEMENT_HELD_BACK_REASON
+
+
+def test_a_selection_made_while_editing_shows_when_the_edit_ends() -> None:
+    """Section 8.8 R9: the texture selected meanwhile was dropped and never shown."""
+
+    result = ArchivePreviewResult(status="ok", preferred_view="image", preview_texture_path="body.dds")
+    browse = _EditingHarness(editing=True)
+    browse._show_archive_preview_result(result, use_loose=False, request_id=0)
+    assert browse.deactivated == 0
+    browse.editing_in_place = False  # the edit ended
+    browse._show_preview_held_for_edit()
+    assert browse.deactivated == 1 and browse.archive_preview_stack.shown, "the held selection never showed"
+    # Shown once: a second end shows nothing again.
+    browse._show_preview_held_for_edit()
+    assert browse.deactivated == 1

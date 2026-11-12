@@ -39,7 +39,9 @@ class ArchivePreviewResultMixin:
             getattr(result, "dotnet_preview_package_path", "") or ""
         ).strip():
             # The edit holds Browse's view (section 8.7 F1): a texture, text or media
-            # file selected meanwhile is offered by the edit banner, not shown over it.
+            # file selected meanwhile is offered by the edit banner, not shown over it,
+            # and shown when the edit ends (8.8 R9).
+            self._edit_held_preview = (result, bool(use_loose), request_id)
             self._edit_in_place_selection_changed()
             return 0.0
         selected_entry = self._current_archive_entry()
@@ -318,6 +320,15 @@ class ArchivePreviewResultMixin:
         self._update_archive_model_action_controls(None)
         self._set_archive_preview_image_controls_enabled(False)
         return 0.0
+
+    def _show_preview_held_for_edit(self) -> None:
+        """Show the newest selection held while an edit had Browse's view (8.8 R9)."""
+
+        held = self.__dict__.pop("_edit_held_preview", None)
+        if held is None or getattr(self, "editing_in_place", False) is True:
+            return
+        result, use_loose, request_id = held
+        self._show_archive_preview_result(result, use_loose=use_loose, request_id=request_id)
 
     def _apply_archive_preview_health(self, result: ArchivePreviewResult, selected_entry: object) -> None:
         references = result.model_texture_references if not self.archive_preview_showing_loose else ()

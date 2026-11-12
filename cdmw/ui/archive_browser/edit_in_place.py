@@ -406,6 +406,9 @@ class BrowseEditInPlaceMixin:
         layout = self._archive_edit_layout()
         was_mesh_workspace = layout.showing_documents
         layout.leave()
+        show_held = getattr(self, "_show_preview_held_for_edit", None)
+        if callable(show_held):
+            QTimer.singleShot(0, show_held)  # a file selected while editing (8.8 R9)
         if was_mesh_workspace:
             # This page shows Browse again; the rail says so (P15 step 5a).
             from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
