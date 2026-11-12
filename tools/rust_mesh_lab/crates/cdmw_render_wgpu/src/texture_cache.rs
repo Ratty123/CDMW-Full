@@ -61,7 +61,11 @@ impl<T> RetainedTextures<T> {
     }
 
     /// A strong reference to a kept texture, marked as just used.
+    ///
+    /// Textures become unpinned when their scene lets go, which `keep` does not
+    /// see; trimming here keeps the limit between uploads too.
     pub fn get(&mut self, digest: &str) -> Option<Arc<T>> {
+        self.trim();
         let position = self.entries.iter().position(|(key, ..)| key == digest)?;
         let entry = self.entries.remove(position).expect("position is in range");
         let texture = Arc::clone(&entry.1);
