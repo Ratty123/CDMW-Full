@@ -12,6 +12,7 @@ import json
 import os
 import time
 from types import SimpleNamespace
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -32,7 +33,7 @@ from tests.test_mesh_editor_action_bar import (
 
 def _mounted_tab(name: str, resolver):
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", name))
+    tab = MeshEditorTab(settings=owned_settings(name))
     builder = _EmbeddedMeshBuilder()
     setattr(builder, "_mesh_editor_embedded_request_material_resources", resolver)
     tab.mount_embedded_builder(builder)

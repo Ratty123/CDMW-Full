@@ -4,6 +4,7 @@ import json
 import os
 import time
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -61,7 +62,7 @@ def _material_updates(process: _FakeProcess) -> list[dict[str, object]]:
 
 def test_material_compiler_keeps_one_active_and_only_latest_pending_generation() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MaterialCompileLatestWins"))
+    tab = MeshEditorTab(settings=owned_settings("MaterialCompileLatestWins"))
     builder = _EmbeddedMeshBuilder()
     tab.mount_embedded_builder(builder)
     process = _FakeProcess(tab)
@@ -124,7 +125,7 @@ def test_material_compiler_keeps_one_active_and_only_latest_pending_generation()
 
 def test_editor_close_cancels_active_and_pending_material_compilation() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MaterialCompileClose"))
+    tab = MeshEditorTab(settings=owned_settings("MaterialCompileClose"))
     builder = _EmbeddedMeshBuilder()
     tab.mount_embedded_builder(builder)
     process = _FakeProcess(tab)

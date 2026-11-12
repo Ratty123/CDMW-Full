@@ -13,6 +13,7 @@ from cdmw.services.mesh_replacement_import import initial_replacement_state, pre
 from cdmw.services.mesh_replacement_import import commit_replacement
 from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies, prepare_imported_materials
 from tests.test_mesh_editor_replacement import editor
+from tests.owned_settings import owned_settings
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -735,7 +736,7 @@ def test_replacement_build_button_and_companion_export_guard(editor, tmp_path, m
     snapshot = service.capture_export_snapshot(session_id)
     state = replace(initial_replacement_state(snapshot), companion_files=(ReplacementFile("object/test.pac_xml", b"<Root/>"),))
     service._session(session_id).replacement_state = state
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "ReplacementOutputControls"))
+    tab = MeshEditorTab(settings=owned_settings("ReplacementOutputControls"))
     tab.standalone_controller = SimpleNamespace(mesh_service=service, active_session_id=session_id)
     tab.standalone_workspace.setEnabled(True)
     monkeypatch.setattr(tab, "_standalone_rebuild_allowed", lambda: True)

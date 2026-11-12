@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -84,7 +85,7 @@ def _archive_source_identity(entry: ArchiveEntry) -> dict[str, object]:
 )
 def test_direct_workers_return_to_the_ui_thread_before_native_teardown(finish_method: str) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", f"DirectWorkerAffinity-{finish_method}"))
+    tab = MeshEditorTab(settings=owned_settings(f"DirectWorkerAffinity-{finish_method}"))
     worker = _ImmediateWorker()
     thread = QThread(tab)
     worker.moveToThread(thread)
@@ -396,7 +397,7 @@ def test_archive_session_waits_for_lazy_indexes_before_starting_automatic_pab_lo
     basename_index: dict[str, tuple[ArchiveEntry, ...]] = {}
     ensure_calls: list[bool] = []
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshLazySkeletonIndex"),
+        settings=owned_settings("DirectMeshLazySkeletonIndex"),
         get_archive_texture_entries_by_normalized_path=lambda: path_index,
         get_archive_texture_entries_by_basename=lambda: basename_index,
         get_archive_sidecar_entries_by_texture_path=lambda: {},
@@ -459,7 +460,7 @@ def test_archive_session_keeps_verified_archive_browser_material_graph_for_rust(
         ),
     )
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshVerifiedRustMaterialGraph"),
+        settings=owned_settings("DirectMeshVerifiedRustMaterialGraph"),
         get_archive_texture_entries_by_normalized_path=lambda: {},
         get_archive_texture_entries_by_basename=lambda: {},
         get_archive_sidecar_entries_by_texture_path=lambda: {},
@@ -505,7 +506,7 @@ def test_archive_session_rejects_verified_materials_from_a_same_path_collision(
         meshes=(SimpleNamespace(preview_texture_dds_path="stale.dds"),),
     )
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshRejectsStaleMaterialIdentity"),
+        settings=owned_settings("DirectMeshRejectsStaleMaterialIdentity"),
     )
 
     with patch.object(tab, "_start_archive_session_load_when_indexes_ready"):
@@ -554,7 +555,7 @@ def test_archive_open_waits_for_terminal_rust_finish_then_starts_once(
     releases: list[bool] = []
     carried_lease = SimpleNamespace(release=lambda: releases.append(True))
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshDeferredRustFinishOpen"),
+        settings=owned_settings("DirectMeshDeferredRustFinishOpen"),
     )
     tab.current_archive_selection = first
     tab.archive_material_context_package_path = str(tmp_path / "textured-package")
@@ -634,7 +635,7 @@ def test_archive_open_cannot_race_a_scheduled_terminal_rust_close(
     releases: list[bool] = []
     carried_lease = SimpleNamespace(release=lambda: releases.append(True))
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshTerminalCloseRace"),
+        settings=owned_settings("DirectMeshTerminalCloseRace"),
     )
     tab.current_archive_selection = first
     tab.archive_material_context_package_lease = carried_lease
@@ -676,7 +677,7 @@ def test_stale_terminal_rust_close_cannot_close_a_replacement_controller(
 ) -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshStaleTerminalClose"),
+        settings=owned_settings("DirectMeshStaleTerminalClose"),
     )
     original = SimpleNamespace(active_session_id="original")
     replacement = SimpleNamespace(active_session_id="replacement")
@@ -734,8 +735,7 @@ def test_explicit_close_or_shutdown_discards_queued_archive_open(
     )
     queued_lease = SimpleNamespace(release=lambda: queued_releases.append(True))
     tab = MeshEditorTab(
-        settings=QSettings(
-            "CDMWTests", f"DirectMeshDiscardQueuedOpen-{close_action}"
+        settings=owned_settings(f"DirectMeshDiscardQueuedOpen-{close_action}"
         ),
     )
     tab.current_archive_selection = first
@@ -769,7 +769,7 @@ def test_async_mesh_file_open_reports_deferred_while_rust_finish_closes(
     tmp_path: Path,
 ) -> None:
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshAsyncFileDeferred"),
+        settings=owned_settings("DirectMeshAsyncFileDeferred"),
     )
 
     with patch.object(tab, "close_standalone_session", return_value=False):
@@ -805,7 +805,7 @@ def test_latest_deferred_archive_open_supersedes_and_releases_the_previous_one(
     old_lease = SimpleNamespace(release=lambda: old_releases.append(True))
     new_lease = SimpleNamespace(release=lambda: new_releases.append(True))
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshLatestDeferredOpen"),
+        settings=owned_settings("DirectMeshLatestDeferredOpen"),
     )
     tab.current_archive_selection = first
     tab.archive_session_open_pending = {
@@ -844,7 +844,7 @@ def test_closing_archive_session_invalidates_a_lazy_index_loader_before_it_start
         paz_index=0,
     )
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", "DirectMeshCancelledLazySkeletonIndex"),
+        settings=owned_settings("DirectMeshCancelledLazySkeletonIndex"),
         get_archive_texture_entries_by_normalized_path=lambda: {},
         get_archive_texture_entries_by_basename=lambda: {},
         get_archive_sidecar_entries_by_texture_path=lambda: {},
@@ -1527,7 +1527,7 @@ def test_archive_browser_handoff_carries_native_package_and_companion(tmp_path: 
 
 def test_loaded_archive_session_prefetches_materials_when_handoff_is_geometry_only(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshMaterialPrefetch"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshMaterialPrefetch"))
     entry = ArchiveEntry(
         path="character/model/test.pac",
         pamt_path=tmp_path / "0009" / "0.pamt",
@@ -1571,7 +1571,7 @@ def test_loaded_archive_session_prefetches_materials_when_handoff_is_geometry_on
 
 def test_direct_textured_request_waits_for_material_context_and_publishes_it() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshMaterialContext"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshMaterialContext"))
     tab.archive_material_context_pending = True
     tab.standalone_archive_material_preview_model = None
 
@@ -1610,7 +1610,7 @@ def test_direct_textured_request_waits_for_material_context_and_publishes_it() -
 
 def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshOutputControls"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshOutputControls"))
     entry = ArchiveEntry(
         path="character/model/test.pac",
         pamt_path=tmp_path / "0009" / "0.pamt",
@@ -1649,7 +1649,7 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
 
 def test_file_only_session_keeps_archive_outputs_disabled_after_current_validation() -> None:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "FileOnlyMeshOutputControls")
+    settings = owned_settings("FileOnlyMeshOutputControls")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     tab.open_mesh_session(_mesh(two_parts=False), session_id="file-only-output-controls", mode="edit")
@@ -1672,7 +1672,7 @@ def test_file_only_session_keeps_archive_outputs_disabled_after_current_validati
 
 def test_hidden_standalone_panels_do_not_recompute_expensive_derived_reports() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "HiddenDirectDerivedReports"))
+    tab = MeshEditorTab(settings=owned_settings("HiddenDirectDerivedReports"))
     tab.open_mesh_session(_mesh(two_parts=False), session_id="hidden-derived-reports", mode="edit")
     assert tab.standalone_controller is not None
     assert tab.standalone_workspace.right_panels.isHidden()
@@ -1691,7 +1691,7 @@ def test_hidden_standalone_panels_do_not_recompute_expensive_derived_reports() -
 
 def test_geometry_revision_invalidates_cached_validation_and_output_authority() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshValidationRevisionAuthority"))
+    tab = MeshEditorTab(settings=owned_settings("MeshValidationRevisionAuthority"))
     tab.open_mesh_session(_mesh(two_parts=False), session_id="validation-revision-authority", mode="edit")
     assert tab.standalone_controller is not None
     view = tab.standalone_controller.session_view()
@@ -1713,7 +1713,7 @@ def test_geometry_revision_invalidates_cached_validation_and_output_authority() 
 
 def test_direct_result_update_invalidates_the_previous_revision_validation() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectResultValidationInvalidation"))
+    tab = MeshEditorTab(settings=owned_settings("DirectResultValidationInvalidation"))
     tab.open_mesh_session(_mesh(two_parts=False), session_id="direct-result-validation", mode="edit")
     assert tab.standalone_controller is not None
     controller = tab.standalone_controller
@@ -1767,7 +1767,7 @@ def test_direct_result_update_invalidates_the_previous_revision_validation() -> 
 
 def test_user_output_cancel_preserves_request_correlation_until_terminal_feedback() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshOutputCancelFeedback"))
+    tab = MeshEditorTab(settings=owned_settings("MeshOutputCancelFeedback"))
 
     class Stoppable:
         def __init__(self) -> None:
@@ -1798,7 +1798,7 @@ def test_user_output_cancel_preserves_request_correlation_until_terminal_feedbac
 
 def test_direct_dotnet_rejects_unexportable_commands_but_keeps_exact_face_delete() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectAuthoringCommandGate"))
+    tab = MeshEditorTab(settings=owned_settings("DirectAuthoringCommandGate"))
     tab.open_mesh_session(_mesh(two_parts=False), session_id="direct-authoring-command-gate", mode="edit")
     assert tab.standalone_controller is not None
     tab.standalone_dotnet_target_controller = tab.standalone_controller
@@ -1867,7 +1867,7 @@ def test_direct_dotnet_rejects_unexportable_commands_but_keeps_exact_face_delete
 
 def test_exact_output_qt_entry_points_reject_whole_part_and_duplicate_actions() -> None:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "ExactOutputQtActionGate")
+    settings = owned_settings("ExactOutputQtActionGate")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     tab.open_mesh_session(_mesh(two_parts=False), session_id="exact-output-qt-actions", mode="edit")
@@ -1900,7 +1900,7 @@ def test_imported_model_direct_session_requires_explicit_free_edit_output_for_to
     tmp_path: Path,
 ) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "ImportedModelAuthoringCapability"))
+    tab = MeshEditorTab(settings=owned_settings("ImportedModelAuthoringCapability"))
     mesh = _mesh(two_parts=False)
     mesh.path = "imports/new-item-model.glb"
     mesh.format = "gltf"
@@ -1961,7 +1961,7 @@ def test_imported_model_direct_session_requires_explicit_free_edit_output_for_to
 
 def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshOutputButtonClicks"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshOutputButtonClicks"))
     workspace = tab.standalone_workspace
     emitted: list[str] = []
     messages: list[tuple[str, bool]] = []
@@ -2004,7 +2004,7 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
 
 def test_mesh_editor_inventory_is_mesh_only_and_direct_authoring_is_explicit(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshInventory"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshInventory"))
     workspace = tab.standalone_workspace
     assert tab.builder_host() is None
     assert not hasattr(tab, "open_texture_source_requested")
@@ -2296,7 +2296,7 @@ def test_loose_mesh_output_rejects_destination_claimed_during_staging(tmp_path: 
 
 def test_direct_output_start_pins_capture_to_the_successful_validation_revision(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshOutputRevisionPin"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshOutputRevisionPin"))
     tab.open_mesh_session(_mesh(two_parts=False), session_id="direct-output-revision-pin", mode="edit")
     assert tab.standalone_controller is not None
     expected_revision = tab.standalone_controller.session_view().revision
@@ -2574,7 +2574,7 @@ def test_direct_output_cancellation_before_capture_writes_nothing(tmp_path: Path
 
 def test_archive_session_handlers_reject_stale_results_and_close_cancels_load_and_output() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshCorrelation"))
+    tab = MeshEditorTab(settings=owned_settings("DirectMeshCorrelation"))
     tab.archive_session_load_request_id = 17
     tab.standalone_status_label.setText("current state")
     tab._handle_archive_session_load_error(16, "stale failure")

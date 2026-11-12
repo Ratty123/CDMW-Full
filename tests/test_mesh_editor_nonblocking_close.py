@@ -4,6 +4,7 @@ import os
 import threading
 import time
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -84,7 +85,7 @@ def test_destroyed_worker_guard_accepts_shutdown_protocol_test_doubles() -> None
 
 def test_close_standalone_session_detaches_slow_controller_without_waiting() -> None:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "MeshEditorNonblockingClose")
+    settings = owned_settings("MeshEditorNonblockingClose")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     controller = _SlowController()
@@ -108,7 +109,7 @@ def test_close_standalone_session_detaches_slow_controller_without_waiting() -> 
 
 def test_close_session_button_confirms_edits_and_keeps_viewport_available_without_waiting() -> None:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "MeshEditorCloseSessionButton")
+    settings = owned_settings("MeshEditorCloseSessionButton")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     controller = _SlowController()
@@ -149,7 +150,7 @@ def test_close_session_button_confirms_edits_and_keeps_viewport_available_withou
 
 def test_delete_later_stops_owned_worker_before_qt_destroys_its_thread() -> None:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "MeshEditorDestroyedWorkerGuard")
+    settings = owned_settings("MeshEditorDestroyedWorkerGuard")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     worker = _StopAwareWorker()
@@ -212,7 +213,7 @@ def test_closing_a_session_retires_the_ids_queued_completions_are_matched_agains
     """
 
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "MeshEditorStaleCompletion")
+    settings = owned_settings("MeshEditorStaleCompletion")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     tab.standalone_action_request_id = 7
@@ -259,7 +260,7 @@ def test_a_finished_rebuild_report_survives_an_unrelated_selection_refresh() -> 
         )
 
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", "MeshEditorRebuildReportRetention")
+    settings = owned_settings("MeshEditorRebuildReportRetention")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     report = object()

@@ -17,6 +17,7 @@ import json
 import os
 from pathlib import Path
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -72,7 +73,7 @@ class _FakeContextWorker(QObject):
 def _direct_tab(name: str, *, path_index: dict, ensure_calls: list):
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(
-        settings=QSettings("CDMWTests", name),
+        settings=owned_settings(name),
         get_archive_texture_entries_by_normalized_path=lambda: path_index,
         get_archive_texture_entries_by_basename=lambda: path_index,
         get_archive_sidecar_entries_by_texture_path=lambda: {},
@@ -165,7 +166,7 @@ def test_missing_indexes_hold_the_resolution_instead_of_resolving_nothing() -> N
 
 def test_no_shell_hook_keeps_the_old_immediate_resolution() -> None:
     app = QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorIndexWaitNoHook"))
+    tab = MeshEditorTab(settings=owned_settings("MeshEditorIndexWaitNoHook"))
     entry = _archive_entry()
     tab.current_archive_selection = entry
 
