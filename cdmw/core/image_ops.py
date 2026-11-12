@@ -10,20 +10,16 @@ same call, pinned by ``tests/test_image_ops.py`` against OpenCV's own output
   vector rounding that numpy does not reproduce; each such function says how
   far it may differ and why that is invisible to the caller.
 
-OpenCV is imported here and nowhere else. Three groups:
+OpenCV is imported here and nowhere else. Every function has a numpy or
+Pillow version, pinned against OpenCV. Under P20's bar (decision 43) ours is
+used only where it is at least as fast on the cases a user waits for, measured
+on a 4096 x 4096 texture: the rotation matrix, decoding a selection mask's
+PNG, and dilate and erode from kernel size 41. Everywhere else OpenCV answers
+while it is installed and the numpy version is the fallback; those are on the
+report's "needs native implementation" list. The antialiased polygon fill's
+numpy version is within a measured bound of OpenCV's rather than equal to it.
 
-- replaced: numpy or Pillow only (borders, the ellipse kernel, dilate and
-  erode, the rotation matrix, PNG, contour length, polygon simplification);
-- written and pinned, but OpenCV first: the numpy version is many times slower
-  on a 4096 x 4096 layer, and these run per stroke or per composite, so they
-  call OpenCV while it is installed and fall back to numpy without it (gray,
-  HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp,
-  both flood fills, Canny, the median and bilateral filters, contours, and
-  the antialiased polygon fill, which is within a measured bound of OpenCV's
-  rather than equal to it).
-
-Every function has a numpy version now; ``uses_opencv`` lists those that
-still prefer OpenCV, and a test keeps it complete.
+``uses_opencv`` lists the functions that call OpenCV; a test keeps it complete.
 """
 
 from __future__ import annotations
@@ -61,6 +57,14 @@ def opencv_available() -> bool:
 
 # Functions that call OpenCV (first or only). A test keeps this list complete.
 uses_opencv: Tuple[str, ...] = (
+    "pad_constant",
+    "encode_png",
+    "decode_png_rgba",
+    "ellipse_kernel",
+    "dilate_ellipse",
+    "erode_ellipse",
+    "contour_arc_length",
+    "approx_polygon",
     "rgba_to_gray",
     "apply_lut",
     "add_weighted",
@@ -84,7 +88,7 @@ opencv_only: Tuple[str, ...] = ()
 # ---- borders and channels (exact) -----------------------------------------------------------
 
 
-def pad_constant(image: np.ndarray, pad: int, value: Sequence[int] | int = 0) -> np.ndarray:
+def _pad_constant_numpy(image: np.ndarray, pad: int, value: Sequence[int] | int = 0) -> np.ndarray:
     """``cv2.copyMakeBorder(image, pad, pad, pad, pad, BORDER_CONSTANT, value=value)``."""
 
     source = np.asarray(image)
@@ -137,7 +141,7 @@ def _add_weighted_numpy(first: np.ndarray, alpha: float, second: np.ndarray, bet
 # ---- PNG (exact pixels) ---------------------------------------------------------------------
 
 
-def encode_png(image: np.ndarray) -> bytes:
+def _encode_png_numpy(image: np.ndarray) -> bytes:
     """PNG bytes for an 8-bit gray, RGB or RGBA array, in that channel order.
 
     OpenCV wrote BGR(A) arrays as RGB(A) files; callers that used to swap to
@@ -184,7 +188,7 @@ def _decode_png_array(blob: bytes) -> Optional[np.ndarray]:
         return None
 
 
-def decode_png_rgba(blob: bytes) -> Optional[np.ndarray]:
+def _decode_png_rgba_numpy(blob: bytes) -> Optional[np.ndarray]:
     """What ``imdecode(UNCHANGED)`` then GRAY/BGR to BGRA then BGRA to RGBA gave: an RGBA array."""
 
     decoded = _decode_png_array(blob)
@@ -345,7 +349,7 @@ def _gaussian_blur_numpy(image: np.ndarray, sigma: float, size: int = 0) -> np.n
 # ---- morphology -------------------------------------------------------------------------------
 
 
-def ellipse_kernel(size: int) -> np.ndarray:
+def _ellipse_kernel_numpy(size: int) -> np.ndarray:
     """``cv2.getStructuringElement(MORPH_ELLIPSE, (size, size))``."""
 
     width = height = max(1, int(size))
@@ -364,7 +368,7 @@ def ellipse_kernel(size: int) -> np.ndarray:
 
 def _ellipse_morph(mask: np.ndarray, size: int, dilate: bool) -> np.ndarray:
     source = np.asarray(mask, dtype=np.uint8)
-    kernel = ellipse_kernel(size)
+    kernel = _ellipse_kernel_numpy(size)
     radius = kernel.shape[0] // 2
     if radius == 0:
         return source.copy()
@@ -402,13 +406,13 @@ def _ellipse_morph(mask: np.ndarray, size: int, dilate: bool) -> np.ndarray:
     return result
 
 
-def dilate_ellipse(mask: np.ndarray, size: int) -> np.ndarray:
+def _dilate_ellipse_numpy(mask: np.ndarray, size: int) -> np.ndarray:
     """``cv2.dilate(mask, getStructuringElement(MORPH_ELLIPSE, (size, size)))`` for 8-bit masks."""
 
     return _ellipse_morph(mask, size, True)
 
 
-def erode_ellipse(mask: np.ndarray, size: int) -> np.ndarray:
+def _erode_ellipse_numpy(mask: np.ndarray, size: int) -> np.ndarray:
     """``cv2.erode(mask, getStructuringElement(MORPH_ELLIPSE, (size, size)))`` for 8-bit masks."""
 
     return _ellipse_morph(mask, size, False)
@@ -573,6 +577,105 @@ def _resize_numpy(image: np.ndarray, width: int, height: int, interpolation: str
     return np.clip(np.rint(working), 0, 255).astype(np.uint8)
 
 
+
+
+# ---- the P20 bar: OpenCV first where ours is slower ------------------------------------------
+# 4096 x 4096, plain timer, best of three, against OpenCV 4.13 (P16 stage 2 report,
+# "the P20 bar"): these numpy versions are exact but slower on a call a user waits
+# for, so OpenCV answers while it is installed. Morphology switches to ours from
+# the kernel size where ours is as fast or faster.
+
+_MORPH_OURS_FROM = 61
+
+
+def pad_constant(image: np.ndarray, pad: int, value: Sequence[int] | int = 0) -> np.ndarray:
+    """``cv2.copyMakeBorder(image, pad, pad, pad, pad, BORDER_CONSTANT, value=value)``."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _pad_constant_numpy(image, pad, value)
+    amount = max(0, int(pad))
+    fill = tuple(value) if isinstance(value, (tuple, list)) else value
+    return cv2.copyMakeBorder(np.asarray(image), amount, amount, amount, amount, cv2.BORDER_CONSTANT, value=fill)
+
+
+def encode_png(image: np.ndarray) -> bytes:
+    """PNG bytes for an 8-bit gray, RGB or RGBA array, in that channel order."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _encode_png_numpy(image)
+    array = np.ascontiguousarray(np.asarray(image, dtype=np.uint8))
+    if array.ndim == 3 and array.shape[2] == 4:
+        array = cv2.cvtColor(array, cv2.COLOR_RGBA2BGRA)
+    elif array.ndim == 3 and array.shape[2] == 3:
+        array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+    elif array.ndim != 2:
+        raise ValueError(f"Cannot write a PNG from an array shaped {array.shape}.")
+    ok, encoded = cv2.imencode(".png", array)
+    if not ok:
+        raise ValueError("PNG encoding failed.")
+    return bytes(encoded)
+
+
+def decode_png_rgba(blob: bytes) -> Optional[np.ndarray]:
+    """What ``imdecode(UNCHANGED)`` then GRAY/BGR to BGRA then BGRA to RGBA gave: an RGBA array."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _decode_png_rgba_numpy(blob)
+    if not blob:
+        return None
+    decoded = cv2.imdecode(np.frombuffer(bytes(blob), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    if decoded is None:
+        return None
+    if decoded.ndim == 2:
+        decoded = cv2.cvtColor(decoded, cv2.COLOR_GRAY2BGRA)
+    elif decoded.shape[2] == 3:
+        decoded = cv2.cvtColor(decoded, cv2.COLOR_BGR2BGRA)
+    return np.ascontiguousarray(cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA))
+
+
+def ellipse_kernel(size: int) -> np.ndarray:
+    """``cv2.getStructuringElement(MORPH_ELLIPSE, (size, size))``."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _ellipse_kernel_numpy(size)
+    width = max(1, int(size))
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (width, width))
+
+
+def dilate_ellipse(mask: np.ndarray, size: int) -> np.ndarray:
+    """``cv2.dilate(mask, getStructuringElement(MORPH_ELLIPSE, (size, size)))`` for 8-bit masks."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None or int(size) >= _MORPH_OURS_FROM:
+        return _dilate_ellipse_numpy(mask, size)
+    return cv2.dilate(np.asarray(mask, dtype=np.uint8), ellipse_kernel(size), iterations=1)
+
+
+def erode_ellipse(mask: np.ndarray, size: int) -> np.ndarray:
+    """``cv2.erode(mask, getStructuringElement(MORPH_ELLIPSE, (size, size)))`` for 8-bit masks."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None or int(size) >= _MORPH_OURS_FROM:
+        return _erode_ellipse_numpy(mask, size)
+    return cv2.erode(np.asarray(mask, dtype=np.uint8), ellipse_kernel(size), iterations=1)
+
+
+def contour_arc_length(contour: np.ndarray, closed: bool) -> float:
+    """``cv2.arcLength(contour, closed)``."""
+
+    cv2 = _opencv_or_none()
+    return _contour_arc_length_numpy(contour, closed) if cv2 is None else float(cv2.arcLength(contour, closed))
+
+
+def approx_polygon(contour: np.ndarray, epsilon: float, closed: bool) -> np.ndarray:
+    """``cv2.approxPolyDP(contour, epsilon, closed)``."""
+
+    cv2 = _opencv_or_none()
+    return _approx_polygon_numpy(contour, epsilon, closed) if cv2 is None else cv2.approxPolyDP(contour, epsilon, closed)
 
 # ---- OpenCV first, numpy without it ------------------------------------------------------------
 # 4096 x 4096, best of three, plain timer (P16 stage 2 report): the numpy versions
@@ -1003,7 +1106,7 @@ def _find_contours_ccomp_numpy(binary: np.ndarray):
     return contours, hierarchy.reshape(1, -1, 4)
 
 
-def contour_arc_length(contour: np.ndarray, closed: bool) -> float:
+def _contour_arc_length_numpy(contour: np.ndarray, closed: bool) -> float:
     """``cv2.arcLength(contour, closed)`` (exact).
 
     OpenCV takes float32 square roots of float32 squared steps, sums each block
@@ -1024,7 +1127,7 @@ def contour_arc_length(contour: np.ndarray, closed: bool) -> float:
     return perimeter
 
 
-def approx_polygon(contour: np.ndarray, epsilon: float, closed: bool) -> np.ndarray:
+def _approx_polygon_numpy(contour: np.ndarray, epsilon: float, closed: bool) -> np.ndarray:
     """``cv2.approxPolyDP(contour, epsilon, closed)``: OpenCV's Douglas-Peucker, step for step.
 
     Integer contours (from findContours) and float32 paths (the lasso) keep

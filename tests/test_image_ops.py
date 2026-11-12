@@ -78,7 +78,7 @@ def test_reference_was_made_by_the_opencv_the_release_shipped():
 
 
 @pytest.mark.parametrize("pad", (1, 4))
-def test_pad_constant(pad):
+def test_pad_constant(backend, pad):
     _exact(f"pad_{pad}", image_ops.pad_constant(RGBA, pad, (0, 0, 0, 0)))
 
 
@@ -105,7 +105,7 @@ def test_lookup_table(backend):
     _exact("lut", image_ops.apply_lut(RGB, REFERENCE["lut_table"]))
 
 
-def test_png_blobs_written_by_opencv_decode_to_the_same_pixels():
+def test_png_blobs_written_by_opencv_decode_to_the_same_pixels(backend):
     # History snapshots and saved selections written before the switch.
     assert np.array_equal(image_ops.decode_png_rgba(bytes(REFERENCE["png_rgba_blob"])), RGBA)
     assert np.array_equal(image_ops.decode_png_mask(bytes(REFERENCE["png_mask_blob"])), MASKS["soft"])
@@ -115,7 +115,7 @@ def test_png_blobs_written_by_opencv_decode_to_the_same_pixels():
     assert np.array_equal(rgba_from_bgr[..., :3], RGB[..., ::-1]) and np.all(rgba_from_bgr[..., 3] == 255)
 
 
-def test_png_round_trip_and_unreadable_blobs():
+def test_png_round_trip_and_unreadable_blobs(backend):
     assert np.array_equal(image_ops.decode_png_rgba(image_ops.encode_png(RGBA)), RGBA)
     assert np.array_equal(image_ops.decode_png_mask(image_ops.encode_png(MASKS["soft"])), MASKS["soft"])
     gray_rgba = image_ops.decode_png_rgba(image_ops.encode_png(GRAY))
@@ -126,13 +126,14 @@ def test_png_round_trip_and_unreadable_blobs():
 
 
 @pytest.mark.parametrize("size", range(1, 62, 2))
-def test_ellipse_kernel(size):
+def test_ellipse_kernel(backend, size):
     _exact(f"ellipse_{size}", image_ops.ellipse_kernel(size))
 
 
 @pytest.mark.parametrize("name", sorted(MASKS))
 @pytest.mark.parametrize("size", (3, 7, 21))
-def test_dilate_and_erode(name, size):
+def test_dilate_and_erode(backend, name, size):
+    # Sizes from 41 use ours even with OpenCV installed; the live test below covers them.
     _exact(f"dilate_{name}_{size}", image_ops.dilate_ellipse(MASKS[name], size))
     _exact(f"erode_{name}_{size}", image_ops.erode_ellipse(MASKS[name], size))
 
@@ -232,7 +233,7 @@ def test_find_contours(backend):
             _exact(f"contours_{name}_{index}", contour.reshape(-1, 2))
 
 
-def test_contour_length_and_simplification():
+def test_contour_length_and_simplification(backend):
     # Inputs are OpenCV's own contours, kept in the reference file.
     for name in MASKS:
         for index in range(int(REFERENCE[f"contours_{name}_count"])):
@@ -318,15 +319,15 @@ def test_contour_length_and_simplification_match_opencv_on_random_contours():
         for contour in contours:
             for closed in (True, False):
                 length = cv2.arcLength(contour, closed)
-                assert image_ops.contour_arc_length(contour, closed) == length
+                assert image_ops._contour_arc_length_numpy(contour, closed) == length
                 epsilon = max(0.35, length * 0.002) if trial % 2 else float(rng.uniform(0.1, 6.0))
-                assert np.array_equal(image_ops.approx_polygon(contour, epsilon, closed),
+                assert np.array_equal(image_ops._approx_polygon_numpy(contour, epsilon, closed),
                                       cv2.approxPolyDP(contour, epsilon, closed))
         path = np.cumsum(rng.normal(0.0, 1.5, (int(rng.integers(2, 300)), 2)), axis=0).astype(np.float32)
         path = path.reshape(-1, 1, 2)
         for closed in (False, True):
-            assert image_ops.contour_arc_length(path, closed) == cv2.arcLength(path, closed)
-            assert np.array_equal(image_ops.approx_polygon(path, 0.35, closed), cv2.approxPolyDP(path, 0.35, closed))
+            assert image_ops._contour_arc_length_numpy(path, closed) == cv2.arcLength(path, closed)
+            assert np.array_equal(image_ops._approx_polygon_numpy(path, 0.35, closed), cv2.approxPolyDP(path, 0.35, closed))
 
 
 def test_warp_affine_matches_opencv_on_random_rotations():
@@ -430,10 +431,10 @@ def test_morphology_matches_opencv_on_random_masks():
         mask = (rng.random((height, width)) > 0.7).astype(np.uint8) * 255
         if rng.random() > 0.5:
             mask = rng.integers(0, 256, (height, width)).astype(np.uint8)
-        size = int(rng.integers(0, 15)) * 2 + 1
+        size = int(rng.integers(0, 15)) * 2 + 1 if rng.random() < 0.7 else int(rng.integers(20, 35)) * 2 + 1
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
-        assert np.array_equal(image_ops.dilate_ellipse(mask, size), cv2.dilate(mask, kernel))
-        assert np.array_equal(image_ops.erode_ellipse(mask, size), cv2.erode(mask, kernel))
+        assert np.array_equal(image_ops._dilate_ellipse_numpy(mask, size), cv2.dilate(mask, kernel))
+        assert np.array_equal(image_ops._erode_ellipse_numpy(mask, size), cv2.erode(mask, kernel))
 
 
 # ---- one place for OpenCV ----------------------------------------------------------------
