@@ -47,7 +47,7 @@ from cdmw.domain.archives.item_catalogue import (
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 from cdmw.ui.archive_browser.failure_report import ArchiveFailurePanel
 from cdmw.ui.wrapping_layout import WrappingLayout
-from cdmw.ui.layout_metrics import title_font_points
+from cdmw.ui.layout_metrics import icon_letter_pixels, title_font_points
 
 
 class _ItemFinderGrid(QListWidget):
@@ -292,7 +292,8 @@ class RemoteArchiveFinderDialog(QDialog):
         self._status = QLabel("Loading catalogue...")
         self._status.setObjectName("HintLabel")
         self._status.setWordWrap(True)
-        self._status.setMinimumHeight(38)
+        # Two lines of its own text (P11: no literal height).
+        self._status.setMinimumHeight(2 * self._status.fontMetrics().lineSpacing())
         self._previous_button = QPushButton("Previous")
         self._next_button = QPushButton("Next")
         self._retry_button = QPushButton("Retry")
@@ -842,7 +843,8 @@ class RemoteArchiveFinderDialog(QDialog):
                     return icon
             except Exception:
                 pass
-        pixmap = QPixmap(112, 112)
+        side = 112
+        pixmap = QPixmap(side, side)
         palette = self.palette()
         pixmap.fill(palette.color(QPalette.Window))
         painter = QPainter(pixmap)
@@ -853,7 +855,7 @@ class RemoteArchiveFinderDialog(QDialog):
         painter.setPen(palette.color(QPalette.Text))
         font = painter.font()
         font.setBold(True)
-        font.setPixelSize(38)
+        font.setPixelSize(icon_letter_pixels(side))
         painter.setFont(font)
         display_name = row.display_name or row.internal_name or "?"
         fallback = next((character.upper() for character in display_name if character.isalnum()), "?")

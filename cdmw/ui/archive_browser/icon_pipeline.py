@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
 from cdmw.services.texture_workflow_service import native_texture_backend_identity
+from cdmw.ui.layout_metrics import icon_letter_pixels
 from cdmw.domain.archives.format import normalize_archive_extension_filter
 from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 
@@ -85,7 +86,8 @@ class ArchiveIconPipelineMixin:
             "item": ("#9fb3c8", "#17212b"),
         }
         fg, bg = colors.get(key, colors["item"])
-        pixmap = QPixmap(34, 34)
+        side = 34
+        pixmap = QPixmap(side, side)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -132,7 +134,7 @@ class ArchiveIconPipelineMixin:
             painter.setPen(QColor(fg))
             font = QFont(painter.font())
             font.setBold(True)
-            font.setPointSize(13)
+            font.setPixelSize(icon_letter_pixels(side, 0.5))
             painter.setFont(font)
             painter.drawText(QRectF(2, 2, 30, 30), Qt.AlignCenter, letter)
         painter.end()

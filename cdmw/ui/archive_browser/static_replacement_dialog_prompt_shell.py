@@ -7,7 +7,10 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
-from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import _alignment_dialog_font_sizes
+from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import (
+    _alignment_dialog_control_heights,
+    _alignment_dialog_font_sizes,
+)
 from cdmw.ui.themes import get_theme
 
 install_static_replacement_prompt_dependencies(globals())
@@ -214,9 +217,9 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         theme = get_theme(str(getattr(self.shell, "current_theme_key", "") or ""))
         ui_font_size, data_font_size = int(font_sizes["ui"]), int(font_sizes["data"])
         hint_font_size = int(font_sizes["hint"])
-        button_min_height = max(14, ui_font_size + 6)
-        field_min_height = max(15, data_font_size + 7)
-        help_button_size = max(16, ui_font_size + 8)
+        heights = _alignment_dialog_control_heights(context, ui_font_size, data_font_size)
+        button_min_height, field_min_height = heights["button"], heights["field"]
+        help_button_size = heights["help_button"]
         return f"""
         QDialog#MeshReplacementAlignmentDialog {{
             font-size: {ui_font_size}pt;

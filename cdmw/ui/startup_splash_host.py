@@ -75,6 +75,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             QColor,
             QFont,
             QFontDatabase,
+            QFontMetrics,
             QIcon,
             QLinearGradient,
             QPainter,
@@ -82,6 +83,8 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             QPolygonF,
         )
         from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSizePolicy, QVBoxLayout
+
+        from cdmw.ui.layout_metrics import small_font_points
     except ImportError:
         cleanup_startup_splash_artifacts(command_file)
         return 1
@@ -234,10 +237,14 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             self.detail_label.setAlignment(Qt.AlignCenter)
             self.detail_label.setWordWrap(True)
             detail_font = QFont(self.font())
-            detail_font.setPointSize(max(1, detail_font.pointSize() - 2))
+            # Small text is the size minus 1, never below the range (P11 step 2).
+            if detail_font.pointSizeF() > 0:  # a font sized in pixels keeps its size
+                detail_font.setPointSizeF(small_font_points(detail_font.pointSizeF()))
             self.detail_label.setFont(detail_font)
-            self.detail_label.setMinimumHeight(32)
-            self.detail_label.setMaximumHeight(34)
+            # Room for two wrapped lines of that text, at any size.
+            two_lines = 2 * QFontMetrics(detail_font).lineSpacing()
+            self.detail_label.setMinimumHeight(two_lines)
+            self.detail_label.setMaximumHeight(two_lines + 2)
             layout.addWidget(self.detail_label)
 
             layout.addSpacing(30)
