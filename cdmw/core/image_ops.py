@@ -18,10 +18,12 @@ OpenCV is imported here and nowhere else. Three groups:
   on a 4096 x 4096 layer, and these run per stroke or per composite, so they
   call OpenCV while it is installed and fall back to numpy without it (gray,
   HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp,
-  both flood fills, Canny, the median and bilateral filters, contours);
-- OpenCV only, not written yet (antialiased polygon fill).
+  both flood fills, Canny, the median and bilateral filters, contours, and
+  the antialiased polygon fill, which is within a measured bound of OpenCV's
+  rather than equal to it).
 
-``uses_opencv`` lists the last two groups; a test keeps it complete.
+Every function has a numpy version now; ``uses_opencv`` lists those that
+still prefer OpenCV, and a test keeps it complete.
 """
 
 from __future__ import annotations
@@ -53,15 +55,6 @@ def _opencv_or_none():
     return _cv2_module
 
 
-def _cv2():
-    """OpenCV for functions that have no replacement yet."""
-
-    module = _opencv_or_none()
-    if module is None:
-        raise ImportError("This Texture Editor operation still needs OpenCV (opencv-python-headless).")
-    return module
-
-
 def opencv_available() -> bool:
     return _opencv_or_none() is not None
 
@@ -85,9 +78,7 @@ uses_opencv: Tuple[str, ...] = (
     "warp_affine_linear",
 )
 # Of those, the ones with no numpy version yet: they need OpenCV to run at all.
-opencv_only: Tuple[str, ...] = (
-    "fill_polygon_antialiased",
-)
+opencv_only: Tuple[str, ...] = ()
 
 
 # ---- borders and channels (exact) -----------------------------------------------------------
@@ -797,9 +788,75 @@ def _flood_fill_value_numpy(mask: np.ndarray, seed: Tuple[int, int], value: int,
 def fill_polygon_antialiased(canvas: np.ndarray, polygon: np.ndarray, value: int = 255) -> np.ndarray:
     """``cv2.fillPoly(canvas, [polygon], value, lineType=LINE_AA)``, in place; returns the canvas."""
 
-    cv2 = _cv2()
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _fill_polygon_antialiased_numpy(canvas, polygon, value)
     cv2.fillPoly(canvas, [np.asarray(polygon, dtype=np.int32).reshape(-1, 1, 2)], int(value), lineType=cv2.LINE_AA)
     return canvas
+
+
+# OpenCV's LINE_AA polygon, outside the polygon: the mean value at each tenth of a
+# pixel of distance from the nearest edge, measured on 80 random polygons
+# (tests/test_image_ops.py keeps the comparison). Beyond 1.5 pixels it is 0.
+_POLYGON_HALO = np.array(
+    (243.2, 237.5, 229.1, 213.3, 192.3, 162.9, 132.9, 101.6, 74.3, 50.3, 36.8, 21.0, 11.9, 6.0, 1.9, 0.0),
+    dtype=np.float64,
+)
+
+
+def _fill_polygon_antialiased_numpy(canvas: np.ndarray, polygon: np.ndarray, value: int = 255) -> np.ndarray:
+    """An antialiased, even-odd polygon fill of one 8-bit canvas, in place.
+
+    Not OpenCV's rasteriser, which fills the polygon with its boundary pixels
+    and then draws each edge with its own antialiased line. This gives pixels
+    whose centre is inside (even-odd) the full value, and pixels outside the
+    share of OpenCV's measured falloff by distance from the nearest edge, so it
+    is within a stated bound of OpenCV rather than equal to it.
+    """
+
+    target = canvas
+    height, width = target.shape[:2]
+    points = np.asarray(polygon, dtype=np.float64).reshape(-1, 2)
+    if points.shape[0] < 1 or height == 0 or width == 0:
+        return target
+    x0, y0 = points[:, 0], points[:, 1]
+    x1, y1 = np.roll(x0, -1), np.roll(y0, -1)
+    # Distance from each pixel centre to the nearest edge, over a 2-pixel band per edge.
+    distance = np.full((height, width), np.inf)
+    for ax, ay, bx, by in zip(x0, y0, x1, y1):
+        left = max(0, int(math.floor(min(ax, bx))) - 2)
+        right = min(width - 1, int(math.ceil(max(ax, bx))) + 2)
+        top = max(0, int(math.floor(min(ay, by))) - 2)
+        bottom = min(height - 1, int(math.ceil(max(ay, by))) + 2)
+        if left > right or top > bottom:
+            continue
+        py, px = np.mgrid[top : bottom + 1, left : right + 1].astype(np.float64)
+        dx, dy = bx - ax, by - ay
+        length = dx * dx + dy * dy
+        t = np.clip(((px - ax) * dx + (py - ay) * dy) / length, 0.0, 1.0) if length else np.zeros_like(px)
+        d = np.hypot(px - (ax + t * dx), py - (ay + t * dy))
+        np.minimum(distance[top : bottom + 1, left : right + 1], d, out=distance[top : bottom + 1, left : right + 1])
+    # Even-odd inside test at pixel centres, row by row.
+    inside = np.zeros((height, width), dtype=bool)
+    moving = y0 != y1
+    ex0, ey0, ex1, ey1 = x0[moving], y0[moving], x1[moving], y1[moving]
+    low, high = np.minimum(ey0, ey1), np.maximum(ey0, ey1)
+    centres = np.arange(width, dtype=np.float64)
+    if low.size:
+        for row in range(max(0, int(math.floor(low.min()))), min(height - 1, int(math.ceil(high.max()))) + 1):
+            active = (low <= row) & (row < high)
+            if not active.any():
+                continue
+            crossings = np.sort(ex0[active] + (row - ey0[active]) * (ex1[active] - ex0[active]) / (ey1[active] - ey0[active]))
+            inside[row] = (np.searchsorted(crossings, centres, side="right") & 1).astype(bool)
+    scaled = np.clip(distance * 10.0, 0.0, float(_POLYGON_HALO.size - 1))
+    halo = np.interp(scaled, np.arange(_POLYGON_HALO.size, dtype=np.float64), _POLYGON_HALO)
+    alpha = np.where(inside, 1.0, halo / 255.0)
+    if target.ndim == 3:
+        alpha = alpha[..., None]
+    blended = target.astype(np.float64) * (1.0 - alpha) + float(value) * alpha
+    target[...] = np.clip(np.rint(blended), 0, 255).astype(target.dtype)
+    return target
 
 
 def find_outer_contours_ccomp(binary: np.ndarray):

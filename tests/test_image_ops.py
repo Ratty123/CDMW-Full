@@ -199,11 +199,27 @@ def test_flood_fills(backend):
                        image_ops.flood_fill_value(MASKS["soft"], seed, 255, tolerance, connectivity))
 
 
+def _fill_polygon_bounds(actual: np.ndarray, expected: np.ndarray, actual_down: np.ndarray, expected_down: np.ndarray):
+    # No pixel fully inside on one side and fully outside on the other.
+    solid = ((actual == 0) | (actual == 255)) & ((expected == 0) | (expected == 255))
+    assert not np.any(solid & (actual != expected))
+    # The selection mask uses the 4x canvas shrunk by area: its edge pixels stay close.
+    edge = ((expected_down != 0) & (expected_down != 255)) | ((actual_down != 0) & (actual_down != 255))
+    difference = np.abs(actual_down.astype(np.int16) - expected_down.astype(np.int16))
+    assert int(difference.max()) <= 40
+    # Typical edges average 2 to 3 levels; a one-pixel sliver of the 4x canvas averages 11.
+    assert (float(difference[edge].mean()) if edge.any() else 0.0) <= 12.0
+
+
 def test_fill_polygon_antialiased(backend):
-    _only_on_opencv(backend, "fill_polygon_antialiased")
     for index, polygon in enumerate(inputs.polygons()):
-        canvas = np.zeros((160, 200), np.uint8)
-        _exact(f"fillpoly_aa_{index}", image_ops.fill_polygon_antialiased(canvas, polygon))
+        canvas = image_ops.fill_polygon_antialiased(np.zeros((160, 200), np.uint8), polygon)
+        if backend == "opencv":
+            _exact(f"fillpoly_aa_{index}", canvas)
+            continue
+        # Not OpenCV's rasteriser: within the bound measured in the P16 stage 2 report.
+        down = image_ops._resize_numpy(canvas, 50, 40, "area")
+        _fill_polygon_bounds(canvas, REFERENCE[f"fillpoly_aa_{index}"], down, REFERENCE[f"fillpoly_aa_down_{index}"])
 
 
 def test_find_contours(backend):
@@ -393,6 +409,19 @@ def test_find_contours_matches_opencv_on_random_masks():
             assert np.array_equal(actual_hierarchy, expected_hierarchy)
 
 
+def test_fill_polygon_stays_within_its_bound_on_random_polygons():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(13)
+    for _ in range(30):
+        count = int(rng.integers(3, 14))
+        polygon = np.stack((rng.integers(-10, 210, count), rng.integers(-10, 170, count)), axis=-1).astype(np.int32)
+        expected = np.zeros((160, 200), np.uint8)
+        cv2.fillPoly(expected, [polygon.reshape(-1, 1, 2)], 255, lineType=cv2.LINE_AA)
+        actual = image_ops._fill_polygon_antialiased_numpy(np.zeros((160, 200), np.uint8), polygon, 255)
+        _fill_polygon_bounds(actual, expected, cv2.resize(actual, (50, 40), interpolation=cv2.INTER_AREA),
+                             cv2.resize(expected, (50, 40), interpolation=cv2.INTER_AREA))
+
+
 def test_morphology_matches_opencv_on_random_masks():
     cv2 = pytest.importorskip("cv2")
     rng = np.random.default_rng(8)
@@ -433,8 +462,11 @@ def test_without_opencv_the_replaced_functions_answer_and_the_rest_say_what_is_m
     assert not image_ops.opencv_available()
     assert image_ops.resize(RGBA, 20, 15, "area").shape == (15, 20, 4)
     assert image_ops.gaussian_blur(RGB_F, 1.3).dtype == np.float32
-    with pytest.raises(ImportError, match="still needs OpenCV"):
-        image_ops.fill_polygon_antialiased(np.zeros((8, 8), np.uint8), inputs.polygons()[0] // 25)
+    assert image_ops.opencv_only == ()
+    canvas = image_ops.fill_polygon_antialiased(np.zeros((8, 8), np.uint8), inputs.polygons()[0] // 25)
+    assert canvas.max() == 255
+    contours, _ = image_ops.find_outer_contours_ccomp(MASKS["binary"] > 0)
+    assert len(contours) == int(REFERENCE["contours_binary_count"])
 
 
 def test_the_list_of_functions_still_on_opencv_is_complete():
