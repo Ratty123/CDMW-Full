@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.commands.keymap import conflicts, keymap_rows, reset_all, save_keys
-from cdmw.ui.commands.registry import CommandRegistry
+from cdmw.ui.commands.registry import CommandRegistry, display_label
 
 #: Context -> the name the page shows for it.
 CONTEXT_LABELS = {
@@ -207,9 +207,9 @@ class ShortcutsPage(QWidget):
         self.table.setRowCount(0)
         for row in rows:
             where = _translate(CONTEXT_LABELS.get(row.context, row.context))
-            label = labels[row.command_id].replace("&", "")
+            label = display_label(labels[row.command_id])
             keys = ", ".join(row.keys)
-            others = ", ".join(labels.get(other, other) for other in clashes.get(row.command_id, ()))
+            others = ", ".join(display_label(labels.get(other, other)) for other in clashes.get(row.command_id, ()))
             haystack = " ".join((where, label, row.label, row.command_id, keys)).casefold()
             if text and not all(word in haystack for word in text):
                 continue
@@ -267,7 +267,7 @@ class ShortcutsPage(QWidget):
         others = conflicts(rows).get(row.command_id, ())
         if not others:
             return ""
-        names = ", ".join(_translate(r.label) for r in rows if r.command_id in others)
+        names = ", ".join(display_label(_translate(r.label)) for r in rows if r.command_id in others)
         return _translate("Also used by: {names}").replace("{names}", names)
 
     def _save_selected(self, keys: list[str] | None) -> None:

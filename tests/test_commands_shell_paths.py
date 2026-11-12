@@ -33,6 +33,13 @@ def shell(tmp_path_factory):
     finally:
         window._finalize_close()
         window.deleteLater()
+        # The registry belongs to the application; the next file starts with a fresh one.
+        from cdmw.ui.commands.registry import _ATTRIBUTE
+
+        registry = getattr(_APP, _ATTRIBUTE, None)
+        setattr(_APP, _ATTRIBUTE, None)
+        if registry is not None:
+            registry.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         if previous is None:
             os.environ.pop("CDMW_PROFILE_DIR", None)
@@ -307,3 +314,220 @@ def test_e7_unbinding_a_two_key_command_clears_both_keys_in_the_editor(clean_key
     assert keys["clear_selection"] == "" and keys["clear_selection_alt"] == ""
     live = {shortcut.key().toString(QKeySequence.SequenceFormat.PortableText) for shortcut in editor._shortcut_objects}
     assert "Esc" not in live and "Ctrl+D" not in live
+
+
+# ----- E5 -----------------------------------------------------------------
+def test_e5_the_palette_is_a_command_with_a_keymap_row_that_can_be_rebound(clean_keymap, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeySequence
+
+    from cdmw.ui.commands import palette as palette_module
+    from cdmw.ui.commands.keymap import conflicts, keymap_rows, save_keys
+
+    shell = clean_keymap
+    registry = shell.command_registry
+    assert palette_module.PALETTE_COMMAND in registry
+    rows = {row.command_id: row for row in keymap_rows(registry, shell.settings)}
+    assert rows[palette_module.PALETTE_COMMAND].keys == ("Ctrl+Shift+P",)
+
+    def bound(command_id):
+        ran = []
+        monkeypatch.setattr(registry, "run_or_reason", lambda i: ran.append(i) or "")
+        keys = set()
+        for shortcut in shell.command_shortcut_binder._shortcuts:
+            ran.clear()
+            shortcut.activated.emit()
+            if ran == [command_id]:
+                keys.add(shortcut.key().toString(QKeySequence.SequenceFormat.PortableText))
+        monkeypatch.undo()
+        return keys
+
+    assert bound(palette_module.PALETTE_COMMAND) == {"Ctrl+Shift+P"}
+    save_keys(registry, shell.settings, palette_module.PALETTE_COMMAND, ["Ctrl+K"])
+    assert bound(palette_module.PALETTE_COMMAND) == {"Ctrl+K"}
+    # Conflicts see it: another shell command on the same key is named.
+    save_keys(registry, shell.settings, "shell.about", ["Ctrl+K"])
+    assert palette_module.PALETTE_COMMAND in conflicts(keymap_rows(registry, shell.settings))["shell.about"]
+
+
+def test_e5_no_shortcut_outside_the_keymap_opens_the_palette(shell):
+    from PySide6.QtGui import QKeySequence, QShortcut
+
+    binder = set(map(id, shell.command_shortcut_binder._shortcuts))
+    palette_keys = [s for s in shell.findChildren(QShortcut)
+                    if s.isEnabled() and s.key().toString(QKeySequence.SequenceFormat.PortableText) == "Ctrl+Shift+P"
+                    and id(s) not in binder]  # the binder's replaced shortcuts are disabled until deleted
+    assert palette_keys == []
+
+
+# ----- E6 (the palette half) ----------------------------------------------
+def _detached(shell, key="archive_browser"):
+    shell._detach_tool_key(key)
+    window = shell._detached_tool_windows.get(key)
+    assert window is not None
+    return window
+
+
+def test_e6_the_palette_chord_from_a_helper_in_a_detached_window_opens_the_palette(shell):
+    from cdmw.ui.commands.palette import open_command_palette
+
+    window = _detached(shell)
+    try:
+        # A helper's tab sends the chord with its own window(): here the detached window.
+        palette = open_command_palette(window)
+        assert palette is not None
+        try:
+            assert palette.parentWidget() is window
+            assert "browse" in palette.contexts  # the detached tool's commands, not the main window's tool
+        finally:
+            palette.close()
+            palette.deleteLater()
+    finally:
+        shell._attach_detached_tool("archive_browser")
+
+
+def test_e6_the_shortcut_pressed_in_a_detached_window_opens_that_tool_s_palette(shell, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.ui.commands import palette as palette_module
+
+    window = _detached(shell)
+    try:
+        shell.show_settings()  # the main window shows another tool
+        monkeypatch.setattr(QApplication, "activeWindow", staticmethod(lambda: window))
+        shell.command_registry.run(palette_module.PALETTE_COMMAND)
+        palette = shell._command_palette
+        try:
+            assert palette.parentWidget() is window and "browse" in palette.contexts
+        finally:
+            palette.close()
+            palette.deleteLater()
+    finally:
+        shell._attach_detached_tool("archive_browser")
+
+
+def test_e6_opened_while_another_process_has_the_foreground_the_palette_is_not_a_popup(shell, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.ui.commands.palette import open_command_palette
+
+    monkeypatch.setattr(QApplication, "applicationState", staticmethod(lambda: Qt.ApplicationState.ApplicationInactive))
+    palette = open_command_palette(shell)
+    try:
+        assert palette.windowType() == Qt.WindowType.Tool  # a popup gets no keys while another process is in front
+    finally:
+        palette.close()
+        palette.deleteLater()
+
+
+# ----- E8 -----------------------------------------------------------------
+def test_e8_a_menu_label_with_an_ampersand_reads_as_written(shell):
+    from PySide6.QtCore import Qt
+
+    from cdmw.ui.commands.palette import open_command_palette
+    from cdmw.ui.commands.registry import display_label
+
+    assert display_label("Drafts && Mods") == "Drafts & Mods" == display_label("Drafts & Mods")
+    assert display_label("&Open") == "Open" and display_label("Review && Export") == "Review & Export"
+    palette = open_command_palette(shell)
+    try:
+        palette.search.setText("shell.open.saved_work")
+        texts = [palette.list.item(i).text() for i in range(palette.list.count())]
+        assert texts and texts[0].startswith("Drafts & Mods")
+    finally:
+        palette.close()
+        palette.deleteLater()
+
+
+def test_e8_a_broken_availability_check_shows_no_exception_text(shell, caplog):
+    from cdmw.ui.commands import Command
+    from cdmw.ui.commands import registry as registry_module
+
+    registry = shell.command_registry
+    registry.register(Command("shell.e8_probe", "E8 probe", "shell", lambda: None,
+                              lambda: {}["secret internal detail"]), replace=True)
+    try:
+        with caplog.at_level("ERROR"):
+            assert registry.reason("shell.e8_probe") == getattr(registry_module, "UNAVAILABLE_REASON", "Unavailable")
+        assert "secret internal detail" in caplog.text  # the detail goes to the log
+    finally:
+        registry._commands.pop("shell.e8_probe", None)
+
+
+@pytest.mark.xfail(strict=True, reason="passes once the strings-3 fragments are folded into the catalogues; "
+                                       "then remove this marker")
+def test_e8_every_command_label_and_reason_the_shell_shows_is_in_every_catalogue(shell):
+    import json
+    from pathlib import Path
+
+    from cdmw.ui.commands.shortcuts_page import CONTEXT_LABELS
+    from cdmw.ui.texture_workflow.editor_shortcuts import texture_editor_shortcut_labels
+
+    shell.texture_editor_tab.ensure_widget()
+    texts = {c.label for c in shell.command_registry.commands() if not c.helper}
+    texts |= set(CONTEXT_LABELS.values()) | set(texture_editor_shortcut_labels().values())
+    for command in shell.command_registry.commands():
+        if not command.helper:
+            texts.add(shell.command_registry.reason(command.id))
+    texts.discard("")
+    root = Path(__file__).resolve().parents[1] / "cdmw" / "resources" / "localization"
+    missing = {}
+    for locale in ("de", "es-419", "es-ES", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant"):
+        catalogue = json.loads((root / f"{locale}.json").read_text(encoding="utf-8"))["translations"]
+        lacking = sorted(text for text in texts if text not in catalogue)
+        if lacking:
+            missing[locale] = lacking
+    assert missing == {}
+
+
+# ----- E9 -----------------------------------------------------------------
+def test_e9_a_command_that_raises_does_not_escape_the_palette_the_menu_or_a_key(shell, caplog):
+    from PySide6.QtGui import QAction
+
+    from cdmw.ui.commands import Command
+    from cdmw.ui.commands.adapters import bind_action
+    from cdmw.ui.commands.palette import open_command_palette
+    from cdmw.ui.commands import registry as registry_module
+
+    registry = shell.command_registry
+
+    def fail():
+        raise RuntimeError("boom")
+
+    registry.register(Command("shell.e9_probe", "E9 probe", "shell", fail), replace=True)
+    try:
+        with caplog.at_level("ERROR"):
+            palette = open_command_palette(shell)
+            try:
+                palette.search.setText("shell.e9_probe")
+                assert palette.run_current() is False
+                assert palette.reason.text() == getattr(registry_module, "COMMAND_FAILED_REASON", "") and palette.isVisible()
+            finally:
+                palette.close()
+                palette.deleteLater()
+            action = QAction("E9 probe")
+            bind_action(action, registry, "shell.e9_probe")
+            action.trigger()  # would raise out of the slot before
+            shell.command_shortcut_binder._run("shell.e9_probe")
+        assert caplog.text.count("boom") >= 3
+    finally:
+        registry._commands.pop("shell.e9_probe", None)
+
+
+def test_e9_a_command_that_vanished_while_the_palette_was_open_is_refused_not_raised(shell):
+    from cdmw.ui.commands import Command
+    from cdmw.ui.commands.palette import open_command_palette
+    from cdmw.ui.commands import registry as registry_module
+
+    registry = shell.command_registry
+    registry.register(Command("shell.e9_gone", "E9 gone", "shell", lambda: None), replace=True)
+    palette = open_command_palette(shell)
+    try:
+        palette.search.setText("shell.e9_gone")
+        registry._commands.pop("shell.e9_gone", None)
+        palette._show_reason()
+        assert palette.run_current() is False and palette.reason.text() == getattr(registry_module, "UNAVAILABLE_REASON", "Unavailable")
+    finally:
+        palette.close()
+        palette.deleteLater()

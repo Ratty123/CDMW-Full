@@ -38,7 +38,8 @@ def test_a_command_is_defined_once_and_refuses_with_its_reason(app):
 def test_a_broken_check_reads_as_unavailable_not_as_a_crash(app):
     registry = CommandRegistry()
     registry.register(Command("shell.broken", "Broken", "shell", lambda: None, lambda: 1 / 0))
-    assert registry.reason("shell.broken").startswith("Unavailable:")
+    # The exception's text goes to the log, not into the reason (plan 8.7 E8).
+    assert registry.reason("shell.broken") == "Unavailable"
 
 
 def test_every_view_of_a_command_shows_its_state_and_reason(app):

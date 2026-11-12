@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from cdmw.services import keymap_store
-from cdmw.ui.commands.registry import CommandRefused, CommandRegistry
+from cdmw.ui.commands.registry import CommandRegistry
 
 RESOURCE = Path(__file__).resolve().parents[2] / "resources" / "mesh_editor_commands.json"
 #: Contexts whose commands get Qt shortcuts from this module.
@@ -137,10 +137,7 @@ class QtShortcutBinder(QObject):
                 self._shortcuts.append(shortcut)
 
     def _run(self, command_id: str) -> None:
-        try:
-            self.registry.run(command_id)
-        except (CommandRefused, KeyError):
-            pass
+        self.registry.run_or_reason(command_id)  # a refusal is silent, as before; a failure is logged
 
 
 def save_keys(registry: CommandRegistry, settings, command_id: str, keys: list[str] | None) -> None:
