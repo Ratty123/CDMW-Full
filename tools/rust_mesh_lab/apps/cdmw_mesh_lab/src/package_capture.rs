@@ -60,6 +60,8 @@ pub(crate) fn parse_package_capture(value: &Value) -> Result<PackageCaptureJob, 
 /// The capture thread of one device.
 pub(crate) struct PackageCaptures {
     jobs: Sender<PackageCaptureJob>,
+    /// Captures queued or running; the pool is dropped when it stays at 0 (8.8).
+    in_flight: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl PackageCaptures {
@@ -69,6 +71,8 @@ impl PackageCaptures {
         send: impl Fn(Value) + Send + 'static,
     ) -> Result<Self, String> {
         let (jobs, incoming) = bounded::<PackageCaptureJob>(QUEUED_CAPTURES);
+        let in_flight = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let running = std::sync::Arc::clone(&in_flight);
         thread::Builder::new()
             .name("cdmw-package-capture".to_owned())
             .spawn(move || {
@@ -96,19 +100,32 @@ impl PackageCaptures {
                             "message": format!("{error:#}"),
                         }),
                     });
+                    running.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
                 }
             })
             .map_err(|error| format!("the capture thread could not start: {error}"))?;
-        Ok(Self { jobs })
+        Ok(Self { jobs, in_flight })
     }
 
     /// Queue a capture, or say why not (the caller answers the request).
     pub(crate) fn submit(&self, job: PackageCaptureJob) -> Result<(), String> {
-        match self.jobs.try_send(job) {
+        self.in_flight
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let sent = self.jobs.try_send(job);
+        if sent.is_err() {
+            self.in_flight
+                .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        }
+        match sent {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_)) => Err("the capture queue is full".to_owned()),
             Err(TrySendError::Disconnected(_)) => Err("the capture thread stopped".to_owned()),
         }
+    }
+
+    /// No capture is queued or running.
+    pub(crate) fn idle(&self) -> bool {
+        self.in_flight.load(std::sync::atomic::Ordering::Acquire) == 0
     }
 }
 

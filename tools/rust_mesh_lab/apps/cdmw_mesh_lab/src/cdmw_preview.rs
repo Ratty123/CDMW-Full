@@ -419,6 +419,53 @@ fn preview_render_failure(
     }
 }
 
+/// The one device of an engine process, for its life (section 8.8 cause 2). The
+/// first renderer makes it, from Browse's window when Browse draws first, and every
+/// later renderer of the process (Browse after an idle release, other viewports,
+/// pages, edits in windows of their own, captures) draws on it. Dropping a window,
+/// a scene or a renderer never drops it.
+#[derive(Clone, Default)]
+pub(crate) struct EngineDevice(Arc<std::sync::Mutex<Option<cdmw_render_wgpu::SharedGpu>>>);
+
+impl EngineDevice {
+    pub(crate) fn get(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
+        self.0.lock().ok()?.clone()
+    }
+
+    /// The first device made becomes the process's; a later one does not replace it.
+    pub(crate) fn adopt(&self, gpu: cdmw_render_wgpu::SharedGpu) {
+        if let Ok(mut slot) = self.0.lock() {
+            slot.get_or_insert(gpu);
+        }
+    }
+}
+
+/// A renderer for `window` on the engine's device, or the renderer that makes it.
+/// A device that cannot present to the window, or that has faulted, gives the
+/// window a device of its own, as before; rebuilding the one device after a fault
+/// comes later (section 8.8 cause 2, point 4).
+pub(crate) fn engine_renderer(
+    device: &EngineDevice,
+    window: Arc<Window>,
+) -> std::result::Result<WindowRenderer, cdmw_render_wgpu::RenderError> {
+    if let Some(gpu) = device.get() {
+        match WindowRenderer::new_on(&gpu, window.clone()) {
+            Ok(renderer) => return Ok(renderer),
+            Err(error) => tracing::warn!("window falls back to a device of its own: {error}"),
+        }
+    }
+    let renderer = pollster::block_on(WindowRenderer::new(window))?;
+    device.adopt(renderer.shared_gpu());
+    Ok(renderer)
+}
+
+/// How long the capture pool may sit without a job before it is dropped.
+const CAPTURE_POOL_IDLE: Duration = Duration::from_secs(30);
+
+fn capture_pool_due(idle: bool, since: Option<Instant>, now: Instant) -> bool {
+    idle && since.is_some_and(|since| now >= since + CAPTURE_POOL_IDLE)
+}
+
 #[derive(Default)]
 struct PreviewRendererIdle {
     release_at: Option<Instant>,
@@ -431,17 +478,6 @@ impl PreviewRendererIdle {
 
     fn resume(&mut self) {
         self.release_at = None;
-    }
-
-    /// Due, unless another window, page or capture draws on this device: then the
-    /// release waits another idle period, so the device is never dropped under
-    /// them and never made twice (section 8.7 B5).
-    fn take_due_unless_shared(&mut self, now: Instant, shared: bool) -> bool {
-        if shared && self.release_at.is_some_and(|deadline| now >= deadline) {
-            self.release_at = Some(now + Duration::from_secs(15));
-            return false;
-        }
-        self.take_due(now)
     }
 
     fn take_due(&mut self, now: Instant) -> bool {
@@ -471,8 +507,9 @@ pub struct PreviewApplication {
     parent_hwnd: u64,
     renderer: Option<WindowRenderer>,
     renderer_idle: PreviewRendererIdle,
-    /// Set by the engine: other windows or pages of this process draw on this device.
-    device_shared: bool,
+    /// The process's one device (section 8.8 cause 2): the engine's, shared by
+    /// every window, page, edit and capture; an idle release never drops it.
+    device: EngineDevice,
     bridge: PreviewBridge,
     package: LoadedCdmwSessionPackage,
     document: MeshDocument,
@@ -525,11 +562,11 @@ pub struct PreviewApplication {
     icon_capture: bool,
     /// Off-screen captures of other packages on this device (P4 V5).
     package_captures: Option<crate::package_capture::PackageCaptures>,
-    /// The device's handles while an edit holds the renderer.
-    lent_gpu: Option<cdmw_render_wgpu::SharedGpu>,
-    /// Another viewport of the engine process (P4 V5): it draws on this device,
-    /// and closing it closes its window, not the process.
-    secondary_on: Option<cdmw_render_wgpu::SharedGpu>,
+    /// Since when the capture pool has had nothing to do; it is dropped after a while.
+    captures_idle_since: Option<Instant>,
+    /// Another viewport of the engine process (P4 V5): closing it closes its
+    /// window, not the process.
+    secondary: bool,
     /// The edit revision this preview shows instead of its package's mesh, while
     /// it follows an edit of the same file (P4 V5); cleared by a package load.
     followed_revision: Option<crate::engine::FollowedRevision>,
@@ -593,7 +630,7 @@ impl PreviewApplication {
             parent_hwnd,
             renderer: None,
             renderer_idle: PreviewRendererIdle::default(),
-            device_shared: false,
+            device: EngineDevice::default(),
             bridge,
             package,
             document,
@@ -645,8 +682,8 @@ impl PreviewApplication {
             package_waiting_for_interaction: false,
             lent: false,
             package_captures: None,
-            lent_gpu: None,
-            secondary_on: None,
+            captures_idle_since: None,
+            secondary: false,
             followed_revision: None,
             icon_capture: false,
         };
@@ -755,22 +792,32 @@ impl PreviewApplication {
         &self,
         window: Arc<Window>,
     ) -> std::result::Result<WindowRenderer, cdmw_render_wgpu::RenderError> {
-        if let Some(gpu) = &self.secondary_on {
-            match WindowRenderer::new_on(gpu, window.clone()) {
-                Ok(renderer) => return Ok(renderer),
-                Err(error) => {
-                    tracing::warn!("viewport falls back to a device of its own: {error}");
-                }
-            }
-        }
-        pollster::block_on(WindowRenderer::new(window))
+        engine_renderer(&self.device, window)
     }
 
     /// Make this preview another viewport of the engine process, drawn on `gpu`;
     /// its lines name `viewport_id`.
-    pub(crate) fn make_secondary(&mut self, gpu: cdmw_render_wgpu::SharedGpu, viewport_id: String) {
-        self.secondary_on = Some(gpu);
+    pub(crate) fn make_secondary(&mut self, viewport_id: String) {
+        self.secondary = true;
         self.bridge.viewport_id = Some(viewport_id);
+    }
+
+    /// Drop the capture pool once it has had nothing to do for a while (8.8 cause 2).
+    fn drop_idle_capture_pool(&mut self, now: Instant) {
+        let idle = self
+            .package_captures
+            .as_ref()
+            .is_some_and(|pool| pool.idle());
+        if self.package_captures.is_none() || !idle {
+            self.captures_idle_since = None;
+            return;
+        }
+        if capture_pool_due(idle, self.captures_idle_since, now) {
+            self.package_captures = None;
+            self.captures_idle_since = None;
+        } else {
+            self.captures_idle_since.get_or_insert(now);
+        }
     }
 
     pub(crate) fn viewport_id(&self) -> Option<&str> {
@@ -852,7 +899,7 @@ impl PreviewApplication {
     /// Exit the process, unless this is another viewport of the engine (which
     /// only closes; the engine drops it).
     fn exit_loop(&self, event_loop: &ActiveEventLoop) {
-        if self.secondary_on.is_none() {
+        if !self.secondary {
             event_loop.exit();
         }
     }
@@ -874,17 +921,16 @@ impl PreviewApplication {
         ApplicationHandler::about_to_wait(self, event_loop);
     }
 
-    /// Whether other windows or pages of the engine process draw on this device.
-    pub(crate) fn set_device_shared(&mut self, shared: bool) {
-        self.device_shared = shared;
+    /// Draw on the engine process's one device (section 8.8 cause 2).
+    pub(crate) fn use_engine_device(&mut self, device: EngineDevice) {
+        self.device = device;
     }
 
     /// This process's device, for another window or an off-screen capture (P4 V5).
     pub(crate) fn shared_gpu(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
-        self.renderer
-            .as_ref()
-            .map(WindowRenderer::shared_gpu)
-            .or_else(|| self.lent_gpu.clone())
+        self.device
+            .get()
+            .or_else(|| self.renderer.as_ref().map(WindowRenderer::shared_gpu))
     }
 
     pub(crate) fn lend_view(&mut self) -> Result<LentView, String> {
@@ -893,7 +939,6 @@ impl PreviewApplication {
         }
         let window = self.window.clone().expect("checked above");
         let renderer = self.renderer.take().expect("checked above");
-        self.lent_gpu = Some(renderer.shared_gpu());
         self.lent = true;
         self.next_frame = None;
         self.texture_uploads.pending = false;
@@ -3532,13 +3577,16 @@ impl ApplicationHandler for PreviewApplication {
             }
             return;
         }
-        let shared = self.device_shared || self.package_captures.is_some();
-        if self
-            .renderer_idle
-            .take_due_unless_shared(Instant::now(), shared)
-        {
+        let now = Instant::now();
+        if self.renderer_idle.take_due(now) {
+            // The surface and the scene go; the device stays for every other
+            // window, and keeps only what its retained list allows (8.8 cause 2).
             self.renderer = None;
+            if let Some(gpu) = self.device.get() {
+                gpu.trim_retained();
+            }
         }
+        self.drop_idle_capture_pool(now);
         if self.gpu_recovery.take_due(Instant::now()) && self.visible {
             match self.restore_renderer() {
                 Ok(()) => {
@@ -3570,10 +3618,14 @@ impl ApplicationHandler for PreviewApplication {
                 .into_iter()
                 .chain(self.gpu_recovery.deadline())
                 .chain(self.renderer_idle.release_at)
+                .chain(
+                    self.captures_idle_since
+                        .map(|since| since + CAPTURE_POOL_IDLE),
+                )
                 .min()
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
-        if self.exit_requested && self.secondary_on.is_none() {
+        if self.exit_requested && !self.secondary {
             // winit 0.30 on Windows prepares AboutToWait before entering its
             // OS wait. Make this final wait nonblocking when closing hidden.
             event_loop.set_control_flow(ControlFlow::Poll);
@@ -4471,14 +4523,23 @@ mod tests {
     }
 
     #[test]
-    fn preview_idle_keeps_the_device_while_another_window_draws_on_it() {
+    fn the_capture_pool_goes_once_it_has_been_idle_a_while() {
         let now = Instant::now();
-        let mut idle = PreviewRendererIdle::default();
-        idle.pause(now);
-        // Section 8.7 B5: an edit, viewport, page or capture shares the device.
-        assert!(!idle.take_due_unless_shared(now + Duration::from_secs(15), true));
-        assert!(!idle.take_due_unless_shared(now + Duration::from_secs(29), false));
-        assert!(idle.take_due_unless_shared(now + Duration::from_secs(30), false));
+        assert!(
+            !capture_pool_due(true, None, now),
+            "the idle time starts now"
+        );
+        assert!(!capture_pool_due(
+            true,
+            Some(now),
+            now + Duration::from_secs(29)
+        ));
+        assert!(capture_pool_due(true, Some(now), now + CAPTURE_POOL_IDLE));
+        assert!(!capture_pool_due(
+            false,
+            Some(now),
+            now + CAPTURE_POOL_IDLE * 2
+        ));
     }
 
     #[test]

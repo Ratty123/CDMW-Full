@@ -934,3 +934,98 @@ fn the_floor_draws_where_the_background_was() {
     event_loop.run_app(&mut probe).expect("probe event loop");
     probe.result.expect("probe ran").expect("floor pixels");
 }
+
+/// Section 8.8 cause 2: Browse's idle release drops its renderer, never the
+/// process's device. Its next renderer is on the same device and uploads nothing
+/// the device's retained list still holds, and a document window opened after the
+/// release draws on that device too.
+#[test]
+#[ignore = "explicit hidden-window D3D12 engine device across an idle release"]
+fn the_engine_device_outlives_browse_s_idle_release() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = EngineDeviceProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("one device across the release");
+}
+
+#[derive(Default)]
+struct EngineDeviceProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for EngineDeviceProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            use crate::cdmw_preview::{EngineDevice, engine_renderer};
+
+            let hidden = |size: u32| {
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(size, size)),
+                )
+            };
+            let browse_window = Arc::new(hidden(128)?);
+            let device = EngineDevice::default();
+            let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+            let digest = cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?.source_sha256;
+            let owners = vec![vec![0_u32]];
+            let mut browse = engine_renderer(&device, browse_window.clone())?;
+            let first = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("the first renderer made no device"))?;
+            browse.begin_texture_uploads();
+            let (complete, _) = browse.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete, "a small texture stages in one slice");
+            browse.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            browse.finish_texture_uploads();
+            anyhow::ensure!(browse.texture_upload_count() == 1, "the resident upload");
+            // The idle release: the surface and scene go, the device stays and is trimmed.
+            drop(browse);
+            first.trim_retained();
+            let kept = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("the release dropped the device"))?;
+            anyhow::ensure!(kept.same_device(&first), "the release replaced the device");
+            // Reactivation: a renderer on the same device binds the retained texture.
+            let mut again = engine_renderer(&device, browse_window)?;
+            anyhow::ensure!(
+                again.shared_gpu().same_device(&first),
+                "reactivation made a second device"
+            );
+            again.begin_texture_uploads();
+            let (complete, used) = again.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            again.finish_texture_uploads();
+            anyhow::ensure!(complete && used == 0, "the texture was staged again");
+            anyhow::ensure!(
+                again.texture_upload_count() == 0,
+                "reactivation uploaded again"
+            );
+            // A document window opened after the release draws on that device.
+            let document = engine_renderer(&device, Arc::new(hidden(96)?))?;
+            anyhow::ensure!(
+                document.shared_gpu().same_device(&first),
+                "the document window made its own device"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}

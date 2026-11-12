@@ -5443,6 +5443,21 @@ struct MotionCapture<'a> {
 }
 
 impl SharedGpu {
+    /// Whether two handles are the same device (section 8.8 cause 2).
+    #[must_use]
+    pub fn same_device(&self, other: &Self) -> bool {
+        self.device == other.device
+    }
+
+    /// Keep the device's retained textures within their limit and forget the
+    /// uploads no scene or list holds any more (a window let its scene go).
+    pub fn trim_retained(&self) {
+        texture_cache::lock_retained(&self.retained).trim();
+        if let Ok(mut shared) = self.textures.lock() {
+            shared.retain(|_, texture| texture.strong_count() > 0);
+        }
+    }
+
     /// A device without a window, as a capture process creates.
     pub async fn headless() -> Result<Self, RenderError> {
         material_capture_device().await

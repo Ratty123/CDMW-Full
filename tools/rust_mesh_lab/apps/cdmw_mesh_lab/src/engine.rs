@@ -74,6 +74,11 @@ enum EditorLine {
 
 /// Preview routes by viewport id, shared with the stdin reader.
 type PreviewRoutes = Arc<Mutex<HashMap<String, PreviewRoute>>>;
+/// Lines for viewports whose `viewport_open` was read and that are not open yet,
+/// kept for them in order (section 8.8 R11). Locked before `PreviewRoutes`.
+type OpeningViewports = Arc<Mutex<HashMap<String, Vec<Value>>>>;
+/// Lines kept for one opening viewport at most; more are dropped and logged.
+const MAX_OPENING_LINES: usize = 64;
 /// Page inputs by page id, shared with the stdin reader.
 type PageRoutes = Arc<Mutex<HashMap<String, std::sync::mpsc::SyncSender<Result<Value, String>>>>>;
 const PAGE_PROTOCOL: &str = crate::new_item_ui::PROTOCOL;
@@ -103,22 +108,29 @@ pub struct EngineApplication {
     edits: Vec<EngineEdit>,
     editor_lines: Receiver<EditorLine>,
     parent_hwnd: u64,
+    opening: OpeningViewports,
+    /// The process's one device, for its life (section 8.8 cause 2).
+    device: crate::cdmw_preview::EngineDevice,
 }
 
 impl EngineApplication {
     #[must_use]
     pub fn new(
-        preview: PreviewApplication,
+        mut preview: PreviewApplication,
         preview_route: PreviewRoute,
         parent_hwnd: u64,
         proxy: EventLoopProxy<()>,
     ) -> Self {
         let (editor_tx, editor_lines) = bounded(EDITOR_QUEUE_BOUND);
+        let device = crate::cdmw_preview::EngineDevice::default();
+        preview.use_engine_device(device.clone());
         let routes = PreviewRoutes::default();
         let page_routes = PageRoutes::default();
+        let opening = OpeningViewports::default();
         spawn_engine_input(
             preview_route,
             Arc::clone(&routes),
+            Arc::clone(&opening),
             Arc::clone(&page_routes),
             editor_tx,
             proxy.clone(),
@@ -133,6 +145,8 @@ impl EngineApplication {
             edits: Vec::new(),
             editor_lines,
             parent_hwnd,
+            opening,
+            device,
         }
     }
 
@@ -321,7 +335,11 @@ impl EngineApplication {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        let opening = Arc::clone(&self.opening);
         let refuse = |reason: String| {
+            if let Ok(mut opening) = opening.lock() {
+                opening.remove(&viewport_id);
+            }
             write_preview_line(&json!({
                 "event": "viewport_refused",
                 "viewport_id": viewport_id,
@@ -348,9 +366,11 @@ impl EngineApplication {
         {
             return refuse("that viewport is already open here".to_owned());
         }
-        let Some(gpu) = self.preview.shared_gpu() else {
+        // The process's device exists once any window of it has drawn; before
+        // that, a viewport waits for Browse (section 8.8 cause 2).
+        if self.device.get().is_none() {
             return refuse("the preview's renderer is not ready".to_owned());
-        };
+        }
         let (mut viewport, route) = match PreviewApplication::open_routed(
             std::path::Path::new(manifest),
             parent_hwnd,
@@ -359,9 +379,17 @@ impl EngineApplication {
             Ok(opened) => opened,
             Err(error) => return refuse(format!("{error:#}")),
         };
-        viewport.make_secondary(gpu, viewport_id.clone());
-        if let Ok(mut routes) = self.routes.lock() {
-            routes.insert(viewport_id, route);
+        viewport.use_engine_device(self.device.clone());
+        viewport.make_secondary(viewport_id.clone());
+        // The route goes in and the lines kept while it opened follow it, under the
+        // opening lock, so none arrives in between (section 8.8 R11).
+        if let Ok(mut opening) = self.opening.lock() {
+            for line in opening.remove(&viewport_id).unwrap_or_default() {
+                route.message(line);
+            }
+            if let Ok(mut routes) = self.routes.lock() {
+                routes.insert(viewport_id.clone(), route);
+            }
         }
         // Its window, renderer and `protocol_ready`/`ready`, as a launch does.
         viewport.resume(event_loop);
@@ -748,9 +776,6 @@ impl ApplicationHandler for EngineApplication {
         // sets nothing (Browse's preview while lent) never inherits a deadline that
         // already passed and spins the loop (section 8.7 B4).
         event_loop.set_control_flow(ControlFlow::Wait);
-        self.preview.set_device_shared(
-            !self.edits.is_empty() || !self.viewports.is_empty() || !self.pages.is_empty(),
-        );
         self.preview.about_to_wait(event_loop);
         let mut preview_flow = event_loop.control_flow();
         for viewport in &mut self.viewports {
@@ -758,8 +783,13 @@ impl ApplicationHandler for EngineApplication {
             viewport.wait(event_loop);
             preview_flow = earliest(preview_flow, event_loop.control_flow());
         }
-        let preview_flow = self.wait_pages(event_loop, preview_flow);
+        let mut preview_flow = self.wait_pages(event_loop, preview_flow);
         self.follow_edit();
+        for edit in &self.edits {
+            if let Some(at) = edit.app.followers_wake_at() {
+                preview_flow = earliest(preview_flow, ControlFlow::WaitUntil(at));
+            }
+        }
         event_loop.set_control_flow(preview_flow);
         self.drop_closed_viewports();
         let mut flow = preview_flow;
@@ -869,6 +899,7 @@ fn own_viewport_parent(open_session: &Value) -> Option<u64> {
 fn spawn_engine_input(
     preview: PreviewRoute,
     routes: PreviewRoutes,
+    opening: OpeningViewports,
     page_routes: PageRoutes,
     editor: Sender<EditorLine>,
     proxy: EventLoopProxy<()>,
@@ -911,6 +942,11 @@ fn spawn_engine_input(
                                 } else if value.get("event").and_then(Value::as_str)
                                     == Some("viewport_open")
                                 {
+                                    if let (Some(id), Ok(mut opening)) =
+                                        (viewport_id_of(&value), opening.lock())
+                                    {
+                                        opening.entry(id.to_owned()).or_default();
+                                    }
                                     if editor.try_send(EditorLine::Viewport(value)).is_err() {
                                         preview.error("CDMW control queue overflowed".to_owned());
                                     }
@@ -918,12 +954,8 @@ fn spawn_engine_input(
                                     == Some(PAGE_PROTOCOL)
                                 {
                                     route_page_line(&page_routes, &editor, value);
-                                } else if let Some(route) = viewport_route(&routes, &value) {
-                                    route.message(value);
                                 } else if names_a_viewport(&value) {
-                                    // A closed or unknown viewport's line: never Browse's
-                                    // own preview, whose close_request would end the
-                                    // process (section 8.7 B3).
+                                    deliver_viewport_line(&opening, &routes, value);
                                 } else {
                                     preview.message(value);
                                 }
@@ -1043,6 +1075,44 @@ fn line_over_bound(value: &Value, bytes: usize) -> bool {
         } else {
             MAX_ENGINE_LINE_BYTES
         }
+}
+
+fn viewport_id_of(value: &Value) -> Option<&str> {
+    value
+        .get("viewport_id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+}
+
+/// A line for another viewport: to its route, kept while it opens, or dropped when
+/// it is closed or unknown; never Browse's own preview, whose close_request would
+/// end the process (section 8.7 B3, 8.8 R11).
+fn deliver_viewport_line(opening: &OpeningViewports, routes: &PreviewRoutes, value: Value) {
+    let Ok(mut opening) = opening.lock() else {
+        return;
+    };
+    if let Some(route) = viewport_route(routes, &value) {
+        route.message(value);
+        return;
+    }
+    let Some(id) = viewport_id_of(&value).map(str::to_owned) else {
+        return;
+    };
+    if !keep_for_opening(&mut opening, &id, value) {
+        error!(viewport = %id, "a line for a viewport that is not open was dropped");
+    }
+}
+
+/// Keep `value` for viewport `id` when it is opening; false when it is not, or
+/// when its queue is full.
+fn keep_for_opening(opening: &mut HashMap<String, Vec<Value>>, id: &str, value: Value) -> bool {
+    match opening.get_mut(id) {
+        Some(kept) if kept.len() < MAX_OPENING_LINES => {
+            kept.push(value);
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Whether a preview line names another viewport of this process.
@@ -1285,6 +1355,28 @@ mod tests {
             "character/shield_01.pac",
             false
         ));
+    }
+
+    #[test]
+    fn a_line_for_a_viewport_that_is_still_opening_waits_for_it() {
+        // Section 8.8 R11: an early close_request was dropped and the viewport then
+        // opened with nobody to close it.
+        let mut opening = HashMap::new();
+        let close = json!({"viewport_id": "dialog-7", "event": "close_request"});
+        assert!(
+            !keep_for_opening(&mut opening, "dialog-7", close.clone()),
+            "not opening: dropped"
+        );
+        opening.insert("dialog-7".to_owned(), Vec::new());
+        assert!(keep_for_opening(&mut opening, "dialog-7", close.clone()));
+        assert_eq!(opening["dialog-7"], vec![close.clone()]);
+        for _ in 1..MAX_OPENING_LINES {
+            assert!(keep_for_opening(&mut opening, "dialog-7", close.clone()));
+        }
+        assert!(
+            !keep_for_opening(&mut opening, "dialog-7", close),
+            "the queue is bounded"
+        );
     }
 
     #[test]

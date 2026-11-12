@@ -2430,6 +2430,8 @@ struct LabApplication {
     kept_selected_parts: Option<HashSet<u32>>,
     /// When other viewports last saw this edit's mesh (P4 V5's read-only follower).
     followers_seen_at: Option<Instant>,
+    /// The revision followers were last given (section 8.8 R13: wake for the next).
+    followers_seen_revision: Option<crate::engine::FollowedRevision>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2704,6 +2706,7 @@ impl LabApplication {
             kept_hidden_parts: None,
             kept_selected_parts: None,
             followers_seen_at: None,
+            followers_seen_revision: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2914,9 +2917,23 @@ impl LabApplication {
         {
             return None;
         }
-        self.engine_followed_mesh()?;
+        let (_, revision, _) = self.engine_followed_mesh()?;
         self.followers_seen_at = Some(now);
+        self.followers_seen_revision = Some(revision);
         self.engine_followed_mesh()
+    }
+
+    /// When followers should next be given this edit's mesh: the end of the
+    /// follow interval, once the mesh has changed since they last had it. Without
+    /// it a last change waited for the next event (section 8.8 R13).
+    pub(crate) fn followers_wake_at(&self) -> Option<Instant> {
+        let (_, revision, _) = self.engine_followed_mesh()?;
+        if self.followers_seen_revision == Some(revision) {
+            return None;
+        }
+        Some(self.followers_seen_at.map_or_else(Instant::now, |at| {
+            at + std::time::Duration::from_millis(250)
+        }))
     }
 
     /// The mesh followers show now, without the follow interval (for leaving).
