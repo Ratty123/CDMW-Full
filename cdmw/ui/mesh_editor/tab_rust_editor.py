@@ -797,9 +797,6 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_target_controller = controller
         self.standalone_rust_executable_path = Path(executable_text)
         self.standalone_rust_launch_executable_signature = executable_signature
-        # The helper's window, device and pipelines start now, beside the session
-        # preparation, unless a pending helper is already waiting (P4 V1).
-        self._ensure_rust_editor_spare(executable_text, executable_signature)
         self.standalone_rust_session_root = self.standalone_rust_owned_root / f"session-{uuid4().hex}"
         if not self.standalone_rust_stale_sessions_swept:
             self.standalone_rust_stale_sessions_swept = True

@@ -132,33 +132,6 @@ def test_the_tab_opens_its_editor_in_browse_s_process_and_falls_back_once_refuse
         _dispose(tab)
 
 
-def test_no_spare_editor_is_started_while_browse_s_process_can_hold_the_window(tmp_path: Path, monkeypatch) -> None:
-    from cdmw.ui.mesh_editor import tab_rust_process
-    from tests.test_mesh_rust_editor_selection import _dispose, _tab
-
-    router = EngineCaptureRouter()
-    browse = _Resident()
-    browse.capabilities = frozenset({OWN_VIEWPORT_EDIT_CAPABILITY})
-    router.register(browse, resident=True)
-    monkeypatch.setattr(engine_capture, "engine_capture_router", lambda: router)
-    monkeypatch.setenv(tab_rust_process.EDITOR_SPARE_ENV, "1")
-    tab = _tab(tmp_path)
-    live = tab.live_edit
-    started = []
-    monkeypatch.setattr(live, "_rust_editor_spare",
-                        lambda: started.append(True) or SimpleNamespace(matches=lambda *_args: True))
-    try:
-        live._ensure_rust_editor_spare("C:/helper.exe", "signature")
-        assert started == []
-        browse.is_running = False  # Browse's process is gone: the spare is worth starting again
-        live._ensure_rust_editor_spare("C:/helper.exe", "signature")
-        host = getattr(live, "standalone_native_host_frame", None)
-        if host is not None and int(host.host_hwnd() or 0) > 0:
-            assert started == [True]
-    finally:
-        _dispose(tab)
-
-
 def test_promote_to_tab_moves_the_edit_out_of_browse_s_viewport_without_ending_it(tmp_path: Path, monkeypatch) -> None:
     from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
     from tests.test_mesh_rust_editor_selection import _dispose, _tab

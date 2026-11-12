@@ -37,9 +37,9 @@ HOST_NAMES = (
 
 #: The state the component owns (everything its code assigns).
 STATE_NAMES = (
-    "_archive_refit_picker_active", "_hair_entry_generation", "_pending_hair_start", "_rust_spare",
+    "_archive_refit_picker_active", "_hair_entry_generation", "_pending_hair_start",
     "_rust_last_crash_at",
-    "_rust_follows_keymap", "_rust_keymap_echo", "_rust_spare_adoption", "_shared_preview_settings_connected",
+    "_rust_follows_keymap", "_rust_keymap_echo", "_shared_preview_settings_connected",
     "_engine_window_refused_session",
     "mesh_editor_backend",
     "standalone_export_validation_revision", "standalone_last_export_validation_report",

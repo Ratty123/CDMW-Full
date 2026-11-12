@@ -35,7 +35,6 @@ from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
 from cdmw.ui.preview.dotnet_session import RustPreviewSessionController
 from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _DotNetPreviewPrewarmTask
-from cdmw.ui.preview.dotnet_host_prewarm import ensure_dialog_preview_prewarm, take_dialog_preview_prewarm
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
 from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
 from cdmw.ui.preview.preview_settings_hub import normalize_preview_settings, preview_settings_hub
@@ -233,13 +232,6 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         # The helper's own window, once it reports it. Held so a resize can move
         # it in the same frame as this widget; see _sync_embedded_child_geometry.
         self._embedded_child_hwnd = 0
-        adopted = None if controller is not None else take_dialog_preview_prewarm(
-            parent=self, host_hwnd=self._host_hwnd, profile=self._profile,
-            configured=configured_executable, terminate_on_close=terminate_on_close,
-            direct_authoring=direct_authoring,
-        )
-        if adopted is not None:
-            controller = adopted[0]
         if controller is None and not resident_engine:
             # Another preview: a window of Browse's process when it can open one (P4 V5).
             from cdmw.ui.preview.engine_viewport import engine_viewport_factory
@@ -276,9 +268,6 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self.controller.set_visible(False)
         self._viewport.installEventFilter(self)
         self.set_theme(theme_key)
-        if adopted is not None:
-            self._remember_embedded_child_window(adopted[1])
-            self._sync_embedded_child_geometry(force_frame_refresh=True)
         self._use_global_settings_button.clicked.connect(self.use_global_preview_settings)
         hub = preview_settings_hub()
         if hub is not None:
@@ -444,10 +433,6 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         return self.controller.prewarm(package_dir, status_file)
 
     def prewarm_from_cache(self, cache_root: Path | str) -> bool:
-        ensure_dialog_preview_prewarm(
-            Path(cache_root), getattr(self.controller, "_configured_executable", None),
-            getattr(self.controller, "_ui_localizer", None), launch=False,
-        )
         if self._prewarm_task is not None:
             return False
         if self.controller.is_running or self.controller.desired_package_path:

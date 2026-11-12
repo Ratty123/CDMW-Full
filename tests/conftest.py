@@ -158,9 +158,6 @@ def pytest_configure() -> None:
     if not os.environ.get(_PROFILE_ENV):
         _pytest_profile_root = Path(tempfile.mkdtemp(prefix="cdmw-pytest-profile-"))
         os.environ[_PROFILE_ENV] = str(_pytest_profile_root)
-    # Mesh Editor tests count the helpers they launch; the pre-started helper's
-    # own tests turn it back on.
-    os.environ.setdefault("CDMW_EDITOR_SPARE", "0")
 
 
 def pytest_unconfigure() -> None:

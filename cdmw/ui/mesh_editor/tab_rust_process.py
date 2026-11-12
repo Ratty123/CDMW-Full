@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import QCoreApplication, QProcess, QProcessEnvironment, QThread, QTimer
+from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer
 
 from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDIT_BACKEND,
@@ -38,151 +37,6 @@ _RUST_FINISH_EXIT_TIMEOUT_MS = 3_000
 _RUST_DIAGNOSTIC_BUFFER_LIMIT = 16 * 1024
 _RUST_DIAGNOSTIC_TEXT_LIMIT = 2 * 1024
 _RUST_DIAGNOSTIC_LINE_LIMIT = 8
-#: A new spare starts this long after a session became ready, as the dialog spare refills.
-_RUST_SPARE_REFILL_MS = 5_000
-#: "0" turns the pre-started Mesh Editor helper off (tests that count launches do).
-EDITOR_SPARE_ENV = "CDMW_EDITOR_SPARE"
-
-
-def editor_spare_enabled() -> bool:
-    return os.environ.get(EDITOR_SPARE_ENV, "1").strip() != "0"
-
-
-class _RustEditorSpare:
-    """One Mesh Editor helper started before it is needed (``--cdmw-session-pending``).
-
-    It creates its window, GPU device and pipelines, says ``pending_ready`` and waits
-    for ``open_session``. The tab adopts it when it opens a session with the same
-    executable and host window, and it is never more than one. A spare that exits
-    or fails before it is adopted is dropped; the open then launches as before.
-    """
-
-    def __init__(self) -> None:
-        self.process: QProcess | None = None
-        self.state = "idle"  # idle, starting, pending
-        self.executable: Path | None = None
-        self.signature = ""
-        self.parent_hwnd = 0
-        self.announcement: dict = {}
-        self.started_at = 0.0
-        self.pending_at = 0.0
-        self._buffer = b""
-        self._waiting: tuple[Callable, Callable] | None = None
-
-    def matches(self, executable: Path | None, signature: str, parent_hwnd: int) -> bool:
-        return (
-            self.process is not None
-            and self.state in {"starting", "pending"}
-            and executable is not None
-            and self.executable == Path(executable)
-            and self.signature == signature
-            and self.parent_hwnd == int(parent_hwnd)
-        )
-
-    def start(self, process: QProcess, executable: Path, signature: str, parent_hwnd: int,
-              *, arguments_prefix: tuple[str, ...] = ()) -> None:
-        """``arguments_prefix`` lets a test run a stand-in helper script with its interpreter."""
-
-        self.release()
-        self.process, self.state = process, "starting"
-        self.executable, self.signature, self.parent_hwnd = Path(executable), signature, int(parent_hwnd)
-        self.announcement, self._buffer, self._waiting = {}, b"", None
-        self.started_at, self.pending_at = time.perf_counter(), 0.0
-        process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
-        process.setProgram(str(executable))
-        process.setArguments([*arguments_prefix, "--cdmw-session-pending",
-                              "--embedded-parent-hwnd", str(int(parent_hwnd))])
-        process.setWorkingDirectory(str(Path(executable).parent))
-        environment = QProcessEnvironment.systemEnvironment()
-        environment.insert("WGPU_BACKEND", "dx12")
-        environment.insert("RUST_BACKTRACE", "full")
-        process.setProcessEnvironment(environment)
-        process.readyReadStandardOutput.connect(self._read)
-        process.readyReadStandardError.connect(self._drain_stderr)
-        process.finished.connect(self._finished)
-        process.errorOccurred.connect(self._error)
-        register_owned_qprocess_for_exit(process)
-        process.start()
-
-    def adopt(self, on_ready: Callable[[QProcess, dict], None], on_failed: Callable[[], None]) -> bool:
-        """Hand the helper over now, or as soon as it says ``pending_ready``."""
-
-        if self.process is None or self.state not in {"starting", "pending"}:
-            return False
-        self._waiting = (on_ready, on_failed)
-        if self.state == "pending":
-            self._hand_over()
-        return True
-
-    def release(self) -> None:
-        process, waiting = self.process, self._waiting
-        self._reset()
-        if process is not None:
-            self._disconnect(process)
-            stop_qprocess_async(process)
-        if waiting is not None:
-            waiting[1]()
-
-    def _reset(self) -> None:
-        self.process, self.state, self._waiting, self._buffer = None, "idle", None, b""
-
-    def _disconnect(self, process: QProcess) -> None:
-        for signal, slot in (
-            (process.readyReadStandardOutput, self._read),
-            (process.readyReadStandardError, self._drain_stderr),
-            (process.finished, self._finished),
-            (process.errorOccurred, self._error),
-        ):
-            try:
-                signal.disconnect(slot)
-            except (RuntimeError, TypeError):
-                pass
-
-    def _hand_over(self) -> None:
-        process, announcement, (on_ready, _on_failed) = self.process, self.announcement, self._waiting
-        self._disconnect(process)
-        self._reset()
-        on_ready(process, announcement)
-
-    def _read(self) -> None:
-        if self.process is None:
-            return
-        try:
-            data = self._buffer + bytes(self.process.readAllStandardOutput())
-        except RuntimeError:
-            return
-        while self.state == "starting" and (end := data.find(b"\n")) >= 0:
-            line, data = data[:end].rstrip(b"\r"), data[end + 1:]
-            try:
-                payload = json.loads(line.decode("utf-8", errors="replace")) if line else {}
-            except ValueError:
-                payload = {}
-            event = payload.get("event") if isinstance(payload, dict) else None
-            if event == "pending_ready" and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
-                self.state, self.announcement, self.pending_at = "pending", payload, time.perf_counter()
-            elif event is not None:
-                # pending_failed or anything unexpected: this helper is not usable.
-                self.release()
-                return
-        self._buffer = data[-DOTNET_PROTOCOL_BUFFER_LIMIT:]
-        if self.state == "pending" and self._waiting is not None:
-            self._hand_over()
-
-    def _drain_stderr(self) -> None:
-        try:
-            if self.process is not None:
-                self.process.readAllStandardError()
-        except RuntimeError:
-            pass
-
-    def _finished(self, *_args) -> None:
-        self.release()
-
-    def _error(self, error) -> None:
-        if error == QProcess.ProcessError.FailedToStart:
-            self.release()
-
-
 #: A second renderer crash within this many seconds stops the automatic restart (P4 V3).
 _RUST_CRASH_RETRY_WINDOW_S = 60.0
 #: Tests answer the second-crash question here: ``lambda box: "finish"`` or ``"discard"``.
@@ -271,30 +125,6 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_launch_parent_hwnd = parent_hwnd
         if self._open_in_engine_window(session, parent_hwnd):
             return
-        spare = getattr(self, "_rust_spare", None)
-        if editor_spare_enabled() and spare is not None and spare.matches(
-            executable, executable_signature, parent_hwnd
-        ):
-            token = object()
-            self._rust_spare_adoption = token
-
-            def ready(process: QProcess, _announcement: dict, *, current: object = token) -> None:
-                if getattr(self, "_rust_spare_adoption", None) is not current or (
-                    self.standalone_rust_process is not None
-                ):
-                    stop_qprocess_async(process)  # the open was cancelled while it waited
-                    return
-                self._rust_spare_adoption = None
-                self._adopt_rust_editor_process(process, session)
-
-            def failed(*, current: object = token) -> None:
-                if getattr(self, "_rust_spare_adoption", None) is current:
-                    self._rust_spare_adoption = None
-                    self._launch_fresh_rust_editor_process(session, executable, parent_hwnd)
-
-            if spare.adopt(ready, failed):
-                self._set_rust_status("Opening the embedded Mesh Editor...")
-                return
         self._launch_fresh_rust_editor_process(session, executable, parent_hwnd)
 
     def _open_in_bound_viewport(self, session: object) -> bool:
@@ -331,17 +161,6 @@ class MeshEditorRustProcessMixin:
         self._set_rust_status("Opening the embedded Mesh Editor...")
         self._adopt_rust_editor_process(channel, session, own_window_parent=parent_hwnd)
         return True
-
-    @staticmethod
-    def _engine_can_hold_editor_window() -> bool:
-        from cdmw.services.engine_capture import engine_capture_router
-        from cdmw.ui.preview.engine_channel import OWN_VIEWPORT_EDIT_CAPABILITY
-
-        controller = engine_capture_router().resident_controller()
-        try:
-            return controller is not None and OWN_VIEWPORT_EDIT_CAPABILITY in controller.capabilities
-        except RuntimeError:
-            return False
 
     def _leave_bound_viewport(self, reason: str) -> None:
         """Stop using Browse's viewport; the next launch uses the host's own."""
@@ -434,46 +253,6 @@ class MeshEditorRustProcessMixin:
         # Output it wrote while it was being handed over is read now.
         if process.bytesAvailable():
             self._handle_rust_stdout_ready(process)
-
-    def _rust_editor_spare(self) -> _RustEditorSpare:
-        spare = getattr(self, "_rust_spare", None)
-        if spare is None:
-            spare = self._rust_spare = _RustEditorSpare()
-            app = QCoreApplication.instance()
-            if app is not None:
-                app.aboutToQuit.connect(spare.release)
-        return spare
-
-    def _ensure_rust_editor_spare(self, executable_text: str, executable_signature: str) -> None:
-        """Start the one pending helper if none matching this executable and host is starting or waiting."""
-
-        if not editor_spare_enabled() or not executable_text or not executable_signature:
-            return
-        if getattr(self, "_viewport_binding", None) is not None:
-            return  # an edit in Browse's viewport needs no spare of the tab's
-        if self._engine_can_hold_editor_window():
-            return  # the tab's edit opens in a window of Browse's process (P4 V5)
-        host = getattr(self, "standalone_native_host_frame", None)
-        host_hwnd = getattr(host, "host_hwnd", None)
-        try:
-            parent_hwnd = int(host_hwnd() or 0) if callable(host_hwnd) else 0
-        except (RuntimeError, TypeError, ValueError):
-            parent_hwnd = 0
-        if parent_hwnd <= 0:
-            return
-        spare = self._rust_editor_spare()
-        executable = Path(executable_text)
-        if spare.matches(executable, executable_signature, parent_hwnd):
-            return
-        spare.start(QProcess(self), executable, executable_signature, parent_hwnd)
-
-    def _refill_rust_editor_spare(self) -> None:
-        if not shiboken6.isValid(self) or getattr(self, "standalone_rust_prepare_active_request_id", 0):
-            return
-        self._ensure_rust_editor_spare(
-            str(getattr(self, "standalone_rust_checked_executable", "") or ""),
-            str(getattr(self, "standalone_rust_checked_executable_signature", "") or ""),
-        )
 
     def _handle_rust_process_started(self, process: QProcess) -> None:
         if process is not self.standalone_rust_process:
@@ -835,8 +614,6 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_ready = True
         self._release_background_warmups()
         self._query_deferred_rust_morph_state()
-        if editor_spare_enabled():
-            QTimer.singleShot(_RUST_SPARE_REFILL_MS, self, self._refill_rust_editor_spare)
         became_ready = getattr(self, "became_ready", None)  # the live-edit component's signal
         if became_ready is not None and hasattr(became_ready, "emit"):
             became_ready.emit()
@@ -1568,8 +1345,6 @@ class MeshEditorRustProcessMixin:
             hair_context.cancel()
         self.standalone_rust_closing = True
         self.standalone_rust_ready = False
-        # A spare still on its way to this open is stopped when it arrives.
-        self._rust_spare_adoption = None
         picker = getattr(self, "_archive_refit_picker", None)
         if picker is not None:
             picker.request_shutdown()
