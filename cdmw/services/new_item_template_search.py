@@ -10,6 +10,7 @@ from typing import Mapping
 
 from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.new_item.wearer_kinds import KIND_PLAYER, wearer_kind, wearer_kind_for_slot
 
 
 TemplateOption = tuple[int, str, str, str]
@@ -23,12 +24,25 @@ class TemplateSearchRow:
     all_fields: tuple[str, ...]
     sort_values: tuple[str, str, int, str, str]
     usable: bool = False
+    #: Who wears it: `player` for humanoid equipment, else horse, pet, ship and so on.
+    wearer_kind: str = "player"
 
 
 @dataclass(frozen=True)
 class TemplateSearchCatalogue:
     rows: tuple[TemplateSearchRow, ...]
     category_members: Mapping[int, frozenset[int]]
+
+    def wearer_kind_counts(self) -> dict[str, int]:
+        """How many equipment templates each wearer kind has, in `WEARER_KINDS` order."""
+
+        from cdmw.domain.new_item.wearer_kinds import WEARER_KINDS
+
+        counts = {kind.key: 0 for kind in WEARER_KINDS}
+        for row in self.rows:
+            if not row.usable:
+                counts[row.wearer_kind] = counts.get(row.wearer_kind, 0) + 1
+        return {key: value for key, value in counts.items() if value}
 
 
 def build_template_search_catalogue(snapshot, *, stop_event=None) -> TemplateSearchCatalogue:
@@ -62,12 +76,16 @@ def build_template_search_catalogue(snapshot, *, stop_event=None) -> TemplateSea
             if value
         ))
         capability = "Unsupported" if row.stat_block_offset is None else "Stats" if row.enchant_levels else "Prices / sockets"
+        kind = KIND_PLAYER if usable else wearer_kind_for_slot(equip)
+        # The kind's label is searchable, so "ship" or "horse gear" finds the parts.
+        kind_fields = () if kind == KIND_PLAYER else (wearer_kind(kind).label.casefold(),)
         rows.append(TemplateSearchRow(
             (key, internal_name, display_name, equip),
             names,
-            (*names, equip.casefold(), str(key)),
+            (*names, equip.casefold(), str(key), *kind_fields),
             (internal_name.casefold(), display_name.casefold(), key, equip.casefold(), capability.casefold()),
             usable,
+            kind,
         ))
 
     groups = {group.key: group for group in snapshot.item_groups}
@@ -97,14 +115,20 @@ def search_template_options(
     sort_column: int = -1,
     descending: bool = False,
     limit: int | None = 60,
+    wearer_kinds: frozenset[str] | set[str] | tuple[str, ...] | None = None,
     stop_event: threading.Event | None = None,
 ) -> list[TemplateOption]:
-    """Preserve Archive Browser query semantics, exact-name ranking and complete-set sorting."""
+    """Preserve Archive Browser query semantics, exact-name ranking and complete-set sorting.
+
+    `wearer_kinds` keeps only templates worn by those kinds (`player`, `horse`,
+    `ship`, ...); None keeps every kind, as before.
+    """
 
     raise_if_cancelled(stop_event)
     raw_needle = str(text or "").strip().casefold()
     query = parse_archive_search_query(text)
     members = catalogue.category_members.get(group_key, frozenset()) if group_key is not None else None
+    kinds = frozenset(wearer_kinds) if wearer_kinds is not None else None
 
     @lru_cache(maxsize=8192)
     def field_matches(field, term):
@@ -122,6 +146,8 @@ def search_template_options(
         if row.usable and group_key != USABLE_ITEMS_CATEGORY:
             continue
         if members is not None and key not in members:
+            continue
+        if kinds is not None and not row.usable and row.wearer_kind not in kinds:
             continue
         if not query.is_empty and not any(
             all(
