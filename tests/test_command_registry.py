@@ -155,3 +155,60 @@ def test_the_palette_chord_from_a_helper_window_opens_the_palette(app, monkeypat
     page = SimpleNamespace(_bridge=SimpleNamespace(session="s1"), window=lambda: window)
     RustNewItemStudioTab._handle_message(page, {"type": "app_shortcut", "session": "s1", "command": "command_palette"})
     assert opened == [window, window]
+
+
+def test_the_mesh_editor_s_commands_are_mirrored_from_its_helper(app):
+    from cdmw.ui.mesh_editor.editor_commands import (
+        NOT_READY_REASON,
+        clear_helper_commands,
+        mirror_helper_commands,
+        registry_id,
+    )
+
+    registry = CommandRegistry()
+    registry.register(Command("mesh_editor.open_file", "Open Mesh...", "mesh_editor", lambda: None))
+    sent, state = [], {"ready": True}
+    rows = [{"id": "tool.move", "label": "Move", "keys": ["G"], "reason": ""},
+            {"id": "page.uv", "label": "UV", "keys": [], "reason": "Authoring is unavailable"},
+            {"id": "", "label": "No id"}]
+    assert mirror_helper_commands(registry, rows, lambda i: sent.append(i) or True, lambda: state["ready"]) == 2
+    move = registry.get(registry_id("tool.move"))
+    assert move.helper and move.keys == ("G",) and move.context == "mesh_editor"
+    registry.run(move.id)
+    assert sent == ["tool.move"]
+    assert registry.reason(registry_id("page.uv")) == "Authoring is unavailable"
+    state["ready"] = False
+    assert registry.reason(move.id) == NOT_READY_REASON
+    # A new report replaces the mirrored commands; the tab's own stay.
+    mirror_helper_commands(registry, rows[:1], lambda i: True, lambda: True)
+    assert registry_id("page.uv") not in registry and "mesh_editor.open_file" in registry
+    clear_helper_commands(registry)
+    assert [c.id for c in registry.commands("mesh_editor")] == ["mesh_editor.open_file"]
+
+
+def test_the_texture_editor_s_actions_are_registry_commands(app, monkeypatch, tmp_path):
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.commands import registry as registry_module
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+    from cdmw.ui.texture_workflow.editor_commands import NO_IMAGE_REASON, command_id
+
+    registry = CommandRegistry()
+    monkeypatch.setattr(registry_module, "command_registry", lambda: registry)
+    monkeypatch.setattr("cdmw.ui.texture_workflow.editor_commands.command_registry", lambda: registry)
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    editor = TextureEditorTab(settings=settings, base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+    try:
+        ids = {c.id for c in registry.commands("texture_editor")}
+        # Saved shortcut ids are kept as they were.
+        assert {command_id("open_file"), command_id("tool_paint"), command_id("export_dds")} <= ids
+        assert registry.get(command_id("open_file")).keys == ("Ctrl+O",)
+        assert registry.get(command_id("clear_selection")).keys == ("Ctrl+D", "Escape")
+        # No image yet: document commands say why; opening one is possible.
+        assert registry.reason(command_id("save_png")) == NO_IMAGE_REASON
+        assert registry.available(command_id("open_file"))
+        assert not editor.action_export_png.isEnabled()
+        assert editor.action_export_png.toolTip() == NO_IMAGE_REASON
+        assert editor.action_open_file.property("_cdmw_command_id") == command_id("open_file")
+    finally:
+        editor.deleteLater()

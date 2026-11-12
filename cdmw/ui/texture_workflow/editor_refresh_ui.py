@@ -356,6 +356,14 @@ class TextureEditorRefreshUiMixin:
             (self.send_item_icons_button, self.action_send_item_icons),
         ):
             action.setEnabled(button.isEnabled())
+        if not self.workspace_embedded:
+            # Its menu entries and palette rows follow their commands (P12).
+            from cdmw.ui.commands.registry import command_registry
+            from cdmw.ui.texture_workflow.editor_commands import CONTEXT
+
+            registry = command_registry()
+            if registry is not None:
+                registry.refresh(CONTEXT)
         self.native_dds_preset_combo.setEnabled(main_actions.open_enabled)
         self.native_dds_format_combo.setEnabled(main_actions.document_action_enabled)
         self.native_dds_mip_combo.setEnabled(main_actions.document_action_enabled)

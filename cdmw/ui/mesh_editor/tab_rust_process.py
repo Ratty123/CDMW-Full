@@ -570,6 +570,9 @@ class MeshEditorRustProcessMixin:
                 if window is not None:
                     open_command_palette(window)
             return
+        if event == "commands_state":
+            self._mirror_rust_commands(payload.get("commands"))
+            return
         if event == "state_snapshot":
             return
         if event == "switch_item_piece":
@@ -1068,6 +1071,32 @@ class MeshEditorRustProcessMixin:
         )
         self._send_rust_message(response)
 
+    def _rust_command_registry(self):
+        from cdmw.ui.commands.registry import CommandRegistry
+
+        try:
+            window = self.window()
+        except (AttributeError, RuntimeError):
+            return None
+        registry = getattr(window, "command_registry", None)
+        return registry if isinstance(registry, CommandRegistry) else None
+
+    def _mirror_rust_commands(self, commands: object) -> None:
+        """The editor's own commands join the registry and the palette (P12)."""
+
+        registry = self._rust_command_registry()
+        if registry is None or not isinstance(commands, list):
+            return
+        from cdmw.ui.mesh_editor.editor_commands import mirror_helper_commands
+
+        mirror_helper_commands(registry, [row for row in commands if isinstance(row, Mapping)],
+                               self._send_rust_command, lambda: bool(self.standalone_rust_ready))
+
+    def _send_rust_command(self, helper_id: str) -> bool:
+        return self._send_rust_message(
+            self._rust_host_message("run_command", request_id=0, extra={"command": str(helper_id)})
+        )
+
     def _rust_host_message(
         self,
         event: str,
@@ -1237,6 +1266,11 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_closing = True
         self.standalone_rust_dispose_pending = True
         self._schedule_rust_session_dispose()
+        registry = self._rust_command_registry()
+        if registry is not None:  # the editor's commands leave with its helper
+            from cdmw.ui.mesh_editor.editor_commands import clear_helper_commands
+
+            clear_helper_commands(registry)
         closed = getattr(self, "closed", None)  # the live-edit component's signal
         if closed is not None and hasattr(closed, "emit"):
             closed.emit()

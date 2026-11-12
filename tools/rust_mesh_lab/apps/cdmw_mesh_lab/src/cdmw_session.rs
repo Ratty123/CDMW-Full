@@ -452,6 +452,8 @@ pub enum HostEvent {
     RendererRetry,
     Focus,
     HairPreset(String),
+    /// Run one of the editor's own commands by its shortcut id (CDMW's palette).
+    RunCommand(String),
     VertexInspection {
         request_id: u64,
         ok: bool,
@@ -1019,6 +1021,19 @@ impl CdmwBridge {
         }))
     }
 
+    /// The editor's commands with their keys and whether they can run (CDMW mirrors them).
+    pub fn announce_commands_state(&self, commands: &[Value]) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "commands_state",
+            "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "request_id": 0,
+            "base_revision": self.shadow_revision,
+            "process_generation": self.manifest.process_generation,
+            "commands": commands
+        }))
+    }
+
     /// A chord that belongs to CDMW (the command palette) was pressed in this window.
     pub fn announce_app_shortcut(&self, command: &str) -> Result<(), SessionError> {
         self.send_message(json!({
@@ -1558,6 +1573,11 @@ impl CdmwBridge {
         self.manifest.item_set_files = files;
     }
 
+    #[cfg(test)]
+    pub(crate) fn decode_host_event_for_test(&mut self, value: Value) -> HostEvent {
+        self.decode_host_event(value)
+    }
+
     /// Route this bridge's outgoing JSON messages to the returned receiver.
     #[cfg(test)]
     pub(crate) fn capture_messages_for_test(&mut self) -> Receiver<Value> {
@@ -1718,6 +1738,14 @@ impl CdmwBridge {
                 "ready" => Ok(HostEvent::Ready),
                 "renderer_retry" => Ok(HostEvent::RendererRetry),
                 "focus_request" => Ok(HostEvent::Focus),
+                "run_command" => value
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .filter(|command| crate::shortcuts::spec_for_id(command).is_some())
+                    .map(|command| HostEvent::RunCommand(command.to_owned()))
+                    .ok_or_else(|| {
+                        SessionError::Protocol("run_command names no editor command".to_owned())
+                    }),
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
                     if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {

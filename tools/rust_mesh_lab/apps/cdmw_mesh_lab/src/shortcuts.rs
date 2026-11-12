@@ -706,6 +706,11 @@ pub(crate) const SHORTCUTS: &[ShortcutSpec] = &[
     ),
 ];
 
+/// The spec with this stable id (CDMW's command registry uses the same ids).
+pub(crate) fn spec_for_id(id: &str) -> Option<&'static ShortcutSpec> {
+    SHORTCUTS.iter().find(|spec| spec.id == id)
+}
+
 pub(crate) fn spec_for(action: ShortcutAction) -> &'static ShortcutSpec {
     SHORTCUTS
         .iter()

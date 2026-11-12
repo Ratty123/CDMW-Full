@@ -75,7 +75,12 @@ fn reference_pieces_inspector_switch_and_view_do_not_edit_geometry() -> TestResu
         ui.application.mesh.as_ref().ok_or("mesh")?.draw_snapshot(),
         snapshot
     );
-    assert!(messages.try_recv().is_err());
+    // No edit went to CDMW; the editor's command list (P12) is the only message.
+    assert!(
+        messages
+            .try_iter()
+            .all(|message| message["event"] == "commands_state")
+    );
     ui.click("Switch editable piece")?;
     ui.click("lower.pac")?;
     assert!(

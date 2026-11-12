@@ -219,6 +219,52 @@ impl LabApplication {
             crate::shortcuts::Keymap::from_overrides(overrides.unwrap_or(&Value::Null));
     }
 
+    /// Why a command cannot run now, as far as the editor can say before running it.
+    /// Running it still checks again and says why in the status line.
+    fn shortcut_refusal(&self, action: ShortcutAction) -> Option<String> {
+        if let Some(page) = rail_page(action) {
+            return self.rail_page_refusal(page);
+        }
+        let hair =
+            crate::shortcuts::spec_for(action).scope == crate::shortcuts::ShortcutScope::Hair;
+        if hair && !self.hair.active() {
+            return Some("This command is for hair sessions.".to_owned());
+        }
+        None
+    }
+
+    /// Tell CDMW which editor commands exist, their keys and whether they can run, so its
+    /// registry and palette mirror them (P12). Sent only when something changed.
+    fn publish_commands_state(&mut self) {
+        let Some(bridge) = self.cdmw_bridge.as_ref() else {
+            return;
+        };
+        let commands: Vec<Value> = crate::shortcuts::SHORTCUTS
+            .iter()
+            .map(|spec| {
+                let keys: Vec<String> = self
+                    .shortcut_keymap
+                    .bindings(spec.action)
+                    .into_iter()
+                    .map(|binding| binding.text())
+                    .collect();
+                json!({
+                    "id": spec.id,
+                    "label": shortcut_label(spec.action),
+                    "keys": keys,
+                    "reason": self.shortcut_refusal(spec.action).unwrap_or_default(),
+                })
+            })
+            .collect();
+        let encoded = Value::Array(commands.clone()).to_string();
+        if encoded == self.published_commands_state {
+            return;
+        }
+        if bridge.announce_commands_state(&commands).is_ok() {
+            self.published_commands_state = encoded;
+        }
+    }
+
     fn publish_shortcuts(&mut self) {
         if !self.shortcut_editor.persist {
             return;
@@ -264,6 +310,13 @@ impl LabApplication {
                 let _ = bridge.announce_app_shortcut(command);
             }
         }
+        // Commands CDMW's palette asked for run here, as their key press would.
+        for command in std::mem::take(&mut self.pending_host_commands) {
+            if let Some(spec) = crate::shortcuts::spec_for_id(&command) {
+                self.run_shortcut(context, spec.action, actions);
+            }
+        }
+        self.publish_commands_state();
         if context.egui_wants_keyboard_input()
             || egui::Popup::is_any_open(context)
             || self.cdmw_delete_guidance_open()

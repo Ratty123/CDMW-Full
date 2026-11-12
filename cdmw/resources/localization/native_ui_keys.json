@@ -2361,6 +2361,7 @@
   "This bone has no influence on the loaded mesh.",
   "This bone has no resolved influence on visible Parts.",
   "This choice selects one file for editing. It does not disable the other textures or change the material slots used by exported hair.",
+  "This command is for hair sessions.",
   "This donor has additional PAC LODs requiring a verified hair LOD writer.",
   "This file's other Parts are garment candidates.",
   "This file's other Parts are the body.",

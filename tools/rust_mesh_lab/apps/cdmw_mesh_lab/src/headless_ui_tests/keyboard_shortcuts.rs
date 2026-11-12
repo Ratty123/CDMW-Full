@@ -440,3 +440,60 @@ fn the_command_palette_chord_goes_to_cdmw_even_while_typing() -> TestResult {
     assert_eq!(sent["protocol"], cdmw_session::PROTOCOL);
     Ok(())
 }
+
+#[test]
+fn cdmw_mirrors_the_editor_s_commands_and_can_run_one() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "commands", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    ui.frame(Vec::new());
+    let state = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "commands_state")
+    .expect("commands_state sent to CDMW");
+    let commands = state["commands"].as_array().expect("command list");
+    let grab = commands
+        .iter()
+        .find(|command| command["id"] == "tool.move")
+        .expect("tool.move listed");
+    assert_eq!(grab["keys"], json!(["G"]));
+    assert_eq!(grab["label"], "Move");
+    assert_eq!(commands.len(), crate::shortcuts::SHORTCUTS.len());
+    // An unchanged state is not sent again.
+    ui.frame(Vec::new());
+    assert!(
+        messages
+            .recv_timeout(std::time::Duration::from_millis(200))
+            .map_or(true, |message| message["event"] != "commands_state")
+    );
+    // The palette's request runs the command as its key press does.
+    ui.application
+        .pending_host_commands
+        .push("tool.move".to_owned());
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Move));
+    Ok(())
+}
+
+#[test]
+fn run_command_must_name_an_editor_command() {
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "commands", 1, 0);
+    let message = |command: &str| {
+        json!({"event": "run_command", "protocol": cdmw_session::PROTOCOL, "session_id": "commands",
+               "process_generation": 1, "command": command})
+    };
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message("tool.move")),
+        HostEvent::RunCommand(command) if command == "tool.move"
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message("delete.everything")),
+        HostEvent::Fatal(_)
+    ));
+}

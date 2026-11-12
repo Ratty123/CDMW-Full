@@ -80,6 +80,17 @@ class CommandRegistry(QObject):
         for command in commands:
             self.register(command, replace=replace)
 
+    def replace_helper_commands(self, context: str, commands: Iterable[Command]) -> None:
+        """Replace the commands a helper process mirrors for ``context``; others stay."""
+
+        for command_id in [i for i, c in self._commands.items() if c.context == context and c.helper]:
+            del self._commands[command_id]
+        for command in commands:
+            if command.context != context or not command.helper:
+                raise CommandDefinitionError(f"{command.id} is not a {context} helper command")
+            self._commands[command.id] = command
+        self.changed.emit(context)
+
     def unregister_context(self, context: str) -> None:
         for command_id in [i for i, c in self._commands.items() if c.context == context]:
             del self._commands[command_id]
@@ -138,11 +149,14 @@ _ATTRIBUTE = "_cdmw_command_registry"
 def command_registry() -> CommandRegistry | None:
     """The application's registry (one per application), created on first use."""
 
+    import shiboken6
+
     app = QCoreApplication.instance()
     if app is None:
         return None
     registry = getattr(app, _ATTRIBUTE, None)
-    if registry is None:
+    # A main window owns its registry; once that window is gone, start a new one.
+    if registry is None or not shiboken6.isValid(registry):
         registry = CommandRegistry(app)
         setattr(app, _ATTRIBUTE, registry)
     return registry

@@ -2389,6 +2389,10 @@ struct LabApplication {
     primary_press_modifiers: egui::Modifiers,
     /// Numpad presses this frame, under the egui key each one produced.
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
+    /// Editor commands CDMW asked for (its palette), run at the next frame.
+    pending_host_commands: Vec<String>,
+    /// What the editor last told CDMW about its commands, to send only changes.
+    published_commands_state: String,
     cdmw_bridge: Option<CdmwBridge>,
     /// Set while a pre-started helper waits for its session (`--cdmw-session-pending`).
     cdmw_pending: Option<PendingSessionInput>,
@@ -2599,6 +2603,8 @@ impl LabApplication {
             raw_modifiers: egui::Modifiers::NONE,
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
+            pending_host_commands: Vec::new(),
+            published_commands_state: String::new(),
             cdmw_bridge: None,
             cdmw_pending: None,
             cdmw_state: Value::Null,
@@ -3213,6 +3219,10 @@ impl LabApplication {
             }
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
+            }
+            HostEvent::RunCommand(command) => {
+                // Run at the next frame, where the key press would have run it.
+                self.pending_host_commands.push(command);
             }
             HostEvent::VertexInspection {
                 request_id,

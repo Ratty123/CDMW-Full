@@ -63,6 +63,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "This tool cannot be moved to a window of its own.",
         "This tool is not in a window of its own.",
         "No tool is in a window of its own.",
+        "The Mesh Editor is not ready.",
+        "Open an image first.",
         # Item-set preparation forwards these through worker callbacks/signals.
         "Preparing reference meshes...",
         "The archive catalogue changed while preparing the item set.",
