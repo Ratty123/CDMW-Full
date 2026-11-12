@@ -8,10 +8,10 @@ import math
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
-import cv2
 import numpy as np
 from PIL import Image
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_common import _parse_hex_rgb
 from cdmw.domain.textures.editor_composite import (
     _apply_channel_edit_locks,
@@ -552,28 +552,28 @@ def _soften_or_sharpen_rgb(
         mode = getattr(settings, "soften_mode", "gaussian")
         if mode == "median":
             kernel = max(3, int(round(effective_size / 18.0)) * 2 + 1)
-            result = cv2.medianBlur(np.clip(np.round(rgb), 0, 255).astype(np.uint8), kernel).astype(np.float32)
+            result = image_ops.median_blur(np.clip(np.round(rgb), 0, 255).astype(np.uint8), kernel).astype(np.float32)
         elif mode == "surface":
             diameter = max(3, int(round(effective_size / 12.0)) * 2 + 1)
-            result = cv2.bilateralFilter(
+            result = image_ops.bilateral_filter(
                 np.clip(np.round(rgb), 0, 255).astype(np.uint8),
                 diameter,
                 12.0 + strength * 36.0,
                 6.0 + strength * 20.0,
             ).astype(np.float32)
         else:
-            result = cv2.GaussianBlur(rgb, (0, 0), sigmaX=sigma, sigmaY=sigma)
+            result = image_ops.gaussian_blur(rgb, sigma)
         return result, 0.03 + strength * 0.22
     mode = getattr(settings, "sharpen_mode", "unsharp_mask")
     if mode == "high_pass":
-        blurred = cv2.GaussianBlur(rgb, (0, 0), sigmaX=sigma * 1.6, sigmaY=sigma * 1.6)
+        blurred = image_ops.gaussian_blur(rgb, sigma * 1.6)
         return np.clip(rgb + (rgb - blurred) * (0.04 + strength * 0.20), 0.0, 255.0), 0.08 + strength * 0.34
     if mode == "local_contrast":
-        blurred = cv2.GaussianBlur(rgb, (0, 0), sigmaX=sigma * 2.2, sigmaY=sigma * 2.2)
+        blurred = image_ops.gaussian_blur(rgb, sigma * 2.2)
         return np.clip(rgb + (rgb - blurred) * (0.03 + strength * 0.12), 0.0, 255.0), 0.07 + strength * 0.30
-    blurred = cv2.GaussianBlur(rgb, (0, 0), sigmaX=sigma, sigmaY=sigma)
+    blurred = image_ops.gaussian_blur(rgb, sigma)
     amount = 0.05 + strength * 0.42
-    result = np.clip(cv2.addWeighted(rgb, 1.0 + amount, blurred, -amount, 0.0), 0.0, 255.0)
+    result = np.clip(image_ops.add_weighted(rgb, 1.0 + amount, blurred, -amount, 0.0), 0.0, 255.0)
     return result, 0.06 + strength * 0.34
 
 

@@ -7,9 +7,9 @@ import math
 from dataclasses import dataclass
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_brush import texture_editor_stroke_points_for_symmetry
 from cdmw.domain.textures.editor_composite import _blend_layer_region
 from cdmw.domain.textures.editor_layers import (
@@ -398,27 +398,20 @@ def transformed_texture_editor_floating_pixels(
     if abs(scale_x - 1.0) > 1e-3 or abs(scale_y - 1.0) > 1e-3:
         new_w = max(1, int(round(pixels.shape[1] * scale_x)))
         new_h = max(1, int(round(pixels.shape[0] * scale_y)))
-        interpolation = cv2.INTER_CUBIC if (new_w >= pixels.shape[1] and new_h >= pixels.shape[0]) else cv2.INTER_AREA
-        pixels = cv2.resize(pixels, (new_w, new_h), interpolation=interpolation)
+        interpolation = "cubic" if (new_w >= pixels.shape[1] and new_h >= pixels.shape[0]) else "area"
+        pixels = image_ops.resize(pixels, new_w, new_h, interpolation)
     angle = float(floating.rotation_degrees)
     if abs(angle) > 1e-3:
         height, width = pixels.shape[:2]
         center = (width / 2.0, height / 2.0)
-        matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+        matrix = image_ops.rotation_matrix(center, angle, 1.0)
         cos = abs(matrix[0, 0])
         sin = abs(matrix[0, 1])
         bound_w = max(1, int((height * sin) + (width * cos)))
         bound_h = max(1, int((height * cos) + (width * sin)))
         matrix[0, 2] += (bound_w / 2.0) - center[0]
         matrix[1, 2] += (bound_h / 2.0) - center[1]
-        pixels = cv2.warpAffine(
-            pixels,
-            matrix,
-            (bound_w, bound_h),
-            flags=cv2.INTER_LINEAR,
-            borderMode=cv2.BORDER_CONSTANT,
-            borderValue=(0, 0, 0, 0),
-        )
+        pixels = image_ops.warp_affine_linear(pixels, matrix, bound_w, bound_h)
     return np.ascontiguousarray(pixels, dtype=np.uint8)
 
 

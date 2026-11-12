@@ -5,9 +5,9 @@ from __future__ import annotations
 import dataclasses
 from typing import Dict, Optional, Sequence, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_brush import (
     _build_effective_brush_stamp,
     _clip_stamp_region,
@@ -120,8 +120,7 @@ def grow_texture_editor_selection(
     if mask is None or amount <= 0:
         return document
     kernel_size = max(1, (amount * 2) + 1)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-    grown = cv2.dilate(mask, kernel, iterations=1)
+    grown = image_ops.dilate_ellipse(mask, kernel_size)
     return dataclasses.replace(
         document,
         selection=_selection_from_mask(
@@ -139,8 +138,7 @@ def shrink_texture_editor_selection(
     if mask is None or amount <= 0:
         return document
     kernel_size = max(1, (amount * 2) + 1)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-    shrunk = cv2.erode(mask, kernel, iterations=1)
+    shrunk = image_ops.erode_ellipse(mask, kernel_size)
     return dataclasses.replace(
         document,
         selection=_selection_from_mask(
@@ -386,16 +384,7 @@ def apply_texture_editor_selection_fill(
     fill_value = 0 if tool_settings.tool == "erase" else 255
     tolerance = max(0, min(255, int(getattr(tool_settings, "fill_tolerance", 24))))
     flags = 4 if bool(getattr(tool_settings, "fill_contiguous", True)) else 8
-    working = updated_mask.copy()
-    cv2.floodFill(
-        working,
-        None,
-        (x, y),
-        int(fill_value),
-        loDiff=int(tolerance),
-        upDiff=int(tolerance),
-        flags=flags,
-    )
+    working = image_ops.flood_fill_value(updated_mask, (x, y), int(fill_value), int(tolerance), flags)
     return dataclasses.replace(
         document,
         selection=_selection_from_mask(
