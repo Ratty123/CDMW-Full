@@ -805,8 +805,16 @@ class ArchivePreviewWorkerMixin:
         )
         if native_preview_diagnostics.get("native_preview_core_process_pid") or native_preview_diagnostics.get("preview_core_process_pid"):
             self._schedule_native_preview_core_idle_shutdown()
+        # The worker's stage times (Preview Core, the Rust package, ...) for the
+        # runtime record, in milliseconds (P4 V6's hand-off measurement).
+        stage_ms = {
+            f"stage_{key.removesuffix('_s')}_ms": round(float(value) * 1000.0, 1)
+            for key, value in dict(getattr(payload, "timings", {}) or {}).items()
+            if isinstance(value, (int, float))
+        } if isinstance(payload, ArchivePreviewResult) else {}
         self.shell._record_runtime_event(
             "archive_preview_ready",
+            **stage_ms,
             request_id=request_id,
             source=source,
             current_request_id=self.archive_preview_request_id,
