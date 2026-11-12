@@ -137,6 +137,15 @@ def _record_open_step_timings(tab: object, **timings: float) -> None:
             pass
 
 
+def _palette_chords(settings) -> list[str]:
+    try:
+        from cdmw.ui.commands.helper_keys import palette_chords
+
+        return palette_chords(settings)
+    except Exception:
+        return ["Ctrl+Shift+P"]
+
+
 def _record_open_stage_timings(tab: object, stages: dict) -> None:
     """Where the session preparation's time went (worker stages), with the launch."""
 
@@ -645,6 +654,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "layout": load_mesh_layout(self.settings),
             # Its presence tells the editor this host saves shortcuts_changed.
             "shortcuts": load_mesh_shortcuts(self.settings),
+            # The palette's chords from the keymap: the editor passes them to CDMW
+            # and its own shortcut editor refuses them (P12 E5).
+            "app_commands": {"command_palette": _palette_chords(self.settings)},
             # The shared Preview settings; the editor reports changes with
             # preview_settings_changed and follows other viewports' changes.
             "preview_settings": _shared_preview_settings(),

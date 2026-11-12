@@ -66,7 +66,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other.
+- The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other; the Mesh Editor's 3D view follows the new key too.
 
 - A key set for a **Mesh Editor** command in **Settings > Shortcuts** now works in the Mesh Editor: Page Up, Delete, numpad keys and the like were saved in a spelling the editor could not read, which reset that command to its default. Keys the Mesh Editor keeps for itself (Escape, arrows, Ctrl+C, Ctrl+V, Ctrl+X, Alt+F4, Ctrl+Shift+P) are refused with the reason. A command with two keys keeps its second key when you change the first, **Unbind** removes both, and the command palette shows the keys you set instead of the defaults.
 

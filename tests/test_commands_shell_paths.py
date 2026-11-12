@@ -455,8 +455,6 @@ def test_e8_a_broken_availability_check_shows_no_exception_text(shell, caplog):
         registry._commands.pop("shell.e8_probe", None)
 
 
-@pytest.mark.xfail(strict=True, reason="passes once the strings-3 fragments are folded into the catalogues; "
-                                       "then remove this marker")
 def test_e8_every_command_label_and_reason_the_shell_shows_is_in_every_catalogue(shell):
     import json
     from pathlib import Path
@@ -531,3 +529,25 @@ def test_e9_a_command_that_vanished_while_the_palette_was_open_is_refused_not_ra
     finally:
         palette.close()
         palette.deleteLater()
+
+
+def test_e5_the_helper_hears_the_palette_s_keys_and_the_page_refuses_them(tmp_path) -> None:
+    """E5's helper half: the theme payload carries the palette's chords from the keymap,
+    and the Shortcuts page's reserved rule reads the same chords."""
+
+    from PySide6.QtCore import QSettings
+
+    from cdmw.services.keymap_store import save_keymap
+    from cdmw.ui.commands import helper_keys
+    from cdmw.ui.commands.palette import PALETTE_COMMAND
+
+    settings = QSettings(str(tmp_path / "keys.ini"), QSettings.Format.IniFormat)
+    try:
+        assert helper_keys.palette_chords(settings) == ["Ctrl+Shift+P"]
+        save_keymap(settings, {PALETTE_COMMAND: ["Ctrl+K"]})
+        assert helper_keys.palette_chords(settings) == ["Ctrl+K"]
+        assert helper_keys.reserved_reason({"Ctrl"}, "K") == helper_keys.APP_COMMAND_REASON
+        assert helper_keys.reserved_reason({"Ctrl", "Shift"}, "P") == ""
+    finally:
+        save_keymap(settings, {})
+        helper_keys.palette_chords(settings)

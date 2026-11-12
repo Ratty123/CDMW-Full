@@ -127,6 +127,33 @@ def helper_binding(text: str) -> HelperBinding:
     return HelperBinding(text="" if reason else canonical, reason=reason)
 
 
+#: The palette's chords in the helper's spelling; the keymap decides them (P12 E5).
+_PALETTE_CHORDS: set[str] = {"Ctrl+Shift+P"}
+
+
+def palette_chords(settings) -> list[str]:
+    """The palette's current keys in the helper's spelling, for its theme payload.
+
+    Also what ``reserved_reason`` refuses from now on, so Settings > Shortcuts and
+    the helper's own editor keep the same rule.
+    """
+
+    from cdmw.services.keymap_store import load_keymap
+    from cdmw.ui.commands.palette import PALETTE_COMMAND, PALETTE_KEYS
+
+    keys = load_keymap(settings).get(PALETTE_COMMAND)
+    chosen = list(keys) if keys is not None else [PALETTE_KEYS]
+    chords = []
+    _PALETTE_CHORDS.clear()  # the palette's own keys are not reserved against themselves
+    for key in chosen:
+        binding = helper_binding(key)
+        if binding.text and not binding.modifier_only and binding.text not in chords:
+            chords.append(binding.text)
+    _PALETTE_CHORDS.clear()
+    _PALETTE_CHORDS.update(chords)
+    return chords
+
+
 def reserved_reason(held: set[str], name: str) -> str:
     """``KeyChord::reserved_reason``: why the helper's own editor refuses this chord."""
 
@@ -136,7 +163,8 @@ def reserved_reason(held: set[str], name: str) -> str:
         return CLOSE_WINDOW_REASON
     if "Ctrl" in held and name in {"C", "V", "X"}:
         return CLIPBOARD_REASON
-    if held == {"Ctrl", "Shift"} and name == "P":
+    chord = "+".join([*(m for m in MODIFIERS if m in held), name])
+    if chord in _PALETTE_CHORDS:
         return APP_COMMAND_REASON
     return ""
 

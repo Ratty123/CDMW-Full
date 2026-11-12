@@ -3540,6 +3540,7 @@ impl LabApplication {
                     self.apply_shared_preview_settings(settings);
                 }
                 self.apply_cdmw_theme_payload(&theme);
+                crate::shortcuts::apply_app_command_chords(&theme);
                 if let Some(shortcuts) = theme.get("shortcuts") {
                     self.apply_shortcut_overrides(Some(shortcuts));
                 }

@@ -242,9 +242,43 @@ impl KeyChord {
 
     /// The app-wide command this chord opens in CDMW itself, if any. Such a chord is
     /// passed to CDMW instead of the editor, so it works with focus in this window.
+    /// CDMW's keymap decides the palette's chords (P12 E5); Ctrl+Shift+P until it says.
     pub(crate) fn app_command(self) -> Option<&'static str> {
-        (self.ctrl && self.shift && !self.alt && self.key == ShortcutKey::Key(egui::Key::P))
+        let palette = match PALETTE_CHORDS.read() {
+            Ok(chords) => chords.as_ref().map(|chords| chords.contains(&self)),
+            Err(_) => None,
+        };
+        palette
+            .unwrap_or(
+                self.ctrl && self.shift && !self.alt && self.key == ShortcutKey::Key(egui::Key::P),
+            )
             .then_some("command_palette")
+    }
+}
+
+/// The palette's chords from CDMW's theme payload (`None`: not sent, the default).
+static PALETTE_CHORDS: std::sync::RwLock<Option<Vec<KeyChord>>> = std::sync::RwLock::new(None);
+
+/// Take the app commands' chords from a theme payload: `app_commands.command_palette`,
+/// a list of chords in the editor's spelling. A theme without it leaves them as they are.
+pub(crate) fn apply_app_command_chords(theme: &serde_json::Value) {
+    let Some(list) = theme
+        .get("app_commands")
+        .and_then(|commands| commands.get("command_palette"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return;
+    };
+    let chords = list
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .filter_map(|text| match Binding::parse(text)? {
+            Binding::Chord(chord) => Some(chord),
+            Binding::Modifier(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if let Ok(mut current) = PALETTE_CHORDS.write() {
+        *current = Some(chords);
     }
 }
 
@@ -1109,5 +1143,26 @@ mod tests {
         );
         assert_eq!(chord("Ctrl+Shift+P").app_command(), Some("command_palette"));
         assert_eq!(chord("Ctrl+P").app_command(), None);
+    }
+
+    #[test]
+    fn the_palette_takes_the_chords_cdmw_s_keymap_gives_it() {
+        // P12 E5. The default stays in the set: other tests read it meanwhile.
+        apply_app_command_chords(&serde_json::json!({
+            "app_commands": {"command_palette": ["Ctrl+Shift+P", "Ctrl+K", "Shift"]}
+        }));
+        assert_eq!(chord("Ctrl+K").app_command(), Some("command_palette"));
+        assert_eq!(
+            chord("Ctrl+K").reserved_reason(),
+            Some(ReservedChord::AppCommand)
+        );
+        assert_eq!(chord("Ctrl+J").app_command(), None);
+        // A theme without the field leaves the chords as they are.
+        apply_app_command_chords(&serde_json::json!({"shortcuts": {}}));
+        assert_eq!(chord("Ctrl+K").app_command(), Some("command_palette"));
+        if let Ok(mut current) = PALETTE_CHORDS.write() {
+            *current = None;
+        }
+        assert_eq!(chord("Ctrl+K").app_command(), None);
     }
 }

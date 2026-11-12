@@ -9581,12 +9581,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 479,
+          "line": 480,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 951,
+          "line": 953,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -24256,7 +24256,7 @@
         },
         {
           "path": "cdmw/ui/startup_splash_host.py",
-          "line": 166,
+          "line": 169,
           "sink": "setWindowTitle"
         },
         {
@@ -26066,7 +26066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 300,
+          "line": 301,
           "sink": "QPushButton"
         }
       ]
@@ -27056,7 +27056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 749,
+          "line": 750,
           "sink": "setText"
         }
       ]
@@ -27066,7 +27066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 739,
+          "line": 740,
           "sink": "show_failure"
         }
       ]
@@ -27076,7 +27076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 670,
+          "line": 671,
           "sink": "setText"
         }
       ]
@@ -27111,7 +27111,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 460,
+          "line": 461,
           "sink": "_section_label"
         }
       ]
@@ -27191,7 +27191,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 467,
+          "line": 468,
           "sink": "setHeaderLabels"
         },
         {
@@ -27211,7 +27211,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 906,
+          "line": 908,
           "sink": "setText"
         }
       ]
@@ -27436,7 +27436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 54,
+          "line": 82,
           "sink": "setWindowTitle"
         }
       ]
@@ -27781,7 +27781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 106,
+          "line": 161,
           "sink": "QPushButton"
         }
       ]
@@ -29736,7 +29736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8013,
+          "line": 8020,
           "sink": "report"
         }
       ]
@@ -35426,7 +35426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 440,
+          "line": 441,
           "sink": "QPushButton"
         }
       ]
@@ -35571,7 +35571,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 301,
+          "line": 302,
           "sink": "QPushButton"
         },
         {
@@ -37066,10 +37066,15 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 96,
+          "line": 151,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
+    },
+    {
+      "key": "Command Palette",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Commit",
@@ -38461,7 +38466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 96,
+          "line": 151,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -40037,6 +40042,11 @@
       ]
     },
     {
+      "key": "Copy layer or selection",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Copy normals from the original/source mesh onto the current selection.",
       "origins": [
         {
@@ -40095,6 +40105,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Copy selection to new layer",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Copy shape",
@@ -42266,7 +42281,7 @@
         },
         {
           "path": "cdmw/ui/startup_splash_host.py",
-          "line": 224,
+          "line": 227,
           "sink": "QLabel"
         }
       ]
@@ -43510,6 +43525,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Cut selection",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Cutout Coverage",
@@ -46036,7 +46056,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 425,
+          "line": 426,
           "sink": "_add_detail_section"
         },
         {
@@ -47481,7 +47501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 66,
+          "line": 95,
           "sink": "addButton"
         },
         {
@@ -48033,6 +48053,11 @@
     },
     {
       "key": "Dodge/Burn",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Dodge/Burn tool",
       "origins": [],
       "manual": true
     },
@@ -50746,7 +50771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10917,
+          "line": 10951,
           "sink": "RuntimeError"
         }
       ]
@@ -53886,7 +53911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 915,
+          "line": 917,
           "sink": "setText"
         }
       ]
@@ -54095,6 +54120,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Erase tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Eraser",
@@ -54566,7 +54596,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 419,
+          "line": 420,
           "sink": "_section_label"
         }
       ]
@@ -60662,6 +60692,11 @@
       ]
     },
     {
+      "key": "Fill tool",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Fill tool active. Click to flood-fill the active layer using the current color, tolerance, and blend mode. Alt+click samples a color into the paint swatch.",
       "origins": [
         {
@@ -62071,7 +62106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 64,
+          "line": 93,
           "sink": "addButton"
         },
         {
@@ -62151,7 +62186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 112,
+          "line": 141,
           "sink": "information"
         }
       ]
@@ -62221,7 +62256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 99,
+          "line": 128,
           "sink": "_tell"
         }
       ]
@@ -62241,7 +62276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 59,
+          "line": 88,
           "sink": "setInformativeText"
         }
       ]
@@ -62580,6 +62615,11 @@
           "sink": "python-return:_staged_payload_error"
         }
       ]
+    },
+    {
+      "key": "First key",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "First scan note:",
@@ -62930,6 +62970,11 @@
           "sink": "setText"
         }
       ]
+    },
+    {
+      "key": "Fit view",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Fit {value_0}%",
@@ -63445,6 +63490,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Float active layer copy",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Float the active layer or a copied selection, then move, scale, rotate, flip, and commit it as an isolated layer.",
@@ -67787,6 +67837,11 @@
       ]
     },
     {
+      "key": "Gradient tool",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Gradient tool active. Drag to paint a linear or radial gradient using the primary and secondary colors.",
       "origins": [
         {
@@ -70182,6 +70237,16 @@
       ]
     },
     {
+      "key": "Hardness harder",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Hardness softer",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Harness and tack on ridden animals",
       "origins": [
         {
@@ -70595,6 +70660,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Heal tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Healing",
@@ -72776,7 +72846,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/icon_pipeline.py",
-          "line": 286,
+          "line": 288,
           "sink": "python-return:_cached_archive_asset_catalog_inventory_icon_pixmap"
         }
       ]
@@ -72831,7 +72901,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 428,
+          "line": 429,
           "sink": "_add_detail_section"
         }
       ]
@@ -81121,7 +81191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 898,
+          "line": 900,
           "sink": "setText"
         }
       ]
@@ -81271,7 +81341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 467,
+          "line": 468,
           "sink": "setHeaderLabels"
         },
         {
@@ -81846,7 +81916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 67,
+          "line": 96,
           "sink": "addButton"
         },
         {
@@ -82471,7 +82541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 96,
+          "line": 151,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -83230,6 +83300,11 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "Lasso tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Last Results",
@@ -86256,7 +86331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 650,
+          "line": 651,
           "sink": "setText"
         }
       ]
@@ -86976,7 +87051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 426,
+          "line": 427,
           "sink": "_add_detail_section"
         }
       ]
@@ -90776,7 +90851,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 315,
+          "line": 332,
           "sink": "python-return:document_label"
         },
         {
@@ -92571,7 +92646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8739,
+          "line": 8746,
           "sink": "done"
         }
       ]
@@ -96521,7 +96596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 427,
+          "line": 428,
           "sink": "_add_detail_section"
         }
       ]
@@ -97241,7 +97316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10098,
+          "line": 10105,
           "sink": "RuntimeError"
         }
       ]
@@ -97251,7 +97326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10094,
+          "line": 10101,
           "sink": "RuntimeError"
         }
       ]
@@ -97261,7 +97336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10069,
+          "line": 10076,
           "sink": "RuntimeError"
         }
       ]
@@ -97890,6 +97965,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Move tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Move tool active. Drag to reposition the active layer non-destructively.",
@@ -100702,6 +100782,11 @@
       ]
     },
     {
+      "key": "New layer",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "New name",
       "origins": [
         {
@@ -100801,7 +100886,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 297,
+          "line": 298,
           "sink": "QPushButton"
         },
         {
@@ -101746,7 +101831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 800,
+          "line": 801,
           "sink": "setText"
         }
       ]
@@ -102376,7 +102461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 915,
+          "line": 917,
           "sink": "setText"
         }
       ]
@@ -104246,7 +104331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/icon_pipeline.py",
-          "line": 254,
+          "line": 256,
           "sink": "python-return:_cached_archive_asset_catalog_inventory_icon_pixmap"
         }
       ]
@@ -105721,17 +105806,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 893,
+          "line": 895,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 916,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 917,
+          "line": 918,
           "sink": "setText"
         },
         {
@@ -105741,7 +105821,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 920,
+          "line": 921,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 922,
           "sink": "setText"
         },
         {
@@ -107836,7 +107921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 461,
+          "line": 462,
           "sink": "QCheckBox"
         }
       ]
@@ -109142,6 +109227,11 @@
       ]
     },
     {
+      "key": "Open a file with recovered Asset Family relationships first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Open a grouped extension picker from the current archive index.",
       "origins": [
         {
@@ -109391,7 +109481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_commands.py",
-          "line": 53,
+          "line": 57,
           "sink": "python-return:reason"
         }
       ]
@@ -109447,6 +109537,11 @@
       ]
     },
     {
+      "key": "Open current source in Compare",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Open draft…",
       "origins": [
         {
@@ -109465,6 +109560,11 @@
           "sink": "python-return:_build_utility_sections"
         }
       ]
+    },
+    {
+      "key": "Open file",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Open folder",
@@ -109920,6 +110020,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Open project",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Open save backups",
@@ -110411,7 +110516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 444,
+          "line": 445,
           "sink": "setToolTip"
         }
       ]
@@ -115177,6 +115282,11 @@
       ]
     },
     {
+      "key": "Paint tool",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Paint tool active. Brush presets, image stamps, patterns, and symmetry are available here. Alt+click samples a color into the paint swatch.",
       "origins": [
         {
@@ -116377,6 +116487,11 @@
       ]
     },
     {
+      "key": "Paste centered",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Paste either the full chaiNNer override object or just the inputs object. Supported path tokens: ${original_dds_root}, ${staging_png_root}, ${png_root}, ${output_root}.",
       "origins": [
         {
@@ -116405,6 +116520,11 @@
           "sink": "python-presentation:workflow"
         }
       ]
+    },
+    {
+      "key": "Paste layer or selection",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Paste the Mesh Editor's immutable internal selection copy as one geometry layer.",
@@ -116645,6 +116765,11 @@
           "sink": "setPlainText"
         }
       ]
+    },
+    {
+      "key": "Patch tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Patch tool active. Make a selection first, then drag to define the repair source offset for that selected region.",
@@ -121251,7 +121376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8007,
+          "line": 8014,
           "sink": "report"
         }
       ]
@@ -121726,7 +121851,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8804,
+          "line": 8811,
           "sink": "progress"
         }
       ]
@@ -121736,7 +121861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7809,
+          "line": 7811,
           "sink": "report"
         }
       ]
@@ -121746,7 +121871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7834,
+          "line": 7836,
           "sink": "report"
         }
       ]
@@ -126221,7 +126346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 296,
+          "line": 297,
           "sink": "QPushButton"
         },
         {
@@ -132156,7 +132281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 881,
+          "line": 883,
           "sink": "setText"
         }
       ]
@@ -132176,7 +132301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 905,
+          "line": 907,
           "sink": "setText"
         }
       ]
@@ -132385,6 +132510,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Rect select tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Rectangle",
@@ -137811,7 +137941,7 @@
         },
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 108,
+          "line": 163,
           "sink": "QPushButton"
         },
         {
@@ -137861,7 +137991,7 @@
         },
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 109,
+          "line": 164,
           "sink": "QPushButton"
         },
         {
@@ -139666,7 +139796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 1025,
+          "line": 1027,
           "sink": "setText"
         }
       ]
@@ -141266,7 +141396,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 298,
+          "line": 299,
           "sink": "QPushButton"
         },
         {
@@ -141391,7 +141521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 585,
+          "line": 586,
           "sink": "setText"
         }
       ]
@@ -145127,6 +145257,11 @@
       ]
     },
     {
+      "key": "Save project",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Save rebuild report",
       "origins": [
         {
@@ -146901,7 +147036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 1051,
+          "line": 1053,
           "sink": "setText"
         }
       ]
@@ -147401,7 +147536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 92,
+          "line": 147,
           "sink": "setPlaceholderText"
         }
       ]
@@ -147911,7 +148046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 650,
+          "line": 651,
           "sink": "setText"
         }
       ]
@@ -147990,6 +148125,11 @@
           "sink": "python-data:_TRIM_WORDS"
         }
       ]
+    },
+    {
+      "key": "Second key",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Second weapon",
@@ -148642,6 +148782,11 @@
       ]
     },
     {
+      "key": "Select PAC, PAM or PAMLOD file rows first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select PAC, PAM or PAMLOD file rows first. Folders and other file types are not included.",
       "origins": [
         {
@@ -148820,6 +148965,16 @@
           "sink": "setPlainText"
         }
       ]
+    },
+    {
+      "key": "Select a .hkx or .hkt archive entry first",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Select a .hkx/.hkt file, or a .pac/.pam/.pamlod model with a related HKX/HKT file, first",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Select a .paac archive entry before opening the Action Chart Editor.",
@@ -149452,6 +149607,11 @@
       ]
     },
     {
+      "key": "Select a mesh/model archive entry first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select a mod folder to compare",
       "origins": [
         {
@@ -150012,6 +150172,11 @@
       ]
     },
     {
+      "key": "Select a structured sidecar/metadata archive entry first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select a supported archive mesh before importing an OBJ preview.",
       "origins": [
         {
@@ -150417,6 +150582,11 @@
       ]
     },
     {
+      "key": "Select an .app_xml, .pac/.pam/.pamlod, .prefabdata_xml, .prefab, or .pappt file first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select an .app_xml, .pac/.pam/.pamlod, or prefab file first.",
       "origins": [
         {
@@ -150512,6 +150682,11 @@
       ]
     },
     {
+      "key": "Select an archive file first",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Select an archive file first.",
       "origins": [
         {
@@ -150575,6 +150750,11 @@
           "sink": "_clear_archive_preview"
         }
       ]
+    },
+    {
+      "key": "Select an archive file with recoverable asset-family relationships first",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Select an area above to see what is import-safe, what is context only, and what remains inferred.",
@@ -150866,7 +151046,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 880,
+          "line": 882,
           "sink": "setText"
         },
         {
@@ -150901,7 +151081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 884,
+          "line": 886,
           "sink": "setText"
         }
       ]
@@ -151021,7 +151201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 1005,
+          "line": 1007,
           "sink": "information"
         }
       ]
@@ -154022,6 +154202,21 @@
       ]
     },
     {
+      "key": "Send to Icon Creator",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Send to Texture Replacer",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Send to Texture Workflow",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Send to socket",
       "origins": [
         {
@@ -156061,7 +156256,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 434,
+          "line": 435,
           "sink": "QPushButton"
         }
       ]
@@ -156231,7 +156426,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 436,
+          "line": 437,
           "sink": "QPushButton"
         }
       ]
@@ -156541,7 +156736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 437,
+          "line": 438,
           "sink": "setToolTip"
         }
       ]
@@ -156691,7 +156886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 462,
+          "line": 463,
           "sink": "setToolTip"
         }
       ]
@@ -156791,7 +156986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 435,
+          "line": 436,
           "sink": "setToolTip"
         }
       ]
@@ -157541,7 +157736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 802,
+          "line": 803,
           "sink": "setText"
         }
       ]
@@ -159530,6 +159725,11 @@
           "sink": "_add_tool_setting_row"
         }
       ]
+    },
+    {
+      "key": "Smudge tool",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Smudge tool active. Drag to pull nearby texture detail for seam cleanup and blending.",
@@ -163411,7 +163611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 424,
+          "line": 425,
           "sink": "_add_detail_section"
         },
         {
@@ -165243,6 +165443,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 776,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Switch Textures to Edit first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/editor_commands.py",
+          "line": 52,
+          "sink": "python-return:reason"
         }
       ]
     },
@@ -167347,6 +167557,11 @@
       ]
     },
     {
+      "key": "Texture Editor",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Texture Editor Export",
       "origins": [
         {
@@ -168997,6 +169212,11 @@
       ]
     },
     {
+      "key": "The Mesh Editor cannot use this key.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The Mesh Editor executable package changed while its shadow session was being prepared. Open the mesh again to use the newly validated package.",
       "origins": [
         {
@@ -169011,7 +169231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/editor_commands.py",
-          "line": 151,
+          "line": 163,
           "sink": "python-return:reason"
         }
       ]
@@ -169736,7 +169956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 635,
+          "line": 636,
           "sink": "_show_error"
         }
       ]
@@ -170485,6 +170705,11 @@
           "sink": "getColor"
         }
       ]
+    },
+    {
+      "key": "The command failed. The log has the details.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The compare row has no usable transform values to copy.",
@@ -174376,7 +174601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 1040,
+          "line": 1042,
           "sink": "setText"
         }
       ]
@@ -176960,6 +177185,16 @@
           "sink": "rust-presentation"
         }
       ]
+    },
+    {
+      "key": "This command needs a key, not Ctrl, Alt or Shift on its own.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "This command takes Ctrl, Alt or Shift on its own; change it in the Mesh Editor.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "This compares file data and recorded dependencies. Runtime plugins and in-game behaviour are not verified.",
@@ -179612,6 +179847,11 @@
       ]
     },
     {
+      "key": "Toggle quick mask overlay",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Toggle skinned pose preview.",
       "origins": [
         {
@@ -181496,7 +181736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/palette.py",
-          "line": 57,
+          "line": 63,
           "sink": "setPlaceholderText"
         }
       ]
@@ -182040,6 +182280,11 @@
       "key": "Unavailable",
       "origins": [
         {
+          "path": "cdmw/ui/commands/registry.py",
+          "line": 135,
+          "sink": "python-return:reason"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/refit_diagnostics.rs",
           "line": 726,
           "sink": "rust-presentation"
@@ -182113,11 +182358,6 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 97,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/commands/registry.py",
-          "line": 123,
-          "sink": "python-return:reason"
         }
       ]
     },
@@ -182136,7 +182376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 107,
+          "line": 162,
           "sink": "QPushButton"
         }
       ]
@@ -182601,7 +182841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 56,
+          "line": 85,
           "sink": "setWindowTitle"
         }
       ]
@@ -189192,6 +189432,11 @@
       ]
     },
     {
+      "key": "Wait for the current background task to finish",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Wait for the current hair edit to finish, then try again.",
       "origins": [
         {
@@ -189356,7 +189601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_commands.py",
-          "line": 51,
+          "line": 55,
           "sink": "python-return:reason"
         }
       ]
@@ -191266,7 +191511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/shortcuts_page.py",
-          "line": 96,
+          "line": 151,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -194476,7 +194721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 57,
+          "line": 86,
           "sink": "setText"
         }
       ]
@@ -200211,7 +200456,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8245,
+          "line": 8252,
           "sink": "open_edit_session"
         },
         {
@@ -215126,7 +215371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/browse_viewport.py",
-          "line": 46,
+          "line": 55,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -215416,7 +215661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/browse_viewport.py",
-          "line": 87,
+          "line": 96,
           "sink": "python-return:blocker"
         }
       ]
@@ -218261,7 +218506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 777,
+          "line": 778,
           "sink": "QListWidgetItem"
         }
       ]
@@ -218571,7 +218816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 899,
+          "line": 901,
           "sink": "setText"
         }
       ]
@@ -218581,7 +218826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 780,
+          "line": 781,
           "sink": "setToolTip"
         }
       ]
@@ -218641,7 +218886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 320,
+          "line": 337,
           "sink": "python-return:document_label"
         }
       ]
@@ -219051,7 +219296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 320,
+          "line": 337,
           "sink": "python-return:document_label"
         },
         {
@@ -219241,12 +219486,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 900,
+          "line": 902,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 969,
+          "line": 971,
           "sink": "setToolTip"
         },
         {
@@ -219541,7 +219786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 901,
+          "line": 903,
           "sink": "setText"
         }
       ]
@@ -224151,7 +224396,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 698,
+          "line": 699,
           "sink": "setText"
         },
         {
@@ -225481,7 +225726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 698,
+          "line": 699,
           "sink": "setText"
         },
         {

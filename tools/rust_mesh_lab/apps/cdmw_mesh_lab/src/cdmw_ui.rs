@@ -1755,6 +1755,7 @@ impl LabApplication {
         };
         self.apply_cdmw_theme_payload(&bridge.manifest().theme);
         crate::cdmw_layout::restore(&self.egui_context, &bridge.manifest().theme["layout"]);
+        crate::shortcuts::apply_app_command_chords(&bridge.manifest().theme);
         let shortcuts = bridge.manifest().theme.get("shortcuts").cloned();
         self.apply_shortcut_overrides(shortcuts.as_ref());
     }
