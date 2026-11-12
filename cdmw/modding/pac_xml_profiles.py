@@ -549,11 +549,11 @@ def _pac_xml_settings_root(settings_dir: str | Path | None = None) -> Path:
         return Path(settings_dir).expanduser()
     elif str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "").strip():
         return Path(str(os.environ.get(PAC_XML_SETTINGS_DIR_ENV, "") or "")).expanduser()
-    elif os.environ.get("APPDATA"):
-        appdata = os.environ.get("APPDATA")
-        return Path(appdata) / "CDMW"
     else:
-        return Path.home() / ".cdmw"
+        # The CDMW folder, where the app's settings file is (it was %APPDATA%\CDMW).
+        from cdmw.app.app_folder import cdmw_folder
+
+        return cdmw_folder()
 
 
 def default_pac_xml_profile_cache_path(settings_dir: str | Path | None = None) -> Path:
