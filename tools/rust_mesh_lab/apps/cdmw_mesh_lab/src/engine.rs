@@ -590,8 +590,8 @@ impl EngineApplication {
             .app
             .move_to_window(window.clone(), renderer, parent_hwnd)
         {
-            Ok((lent, camera)) => {
-                self.preview.return_view(lent, Some(camera));
+            Ok((lent, camera, kept)) => {
+                self.preview.return_view(lent, Some(camera), kept, false);
                 self.edits[index].own_window = Some(window.id());
                 let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
                 let edit_id = self.edits[index].id.clone();
@@ -694,9 +694,10 @@ impl EngineApplication {
             write_edit_line(&id, &json!({"event": "edit_left"}));
             return;
         }
-        let (renderer, camera) = edit.app.give_back_view();
+        let (renderer, camera, kept) = edit.app.give_back_view();
         let id = edit.id.clone();
-        self.preview.return_view(renderer, Some(camera));
+        self.preview
+            .return_view(renderer, Some(camera), kept, edit.app.engine_finished());
         // After a Finish, Browse's view shows the finished mesh until the finished
         // package replaces it, never the model from before the edit (section 8.7 C2).
         if edit.app.engine_finished()

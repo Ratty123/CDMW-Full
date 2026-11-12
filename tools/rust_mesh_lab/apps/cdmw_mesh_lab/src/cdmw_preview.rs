@@ -564,6 +564,9 @@ pub struct PreviewApplication {
     package_captures: Option<crate::package_capture::PackageCaptures>,
     /// Since when the capture pool has had nothing to do; it is dropped after a while.
     captures_idle_since: Option<Instant>,
+    /// The scene revision when Browse's renderer was lent: its kept scene is put
+    /// back only if no package load changed it meanwhile (section 8.7 C1).
+    lent_scene_revision: Option<u64>,
     /// Another viewport of the engine process (P4 V5): closing it closes its
     /// window, not the process.
     secondary: bool,
@@ -683,6 +686,7 @@ impl PreviewApplication {
             lent: false,
             package_captures: None,
             captures_idle_since: None,
+            lent_scene_revision: None,
             secondary: false,
             followed_revision: None,
             icon_capture: false,
@@ -940,6 +944,7 @@ impl PreviewApplication {
         let window = self.window.clone().expect("checked above");
         let renderer = self.renderer.take().expect("checked above");
         self.lent = true;
+        self.lent_scene_revision = Some(self.scene_revision);
         self.next_frame = None;
         self.texture_uploads.pending = false;
         self.renderer_idle.resume();
@@ -954,10 +959,16 @@ impl PreviewApplication {
     /// Take the view back after the edit. The resident scene is uploaded again;
     /// its textures are still in the renderer's cache, so none is uploaded twice.
     /// `camera` keeps the angle the user ended the edit with.
+    /// `kept`: Browse's scene as it was set aside when the edit drew its own; it
+    /// comes back without an upload when Browse's package did not change meanwhile
+    /// (section 8.7 C1). `finished`: the edit was finished; its scene stays drawn
+    /// until the finished package replaces it, whatever its parts (8.8 R10).
     pub(crate) fn return_view(
         &mut self,
         renderer: Option<WindowRenderer>,
         camera: Option<OrbitCamera>,
+        kept: Option<cdmw_render_wgpu::KeptScene>,
+        finished: bool,
     ) {
         self.lent = false;
         if let Some(camera) = camera {
@@ -973,10 +984,38 @@ impl PreviewApplication {
             self.recover_gpu(error.to_string());
             return;
         }
-        self.renderer = Some(renderer);
-        let rebuilt = self
-            .configure_renderer()
-            .and_then(|()| self.apply_material_parameters());
+        if finished {
+            drop(kept);
+            self.renderer = Some(renderer);
+            self.render_failures = 0;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
+        let unchanged = self.lent_scene_revision == Some(self.scene_revision);
+        let rebuilt = match kept {
+            Some(kept) if unchanged => {
+                renderer.restore_scene(kept);
+                let transform = if self.snapshot_scene_roles.is_some() {
+                    role_model_matrix(&self.state.scene, "editable")
+                } else {
+                    Mat4::IDENTITY
+                };
+                self.renderer = Some(renderer);
+                self.renderer
+                    .as_mut()
+                    .expect("set above")
+                    .set_scene_transform(transform)
+                    .map_err(|error| error.to_string())
+            }
+            _ => {
+                self.renderer = Some(renderer);
+                self.configure_renderer()
+                    .and_then(|()| self.apply_material_parameters())
+            }
+        };
+        self.lent_scene_revision = None;
         if let Err(error) = rebuilt {
             self.recover_gpu(error);
             return;

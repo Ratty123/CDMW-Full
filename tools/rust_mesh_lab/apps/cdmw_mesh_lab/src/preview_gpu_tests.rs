@@ -1029,3 +1029,76 @@ impl ApplicationHandler for EngineDeviceProbe {
     }
     fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }
+
+/// Section 8.7 C1: Browse's scene set aside while an edit draws its own comes back
+/// whole, with its textures bound and nothing uploaded again.
+#[test]
+#[ignore = "explicit hidden-window D3D12 scene set aside and restored"]
+fn a_scene_set_aside_comes_back_without_an_upload() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = KeptSceneProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("the kept scene comes back");
+}
+
+#[derive(Default)]
+struct KeptSceneProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for KeptSceneProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(128, 128)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("kept.dds"),
+                MeshFormat::Pam,
+            )?;
+            let mesh = WorkingMesh::from_document(&document)?;
+            renderer.set_snapshot(&mesh.draw_snapshot())?;
+            renderer.set_view_mode(ViewMode::TexturedSolid);
+            renderer.set_clear_colour([0.02, 0.02, 0.02, 1.0]);
+            let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(128., 128.));
+            let mut camera = OrbitCamera::default();
+            camera.frame_all_in_viewport(&mesh, viewport);
+            renderer.set_camera_with_basis(
+                camera.view_projection(viewport),
+                camera.right(),
+                camera.up(),
+            );
+            let owners = vec![vec![0_u32]];
+            let browse_texture = cdmw_texture::synthetic::rgba8_checker_dds();
+            renderer.add_dds_texture(&browse_texture, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(renderer.texture_upload_count() == 1, "Browse's upload");
+            let browse_frame = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            // The edit: Browse's scene aside, an empty scene drawn meanwhile.
+            let kept = renderer.set_scene_aside();
+            let edit_frame = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            anyhow::ensure!(edit_frame != browse_frame, "the scene did not go aside");
+            // Back to Browse: the same picture, and no texture uploaded again.
+            renderer.restore_scene(kept);
+            let back = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            anyhow::ensure!(back == browse_frame, "the restored scene draws differently");
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the return uploaded again"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}

@@ -2430,6 +2430,13 @@ struct LabApplication {
     kept_selected_parts: Option<HashSet<u32>>,
     /// When other viewports last saw this edit's mesh (P4 V5's read-only follower).
     followers_seen_at: Option<Instant>,
+    /// Browse's scene, set aside when this edit first drew its own on Browse's
+    /// renderer; it goes back with the view (section 8.7 C1).
+    kept_preview_scene: Option<cdmw_render_wgpu::KeptScene>,
+    /// The last scene upload left a texture out (a memory or upload failure).
+    cdmw_texture_upload_failed: bool,
+    /// The lent renderer's scene was set aside (once per edit).
+    preview_scene_set_aside: bool,
     /// The revision followers were last given (section 8.8 R13: wake for the next).
     followers_seen_revision: Option<crate::engine::FollowedRevision>,
     cdmw_state: Value,
@@ -2706,6 +2713,9 @@ impl LabApplication {
             kept_hidden_parts: None,
             kept_selected_parts: None,
             followers_seen_at: None,
+            kept_preview_scene: None,
+            cdmw_texture_upload_failed: false,
+            preview_scene_set_aside: false,
             followers_seen_revision: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
@@ -2888,7 +2898,15 @@ impl LabApplication {
         window: Arc<Window>,
         mut renderer: WindowRenderer,
         parent_hwnd: u64,
-    ) -> Result<(Option<WindowRenderer>, OrbitCamera), String> {
+    ) -> Result<
+        (
+            Option<WindowRenderer>,
+            OrbitCamera,
+            Option<cdmw_render_wgpu::KeptScene>,
+        ),
+        String,
+    > {
+        self.preview_scene_set_aside = true; // this renderer is the edit's own
         self.configure_renderer(&mut renderer)?;
         let lent = self.renderer.replace(renderer);
         self.egui_state = Some(egui_winit::State::new(
@@ -2902,7 +2920,7 @@ impl LabApplication {
         self.embedded_parent_hwnd = Some(parent_hwnd);
         window.request_redraw();
         self.window = Some(window);
-        Ok((lent, self.camera.clone()))
+        Ok((lent, self.camera.clone(), self.kept_preview_scene.take()))
     }
 
     /// The edited file and its mesh for viewports that follow it read-only
@@ -2951,10 +2969,20 @@ impl LabApplication {
     }
 
     /// Hand the renderer and the camera back to the Preview when the edit ends.
-    fn give_back_view(&mut self) -> (Option<WindowRenderer>, OrbitCamera) {
+    fn give_back_view(
+        &mut self,
+    ) -> (
+        Option<WindowRenderer>,
+        OrbitCamera,
+        Option<cdmw_render_wgpu::KeptScene>,
+    ) {
         self.egui_state = None;
         self.window = None;
-        (self.renderer.take(), self.camera.clone())
+        (
+            self.renderer.take(),
+            self.camera.clone(),
+            self.kept_preview_scene.take(),
+        )
     }
 
     /// End this edit: an engine-hosted edit gives the view back; a helper of its own exits.
@@ -7603,6 +7631,26 @@ impl LabApplication {
     /// Upload this session's textures, materials and scene into a renderer. A
     /// pre-started helper runs this when its session arrives.
     fn configure_renderer(&mut self, renderer: &mut WindowRenderer) -> Result<(), String> {
+        if self.engine_hosted && !self.preview_scene_set_aside {
+            // The first scene this edit draws on Browse's renderer: Browse's own goes
+            // aside, so returning shows it without uploading it again (8.7 C1).
+            self.preview_scene_set_aside = true;
+            self.kept_preview_scene = Some(renderer.set_scene_aside());
+        }
+        let configured = self.configure_renderer_scene(renderer);
+        if self.texture_upload_failed_with_kept_scene() {
+            // Under memory pressure the kept scene goes first; it can be loaded again.
+            self.kept_preview_scene = None;
+            return self.configure_renderer_scene(renderer);
+        }
+        configured
+    }
+
+    fn texture_upload_failed_with_kept_scene(&self) -> bool {
+        self.kept_preview_scene.is_some() && self.cdmw_texture_upload_failed
+    }
+
+    fn configure_renderer_scene(&mut self, renderer: &mut WindowRenderer) -> Result<(), String> {
         let adapter = renderer.adapter_report();
         let quality = renderer.quality_report();
         self.status = format!(
@@ -7650,6 +7698,7 @@ impl LabApplication {
                 }
             }
         }
+        self.cdmw_texture_upload_failed = texture_warning.is_some();
         if self.cdmw_mode() {
             self.record_cdmw_texture_uploads(
                 self.cdmw_texture_resources.len(),

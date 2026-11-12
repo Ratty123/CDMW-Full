@@ -3045,6 +3045,22 @@ impl PendingFrameCapture {
     }
 }
 
+/// A renderer's scene moved aside while another is drawn (section 8.7 C1): its
+/// GPU buffers, textures and bindings, held until it is put back or dropped.
+pub struct KeptScene {
+    mesh: Option<GpuMeshBuffers>,
+    material_textures: Vec<GpuMaterialTexture>,
+    material_factors: Vec<MaterialFactorOwnership>,
+    active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
+    material_layers: BTreeMap<(usize, u32), Arc<material_layers::GpuLayers>>,
+    effects: Vec<GpuEffectTexture>,
+    effect_batches: Vec<GpuEffectBatch>,
+    effect_meshes: effect_mesh::Resources,
+    effect_instance_buffer: Option<(Arc<wgpu::Buffer>, usize)>,
+    camera: CameraUniform,
+    stats: MeshUploadStats,
+}
+
 /// The handles of a renderer's device, for off-screen work on another thread
 /// of the same process (P4 V5): wgpu's adapter, device and queue are shared
 /// handles, so a capture reuses the device instead of creating its own.
@@ -3382,6 +3398,43 @@ impl WindowRenderer {
             bytes.len() as u64,
         );
         Ok(uploaded)
+    }
+
+    /// Move this renderer's scene aside, leaving it empty, so another scene can be
+    /// drawn and this one put back without uploading it again (section 8.7 C1).
+    pub fn set_scene_aside(&mut self) -> KeptScene {
+        KeptScene {
+            mesh: self.mesh.take(),
+            material_textures: std::mem::take(&mut self.material_textures),
+            material_factors: std::mem::take(&mut self.material_factors),
+            active_material_bindings: std::mem::take(&mut self.active_material_bindings),
+            material_layers: std::mem::take(&mut self.material_layers),
+            effects: self.effect_textures.split_off(1),
+            effect_batches: std::mem::take(&mut self.effect_batches),
+            effect_meshes: std::mem::take(&mut self.effect_mesh.resources),
+            effect_instance_buffer: self.effect_instance_buffer.take(),
+            camera: self.camera_uniform,
+            stats: self.upload_stats,
+        }
+    }
+
+    /// Put a scene set aside back, replacing what is drawn now.
+    pub fn restore_scene(&mut self, kept: KeptScene) {
+        self.staged_texture = None;
+        self.mesh = kept.mesh;
+        self.material_textures = kept.material_textures;
+        self.material_factors = kept.material_factors;
+        self.active_material_bindings = kept.active_material_bindings;
+        self.material_layers = kept.material_layers;
+        self.effect_textures.truncate(1);
+        self.effect_textures.extend(kept.effects);
+        self.effect_batches = kept.effect_batches;
+        self.effect_mesh.resources = kept.effect_meshes;
+        self.effect_instance_buffer = kept.effect_instance_buffer;
+        self.camera_uniform = kept.camera;
+        self.upload_stats = kept.stats;
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&kept.camera));
     }
 
     /// Replace resources as one transaction. A failed upload must leave the
