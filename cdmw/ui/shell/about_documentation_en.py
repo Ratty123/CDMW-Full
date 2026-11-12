@@ -416,7 +416,8 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
                   <li>Use <a href="topic:prefab_inspector">Prefab Inspector</a> to change what a prefab is built from and save it as a mod.</li>
-                  <li>Inspect and extract DDS entries without editing them here, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Inspect and extract DDS entries without editing them here.</li>
+                  <li>Restore Backup... puts back the archive files an older CDMW version changed in the game, from the backup it made at the time. It asks before writing and restores only the files that backup holds. CDMW itself no longer changes the game's archives; everything it makes is a mod.</li>
                   <li>Replace sounds and edit sound banks as DMM loose mods: <b>Import WAV as Loose Mod</b> on a <code>.wem</code>, and <b>Replace Embedded Sound as Loose Mod</b> or <b>Edit Sound Bank as Loose Mod</b> on a <code>.bnk</code>. The installed game archives are not changed. See <a href="topic:archive_guides">Archive Browser Guides</a>.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
@@ -693,12 +694,14 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Open Drafts &amp; Mods from the tool list. Continue Earlier Work..., in Mesh Editor or on a mesh's right-click menu in Archive Browser, opens it as well.</li>
                   <li>Each row shows when it was saved, its name, the game file, whether it is a draft or a built mod, its edit pass, and whether it matches the current game files.</li>
+                  <li>A build that changes several game files shows the first in the Game file column with the number of others; its tooltip and Details list every file. The column keeps each file name whole and shortens the folders in front of it.</li>
                   <li>Select a row and choose Continue Editing. CDMW selects the game file in Archive Browser, then restores removed parts, the Morph &amp; Refit setup and the fitted shape.</li>
                   <li>Choose Name Draft... in Mesh Editor to name the open draft and choose its project. In Drafts &amp; Mods, change a name, project or your notes under Details, then choose Save Changes.</li>
                   <li>Choose New Project... to group related work, then Move to Project... to put the selected drafts and mods in it. Deleting a project keeps its drafts and mods.</li>
                   <li>Choose Duplicate... to copy a draft and try a variation without changing the original.</li>
                   <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
                   <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
+                  <li>Select two or more built mods that change different game files, such as two pieces of one armour, and choose Combine into One Mod... to write them into one new mod. CDMW first lists every file the new mod will hold and whether it becomes a loose mod or a DMM archive group; when two builds change the same game file, it names the file and both builds and writes nothing. Give a title and a new or empty folder outside the game folder, then choose Combine. The selected mods are kept as they are and the new mod is listed beside them. Cancel stops at any point and leaves no folder behind.</li>
                   <li>Create New Item lists each .cdmw item package it writes, with the settings it was written from. Select the package and choose Continue Editing to open it in Create New Item.</li>
                   <li>Choose Add Item Package... for a .cdmw written by an earlier version or by someone else. Continue Editing then rebuilds its settings from the package. Packages made by other tools, such as prefab or texture packages, are listed but cannot be continued.</li>
                   <li>For an item package, Remove from List... keeps the .cdmw file and removes only its saved settings.</li>

@@ -305,7 +305,7 @@ class ArchivePreviewLayoutMixin:
         )
         self.archive_restore_patch_backup_button = QPushButton("Restore Backup...")
         self.archive_restore_patch_backup_button.setToolTip(
-            "Restore a previously created archive patch backup."
+            "Put back the archive files an older CDMW version changed in the game, from the backup it made at the time."
         )
         self.archive_import_loose_mod_button = QPushButton("Import Loose Mod Folder...")
         self.archive_import_loose_mod_button.setToolTip(

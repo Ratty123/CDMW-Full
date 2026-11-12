@@ -2139,7 +2139,6 @@
       "• {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "it": {
-      "\n\nBackup: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "\n\n{value_0}\nSHA-256: {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "  * {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
@@ -2624,7 +2623,6 @@
       "• {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label."
     },
     "pt-BR": {
-      "\n\nBackup: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "\n\nZIP: {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "\n\n{value_0}\nSHA-256: {value_1}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "  * {value_0}": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
