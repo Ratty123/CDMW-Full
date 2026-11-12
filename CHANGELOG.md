@@ -13,6 +13,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - **Open in Mesh Editor** on a model Browse Archives already shows now edits it right there: the view keeps its angle and textures, the file and control panes fold into narrow strips that open under the pointer, and a banner names the file. Selecting another file shows its details; **Preview selected file instead** asks first. The editor appears on the model at once and every tool is ready within about two seconds for a single file; tools that are still being prepared say so when you use them and unlock by themselves. Sets, comparison views and files Browse is not showing still open in the Mesh Editor tab.
 
+- If CDMW closes unexpectedly while you edit a mesh, the next start tells you which drafts were saved and offers to open **Drafts & Mods** on them. Meshes opened from a file on disk are not autosaved, so there is nothing to offer for them.
+
 - **Settings > Shortcuts** shows the keys of every command, including the Mesh Editor's and the Texture Editor's, in one list. Search it, change, unbind or reset a key, or reset all; a key already used where it would clash is named before you save it. Keys you set in the Mesh Editor's or the Texture Editor's own shortcut windows appear here and carry over.
 
 - Mesh Editor's **Export PAC As…**, available after Finish, saves just the PAC with a chosen name and path, remembers the destination and replaces existing exports. Edits needing companion files explain why Build Mod is required.

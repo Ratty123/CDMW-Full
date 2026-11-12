@@ -627,3 +627,46 @@ def test_material_sources_set_aside_for_a_copy_come_back_on_both_parts() -> None
     assert part.preview_native_material_overrides["preview_core_material_source"] is source
     assert copy_.preview_native_material_overrides["preview_core_material_source"] is source
     assert plain.preview_native_material_overrides == {"tint": 2}
+
+
+# ----- after CDMW itself dies, the next start offers the autosaved draft (P4 V4) --
+
+def test_drafts_saved_while_the_dead_session_ran_are_found(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.services import crash_draft_recovery, mesh_saved_work_service
+
+    heartbeat_path = tmp_path / "heartbeat.json"
+    heartbeat_path.write_text(json.dumps({"session_id": "77-1700000000000", "started_at": "1700000000000",
+                                          "last_beat_epoch": 1700000600.0, "clean_shutdown": False}))
+    heartbeat = crash_draft_recovery.read_heartbeat(heartbeat_path)
+    assert crash_draft_recovery.session_window(heartbeat) == (1700000000.0, 1700000720.0)
+    row = lambda saved, kind="draft", draft=True: SimpleNamespace(  # noqa: E731
+        kind=kind, has_draft=draft, saved_at=saved, display_name=f"d{saved}", source_archive_path="a/b.pac")
+    rows = (row(1700000500), row(1699999000), row(1700000700, kind="built_mod"), row(1700000300, draft=False))
+    monkeypatch.setattr(mesh_saved_work_service, "list_saved_work", lambda root: rows)
+    found = crash_draft_recovery.drafts_saved_during(heartbeat, tmp_path)
+    assert [r.saved_at for r in found] == [1700000500]  # earlier drafts, mods and empty rows are not offered
+    assert crash_draft_recovery.drafts_saved_during({**heartbeat, "clean_shutdown": True}, tmp_path) == ()
+    assert crash_draft_recovery.read_heartbeat(tmp_path / "missing.json") is None
+
+
+def test_the_offer_opens_drafts_and_mods_on_the_newest_draft() -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    from cdmw.ui.shell.crash_draft_offer import crash_draft_offer_text, show_crash_draft_offer
+
+    opened = []
+    window = QWidget()
+    window._open_mesh_editor_saved_work = opened.append
+    rows = (SimpleNamespace(saved_at=1700000500.0, display_name="Upper body pass 2",
+                            source_archive_path="character/model/upper.pac"),)
+    try:
+        assert "Upper body pass 2" in crash_draft_offer_text(rows)
+        box = show_crash_draft_offer(window, rows)
+        assert box is not None and box.isVisible()  # shown without blocking start-up
+        open_button = next(b for b in box.buttons() if box.buttonRole(b) == QMessageBox.ButtonRole.AcceptRole)
+        open_button.click()
+        QApplication.processEvents()
+        assert opened == ["character/model/upper.pac"]
+        assert show_crash_draft_offer(window, ()) is None
+    finally:
+        window.deleteLater()

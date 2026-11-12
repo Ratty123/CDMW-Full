@@ -394,6 +394,11 @@ def run_gui() -> int:
         _default_threading_excepthook,
         _default_unraisablehook,
     )
+    from cdmw.services.crash_draft_recovery import read_heartbeat as _read_previous_heartbeat
+
+    # Read before the check and before this session overwrites it: the drafts
+    # saved while that session ran are offered after start-up (P4 V4).
+    _previous_heartbeat = _read_previous_heartbeat(heartbeat_path)
     _previous_session_unclean = _check_previous_unclean_exit()
     _prune_crash_reports(crash_reports_dir, limit=20)
     _reset_runtime_event_logs(
@@ -443,6 +448,7 @@ def run_gui() -> int:
                 write_heartbeat=_write_heartbeat,
             )
             self._initialize_window_runtime_state()
+            self._previous_heartbeat = _previous_heartbeat if _previous_session_unclean else None
             self._runtime_event_tail = _runtime_event_recorder.tail
             self.archive._initialize_archive_runtime_state()
             self._initialize_tool_window_state()

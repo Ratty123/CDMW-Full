@@ -289,6 +289,9 @@ class StartupPromptMixin:
             self._release_startup_splash()
             return
         if bool(getattr(self, "_previous_session_unclean", False)) and not self._startup_benchmark_enabled():
+            from cdmw.ui.shell.crash_draft_offer import schedule_crash_draft_offer
+
+            schedule_crash_draft_offer(self)  # offers the drafts the session that died had saved
             message = (
                 "Startup archive auto-load skipped because the previous session did not shut down cleanly. "
                 "Open Archive Browser manually after the window is responsive, or use Help > Export Diagnostics "
