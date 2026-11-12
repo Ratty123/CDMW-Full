@@ -33,6 +33,7 @@ from cdmw.workers.archive_preview_native import (
     NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS,
     native_preview_core_timeout_seconds,
 )
+from cdmw.workers.runnable_signals import application_owned, release
 
 
 # Only the first screenful is worth scanning: the row the user clicks first is
@@ -63,7 +64,7 @@ class _ArchivePreviewCorePrewarmTask(QRunnable):
         self.package_root = Path(package_root) if package_root else None
         self.render_settings = render_settings
         self.stop_event = stop_event
-        self.signals = _PreviewCorePrewarmSignals()
+        self.signals = application_owned(_PreviewCorePrewarmSignals)
 
     def run(self) -> None:  # pragma: no cover - exercised through the window
         # Imported here so a session that never previews does not pay for the
@@ -94,7 +95,10 @@ class _ArchivePreviewCorePrewarmTask(QRunnable):
             # would be keyed off render settings the user has not chosen yet.
             if output_root is not None:
                 shutil.rmtree(output_root, ignore_errors=True)
-        self.signals.completed.emit(result)
+        try:
+            self.signals.completed.emit(result)
+        finally:
+            release(self.signals)
 
 
 class ArchivePreviewCorePrewarmMixin:
