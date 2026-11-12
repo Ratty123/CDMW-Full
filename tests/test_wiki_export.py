@@ -502,7 +502,8 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
             source = "Saved drafts and built mods" if topic == "mesh_editor" else "Distribution"
             assert localizer.translate(source) in body
             source_paragraph = (
-                "A draft keeps its Undo history after CDMW closes, up to 64 steps and 256 MiB a draft. Undo goes back through the edits you finished, and Redo forward again. Edits that were not finished come back in the editor as one step, Recovered edits. A mesh opened from disk has no draft and keeps its history only while it is open."
+                "A draft keeps its Undo history after CDMW closes, up to 64 steps and 256 MiB a draft; the unfinished "
+                "edits kept for a crash count toward the 256 MiB, and texture and material files that drafts share do not. Undo goes back through the edits you finished, and Redo forward again. Edits that were not finished come back in the editor as one step, Recovered edits. A mesh opened from disk has no draft and keeps its history only while it is open."
                 if topic == "mesh_editor" else
                 "Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects."
             )
