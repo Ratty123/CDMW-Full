@@ -416,8 +416,12 @@ class AutomationBridge(QObject):
         return hub.values()
 
     def _selection(self, _args: dict) -> dict[str, object]:
-        entry = getattr(self.window.archive, "archive_preview_request_entry", None)
-        return {"path": str(getattr(entry, "path", "") or "")}
+        archive = self.window.archive
+        entry = getattr(archive, "archive_preview_request_entry", None)
+        current = getattr(archive, "_current_archive_entry", None)
+        selected = current() if callable(current) else None
+        # "selected": the tree's row, which an edit holding Browse's view does not preview (P15).
+        return {"path": str(getattr(entry, "path", "") or ""), "selected": str(getattr(selected, "path", "") or "")}
 
     def _activate_tool(self, args: dict) -> bool:
         self.window.shell._activate_tool_key(str(args["key"]))

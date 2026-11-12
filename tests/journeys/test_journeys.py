@@ -164,14 +164,33 @@ def test_journey_7_two_documents_edit_in_one_process(run):
     browse_pid = run.state()["browse_process_id"]
     run.open_mesh_editor()
     run.wait(lambda: run.state()["mesh_editor"]["ready"], timeout=60, what="the first edit to be ready")
-    run.select(driver.UPPER)
-    run.open_mesh_editor()
+    # Browse's view holds the first edit, so the second file is selected, not previewed.
+    run.call("select_entry", path=driver.UPPER)
+    run.wait(lambda: run.call("selection").get("selected", "").casefold() == driver.UPPER.casefold(),
+             timeout=30, what="the second file to be selected")
+
+    def two_open():
+        return len(run.state()["mesh_documents"]["documents"]) == 2
+
+    # The second file's related files are prepared first ("Open in Mesh Editor again
+    # when its preview finishes"), as a user who opens it again would see.
+    for _attempt in range(4):
+        run.call("open_mesh_editor")
+        try:
+            run.wait(two_open, timeout=20, what="a second document")
+            break
+        except TimeoutError:
+            run.wait(lambda: not run.state()["browse"]["worker_busy"], timeout=120, what="Browse to prepare the file")
 
     def two_ready():
         documents = run.state()["mesh_documents"]["documents"]
         return len(documents) == 2 and all(document["ready"] for document in documents) and documents
 
-    documents = run.wait(two_ready, timeout=90, what="both documents to be ready")
+    try:
+        documents = run.wait(two_ready, timeout=90, what="both documents to be ready")
+    except TimeoutError as timeout:
+        state = run.state()
+        raise AssertionError(f"{timeout}: {state['mesh_documents']} editor {state['mesh_editor']}") from timeout
     # Both edits are in Browse's process: one in its view, one in a window of its own.
     assert {document["process_id"] for document in documents} == {browse_pid}, documents
     assert [document["in_browse"] for document in documents].count(True) <= 1
