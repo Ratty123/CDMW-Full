@@ -430,3 +430,53 @@ def test_a_deferred_open_says_morphs_are_preparing_until_its_query_answers(tmp_p
     finally:
         session.cancel()
         authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)
+
+
+# ----- one view mode, one background for every viewport (P4 V3) ----------------
+
+def test_the_view_mode_list_is_the_union_and_old_values_migrate(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    from cdmw.domain.preview_view_modes import (
+        LEGACY_VIEW_MODE_KEY, SHARED_VIEW_MODE_IDS, VIEW_MODE_KEY, read_view_mode, shared_view_mode, write_view_mode,
+    )
+    from cdmw.models import D3D11_PREVIEW_VIEW_MODES, ModelPreviewRenderSettings, clamp_model_preview_render_settings
+
+    assert D3D11_PREVIEW_VIEW_MODES == SHARED_VIEW_MODE_IDS
+    assert {"game_outdoor", "normal_map", "layer_mask", "wire", "xray", "island_colors"} <= set(SHARED_VIEW_MODE_IDS)
+    assert [shared_view_mode(v) for v in ("lit", "base_direct", "part_id", "normal", "bogus")] == [
+        "textured", "base_color", "part_colors", "normal_map", "textured"]
+    assert clamp_model_preview_render_settings(ModelPreviewRenderSettings(d3d11_view_mode="normal")).d3d11_view_mode \
+        == "normal_map"
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(LEGACY_VIEW_MODE_KEY, "base_direct")
+    assert read_view_mode(settings) == "base_color"
+    write_view_mode(settings, "wire")
+    assert settings.value(VIEW_MODE_KEY) == "wire" and settings.value(LEGACY_VIEW_MODE_KEY) is None
+
+
+def test_the_store_carries_view_mode_and_background_to_every_viewport(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.preview.preview_settings_hub import PreviewSettingsHub
+
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue("preview/d3d11_view_mode", "normal")
+    hub = PreviewSettingsHub(settings)
+    assert hub.values()["view_mode"] == "normal_map" and hub.values()["background_color"] == "#3B3B3B"
+    heard = []
+    hub.changed.connect(heard.append)
+    assert hub.update(view_mode="xray", background_color="#0a0b0c")
+    assert heard[-1]["view_mode"] == "xray" and heard[-1]["background_color"] == "#0A0B0C"
+    assert settings.value("preview/view_mode") == "xray" and settings.value("preview/d3d11_view_mode") is None
+    assert not hub.update(background_color="not a colour", view_mode="xray")  # invalid colour keeps the default
+
+
+def test_browse_keeps_the_shared_values_another_viewport_set(monkeypatch) -> None:
+    from cdmw.models import ModelPreviewRenderSettings
+    from cdmw.ui.archive_browser import preview_settings
+
+    store = SimpleNamespace(values=lambda: {"view_mode": "wire", "background_color": "#102030", "shadows": False})
+    monkeypatch.setattr("cdmw.ui.preview.preview_settings_hub.preview_settings_hub", lambda: store)
+    merged = preview_settings._with_shared_values(ModelPreviewRenderSettings())
+    assert (merged.d3d11_view_mode, merged.d3d11_background_color, merged.preview_shadows) == ("wire", "#102030", False)

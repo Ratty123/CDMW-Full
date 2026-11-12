@@ -23,6 +23,9 @@ GLOBAL_PREVIEW_SETTINGS: dict[str, tuple[str, object]] = {
     "ambient_occlusion": ("preview/preview_ambient_occlusion", True),
     "ground": ("preview/preview_ground_visible", True),
     "ground_grid": ("preview/preview_ground_grid_visible", True),
+    # P4 V3: one view mode and one background for every viewport.
+    "view_mode": ("preview/view_mode", "textured"),
+    "background_color": ("preview/d3d11_background_color", "#3B3B3B"),
 }
 
 
@@ -37,6 +40,14 @@ def _as_bool(value: object, default: bool) -> bool:
     return default
 
 
+def _hex_color(value: object, default: str) -> str:
+    text = str(value or "").strip()
+    digits = text[1:] if text.startswith("#") else text
+    if len(digits) == 6 and all(c in "0123456789abcdefABCDEF" for c in digits):
+        return "#" + digits.upper()
+    return default
+
+
 def normalize_preview_settings(values: Mapping[str, object]) -> dict[str, object]:
     """Only known names, with validated values."""
 
@@ -48,6 +59,12 @@ def normalize_preview_settings(values: Mapping[str, object]) -> dict[str, object
         if name == "lighting_preset":
             text = str(value or "").strip().lower()
             result[name] = text if text in LIGHTING_PRESETS else default
+        elif name == "view_mode":
+            from cdmw.domain.preview_view_modes import shared_view_mode
+
+            result[name] = shared_view_mode(value)
+        elif name == "background_color":
+            result[name] = _hex_color(value, str(default))
         else:
             result[name] = _as_bool(value, bool(default))
     return result
@@ -62,7 +79,10 @@ class PreviewSettingsHub(QObject):
         self._last = self._read()
 
     def _read(self) -> dict[str, object]:
+        from cdmw.domain.preview_view_modes import read_view_mode
+
         raw = {name: self._settings.value(key, default) for name, (key, default) in GLOBAL_PREVIEW_SETTINGS.items()}
+        raw["view_mode"] = read_view_mode(self._settings)  # migrates preview/d3d11_view_mode
         return normalize_preview_settings(raw)
 
     def values(self) -> dict[str, object]:
@@ -71,6 +91,8 @@ class PreviewSettingsHub(QObject):
     def update(self, **changes: object) -> bool:
         """Store changed global values and tell every viewport."""
 
+        if "background_color" in changes and not _hex_color(changes["background_color"], ""):
+            changes = {name: value for name, value in changes.items() if name != "background_color"}
         clean = normalize_preview_settings(changes)
         if not clean:
             return False
@@ -79,6 +101,11 @@ class PreviewSettingsHub(QObject):
             self._last = current
             return False
         for name, value in clean.items():
+            if name == "view_mode":
+                from cdmw.domain.preview_view_modes import write_view_mode
+
+                write_view_mode(self._settings, value)
+                continue
             self._settings.setValue(GLOBAL_PREVIEW_SETTINGS[name][0], value)
         self._settings.sync()
         self._last = self._read()

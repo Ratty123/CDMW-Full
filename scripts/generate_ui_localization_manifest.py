@@ -1865,6 +1865,13 @@ def build_manifest() -> dict[str, object]:
                     "sink": "python-data:TextureEditorDdsPreset",
                 })
 
+    # One view-mode list for Browse's preview and the Mesh Editor (P4 V3): both draw these names.
+    from cdmw.domain.preview_view_modes import SHARED_VIEW_MODES
+
+    for _mode, text in SHARED_VIEW_MODES:
+        origins.setdefault(text, []).append({
+            "path": "cdmw/domain/preview_view_modes.py", "line": 1, "sink": "rust-presentation",
+        })
     for family in (*MESH_FAMILIES, EYE_COVER):
         for text in (family.label, family.note, *(field.label for field in family.fields)):
             origins.setdefault(text, []).append({

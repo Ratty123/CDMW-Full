@@ -126,7 +126,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual("C:\\game\\0009\\1.paz", job["entry"]["paz_file"])
         self.assertEqual("mesh_base_first", job["render_settings"]["visible_texture_mode"])
         self.assertEqual("lit", job["render_settings"]["render_diagnostic_mode"])
-        self.assertEqual("lit", job["render_settings"]["d3d11_view_mode"])
+        # P4 V3: one shared view-mode list; the native core only tests game_outdoor.
+        self.assertEqual("textured", job["render_settings"]["d3d11_view_mode"])
         self.assertAlmostEqual(-2.0, job["render_settings"]["d3d11_mip_lod_bias"])
         self.assertEqual("asset", job["render_settings"]["d3d11_normal_y_mode"])
         self.assertEqual("wrap", job["render_settings"]["d3d11_texture_address_mode"])

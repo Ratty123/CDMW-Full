@@ -662,18 +662,17 @@ pub(super) mod layout {
     }
 }
 
-const CDMW_VIEW_MODES: [(ViewMode, &str); 10] = [
-    (ViewMode::TexturedSolid, "Solid (Textured)"),
-    (ViewMode::BaseColor, "Base Color"),
-    (ViewMode::PartId, "Part colors"),
-    (ViewMode::PartId, "Island colors"),
-    (ViewMode::Solid, "Faces (No Textures)"),
-    (ViewMode::SolidWire, "Faces + Wire"),
-    (ViewMode::Wireframe, "Wire"),
-    (ViewMode::Vertices, "Vertices"),
-    (ViewMode::WireVertices, "Wire + Vertices"),
-    (ViewMode::XRay, "X-Ray"),
-];
+/// The editor's Display menu: the shared list every viewport offers (P4 V3).
+const CDMW_VIEW_MODES: [(ViewMode, &str); 16] = {
+    let mut modes = [(ViewMode::TexturedSolid, ""); 16];
+    let mut index = 0;
+    while index < 16 {
+        let (_, mode, label, _) = crate::view_modes::SHARED_VIEW_MODES[index];
+        modes[index] = (mode, label);
+        index += 1;
+    }
+    modes
+};
 
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
@@ -1501,7 +1500,16 @@ pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expan
 /// texture they would draw a flat white model, so they are offered only once
 /// one is bound.
 pub(crate) const fn cdmw_view_mode_needs_textures(mode: ViewMode) -> bool {
-    matches!(mode, ViewMode::TexturedSolid | ViewMode::BaseColor)
+    matches!(
+        mode,
+        ViewMode::TexturedSolid
+            | ViewMode::BaseColor
+            | ViewMode::GameOutdoor
+            | ViewMode::NormalMap
+            | ViewMode::BaseAlpha
+            | ViewMode::MaterialResponse
+            | ViewMode::LayerMask
+    )
 }
 
 fn cdmw_view_mode_label(mode: ViewMode, islands: bool) -> &'static str {
@@ -1677,12 +1685,16 @@ impl LabApplication {
     }
 
     pub(super) fn current_shared_preview_settings(&self) -> serde_json::Value {
+        let background = self.viewport_background_colour;
         serde_json::json!({
             "lighting_preset": self.lighting_preset.id(),
             "shadows": self.lighting_depth.shadows,
             "ambient_occlusion": self.lighting_depth.ambient_occlusion,
             "ground": self.ground_visible,
             "ground_grid": self.ground_grid,
+            // One view mode and one background for every viewport (P4 V3).
+            "view_mode": crate::view_modes::shared_id(self.view_mode, self.cdmw_island_colours),
+            "background_color": crate::view_modes::hex_colour([background.r(), background.g(), background.b()]),
         })
     }
 
@@ -1707,6 +1719,25 @@ impl LabApplication {
             flag("ambient_occlusion", self.lighting_depth.ambient_occlusion);
         self.ground_visible = flag("ground", self.ground_visible);
         self.ground_grid = flag("ground_grid", self.ground_grid);
+        if let Some((mode, islands)) = settings
+            .get("view_mode")
+            .and_then(serde_json::Value::as_str)
+            .and_then(crate::view_modes::from_shared_id)
+            && (mode, islands) != (self.view_mode, self.cdmw_island_colours)
+        {
+            if islands && self.cdmw_state["mesh_islands"]["color_faces"].is_array() {
+                self.set_cdmw_island_colours(true);
+            } else {
+                self.set_cdmw_display_mode(mode);
+            }
+        }
+        if let Some([r, g, b]) = settings
+            .get("background_color")
+            .and_then(serde_json::Value::as_str)
+            .and_then(crate::view_modes::parse_hex_colour)
+        {
+            self.viewport_background_colour = Color32::from_rgb(r, g, b);
+        }
         self.shared_preview_settings = Some(self.current_shared_preview_settings());
     }
 
@@ -3021,7 +3052,7 @@ impl LabApplication {
             .width(ui.available_width())
             // Tall enough to show every mode: at the default 200 px the list
             // scrolls and the last choice sits out of sight.
-            .height(320.0)
+            .height(480.0)
             .truncate()
             .selected_text(crate::localization::tr(cdmw_view_mode_label(
                 self.view_mode,
@@ -6337,14 +6368,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn integrated_display_modes_match_the_mesh_editor_product_choices() {
+    fn the_editor_offers_the_one_view_mode_list_every_viewport_shares() {
+        // P4 V3: Browse's diagnostics and the editor's geometry modes, one list.
         assert_eq!(
             CDMW_VIEW_MODES.map(|(_, label)| label),
             [
                 "Solid (Textured)",
+                "Game Outdoor Approx",
                 "Base Color",
+                "Normals",
+                "UV Checker",
+                "Alpha",
                 "Part colors",
                 "Island colors",
+                "Material Response",
+                "Layer Mask",
                 "Faces (No Textures)",
                 "Faces + Wire",
                 "Wire",
@@ -6353,17 +6391,18 @@ mod tests {
                 "X-Ray",
             ]
         );
-        let modes = CDMW_VIEW_MODES.map(|(mode, _)| mode);
-        for diagnostic in [
-            ViewMode::GameOutdoor,
-            ViewMode::NormalMap,
-            ViewMode::UvChecker,
-            ViewMode::BaseAlpha,
-            ViewMode::MaterialResponse,
-            ViewMode::LayerMask,
-        ] {
-            assert!(!modes.contains(&diagnostic));
-        }
+        let mut application = LabApplication::new(None, None);
+        application.apply_shared_preview_settings(
+            &json!({"view_mode": "wire", "background_color": "#102030"}),
+        );
+        assert_eq!(application.view_mode, ViewMode::Wireframe);
+        assert_eq!(
+            application.viewport_background_colour,
+            Color32::from_rgb(0x10, 0x20, 0x30)
+        );
+        let shared = application.current_shared_preview_settings();
+        assert_eq!(shared["view_mode"], "wire");
+        assert_eq!(shared["background_color"], "#102030");
     }
 
     #[test]

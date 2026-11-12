@@ -24,6 +24,8 @@ enum RuntimeRouteKind {
     LocalTool,
     LocalPage,
     LocalState,
+    /// One of the Preview settings every viewport shares (P4 V3).
+    SharedSetting,
     UiAction,
     ShadowCommand,
     ShadowTopology,
@@ -40,6 +42,7 @@ impl RuntimeRouteKind {
             Self::LocalTool => "local_tool",
             Self::LocalPage => "local_page",
             Self::LocalState => "local_state",
+            Self::SharedSetting => "shared_preview_setting",
             Self::UiAction => "ui_action",
             Self::ShadowCommand => "typed_shadow_command",
             Self::ShadowTopology => "typed_shadow_topology",
@@ -79,6 +82,10 @@ impl RuntimeRoute {
             RuntimeRouteKind::LocalPage => {
                 all_anchors_present(CDMW_UI_SOURCE, self.target)
                     && MAIN_SOURCE.contains("enum CdmwRailPage")
+            }
+            RuntimeRouteKind::SharedSetting => {
+                CDMW_UI_SOURCE.contains(&format!("self.{}", self.target))
+                    && CDMW_UI_SOURCE.contains("fn current_shared_preview_settings")
             }
             RuntimeRouteKind::LocalState => self.target.split('+').all(|target| {
                 CDMW_UI_SOURCE.contains(&format!("self.{target}"))
@@ -519,7 +526,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.restore_shape_cancel" => (Kind::ShadowCommand, "refit_restore_shape_cancel"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
         "morph.bake" => (Kind::ShadowCommand, "morph_bake"),
-        "display.mode" => (Kind::LocalState, "view_mode"),
+        "display.mode" => (Kind::SharedSetting, "view_mode"),
         "display.overlay.wire_colour" => (Kind::LocalState, "overlay_wire_colour"),
         "display.overlay.vertex_colour" => (Kind::LocalState, "overlay_vertex_colour"),
         "display.overlay.selection_colour" => (Kind::LocalState, "overlay_selection_colour"),
@@ -532,7 +539,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         ),
         "display.overlay.wire_width" => (Kind::LocalState, "overlay_wire_width"),
         "display.overlay.vertex_size" => (Kind::LocalState, "overlay_vertex_size"),
-        "display.background_colour" => (Kind::LocalState, "viewport_background_colour"),
+        "display.background_colour" => (Kind::SharedSetting, "viewport_background_colour"),
         "display.grid_colour" => (Kind::LocalState, "viewport_grid_colour"),
         "display.colours.reset" => (
             Kind::LocalState,

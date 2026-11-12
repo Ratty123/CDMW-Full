@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.domain.preview_view_modes import read_view_mode
+
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
@@ -42,6 +44,36 @@ except Exception:  # pragma: no cover - shipped with PySide6, defensive for test
     shiboken6 = None
 
 
+
+#: Shared Preview settings (the store every viewport follows) -> this settings object's fields.
+_SHARED_FIELDS = {
+    "lighting_preset": "preview_lighting_preset",
+    "shadows": "preview_shadows",
+    "ambient_occlusion": "preview_ambient_occlusion",
+    "ground": "preview_ground_visible",
+    "ground_grid": "preview_ground_grid_visible",
+    "view_mode": "d3d11_view_mode",
+    "background_color": "d3d11_background_color",
+}
+
+
+def _with_shared_values(settings: ModelPreviewRenderSettings) -> ModelPreviewRenderSettings:
+    """Browse's settings with the shared values on top.
+
+    Another viewport (the Mesh Editor) may have changed them; reading them here
+    keeps Browse from saving its older copy back over the change.
+    """
+
+    from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+    hub = preview_settings_hub()
+    if hub is None:
+        return settings
+    values = hub.values()
+    changes = {field: values[name] for name, field in _SHARED_FIELDS.items()
+               if name in values and hasattr(settings, field) and getattr(settings, field) != values[name]}
+    return replace(settings, **changes) if changes else settings
+
 class ArchivePreviewSettingsMixin:
     """Preview settings dialogs, persistence reads, and live refresh hooks."""
 
@@ -51,7 +83,7 @@ class ArchivePreviewSettingsMixin:
             and not getattr(self, "_archive_preview_startup_state_applying", False)
         ):
             self.shell._ensure_archive_preview_startup_state()
-        return clamp_model_preview_render_settings(self._model_preview_render_settings)
+        return _with_shared_values(clamp_model_preview_render_settings(self._model_preview_render_settings))
 
     def _model_preview_settings_status(self) -> tuple[str, str]:
         return model_preview_settings_status(self._current_model_preview_render_settings())
@@ -214,10 +246,7 @@ class ArchivePreviewSettingsMixin:
                     self.shell.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
                     or defaults.render_diagnostic_mode
                 ),
-                d3d11_view_mode=str(
-                    self.shell.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
-                    or defaults.d3d11_view_mode
-                ),
+                d3d11_view_mode=read_view_mode(self.shell.settings),
                 d3d11_normal_y_mode=str(
                     self.shell.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
                     or defaults.d3d11_normal_y_mode
@@ -675,6 +704,8 @@ class ArchivePreviewSettingsMixin:
                 ambient_occlusion=preview_settings.preview_ambient_occlusion,
                 ground=preview_settings.preview_ground_visible,
                 ground_grid=preview_settings.preview_ground_grid_visible,
+                view_mode=preview_settings.d3d11_view_mode,
+                background_color=preview_settings.d3d11_background_color,
             )
         self._model_preview_render_settings = preview_settings
         set_model_texture_display_preview_max_dimension(

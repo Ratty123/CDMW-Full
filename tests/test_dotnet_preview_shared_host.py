@@ -2024,7 +2024,8 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     # A viewport's own lighting is a local setting carried with the shared
     # display values (ground, grid); still a display-only update.
     assert live["display"]["lighting_preset"] == "showcase"
-    assert set(live["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality"}
+    assert set(live["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality",
+                                    "view_mode", "viewport_background_color"}  # shared since P4 V3
     assert host.has_local_preview_settings
     assert not {"camera", "uv", "visibility", "part_transforms", "comparison_mode"}.intersection(live)
     event, payload = controller._resident_state["presentation"]  # noqa: SLF001
@@ -2037,7 +2038,8 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
 
     assert host.set_lighting_preset("dark")
     assert process.writes[-1]["display"]["lighting_preset"] == "dark"
-    assert set(process.writes[-1]["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality"}
+    assert set(process.writes[-1]["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality",
+                                                  "view_mode", "viewport_background_color"}
     assert host.set_lighting_preset("studio_fixed")
     assert process.writes[-1]["display"]["lighting_preset"] == "studio_fixed"
     assert controller._resident_state["presentation"][1]["camera"]["yaw"] == 27.0

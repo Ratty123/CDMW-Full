@@ -5105,7 +5105,8 @@ def _material_synthesis_working_bytes(submesh: object) -> int:
         except (OSError, ValueError):
             return _RUST_SYNTHESIS_WORKING_BYTES
         source_bytes += width * height * 4
-        largest_output = max(largest_output, min(width, 2048) * min(height, 2048))
+        cap = _synthesis_max_dimension()
+        largest_output = max(largest_output, min(width, cap) * min(height, cap))
     # Include RGBA/float source copies, composition intermediates and encode scratch.
     return source_bytes * 4 + largest_output * 64
 
@@ -5361,7 +5362,7 @@ def _mesh_synthesized_texture_overrides_serial(
                 role=f"rust_lod_{lod_index}",
                 include_resources=True,
                 cancelled=cancellation_event.is_set,
-                support_map_max_dimension=2048,
+                support_map_max_dimension=_synthesis_max_dimension(),
                 requested_synthesis_channels_by_submesh=(
                     requested_channels_by_submesh or None
                 ),
@@ -10803,6 +10804,20 @@ class RustMeshAuthoringSession:
             self.mesh_island_cache.clear()
             self.closed = True
         return warning
+
+
+def _synthesis_max_dimension() -> int:
+    """Largest side of a texture the editor synthesises (P4 V3).
+
+    It follows the shared preview texture quality, as every viewport's textures
+    do: a lower setting lowers it. 2048 stays the ceiling, since synthesis runs
+    while the editor opens and is budgeted for that size.
+    """
+
+    from cdmw.core import archive_model_texture_config
+
+    value = int(getattr(archive_model_texture_config, "MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION", 2048) or 2048)
+    return max(256, min(2048, value))
 
 
 def deferred_morph_placeholder() -> dict[str, object]:

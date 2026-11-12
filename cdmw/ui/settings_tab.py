@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.domain.preview_view_modes import read_view_mode, write_view_mode
+
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Dict, Optional
 
@@ -1527,7 +1529,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
         self.settings.setValue("preview/visible_texture_mode", preview_settings.visible_texture_mode)
         self.settings.setValue("preview/render_diagnostic_mode", preview_settings.render_diagnostic_mode)
-        self.settings.setValue("preview/d3d11_view_mode", preview_settings.d3d11_view_mode)
+        write_view_mode(self.settings, preview_settings.d3d11_view_mode)
         self.settings.setValue("preview/d3d11_normal_y_mode", preview_settings.d3d11_normal_y_mode)
         self.settings.setValue("preview/d3d11_texture_address_mode", preview_settings.d3d11_texture_address_mode)
         self.settings.setValue("preview/alpha_handling_mode", preview_settings.alpha_handling_mode)
@@ -1903,10 +1905,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                     self.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
                     or defaults.render_diagnostic_mode
                 ),
-                d3d11_view_mode=str(
-                    self.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
-                    or defaults.d3d11_view_mode
-                ),
+                d3d11_view_mode=read_view_mode(self.settings),
                 d3d11_normal_y_mode=str(
                     self.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
                     or defaults.d3d11_normal_y_mode

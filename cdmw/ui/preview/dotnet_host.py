@@ -315,7 +315,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         display = dict(self._presentation_state.get("display", {}))
         patch: dict[str, object] = {}
         for name, key in (("lighting_preset", "lighting_preset"), ("ground", "ground_visible"),
-                          ("ground_grid", "ground_grid_visible")):
+                          ("ground_grid", "ground_grid_visible"), ("view_mode", "view_mode"),
+                          ("background_color", "viewport_background_color")):
             if name in values:
                 display[key] = values[name]
                 patch[key] = values[name]

@@ -52,6 +52,7 @@ mod preview_gpu_tests;
 mod preview_loader;
 mod shortcuts;
 mod texture_view;
+mod view_modes;
 mod viewport;
 
 use anyhow::{Context, Result, bail};

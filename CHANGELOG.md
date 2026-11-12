@@ -33,6 +33,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Browse Archives, preview windows and the Mesh Editor now share **one view mode** and **one background colour**: every viewport offers the same list (Browse's material views and the editor's Faces, Wire, Vertices and X-Ray views), and changing either in one viewport changes it in the others. Your earlier Preview view choice carries over. Icon captures are always textured.
+
 - Replacing an open mesh edit, or closing CDMW with one open, now asks **Finish**, **Discard** or **Keep editing** instead of a Yes or No question. If the Mesh Editor's 3D view stops unexpectedly, it restarts and your edits up to the last completed step are kept; only the step in progress is lost. A second stop within a minute offers Finish or Discard. Morph and refit data now finish loading just after the editor opens.
 
 - CDMW keeps its temporary files in **workspace\temp** inside its own folder instead of the Windows temp folder, and removes what a crash left there after a day. Create New Item's Blender path, rig folder and preview choices, which were kept in the Windows registry and shared by every copy of CDMW, now live in the settings file; they are copied over once and the registry entry is left as it is. If the CDMW folder cannot be written to, CDMW says so at start instead of using another folder.

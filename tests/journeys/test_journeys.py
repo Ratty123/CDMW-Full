@@ -110,7 +110,10 @@ def test_journey_5_a_preview_setting_changed_once_reaches_every_viewport(run):
     run.open_mesh_editor()
     settings = run.state()["preview_settings"]
     flipped = {"ground_grid": not settings["shared"]["ground_grid"],
-               "shadows": not settings["shared"]["shadows"]}
+               "shadows": not settings["shared"]["shadows"],
+               # P4 V3: one view mode and one background for every viewport.
+               "view_mode": "wire" if settings["shared"]["view_mode"] != "wire" else "textured",
+               "background_color": "#203040" if settings["shared"]["background_color"] != "#203040" else "#3B3B3B"}
     run.call("set_preview_settings", values=flipped)
 
     def everywhere():

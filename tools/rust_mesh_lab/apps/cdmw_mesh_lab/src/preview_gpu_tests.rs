@@ -859,3 +859,78 @@ fn enter_and_leave_edit_upload_no_texture_twice() {
         .expect("probe ran")
         .expect("texture reuse across the mode switch");
 }
+
+/// P2's floor, asserted on pixels (left over from P2, done with P4 V3): with the
+/// ground on, pixels around and below the model show the floor; with it off the
+/// same pixels are the background.
+#[derive(Default)]
+struct FloorProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for FloorProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(192, 192)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("floor.dds"),
+                MeshFormat::Pam,
+            )?;
+            let mesh = WorkingMesh::from_document(&document)?;
+            renderer.set_snapshot(&mesh.draw_snapshot())?;
+            renderer.set_view_mode(ViewMode::TexturedSolid);
+            let background = [0.02_f32, 0.02, 0.02, 1.0];
+            renderer.set_clear_colour(background);
+            let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(192., 192.));
+            let mut best = 0_usize;
+            for pitch in [0.6_f32, -0.6] {
+                let mut camera = OrbitCamera::default();
+                camera.frame_all_in_viewport(&mesh, viewport);
+                camera.set_orbit_state_with_roll(0.4, pitch, 0.0, None, Some(0.5));
+                renderer.set_camera_with_basis(
+                    camera.view_projection(viewport),
+                    camera.right(),
+                    camera.up(),
+                );
+                renderer.set_ground(true, true);
+                let with_floor = renderer.capture_frame(192, 192, None)?.read_rgba()?;
+                renderer.set_ground(false, false);
+                let without = renderer.capture_frame(192, 192, None)?.read_rgba()?;
+                let corner = &without[..4];
+                let floor_pixels = with_floor
+                    .chunks_exact(4)
+                    .zip(without.chunks_exact(4))
+                    .filter(|(on, off)| on != off && *off == corner)
+                    .count();
+                best = best.max(floor_pixels);
+            }
+            let total = 192 * 192;
+            anyhow::ensure!(
+                best * 20 > total,
+                "the floor covered only {best} of {total} pixels where the background was"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit hidden-window D3D12 floor pixels"]
+fn the_floor_draws_where_the_background_was() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = FloorProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe.result.expect("probe ran").expect("floor pixels");
+}

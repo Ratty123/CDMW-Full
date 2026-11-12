@@ -1539,6 +1539,16 @@ impl PreviewApplication {
                 "xray" => ViewMode::XRay,
                 _ => self.view_mode,
             };
+            // With textures on, the shared view mode decides (P4 V3); "Load textures"
+            // off keeps its untextured mode.
+            if mode == "textured"
+                && let Some((shared, _islands)) = display
+                    .get("view_mode")
+                    .and_then(Value::as_str)
+                    .and_then(crate::view_modes::from_shared_id)
+            {
+                self.view_mode = shared;
+            }
         }
         let quality = display.get("quality").unwrap_or(&Value::Null);
         let background = display
@@ -1581,6 +1591,16 @@ impl PreviewApplication {
                 renderer.set_clear_colour(background);
             }
             renderer.set_ground(ground, ground_grid);
+            // Black is CDMW's unset wire colour. On the dark background of the
+            // wire and diagnostic modes (now offered here too, P4 V3) it would not
+            // show, so those modes use the editor's own light wire.
+            let wire = if wire == [0.0, 0.0, 0.0, 1.0]
+                && cdmw_render_wgpu::view_mode_darkens_background(self.view_mode)
+            {
+                [0.72, 0.82, 1.0, 1.0]
+            } else {
+                wire
+            };
             renderer.set_overlay_colours(wire, vertex);
             renderer.set_lighting_depth_settings(LightingDepthSettings {
                 shadows: quality
