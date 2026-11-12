@@ -1808,6 +1808,7 @@ fn weapon_reference_invalid_reload_preserves_the_last_renderable_scene() -> Test
     Ok(())
 }
 
+#[cfg(windows)]
 #[test]
 #[ignore = "synthetic hidden-window D3D12 weapon reference pixels; no game assets"]
 fn weapon_reference_renders_solid_pixels_and_clears_without_cloak_changes() -> TestResult {

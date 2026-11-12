@@ -3429,6 +3429,7 @@ fn hair_draw_subpixel_pointer_events_accumulate_into_a_continuous_stroke() {
     assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), 1);
 }
 
+#[cfg(windows)]
 #[test]
 #[ignore = "synthetic D3D12 hair drawing and grooming capture; no game assets"]
 fn hair_smooth_drawing_and_editing_render_capture() {
