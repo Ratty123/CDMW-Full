@@ -32,7 +32,7 @@ use std::thread;
 use tracing::error;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{WindowAttributes, WindowId};
 
 /// A line on either protocol may carry a large state; the editor's bound is the larger.
@@ -326,8 +326,12 @@ impl ApplicationHandler for EngineApplication {
         // While editing, the Preview only reads its messages and loads; the edit
         // state draws and sets the wait.
         self.preview.about_to_wait(event_loop);
+        let preview_flow = event_loop.control_flow();
         if let Some(edit) = &mut self.edit {
             edit.about_to_wait(event_loop);
+            // Both views may be live (an edit in a window of its own): each set the
+            // wait for its own deadlines, so keep the earlier of the two.
+            event_loop.set_control_flow(earliest(preview_flow, event_loop.control_flow()));
             // Once the session is installed: how many textures entering uploaded.
             if let Some(before) = self.uploads_before_edit
                 && let Some((after, retained)) = edit.engine_installed_uploads()
@@ -358,6 +362,18 @@ impl ApplicationHandler for EngineApplication {
             }
         }
         self.leave_if_requested();
+    }
+}
+
+/// The wait that wakes for both: polling beats any deadline, the earlier deadline
+/// beats the later, and any deadline beats waiting for events.
+fn earliest(first: ControlFlow, second: ControlFlow) -> ControlFlow {
+    match (first, second) {
+        (ControlFlow::Poll, _) | (_, ControlFlow::Poll) => ControlFlow::Poll,
+        (ControlFlow::WaitUntil(a), ControlFlow::WaitUntil(b)) => ControlFlow::WaitUntil(a.min(b)),
+        (ControlFlow::WaitUntil(at), ControlFlow::Wait)
+        | (ControlFlow::Wait, ControlFlow::WaitUntil(at)) => ControlFlow::WaitUntil(at),
+        (ControlFlow::Wait, ControlFlow::Wait) => ControlFlow::Wait,
     }
 }
 
@@ -451,6 +467,33 @@ fn write_editor_line(value: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_engine_waits_for_the_earlier_of_both_views() {
+        let now = std::time::Instant::now();
+        let soon = now + std::time::Duration::from_millis(16);
+        let later = now + std::time::Duration::from_secs(5);
+        assert_eq!(
+            earliest(ControlFlow::Wait, ControlFlow::Wait),
+            ControlFlow::Wait
+        );
+        assert_eq!(
+            earliest(ControlFlow::WaitUntil(soon), ControlFlow::Wait),
+            ControlFlow::WaitUntil(soon)
+        );
+        assert_eq!(
+            earliest(ControlFlow::Wait, ControlFlow::WaitUntil(later)),
+            ControlFlow::WaitUntil(later)
+        );
+        assert_eq!(
+            earliest(ControlFlow::WaitUntil(later), ControlFlow::WaitUntil(soon)),
+            ControlFlow::WaitUntil(soon)
+        );
+        assert_eq!(
+            earliest(ControlFlow::WaitUntil(soon), ControlFlow::Poll),
+            ControlFlow::Poll
+        );
+    }
 
     #[test]
     fn an_edit_asks_for_its_own_viewport_with_a_parent_window() {
