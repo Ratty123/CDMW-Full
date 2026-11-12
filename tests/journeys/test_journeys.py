@@ -138,6 +138,10 @@ def test_journey_6_edit_in_browse_in_its_own_process_and_return(run):
     assert state["in_browse"] and state["process_id"] == browse_pid
     entered = run.wait(lambda: [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"],
                        what="the edit to report its uploads")[-1]
+    # P4 V4: the editor showed Browse's model before its session was ready.
+    viewing = [e for e in run.call("events", since=index) if e["event"] == "preview:edit_viewing"]
+    assert viewing and viewing[0]["i"] < entered["i"], "the view did not come before the session"
+    assert viewing[0]["install_ms"] < 500
     assert entered["texture_uploads_after"] == entered["texture_uploads_before"], entered
     assert entered["edit_camera_yaw"] == pytest.approx(entered["browse_camera_yaw"], abs=1e-4)
     assert entered["edit_camera_distance"] == pytest.approx(entered["browse_camera_distance"], rel=1e-4)

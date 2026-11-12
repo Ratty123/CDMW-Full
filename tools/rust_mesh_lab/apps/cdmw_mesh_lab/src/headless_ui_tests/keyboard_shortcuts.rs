@@ -528,6 +528,80 @@ fn finish_and_late_morph_data_come_from_the_host() {
     ));
 }
 
+#[test]
+fn a_tool_group_cdmw_is_preparing_says_why_and_does_nothing() {
+    // P4 V4: tools unlock as their back end becomes ready; nothing is queued.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "groups", 1, 0);
+    let message = json!({"event": "tool_groups", "protocol": cdmw_session::PROTOCOL, "session_id": "groups",
+        "process_generation": 1, "groups": {"transform": {"ready": false, "reason": "Preparing the edit session."}}});
+    let event = bridge.decode_host_event_for_test(message);
+    assert!(matches!(event, HostEvent::ToolGroups(_)));
+    let mut application = LabApplication::new(None, None);
+    application.cdmw_state["authoring_enabled"] = json!(true);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(
+        application
+            .rail_page_refusal(CdmwRailPage::Rotate)
+            .as_deref(),
+        Some("Preparing the edit session.")
+    );
+    assert_eq!(application.rail_page_refusal(CdmwRailPage::Select), None);
+    let ready = json!({"event": "tool_groups", "protocol": cdmw_session::PROTOCOL, "session_id": "groups",
+        "process_generation": 1, "groups": {}});
+    let event = bridge.decode_host_event_for_test(ready);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(application.rail_page_refusal(CdmwRailPage::Rotate), None);
+}
+
+#[test]
+fn a_view_only_editor_waits_for_its_session_and_then_opens_it() {
+    // P4 V4: the editor shows Browse's model first; open_session is the one line it acts on.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let (input, route) = cdmw_session::PendingSessionInput::routed();
+    let template = CdmwBridge::for_test(root.path().to_path_buf(), "view", 1, 0);
+    let mut bridge = CdmwBridge::view_only(
+        root.path().to_path_buf(),
+        template.manifest().clone(),
+        0,
+        Vec::new(),
+        Vec::new(),
+        input,
+    );
+    assert!(bridge.is_view_only());
+    let theme = json!({"event": "theme_update", "protocol": cdmw_session::PROTOCOL});
+    assert!(matches!(
+        bridge.decode_host_event_for_test(theme),
+        HostEvent::Ignored
+    ));
+    let open = json!({"event": "open_session", "protocol": cdmw_session::PROTOCOL,
+                      "manifest": "session/manifest.json", "keep_view": true});
+    let event = bridge.decode_host_event_for_test(open.clone());
+    assert!(matches!(&event, HostEvent::OpenSession(path, _) if path.ends_with("manifest.json")));
+    let mut application = LabApplication::new(None, None);
+    application.cdmw_bridge = Some(bridge);
+    application.cdmw_hidden_parts.insert(2);
+    application.handle_cdmw_host_event(event);
+    // The editor is a pending helper again, its open_session queued, camera and parts kept.
+    assert!(application.cdmw_bridge.is_none());
+    let pending = application.cdmw_pending.as_ref().expect("pending again");
+    assert_eq!(
+        pending.poll().expect("one request"),
+        Some(cdmw_session::PendingRequest::Open(
+            std::path::PathBuf::from("session/manifest.json")
+        ))
+    );
+    assert!(application.kept_camera.is_some());
+    assert_eq!(
+        application
+            .kept_hidden_parts
+            .as_ref()
+            .map(|parts| parts.contains(&2)),
+        Some(true)
+    );
+    drop(route);
+}
+
 /// CDMW's Shortcuts page lists the editor's commands from this file when no
 /// editor runs. Set CDMW_WRITE_MESH_COMMANDS=1 to rewrite it after changing the keymap.
 #[test]

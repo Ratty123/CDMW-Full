@@ -23,6 +23,8 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 #: Width of a collapsed pane while editing.
 STRIP_WIDTH = 28
+#: Idle time after a model shows before the Mesh Editor tab is created ahead of use.
+_PREWARM_DELAY_MS = 1500
 _HOVER_COLLAPSE_MS = 400
 
 
@@ -182,6 +184,37 @@ class BrowseEditInPlaceMixin:
             if tree is not None:
                 tree.itemSelectionChanged.connect(self._edit_in_place_selection_changed)
         return layout
+
+    def _schedule_mesh_editor_prewarm(self) -> None:
+        """Create the Mesh Editor tab once, while Browse is idle after showing a model.
+
+        Creating it took 0.6 s on the click that opened the first edit; done ahead,
+        that click shows the edit at once (P4 V4). Never during a click's work: it
+        waits until no preview load or texture request is running.
+        """
+
+        if getattr(self, "_mesh_editor_prewarm_scheduled", False):
+            return
+        self._mesh_editor_prewarm_scheduled = True
+        QTimer.singleShot(_PREWARM_DELAY_MS, self._prewarm_mesh_editor_tab)
+
+    def _prewarm_mesh_editor_tab(self) -> None:
+        shell = getattr(self, "shell", None)
+        tab = getattr(shell, "mesh_editor_tab", None)
+        widget_if_created = getattr(tab, "widget_if_created", None)
+        ensure = getattr(tab, "ensure_widget", None)
+        if not callable(ensure) or (callable(widget_if_created) and widget_if_created() is not None):
+            return
+        busy = (getattr(self, "archive_preview_worker", None) is not None
+                or bool(getattr(self, "_archive_texture_request_loading", False))
+                or bool(getattr(self, "archive_preview_texture_upgrade_pending", False)))
+        if busy:
+            QTimer.singleShot(_PREWARM_DELAY_MS, self._prewarm_mesh_editor_tab)
+            return
+        try:
+            ensure()
+        except RuntimeError:
+            pass
 
     def edit_in_place_blocker(self, entry: object) -> str:
         """Why Browse's viewport cannot hold an edit of ``entry`` now ("" when it can)."""

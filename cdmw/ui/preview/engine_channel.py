@@ -26,7 +26,7 @@ EDIT_IN_PLACE_CAPABILITY = "edit_in_place_v1"
 
 _LEAVE_EVENTS = frozenset({"edit_left", "edit_refused"})
 #: The engine's own report; the editor component does not read it.
-_ENGINE_EVENTS = frozenset({"edit_entered"})
+_ENGINE_EVENTS = frozenset({"edit_entered", "edit_viewing"})
 
 
 class EngineEditChannel(QObject):
@@ -39,6 +39,8 @@ class EngineEditChannel(QObject):
     errorOccurred = Signal(QProcess.ProcessError)
     #: The helper could not enter edit mode; the reason is the argument.
     refused = Signal(str)
+    #: The editor shows Browse's model; its session follows (P4 V4).
+    viewing_started = Signal()
 
     NotRunning = QProcess.ProcessState.NotRunning
     Running = QProcess.ProcessState.Running
@@ -53,6 +55,7 @@ class EngineEditChannel(QObject):
         self._running = True
         self.refusal = ""
         self.entered_report: dict = {}
+        self.viewing = False
 
     # ----- fed by the Preview controller --------------------------------------
     def feed(self, raw_line: bytes) -> None:
@@ -67,7 +70,11 @@ class EngineEditChannel(QObject):
             payload = {}
         event = payload.get("event") if isinstance(payload, dict) else None
         if event in _ENGINE_EVENTS:
-            self.entered_report = dict(payload)
+            if event == "edit_viewing":
+                self.viewing = True
+                self.viewing_started.emit()
+            else:
+                self.entered_report = dict(payload)
             return
         if event in _LEAVE_EVENTS:
             if event == "edit_refused":
@@ -107,6 +114,13 @@ class EngineEditChannel(QObject):
 
     def errorString(self) -> str:  # noqa: N802 - QProcess shape
         return self.refusal
+
+    def show_view(self, *, keep_view: bool = True) -> bool:
+        """Show the editor at once on Browse's model, before the session exists (P4 V4)."""
+
+        line = json.dumps({"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                           "keep_view": bool(keep_view)}, separators=(",", ":")).encode("utf-8") + b"\n"
+        return self.write(line) == len(line)
 
     def terminate(self) -> None:
         """End the edit; the shared process keeps running."""

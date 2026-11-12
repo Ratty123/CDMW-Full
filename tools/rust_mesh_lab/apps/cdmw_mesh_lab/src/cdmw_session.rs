@@ -471,6 +471,13 @@ pub enum HostEvent {
     StateSnapshot(Value),
     /// The morph data of an editor that opened before its query answered (P4 V3).
     MorphState(Value),
+    /// Which tool groups are still preparing (P4 V4).
+    ToolGroups(Value),
+    /// The session for an editor that was showing Browse's model (P4 V4): its
+    /// manifest and the `open_session` line itself.
+    OpenSession(PathBuf, Value),
+    /// A line a view-only editor does not act on.
+    Ignored,
     Cancel(String),
     Fatal(String),
 }
@@ -757,6 +764,9 @@ pub struct CdmwBridge {
     last_result_request_id: u64,
     state_snapshot_accepted: bool,
     translations: translation_transfer::TranslationTransfers,
+    /// Set while the editor shows Browse's resident model before its session
+    /// exists (P4 V4): the routed input, kept to hand back with `open_session`.
+    view_input: Option<Sender<Incoming>>,
 }
 
 #[derive(Clone, Debug)]
@@ -853,9 +863,59 @@ impl CdmwBridge {
                 last_result_request_id: 0,
                 state_snapshot_accepted: false,
                 translations: translation_transfer::TranslationTransfers::default(),
+                view_input: None,
             },
             document,
         ))
+    }
+
+    /// A bridge for the editor showing Browse's resident model before the
+    /// session exists (P4 V4). It has no session: authoring is off, nothing it
+    /// would send reaches CDMW, and the one host line it acts on is
+    /// `open_session`, which gives its input back for the real session.
+    pub fn view_only(
+        root: PathBuf,
+        mut manifest: SessionManifest,
+        source_lod_index: usize,
+        textures: Vec<CdmwTextureResource>,
+        layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+        input: PendingSessionInput,
+    ) -> Self {
+        let (outbound, outbound_rx) = bounded::<Outbound>(OUTBOUND_QUEUE_BOUND);
+        drop(thread::spawn(move || while outbound_rx.recv().is_ok() {}));
+        manifest.state = Value::Null;
+        manifest.output_policy = Value::Null;
+        manifest.reference_pieces = Vec::new();
+        Self {
+            root,
+            manifest,
+            incoming: input.receiver,
+            outbound,
+            next_request_id: 0,
+            shadow_revision: 0,
+            source_lod_index,
+            textures,
+            layers,
+            reference_pieces: Vec::new(),
+            last_result_request_id: 0,
+            state_snapshot_accepted: false,
+            translations: translation_transfer::TranslationTransfers::default(),
+            view_input: Some(input.sender),
+        }
+    }
+
+    #[must_use]
+    pub fn is_view_only(&self) -> bool {
+        self.view_input.is_some()
+    }
+
+    /// The routed input of a view-only bridge, for the session that replaces it.
+    pub fn into_pending_input(self) -> Option<PendingSessionInput> {
+        let sender = self.view_input?;
+        Some(PendingSessionInput {
+            sender,
+            receiver: self.incoming,
+        })
     }
 
     #[must_use]
@@ -1562,6 +1622,7 @@ impl CdmwBridge {
             last_result_request_id: 0,
             state_snapshot_accepted: false,
             translations: translation_transfer::TranslationTransfers::default(),
+            view_input: None,
         }
     }
 
@@ -1706,6 +1767,24 @@ impl CdmwBridge {
     }
 
     fn decode_host_event(&mut self, mut value: Value) -> HostEvent {
+        if self.view_input.is_some() {
+            // The editor shows Browse's model and has no session yet (P4 V4).
+            return match value.get("event").and_then(Value::as_str) {
+                Some("open_session") => value
+                    .get("manifest")
+                    .and_then(Value::as_str)
+                    .filter(|path| !path.trim().is_empty())
+                    .map_or_else(
+                        || HostEvent::Fatal("open_session needs a manifest path".to_owned()),
+                        |path| HostEvent::OpenSession(PathBuf::from(path), value.clone()),
+                    ),
+                Some("cancel" | "close_request") => {
+                    HostEvent::Cancel("CDMW closed the edit".to_owned())
+                }
+                // Theme and other updates wait for the session, which repeats them.
+                _ => HostEvent::Ignored,
+            };
+        }
         let result = (|| {
             validate_identity(&value, &self.manifest)?;
             if let Some(reference) = value.get("payload").and_then(|p| p.get("payload_file")) {
@@ -1761,6 +1840,7 @@ impl CdmwBridge {
                     }
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
+                "tool_groups" => Ok(HostEvent::ToolGroups(value.clone())),
                 // The morph data of an editor that opened before it (P4 V3).
                 "morph_state" => value
                     .get("payload")
@@ -3621,6 +3701,12 @@ impl PendingSessionInput {
             },
             EditorRoute(sender),
         )
+    }
+
+    /// Put a line back at the end of the queue (the `open_session` a view-only
+    /// editor received, for the pending open that follows).
+    pub fn requeue(&self, line: Value) {
+        let _ = self.sender.try_send(Incoming::Message(line));
     }
 
     #[cfg(test)]

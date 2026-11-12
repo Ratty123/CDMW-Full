@@ -101,6 +101,7 @@ impl EngineApplication {
         if self.edit.is_none() {
             match event.as_str() {
                 "open_session" => self.enter_edit(value),
+                "enter_edit" => self.enter_edit_view(&value),
                 // A cancel for an edit that already ended needs no answer.
                 "cancel" | "close_request" => {}
                 other => write_editor_line(&json!({
@@ -110,7 +111,8 @@ impl EngineApplication {
             }
             return;
         }
-        if event == "open_session" {
+        if event == "open_session" && !self.edit.as_ref().is_some_and(LabApplication::showing_view)
+        {
             write_editor_line(&json!({
                 "event": "edit_refused",
                 "reason": "an edit is already open in this viewport",
@@ -150,6 +152,57 @@ impl EngineApplication {
             keep_view.then_some(lent.camera),
         ));
         self.edit_route = Some(route);
+    }
+
+    /// `enter_edit {keep_view}`: show the editor at once on Browse's resident
+    /// model; the session follows as `open_session` (P4 V4).
+    fn enter_edit_view(&mut self, value: &Value) {
+        let keep_view = value
+            .get("keep_view")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let parts = self.preview.view_parts();
+        let lent = match self.preview.lend_view() {
+            Ok(lent) => lent,
+            Err(reason) => {
+                write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
+                return;
+            }
+        };
+        self.uploads_before_edit = Some(lent.renderer.texture_upload_count());
+        self.lent_camera_report = Some(crate::camera_report(&lent.camera));
+        let (input, route) = PendingSessionInput::routed();
+        let (root, manifest, lod, document, textures, layers) = parts;
+        let bridge = crate::cdmw_session::CdmwBridge::view_only(
+            root, manifest, lod, textures, layers, input,
+        );
+        let mut edit = LabApplication::new_view_edit(
+            self.parent_hwnd,
+            lent.window,
+            lent.renderer,
+            keep_view.then_some(lent.camera),
+        );
+        let started = std::time::Instant::now();
+        let shown = edit.install_view(bridge, document);
+        let install_ms = started.elapsed().as_secs_f64() * 1000.0;
+        self.edit = Some(edit);
+        self.edit_route = Some(route);
+        match shown {
+            Ok(()) => {
+                write_editor_line(&json!({
+                    "event": "edit_viewing",
+                    "install_ms": install_ms,
+                    // When the view was up, by the helper's clock (CDMW may read it later).
+                    "at_unix_ms": std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |since| since.as_millis() as u64),
+                }));
+            }
+            Err(error) => {
+                write_editor_line(&json!({"event": "edit_refused", "reason": error.to_string()}));
+                self.leave_edit();
+            }
+        }
     }
 
     fn leave_edit(&mut self) {

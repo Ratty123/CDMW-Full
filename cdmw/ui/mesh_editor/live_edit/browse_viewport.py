@@ -87,9 +87,20 @@ class BrowseViewportBinding(QObject):
             return "this viewport cannot edit in place"
         return str(check() or "")
 
-    def borrow(self):
-        """A channel to Browse's helper, or None when its viewport cannot edit now."""
+    def show_view_now(self) -> bool:
+        """Borrow Browse's helper and show the editor on its model at once (P4 V4)."""
 
+        channel = self.borrow()
+        return channel is not None and channel.show_view(keep_view=True)
+
+    def borrow(self):
+        """A channel to Browse's helper, or None when its viewport cannot edit now.
+
+        The channel borrowed at the click (``show_view_now``) is kept for the session.
+        """
+
+        if self.channel is not None and self.channel.is_running:
+            return self.channel
         controller = getattr(self.preview_host, "controller", None)
         borrow = getattr(controller, "borrow_for_edit", None)
         if not callable(borrow):

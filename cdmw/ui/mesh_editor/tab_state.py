@@ -118,8 +118,14 @@ class MeshEditorStateMixin(
         summary = getattr(self.standalone_workspace, "update_session_summary", None)
         if callable(summary):
             summary(view, mesh_label=self.standalone_mesh_label)
-        right_panels = getattr(self.standalone_workspace, "right_panels", None)
-        derived_panels_visible = right_panels is None or not right_panels.isHidden()
+        workspace = self.standalone_workspace
+        # Panels not built yet count as hidden: asking whether they are hidden would
+        # build them all (0.36 s on the click that opens an edit, P4 V4).
+        if getattr(workspace, "__dict__", {}).get("_legacy_panels_deferred", False):
+            derived_panels_visible = False
+        else:
+            right_panels = getattr(workspace, "right_panels", None)
+            derived_panels_visible = right_panels is None or not right_panels.isHidden()
         self._refresh_standalone_workspace_summary(view)
         self._refresh_standalone_skeleton_summary(view)
         if derived_panels_visible:

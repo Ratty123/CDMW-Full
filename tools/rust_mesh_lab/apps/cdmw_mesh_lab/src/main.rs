@@ -52,6 +52,7 @@ mod preview_gpu_tests;
 mod preview_loader;
 mod shortcuts;
 mod texture_view;
+mod tool_groups;
 mod view_modes;
 mod viewport;
 
@@ -1728,7 +1729,7 @@ impl UiAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CdmwRailPage {
+pub(crate) enum CdmwRailPage {
     Select,
     Move,
     Rotate,
@@ -2414,6 +2415,10 @@ struct LabApplication {
     engine_leave_requested: bool,
     /// The Preview's camera, taken over once the session is installed (`keep_view`).
     kept_camera: Option<OrbitCamera>,
+    /// Tool groups CDMW is still preparing (P4 V4); empty when all are ready.
+    cdmw_tool_groups: tool_groups::ToolGroupState,
+    /// Parts hidden while the editor showed Browse's model, kept for the session.
+    kept_hidden_parts: Option<HashSet<u32>>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2684,6 +2689,8 @@ impl LabApplication {
             engine_hosted: false,
             engine_leave_requested: false,
             kept_camera: None,
+            cdmw_tool_groups: tool_groups::ToolGroupState::default(),
+            kept_hidden_parts: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2737,6 +2744,90 @@ impl LabApplication {
         application
     }
 
+    /// Show Browse's resident model in the editor before its session exists (P4 V4).
+    /// Authoring is off and every tool group says it is preparing; parts can be
+    /// shown, hidden and inspected. `open_session` then installs the session over it.
+    fn install_view(&mut self, bridge: CdmwBridge, document: MeshDocument) -> Result<()> {
+        let renderer = self.renderer.take();
+        let installed = self.install_cdmw(bridge, document);
+        self.renderer = renderer;
+        installed?;
+        if let Some(camera) = self.kept_camera.take() {
+            self.camera.keep_orbit_of(&camera);
+            // Applied again after the session's own framing.
+            self.kept_camera = Some(camera);
+        }
+        if let Some(mut renderer) = self.renderer.take() {
+            let configured = self.configure_renderer(&mut renderer);
+            self.renderer = Some(renderer);
+            configured.map_err(anyhow::Error::msg)?;
+        }
+        let reason = "The edit session is being prepared.";
+        let groups = tool_groups::TOOL_GROUPS
+            .iter()
+            .map(|group| {
+                (
+                    (*group).to_owned(),
+                    json!({"ready": false, "reason": reason}),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+        self.cdmw_tool_groups = tool_groups::ToolGroupState::from_host(&json!({"groups": groups}));
+        self.status = reason.to_owned();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    fn showing_view(&self) -> bool {
+        self.cdmw_bridge
+            .as_ref()
+            .is_some_and(CdmwBridge::is_view_only)
+    }
+
+    /// The session arrived for an editor showing Browse's model: become a pending
+    /// helper again and open it as one does, keeping the camera and hidden parts.
+    fn open_session_over_view(&mut self, line: Value) {
+        let Some(bridge) = self.cdmw_bridge.take() else {
+            return;
+        };
+        let Some(input) = bridge.into_pending_input() else {
+            return;
+        };
+        self.kept_camera = Some(self.camera.clone());
+        self.kept_hidden_parts = Some(self.cdmw_hidden_parts.clone());
+        self.cdmw_tool_groups = tool_groups::ToolGroupState::default();
+        input.requeue(line);
+        self.cdmw_pending = Some(input);
+    }
+
+    /// An editor that shows Browse's model first (P4 V4): the window and renderer
+    /// are lent by the Preview and the session comes later as `open_session`.
+    fn new_view_edit(
+        embedded_parent_hwnd: u64,
+        window: Arc<Window>,
+        renderer: WindowRenderer,
+        camera: Option<OrbitCamera>,
+    ) -> Self {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = Some(embedded_parent_hwnd);
+        application.engine_hosted = true;
+        application.kept_camera = camera;
+        application.egui_state = Some(egui_winit::State::new(
+            application.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        application.renderer = Some(renderer);
+        application.window = Some(window);
+        application
+    }
+
     /// Hand the renderer and the camera back to the Preview when the edit ends.
     fn give_back_view(&mut self) -> (Option<WindowRenderer>, OrbitCamera) {
         self.egui_state = None;
@@ -2767,7 +2858,7 @@ impl LabApplication {
     fn engine_installed_uploads(
         &self,
     ) -> Option<(u64, cdmw_render_wgpu::texture_cache::RetainedTextureReport)> {
-        if self.cdmw_pending.is_some() || self.cdmw_bridge.is_none() {
+        if self.cdmw_pending.is_some() || self.cdmw_bridge.is_none() || self.showing_view() {
             return None;
         }
         self.renderer.as_ref().map(|renderer| {
@@ -2831,6 +2922,18 @@ impl LabApplication {
         {
             // Browse's view, kept: same angle, target and distance (P4 V3).
             self.camera.keep_orbit_of(&camera);
+        }
+        if let Some(hidden) = self.kept_hidden_parts.take() {
+            // Parts hidden while the editor showed Browse's model stay hidden (P4 V4).
+            let parts = self.document.as_ref().map_or(0, |document| {
+                document
+                    .lods
+                    .get(self.active_lod_index)
+                    .map_or(0, |lod| lod.submeshes.len())
+            });
+            if hidden.iter().all(|part| (*part as usize) < parts) {
+                self.cdmw_hidden_parts = hidden;
+            }
         }
         if let Some(mut renderer) = self.renderer.take() {
             match self.configure_renderer(&mut renderer) {
@@ -3282,6 +3385,22 @@ impl LabApplication {
                 self.status =
                     "CDMW connected · edits remain isolated until Finish Edit Mesh".to_owned();
             }
+            HostEvent::ToolGroups(groups) => {
+                self.cdmw_tool_groups = tool_groups::ToolGroupState::from_host(&groups);
+                if let Some(page) = self.cdmw_rail_page
+                    && self.cdmw_tool_groups.refusal(page).is_some()
+                {
+                    // A tool that is no longer ready closes; nothing runs on it.
+                    self.cdmw_rail_page = None;
+                    self.cancel_active_gesture("The tool is being prepared");
+                    self.cdmw_orbit_mode = true;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            HostEvent::Ignored => {}
+            HostEvent::OpenSession(_manifest, line) => self.open_session_over_view(line),
             HostEvent::MorphState(morph) => {
                 // Only the morph part changes; selection and edits stay as they are.
                 self.cdmw_state["morph_refit"] = morph;
@@ -7542,12 +7661,13 @@ impl LabApplication {
         let background = self.viewport_background_colour;
         let wire_colour = renderer_colour(self.overlay_wire_colour);
         let point_colour = renderer_colour(self.overlay_vertex_colour);
+        let redraw_interval = self.redraw_interval();
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_material_time(context.input(|input| input.time) as f32);
             self.material_redraw_deadline = (renderer.has_material_animation()
                 && window.is_visible() != Some(false)
                 && window.is_minimized() != Some(true))
-            .then(|| Instant::now() + std::time::Duration::from_millis(16));
+            .then(|| Instant::now() + redraw_interval);
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
             renderer.set_lighting_depth_settings(self.lighting_depth);
@@ -7596,7 +7716,26 @@ impl LabApplication {
             .get(&egui::ViewportId::ROOT)
             .is_some_and(|output| output.repaint_delay.is_zero())
         {
-            window.request_redraw();
+            if self.showing_view() {
+                // Nothing is edited while the session prepares (P4 V4): a slower
+                // frame rate leaves the CPU to the preparation.
+                let next = Instant::now() + self.redraw_interval();
+                self.material_redraw_deadline = Some(
+                    self.material_redraw_deadline
+                        .map_or(next, |deadline| deadline.min(next)),
+                );
+            } else {
+                window.request_redraw();
+            }
+        }
+    }
+
+    /// Frame interval for animated materials and egui's own repaints.
+    fn redraw_interval(&self) -> std::time::Duration {
+        if self.showing_view() {
+            std::time::Duration::from_millis(100)
+        } else {
+            std::time::Duration::from_millis(16)
         }
     }
 }

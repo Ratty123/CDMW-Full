@@ -206,6 +206,9 @@ class ArchivePreviewDotNetLifecycleMixin:
         return True
 
     def _handle_archive_resident_package_applied(self, package_path: str, generation: int) -> None:
+        schedule = getattr(self, "_schedule_mesh_editor_prewarm", None)
+        if callable(schedule):
+            schedule()  # P4 V4: the Mesh Editor tab exists before its first open
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
             self.archive_isolated_renderer_active_package = Path(package_path)
             self.archive_isolated_renderer_package_source = "dotnet-canonical"

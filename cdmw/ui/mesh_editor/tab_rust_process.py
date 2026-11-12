@@ -1239,7 +1239,13 @@ class MeshEditorRustProcessMixin:
         query = getattr(session, "query_deferred_morph_state", None)
         if session is None or arrived is None or not callable(query):
             return
-        query(lambda payload, current=session: arrived.emit(current, payload))
+        if not getattr(session, "defer_morph_state", False) or getattr(session, "deferred_morph_ready", True):
+            return
+        # Tools unlock as their back end becomes ready (P4 V4). Said before the query
+        # starts: building a host message reads the revision, which waits behind it.
+        self._send_rust_tool_groups({"morph": "Morph data is still being prepared."})
+        if not query(lambda payload, current=session: arrived.emit(current, payload)):
+            self._send_rust_tool_groups({})
 
     def _send_rust_morph_state(self, session: object, payload: object) -> None:
         if (session is not self.standalone_rust_authoring_session or not self.standalone_rust_ready
@@ -1247,6 +1253,14 @@ class MeshEditorRustProcessMixin:
             return
         self._send_rust_message(self._rust_host_message("morph_state", request_id=0,
                                                         extra={"payload": dict(payload)}))
+        self._send_rust_tool_groups({})
+
+    def _send_rust_tool_groups(self, preparing: Mapping[str, str]) -> bool:
+        """Tell the editor which tool groups are still preparing, and why (P4 V4)."""
+
+        groups = {str(name): {"ready": False, "reason": str(reason)} for name, reason in preparing.items()}
+        return self._send_rust_message(self._rust_host_message("tool_groups", request_id=0,
+                                                               extra={"groups": groups}))
 
     def _handle_rust_ready_timeout(self) -> None:
         if self.standalone_rust_ready:
@@ -1565,5 +1579,8 @@ class MeshEditorRustProcessMixin:
         else:
             self.standalone_rust_dispose_pending = True
             self._schedule_rust_session_dispose()
+            release = getattr(self, "_release_viewport_binding", None)
+            if callable(release):  # stopped before its session opened: Browse shows its own view again
+                release()
         if reason:
             self._set_rust_status(reason)

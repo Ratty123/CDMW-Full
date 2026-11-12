@@ -1279,7 +1279,7 @@ class RustPreviewSessionController(
                 channel = self._edit_channel
                 if channel is not None:
                     channel.feed(raw_line)
-                if payload.get("event") in {"edit_entered", "edit_left", "edit_refused"}:
+                if payload.get("event") in {"edit_entered", "edit_viewing", "edit_left", "edit_refused"}:
                     self.protocol_event.emit(dict(payload))  # for the runtime record and journeys
                 continue
             if isinstance(payload, Mapping):

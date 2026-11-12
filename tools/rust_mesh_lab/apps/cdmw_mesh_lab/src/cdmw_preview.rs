@@ -648,6 +648,30 @@ impl PreviewApplication {
         }
     }
 
+    /// What an editor needs to show this resident model before its session
+    /// exists (P4 V4): the package's root and manifest, the source LOD, the
+    /// document and copies of the textures and layers already on the GPU.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn view_parts(
+        &self,
+    ) -> (
+        PathBuf,
+        crate::cdmw_session::SessionManifest,
+        usize,
+        MeshDocument,
+        Vec<CdmwTextureResource>,
+        Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    ) {
+        (
+            self.package.root().to_path_buf(),
+            self.package.manifest().clone(),
+            self.package.source_lod_index(),
+            self.document.clone(),
+            self.textures.clone(),
+            self.layers.clone(),
+        )
+    }
+
     /// Why this view cannot be edited in place, if it cannot (P4 V3): the
     /// comparison layouts place the model with matrices of their own.
     pub(crate) fn edit_in_place_blocker(&self) -> Option<&'static str> {

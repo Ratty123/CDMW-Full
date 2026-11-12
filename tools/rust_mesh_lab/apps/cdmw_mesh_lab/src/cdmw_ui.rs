@@ -2999,6 +2999,21 @@ impl LabApplication {
         policy_reason: &str,
     ) {
         let active = self.cdmw_rail_page == Some(page);
+        if let Some(reason) = self.cdmw_tool_groups.refusal(page).map(str::to_owned) {
+            // Visible and focusable while its back end prepares (P4 V4): using it says why.
+            let text = format!(
+                "{} ({})",
+                crate::localization::tr(label),
+                crate::localization::tr("Preparing")
+            );
+            let response = ui
+                .add(Button::new(text).wrap())
+                .on_hover_text(crate::localization::tr(&reason));
+            if response.clicked() {
+                self.status = crate::localization::tr(&reason);
+            }
+            return;
+        }
         let requires_authoring = !matches!(
             page,
             CdmwRailPage::Select | CdmwRailPage::VertexParameters | CdmwRailPage::RigWeights

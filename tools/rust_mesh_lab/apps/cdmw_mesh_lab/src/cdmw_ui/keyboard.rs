@@ -368,7 +368,10 @@ impl LabApplication {
         }
     }
 
-    fn rail_page_refusal(&self, page: CdmwRailPage) -> Option<String> {
+    pub(crate) fn rail_page_refusal(&self, page: CdmwRailPage) -> Option<String> {
+        if let Some(reason) = self.cdmw_tool_groups.refusal(page) {
+            return Some(crate::localization::tr(reason));
+        }
         if self.cdmw_show_busy_controls() {
             return Some("Wait for the current shadow operation".to_owned());
         }

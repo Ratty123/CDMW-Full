@@ -659,6 +659,58 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return
+        # View first (P4 V4): Browse shows the editor on its model before anything
+        # else of the open runs; the open below hands that binding on or drops it.
+        self._show_browse_view_first(entry)
+        if getattr(self, "_early_browse_binding", None) is not None:
+            # Let Qt draw the folded Browse layout around the view before the rest of
+            # the open, which runs on this thread, takes it for a moment.
+            QTimer.singleShot(0, lambda current=entry: self._continue_archive_mesh_editor_launch(current))
+            return
+        self._continue_archive_mesh_editor_launch(entry)
+
+    def _continue_archive_mesh_editor_launch(self, entry: ArchiveEntry) -> None:
+        try:
+            self._launch_archive_mesh_editor_after_view(entry)
+        finally:
+            self._drop_early_browse_binding()
+
+    def _show_browse_view_first(self, entry: ArchiveEntry) -> None:
+        self._early_browse_binding = None
+        archive = self.archive
+        current = getattr(archive, "_current_archive_entry", None)
+        shown = current() if callable(current) else None
+        requested = getattr(archive, "archive_preview_request_entry", None)
+        if not (isinstance(shown, ArchiveEntry)
+                and archive_entry_identity_key(shown) == archive_entry_identity_key(entry)
+                and (not isinstance(requested, ArchiveEntry)
+                     or archive_entry_identity_key(requested) == archive_entry_identity_key(entry))):
+            return
+        begin = getattr(archive, "begin_edit_in_place", None)
+        binding = begin(entry) if callable(begin) else None
+        if binding is None:
+            return
+        if not binding.show_view_now():
+            binding.end()
+            return
+        self._early_browse_binding = binding
+        recorder = getattr(self, "_record_runtime_event", None)
+        if callable(recorder):
+            recorder("mesh_editor_view_requested", path=str(getattr(entry, "path", "") or ""))
+
+    def _take_early_browse_binding(self, entry: ArchiveEntry):
+        binding = getattr(self, "_early_browse_binding", None)
+        self._early_browse_binding = None
+        if binding is None or binding.is_ended:
+            return None
+        return binding
+
+    def _drop_early_browse_binding(self) -> None:
+        binding = self._take_early_browse_binding(None)  # type: ignore[arg-type]
+        if binding is not None:
+            binding.end()  # the open went another way: Browse shows its own view again
+
+    def _launch_archive_mesh_editor_after_view(self, entry: ArchiveEntry) -> None:
         if self._mesh_editor_open_blocked():
             return
         # Loading, texture resolution and session preparation all compete with
@@ -819,13 +871,19 @@ class MeshEditorShellBridgeMixin:
         begin = getattr(self.archive, "begin_edit_in_place", None)
         if live_edit is None or not callable(begin):
             return None
-        binding = begin(entry)
+        binding = self._take_early_browse_binding(entry)
+        fresh = binding is None
+        if fresh:
+            binding = begin(entry)
         if binding is None:
             return None
         if not getattr(self, "_browse_edit_moves_connected", False):
             live_edit.moved_to_own_viewport.connect(self._browse_edit_moved_to_tab)
             self._browse_edit_moves_connected = True
         live_edit.edit_in_viewport(binding)
+        if fresh:
+            # View first (P4 V4): the editor shows Browse's model now; the session follows.
+            binding.show_view_now()
         return binding
 
     def _browse_edit_moved_to_tab(self, reason: str) -> None:

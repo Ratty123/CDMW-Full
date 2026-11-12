@@ -480,3 +480,99 @@ def test_browse_keeps_the_shared_values_another_viewport_set(monkeypatch) -> Non
     monkeypatch.setattr("cdmw.ui.preview.preview_settings_hub.preview_settings_hub", lambda: store)
     merged = preview_settings._with_shared_values(ModelPreviewRenderSettings())
     assert (merged.d3d11_view_mode, merged.d3d11_background_color, merged.preview_shadows) == ("wire", "#102030", False)
+
+
+# ----- view first, tools unlock as they become ready (P4 V4) --------------------
+
+def test_the_click_shows_the_view_and_the_session_reuses_its_channel(tmp_path: Path) -> None:
+    from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+
+    controller, process, _package = _ready_controller(tmp_path)
+    try:
+        host = SimpleNamespace(controller=controller, _embedded_child_hwnd=7)
+        binding = BrowseViewportBinding(host, "upper.pac")
+        assert binding.show_view_now()
+        assert process.writes[-1] == {"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL, "keep_view": True}
+        first = binding.channel
+        viewing = []
+        first.viewing_started.connect(lambda: viewing.append(1))
+        _emit_stdout(process, _line({"event": "edit_viewing", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                     "install_ms": 40.0}))
+        assert viewing == [1] and first.viewing
+        assert first.bytesAvailable() == 0  # the engine's own line is not the editor's
+        assert binding.borrow() is first  # the session opens on the same channel
+        binding.end()
+        assert process.writes[-1]["event"] == "leave_edit"
+    finally:
+        controller.shutdown()
+
+
+def test_the_morph_group_is_preparing_until_its_data_comes(tmp_path: Path) -> None:
+    from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+    tab = _tab(tmp_path)
+    sent = []
+    tab.live_edit._send_rust_message = lambda payload: sent.append(dict(payload)) or True
+
+    class _Session:
+        closed = False
+        session_id = "s"
+        shadow_session_id = "x"
+        defer_morph_state = True
+        deferred_morph_ready = False
+        shadow_service = SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=1))
+
+        def query_deferred_morph_state(self, done):
+            self.done = done
+            return True
+
+    session = _Session()
+    tab.standalone_rust_authoring_session = session
+    tab.standalone_rust_ready = True
+    try:
+        tab.live_edit._query_deferred_rust_morph_state()
+        assert sent[-1]["event"] == "tool_groups"
+        assert sent[-1]["groups"] == {"morph": {"ready": False, "reason": "Morph data is still being prepared."}}
+        session.done({"available": True})
+        _wait_for(lambda: any(message["event"] == "morph_state" for message in sent))
+        assert sent[-1] == {**sent[-1], "event": "tool_groups", "groups": {}}
+    finally:
+        _dispose(tab)
+
+
+def test_the_view_shown_at_the_click_is_handed_on_or_dropped(tmp_path: Path) -> None:
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    entry = ArchiveEntry(path="character/model/upper.pac", pamt_path=tmp_path / "0.pamt",
+                         paz_file=tmp_path / "0.paz", offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+
+    class _Binding:
+        def __init__(self) -> None:
+            self.is_ended = False
+
+        def show_view_now(self) -> bool:
+            return True
+
+        def end(self) -> None:
+            self.is_ended = True
+
+    made = []
+
+    class _Harness(MeshEditorShellBridgeMixin):
+        def __init__(self) -> None:
+            self.archive = SimpleNamespace(
+                _current_archive_entry=lambda: entry, archive_preview_request_entry=entry,
+                begin_edit_in_place=lambda current: made.append(_Binding()) or made[-1])
+
+    harness = _Harness()
+    harness._show_browse_view_first(entry)
+    assert harness._take_early_browse_binding(entry) is made[0]  # handed on to the open
+    harness._show_browse_view_first(entry)
+    harness._drop_early_browse_binding()  # the open went another way
+    assert made[1].is_ended
+    harness.archive.archive_preview_request_entry = ArchiveEntry(
+        path="character/model/other.pac", pamt_path=tmp_path / "0.pamt", paz_file=tmp_path / "0.paz",
+        offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+    harness._show_browse_view_first(entry)  # Browse is loading another file: no view
+    assert len(made) == 2

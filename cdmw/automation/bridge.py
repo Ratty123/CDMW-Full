@@ -190,7 +190,7 @@ class AutomationBridge(QObject):
         if controller is None:
             return
         keep = ("generation", "texture_uploads", "uploaded_bytes", "elapsed_ms", "package_path", "status",
-                "texture_uploads_before", "texture_uploads_after", "retained_entries", "reason",
+                "texture_uploads_before", "texture_uploads_after", "retained_entries", "reason", "install_ms", "at_unix_ms",
                 *(f"{side}_camera_{key}" for side in ("browse", "edit")
                   for key in ("yaw", "pitch", "distance", "target_x", "target_y", "target_z")))
 
