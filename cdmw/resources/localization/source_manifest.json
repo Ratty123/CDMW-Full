@@ -1171,7 +1171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 571,
+          "line": 612,
           "sink": "python-return:_rust_process_diagnostic_suffix"
         }
       ]
@@ -12376,7 +12376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 872,
+          "line": 913,
           "sink": "getOpenFileName"
         }
       ]
@@ -13086,7 +13086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 963,
+          "line": 1004,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -17866,7 +17866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1645,
+          "line": 1650,
           "sink": "_fail_current_process"
         }
       ]
@@ -17876,7 +17876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1651,
+          "line": 1656,
           "sink": "_fail_current_process"
         }
       ]
@@ -22211,7 +22211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 307,
+          "line": 309,
           "sink": "_leave_bound_viewport"
         }
       ]
@@ -24476,7 +24476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 760,
+          "line": 801,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -24486,7 +24486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 576,
+          "line": 617,
           "sink": "ValueError"
         }
       ]
@@ -26221,12 +26221,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1566,
+          "line": 1611,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1586,
+          "line": 1631,
           "sink": "_set_rust_status"
         }
       ]
@@ -26236,7 +26236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 961,
+          "line": 1002,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -40491,7 +40491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1470,
+          "line": 1475,
           "sink": "_fail_current_process"
         }
       ]
@@ -43896,7 +43896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 872,
+          "line": 913,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -43911,7 +43911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 872,
+          "line": 913,
           "sink": "getOpenFileName"
         },
         {
@@ -47381,7 +47381,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1482,
+          "line": 1527,
           "sink": "addButton"
         },
         {
@@ -61971,7 +61971,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1481,
+          "line": 1526,
           "sink": "addButton"
         }
       ]
@@ -79156,7 +79156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 864,
+          "line": 865,
           "sink": "ValueError"
         }
       ]
@@ -83216,7 +83216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 344,
+          "line": 377,
           "sink": "_set_rust_status"
         }
       ]
@@ -90736,12 +90736,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1566,
+          "line": 1611,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1586,
+          "line": 1631,
           "sink": "_set_rust_status"
         }
       ]
@@ -90751,7 +90751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1041,
+          "line": 1082,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90811,7 +90811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1477,
+          "line": 1522,
           "sink": "setWindowTitle"
         }
       ]
@@ -91141,7 +91141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 791,
+          "line": 832,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91151,7 +91151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 995,
+          "line": 1036,
           "sink": "_publish_rust_protocol_status"
         },
         {
@@ -91266,7 +91266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1374,
+          "line": 1419,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91276,7 +91276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1380,
+          "line": 1425,
           "sink": "show_error"
         }
       ]
@@ -91286,7 +91286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1354,
+          "line": 1399,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91296,7 +91296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1015,
+          "line": 1056,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91356,7 +91356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1460,
+          "line": 1505,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91376,7 +91376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1273,
+          "line": 1314,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91386,7 +91386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1269,
+          "line": 1310,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91396,7 +91396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 727,
+          "line": 768,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91416,7 +91416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 764,
+          "line": 805,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91446,17 +91446,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1232,
+          "line": 1273,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1280,
+          "line": 1321,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1348,
+          "line": 1393,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91476,7 +91476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 593,
+          "line": 634,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91631,7 +91631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 775,
+          "line": 816,
           "sink": "_set_rust_status"
         }
       ]
@@ -91661,7 +91661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 832,
+          "line": 873,
           "sink": "_set_rust_status"
         }
       ]
@@ -91671,7 +91671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 826,
+          "line": 867,
           "sink": "_set_rust_status"
         }
       ]
@@ -91891,7 +91891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1299,
+          "line": 1340,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91901,7 +91901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 482,
+          "line": 523,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91911,7 +91911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 475,
+          "line": 516,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91921,7 +91921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 715,
+          "line": 756,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91931,7 +91931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1045,
+          "line": 1086,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -92001,7 +92001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 710,
+          "line": 751,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -92061,7 +92061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 464,
+          "line": 505,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -92071,7 +92071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 678,
+          "line": 719,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -92101,7 +92101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 444,
+          "line": 485,
           "sink": "show_loading"
         }
       ]
@@ -92111,7 +92111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 445,
+          "line": 486,
           "sink": "_set_rust_status"
         }
       ]
@@ -92291,7 +92291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 820,
+          "line": 861,
           "sink": "_set_rust_status"
         }
       ]
@@ -92311,7 +92311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 472,
+          "line": 513,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -104446,7 +104446,7 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 109,
+          "line": 128,
           "sink": "_finish"
         }
       ]
@@ -110701,7 +110701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 309,
+          "line": 311,
           "sink": "_set_rust_status"
         }
       ]
@@ -110711,7 +110711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 294,
+          "line": 296,
+          "sink": "_set_rust_status"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
+          "line": 331,
           "sink": "_set_rust_status"
         }
       ]
@@ -122621,7 +122626,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1405,
+          "line": 1410,
           "sink": "_set_state"
         },
         {
@@ -123541,7 +123546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1084,
+          "line": 1086,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -123551,7 +123556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1090,
+          "line": 1092,
           "sink": "_set_state"
         }
       ]
@@ -123676,7 +123681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1949,
+          "line": 1954,
           "sink": "_fail_current_process"
         }
       ]
@@ -123686,7 +123691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1973,
+          "line": 1978,
           "sink": "_fail_current_process"
         }
       ]
@@ -123766,7 +123771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1201,
+          "line": 1206,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -123776,7 +123781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1233,
+          "line": 1238,
           "sink": "_set_state"
         }
       ]
@@ -124021,7 +124026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1846,
+          "line": 1851,
           "sink": "_set_state"
         }
       ]
@@ -124041,7 +124046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1185,
+          "line": 1187,
           "sink": "_set_state"
         }
       ]
@@ -124051,7 +124056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1585,
+          "line": 1590,
           "sink": "_set_state"
         }
       ]
@@ -124061,7 +124066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1451,
+          "line": 1456,
           "sink": "_fail_current_process"
         }
       ]
@@ -124081,12 +124086,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 676,
+          "line": 678,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1803,
+          "line": 1808,
           "sink": "_set_state"
         }
       ]
@@ -124096,12 +124101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1514,
+          "line": 1519,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1530,
+          "line": 1535,
           "sink": "_set_state"
         }
       ]
@@ -124121,12 +124126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 859,
+          "line": 861,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1720,
+          "line": 1725,
           "sink": "_set_state"
         }
       ]
@@ -124136,7 +124141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1180,
+          "line": 1182,
           "sink": "_set_state"
         }
       ]
@@ -124256,7 +124261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1963,
+          "line": 1968,
           "sink": "_fail_current_process"
         }
       ]
@@ -124616,7 +124621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1992,
+          "line": 1997,
           "sink": "_set_state"
         }
       ]
@@ -124766,7 +124771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 837,
+          "line": 839,
           "sink": "_set_state"
         }
       ]
@@ -124876,7 +124881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1248,
+          "line": 1253,
           "sink": "_fail_current_process"
         }
       ]
@@ -124886,7 +124891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1292,
+          "line": 1297,
           "sink": "_fail_current_process"
         }
       ]
@@ -124896,7 +124901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1268,
+          "line": 1273,
           "sink": "_fail_current_process"
         }
       ]
@@ -124906,7 +124911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1441,
+          "line": 1446,
           "sink": "_fail_current_process"
         }
       ]
@@ -125116,7 +125121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1485,
+          "line": 1490,
           "sink": "_fail_current_process"
         }
       ]
@@ -125126,7 +125131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1476,
+          "line": 1481,
           "sink": "_fail_current_process"
         }
       ]
@@ -125236,7 +125241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 431,
+          "line": 433,
           "sink": "_fail_pending_captures"
         }
       ]
@@ -125491,7 +125496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 869,
+          "line": 870,
           "sink": "ValueError"
         }
       ]
@@ -130211,7 +130216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1008,
+          "line": 1049,
           "sink": "setText"
         }
       ]
@@ -131681,7 +131686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 959,
+          "line": 1000,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -139701,7 +139706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 906,
+          "line": 908,
           "sink": "_fail_current_process"
         }
       ]
@@ -149241,12 +149246,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 778,
+          "line": 780,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 857,
+          "line": 859,
           "sink": "_set_state"
         }
       ]
@@ -168526,22 +168531,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1421,
+          "line": 1466,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1422,
+          "line": 1467,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1429,
+          "line": 1474,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1430,
+          "line": 1475,
           "sink": "_set_rust_status"
         }
       ]
@@ -168551,22 +168556,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1421,
+          "line": 1466,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1422,
+          "line": 1467,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1429,
+          "line": 1474,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1430,
+          "line": 1475,
           "sink": "_set_rust_status"
         }
       ]
@@ -168576,7 +168581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1478,
+          "line": 1523,
           "sink": "setText"
         }
       ]
@@ -173096,7 +173101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 392,
+          "line": 431,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -173191,7 +173196,7 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 96,
+          "line": 115,
           "sink": "RuntimeError"
         }
       ]
@@ -173201,7 +173206,7 @@
       "origins": [
         {
           "path": "cdmw/services/engine_capture.py",
-          "line": 139,
+          "line": 158,
           "sink": "_finish"
         }
       ]
@@ -176966,7 +176971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 744,
+          "line": 785,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -186826,7 +186831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 957,
+          "line": 998,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -194056,7 +194061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1479,
+          "line": 1524,
           "sink": "setInformativeText"
         }
       ]
@@ -194076,12 +194081,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1229,
+          "line": 1270,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1345,
+          "line": 1390,
           "sink": "show_result"
         }
       ]
@@ -196036,22 +196041,22 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 591,
+          "line": 593,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 592,
+          "line": 594,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 609,
+          "line": 611,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 610,
+          "line": 612,
           "sink": "_set_state"
         }
       ]
@@ -198151,7 +198156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1090,
+          "line": 1092,
           "sink": "_set_state"
         }
       ]
@@ -198436,7 +198441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1185,
+          "line": 1187,
           "sink": "_set_state"
         }
       ]
@@ -200271,12 +200276,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 778,
+          "line": 780,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 857,
+          "line": 859,
           "sink": "_set_state"
         }
       ]
@@ -200511,7 +200516,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1817,
+          "line": 1822,
           "sink": "emit"
         },
         {
@@ -202866,7 +202871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1434,
+          "line": 1439,
           "sink": "_fail_current_process"
         }
       ]
@@ -203256,17 +203261,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 837,
+          "line": 839,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1233,
+          "line": 1238,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2036,
+          "line": 2041,
           "sink": "_set_state"
         }
       ]
@@ -203796,7 +203801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1180,
+          "line": 1182,
           "sink": "_set_state"
         }
       ]
@@ -209211,17 +209216,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 676,
+          "line": 678,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1585,
+          "line": 1590,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1803,
+          "line": 1808,
           "sink": "_set_state"
         }
       ]
@@ -209516,22 +209521,22 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 591,
+          "line": 593,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 592,
+          "line": 594,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 609,
+          "line": 611,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 610,
+          "line": 612,
           "sink": "_set_state"
         }
       ]
@@ -209731,17 +209736,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1514,
+          "line": 1519,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1530,
+          "line": 1535,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1846,
+          "line": 1851,
           "sink": "_set_state"
         }
       ]
@@ -209781,7 +209786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 584,
+          "line": 625,
           "sink": "ValueError"
         }
       ]
@@ -209791,7 +209796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 586,
+          "line": 627,
           "sink": "ValueError"
         }
       ]
@@ -209921,7 +209926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 578,
+          "line": 619,
           "sink": "ValueError"
         }
       ]
@@ -210336,7 +210341,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1405,
+          "line": 1410,
           "sink": "_set_state"
         }
       ]
@@ -211521,12 +211526,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 859,
+          "line": 861,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1720,
+          "line": 1725,
           "sink": "_set_state"
         }
       ]
@@ -211571,7 +211576,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2049,
+          "line": 2054,
           "sink": "_set_state"
         }
       ]
@@ -212616,7 +212621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 580,
+          "line": 621,
           "sink": "ValueError"
         }
       ]
@@ -218556,7 +218561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 660,
+          "line": 661,
           "sink": "setText"
         }
       ]
@@ -219081,7 +219086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 2049,
+          "line": 2054,
           "sink": "_set_state"
         }
       ]
@@ -224656,7 +224661,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1449,
+          "line": 1494,
           "sink": "emit"
         },
         {
