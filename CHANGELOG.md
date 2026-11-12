@@ -45,6 +45,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- The switched-off ways of installing items into the game are being removed: the **Install as an overlay** routes of **Create New Item** and the **Mesh Editor**, which could no longer be reached, and the development tools of CDMW's own game loading are gone. Items reach the game through DMM, as before.
+
 - CDMW no longer contains the route that patched rebuilt meshes straight into the game's archive files, which nothing in the interface could reach any more. Mesh, audio and texture replacements are always written as mods. **Restore Backup...** in **Browse Archives** stays: it puts back the archive files an older CDMW version changed, from the backup it made then, and asks first. It again finds the backups those versions kept in the Windows temp folder.
 
 - Font sizes in **Settings > Appearance** are labelled in points, as they always were, and the interface, list and log fonts all accept 6 to 16 pt. The Mesh Editor, Create New Item and Mod Management follow the same smallest size and density as the rest of the app, and the static replacement dialog's text now matches it. Buttons, fields and tabs grow and shrink with the chosen text size.
