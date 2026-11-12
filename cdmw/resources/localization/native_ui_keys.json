@@ -1102,6 +1102,7 @@
   "Height uses displayed model coordinates. Each disconnected piece needs an anchor.",
   "Hidden",
   "Hidden layers stay in the draft but are left out of the Free Edit package.",
+  "Hide",
   "Hide Selected",
   "Hide geometry layer",
   "Hide selected parts",

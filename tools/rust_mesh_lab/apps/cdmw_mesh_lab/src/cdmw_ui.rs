@@ -1430,6 +1430,66 @@ pub(super) fn cdmw_list_columns(ui: &egui::Ui, detail: &str) -> [f32; 4] {
     [name, detail, view, include]
 }
 
+/// The visibility actions of Browse's Scene panel, on a part or a file of the
+/// Parts list (P5). Viewport visibility only: Include is not touched.
+pub(super) fn cdmw_part_visibility_actions(
+    targets: &[u32],
+    all: &[u32],
+) -> [(&'static str, Vec<UiAction>); 2] {
+    let others: Vec<u32> = all
+        .iter()
+        .copied()
+        .filter(|part| !targets.contains(part))
+        .collect();
+    [
+        (
+            "Isolate",
+            vec![
+                UiAction::SetPartVisibility {
+                    indices: others,
+                    visible: false,
+                },
+                UiAction::SetPartVisibility {
+                    indices: targets.to_vec(),
+                    visible: true,
+                },
+            ],
+        ),
+        (
+            "Hide",
+            vec![UiAction::SetPartVisibility {
+                indices: targets.to_vec(),
+                visible: false,
+            }],
+        ),
+    ]
+}
+
+pub(super) fn cdmw_part_visibility_menu(
+    ui: &mut egui::Ui,
+    actions: &mut Vec<UiAction>,
+    targets: &[u32],
+    all: &[u32],
+    any_hidden: bool,
+) {
+    for (label, chosen) in cdmw_part_visibility_actions(targets, all) {
+        if ui.button(crate::localization::tr(label)).clicked() {
+            actions.extend(chosen);
+            ui.close();
+        }
+    }
+    if ui
+        .add_enabled(any_hidden, Button::new(crate::localization::tr("Show All")))
+        .clicked()
+    {
+        actions.push(UiAction::SetPartVisibility {
+            indices: all.to_vec(),
+            visible: true,
+        });
+        ui.close();
+    }
+}
+
 pub(super) fn cdmw_list_cell<R>(
     ui: &mut egui::Ui,
     width: f32,
@@ -5664,8 +5724,12 @@ impl LabApplication {
                                 let mut shown = indices.iter().all(|index| !self.cdmw_hidden_parts.contains(index));
                                 let mut included = rows.iter().all(|row| row["included"] != false);
                                 ui.horizontal(|ui| {
+                                    let all: Vec<u32> = parts.iter().map(|(part, _, _)| *part).collect();
+                                    let any_hidden = !self.cdmw_hidden_parts.is_empty();
                                     cdmw_list_cell(ui, widths[0] + widths[1] + ui.spacing().item_spacing.x, |ui| {
-                                        ui.strong(group["name"].as_str().unwrap_or_default());
+                                        ui.strong(group["name"].as_str().unwrap_or_default())
+                                            .interact(egui::Sense::click())
+                                            .context_menu(|ui| cdmw_part_visibility_menu(ui, actions, &indices, &all, any_hidden));
                                     });
                                     cdmw_list_cell(ui, widths[2], |ui| {
                                         if ui.checkbox(&mut shown, "").labelled_by(headers[0]).changed() {
@@ -5704,14 +5768,20 @@ impl LabApplication {
                                             (crate::localization::tr(format!("{index}: {name}")), egui::Atom::grow()))).truncate())
                                 }).inner;
                                 self.track_cdmw_part_hover(ui, *index, &row);
-                                if row.on_hover_text(&help)
-                                    .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it"))).clicked() {
+                                let row = row.on_hover_text(&help)
+                                    .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it")));
+                                if row.clicked() {
                                     let mut updated = selected.clone();
                                     if active { updated.retain(|value| value != index); }
                                     else { updated.push(*index); }
                                     updated.sort_unstable();
                                     actions.push(UiAction::SetPartSelection(updated));
                                 }
+                                // P5: the Scene panel's visibility actions, on the editor's own list.
+                                let all: Vec<u32> = parts.iter().map(|(part, _, _)| *part).collect();
+                                row.context_menu(|ui| {
+                                    cdmw_part_visibility_menu(ui, actions, &[*index], &all, !self.cdmw_hidden_parts.is_empty());
+                                });
                             });
                             cdmw_list_cell(ui, widths[1], |ui| {
                                 if let Some(badge) = &badge {

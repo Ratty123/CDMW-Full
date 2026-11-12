@@ -395,3 +395,35 @@ fn material_sections_explain_the_parts_round_trip_and_apply_after_returning() ->
         if arguments["part_ids"] == json!(["b"]))));
     Ok(())
 }
+
+#[test]
+fn parts_list_menu_isolates_and_hides_like_the_scene_panel() {
+    use crate::cdmw_ui::cdmw_part_visibility_actions;
+
+    let [(isolate_label, isolate), (hide_label, hide)] =
+        cdmw_part_visibility_actions(&[1, 2], &[0, 1, 2, 3]);
+    assert_eq!((isolate_label, hide_label), ("Isolate", "Hide"));
+    let visibility = |actions: &[UiAction]| -> Vec<(Vec<u32>, bool)> {
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                UiAction::SetPartVisibility { indices, visible } => {
+                    Some((indices.clone(), *visible))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    // Isolate hides every other part and shows the chosen ones; Include is never touched.
+    assert_eq!(
+        visibility(&isolate),
+        vec![(vec![0, 3], false), (vec![1, 2], true)]
+    );
+    assert_eq!(visibility(&hide), vec![(vec![1, 2], false)]);
+    assert!(
+        isolate
+            .iter()
+            .chain(&hide)
+            .all(|action| matches!(action, UiAction::SetPartVisibility { .. }))
+    );
+}
