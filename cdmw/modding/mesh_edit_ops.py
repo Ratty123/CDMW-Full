@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 import os
 from copy import copy
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
 from cdmw.domain.textures.material_authority import complete_swap_material_authority_contract, sanitize_texture_component
@@ -190,6 +191,7 @@ MESH_TOPOLOGY_ACTIONS = {
     "bridge",
     "fill",
     "remove_doubles",
+    "remove_collapsed_faces",
     "delete_loose_vertices",
     "compact_orphans",
     "fix_winding",
@@ -258,6 +260,8 @@ def apply_mesh_edit_geometry_action(
         return _fill(mesh, selection)
     if action == "remove_doubles":
         return _remove_doubles(mesh, selection, params)
+    if action == "remove_collapsed_faces":
+        return _remove_collapsed_faces(mesh, selection, params)
     if action == "delete_loose_vertices":
         return _delete_loose_vertices(mesh, selection)
     if action == "compact_orphans":
@@ -2130,6 +2134,123 @@ def _delete_loose_vertices(mesh: ParsedMesh, selection: MeshEditSelection) -> tu
         return set(), {}
     result = compact_orphan_vertices(mesh, submesh_indices=target_indices, recompute_normals=True)
     refresh_mesh_totals(mesh)
+    return set(result.affected_submesh_indices), {}
+
+
+#: Twice a triangle's area at or below this is no area (the cloth guide builder's own test).
+COLLAPSED_FACE_AREA_EPSILON = 1e-12
+
+
+@dataclass(frozen=True, slots=True)
+class CollapsedFaceRemoval:
+    """What Remove collapsed faces removed, per part (submesh index, count)."""
+
+    faces_removed: tuple[tuple[int, int], ...] = ()
+    vertices_removed: tuple[tuple[int, int], ...] = ()
+
+    @property
+    def face_count(self) -> int:
+        return sum(count for _index, count in self.faces_removed)
+
+    @property
+    def vertex_count(self) -> int:
+        return sum(count for _index, count in self.vertices_removed)
+
+    @property
+    def affected_submesh_indices(self) -> tuple[int, ...]:
+        return tuple(sorted({index for index, count in (*self.faces_removed, *self.vertices_removed) if count}))
+
+
+def find_collapsed_faces(
+    mesh: ParsedMesh,
+    submesh_indices: Iterable[int] | None = None,
+    *,
+    area_epsilon: float = COLLAPSED_FACE_AREA_EPSILON,
+) -> dict[int, tuple[int, ...]]:
+    """Face indices, per part, that repeat a corner or have no area. Changes nothing.
+
+    A face whose corner index is out of range is not judged here; it is left as
+    it is. Clean Up shows these counts before it applies anything.
+    """
+    targets = range(len(mesh.submeshes)) if submesh_indices is None else sorted(
+        {int(index) for index in submesh_indices if 0 <= int(index) < len(mesh.submeshes)})
+    found: dict[int, tuple[int, ...]] = {}
+    for submesh_index in targets:
+        submesh = mesh.submeshes[submesh_index]
+        vertices = submesh.vertices or ()
+        collapsed = []
+        for face_index, face in enumerate(submesh.faces or ()):
+            corners = tuple(int(value) for value in face)
+            if len(corners) != 3 or any(not 0 <= value < len(vertices) for value in corners):
+                continue
+            if len(set(corners)) != 3:
+                collapsed.append(face_index)
+                continue
+            a, b, c = (_vec3(vertices[value]) for value in corners)
+            ab = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            ac = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+            cross = (ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0])
+            if math.hypot(*cross) <= area_epsilon:
+                collapsed.append(face_index)
+        if collapsed:
+            found[submesh_index] = tuple(collapsed)
+    return found
+
+
+def remove_collapsed_faces(
+    mesh: ParsedMesh,
+    submesh_indices: Iterable[int] | None = None,
+    *,
+    area_epsilon: float = COLLAPSED_FACE_AREA_EPSILON,
+    remove_unused_vertices: bool = True,
+) -> CollapsedFaceRemoval:
+    """Drop faces that repeat a corner or have no area, then the vertices nothing uses.
+
+    Every other face keeps its corners and its order. Vertices are compacted
+    only in parts that lost a face, and only when ``remove_unused_vertices``;
+    compaction removes every vertex no face uses in that part, as Delete Loose
+    Vertices does. The Python fallback of the native operation.
+    """
+    collapsed = find_collapsed_faces(mesh, submesh_indices, area_epsilon=area_epsilon)
+    for submesh_index, face_indices in collapsed.items():
+        drop = set(face_indices)
+        submesh = mesh.submeshes[submesh_index]
+        submesh.faces = [face for face_index, face in enumerate(submesh.faces or ()) if face_index not in drop]
+    vertices_removed: list[tuple[int, int]] = []
+    if collapsed and remove_unused_vertices:
+        for submesh_index in sorted(collapsed):
+            result = compact_orphan_vertices(mesh, submesh_indices=(submesh_index,), recompute_normals=True)
+            if result.removed_vertex_count:
+                vertices_removed.append((submesh_index, int(result.removed_vertex_count)))
+    else:
+        for submesh_index in sorted(collapsed):
+            recompute_submesh_normals(mesh.submeshes[submesh_index])
+    if collapsed:
+        refresh_mesh_totals(mesh)
+    return CollapsedFaceRemoval(tuple((index, len(faces)) for index, faces in sorted(collapsed.items())),
+                                tuple(vertices_removed))
+
+
+def _remove_collapsed_faces(
+    mesh: ParsedMesh,
+    selection: MeshEditSelection,
+    params: dict[str, object],
+) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    target_indices = _submesh_indices(mesh, selection)
+    # The native operation (P17 stage 3) is added beside Weld; until then this is the only route.
+    _record_native_edit_fallback(mesh, "topology.remove_collapsed_faces",
+                                 "native remove collapsed faces unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.remove_collapsed_faces", submesh_indices=target_indices):
+        return set(), {}
+    epsilon = params.get("area_epsilon", COLLAPSED_FACE_AREA_EPSILON)
+    try:
+        epsilon = float(epsilon)
+    except (TypeError, ValueError):
+        epsilon = COLLAPSED_FACE_AREA_EPSILON
+    if not math.isfinite(epsilon) or epsilon < 0:
+        epsilon = COLLAPSED_FACE_AREA_EPSILON
+    result = remove_collapsed_faces(mesh, target_indices, area_epsilon=epsilon,
+                                    remove_unused_vertices=bool(params.get("remove_unused_vertices", True)))
     return set(result.affected_submesh_indices), {}
 
 
