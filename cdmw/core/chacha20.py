@@ -144,35 +144,68 @@ class _OpenSsl:
             ctypes.c_void_p,
             ctypes.c_int,
         )
-        if not self.cipher():
+        # The same function, taking the input bytes object directly (one call, one chunk).
+        self.update_bytes = ctypes.CFUNCTYPE(
+            ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.c_char_p, ctypes.c_int
+        )(ctypes.cast(self.update, ctypes.c_void_p).value)
+        self.chacha = self.cipher()
+        if not self.chacha:
             raise OSError("libcrypto has no ChaCha20 cipher")
+        self._local = threading.local()
 
     def xor(self, data: bytes, key: bytes, nonce: bytes) -> bytes:
         size = len(data)
-        out = bytearray(size)
         if size == 0:
-            return bytes(out)
-        context = self.new()
-        if not context:
+            return b""
+        context = getattr(self._local, "context", None)
+        if context is None:
+            context = self._local.context = _ThreadContext(self)
+        if self.init(context.handle, self.chacha, None, key, nonce) != 1:
+            raise ValueError("OpenSSL refused the ChaCha20 key or nonce.")
+        # Written straight into a new bytes object, as a C extension would, so the
+        # result is not copied again (cryptography does the same).
+        out = _new_bytes(None, size)
+        destination = _bytes_address(out)
+        written = context.written
+        if size <= _OPENSSL_MAX_UPDATE:
+            if self.update_bytes(context.handle, destination, context.written_ref, data, size) != 1:
+                raise ValueError("OpenSSL ChaCha20 update failed.")
+            if written.value != size:
+                raise ValueError("OpenSSL ChaCha20 returned a short block.")
+            return out
+        source = ctypes.cast(ctypes.c_char_p(data), ctypes.c_void_p).value
+        for start in range(0, size, _OPENSSL_MAX_UPDATE):
+            length = min(_OPENSSL_MAX_UPDATE, size - start)
+            if self.update(context.handle, destination + start, context.written_ref, source + start, length) != 1:
+                raise ValueError("OpenSSL ChaCha20 update failed.")
+            if written.value != length:
+                raise ValueError("OpenSSL ChaCha20 returned a short block.")
+        return out
+
+
+class _ThreadContext:
+    """One EVP context per thread, re-initialised for each payload and freed with the thread."""
+
+    def __init__(self, library: "_OpenSsl") -> None:
+        self._free = library.free
+        self.handle = library.new()
+        if not self.handle:
             raise MemoryError("EVP_CIPHER_CTX_new failed")
-        try:
-            if self.init(context, self.cipher(), None, key, nonce) != 1:
-                raise ValueError("OpenSSL refused the ChaCha20 key or nonce.")
-            out_buffer = (ctypes.c_char * size).from_buffer(out)
-            source = ctypes.c_char_p(data)
-            written = ctypes.c_int(0)
-            base_out = ctypes.addressof(out_buffer)
-            base_in = ctypes.cast(source, ctypes.c_void_p).value
-            for start in range(0, size, _OPENSSL_MAX_UPDATE):
-                length = min(_OPENSSL_MAX_UPDATE, size - start)
-                if self.update(context, base_out + start, ctypes.byref(written), base_in + start, length) != 1:
-                    raise ValueError("OpenSSL ChaCha20 update failed.")
-                if written.value != length:
-                    raise ValueError("OpenSSL ChaCha20 returned a short block.")
-            del out_buffer
-        finally:
-            self.free(context)
-        return bytes(out)
+        self.written = ctypes.c_int(0)
+        self.written_ref = ctypes.byref(self.written)
+
+    def __del__(self) -> None:
+        handle, self.handle = getattr(self, "handle", None), None
+        if handle:
+            self._free(handle)
+
+
+_new_bytes = ctypes.pythonapi.PyBytes_FromStringAndSize
+_new_bytes.restype = ctypes.py_object
+_new_bytes.argtypes = (ctypes.c_void_p, ctypes.c_ssize_t)
+_bytes_address = ctypes.pythonapi.PyBytes_AsString
+_bytes_address.restype = ctypes.c_void_p
+_bytes_address.argtypes = (ctypes.py_object,)
 
 
 def _libcrypto_candidates() -> list[str]:
