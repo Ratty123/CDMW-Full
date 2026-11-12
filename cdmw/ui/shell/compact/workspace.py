@@ -11,6 +11,7 @@ from cdmw.ui.shell.compact.activity import ActivityHistory, CompactStatusSnapsho
 from cdmw.ui.shell.compact.config import active_shell_theme_setting, theme_change_field
 from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
 from cdmw.ui.shell.compact.rail import CompactWorkspaceRail
+from cdmw.ui.shell.compact.registry import compact_tool_label
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
 from cdmw.ui.shell.compact.status_strip import CompactBottomStatusStrip
 from cdmw.ui.shell.navigation_visibility import NavigationVisibilityButton
@@ -59,7 +60,7 @@ class CompactWorkspace(QWidget):
         right_layout.addWidget(self.status_strip)
         layout.addWidget(right, stretch=1)
 
-        self.rail.tool_requested.connect(owner.shell._activate_tool_key)
+        self.rail.tool_requested.connect(self._run_tool_command)
         self.status_strip.drawer_requested.connect(self.drawer.setVisible)
 
     def set_active_tool(self, tool_key: str) -> None:
@@ -79,9 +80,35 @@ class CompactWorkspace(QWidget):
                 self._refresh_status_snapshot(key)
         self.refresh_tool_enabled_states()
 
+    def _run_tool_command(self, tool_key: str) -> None:
+        """A rail entry runs its registry command, as the palette does (P15 step 1)."""
+
+        from cdmw.ui.commands.registry import CommandRefused
+        from cdmw.ui.shell.shell_commands import tool_command_id
+
+        registry = getattr(self.owner.shell, "command_registry", None)
+        command_id = tool_command_id(tool_key)
+        if registry is None or command_id not in registry:
+            self.owner.shell._activate_tool_key(tool_key)
+            return
+        try:
+            registry.run(command_id)
+        except CommandRefused:
+            self.refresh_tool_enabled_states()
+
     def refresh_tool_enabled_states(self) -> None:
+        from cdmw.ui.shell.shell_commands import tool_command_id
+
         containers = getattr(self.owner.shell, "_tool_widgets_by_key", {})
+        registry = getattr(self.owner.shell, "command_registry", None)
         for key, button in self.rail.tool_buttons.items():
+            command_id = tool_command_id(key)
+            if registry is not None and command_id in registry:
+                # The palette shows the same reason for the same command.
+                reason = registry.reason(command_id)
+                button.setEnabled(not reason)
+                button.setToolTip(reason or compact_tool_label(key))
+                continue
             widget = containers.get(key) if isinstance(containers, dict) else None
             if widget is not None:
                 button.setEnabled(widget.isEnabled())

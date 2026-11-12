@@ -21,6 +21,8 @@ TOOL_CONTEXTS = {
     "mesh_editor": "mesh_editor",
     "texture_editor": "texture_editor",
     "new_item": "new_item",
+    "new_item_studio": "new_item",
+    "textures": "texture_editor",
     "mod_management": "mod_management",
 }
 _COMMAND_ROLE = Qt.ItemDataRole.UserRole + 1

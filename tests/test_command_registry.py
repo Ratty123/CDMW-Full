@@ -65,7 +65,7 @@ def test_every_view_of_a_command_shows_its_state_and_reason(app):
 
 
 def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
-    from cdmw.ui.shell.shell_commands import BUSY_REASON, SHELL_ACTIONS, install_shell_commands
+    from cdmw.ui.shell.shell_commands import BUSY_REASON, SHELL_ACTIONS, TOOL_COMMAND_PREFIX, install_shell_commands
     from PySide6.QtWidgets import QMainWindow
 
     calls = []
@@ -80,7 +80,7 @@ def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
     for attribute in SHELL_ACTIONS.values():
         setattr(shell, attribute, QAction(attribute, shell))
     registry = install_shell_commands(shell)
-    assert {c.id for c in registry.commands("shell")} == set(SHELL_ACTIONS)
+    assert {c.id for c in registry.commands("shell") if not c.id.startswith(TOOL_COMMAND_PREFIX)} == set(SHELL_ACTIONS)
     shell._shell_busy = True
     shell._window_menu_state = (True, False, False)
     registry.refresh("shell")
@@ -239,3 +239,40 @@ def test_a_browse_command_shows_its_button_s_state_and_reason(app, monkeypatch):
     registry.run(command)
     assert pressed == [1]
     button.deleteLater()
+
+
+def test_rail_entries_are_commands_with_the_palettes_reason() -> None:
+    """P15 step 1: each rail entry runs a registry command; a disabled tool gives one reason everywhere."""
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.ui.commands.palette import TOOL_CONTEXTS
+    from cdmw.ui.commands.registry import CommandRefused, CommandRegistry
+    from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+    from cdmw.ui.shell.shell_commands import TOOL_UNAVAILABLE_REASON, tool_command_id, tool_commands
+
+    QApplication.instance() or QApplication([])
+    opened: list[str] = []
+    widgets = {spec.key: QWidget() for spec in COMPACT_TOOL_SPECS}
+    shell = SimpleNamespace(_tool_widgets_by_key=widgets, _activate_tool_key=opened.append)
+    registry = CommandRegistry()
+    registry.register_all(tool_commands(shell))
+    assert {command.id for command in registry.commands("shell")} == {tool_command_id(spec.key) for spec in COMPACT_TOOL_SPECS}
+    registry.run(tool_command_id("textures"))
+    assert opened == ["textures"]
+    widgets["mod_management"].setEnabled(False)
+    widgets["mod_management"].setToolTip("Mod Management needs its helper, which was not found.")
+    assert registry.reason(tool_command_id("mod_management")) == "Mod Management needs its helper, which was not found."
+    widgets["research"].setEnabled(False)
+    assert registry.reason(tool_command_id("research")) == TOOL_UNAVAILABLE_REASON
+    try:
+        registry.run(tool_command_id("research"))
+    except CommandRefused as refused:
+        assert str(refused) == TOOL_UNAVAILABLE_REASON
+    else:
+        raise AssertionError("a disabled tool's command ran")
+    # The palette finds Create New Item's and the Textures tool's commands by their rail keys.
+    assert TOOL_CONTEXTS["new_item_studio"] == "new_item" and TOOL_CONTEXTS["textures"] == "texture_editor"
+    for widget in widgets.values():
+        widget.deleteLater()

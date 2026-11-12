@@ -15,6 +15,9 @@ BUSY_REASON = "Wait for the current task to finish."
 DETACH_REASON = "This tool cannot be moved to a window of its own."
 ATTACH_REASON = "This tool is not in a window of its own."
 ATTACH_ALL_REASON = "No tool is in a window of its own."
+TOOL_UNAVAILABLE_REASON = "This tool is not available."
+#: P15: every rail entry runs one of these, so the rail and the palette share a reason.
+TOOL_COMMAND_PREFIX = "shell.open."
 
 #: Command id -> the shell action that shows it in the menus.
 SHELL_ACTIONS = {
@@ -68,6 +71,38 @@ def shell_commands(shell) -> list[Command]:
     ]
 
 
+def tool_command_id(tool_key: str) -> str:
+    return TOOL_COMMAND_PREFIX + str(tool_key or "")
+
+
+def tool_commands(shell) -> list[Command]:
+    """One "open" command per rail entry (P15 step 1).
+
+    Its reason is the tool's own: a disabled tool names why in its tooltip, and
+    the rail button and the palette both show that text.
+    """
+
+    from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+
+    def reason_for(key: str):
+        def check() -> str:
+            widgets = getattr(shell, "_tool_widgets_by_key", {}) or {}
+            widget = widgets.get(key) if isinstance(widgets, dict) else None
+            if widget is None or widget.isEnabled():
+                return ""
+            return str(widget.toolTip() or "").strip() or TOOL_UNAVAILABLE_REASON
+        return check
+
+    def opener(key: str):
+        return lambda: shell._activate_tool_key(key)
+
+    return [
+        Command(tool_command_id(spec.key), spec.label, SHELL, opener(spec.key), reason_for(spec.key),
+                keywords=("open", "go to", "switch to", spec.key.replace("_", " ")))
+        for spec in COMPACT_TOOL_SPECS
+    ]
+
+
 def install_shell_commands(shell) -> CommandRegistry:
     """Register the shell's commands in the application's registry and bind its menu actions.
 
@@ -84,6 +119,7 @@ def install_shell_commands(shell) -> CommandRegistry:
     registry = command_registry() or CommandRegistry()
     shell.command_registry = registry
     registry.register_all(shell_commands(shell), replace=True)
+    registry.register_all(tool_commands(shell), replace=True)
     for command_id, attribute in SHELL_ACTIONS.items():
         action = getattr(shell, attribute, None)
         if isinstance(action, QAction):
