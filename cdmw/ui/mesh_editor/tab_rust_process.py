@@ -558,6 +558,18 @@ class MeshEditorRustProcessMixin:
         if event == "ready":
             self._handle_rust_ready(payload)
             return
+        if event == "app_shortcut":
+            # A chord that belongs to CDMW, pressed with focus in the editor's window (P12).
+            if str(payload.get("command", "") or "") == "command_palette":
+                from cdmw.ui.commands.palette import open_command_palette
+
+                try:
+                    window = self.window()
+                except (AttributeError, RuntimeError):
+                    window = None
+                if window is not None:
+                    open_command_palette(window)
+            return
         if event == "state_snapshot":
             return
         if event == "switch_item_piece":

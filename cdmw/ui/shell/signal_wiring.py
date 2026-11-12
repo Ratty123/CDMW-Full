@@ -15,6 +15,12 @@ class ShellSignalWiringMixin:
         from cdmw.ui.shell.shell_commands import install_shell_commands
 
         install_shell_commands(self)
+        from PySide6.QtWidgets import QWidget
+
+        if isinstance(self, QWidget):  # a real window, not a wiring stub
+            from cdmw.ui.commands.palette import install_command_palette
+
+            install_command_palette(self)
         self.mod_package_tool_action.triggered.connect(lambda _checked=False: self._activate_tool_key('mod_package_retrofit'))
         self.support_corner_button.clicked.connect(self.show_support_dialog)
         self.textures.scan_button.clicked.connect(self.textures.start_scan)

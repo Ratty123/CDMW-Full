@@ -410,3 +410,33 @@ fn read_only_sessions_keep_view_keys_and_refuse_edit_tools() -> TestResult {
     assert!(ui.application.camera.revision() > before);
     Ok(())
 }
+
+#[test]
+fn the_command_palette_chord_goes_to_cdmw_even_while_typing() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "palette", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    let ctrl_shift = egui::Modifiers {
+        shift: true,
+        ..CTRL
+    };
+    ui.application.shortcut_editor.open = true;
+    ui.frame(Vec::new());
+    ui.application
+        .egui_context
+        .memory_mut(|memory| memory.request_focus(egui::Id::new("cdmw-shortcut-search")));
+    ui.frame(Vec::new());
+    press(&mut ui, egui::Key::P, ctrl_shift);
+    let sent = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "app_shortcut")
+    .expect("app_shortcut sent to CDMW");
+    assert_eq!(sent["command"], "command_palette");
+    assert_eq!(sent["protocol"], cdmw_session::PROTOCOL);
+    Ok(())
+}

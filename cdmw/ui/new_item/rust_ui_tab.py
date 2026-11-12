@@ -291,6 +291,12 @@ class RustNewItemStudioTab(QWidget):
                     self._portals.update(self._bridge.document, message)
         elif kind == "failed":
             self._fail(str(message.get("message", "The Rust renderer stopped.")))
+        elif kind == "app_shortcut":
+            # A chord that belongs to CDMW, pressed with focus in this page (P12).
+            if message.get("command") == "command_palette":
+                from cdmw.ui.commands.palette import open_command_palette
+
+                open_command_palette(self.window())
         else:
             raise PresentationProtocolError("Unknown Rust presentation message.")
 

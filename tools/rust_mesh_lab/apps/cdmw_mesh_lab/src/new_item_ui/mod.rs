@@ -453,7 +453,15 @@ impl Application {
         input
             .events
             .retain(|event| !matches!(event, egui::Event::WindowFocused(_)));
+        let mut palette = false;
         let output = self.context.run_ui(input, |ui| {
+            // The command palette's chord belongs to CDMW, wherever the focus is (P12).
+            palette |= ui.input_mut(|input| {
+                input.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::P,
+                )
+            });
             if let Some(state) = &self.state {
                 self.view.draw(ui, state);
             } else {
@@ -480,6 +488,12 @@ impl Application {
             crate::render_pending_egui_textures(&mut self.textures, |textures| {
                 renderer.render_egui(&jobs, textures, output.pixels_per_point)
             })?;
+        }
+        if palette {
+            emit(
+                &json!({"protocol":PROTOCOL,"type":"app_shortcut","session":self.session,
+                "command":"command_palette"}),
+            )?;
         }
         for input in self.view.inputs.drain(..) {
             enqueue_input(&mut self.requests, input);

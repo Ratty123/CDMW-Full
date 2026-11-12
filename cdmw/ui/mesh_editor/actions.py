@@ -189,7 +189,7 @@ _SHORTCUTS = {
     "uv_auto_unwrap": "Ctrl+Alt+P",
     "uv_pack": "Alt+P",
     "uv_snap_grid": "Ctrl+Alt+G",
-    "uv_snap_pixels": "Ctrl+Shift+P",
+    # Ctrl+Shift+P opens the command palette; the helper's keymap holds the live UV keys (P12).
     "undo": "Ctrl+Z",
     "redo": "Ctrl+Y",
 }

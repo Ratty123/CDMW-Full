@@ -255,6 +255,15 @@ impl LabApplication {
             self.capture_shortcut(context, numpad);
             return;
         }
+        // App-wide chords (the command palette) go to CDMW before the editor's own.
+        for chord in
+            take_shortcut_presses(context, Vec::new(), |chord| chord.app_command().is_some())
+        {
+            if let (Some(command), Some(bridge)) = (chord.app_command(), self.cdmw_bridge.as_ref())
+            {
+                let _ = bridge.announce_app_shortcut(command);
+            }
+        }
         if context.egui_wants_keyboard_input()
             || egui::Popup::is_any_open(context)
             || self.cdmw_delete_guidance_open()
@@ -529,6 +538,7 @@ impl LabApplication {
                 }
                 ReservedChord::CloseWindow => "Alt+F4 closes the window.",
                 ReservedChord::Clipboard => "Copy, cut and paste stay with text fields.",
+                ReservedChord::AppCommand => "Ctrl+Shift+P opens the command palette.",
             }));
             return;
         }

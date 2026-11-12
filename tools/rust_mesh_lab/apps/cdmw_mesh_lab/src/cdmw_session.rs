@@ -1019,6 +1019,19 @@ impl CdmwBridge {
         }))
     }
 
+    /// A chord that belongs to CDMW (the command palette) was pressed in this window.
+    pub fn announce_app_shortcut(&self, command: &str) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "app_shortcut",
+            "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "request_id": 0,
+            "base_revision": self.shadow_revision,
+            "process_generation": self.manifest.process_generation,
+            "command": command
+        }))
+    }
+
     pub fn announce_ready(&self) -> Result<(), SessionError> {
         self.send_message(json!({
             "event": "ready",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication
 
@@ -100,3 +101,57 @@ def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
     shell.close()
     shell.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_the_palette_lists_the_context_s_commands_and_runs_one(app):
+    from cdmw.ui.commands.palette import CommandPalette
+
+    registry = CommandRegistry()
+    ran = []
+    registry.register(Command("shell.settings", "Settings", "shell", lambda: ran.append("settings"),
+                              keys=("Ctrl+,",)))
+    registry.register(Command("browse.extract", "Extract Selected", "browse", lambda: ran.append("extract"),
+                              lambda: "Select a file first."))
+    registry.register(Command("browse.preview", "Preview Selected", "browse", lambda: ran.append("preview")))
+    registry.register(Command("mesh_editor.finish", "Finish Edit Mesh", "mesh_editor", lambda: ran.append("x")))
+    palette = CommandPalette(registry, ("browse",))
+    try:
+        listed = [palette.list.item(i).data(Qt.ItemDataRole.UserRole + 1) for i in range(palette.list.count())]
+        assert set(listed) == {"shell.settings", "browse.extract", "browse.preview"}  # no other tool's commands
+        assert "Ctrl+," in palette.list.item(listed.index("shell.settings")).text()
+        palette.search.setText("prev sel")
+        assert palette.list.count() == 1 and palette.current_command_id() == "browse.preview"
+        assert palette.run_current() and ran == ["preview"]
+        # An unavailable command is listed with its reason and refuses to run.
+        palette.search.setText("extract")
+        assert palette.reason.text() == "Select a file first."
+        assert not palette.run_current() and ran == ["preview"]
+    finally:
+        palette.deleteLater()
+    # The command run last comes first next time.
+    again = CommandPalette(registry, ("browse",))
+    try:
+        assert again.current_command_id() == "browse.preview"
+    finally:
+        again.deleteLater()
+
+
+def test_the_palette_chord_from_a_helper_window_opens_the_palette(app, monkeypatch):
+    """Keys typed in a helper window never reach Qt, so the helper sends the chord."""
+    from types import SimpleNamespace
+
+    from cdmw.ui.commands import palette as palette_module
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    opened = []
+    monkeypatch.setattr(palette_module, "open_command_palette", opened.append)
+    window = object()
+    editor = SimpleNamespace(
+        standalone_rust_protocol_events=[], standalone_rust_failure_reported=False,
+        _validate_rust_event_identity=lambda payload: "app_shortcut", window=lambda: window)
+    MeshEditorRustProcessMixin._handle_rust_protocol_event(editor, {"event": "app_shortcut",
+                                                                    "command": "command_palette"})
+    page = SimpleNamespace(_bridge=SimpleNamespace(session="s1"), window=lambda: window)
+    RustNewItemStudioTab._handle_message(page, {"type": "app_shortcut", "session": "s1", "command": "command_palette"})
+    assert opened == [window, window]

@@ -233,9 +233,18 @@ impl KeyChord {
             )
         {
             Some(ReservedChord::Clipboard)
+        } else if self.app_command().is_some() {
+            Some(ReservedChord::AppCommand)
         } else {
             None
         }
+    }
+
+    /// The app-wide command this chord opens in CDMW itself, if any. Such a chord is
+    /// passed to CDMW instead of the editor, so it works with focus in this window.
+    pub(crate) fn app_command(self) -> Option<&'static str> {
+        (self.ctrl && self.shift && !self.alt && self.key == ShortcutKey::Key(egui::Key::P))
+            .then_some("command_palette")
     }
 }
 
@@ -245,6 +254,7 @@ pub(crate) enum ReservedChord {
     EditingKey,
     CloseWindow,
     Clipboard,
+    AppCommand,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1087,5 +1097,12 @@ mod tests {
         assert!(chord("Alt+F4").reserved_reason().is_some());
         assert!(chord("Ctrl+C").reserved_reason().is_some());
         assert!(chord("Ctrl+Z").reserved_reason().is_none());
+        // The command palette's chord belongs to CDMW, wherever the focus is.
+        assert_eq!(
+            chord("Ctrl+Shift+P").reserved_reason(),
+            Some(ReservedChord::AppCommand)
+        );
+        assert_eq!(chord("Ctrl+Shift+P").app_command(), Some("command_palette"));
+        assert_eq!(chord("Ctrl+P").app_command(), None);
     }
 }
