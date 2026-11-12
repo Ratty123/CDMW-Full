@@ -2206,10 +2206,14 @@ def remove_collapsed_faces(
 ) -> CollapsedFaceRemoval:
     """Drop faces that repeat a corner or have no area, then the vertices nothing uses.
 
-    Every other face keeps its corners and its order. Vertices are compacted
-    only in parts that lost a face, and only when ``remove_unused_vertices``;
-    compaction removes every vertex no face uses in that part, as Delete Loose
-    Vertices does. The Python fallback of the native operation.
+    Every other face keeps its corners and its order, and every kept vertex
+    keeps its stored normal and tangent: a face with no area adds nothing to
+    shading, so nothing is recomputed. Vertices are compacted only in parts
+    that lost a face, and only when ``remove_unused_vertices``; compaction
+    removes every vertex no face uses in that part, as Delete Loose Vertices
+    does. A part that also holds a face with an out-of-range corner is not
+    compacted, because compaction would drop that face too. The Python
+    fallback of the native operation.
     """
     collapsed = find_collapsed_faces(mesh, submesh_indices, area_epsilon=area_epsilon)
     for submesh_index, face_indices in collapsed.items():
@@ -2219,12 +2223,19 @@ def remove_collapsed_faces(
     vertices_removed: list[tuple[int, int]] = []
     if collapsed and remove_unused_vertices:
         for submesh_index in sorted(collapsed):
-            result = compact_orphan_vertices(mesh, submesh_indices=(submesh_index,), recompute_normals=True)
+            submesh = mesh.submeshes[submesh_index]
+            count = len(submesh.vertices or ())
+            if any(any(not 0 <= int(value) < count for value in face) for face in submesh.faces or ()):
+                continue
+            used = sorted({int(value) for face in submesh.faces or () for value in face})
+            # compact_orphan_vertices carries normals and the other vertex channels but not tangents.
+            tangent_rows = {name: list(getattr(submesh, name, None) or ()) for name in ("tangents", "tangent_signs")}
+            result = compact_orphan_vertices(mesh, submesh_indices=(submesh_index,), recompute_normals=False)
             if result.removed_vertex_count:
+                for name, rows in tangent_rows.items():
+                    if len(rows) == count:
+                        setattr(submesh, name, [rows[index] for index in used])
                 vertices_removed.append((submesh_index, int(result.removed_vertex_count)))
-    else:
-        for submesh_index in sorted(collapsed):
-            recompute_submesh_normals(mesh.submeshes[submesh_index])
     if collapsed:
         refresh_mesh_totals(mesh)
     return CollapsedFaceRemoval(tuple((index, len(faces)) for index, faces in sorted(collapsed.items())),

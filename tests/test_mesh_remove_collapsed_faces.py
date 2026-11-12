@@ -60,6 +60,37 @@ def test_removal_drops_only_collapsed_faces_and_the_vertices_they_alone_used():
     assert remove_collapsed_faces(mesh).face_count == 0  # nothing left to remove
 
 
+def _authored(part):
+    """Normals and tangents no smoothing would produce, one per vertex, all different."""
+    part.normals = [(0.6, 0.0, 0.8), (0.0, 0.6, 0.8), (-0.6, 0.0, 0.8), (0.0, -0.6, 0.8),
+                    (0.8, 0.6, 0.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, -1.0)]
+    part.tangents = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (0.6, 0.8, 0.0),
+                     (0.8, 0.0, 0.6), (0.0, 0.8, 0.6), (-1.0, 0.0, 0.0), (0.0, -1.0, 0.0)]
+    return part
+
+
+@pytest.mark.parametrize("remove_unused_vertices", [True, False])
+def test_kept_vertices_keep_their_stored_normals_and_tangents(remove_unused_vertices):
+    mesh = _mesh()
+    part = _authored(mesh.submeshes[0])
+    normals, tangents = list(part.normals), list(part.tangents)
+    belt_normals = list(mesh.submeshes[1].normals)
+    remove_collapsed_faces(mesh, remove_unused_vertices=remove_unused_vertices)
+    kept = range(4) if remove_unused_vertices else range(8)
+    assert part.normals == [normals[i] for i in kept]
+    assert part.tangents == [tangents[i] for i in kept]
+    assert mesh.submeshes[1].normals == belt_normals
+
+
+def test_a_part_with_an_out_of_range_face_loses_its_collapsed_faces_but_is_not_compacted():
+    mesh = _mesh()
+    part = mesh.submeshes[0]
+    part.faces.append((0, 1, 99))
+    result = remove_collapsed_faces(mesh)
+    assert result.face_count == 3 and result.vertices_removed == ()
+    assert (0, 1, 99) in part.faces and len(part.vertices) == 8
+
+
 def test_vertices_can_be_left_for_delete_loose_vertices():
     mesh = _mesh()
     result = remove_collapsed_faces(mesh, remove_unused_vertices=False)
