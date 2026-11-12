@@ -62,14 +62,21 @@ from cdmw.services.mesh_saved_work_service import (
     saved_work_status,
     update_saved_work_details,
 )
+from cdmw.domain.packages.game_file_label import game_file_label, shorten_game_path
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.services.item_package_saved_work import add_item_package_file
 from cdmw.ui.mesh_editor.elided_label import ElidedLabel
+from cdmw.ui.mesh_editor.saved_work_combine import SavedWorkCombineFlow, combine_reason
 from cdmw.ui.mesh_editor.saved_work_sources import normalized_archive_path
 
 ALL_WORK = "\x00all"
 NO_PROJECT = ""
 _ROW_KEY_ROLE = Qt.ItemDataRole.UserRole
 _SORT_ROLE = Qt.ItemDataRole.UserRole + 1
+#: The Game file cell's files (a tuple of game paths); the delegate fits them to the column.
+_GAME_FILES_ROLE = Qt.ItemDataRole.UserRole + 2
+#: "+ N more" for a row that writes several game files; {first} and {count} are filled in.
+MORE_FILES_TEMPLATE = "{first} + {count} more"
 # Columns that share the table's width by these weights and shorten to fit;
 # the date keeps its own width.
 _FLEX_COLUMNS = {1: 4, 2: 3, 3: 2, 4: 1, 5: 3, 6: 2}
@@ -108,7 +115,32 @@ def saved_work_kind_text(row: SavedWorkRow) -> str:
 def saved_work_game_file_text(row: SavedWorkRow) -> str:
     if row.is_item_package:
         return f"New item based on {row.source_package}" if row.source_package else "New item"
+    files = row.game_files
+    if len(files) > 1:
+        return game_file_label(files, max_chars=1 << 16, more_template=_more_template()).text
     return row.source_archive_path
+
+
+def _more_template() -> str:
+    template = translate_active_ui_text(MORE_FILES_TEMPLATE)
+    return template if "{first}" in template and "{count}" in template else MORE_FILES_TEMPLATE
+
+
+def fit_game_file_label(paths: Sequence[str], fits: Callable[[str], bool]) -> str:
+    """The longest "first file + N more" whose text ``fits``; folders go first, the file name never."""
+
+    files = tuple(str(path) for path in paths)
+    if not files:
+        return ""
+    template = _more_template()
+    name = files[0].replace("\\", "/").strip("/").rsplit("/", 1)[-1]
+    for limit in range(len(files[0]), 0, -1):
+        text = game_file_label(files, max_chars=limit, more_template=template).text
+        if fits(text):
+            return text
+        if shorten_game_path(files[0], limit) == name:
+            break  # Only the file name is left; it is never cut.
+    return game_file_label(files, max_chars=1, more_template=template).text
 
 
 def _row_key(row: SavedWorkRow) -> str:
@@ -125,12 +157,24 @@ class _SortItem(QTableWidgetItem):
         return mine < theirs
 
 
-class _MiddleElideDelegate(QStyledItemDelegate):
-    """Shortens a game path in the middle, so its file name stays visible."""
+class _GameFileDelegate(QStyledItemDelegate):
+    """Fits a game path to its column: the file name stays whole, leading folders go first.
+
+    Two drafts of one armour often differ only in the middle of their paths, so
+    a middle elide could show the same text for both. A row that writes several
+    files reads "first file + N more"; its tooltip lists every file.
+    """
 
     def initStyleOption(self, option, index) -> None:
         super().initStyleOption(option, index)
-        option.textElideMode = Qt.TextElideMode.ElideMiddle
+        files = index.data(_GAME_FILES_ROLE)
+        if not files:
+            option.textElideMode = Qt.TextElideMode.ElideMiddle
+            return
+        metrics = option.fontMetrics
+        room = max(0, option.rect.width() - metrics.averageCharWidth() - 6)
+        option.text = fit_game_file_label(tuple(files), lambda text: metrics.horizontalAdvance(text) <= room)
+        option.textElideMode = Qt.TextElideMode.ElideRight
 
 
 class _Relay(QObject):
@@ -149,6 +193,7 @@ class SavedWorkPage(QWidget):
         draft_root: Path,
         source_resolver: object | None = None,
         active_draft_manifest: Callable[[], Path | None] | None = None,
+        game_root: Callable[[], str] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -168,6 +213,15 @@ class SavedWorkPage(QWidget):
         self._splitter_sized = False
         self._relay = _Relay(self)
         self._relay.done.connect(self._handle_background_done)
+        self._select_after_refresh = ""
+        # The configured game folder, for Combine: Archive Browser's, through the resolver.
+        self.game_root = game_root or getattr(source_resolver, "configured_game_root", None) or (lambda: "")
+        self.combine_flow = SavedWorkCombineFlow(
+            self, draft_root=lambda: self.draft_root, game_root=lambda: self.game_root(),
+        )
+        self.combine_flow.status_message.connect(self.status_message_requested.emit)
+        self.combine_flow.busy_changed.connect(lambda _busy: self._sync_buttons())
+        self.combine_flow.finished.connect(self._combine_finished)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -225,6 +279,9 @@ class SavedWorkPage(QWidget):
         self.add_package_button.clicked.connect(self._add_item_package)
         self.refresh_button.clicked.connect(self.refresh)
         self._sync_buttons()
+        from cdmw.ui.mesh_editor.saved_work_commands import install_saved_work_commands
+
+        install_saved_work_commands(self)
 
     # ------------------------------------------------------------ layout
 
@@ -279,7 +336,7 @@ class SavedWorkPage(QWidget):
         header.setStretchLastSection(False)
         header.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setItemDelegateForColumn(2, _MiddleElideDelegate(self.table))
+        self.table.setItemDelegateForColumn(2, _GameFileDelegate(self.table))
         self.table.viewport().installEventFilter(self)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
@@ -327,7 +384,14 @@ class SavedWorkPage(QWidget):
         self.status_value = QLabel("", panel)
         self.status_value.setWordWrap(True)
         self.folder_value = ElidedLabel(panel, mode=Qt.TextElideMode.ElideMiddle)
+        # Every file of a build that writes several; hidden for one file.
+        self.game_files_list = QListWidget(panel)
+        self.game_files_list.setObjectName("SavedWorkGameFiles")
+        self.game_files_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.game_files_list.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        self.game_files_list.setVisible(False)
         facts.addRow("Game file", self.game_file_value)
+        facts.addRow("", self.game_files_list)
         facts.addRow("Draft or mod", self.kind_value)
         facts.addRow("Edit pass", self.edit_pass_value)
         facts.addRow("Status", self.status_value)
@@ -345,16 +409,20 @@ class SavedWorkPage(QWidget):
         self.move_button = QPushButton("Move to Project...", panel)
         self.move_button.setObjectName("SavedWorkMove")
         self.move_button.setToolTip("Put every selected draft and mod into a project.")
+        # The same text as saved_work_combine.LABEL, the command's label.
+        self.combine_button = QPushButton("Combine into One Mod...", panel)
+        self.combine_button.setObjectName("SavedWorkCombine")
         self.delete_button = QPushButton("Delete...", panel)
         self.delete_button.setObjectName("SavedWorkDelete")
         for button in (self.continue_button, self.open_folder_button, self.duplicate_button,
-                       self.move_button, self.delete_button):
+                       self.move_button, self.combine_button, self.delete_button):
             layout.addWidget(button)
         self.save_details_button.clicked.connect(self._save_details)
         self.continue_button.clicked.connect(self._continue_selected)
         self.open_folder_button.clicked.connect(self._open_selected_folder)
         self.duplicate_button.clicked.connect(self._duplicate_selected)
         self.move_button.clicked.connect(self._move_selected)
+        self.combine_button.clicked.connect(self._combine_selected)
         self.delete_button.clicked.connect(self._delete_selected)
         scroll.setWidget(panel)
         self.details_panel = panel
@@ -419,6 +487,8 @@ class SavedWorkPage(QWidget):
         # About five lines of notes, at any font size.
         metrics = self.notes_edit.fontMetrics()
         self.notes_edit.setMaximumHeight(metrics.lineSpacing() * 5 + 12)
+        # About four game files before the list scrolls.
+        self.game_files_list.setMaximumHeight(self.game_files_list.fontMetrics().lineSpacing() * 4 + 12)
         self._sync_details_width()
 
     def _sync_details_width(self) -> None:
@@ -479,7 +549,14 @@ class SavedWorkPage(QWidget):
         self._statuses = {key: code for key, code in self._statuses.items()
                           if any(_row_key(row) == key for row in self._rows)}
         self._populate_projects()
+        wanted, self._select_after_refresh = self._select_after_refresh, ""
+        if wanted:
+            self._select_project(ALL_WORK)
         self._populate()
+        if wanted:
+            row = next((row for row in self._rows if row.row_id == wanted), None)
+            if row is not None:
+                self.select_row(row)
         self._check_statuses()
 
     def _check_statuses(self) -> None:
@@ -634,6 +711,7 @@ class SavedWorkPage(QWidget):
             not wanted
             or wanted in row.display_name.casefold()
             or wanted in row.source_archive_path.replace("\\", "/").casefold()
+            or any(wanted in path.replace("\\", "/").casefold() for path in row.game_files)
             or wanted in saved_work_game_file_text(row).casefold()
             or wanted in row.notes.casefold()))
         self._visible_rows = rows
@@ -660,9 +738,11 @@ class SavedWorkPage(QWidget):
             if row.is_item_package:
                 cells[2][0].setToolTip(str(row.package_path or ""))
             else:
-                cells[2][0].setToolTip(
-                    f"{row.source_archive_path}\n{row.source_package}" if row.source_package else row.source_archive_path
-                )
+                label = game_file_label(row.game_files, package=row.source_package, max_chars=1 << 16,
+                                        more_template=_more_template())
+                cells[2][0].setToolTip(label.tooltip or row.source_archive_path)
+                if label.paths:
+                    cells[2][0].setData(_GAME_FILES_ROLE, label.paths)
             cells[5][0].setToolTip(cells[5][0].text())
         self.table.setSortingEnabled(True)
         self.table.clearSelection()
@@ -728,6 +808,12 @@ class SavedWorkPage(QWidget):
             index = self.project_combo.findData(row.project_id if row is not None and
                                                 self._project_name(row.project_id) else NO_PROJECT)
             self.project_combo.setCurrentIndex(max(0, index))
+        files = row.game_files if row is not None and not row.is_item_package else ()
+        self.game_files_list.clear()
+        for path in files if len(files) > 1 else ():
+            self.game_files_list.addItem(path)
+            self.game_files_list.item(self.game_files_list.count() - 1).setToolTip(path)
+        self.game_files_list.setVisible(len(files) > 1)
         if row is not None:
             self.game_file_value.setText(saved_work_game_file_text(row))
             self.kind_value.setText(saved_work_kind_text(row))
@@ -748,6 +834,11 @@ class SavedWorkPage(QWidget):
                        self.continue_button, self.open_folder_button):
             widget.setEnabled(single)
         self.move_button.setEnabled(bool(rows))
+        reason = self.combine_reason()
+        self.combine_button.setEnabled(not reason)
+        self.combine_button.setToolTip(
+            reason or "Write the selected built mods into one new mod. The selected mods are kept as they are."
+        )
         self.duplicate_button.setEnabled(single and row is not None and not row.is_built_mod
                                          and not row.is_item_package)
         self.delete_button.setEnabled(single)
@@ -804,6 +895,23 @@ class SavedWorkPage(QWidget):
             return
         root = self.draft_root
         self._run(lambda: duplicate_saved_draft(root, row, name), self._action_done)
+
+    def combine_reason(self) -> str:
+        """Why Combine into One Mod cannot run for the selection; empty when it can."""
+
+        flow = getattr(self, "combine_flow", None)
+        return combine_reason(self._selected_rows(), busy=bool(flow is not None and flow.busy))
+
+    def _combine_selected(self) -> None:
+        if not self.combine_reason():
+            self.combine_flow.start(self._selected_rows())
+
+    def _combine_finished(self, result: object) -> None:
+        record = getattr(result, "record", None)
+        if not isinstance(record, dict):
+            return
+        self._select_after_refresh = str(record.get("id") or "")
+        self.refresh()
 
     def _move_selected(self) -> None:
         rows: Sequence[SavedWorkRow] = tuple(self._selected_rows())

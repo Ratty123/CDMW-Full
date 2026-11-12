@@ -933,6 +933,7 @@ def register_combined_mod(
     zip_path: Path | str | None = None,
     manager_profile: str = "",
     project_id: str = "",
+    display_name: str = "",
 ) -> dict[str, object]:
     """Index a mod made by Combine into one mod. The combined builds stay listed."""
 
@@ -945,7 +946,7 @@ def register_combined_mod(
     projects = {row.project_id for row in combined_from if row.project_id}
     record = {
         "id": uuid4().hex,
-        "display_name": folder.name,
+        "display_name": str(display_name or "").strip() or folder.name,
         "mod_root": str(folder),
         "zip_path": str(zip_path or ""),
         "built_at": time.time(),
