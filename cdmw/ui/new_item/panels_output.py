@@ -8,7 +8,7 @@ from typing import Optional
 from cdmw import constants
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QSettings, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QIntValidator
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 from cdmw.services.settings_service import resolve_settings_file_path
-from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST, OverlayInstallResult
+from cdmw.services.archive_overlay_install import OverlayInstallResult
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
@@ -144,8 +144,6 @@ def install_result_report(result: object) -> tuple:
 
 
 class OutputPanel(QGroupBox):
-    #: The overlay route: the same plan as an archive directory of its own.
-    install_overlay_requested = Signal()
 
     def _build_plan_review(self, content):
         content.addWidget(QLabel("Review the plan"))
@@ -235,8 +233,6 @@ class OutputPanel(QGroupBox):
         self.output_mode = QComboBox(self)
         # DMM and .cdmw are the only outputs; other managers are not updated for the DLC.
         self.output_mode.addItem(self.tr("Mod folder") + " · DMM", "folder")
-        if constants.ARCHIVE_OVERLAYS_ENABLED:
-            self.output_mode.addItem("Game overlay", "overlay")
         self.output_mode.addItem(self.tr("Item package") + " · .cdmw", "independent")
         self.output_mode.hide()
         self.mode_buttons = QWidget()
@@ -244,9 +240,8 @@ class OutputPanel(QGroupBox):
         mode_row.setContentsMargins(0, 0, 0, 0)
         mode_row.setSpacing(4)
         self.folder_mode_button = QToolButton(self.mode_buttons)
-        self.overlay_mode_button = QToolButton(self.mode_buttons)
         self.independent_mode_button = QToolButton(self.mode_buttons)
-        for mode, button in (("folder", self.folder_mode_button), ("overlay", self.overlay_mode_button), ("independent", self.independent_mode_button)):
+        for mode, button in (("folder", self.folder_mode_button), ("independent", self.independent_mode_button)):
             index = self.output_mode.findData(mode)
             if index < 0:
                 button.hide()
@@ -260,7 +255,6 @@ class OutputPanel(QGroupBox):
             button.clicked.connect(lambda _checked, mode=index: self.output_mode.setCurrentIndex(mode))
             mode_row.addWidget(button)
         self.folder_mode_button.setToolTip(self.tr("Write a mod folder for DMM (Definitive Mod Manager)."))
-        self.overlay_mode_button.setToolTip(self.tr("Install the item into this game's tracked CDMW overlay."))
         self.independent_mode_button.setToolTip(self.tr("Create a shareable .cdmw package with its own identity. CDMW combines supported shared files when it is installed or prepared."))
         write_layout.addWidget(self.mode_buttons)
         self.folder_controls = QWidget()
@@ -353,31 +347,6 @@ class OutputPanel(QGroupBox):
         write_layout.insertWidget(1, self.choose_mod_base_button)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         self.mod_name.textChanged.connect(lambda _text: self._update_destination())
-        self.overlay_controls = QWidget()
-        install = QVBoxLayout(self.overlay_controls)
-        install.setContentsMargins(0, 0, 0, 0)
-        install.addWidget(QLabel("Overlay folder number"))
-        self.overlay_directory = QLineEdit()
-        self.overlay_directory.setPlaceholderText("Auto")
-        self.overlay_directory.setMaxLength(4)
-        self.overlay_directory.setMaximumWidth(90)
-        self.overlay_directory.setValidator(QIntValidator(OVERLAY_DIRECTORY_FIRST, 9999, self))
-        self.overlay_directory.setToolTip(
-            "Leave blank for Auto, or enter a folder number from 0036 to 9999. "
-            "Auto reuses CDMW's overlay or finds a free number. Game and other mod-manager folders are reserved."
-        )
-        install.addWidget(self.overlay_directory)
-        self.install_overlay_button = QPushButton("Install as an overlay...")
-        self.install_overlay_button.setToolTip(
-            "Install this item as a separately tracked overlay. CDMW combines shared tables, preserves other "
-            "installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install."
-        )
-        self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
-        self.install_overlay_button.setProperty("newItemPrimary", True)
-        write_layout.addWidget(self.overlay_controls)
-        write.setToolTip(
-            "Archive overlays are disabled because they are incompatible with the DLC update."
-        )
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",
@@ -435,7 +404,6 @@ class OutputPanel(QGroupBox):
             "Write the mod straight into DMM's mods folder. Then enable it in DMM and click Mount."))
         self.send_dmm_button.clicked.connect(self._send_to_dmm)
         actions.addWidget(self.send_dmm_button)
-        actions.addWidget(self.install_overlay_button)
         sidebar_layout.addWidget(self.actions)
         self._stale_reason = self._pending_stale_reason = self._plan_blocked = ""
         self._plan_was_shown = False
@@ -471,23 +439,19 @@ class OutputPanel(QGroupBox):
     def _output_mode_changed(self) -> None:
         folder = self.output_mode.currentData() == "folder"
         independent = self.output_mode.currentData() == "independent"
-        overlay = self.output_mode.currentData() == "overlay"
         reason = ""
         if self._controller.independent_mode != independent:
             # Item packages are planned without the mounted game identities.
             self._controller.independent_mode = independent
             reason = self.tr("Item packages and game installs are planned differently.")
         self.folder_mode_button.setChecked(folder)
-        self.overlay_mode_button.setChecked(overlay)
         self.independent_mode_button.setChecked(independent)
         self.folder_controls.setVisible(folder)
         self.independent_controls.setVisible(independent)
-        self.overlay_controls.setVisible(overlay)
         self.export_button.setVisible(folder or independent)
         self.send_dmm_button.setVisible(folder)
         self.export_button.setText(self.tr("Write item package") + " (.cdmw)" if independent else self.tr("Write mod folder"))
         self.export_button.setToolTip(self.tr("Write a portable .cdmw file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
-        self.install_overlay_button.setVisible(overlay)
         self._mod_base_changed(reason)
 
     def show_continued_package(self) -> None:
@@ -728,7 +692,6 @@ class OutputPanel(QGroupBox):
         self.build_button.style().polish(self.build_button)
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.send_dmm_button.setEnabled(enabled and not self._controller.busy)
-        self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and enabled and not self._controller.busy)
         self._refresh_export_state()
         mode = self.output_mode.currentData()
         if getattr(self, "_displayed_plan", False) == (id(plan), mode):
@@ -868,7 +831,6 @@ class OutputPanel(QGroupBox):
             self._busy_detail = {
                 "plan": self.tr("Building the plan."),
                 "export": self.tr("Writing the mod folder..."),
-                "install": self.tr("Installing the overlay: backing up, validating, writing."),
                 "snapshot": self.tr("Reading the archives..."),
             }[lane]
             self._busy_elapsed.start()
@@ -878,8 +840,6 @@ class OutputPanel(QGroupBox):
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
         self.send_dmm_button.setEnabled(has_plan and not busy)
-        self.install_overlay_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and has_plan and not busy)
-        self.overlay_directory.setEnabled(not busy)
         for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod, self.include_mounted):
             control.setEnabled(not busy)
         self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and not busy)
@@ -889,7 +849,7 @@ class OutputPanel(QGroupBox):
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
         if (not self._controller.busy or lane != self._controller._lane
-                or lane not in {"plan", "export", "install", "snapshot"}):
+                or lane not in {"plan", "export", "snapshot"}):
             return
         # Counts describe the current stage (for example, completed materials),
         # never an estimated percentage of the whole plan or a native encode.

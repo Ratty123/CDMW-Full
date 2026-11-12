@@ -55,7 +55,7 @@ from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_template_search import TemplateSearchLane
 from cdmw.workers.new_item_template_selection import TemplateSelectionLane
 from cdmw.workers.new_item_lookup import NewItemLookupLane
-from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 class NewItemStudioController(

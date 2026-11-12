@@ -386,10 +386,8 @@ class _TabOutputMixin:
         self.assertIsNotNone(tab.controller.plan)
         self.assertFalse(hasattr(tab.output_panel, "install_button"))
         self.assertFalse(hasattr(tab.output_panel, "install_requested"))
-        self.assertTrue(tab.output_panel.install_overlay_button.isEnabled())
-        mutations = Mock()
-        self.assertFalse(tab.controller.start_install(mutations))
-        self.assertEqual(mutations.mock_calls, [])
+        self.assertFalse(hasattr(tab.output_panel, "install_overlay_button"))
+        self.assertFalse(hasattr(tab.controller, "start_install_overlay"))
         from cdmw.ui.tools.mod_management import ModManagementTab
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         management = ModManagementTab(get_package_root=lambda: str(self.root))
@@ -400,114 +398,6 @@ class _TabOutputMixin:
         self.assertIsNotNone(dialog)
         self.assertIs(dialog.controller, management.controller)
         dialog.reject()
-
-    def test_the_overlay_button_asks_first_and_leaves_the_shipped_archives_alone(self) -> None:
-        """The plan is installed into a directory of its own, mounted
-        ahead of the shipped ones. Declining the question writes nothing, and accepting it
-        writes no shipped payload file."""
-
-        from types import SimpleNamespace
-
-        from PySide6.QtWidgets import QMessageBox
-
-        from cdmw.core.papgt_format import parse_papgt
-        from cdmw.services.archive_mutation_service import ArchiveMutationService
-
-        mutations = ArchiveMutationService()
-        window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
-        tab = self._tab(window=window)
-        tab.prefill_template(TEMPLATE)
-        tab.identity_panel.internal_name.setText("Ziane_Overlay_OneHandSword")
-        tab.identity_panel.display_name.setText("Wolf's Fang (Overlay)")
-        tab.output_panel.overlay_directory.setText("0100")
-        tab.output_panel.build_button.click()
-        self.assertIsNotNone(tab.controller.plan)
-        shipped = {path: path.read_bytes() for path in sorted(self.root.glob("0009/*.paz"))}
-        mount_before = (self.root / "meta" / "0.papgt").read_bytes()
-
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.No):
-            tab.output_panel.install_overlay_button.click()
-        self.assertEqual((self.root / "meta" / "0.papgt").read_bytes(), mount_before, "declining writes nothing")
-
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
-                patch("cdmw.services.new_item_service.game_is_running", lambda: False), \
-                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
-            tab.output_panel.install_overlay_button.click()
-
-        for path, before in shipped.items():
-            self.assertEqual(path.read_bytes(), before, f"{path.name} was rewritten by an overlay install")
-        mounted = parse_papgt((self.root / "meta" / "0.papgt").read_bytes())
-        self.assertEqual(mounted[0].name, "0100", "the chosen overlay is mounted ahead of the shipped directory")
-        overlay = self.root / mounted[0].name
-        self.assertTrue((overlay / "0.pamt").is_file() and (overlay / "0.paz").is_file())
-        tab.close()
-        tab.deleteLater()
-
-    def test_overlay_housekeeping_runs_from_utilities(self) -> None:
-        """The two housekeeping buttons: one carries an install that went into the shipped
-        archives out into the overlay, the other unmounts and deletes it. Neither needs a
-        plan, both ask first, and both leave the shipped archives as they found them."""
-
-        from types import SimpleNamespace
-
-        from PySide6.QtWidgets import QMessageBox
-
-        from cdmw.core.papgt_format import parse_papgt
-        from cdmw.services.archive_mutation_service import ArchiveMutationService
-
-        mutations = ArchiveMutationService()
-        window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
-        tab = self._tab(window=window)
-        tab._get_package_root = lambda: str(self.root)
-        tab.prefill_template(TEMPLATE)
-
-        from cdmw.ui.tools.mod_management import ModManagementTab
-        from cdmw.ui.new_item.controller import NewItemStudioController
-        management = ModManagementTab(window=window, get_package_root=lambda: str(self.root),
-                                      controller=NewItemStudioController(synchronous=True))
-        self._tabs.append(management)
-        # nothing has been installed the old way, so there is nothing to move
-        with patch("cdmw.ui.tools.mod_management.QMessageBox.information", return_value=None) as told:
-            self.assertFalse(management.overlay_migration_button.isVisibleTo(management))
-            # The repair controls live on the Health and recovery tab.
-            management.pages.setCurrentWidget(management.pages.health)
-            management.recovery.click()
-            self.assertTrue(management.overlay_migration_button.isVisibleTo(management))
-            self.assertFalse(told.called, "expanding maintenance controls performs no action")
-            management.overlay_migration_button.click()
-        self.assertTrue(told.called, "the step says there is nothing to move rather than writing")
-
-        # install through the overlay, then take it away again
-        tab.identity_panel.internal_name.setText("Ziane_Overlay_Housekeeping")
-        tab.identity_panel.display_name.setText("Wolf's Fang (Housekeeping)")
-        tab.output_panel.build_button.click()
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
-                patch("cdmw.services.new_item_service.game_is_running", lambda: False), \
-                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
-            tab.output_panel.install_overlay_button.click()
-        mounted = [item.name for item in parse_papgt((self.root / "meta" / "0.papgt").read_bytes())]
-        overlay = self.root / mounted[0]
-        self.assertTrue((overlay / "0.pamt").is_file())
-
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
-        management.overlay_removal_button.click()
-        self.app.processEvents()
-        dialog = management.findChild(OverlayManagerDialog)
-        self.assertIsNotNone(dialog)
-        self.assertEqual(dialog.table.rowCount(), 1)
-        dialog.table.selectRow(0)
-        with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.No):
-            dialog.remove_button.click()
-        self.assertTrue((overlay / "0.pamt").is_file(), "declining leaves it alone")
-
-        with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.Yes), \
-                patch("cdmw.services.new_item_service.game_is_running", lambda: False):
-            dialog.remove_button.click()
-        self.assertFalse(overlay.exists(), "and accepting deletes it")
-        self.assertNotIn(overlay.name, [item.name for item in parse_papgt((self.root / "meta" / "0.papgt").read_bytes())])
-        dialog.reject()
-        tab.close()
-        tab.deleteLater()
 
     def test_a_model_file_is_placed_in_the_studio(self) -> None:
         """Import a model file on step 3: the studio reads it itself (no Builder, no Mesh
@@ -1148,9 +1038,8 @@ class _TabOutputMixin:
         self.assertIn("Retained activity", panel.log.toPlainText())
         tab.show_step(6)
         self.assertTrue(panel.export_button.isVisibleTo(tab))
-        self.assertFalse(panel.install_overlay_button.isVisibleTo(tab))
+        self.assertFalse(hasattr(panel, "install_overlay_button"))
         self.assertTrue(panel.folder_mode_button.isChecked())
-        self.assertFalse(panel.overlay_mode_button.isChecked())
         tab.identity_panel.display_name.setText("Layout review item")
         self.assertIn("Next: build the plan", panel.plan_state.plain_text())
         panel.build_button.click()
@@ -1158,20 +1047,7 @@ class _TabOutputMixin:
         self.assertIsNotNone(plan)
         self.assertGreater(panel.file_changes.model().rowCount(), 0)
         self.assertFalse(panel.build_button.property("newItemPrimary"))
-        folder_rows = panel.file_changes.model().rowCount()
-        panel.overlay_mode_button.click()
-        self.assertEqual(panel.output_mode.currentData(), "overlay")
-        self.assertTrue(panel.overlay_mode_button.isChecked())
-        self.assertFalse(panel.folder_mode_button.isChecked())
-        # The same plan installs as an overlay; its review gains the overlay metadata.
         self.assertIs(tab.controller.plan, plan)
-        self.assertTrue(tab.controller.has_current_plan)
-        self.assertGreaterEqual(panel.file_changes.model().rowCount(), folder_rows)
-        self.assertFalse(panel.export_button.isVisibleTo(tab))
-        self.assertTrue(panel.install_overlay_button.isVisibleTo(tab))
-        self.assertTrue(panel.install_overlay_button.isEnabled())
-        self.assertFalse(panel.build_button.property("newItemPrimary"))
-        panel.overlay_directory.setText("0100")
         self.assertTrue(tab.controller.has_current_plan)
         panel.independent_mode_button.click()
         self.assertIsNone(tab.controller.plan)
@@ -1179,8 +1055,6 @@ class _TabOutputMixin:
         self.assertIn("planned differently", panel.plan_state.plain_text())
         self.assertTrue(panel.build_button.property("newItemPrimary"))
         self.assertFalse(panel.export_button.isEnabled())
-        panel.overlay_mode_button.click()
-        self.assertFalse(panel.install_overlay_button.isEnabled())
         self.assertTrue(panel.log.isVisibleTo(panel))
         tab.controller.status_message.emit("Could not write the output.", True)
         self.assertTrue(panel.log.isVisibleTo(panel))
@@ -1188,13 +1062,10 @@ class _TabOutputMixin:
         panel._busy_changed(True)
         self.assertFalse(panel.output_mode.isEnabled())
         self.assertFalse(panel.folder_mode_button.isEnabled())
-        self.assertFalse(panel.overlay_mode_button.isEnabled())
         self.assertFalse(panel.folder_controls.isEnabled())
-        self.assertFalse(panel.install_overlay_button.isEnabled())
         panel._busy_changed(False)
         panel.output_mode.setCurrentIndex(panel.output_mode.findData("folder"))
         self.assertTrue(panel.folder_mode_button.isChecked())
-        self.assertFalse(panel.overlay_mode_button.isChecked())
         tab.show_step(0)
         self.assertFalse(panel.actions.isVisibleTo(tab))
         tab.show_step(6)
@@ -1234,7 +1105,6 @@ class _TabOutputMixin:
             self.assertIsNone(controller.plan)
             self.assertNotIn(ready_plan.spec.item_key, controller.issued_keys)
             self.assertFalse(panel.export_button.isEnabled())
-            self.assertFalse(panel.install_overlay_button.isEnabled())
 
     def test_write_time_destination_details_keep_an_in_flight_plan(self) -> None:
         tab = self._tab()
@@ -1245,8 +1115,6 @@ class _TabOutputMixin:
             lambda: panel.export_root.setText(str(self.root / "new_mod")),
             lambda: panel.manager.setCurrentIndex((panel.manager.currentIndex() + 1) % panel.manager.count()),
             lambda: panel.mod_name.setText("Renamed mod"),
-            lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay")),
-            lambda: panel.overlay_directory.setText("0100"),
         )
         for change in changes:
             ready_plan = controller.service.plan(controller.current_spec(), controller.snapshot)

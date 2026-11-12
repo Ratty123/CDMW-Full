@@ -311,22 +311,6 @@ def install_task(
     return run
 
 
-def install_overlay_task(
-    plan: NewItemPlan,
-    *,
-    service: NewItemService,
-    mutation_service,
-    confirmed: bool,
-    directory_name: Optional[str] = None,
-) -> Callable[[LogSink, threading.Event], object]:
-    """Install as an archive directory of the item's own, mounted ahead of the shipped ones."""
-
-    def run(log: LogSink, stop_event: threading.Event) -> object:
-        return service.install_overlay(plan, mutation_service=mutation_service, confirmed=confirmed, directory_name=directory_name, on_log=log, stop_event=stop_event)
-
-    return run
-
-
 def overlay_migration_task(package_root, *, mutation_service) -> Callable[[LogSink, threading.Event], object]:
     """Move what is already in the shipped archives out into the overlay, and put them back."""
 
@@ -393,7 +377,6 @@ def overlay_removal_task(package_root, *, mutation_service) -> Callable[[LogSink
 
 __all__ = [
     "export_task",
-    "install_overlay_task",
     "install_task",
     "model_source_cleanup_task",
     "overlay_migration_task",

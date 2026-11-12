@@ -41,7 +41,7 @@ from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceC
 from cdmw.ui.new_item.state import MANAGERS, NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
-from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityTaskOutcome, UtilityWorker
 
 
@@ -419,28 +419,6 @@ class NewItemTaskControllerMixin:
             return write_package(package,path,stop_event=stop,validate_source=revision.validate)
         return self._run("export",task,self.export_finished.emit,
                          lambda message:self.status_message.emit(message,True),publishes_result=True)
-
-    def start_install(self, mutation_service) -> bool:
-        """Compatibility entry point for callers predating overlay-only installation."""
-        self.status_message.emit("Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.", True)
-        return False
-
-    def start_install_overlay(self, mutation_service, *, directory_name: Optional[str] = None) -> bool:
-        """Install the plan as its own archive directory instead of into the shipped ones."""
-
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
-        if not self.has_current_plan:
-            self.status_message.emit("Build the plan first.", True)
-            return False
-        task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True, directory_name=directory_name)
-
-        def failed(message: str) -> None:
-            self.status_message.emit(message, True)
-            self.install_failed.emit(message)
-
-        return self._run("install", task, self.install_finished.emit, failed, publishes_result=True)
 
     def start_overlay_migration(self, mutation_service, package_root) -> bool:
         """Move what the shipped archives already carry into the overlay, off the UI thread."""

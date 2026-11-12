@@ -123,7 +123,7 @@ def test_cancelling_mod_choice_keeps_the_block_and_original_plan(studio):
     assert not panel.add_to_mod.isChecked()
     assert panel.plan_state.plain_text() == "Export blocked"
     assert not panel.export_button.isEnabled()
-    _send(bridge, panel.overlay_mode_button, "activate")
+    _send(bridge, panel.independent_mode_button, "activate")
     assert not panel.export_problem.isVisibleTo(tab)
     assert not panel.choose_mod_base_button.isVisibleTo(tab)
 

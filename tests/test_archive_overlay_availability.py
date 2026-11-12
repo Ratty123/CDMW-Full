@@ -58,8 +58,7 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
     panel = OutputPanel(controller, settings=settings)
     try:
         assert [panel.output_mode.itemData(i) for i in range(panel.output_mode.count())] == ["folder", "independent"]
-        assert panel.overlay_mode_button.isHidden()
-        assert not panel.overlay_mode_button.isEnabled()
+        assert not hasattr(panel, "overlay_mode_button")
         assert panel.include_mounted.isHidden()
         assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
         assert panel.manager.isHidden()
@@ -73,16 +72,15 @@ def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, m
         monkeypatch.setattr(panel, "_refresh_export_state", lambda: None)
         for busy in (True, False):
             panel._busy_changed(busy)
-            assert not panel.install_overlay_button.isEnabled()
             assert not panel.include_mounted.isEnabled()
         panel.independent_mode_button.click()
         assert panel.output_mode.currentData() == "independent"
-        assert not panel.install_overlay_button.isVisibleTo(panel)
+        assert not hasattr(panel, "install_overlay_button")
         assert not panel.send_dmm_button.isVisibleTo(panel)
         panel.folder_mode_button.click()
         assert panel.output_mode.currentData() == "folder"
         assert panel.send_dmm_button.isVisibleTo(panel)
-        assert controller.start_install_overlay(None) is False
+        assert not hasattr(controller, "start_install_overlay")
         assert controller.start_overlay_migration(None, tmp_path) is False
         assert controller.start_overlay_removal(None, tmp_path) is False
         assert controller.start_export(tmp_path, "CDUMM") is False

@@ -1048,7 +1048,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
                 output.checklist.toggle.setChecked(False)
                 self.assertFalse(tab.continue_button.isVisibleTo(tab))
                 self.assertTrue(output.export_button.isVisibleTo(tab))
-                self.assertFalse(output.install_overlay_button.isVisibleTo(tab))
+                self.assertFalse(hasattr(output, "install_overlay_button"))
         finally:
             tab.request_shutdown()
             tab.shutdown()

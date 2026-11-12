@@ -93,7 +93,6 @@ INSTALLER_IMPORTS = frozenset({
     ("cdmw/ui/new_item/overlay_manager_dialog.py", "cdmw.services.archive_overlay_manager", "prepare_overlay_removal"),
     ("cdmw/ui/new_item/overlay_manager_dialog.py", "cdmw.services.archive_overlay_manager", "prepare_overlay_retirement"),
     ("cdmw/ui/new_item/overlay_manager_dialog.py", "cdmw.services.archive_overlay_rebuild", "prepare_overlay_rebuild"),
-    ("cdmw/ui/new_item/panels_output.py", "cdmw.services.archive_overlay_install", "OVERLAY_DIRECTORY_FIRST"),
     ("cdmw/ui/new_item/panels_output.py", "cdmw.services.archive_overlay_install", "OverlayInstallResult"),
     ("cdmw/ui/new_item/panels_output.py", "cdmw.services.independent_item_install", "IdentityDeletionResult"),
     ("cdmw/ui/tools/mod_management.py", "cdmw.services.archive_overlay_install", "OverlayInstallResult"),

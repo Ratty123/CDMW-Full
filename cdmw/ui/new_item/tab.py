@@ -570,7 +570,6 @@ class NewItemStudioTab(QWidget):
         self.model_panel.keep_physics.toggled.connect(self._refresh_model_part_edit_note)
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
-        self.output_panel.install_overlay_requested.connect(self._install_overlay)
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
         # One guided workspace: the clickable header owns navigation, the current page
@@ -1340,43 +1339,6 @@ class NewItemStudioTab(QWidget):
         dialog = ModUpdateDialog(self.controller, self._get_package_root(), self)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.show()
-
-    def _install_overlay(self) -> None:
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        plan = self.controller.plan
-        if plan is None:
-            return
-        chosen = self.output_panel.overlay_directory.text().strip()
-        if chosen and not self.output_panel.overlay_directory.hasAcceptableInput():
-            QMessageBox.warning(self, "Overlay folder", "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.")
-            return
-        directory_name = f"{int(chosen):04d}" if chosen else None
-        services = getattr(getattr(self._window, "app_context", None), "services", None)
-        mutations = getattr(services, "require_archive_mutations", None)
-        if not callable(mutations):
-            QMessageBox.warning(self, "Install as an overlay", "The archive mutation service is not available in this window.")
-            return
-        touched = "\n".join(f"- {path}" for path in plan.touched_paths[:14])
-        more = f"\n- ... {len(plan.touched_paths) - 14} more" if len(plan.touched_paths) > 14 else ""
-        confirmation = QMessageBox.question(
-            self,
-            f"Install as an overlay: {directory_name or 'Auto'}",
-            (
-                f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) as an archive directory of its own?\n\n"
-                f"{len(plan.patches) + len(plan.additions)} file(s) go into the new directory:\n{touched}{more}\n\n"
-                "The archives the game shipped are not written to. The mount list and the texture registry are backed "
-                "up first, and the game must not be running.\n\n"
-                "If a previous CDMW overlay set is no longer mounted, installation automatically archives its history "
-                "and starts a fresh set. The old overlay files stay on disk for recovery."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
-        self.controller.start_install_overlay(mutations(), directory_name=directory_name)
 
     # ------------------------------------------------------------------ lifecycle
 
