@@ -39,7 +39,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Font sizes in **Settings > Appearance** are labelled in points, as they always were, and the interface, list and log fonts all accept 6 to 16 pt. The Mesh Editor, Create New Item and Mod Management follow the same smallest size and density as the rest of the app, and the static replacement dialog's text now matches it.
+- Font sizes in **Settings > Appearance** are labelled in points, as they always were, and the interface, list and log fonts all accept 6 to 16 pt. The Mesh Editor, Create New Item and Mod Management follow the same smallest size and density as the rest of the app, and the static replacement dialog's text now matches it. Buttons, fields and tabs grow and shrink with the chosen text size.
 - Browse Archives, preview windows and the Mesh Editor now share **one view mode** and **one background colour**: every viewport offers the same list (Browse's material views and the editor's Faces, Wire, Vertices and X-Ray views), and changing either in one viewport changes it in the others. Your earlier Preview view choice carries over. Icon captures are always textured.
 
 - Replacing an open mesh edit, or closing CDMW with one open, now asks **Finish**, **Discard** or **Keep editing** instead of a Yes or No question. If the Mesh Editor's 3D view stops unexpectedly, it restarts and your edits up to the last completed step are kept; only the step in progress is lost. A second stop within a minute offers Finish or Discard. Morph and refit data now finish loading just after the editor opens.
