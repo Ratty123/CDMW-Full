@@ -279,10 +279,15 @@ class NavigationControllerMixin:
         if key == "mesh_editor" and self._move_browse_edit_to_mesh_workspace():
             return
         if key != "mesh_editor":
-            # Browse's page stops being the Mesh workspace (P15 step 5a).
-            leave = getattr(getattr(self, "archive", None), "leave_mesh_workspace_view", None)
+            # Browse's page stops being the Mesh workspace (P15 step 5a); Browse's own
+            # key gives it back as a place to browse, the edit still in its view.
+            archive = getattr(self, "archive", None)
+            leave = getattr(archive, "leave_mesh_workspace_view", None)
             if callable(leave):
                 leave()
+            browse = getattr(archive, "show_edit_for_browsing", None)
+            if key == "archive_browser" and getattr(self, "classic_navigation", None) is None and callable(browse):
+                browse()
         if key == 'mod_package_retrofit':
             widget = self._tool_widgets_by_key.get('mod_management')
             if widget is not None:

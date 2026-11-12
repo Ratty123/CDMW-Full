@@ -452,6 +452,9 @@ pub enum HostEvent {
     RendererRetry,
     Focus,
     HairPreset(String),
+    /// Browse Archives is shown around this edit (P15 step 5a): only the view is
+    /// drawn and clicks orbit; false gives the editor back (`browse_presentation`).
+    BrowsePresentation(bool),
     /// Run one of the editor's own commands by its shortcut id (CDMW's palette).
     RunCommand(String),
     VertexInspection {
@@ -1819,6 +1822,12 @@ impl CdmwBridge {
                 "ready" => Ok(HostEvent::Ready),
                 "renderer_retry" => Ok(HostEvent::RendererRetry),
                 "focus_request" => Ok(HostEvent::Focus),
+                "browse_presentation" => Ok(HostEvent::BrowsePresentation(
+                    value
+                        .get("browsing")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                )),
                 "run_command" => value
                     .get("command")
                     .and_then(Value::as_str)

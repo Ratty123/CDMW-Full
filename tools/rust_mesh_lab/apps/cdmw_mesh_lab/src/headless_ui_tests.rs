@@ -9965,3 +9965,38 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ));
     Ok(())
 }
+
+/// P15 step 5a: Browse shown around an edit in its view draws the view only, with
+/// no panels or shortcuts, and clicks orbit; giving the editor back restores both.
+#[test]
+fn browse_shown_around_an_edit_hides_the_editor_s_panels_and_gives_them_back() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    ui.settle_layout();
+    ui.application.cdmw_orbit_mode = false;
+    assert!(
+        ui.click_tool_button("Viewport").is_ok(),
+        "the editor's tool rail is drawn"
+    );
+    ui.application.set_cdmw_browsing(true);
+    ui.settle_layout();
+    assert!(
+        ui.application.cdmw_orbit_mode,
+        "clicks orbit while Browse is shown"
+    );
+    assert!(
+        ui.click_tool_button("Viewport").is_err(),
+        "a panel was drawn while Browse is shown"
+    );
+    ui.application.set_cdmw_browsing(false);
+    ui.settle_layout();
+    assert!(
+        !ui.application.cdmw_orbit_mode,
+        "the mode from before is given back"
+    );
+    assert!(
+        ui.click_tool_button("Viewport").is_ok(),
+        "the panels came back"
+    );
+    Ok(())
+}

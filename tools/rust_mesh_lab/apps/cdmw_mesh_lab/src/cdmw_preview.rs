@@ -428,14 +428,21 @@ fn preview_render_failure(
 pub(crate) struct EngineDevice(Arc<std::sync::Mutex<Option<cdmw_render_wgpu::SharedGpu>>>);
 
 impl EngineDevice {
+    /// The process's device, unless it has faulted: a faulted device is handed to
+    /// no new window, page or capture (section 8.9, review of b585ee0c).
     pub(crate) fn get(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
-        self.0.lock().ok()?.clone()
+        self.0.lock().ok()?.clone().filter(|gpu| !gpu.faulted())
     }
 
-    /// The first device made becomes the process's; a later one does not replace it.
+    /// The first device made becomes the process's; a later one replaces it only
+    /// when it has faulted, so windows opened after a fault share the new one.
     pub(crate) fn adopt(&self, gpu: cdmw_render_wgpu::SharedGpu) {
-        if let Ok(mut slot) = self.0.lock() {
-            slot.get_or_insert(gpu);
+        if let Ok(mut slot) = self.0.lock()
+            && slot
+                .as_ref()
+                .is_none_or(cdmw_render_wgpu::SharedGpu::faulted)
+        {
+            *slot = Some(gpu);
         }
     }
 }

@@ -324,6 +324,8 @@ class MeshEditSessionView:
     # P14: the draft is at the state last finished or built (or, without a
     # draft, nothing was done yet).
     history_clean: bool = False
+    #: Why the draft's saved history is not being written, or "" (P14, section 8.8 R8).
+    history_journal_error: str = ""
     history_entries: tuple[MeshEditHistoryEntry, ...] = ()
     history_cursor: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)

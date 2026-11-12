@@ -2036,6 +2036,13 @@ impl LabApplication {
             && !egui::Popup::is_any_open(&self.egui_context)
             && !self.cdmw_delete_guidance_open()
             && self.shortcut_editor.capture.is_none();
+        if self.cdmw_browsing() {
+            // Browse Archives is shown around the edit (P15 step 5a): the view only,
+            // no panels, no shortcuts; clicks orbit.
+            self.shortcuts_live = false;
+            self.draw_cdmw_viewport(root_ui);
+            return Vec::new();
+        }
         let mut actions = Vec::new();
         self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);
         self.dispatch_cdmw_shortcuts(&root_ui.ctx().clone(), &mut actions);

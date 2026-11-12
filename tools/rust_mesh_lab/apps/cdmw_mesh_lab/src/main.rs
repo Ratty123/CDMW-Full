@@ -2430,6 +2430,9 @@ struct LabApplication {
     kept_selected_parts: Option<HashSet<u32>>,
     /// When other viewports last saw this edit's mesh (P4 V5's read-only follower).
     followers_seen_at: Option<Instant>,
+    /// Browse Archives is shown around this edit: the view only, clicks orbit
+    /// (P15 step 5a); the orbit mode from before, to give back.
+    cdmw_browsing: Option<bool>,
     /// Browse's scene, set aside when this edit first drew its own on Browse's
     /// renderer; it goes back with the view (section 8.7 C1).
     kept_preview_scene: Option<cdmw_render_wgpu::KeptScene>,
@@ -2713,6 +2716,7 @@ impl LabApplication {
             kept_hidden_parts: None,
             kept_selected_parts: None,
             followers_seen_at: None,
+            cdmw_browsing: None,
             kept_preview_scene: None,
             cdmw_texture_upload_failed: false,
             preview_scene_set_aside: false,
@@ -2998,6 +3002,29 @@ impl LabApplication {
     /// The window this edit draws in (Browse's lent one or its own).
     fn engine_window_id(&self) -> Option<winit::window::WindowId> {
         self.window.as_ref().map(|window| window.id())
+    }
+
+    /// Browse is shown around this edit, or the editor again (P15 step 5a).
+    pub(crate) fn set_cdmw_browsing(&mut self, browsing: bool) {
+        match (browsing, self.cdmw_browsing) {
+            (true, None) => {
+                self.cancel_active_gesture("Browse Archives is shown");
+                self.cdmw_browsing = Some(self.cdmw_orbit_mode);
+                self.cdmw_orbit_mode = true;
+            }
+            (false, Some(orbit_before)) => {
+                self.cdmw_browsing = None;
+                self.cdmw_orbit_mode = orbit_before;
+            }
+            _ => {}
+        }
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    pub(crate) fn cdmw_browsing(&self) -> bool {
+        self.cdmw_browsing.is_some()
     }
 
     fn engine_leave_requested(&self) -> bool {
@@ -3599,6 +3626,9 @@ impl LabApplication {
                 if let Some(window) = &self.window {
                     let _ = cdmw_win32_embed::focus_child_window(window);
                 }
+            }
+            HostEvent::BrowsePresentation(browsing) => {
+                self.set_cdmw_browsing(browsing);
             }
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
@@ -5615,10 +5645,17 @@ impl LabApplication {
                 UiAction::ExtrudeFaces => {
                     let distance = self.extrude_distance;
                     if self.cdmw_mode() {
+                        // CDMW takes Extrude's `offset` along the chosen axis, as the
+                        // Topology panel sends it; it refuses a `distance` (8.9).
+                        let offset = match self.cdmw_extrude_axis.as_str() {
+                            "x" => [distance, 0.0, 0.0],
+                            "y" => [0.0, distance, 0.0],
+                            _ => [0.0, 0.0, distance],
+                        };
                         self.submit_cdmw_topology(
                             "extrude",
                             "Extrude faces",
-                            json!({"distance": distance}),
+                            json!({"offset": offset}),
                         );
                     } else {
                         self.run_topology("Extrude faces", |mesh, faces| {

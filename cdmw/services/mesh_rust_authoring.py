@@ -7752,6 +7752,8 @@ class RustMeshAuthoringSession:
     shadow_base_revision: int = -1
     #: Why unfinished edits that exist were not restored ("" when none were lost).
     recovery_problem: str = ""
+    #: The user chose Discard for this session: its close ends the recovery point.
+    discard_requested: bool = False
     #: The draft folder the recovery point is kept in, fixed at open (section 8.7 A11).
     recovery_project_root: Path | None = None
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
@@ -10980,11 +10982,21 @@ class RustMeshAuthoringSession:
         self.authoritative_service._schedule_mesh_layer_autosave(session)
 
     def cancel(self) -> None:
+        """Discard: the user chose to drop the unfinished edits, recovery point too."""
+
+        self.close(discard=True)
+
+    def close(self, *, discard: bool = False) -> None:
+        """End the session. Only a Discard the user chose ends the recovery point; any
+        other close (a tab or CDMW closing, a superseded or failed open) keeps it, so
+        the unfinished edits come back next time (section 8.9, review of 8b14e1b4)."""
+
         if self.closed:
             return
         if not self.request_cancel():
             return
-        self._end_editor_recovery()  # discarded (P14)
+        if discard or self.discard_requested:
+            self._end_editor_recovery()  # discarded (P14)
         with self._protocol_lock:
             if not self.closed:
                 self._dispose_shadow()

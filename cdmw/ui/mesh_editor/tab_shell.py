@@ -988,4 +988,7 @@ class MeshEditorTabShellMixin(
             )
             if confirmed != _tab.QMessageBox.Yes:
                 return
+            from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import mark_discarded
+
+            mark_discarded(self)  # the user chose to lose them
         self.show_empty_state()

@@ -758,8 +758,13 @@ class MeshDirectOutputWorker(QObject):
                 draft = self.service.save_mesh_draft_for_revision(
                     self.session_id, expected_mesh_revision=snapshot.mesh_revision,
                 )
-                # P14: this state was built, with a draft or without (section 8.8 R12).
-                self.service.mark_history_clean(self.session_id)
+                # P14: the built state is clean, with a draft or without (8.8 R12), and
+                # only while the session still holds it (section 8.9).
+                self.service.mark_history_clean(
+                    self.session_id,
+                    expected_revision=int(snapshot.mesh_revision),
+                    expected_layer_revision=getattr(snapshot, "geometry_layer_revision", None),
+                )
                 record = register_built_mod(
                     self.saved_work_root,
                     mod_root=result.output_path,

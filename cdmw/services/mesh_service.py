@@ -1762,16 +1762,24 @@ class _MeshServiceSessionLayerCore(
             with project_lock(project_root):
                 clear_editor_recovery(project_root)
 
-    def mark_history_clean(self, session_id: str) -> None:
+    def mark_history_clean(self, session_id: str, *, expected_revision: int | None = None,
+                           expected_layer_revision: int | None = None) -> None:
         """Record the draft's current state as finished or built (P14).
 
-        When that state is not on disk yet, the next autosave records it.
+        When that state is not on disk yet, the next autosave records it. With an
+        expected revision (a Build's snapshot), nothing is marked once the session has
+        moved on from it: an edit made during the Build is not "built" (8.9).
         """
 
-        from cdmw.services.mesh_history_journal import mark_clean, project_lock
+        from cdmw.services.mesh_history_journal import JournalNotWritable, mark_clean, project_lock
 
         session = self._session(session_id)
         with session.export_lock:
+            if expected_revision is not None and int(session.revision) != int(expected_revision):
+                return
+            if expected_layer_revision is not None and int(session.geometry_layer_revision) != int(
+                    expected_layer_revision):
+                return
             if session.mesh_layer_project_path is None:
                 session.history_clean_key = (int(session.revision), int(session.geometry_layer_revision))
                 return
@@ -1780,8 +1788,11 @@ class _MeshServiceSessionLayerCore(
                 session.history_journal_clean_pending = True
                 return
             project_root = Path(session.mesh_layer_project_path).parent
-            with project_lock(project_root):
-                mark_clean(project_root, session.mesh_layer_loaded_generation)
+            try:
+                with project_lock(project_root):
+                    mark_clean(project_root, session.mesh_layer_loaded_generation)
+            except (JournalNotWritable, OSError) as exc:
+                session.history_journal_error = f"{type(exc).__name__}: {exc}"
 
     def closing_loses_work(self, session_id: str) -> bool:
         """Whether closing the session now would lose an edit (P14).
@@ -2133,6 +2144,7 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             journal_undo_available=_journal_step_target(session, -1) is not None,
             journal_redo_available=_journal_step_target(session, 1) is not None,
             history_clean=_history_clean(session),
+            history_journal_error=str(session.history_journal_error or ""),
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,

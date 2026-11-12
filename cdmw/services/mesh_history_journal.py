@@ -273,6 +273,16 @@ def mark_clean(project_root: Path, generation: str) -> None:
     root = Path(project_root)
     if not journal_path(root).is_file():
         return
+    journal = read_journal(root)
+    if journal.unreadable_lines:
+        # As record_state: a line that may name a step is never written around (8.8 R8).
+        raise JournalNotWritable("the history journal has lines that cannot be read")
+    if journal.truncated_tail:
+        # A crash cut the last append off: an appended mark would be glued onto it and
+        # leave an unreadable line that is no longer the tail (section 8.9).
+        journal.clean_generation = str(generation)
+        _rewrite(root, journal)
+        return
     _append_line(root, json.dumps({"format": JOURNAL_FORMAT, "type": "clean", "generation": str(generation)},
                                   sort_keys=True, separators=(",", ":")))
 

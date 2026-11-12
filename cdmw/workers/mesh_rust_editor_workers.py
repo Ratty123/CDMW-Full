@@ -181,7 +181,7 @@ class MeshRustSessionPrepareWorker(QObject):
         except Exception as exc:  # pragma: no cover - exact text is surfaced by owning UI tests
             if session is not None:
                 try:
-                    session.cancel()
+                    session.close()  # a failed open keeps the recovery point
                     _remove_owned_session_root(
                         self.session_root,
                         self.session_root.parent,
@@ -194,7 +194,7 @@ class MeshRustSessionPrepareWorker(QObject):
         finally:
             if session is not None:
                 try:
-                    session.cancel()
+                    session.close()  # an aborted open keeps the recovery point
                 except Exception:
                     pass
             if not transferred and self._stop_event.is_set() and session is not None:
@@ -421,7 +421,9 @@ class MeshRustSessionDisposeWorker(QObject):
             if self.session is not None:
                 expected_identity = self.session.root_identity
             if self.session is not None and not self.session.closed:
-                self.session.cancel()
+                # A dispose is not a Discard: only a Discard the user chose (marked on
+                # the session) ends the recovery point (section 8.9).
+                self.session.close()
         except Exception as exc:
             # Cancelling the shadow service is independent from releasing its
             # owned package.  A failed or stopped cancel must never strand the

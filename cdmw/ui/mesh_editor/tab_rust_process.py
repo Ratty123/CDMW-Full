@@ -1407,6 +1407,8 @@ class MeshEditorRustProcessMixin:
                 "finish_request", request_id=self.standalone_rust_host_request_id, extra={"hidden_parts": []}))
             self._start_next_rust_protocol_worker()
             return
+        if session is not None:
+            session.discard_requested = True  # the user chose Discard
         self.standalone_rust_closing = True
         self.standalone_rust_dispose_pending = True
         self._schedule_rust_session_dispose()

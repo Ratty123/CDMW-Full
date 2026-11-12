@@ -64,7 +64,7 @@ def has_pending_edit(tab: object) -> bool:
     live_edit = getattr(tab, "live_edit", None)
     if bool(getattr(live_edit, "is_ready", False)) or pending_edit_revision(tab) > 0:
         return True
-    if unfinished_editor_steps(tab) > 0:
+    if unfinished_editor_steps(tab) > 0 or _preparing_over_recovery(tab):
         return True
     session = getattr(tab, "standalone_rust_authoring_session", None)
     holds = getattr(session, "holds_recovery_point", None)
@@ -128,10 +128,40 @@ def resolve_pending_edit(parent: QWidget | None, tab: object, *, file_label: str
             _tell(parent, FINISH_UNAVAILABLE)
             return KEEP
     elif answer == DISCARD:
+        mark_discarded(tab)
         close = getattr(tab, "close_standalone_session", None)
         if callable(close):
             close()
     return answer
+
+
+def mark_discarded(tab: object) -> None:
+    """The user chose Discard: this document's close ends its recovery point."""
+
+    session = getattr(tab, "standalone_rust_authoring_session", None)
+    if session is not None:
+        try:
+            session.discard_requested = True
+        except AttributeError:
+            pass
+
+
+def _preparing_over_recovery(tab: object) -> bool:
+    """An editor still opening over a draft that keeps unfinished edits (section 8.9):
+    closing now must ask, since the edits are not in a session yet."""
+
+    if getattr(tab, "standalone_rust_prepare_thread", None) is None:
+        return False
+    controller = getattr(tab, "standalone_controller", None)
+    service = getattr(controller, "mesh_service", None)
+    session_id = str(getattr(controller, "active_session_id", "") or "")
+    try:
+        project = service._session(session_id).mesh_layer_project_path if service and session_id else None
+    except (AttributeError, KeyError, RuntimeError):
+        return False
+    from pathlib import Path
+
+    return bool(project is not None and (Path(project).parent / "editor_recovery.json").is_file())
 
 
 def _tell(parent: QWidget | None, text: str) -> None:

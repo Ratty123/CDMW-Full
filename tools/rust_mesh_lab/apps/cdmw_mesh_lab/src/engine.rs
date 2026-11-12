@@ -538,10 +538,9 @@ impl EngineApplication {
         parent_hwnd: u64,
         event_loop: &ActiveEventLoop,
     ) -> Result<(Arc<winit::window::Window>, WindowRenderer), String> {
-        let gpu = self
-            .preview
-            .shared_gpu()
-            .ok_or("the preview's renderer is not ready")?;
+        if self.preview.shared_gpu().is_none() {
+            return Err("the preview's renderer is not ready".to_owned());
+        }
         let attributes = cdmw_win32_embed::with_parent_window(
             WindowAttributes::default()
                 .with_title("CDMW — Mesh Editor")
@@ -554,7 +553,8 @@ impl EngineApplication {
             .create_window(attributes)
             .map(Arc::new)
             .map_err(|error| format!("the editor's window could not be created: {error}"))?;
-        let renderer = WindowRenderer::new_on(&gpu, window.clone())
+        // On the engine's device, or a device of its own after a fault (8.9).
+        let renderer = crate::cdmw_preview::engine_renderer(&self.device, window.clone())
             .map_err(|error| format!("the editor's renderer could not start: {error}"))?;
         Ok((window, renderer))
     }
@@ -948,7 +948,19 @@ fn spawn_engine_input(
                                     {
                                         opening.entry(id.to_owned()).or_default();
                                     }
+                                    let id = viewport_id_of(&value).map(str::to_owned);
                                     if editor.try_send(EditorLine::Viewport(value)).is_err() {
+                                        // Nothing waits for it: say so, and keep nothing.
+                                        if let Some(id) = id {
+                                            if let Ok(mut opening) = opening.lock() {
+                                                opening.remove(&id);
+                                            }
+                                            write_preview_line(&json!({
+                                                "event": "viewport_refused",
+                                                "viewport_id": id,
+                                                "reason": "CDMW control queue overflowed",
+                                            }));
+                                        }
                                         preview.error("CDMW control queue overflowed".to_owned());
                                     }
                                 } else if value.get("protocol").and_then(Value::as_str)
@@ -1107,13 +1119,20 @@ fn deliver_viewport_line(opening: &OpeningViewports, routes: &PreviewRoutes, val
 /// Keep `value` for viewport `id` when it is opening; false when it is not, or
 /// when its queue is full.
 fn keep_for_opening(opening: &mut HashMap<String, Vec<Value>>, id: &str, value: Value) -> bool {
-    match opening.get_mut(id) {
-        Some(kept) if kept.len() < MAX_OPENING_LINES => {
-            kept.push(value);
-            true
-        }
-        _ => false,
+    let Some(kept) = opening.get_mut(id) else {
+        return false;
+    };
+    if value.get("event").and_then(Value::as_str) == Some("close_request") {
+        // Always kept, and nothing queued before it matters (section 8.9).
+        kept.clear();
+        kept.push(value);
+        return true;
     }
+    if kept.len() < MAX_OPENING_LINES {
+        kept.push(value);
+        return true;
+    }
+    false
 }
 
 /// Whether a preview line names another viewport of this process.
@@ -1371,13 +1390,17 @@ mod tests {
         opening.insert("dialog-7".to_owned(), Vec::new());
         assert!(keep_for_opening(&mut opening, "dialog-7", close.clone()));
         assert_eq!(opening["dialog-7"], vec![close.clone()]);
+        let state = json!({"viewport_id": "dialog-7", "event": "state"});
         for _ in 1..MAX_OPENING_LINES {
-            assert!(keep_for_opening(&mut opening, "dialog-7", close.clone()));
+            assert!(keep_for_opening(&mut opening, "dialog-7", state.clone()));
         }
         assert!(
-            !keep_for_opening(&mut opening, "dialog-7", close),
+            !keep_for_opening(&mut opening, "dialog-7", state),
             "the queue is bounded"
         );
+        // A close_request is always kept, even with the queue full (section 8.9).
+        assert!(keep_for_opening(&mut opening, "dialog-7", close.clone()));
+        assert_eq!(opening["dialog-7"], vec![close]);
     }
 
     #[test]

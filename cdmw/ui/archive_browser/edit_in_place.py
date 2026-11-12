@@ -67,6 +67,8 @@ class BrowseEditLayout:
         self._saved_minimums: list[int] = []
         self._hidden: list[QWidget] = []
         self._hover = _StripHover(self)
+        #: Browse is usable around the edit (its panes unfolded, P15 step 5a).
+        self.browsing = False
         self.banner = self._build_banner()
         #: The Mesh Editor's document tabs while this page is the Mesh workspace (P15 step 5a).
         self.document_selected: Callable[[int], None] | None = None
@@ -164,6 +166,30 @@ class BrowseEditLayout:
             return
         self.active = True
         self.entry = entry
+        self._fold()
+        self.set_status("")
+        self.preview_selected_button.setVisible(False)
+        self.banner.setVisible(True)
+
+    def browse_with_edit(self) -> None:
+        """Browse usable again while the edit stays in the view (P15 step 5a): its file
+        and control panes unfolded, its details back; the banner stays."""
+
+        if not self.active or self.browsing:
+            return
+        self.browsing = True
+        self._unfold()
+        self.hide_documents()
+
+    def fold_for_edit(self) -> None:
+        """The edit layout again (the Mesh workspace)."""
+
+        if not self.active or not self.browsing:
+            return
+        self.browsing = False
+        self._fold()
+
+    def _fold(self) -> None:
         splitter = getattr(self.browser, "archive_splitter", None)
         panes = self._strip_panes()
         if splitter is not None and panes:
@@ -188,14 +214,20 @@ class BrowseEditLayout:
                 if widget is not None and widget.isVisible():
                     widget.setVisible(False)
                     self._hidden.append(widget)
-        self.set_status("")
-        self.preview_selected_button.setVisible(False)
-        self.banner.setVisible(True)
 
     def leave(self) -> None:
         if not self.active:
             return
         self.active = False
+        if not self.browsing:
+            self._unfold()
+        self.browsing = False
+        self.banner.setVisible(False)
+        self.preview_selected_button.setVisible(False)
+        self.hide_documents()
+        self.entry = None
+
+    def _unfold(self) -> None:
         splitter = getattr(self.browser, "archive_splitter", None)
         for pane, minimum in zip(self._strip_panes(), self._saved_minimums):
             pane.removeEventFilter(self._hover)
@@ -208,21 +240,17 @@ class BrowseEditLayout:
             except RuntimeError:
                 pass
         self._hidden = []
-        self.banner.setVisible(False)
-        self.preview_selected_button.setVisible(False)
-        self.hide_documents()
-        self.entry = None
 
     def collapse_strips(self) -> None:
         splitter = getattr(self.browser, "archive_splitter", None)
-        if not self.active or splitter is None or not self._saved_sizes:
+        if not self.active or self.browsing or splitter is None or not self._saved_sizes:
             return
         total = sum(self._saved_sizes)
         splitter.setSizes([STRIP_WIDTH, STRIP_WIDTH, max(STRIP_WIDTH, total - 2 * STRIP_WIDTH)])
 
     def open_strips(self) -> None:
         splitter = getattr(self.browser, "archive_splitter", None)
-        if not self.active or splitter is None or len(self._saved_sizes) < 3:
+        if not self.active or self.browsing or splitter is None or len(self._saved_sizes) < 3:
             return
         total = sum(self._saved_sizes)
         first, second = self._saved_sizes[0], self._saved_sizes[1]
@@ -377,17 +405,41 @@ class BrowseEditInPlaceMixin:
         from cdmw.ui.mesh_editor.documents import document_label
 
         browse = self._browse_edit_document()
+        layout.fold_for_edit()
+        self._tell_edit_browsing(False)
         layout.document_selected = select_document
         layout.show_documents([document_label(document) for document in documents],
                               documents.index(browse) if browse in documents else -1)
         return True
 
     def leave_mesh_workspace_view(self) -> None:
-        """Browse again: the edit stays in this view, without the document tabs."""
+        """Another workspace: the document tabs go; the edit stays in this view."""
 
         layout = getattr(self, "_edit_in_place_layout", None)
         if layout is not None:
             layout.hide_documents()
+
+    def show_edit_for_browsing(self) -> bool:
+        """Browse's key with an edit in this view (P15 step 5a): Browse is usable, its
+        panes unfolded, the same window still showing the edit, with the editor's
+        panels hidden and clicks orbiting. False when no edit is in this view."""
+
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if not self.editing_in_place or layout is None or not layout.active:
+            return False
+        layout.browse_with_edit()
+        self._tell_edit_browsing(True)
+        return True
+
+    def _tell_edit_browsing(self, browsing: bool) -> None:
+        live = getattr(self._browse_edit_document(), "live_edit", None)
+        message = getattr(live, "_rust_host_message", None)
+        send = getattr(live, "_send_rust_message", None)
+        if callable(message) and callable(send) and getattr(live, "standalone_rust_process", None) is not None:
+            try:
+                send(message("browse_presentation", request_id=0, extra={"browsing": bool(browsing)}))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
 
     def _mesh_documents_view(self):
         shell = getattr(self, "shell", None)

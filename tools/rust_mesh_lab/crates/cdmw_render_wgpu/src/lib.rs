@@ -5496,10 +5496,24 @@ struct MotionCapture<'a> {
 }
 
 impl SharedGpu {
+    /// Whether this device has recorded a fault; every renderer on it then fails.
+    #[must_use]
+    pub fn faulted(&self) -> bool {
+        self.faults.check().is_err()
+    }
+
+    /// Record a fault on this device, as a renderer's error handler does (tests).
+    #[doc(hidden)]
+    pub fn record_fault(&self, message: &str) {
+        self.faults.record(message.to_owned());
+    }
+
     /// Whether two handles are the same device (section 8.8 cause 2).
     #[must_use]
     pub fn same_device(&self, other: &Self) -> bool {
-        self.device == other.device
+        // Each device has its own retained list (renderers on it share it); wgpu's
+        // own equality compares ids, which separate instances can repeat.
+        Arc::ptr_eq(&self.retained, &other.retained)
     }
 
     /// Keep the device's retained textures within their limit and forget the

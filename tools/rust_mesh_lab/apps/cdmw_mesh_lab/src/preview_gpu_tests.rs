@@ -1102,3 +1102,68 @@ impl ApplicationHandler for KeptSceneProbe {
     }
     fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }
+
+/// Section 8.9 (review of b585ee0c): after a fault the engine's device is handed
+/// to no new window; the next renderer is made on a device of its own, and that
+/// device becomes the process's for every window opened after it.
+#[test]
+#[ignore = "explicit hidden-window D3D12 engine device after a fault"]
+fn a_faulted_engine_device_is_replaced_by_the_next_one() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = FaultedDeviceProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("a new device after the fault");
+}
+
+#[derive(Default)]
+struct FaultedDeviceProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for FaultedDeviceProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            use crate::cdmw_preview::{EngineDevice, engine_renderer};
+
+            let hidden = || {
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(96, 96)),
+                )
+            };
+            let device = EngineDevice::default();
+            let first = engine_renderer(&device, Arc::new(hidden()?))?;
+            let faulted = first.shared_gpu();
+            faulted.record_fault("a simulated device loss");
+            anyhow::ensure!(device.get().is_none(), "a faulted device was handed out");
+            // An editor window opened after the fault (editor_window_under's path).
+            let editor = engine_renderer(&device, Arc::new(hidden()?))?;
+            anyhow::ensure!(
+                !editor.shared_gpu().same_device(&faulted),
+                "the editor drew on the faulted device"
+            );
+            let current = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("no device after the fault"))?;
+            anyhow::ensure!(
+                current.same_device(&editor.shared_gpu()),
+                "the new device was not adopted"
+            );
+            let page = engine_renderer(&device, Arc::new(hidden()?))?;
+            anyhow::ensure!(
+                page.shared_gpu().same_device(&current),
+                "a later window made yet another device"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
