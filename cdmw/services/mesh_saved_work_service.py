@@ -77,6 +77,8 @@ class MeshDraftRequest:
     seed_project_path: Path | None = None
     baseline_entries: tuple[ArchiveEntry, ...] = ()
     project_id: str = ""
+    #: Every game file the session edits, primary first; empty for one file.
+    target_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +111,16 @@ class SavedWorkRow:
     notes: str = ""
     #: The .cdmw file of an item package row; its draft, when kept, is ``manifest_path``.
     package_path: Path | None = None
+    #: Every game file the draft or mod edits, primary first. Older records
+    #: hold only ``source_archive_path``; read ``game_files`` for either.
+    target_paths: tuple[str, ...] = ()
+
+    @property
+    def game_files(self) -> tuple[str, ...]:
+        """Every game file of the row; the single source path for older records."""
+
+        return target_paths_from_record({"target_paths": list(self.target_paths),
+                                         "source_archive_path": self.source_archive_path})
 
     @property
     def is_built_mod(self) -> bool:
@@ -136,6 +148,31 @@ def clean_name(value: object) -> str:
 
 def clean_notes(value: object) -> str:
     return str(value or "").replace("\r\n", "\n").strip()[:MAX_NOTES_LENGTH]
+
+
+def _clean_game_path(value: object) -> str:
+    return str(value or "").replace("\\", "/").strip().strip("/")
+
+
+def target_paths_from_record(record: Mapping[str, object] | None) -> tuple[str, ...]:
+    """Every game file a draft or built mod record names, primary first, without repeats.
+
+    Records written before multi-file sessions have only ``source_archive_path``.
+    """
+
+    if not record:
+        return ()
+    values = [_clean_game_path(record.get("source_archive_path"))]
+    raw = record.get("target_paths")
+    if isinstance(raw, (list, tuple)):
+        values.extend(_clean_game_path(value) for value in raw)
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value and value.casefold() not in seen:
+            seen.add(value.casefold())
+            result.append(value)
+    return tuple(result)
 
 
 def _clean_sha(value: object) -> str:
@@ -256,6 +293,8 @@ def plan_session_draft(
         "mesh_layer_project": PROJECT_RELATIVE_PATH,
         "project_id": str(request.project_id or ""),
         "notes": "",
+        "target_paths": list(target_paths_from_record({"source_archive_path": str(entry.path),
+                                                       "target_paths": list(request.target_paths)})),
         "created_at": created,
         "updated_at": created,
     }
@@ -453,6 +492,7 @@ def _draft_row(workspace: Path) -> SavedWorkRow | None:
         has_draft=True,
         project_id=str(manifest.get("project_id") or ""),
         notes=str(manifest.get("notes") or ""),
+        target_paths=target_paths_from_record(manifest),
     )
 
 
@@ -502,6 +542,7 @@ def _built_mod_row(draft_root: Path, record: Mapping[str, object]) -> SavedWorkR
         mod_root=mod_root,
         project_id=str(record.get("project_id") or ""),
         notes=str(record.get("notes") or ""),
+        target_paths=target_paths_from_record(record),
     )
 
 
@@ -551,8 +592,7 @@ def list_saved_work(draft_root: Path | str, *, path_filter: str = "") -> tuple[S
     rows.extend(_item_package_row(root, record) for record in read_item_package_index(root)[:MAX_LISTED_PACKAGES])
     wanted = str(path_filter or "").replace("\\", "/").strip().strip("/").casefold()
     if wanted:
-        rows = [row for row in rows
-                if row.source_archive_path.replace("\\", "/").strip("/").casefold() == wanted]
+        rows = [row for row in rows if any(path.casefold() == wanted for path in row.game_files)]
     return tuple(sorted(rows, key=lambda row: row.saved_at, reverse=True))
 
 
@@ -816,9 +856,14 @@ def register_built_mod(
     zip_path: Path | str | None = None,
     manager_profile: str = "",
     kind: str = "",
+    target_paths: Sequence[str] = (),
     stop_event: threading.Event | None = None,
 ) -> dict[str, object]:
-    """Index a finished mod and freeze the draft it was built from."""
+    """Index a finished mod and freeze the draft it was built from.
+
+    ``target_paths`` lists every game file the mod writes when that is more
+    than the primary ``entry`` (a set build); the primary always comes first.
+    """
 
     root = Path(draft_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -861,6 +906,54 @@ def register_built_mod(
         "draft_dir": draft_dir,
         "project_id": str(lineage.get("project_id") or ""),
         "notes": "",
+        "target_paths": list(target_paths_from_record({"source_archive_path": str(entry.path),
+                                                       "target_paths": list(target_paths)})),
+    }
+    with _INDEX_LOCK:
+        records = _read_index(root)
+        records.append(record)
+        _write_index(root, records)
+    return record
+
+
+def register_combined_mod(
+    draft_root: Path | str,
+    *,
+    mod_root: Path | str,
+    target_paths: Sequence[str],
+    combined_from: Sequence[SavedWorkRow] = (),
+    zip_path: Path | str | None = None,
+    manager_profile: str = "",
+    project_id: str = "",
+) -> dict[str, object]:
+    """Index a mod made by Combine into one mod. The combined builds stay listed."""
+
+    paths = target_paths_from_record({"target_paths": list(target_paths)})
+    if not paths:
+        raise ValueError("A combined mod needs at least one game file.")
+    root = Path(draft_root).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    folder = Path(mod_root).resolve()
+    projects = {row.project_id for row in combined_from if row.project_id}
+    record = {
+        "id": uuid4().hex,
+        "display_name": folder.name,
+        "mod_root": str(folder),
+        "zip_path": str(zip_path or ""),
+        "built_at": time.time(),
+        "manager_profile": str(manager_profile or ""),
+        "output_kind": "combined",
+        "source_archive_path": paths[0],
+        "source_package": "",
+        "source_entry": {},
+        "source_sha256": "",
+        "game_source_sha256": "",
+        "edit_pass": 0,
+        "draft_dir": "",
+        "project_id": str(project_id or (projects.pop() if len(projects) == 1 else "")),
+        "notes": "",
+        "target_paths": list(paths),
+        "combined_from": [row.row_id for row in combined_from],
     }
     with _INDEX_LOCK:
         records = _read_index(root)
@@ -928,6 +1021,11 @@ def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str, *, projec
         "draft_dir": "",
         "project_id": str(project_id or ""),
         "notes": "",
+        "target_paths": list(target_paths_from_record({
+            "source_archive_path": source_path,
+            "target_paths": [item.get("path") for item in metadata.get("assets") or ()
+                             if isinstance(item, Mapping)],
+        })),
     }
     with _INDEX_LOCK:
         records = _read_index(root)

@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import PurePath
 
+from .findings import MeshFinding
 from .operations import validate_mesh_edit_operation_coverage, validate_mesh_edit_operations
 from .skeleton import MAX_SKIN_INFLUENCES
 from .skin_weight_edits import skin_weight_cleanup_sources
@@ -39,18 +40,8 @@ DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS = frozenset(
 )
 
 
-@dataclass(frozen=True, slots=True)
-class MeshExportValidationIssue:
-    severity: str
-    code: str
-    message: str
-    category: str = "general"
-    expected: object | None = None
-    actual: object | None = None
-    lod_index: int = -1
-    submesh_index: int = -1
-    vertex_index: int = -1
-    face_index: int = -1
+#: The shared mesh finding (`cdmw.domain.mesh.findings`); this name stays for its callers.
+MeshExportValidationIssue = MeshFinding
 
 
 def describe_mesh_export_issue(issue: object) -> str:
@@ -61,6 +52,9 @@ def describe_mesh_export_issue(issue: object) -> str:
         value = getattr(issue, name, -1)
         if isinstance(value, int) and value >= 0:
             details.append(f"{name}={value}")
+    count = getattr(issue, "element_count", 0)
+    if isinstance(count, int) and count > 0:
+        details.append(f"{getattr(issue, 'element_kind', '') or 'element'}_count={count}")
     for name in ("expected", "actual"):
         value = getattr(issue, name, None)
         if value is not None:

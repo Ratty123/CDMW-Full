@@ -643,6 +643,8 @@ class MeshDirectOutputWorker(QObject):
                 if editing_set:
                     raise ValueError("The included item set files have no changes to write")
                 raise ValueError("Only the body is left to write. Turn on Include the body to build it.")
+            # Saved work lists every game file this build writes, not only the primary.
+            self._built_target_paths = tuple(str(entry.path) for entry, _component in written)
             layers = self._layer_visibility(requests, additions) if self.keep_layers else None
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
@@ -767,6 +769,7 @@ class MeshDirectOutputWorker(QObject):
                     zip_path=result.zip_path,
                     manager_profile=result.manager_profile,
                     kind=self.kind,
+                    target_paths=getattr(self, "_built_target_paths", ()),
                 )
         except Exception as exc:
             return replace(result, saved_work_error=f"{type(exc).__name__}: {exc}")
@@ -803,33 +806,10 @@ class MeshDirectOutputWorker(QObject):
         )
 
     def _publish_mod_output(self, staging: Path, root: Path) -> Path | None:
-        from cdmw.core.mod_export_history import retain_mod_history
-        from cdmw.core.mod_package import _write_package_zip
+        from cdmw.services.mesh_mod_publish import publish_mesh_mod_output
 
-        # DMM reads the same name/version/author/description from manifest.json.
-        # Remove the duplicate before binding local history to the final files.
-        if self.manager_profile == "dmm":
-            (staging / "modinfo.json").unlink(missing_ok=True)
-        elif self.manager_profile == "cdumm":
-            # CDUMM detects modinfo.json + files/ and reads the mod details
-            # from modinfo.json. Its importer derives encryption from the game.
-            (staging / "manifest.json").unlink(missing_ok=True)
-            (staging / ".no_encrypt").unlink(missing_ok=True)
-        retain_mod_history(staging, stop_event=self.stop_event)
-        (staging / "README.txt").unlink(missing_ok=True)
-        zip_path = root.with_name(root.name + ".zip") if self.create_zip else None
-        staged_zip = staging.with_name(staging.name + ".zip") if self.create_zip else None
-        try:
-            outputs = [(staging, root)]
-            if staged_zip is not None:
-                _write_package_zip(staging, zip_path=staged_zip, stop_event=self.stop_event)
-                outputs.append((staged_zip, zip_path))
-            _raise_export_cancelled(self.stop_event)
-            atomic_publish_paths(outputs, replace_existing=False)
-            return zip_path
-        finally:
-            if staged_zip is not None:
-                staged_zip.unlink(missing_ok=True)
+        return publish_mesh_mod_output(staging, root, manager_profile=self.manager_profile,
+                                       create_zip=bool(self.create_zip), stop_event=self.stop_event)
 
     def _write_loose_mod(
         self,
