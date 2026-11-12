@@ -83,6 +83,8 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     #: Browse's viewport could not hold the edit; the editor opened in the
     #: host's own viewport instead. The argument is the reason.
     moved_to_own_viewport = Signal(str)
+    #: The edit moved from Browse's viewport to the host's (Promote to tab, P4 V5).
+    promoted_to_tab = Signal()
     #: (session, payload): a deferred morph query answered, on its own thread.
     morph_state_arrived = Signal(object, object)
     #: (session, error): the session files were written again after a crash.
@@ -136,6 +138,54 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
         if not self.standalone_rust_ready:
             return False
         return bool(self._send_rust_command("session.finish"))
+
+    # ----- Promote to tab (P4 V5) --------------------------------------------
+    def promote_to_tab(self) -> bool:
+        """Move the edit from Browse's viewport into the host's (the Mesh Editor tab).
+
+        The edit keeps running in Browse's process, in a window of its own under
+        the tab; nothing reopens. False when there is no edit in Browse to move.
+        """
+
+        binding = self._viewport_binding
+        channel = getattr(binding, "channel", None)
+        promote = getattr(channel, "promote", None)
+        if binding is None or not callable(promote) or not self.standalone_rust_ready:
+            return False
+        frame = self._live_edit_host.standalone_native_host_frame
+        prepare = getattr(frame, "prepare_launch", None)
+        parent_hwnd = int(prepare() or 0) if callable(prepare) else 0
+        if parent_hwnd <= 0:
+            return False
+        channel.promoted.connect(self._finish_promotion)
+        channel.promote_refused.connect(self._promotion_refused)
+        if not promote(parent_hwnd):
+            channel.promoted.disconnect(self._finish_promotion)
+            channel.promote_refused.disconnect(self._promotion_refused)
+            return False
+        return True
+
+    def _finish_promotion(self, child_hwnd: int, parent_hwnd: int) -> None:
+        binding = self._viewport_binding
+        if binding is None:
+            return
+        self._viewport_binding = None
+        channel = binding.hand_over()
+        frame = self._live_edit_host.standalone_native_host_frame
+        attach = getattr(frame, "attach_child_window", None)
+        process_id = int(channel.processId()) if channel is not None else 0
+        attached, reason = attach(child_hwnd, process_id, parent_hwnd) if callable(attach) else (False, "")
+        if not attached:
+            self._fail_rust_editor(f"The edit could not move to the Mesh Editor tab: {reason or 'no host window'}.")
+            return
+        self.standalone_rust_child_hwnd = child_hwnd
+        show_editor = getattr(frame, "show_editor", None)
+        if callable(show_editor):
+            show_editor()
+        self.promoted_to_tab.emit()
+
+    def _promotion_refused(self, reason: str) -> None:
+        self.status_message_requested.emit(f"The edit stays in Browse Archives: {reason}", True)
 
     def _release_viewport_binding(self) -> None:
         binding, self._viewport_binding = self._viewport_binding, None

@@ -2270,6 +2270,22 @@ class RustPreviewSessionController(
         if self._window_edit_channel is channel:
             self._window_edit_channel = None
 
+    def promote_edit_channel(self, channel: object) -> bool:
+        """The edit in Browse's viewport moved into a window of its own (P4 V5).
+
+        Browse previews again at once: a selection made meanwhile is shown.
+        """
+
+        if self._edit_channel is not channel or self._window_edit_channel is not None:
+            return False
+        self._edit_channel = None
+        self._window_edit_channel = channel
+        hand_to = getattr(channel, "hand_to", None)
+        if callable(hand_to):
+            hand_to(self._release_window_edit_channel)
+        QTimer.singleShot(0, self, self._request_resident_package_load)
+        return True
+
     @property
     def editing_in_own_window(self) -> bool:
         return self._window_edit_channel is not None

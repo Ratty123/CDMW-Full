@@ -145,9 +145,13 @@ def test_journey_6_edit_in_browse_in_its_own_process_and_return(run):
     assert entered["texture_uploads_after"] == entered["texture_uploads_before"], entered
     assert entered["edit_camera_yaw"] == pytest.approx(entered["browse_camera_yaw"], abs=1e-4)
     assert entered["edit_camera_distance"] == pytest.approx(entered["browse_camera_distance"], rel=1e-4)
+    # P4 V5: Promote to tab moves the edit as it is; Browse previews again.
+    assert run.call("promote_edit")
+    run.wait(lambda: not run.state()["mesh_editor"]["in_browse"], timeout=30, what="the edit to move to the tab")
+    state = run.state()["mesh_editor"]
+    assert state["process_id"] == browse_pid and state["ready"], state
     index = len(run.call("events"))
     assert run.call("end_edit", answer="discard")
-    run.wait(lambda: not run.state()["mesh_editor"]["in_browse"], timeout=60, what="the edit to leave Browse")
     run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
              timeout=30, what="the helper to leave edit mode")
     assert run.state()["browse_process_id"] == browse_pid

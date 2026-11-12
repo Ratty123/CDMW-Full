@@ -72,8 +72,12 @@ class BrowseEditLayout:
         self.preview_selected_button = QPushButton("Preview selected file instead")
         self.preview_selected_button.setObjectName("ArchiveEditingPreviewSelectedButton")
         self.preview_selected_button.setVisible(False)
+        # P4 V5: the edit moves to the Mesh Editor tab as it is, without reopening.
+        self.promote_button = QPushButton("Move to the Mesh Editor tab")
+        self.promote_button.setObjectName("ArchiveEditingPromoteButton")
         row.addWidget(self.banner_label, stretch=1)
         row.addWidget(self.preview_selected_button)
+        row.addWidget(self.promote_button)
         banner.setVisible(False)
         layout = getattr(self.browser, "archive_preview_main_layout", None)
         if layout is not None:
@@ -180,6 +184,7 @@ class BrowseEditInPlaceMixin:
         if layout is None:
             layout = self._edit_in_place_layout = BrowseEditLayout(self)
             layout.preview_selected_button.clicked.connect(self._preview_selected_instead_of_edit)
+            layout.promote_button.clicked.connect(self._promote_edit_to_tab)
             tree = getattr(self, "archive_tree", None)
             if tree is not None:
                 tree.itemSelectionChanged.connect(self._edit_in_place_selection_changed)
@@ -247,6 +252,28 @@ class BrowseEditInPlaceMixin:
         layout.enter(entry)
         self._edit_in_place_binding = binding
         return binding
+
+    def _promote_edit_to_tab(self) -> None:
+        """Move the edit in Browse's viewport to the Mesh Editor tab (P4 V5)."""
+
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        tab = created() if callable(created) else owner
+        live = getattr(tab, "live_edit", None)
+        if live is None or getattr(live, "viewport_binding", None) is None:
+            return
+        activate = getattr(shell, "_activate_tool_key", None)
+        if callable(activate):
+            activate("mesh_editor")  # its host window exists and has its size first
+
+        def promote() -> None:
+            if not live.promote_to_tab():
+                set_status = getattr(shell, "set_status_message", None)
+                if callable(set_status):
+                    set_status("The edit could not move to the Mesh Editor tab now.", error=True)
+
+        QTimer.singleShot(0, promote)
 
     @property
     def editing_in_place(self) -> bool:

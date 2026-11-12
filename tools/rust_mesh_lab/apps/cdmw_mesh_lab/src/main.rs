@@ -2874,6 +2874,31 @@ impl LabApplication {
         application
     }
 
+    /// Move this edit into a window of its own (P4 V5, Promote to tab). Its scene
+    /// is uploaded into `renderer` (whose textures are found on the shared device),
+    /// and the renderer it borrowed is returned with the camera, for the Preview.
+    fn move_to_window(
+        &mut self,
+        window: Arc<Window>,
+        mut renderer: WindowRenderer,
+        parent_hwnd: u64,
+    ) -> Result<(Option<WindowRenderer>, OrbitCamera), String> {
+        self.configure_renderer(&mut renderer)?;
+        let lent = self.renderer.replace(renderer);
+        self.egui_state = Some(egui_winit::State::new(
+            self.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        self.embedded_parent_hwnd = Some(parent_hwnd);
+        window.request_redraw();
+        self.window = Some(window);
+        Ok((lent, self.camera.clone()))
+    }
+
     /// Hand the renderer and the camera back to the Preview when the edit ends.
     fn give_back_view(&mut self) -> (Option<WindowRenderer>, OrbitCamera) {
         self.egui_state = None;

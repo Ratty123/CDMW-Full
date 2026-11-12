@@ -157,3 +157,74 @@ def test_no_spare_editor_is_started_while_browse_s_process_can_hold_the_window(t
             assert started == [True]
     finally:
         _dispose(tab)
+
+
+def test_promote_to_tab_moves_the_edit_out_of_browse_s_viewport_without_ending_it(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+    from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+    controller, process = _ready_controller(tmp_path)
+    tab = _tab(tmp_path / "tab")
+    live = tab.live_edit
+    try:
+        binding = BrowseViewportBinding(SimpleNamespace(controller=controller), "upper.pac")
+        ended = []
+        binding.ended.connect(lambda: ended.append(True))
+        channel = binding.borrow()
+        assert channel is not None and controller.editing_in_place
+        live.edit_in_viewport(binding)
+        live.standalone_rust_process = channel
+        live.standalone_rust_ready = True
+        frame = tab.standalone_native_host_frame
+        attached = []
+        monkeypatch.setattr(frame, "prepare_launch", lambda: 5150)
+        monkeypatch.setattr(frame, "attach_child_window",
+                            lambda child, pid, parent: attached.append((child, pid, parent)) or (True, ""))
+        promoted = []
+        live.promoted_to_tab.connect(lambda: promoted.append(True))
+
+        assert live.promote_to_tab()
+        assert process.writes[-1] == {"event": "promote_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                      "parent_hwnd": 5150}
+        _emit_stdout(process, _line({"event": "edit_promoted", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                     "child_hwnd": 808, "embedded_parent_hwnd": 5150}))
+        QApplication.processEvents()
+        # The window moved under the tab; the edit runs on in Browse's process.
+        assert attached == [(808, controller.process_id, 5150)] and promoted == [True]
+        assert live.viewport_binding is None and ended == [True] and binding.is_ended
+        assert channel.state() == channel.Running and channel.own_window
+        assert not controller.editing_in_place and controller.editing_in_own_window
+        assert not any(write.get("event") == "leave_edit" for write in process.writes)
+        # Ending it later releases the window's slot, not Browse's viewport.
+        channel.terminate()
+        assert not controller.editing_in_own_window
+    finally:
+        _dispose(tab)
+        controller.shutdown()
+
+
+def test_a_refused_promotion_keeps_the_edit_in_browse(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+    from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+    controller, process = _ready_controller(tmp_path)
+    tab = _tab(tmp_path / "tab")
+    live = tab.live_edit
+    try:
+        binding = BrowseViewportBinding(SimpleNamespace(controller=controller), "upper.pac")
+        channel = binding.borrow()
+        live.edit_in_viewport(binding)
+        live.standalone_rust_process = channel
+        live.standalone_rust_ready = True
+        monkeypatch.setattr(tab.standalone_native_host_frame, "prepare_launch", lambda: 5150)
+        notices = []
+        tab.status_message_requested.connect(lambda message, error: notices.append(message))
+        assert live.promote_to_tab()
+        _emit_stdout(process, _line({"event": "promote_refused", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                     "reason": "no edit in Browse's view to move"}))
+        QApplication.processEvents()
+        assert live.viewport_binding is binding and controller.editing_in_place
+        assert any("stays in Browse Archives" in notice for notice in notices)
+    finally:
+        _dispose(tab)
+        controller.shutdown()

@@ -43,6 +43,10 @@ class EngineEditChannel(QObject):
     refused = Signal(str)
     #: The editor shows Browse's model; its session follows (P4 V4).
     viewing_started = Signal()
+    #: (child_hwnd, parent_hwnd): the edit moved into a window of its own (P4 V5).
+    promoted = Signal(int, int)
+    #: Why the edit could not move into a window of its own.
+    promote_refused = Signal(str)
 
     NotRunning = QProcess.ProcessState.NotRunning
     Running = QProcess.ProcessState.Running
@@ -73,6 +77,13 @@ class EngineEditChannel(QObject):
         except ValueError:
             payload = {}
         event = payload.get("event") if isinstance(payload, dict) else None
+        if event == "edit_promoted":
+            self.own_window = True
+            self.promoted.emit(int(payload.get("child_hwnd") or 0), int(payload.get("embedded_parent_hwnd") or 0))
+            return
+        if event == "promote_refused":
+            self.promote_refused.emit(str(payload.get("reason") or "The edit could not move."))
+            return
         if event in _ENGINE_EVENTS:
             if event == "edit_viewing":
                 self.viewing = True
@@ -125,6 +136,18 @@ class EngineEditChannel(QObject):
         line = json.dumps({"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
                            "keep_view": bool(keep_view)}, separators=(",", ":")).encode("utf-8") + b"\n"
         return self.write(line) == len(line)
+
+    def promote(self, parent_hwnd: int) -> bool:
+        """Ask the edit to move into a window of its own under ``parent_hwnd`` (Promote to tab)."""
+
+        line = json.dumps({"event": "promote_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                           "parent_hwnd": int(parent_hwnd)}, separators=(",", ":")).encode("utf-8") + b"\n"
+        return self.write(line) == len(line)
+
+    def hand_to(self, detach: Callable[["EngineEditChannel"], None]) -> None:
+        """A new owner releases this channel when it ends."""
+
+        self._detach = detach
 
     def terminate(self) -> None:
         """End the edit; the shared process keeps running."""

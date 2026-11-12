@@ -108,6 +108,23 @@ class BrowseViewportBinding(QObject):
         self.channel = borrow(self)
         return self.channel
 
+    def hand_over(self):
+        """Let go of Browse's viewport and keep the edit running: it moved to the tab (P4 V5).
+
+        Returns the channel; Browse's layout ends as for any edit that leaves it.
+        """
+
+        if self._ended:
+            return None
+        self._ended = True
+        channel, self.channel = self.channel, None
+        controller = getattr(self.preview_host, "controller", None)
+        promote = getattr(controller, "promote_edit_channel", None)
+        if channel is not None and callable(promote):
+            promote(channel)
+        self.ended.emit()
+        return channel
+
     def end(self) -> None:
         if self._ended:
             return

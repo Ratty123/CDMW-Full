@@ -156,6 +156,10 @@ impl EngineApplication {
             }
             return;
         }
+        if event == "promote_edit" {
+            self.promote_edit(&value, event_loop);
+            return;
+        }
         if self.edit.is_none() {
             match event.as_str() {
                 "open_session" if own_viewport_parent(&value).is_some() => {
@@ -372,28 +376,9 @@ impl EngineApplication {
         let refuse = |reason: String| {
             write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
         };
-        let Some(gpu) = self.preview.shared_gpu() else {
-            return refuse("the preview's renderer is not ready".to_owned());
-        };
-        let attributes = match cdmw_win32_embed::with_parent_window(
-            WindowAttributes::default()
-                .with_title("CDMW — Mesh Editor")
-                .with_decorations(false)
-                .with_visible(false),
-            parent_hwnd,
-        ) {
-            Ok(attributes) => attributes,
-            Err(error) => return refuse(format!("the editor's parent window is invalid: {error}")),
-        };
-        let window = match event_loop.create_window(attributes) {
-            Ok(window) => Arc::new(window),
-            Err(error) => {
-                return refuse(format!("the editor's window could not be created: {error}"));
-            }
-        };
-        let renderer = match WindowRenderer::new_on(&gpu, window.clone()) {
-            Ok(renderer) => renderer,
-            Err(error) => return refuse(format!("the editor's renderer could not start: {error}")),
+        let (window, renderer) = match self.editor_window_under(parent_hwnd, event_loop) {
+            Ok(made) => made,
+            Err(reason) => return refuse(reason),
         };
         let (input, route) = PendingSessionInput::routed();
         let _ = route.message(open_session);
@@ -407,6 +392,72 @@ impl EngineApplication {
             None,
         ));
         self.edit_route = Some(route);
+    }
+
+    /// A child window under `parent_hwnd` with a renderer on the Preview's device.
+    fn editor_window_under(
+        &self,
+        parent_hwnd: u64,
+        event_loop: &ActiveEventLoop,
+    ) -> Result<(Arc<winit::window::Window>, WindowRenderer), String> {
+        let gpu = self
+            .preview
+            .shared_gpu()
+            .ok_or("the preview's renderer is not ready")?;
+        let attributes = cdmw_win32_embed::with_parent_window(
+            WindowAttributes::default()
+                .with_title("CDMW — Mesh Editor")
+                .with_decorations(false)
+                .with_visible(false),
+            parent_hwnd,
+        )
+        .map_err(|error| format!("the editor's parent window is invalid: {error}"))?;
+        let window = event_loop
+            .create_window(attributes)
+            .map(Arc::new)
+            .map_err(|error| format!("the editor's window could not be created: {error}"))?;
+        let renderer = WindowRenderer::new_on(&gpu, window.clone())
+            .map_err(|error| format!("the editor's renderer could not start: {error}"))?;
+        Ok((window, renderer))
+    }
+
+    /// `promote_edit {parent_hwnd}` (Promote to tab): the edit in Browse's view
+    /// moves into a window of its own under `parent_hwnd`, without reopening, and
+    /// Browse gets its view back. Answers `edit_promoted {child_hwnd}`.
+    fn promote_edit(&mut self, value: &Value, event_loop: &ActiveEventLoop) {
+        let refuse = |reason: String| {
+            write_editor_line(&json!({"event": "promote_refused", "reason": reason}));
+        };
+        if self.edit.is_none() || self.edit_window.is_some() {
+            return refuse("no edit in Browse's view to move".to_owned());
+        }
+        let Some(parent_hwnd) = value
+            .get("parent_hwnd")
+            .and_then(Value::as_u64)
+            .filter(|hwnd| *hwnd != 0)
+        else {
+            return refuse("promote_edit needs a parent window".to_owned());
+        };
+        let (window, renderer) = match self.editor_window_under(parent_hwnd, event_loop) {
+            Ok(made) => made,
+            Err(reason) => return refuse(reason),
+        };
+        let Some(edit) = self.edit.as_mut() else {
+            return;
+        };
+        match edit.move_to_window(window.clone(), renderer, parent_hwnd) {
+            Ok((lent, camera)) => {
+                self.preview.return_view(lent, Some(camera));
+                self.edit_window = Some(window.id());
+                let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
+                write_editor_line(&json!({
+                    "event": "edit_promoted",
+                    "child_hwnd": child_hwnd,
+                    "embedded_parent_hwnd": parent_hwnd,
+                }));
+            }
+            Err(reason) => refuse(reason),
+        }
     }
 
     /// `enter_edit {keep_view}`: show the editor at once on Browse's resident

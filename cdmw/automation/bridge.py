@@ -152,6 +152,7 @@ class AutomationBridge(QObject):
             "set_preview_settings": self._set_preview_settings,
             "resize": self._resize,
             "end_edit": self._end_edit,
+            "promote_edit": self._promote_edit,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -454,6 +455,15 @@ class AutomationBridge(QObject):
         if str(args.get("answer", "discard")) == "finish":
             return bool(tab.live_edit.request_finish())
         tab.close_standalone_session()
+        return True
+
+    def _promote_edit(self, _args: dict) -> bool:
+        """Move the edit from Browse's viewport to the Mesh Editor tab, as its banner button does."""
+
+        archive = self.window.archive
+        if not getattr(archive, "editing_in_place", False):
+            return False
+        archive._promote_edit_to_tab()
         return True
 
     def _quit(self, _args: dict) -> bool:
