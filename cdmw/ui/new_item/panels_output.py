@@ -7,7 +7,7 @@ from typing import Optional
 
 from cdmw import constants
 
-from PySide6.QtCore import QElapsedTimer, QEvent, QSettings, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QElapsedTimer, QEvent, QSettings, QTimer, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 from cdmw.services.settings_service import resolve_settings_file_path
-from cdmw.services.archive_overlay_install import OverlayInstallResult
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
@@ -55,92 +54,6 @@ CHECKLIST = (
     "Its stats match the grid; an added level is the least-proven part.",
     "The tooltip lists the perks you chose; a visual effect, if any, appears on each compatible visual prefab the new item owns.",
 )
-
-
-def install_result_report(result: object) -> tuple:
-    """Describe overlay installation, migration and removal by their result type."""
-
-    from cdmw.services.independent_item_install import IdentityDeletionResult
-    backup = getattr(result, "backup_dir", "") or ""
-    directory = getattr(result, "directory", None)
-    name = getattr(directory, "name", "") if directory is not None else ""
-    if isinstance(result, IdentityDeletionResult):
-        if len(result.identities) > 1:
-            return ('Delete saved identities', f'Saved identities deleted: {result.title}.\n\nBackup: {backup}')
-        return ('Delete saved identity', f'Saved identity deleted: {result.title}.\n\nBackup: {backup}')
-    if hasattr(result, "retired_inventory"):
-        return (
-            "Start fresh with overlays",
-            f"Retired {len(result.labels)} saved overlay(s). The old files remain in folder {name} for recovery."
-            f"\n\nHistory: {result.retired_inventory}\n\nBackup: {backup}"
-            "\n\nRebuild the item plan, then install it with Overlay folder set to Auto.",
-        )
-    if hasattr(result, 'removed_overlay_id'):
-        action = {'remove': 'Removed', 'enable': 'Enabled', 'disable': 'Disabled', 'rebuild': 'Rebuilt'}.get(
-            getattr(result, 'action', 'remove'), 'Updated')
-        return ('Installed overlays', f'{action} {result.label}. {result.remaining} overlay(s) enabled.\n\nBackup: {backup}')
-
-    if hasattr(result, "removed_files"):  # the overlay taken away
-        if not getattr(result, "unmounted", False):
-            return ("Remove the overlay", "There was no overlay to remove: the mount list names none.")
-        put_back = tuple(getattr(result, "restored_meta", ()) or ())
-        if put_back:
-            return (
-                "Remove the overlay",
-                f"Removed the overlay {name} and unmounted it, and put {', '.join(put_back)} back to what the game shipped."
-                f"\n\nAnything that lived only in the overlay is gone from the game with it; anything installed into the "
-                f"shipped archives is untouched.\n\nBackup: {backup}",
-            )
-        return (
-            "Remove the overlay",
-            f"Removed the overlay {name} and unmounted it.\n\nAnything that lived only in the overlay is gone from the game "
-            f"with it; anything installed into the shipped archives is untouched.\n\nBackup: {backup}",
-        )
-    if hasattr(result, "moved"):  # items carried out of the shipped archives
-        moved = int(getattr(result, "moved", 0) or 0)
-        restored = len(getattr(result, "restored", ()) or ())
-        size = int(getattr(result, "payload_bytes", 0) or 0)
-        return (
-            "Move installed items into the overlay",
-            f"Moved {moved} file(s) ({size:,} bytes) into the overlay {name} and put {restored} archive file(s) back to their "
-            f"oldest backup.\n\nThe game reads the same thing it did; the files it shipped are its own again."
-            f"\n\nBackup: {backup}",
-        )
-    if hasattr(result, "entries") and hasattr(result, "restore"):  # a move that found nothing
-        return (
-            "Move installed items into the overlay",
-            "Nothing to move: no archive file differs from the oldest backup of it, so the shipped archives carry no "
-            "installed item.",
-        )
-    if hasattr(result, "file_count"):  # installed as an overlay
-        count = int(getattr(result, "file_count", 0) or 0)
-        carried = int(getattr(result, "carried_forward", 0) or 0)
-        size = int(getattr(result, "payload_bytes", 0) or 0)
-        recovery = ""
-        if getattr(result, "recovery_inventory", None) is not None:
-            recovery = (
-                f"\n\nAutomatically retired {len(result.recovered_overlays)} unmounted old overlay(s) and installed a fresh set. "
-                f"The old files remain on disk. Saved history: {result.recovery_inventory}"
-            )
-        # the two are whole sentences rather than one with a clause slotted into it: a
-        # fragment interpolated into a message is a fragment the translator never sees
-        if carried:
-            return (
-                "Install as an overlay",
-                f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
-                f"archives, {carried} of them carried forward from what the overlay already held.\n\nThe archives the game "
-                f"shipped were not written to.\n\nBackup: {backup}\n\nStart the game and go through the checklist." + recovery,
-            )
-        return (
-            "Install as an overlay",
-            f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
-            f"archives.\n\nThe archives the game shipped were not written to."
-            f"\n\nBackup: {backup}\n\nStart the game and go through the checklist." + recovery,
-        )
-    return (
-        "Install as an overlay",
-        "The operation returned an unrecognised result. Check the log before continuing.",
-    )
 
 
 class OutputPanel(QGroupBox):
@@ -269,17 +182,6 @@ class OutputPanel(QGroupBox):
         )
         self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
         export.addWidget(self.add_to_mod)
-        self.include_mounted = QCheckBox("Include mounted items in a new mod")
-        self.include_mounted.setToolTip(
-            "Copies all mounted overlay archives into a new package, including their other changes. "
-            "Keep the originals mounted while building, then review the plan before exporting."
-        )
-        self.include_mounted.toggled.connect(self._mounted_base_changed)
-        export.addWidget(self.include_mounted)
-        self.include_mounted.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
-        self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED)
-        self.mounted_review = NoteLabel("", WARN)
-        export.addWidget(self.mounted_review)
         self.mod_base_note = QLabel("")
         self.mod_base_note.setWordWrap(True)
         self.mod_base_note.setVisible(False)
@@ -415,8 +317,6 @@ class OutputPanel(QGroupBox):
         controller.plan_failed.connect(self._plan_failed)
         controller.plan_invalidated.connect(self._plan_invalidated)
         controller.export_finished.connect(self._export_finished)
-        controller.install_finished.connect(self._install_finished)
-        controller.install_failed.connect(self._install_failed)
         controller.busy_changed.connect(self._busy_changed)
         controller.operation_progress.connect(self._operation_progress)
         controller.status_message.connect(self._operation_message)
@@ -497,17 +397,10 @@ class OutputPanel(QGroupBox):
         """Only use the selected folder as a base when the user asks to extend it."""
         folder_mode = self.output_mode.currentData() == "folder"
         self.add_to_mod.setVisible(folder_mode)
-        self.include_mounted.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED and folder_mode)
-        if self.add_to_mod.isChecked() and self.include_mounted.isChecked():
-            self.include_mounted.blockSignals(True)
-            self.include_mounted.setChecked(False)
-            self.include_mounted.blockSignals(False)
         self.mod_base_note.setVisible(folder_mode)
-        mounted = folder_mode and self.include_mounted.isChecked()
         base = self._package_root() if folder_mode and self.add_to_mod.isChecked() else None
         base = base if base is not None and base.is_dir() else None
-        if mounted != self._controller.include_mounted_items or base != self._controller.mod_base_folder:
-            self._controller.include_mounted_items = mounted
+        if base != self._controller.mod_base_folder:
             self._controller.set_mod_base(base)
             reason = reason or self.tr("The plan builds on a different mod now.")
         if reason:
@@ -518,13 +411,6 @@ class OutputPanel(QGroupBox):
         # The folder, manager and overlay number are only used when writing; a
         # built plan stays ready and its review follows the selected output.
         self._show_plan(self._controller.plan if self._controller.has_current_plan else None)
-
-    def _mounted_base_changed(self, checked: bool) -> None:
-        if checked:
-            self.add_to_mod.blockSignals(True)
-            self.add_to_mod.setChecked(False)
-            self.add_to_mod.blockSignals(False)
-        self._mod_base_changed()
 
     def _package_root(self) -> Optional[Path]:
         text = self.export_root.text().strip()
@@ -538,12 +424,6 @@ class OutputPanel(QGroupBox):
         self.export_root_label.setText(self.tr("Existing mod folder") if adding else self.tr("Output folder"))
         if adding:
             self.mod_base_note.setText("Adds this item to the selected mod folder and keeps its existing items. Select the mod folder itself, then rebuild the plan.")
-        elif self.include_mounted.isChecked():
-            self.mod_base_note.setText(
-                "1. Keep the originals mounted and rebuild the plan. "
-                "2. Review the included items and archives. "
-                "3. Write to a new folder. Before installing, disable the included originals in their mod manager."
-            )
         else:
             self.mod_base_note.setText("Creates a new folder named after your mod inside the output folder. To add this item to a mod you already made, tick Add to existing mod.")
         root = self._package_root()
@@ -576,24 +456,13 @@ class OutputPanel(QGroupBox):
         if source:
             message += "\n" + self.tr("Source: {value_0}").format(value_0=source)
         message += "\n\n" + self.tr(
-            "To combine items, select Include mounted items in a new mod, or choose the existing mod folder, then rebuild the plan. "
+            "To combine items, choose the existing mod folder, then rebuild the plan. "
             "For a separate mod, unmount the item mods, read the archives again, then rebuild."
         )
         return message
 
     def _refresh_export_state(self) -> None:
         plan = self._controller.plan
-        mounted = plan.manifest.get("mounted_base") if plan and self.output_mode.currentData() == "folder" else None
-        review = ""
-        if mounted:
-            names = ", ".join(f"{item['display_name']} (item {item['item_key']})" for item in mounted["items"])
-            review = self.tr("Included mounted items: {value_0}\nArchive folders: {value_1}").format(
-                value_0=names, value_1=", ".join(mounted["archives"]))
-            review += "\n" + self.tr(
-                "The whole active content of these overlays is included. Install this package in place of their originals. "
-                "Installation steps are in Details and warnings and the exported README.txt."
-            )
-        self.mounted_review.set_lines((line, WARN) for line in review.splitlines())
         source_problem = self._source_export_problem()
         problem = source_problem or (self._export_error if self.output_mode.currentData() in ("folder", "independent") else "")
         changed = problem != self.export_problem.plain_text()
@@ -792,28 +661,10 @@ class OutputPanel(QGroupBox):
         if zip_path is not None:
             message += f"\n\nZIP: {zip_path}"
             self.append_log(f"ZIP written to {zip_path}")
-        if self._controller.plan and self._controller.plan.manifest.get("mounted_base"):
-            message += "\n\n" + self.tr(
-                "Before enabling this combined mod, disable the included originals in the manager that installed them. "
-                "See README.txt for the included archive folders and installation steps."
-            )
         if self._open_export_folder and root:
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(root))):
                 self.append_log(f"The mod was created, but its folder could not be opened: {root}")
         QMessageBox.information(self, "Write loose mod", message)
-
-    def _install_finished(self, result: object) -> None:
-        self._install_error = ""
-        self.busy_state.set_note("", None)
-        title, message = install_result_report(result)
-        self.append_log(message.replace("\n\n", " "))
-        if isinstance(result, OverlayInstallResult):
-            QMessageBox.information(self, title, message)
-
-    def _install_failed(self, message: str) -> None:
-        self._install_error = f"Overlay installation failed: {message}"
-        self.busy_state.set_note(self._install_error, BLOCK)
-        QMessageBox.warning(self, "Overlay installation failed", message)
 
     def _busy_changed(self, busy: bool) -> None:
         lane = str(getattr(self._controller, "_lane", "") or "")
@@ -840,9 +691,8 @@ class OutputPanel(QGroupBox):
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
         self.send_dmm_button.setEnabled(has_plan and not busy)
-        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod, self.include_mounted):
+        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod):
             control.setEnabled(not busy)
-        self.include_mounted.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and not busy)
         self.update_package_button.setEnabled(has_plan and not busy)
         self.continued_package_button.setEnabled(has_plan and not busy)
         self._refresh_export_state()
@@ -865,4 +715,4 @@ class OutputPanel(QGroupBox):
             self.busy_state.set_note(f"{self._busy_detail} ({seconds}s)", EDIT)
 
 
-__all__ = ["CHECKLIST", "OutputPanel", "install_result_report"]
+__all__ = ["CHECKLIST", "OutputPanel"]

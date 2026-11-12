@@ -244,75 +244,6 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
     return plan
 
 
-def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, stop_event=None, on_log=None, progress=None):
-    """Review the installed set together so dependent layers stay together."""
-    from cdmw.services.archive_overlay_manager import _load_index, _unpack_changes, overlay_journal_path
-    from cdmw.domain.archives.overlay_merge import legacy_texture_baseline
-
-    root = Path(game_root).expanduser().resolve()
-    tracker, hashes, loose, current = _reader_context(root, entries, read_entry, stop_event, progress)
-    if progress:
-        progress(0, 0, "Reading installed overlay history...")
-    tracker.pin_file(root / ".cdmw/overlays.json")
-    state = _load_index(root)
-    if state is None or not any(layer["active"] for layer in state["layers"]):
-        raise ValueError("No installed CDMW overlay history is available. Check an exported mod folder instead.")
-    inventory = _inventory(root / ".cdmw", stop_event)
-    loose(root / ".cdmw/overlays.json")
-    baseline, after, flags, layers, identities, items = {}, {}, {}, [], [], []
-    for index, layer in enumerate(state["layers"]):
-        raise_if_cancelled(stop_event, "Overlay comparison cancelled.")
-        if progress:
-            progress(index, len(state["layers"]), f"Reading overlay history: {layer['label']}")
-        journal = root / overlay_journal_path(layer)
-        tracker.pin_file(journal)
-        hashes.append((journal, hash_file(journal, stop_event)))
-        changes = _unpack_changes(root, layer, {}, stop_event)
-        layers.append((layer, changes))
-        for path, change in changes.items():
-            baseline.setdefault(path, change["before"])
-            flags[path] = change["flags"]
-    if progress:
-        progress(len(layers), len(layers), "Overlay history loaded.")
-    after = dict(baseline)
-    for index, (layer, changes) in enumerate(layers):
-        raise_if_cancelled(stop_event, "Overlay comparison cancelled.")
-        if progress:
-            progress(index, len(layers), f"Combining overlay changes: {layer['label']}")
-        if layer["active"]:
-            after = merge_overlay_files({p: value["before"] for p, value in changes.items()},
-                                        {p: value["after"] for p, value in changes.items()}, after)
-            identities.append(layer.get("target_game", {}))
-            items.extend({"item_key": key} for key in layer["item_keys"])
-    if progress:
-        progress(len(layers), len(layers), "Overlay changes combined.")
-    after = {path: data for path, data in after.items() if data is not None and data != baseline.get(path)}
-    # If one table half is byte-identical, it is still required for comparison.
-    for path in tuple(after):
-        for pair in _group(path):
-            if pair not in after and baseline.get(pair) is not None:
-                after[pair] = baseline[pair]
-    recorded = identities[0] if identities and all(item == identities[0] for item in identities) else {}
-    evidence = compatibility_from_payloads(after, baseline, target_game=recorded)
-    def underlay(path):
-        value = current(path)
-        if path == "meta/0.pathc" and value is not None and baseline.get(path) is not None:
-            textures = {name: (baseline.get(name), data) for name, data in after.items() if name.endswith(".dds")}
-            value = legacy_texture_baseline(baseline[path], value, textures)
-        return value
-    output, new_baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, underlay, stop_event, progress)
-    if progress:
-        progress(0, 0, "Verifying the game build and compared data...")
-    identity = game_identity(root, stop_event)
-    compatibility = compatibility_from_payloads(output, new_baseline, target_game=identity, dependencies=dependencies)
-    info = {"previous_items": items, "texture_registry": [path for path in after if path.endswith(".dds") and baseline.get(path) is None]}
-    plan = ModUpdatePlan(root, root, "Installed overlays", recorded, identity, status,
-        tuple((path, data, flags[path]) for path, data in sorted(output.items())), comparisons, conflicts,
-        compatibility, info, inventory, tracker.capture(), tuple(hashes), "overlays")
-    plan.validate(stop_event)
-    return plan
-
-
 def export_updated_mod(plan: ModUpdatePlan, destination, *, title="", stop_event=None, on_log=None):
     from cdmw.domain.archives.mutation import ArchiveAddRequest
     from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
@@ -361,4 +292,4 @@ def export_updated_mod(plan: ModUpdatePlan, destination, *, title="", stop_event
     return _publish_package_atomically(root, write, stop_event=stop_event, before_publish=validate)
 
 
-__all__ = ["ModUpdatePlan", "prepare_mod_update", "prepare_installed_overlay_update", "export_updated_mod"]
+__all__ = ["ModUpdatePlan", "prepare_mod_update", "export_updated_mod"]

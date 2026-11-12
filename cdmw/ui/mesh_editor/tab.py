@@ -128,7 +128,6 @@ _LAZY_EXPORT_GROUPS = (
             "MeshArchiveSessionLoadWorker",
             "MeshFileSessionLoadWorker",
             "MeshRebuildReportWorker",
-            "MeshOverlayRestoreWorker",
             "MeshReportWriteWorker",
             "MeshTextureSourceResolveWorker",
         ),

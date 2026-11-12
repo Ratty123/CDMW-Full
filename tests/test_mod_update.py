@@ -196,78 +196,6 @@ def test_tampered_baseline_is_rejected(tmp_path):
         read_compatibility(package)
 
 
-@pytest.mark.parametrize("overlay_count", (1, 4))
-def test_installed_overlays_record_build_and_export_comparison_without_mutation(tmp_path, overlay_count):
-    from cdmw.services.archive_overlay_manager import list_installed_overlays
-    from cdmw.workers.mod_update_workers import mod_update_scan_task
-    from tests.test_archive_overlay_manager import Backups, snapshot_of
-
-    service, snapshot, entries = setup_game(tmp_path)
-    root = tmp_path / "game"
-    (root / "meta/0.paver").write_text("2.00.00")
-    for index in range(overlay_count):
-        snapshot = snapshot_of(root)
-        plan = service.plan(replace(spec(f"Installed{index}"), recipes=()), snapshot)
-        service.install_overlay(plan, mutation_service=Backups(tmp_path), confirmed=True, game_running=lambda: False)
-    installed = list_installed_overlays(root)
-    assert len(installed) == overlay_count
-    assert installed[0].game_build == "2.00.00"
-    assert installed[0].compatibility_status == "same"
-    (root / "meta/0.paver").write_text("2.00.01")
-    assert list_installed_overlays(root)[0].compatibility_status == "changed"
-    before = fingerprint(root)
-    progress = []
-    checked = mod_update_scan_task("", root, installed=True)(
-        lambda _message: None, lambda *args: progress.append(args), threading.Event())
-    assert checked.can_update, checked.conflicts
-    for prefix in ("Reading overlay history:", "Combining overlay changes:"):
-        assert [(current, total) for current, total, detail in progress if detail.startswith(prefix)] == [
-            (index, overlay_count) for index in range(overlay_count)]
-    for detail in ("Overlay history loaded.", "Overlay changes combined."):
-        assert (overlay_count, overlay_count, detail) in progress
-    result = export_updated_mod(checked, tmp_path / "updated-overlays")
-    assert payloads(result.package_root)
-    assert fingerprint(root) == before
-
-
-@pytest.mark.parametrize('replacement', [False, True])
-def test_installed_texture_comparison_preserves_owned_and_external_registrations(tmp_path, replacement):
-    from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds, block_infos_for, pathc_checksum, dds_shape
-    from cdmw.services import archive_overlay_manager as overlays
-    from cdmw.workers.mod_update_workers import mod_update_scan_task
-    from tests.test_archive_overlay_manager import Backups
-    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER, dds_payload
-    root = tmp_path / 'game'
-    texture = 'ui/texture/base.dds' if replacement else 'ui/texture/added.dds'
-    build_package(root, {'ui/texture/base.dds': dds_payload(ICON_HEADER)})
-    base = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
-    live = register_dds(base, 'ui/texture/added.dds', dds_payload(BIG_HEADER))
-    if replacement:
-        live = replace(base, headers=live.headers, entries=tuple(
-            replace(entry, header_index=1, block_infos=block_infos_for(BIG_HEADER)) for entry in base.entries))
-    (root / 'meta/0.pathc').write_bytes(encode_pathc(base))
-    state, pending = overlays._state_for_edit(root, None, None)
-    changes = {
-        texture: {'before': dds_payload(ICON_HEADER) if replacement else None, 'after': dds_payload(BIG_HEADER), 'flags': 0, 'meta': False},
-        'meta/0.pathc': {'before': encode_pathc(base), 'after': encode_pathc(live), 'flags': 0, 'meta': True},
-    }
-    overlays._add_layer(state, pending, 'Texture item', changes)
-    Backups(tmp_path).apply(overlays._compose(root, state, pending, 'Texture item', None, None, None))
-    # Another mod has registered an unrelated texture after our installation.
-    live = register_dds(live, 'ui/texture/external.dds', dds_payload(ICON_HEADER))
-    (root / 'meta/0.pathc').write_bytes(encode_pathc(live))
-    before = fingerprint(root)
-    checked = mod_update_scan_task('', root, installed=True)(lambda _: None, lambda *args: None, threading.Event())
-    assert checked.can_update, checked.conflicts
-    updated = dict((path, data) for path, data, _flags in checked.files)
-    output = parse_pathc(updated['meta/0.pathc'])
-    assert dds_shape(output.dds_header_for(output.find(texture))) == dds_shape(BIG_HEADER)
-    assert output.find(texture).block_infos == block_infos_for(BIG_HEADER)
-    assert output.find('ui/texture/external.dds') is not None
-    assert output.find(texture).checksum == pathc_checksum(texture)
-    assert fingerprint(root) == before
-
-
 def test_compatibility_survives_zip_and_retrofit(tmp_path):
     import zipfile
     from cdmw.core.mod_package_retrofit import analyze_retrofittable_mod_package, retrofit_mod_package
@@ -362,25 +290,6 @@ def test_adding_to_existing_mod_keeps_original_game_baseline(tmp_path, manager):
     body, head = snapshot.iteminfo.payload_entry.path, snapshot.iteminfo.header_entry.path
     ids = {row.row_id for row in parse_pabgh_table(files[head], payload=files[body]).rows}
     assert {original.spec.item_key, second.spec.item_key} <= ids
-
-
-def test_overlay_history_change_during_load_is_rejected(tmp_path, monkeypatch):
-    from cdmw.services import archive_overlay_manager
-    from cdmw.services.mod_update_service import prepare_installed_overlay_update
-    from tests.test_archive_overlay_manager import Backups
-    service, snapshot, entries = setup_game(tmp_path)
-    root = tmp_path / "game"
-    plan = service.plan(replace(spec("Installed"), recipes=()), snapshot)
-    service.install_overlay(plan, mutation_service=Backups(tmp_path), confirmed=True, game_running=lambda: False)
-    load = archive_overlay_manager._load_index
-    def change_after_read(game_root):
-        state = load(game_root)
-        with (game_root / ".cdmw/overlays.json").open("a", encoding="utf-8") as stream:
-            stream.write("\n")
-        return state
-    monkeypatch.setattr(archive_overlay_manager, "_load_index", change_after_read)
-    with pytest.raises(ValueError, match="Source changed while reading"):
-        prepare_installed_overlay_update(root, entries=entries)
 
 
 def test_comparison_resolves_shared_tables_once_and_preserves_archive_order(tmp_path, monkeypatch):

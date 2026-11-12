@@ -431,7 +431,7 @@ class NewItemService:
                 "Cannot create a separate mod from source tables containing other custom items: "
                 + ", ".join(plan.unselected_source_items) + ". "
                 "Unmount existing item mods and read the archives again before building the plan, "
-                "or rebuild with Include mounted items in a new mod or Add to existing mod."
+                "or rebuild with Add to existing mod."
             )
         if plan.source_revision is not None:
             plan.source_revision.validate(stop_event)
@@ -440,12 +440,6 @@ class NewItemService:
         if profile is None and options is None:
             raise ValueError(f"Unknown loose-mod manager profile {manager!r}; one of {', '.join(LOOSE_EXPORT_PROFILES)}")
         root = Path(package_root).expanduser().resolve()
-        if plan.manifest.get("mounted_base"):
-            game_root = _package_root_of(plan)
-            if root.is_relative_to(game_root) or game_root.is_relative_to(root):
-                raise ValueError("Choose a new output folder outside the game installation for the combined mod.")
-            if root.exists():
-                raise ValueError("A combined mod from mounted items must be written to a new folder. Choose another mod name.")
 
         def write(staging: Path) -> NewItemExportResult:
             (staging / "new-item.json").write_text(json.dumps(dict(plan.manifest), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -459,8 +453,7 @@ class NewItemService:
                     created_utc=created_utc,
                     stop_event=stop_event,
                 )
-                from cdmw.services.new_item_mounted_base import write_mounted_item_readme
-                return write_mounted_item_readme(plan, result)
+                return result
             from cdmw.core.mod_compatibility import capture_patch_compatibility
             try:
                 game_root = _package_root_of(plan)
@@ -511,8 +504,7 @@ class NewItemService:
                 new_paths=tuple(plan.new_paths),
                 metadata_files=metadata,
             )
-            from cdmw.services.new_item_mounted_base import write_mounted_item_readme
-            return write_mounted_item_readme(plan, exported)
+            return exported
 
         return _publish_package_atomically(
             root, write, stop_event=stop_event,
@@ -625,80 +617,8 @@ class NewItemService:
     ) -> ArchivePatchResult:
         """Retained for compatibility; New Item installation is overlay-only."""
         raise NewItemInstallRefused(
-            "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder."
+            "Installing into the game is no longer available. Write a mod folder, or send the item to DMM."
         )
-
-    def install_overlay(
-        self,
-        plan: NewItemPlan,
-        *,
-        mutation_service,
-        confirmed: bool = False,
-        directory_name: Optional[str] = None,
-        on_log: Optional[Callable[[str], None]] = None,
-        stop_event: Optional[threading.Event] = None,
-        game_running: Optional[Callable[[], bool]] = None,
-    ):
-        """Write the plan as its own archive directory, mounted ahead of the shipped ones.
-
-        The shipped archives are not opened for writing at all: what changes is a new
-        directory beside them, `meta/0.papgt` naming it first, and the texture registry.
-        The backup covers changed metadata, ownership history, and the existing
-        CDMW overlay. Each install can be removed separately through its journal.
-        An unmounted stale set is archived automatically as part of the same
-        transaction. Its payloads stay on disk; other conflicts still refuse.
-        """
-
-        from cdmw.services.archive_overlay_manager import prepare_item_overlay, apply_overlay_change, prepare_overlay_retirement
-        from cdmw.domain.archives.overlay_merge import OverlayConflict
-
-        if not confirmed:
-            raise NewItemInstallRefused("Installing a new item into the game archives requires explicit confirmation.")
-        running = game_running if game_running is not None else game_is_running
-        if running():
-            raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
-        if not plan.patches and not plan.additions:
-            raise NewItemInstallRefused("The plan changes nothing.")
-        # prepare_item_overlay owns source validation, including a recovery retry.
-        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
-            raise NewItemInstallRefused("The archive mutation service is not available in this window.")
-        package_root = _package_root_of(plan)
-        description = f"New item {plan.spec.internal_name} ({plan.spec.item_key}) as an overlay"
-
-        def backup(paths, label):
-            return mutation_service.backup_files(paths, description=f"{description}: {label}", on_log=on_log)
-
-        def restore(path):
-            return mutation_service.restore_backup(path, confirmed=True, on_log=on_log)
-
-        retirement = None
-        try:
-            preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name, on_log=on_log, stop_event=stop_event)
-        except OverlayConflict as original_error:
-            # Only an unmounted old set can be retired. Mounted/foreign conflicts
-            # retain their original refusal; there is no general force-install retry.
-            try:
-                retirement = prepare_overlay_retirement(package_root, stop_event=stop_event)
-            except ValueError:
-                raise original_error from None
-            if on_log:
-                on_log(f"Preparing automatic recovery for {len(retirement.labels)} unmounted overlay(s). "
-                       "Their files will be kept and their history backed up with the new install.")
-            preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name,
-                on_log=on_log, stop_event=stop_event, retirement=retirement)
-        result = apply_overlay_change(
-            preparation,
-            backup=backup,
-            restore_backup=restore,
-            game_running=running,
-            confirmed=True,
-            on_log=on_log,
-            stop_event=stop_event,
-        )
-        if retirement is not None:
-            result = replace(result, recovered_overlays=retirement.labels,
-                recovery_inventory=package_root / '.cdmw/retired-overlays' / (retirement.retirement_id + '.json'))
-        return result
 
 
 def _publish_package_atomically(

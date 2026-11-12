@@ -9,16 +9,16 @@ import pytest
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.new_item.spec import IconSource
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import independent_item_install as install
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.item_install as install
 from cdmw.services.independent_item_package import canonical, from_plan, package_bytes, package_metadata
 from cdmw.services.independent_mod_package import migrate_v1
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_items import setup_game
 from tests.test_new_item_service import _fake_dds
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 def authored(tmp_path, v2):

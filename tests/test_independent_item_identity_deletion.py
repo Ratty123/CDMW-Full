@@ -4,16 +4,16 @@ import threading
 import pytest
 
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services import independent_item_install as installer
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.overlay_manager as overlays
+import tests.support.item_install as installer
 from cdmw.services.independent_item_package import canonical, package_bytes
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from tests.test_archive_overlay_manager import Backups, snapshot_of
 from tests.test_independent_items import authored, setup_game
 from tests.test_independent_item_regressions import files_in
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def test_active_and_disabled_identities_cannot_be_deleted(tmp_path, route, monke
 
 def test_removed_virtual_identity_deletion_preserves_the_active_profile(tmp_path, monkeypatch):
     monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
-    from tests.test_virtual_loader import packages
+    from tests.support.game_fixtures import packages
     from cdmw.services.virtual_loader_state import load_profile
     root, sources = packages(tmp_path)
     publish_profile(prepare_profile(VirtualProfile(sources), root))
@@ -207,7 +207,7 @@ def test_identity_deletion_requires_confirmation_and_a_verified_backup(removed_i
 
 @pytest.mark.parametrize('outcome', ['delete', 'rollback', 'stale', 'cancel'])
 def test_bulk_identity_deletion_is_one_recoverable_transaction(tmp_path, monkeypatch, outcome):
-    from tests.test_virtual_loader import packages
+    from tests.support.game_fixtures import packages
     root, sources = packages(tmp_path, 3)
     backups = Backups(tmp_path)
     backups.apply(installer.prepare_install(sources, root).preparation)
@@ -253,7 +253,7 @@ def test_bulk_identity_deletion_is_one_recoverable_transaction(tmp_path, monkeyp
 
 
 def test_bulk_identity_deletion_rejects_an_installed_member_without_changes(tmp_path):
-    from tests.test_virtual_loader import packages
+    from tests.support.game_fixtures import packages
     root, sources = packages(tmp_path)
     backups = Backups(tmp_path)
     backups.apply(installer.prepare_install(sources, root).preparation)

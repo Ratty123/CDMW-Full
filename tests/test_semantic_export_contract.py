@@ -13,14 +13,13 @@ from cdmw.core.iteminfo_row import parse_iteminfo_row, set_max_stack_count
 from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE, game_identity, read_semantic_export, write_semantic_export
 from cdmw.domain.archives.iteminfo_composition import item_pair, replace_rows, rows_of
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
-from cdmw.services.independent_item_install import load_registry, prepare_install
+from tests.support.item_install import load_registry, prepare_install
 from cdmw.services.independent_item_package import package_bytes, read_package
 from cdmw.services.mod_merge_service import export_merged_mod
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from tests.test_archive_overlay_manager import Backups
 from tests.test_independent_item_fields import field_package
 from tests.test_independent_item_regressions import files_in
@@ -341,35 +340,6 @@ def nested_identity_selection(tmp_path, original_export):
     meta['target_game'] = game_identity(root)
     assert meta['target_game']['executable_sha256'] == hashlib.sha256(b'known-build-1').hexdigest()
     return root, executable, write_modified(tmp_path, members, meta)
-
-
-@pytest.mark.parametrize('virtual', [False, True])
-def test_nested_archive_root_accepts_witnessed_ancestor_executable(tmp_path, original_export, virtual):
-    root, executable, wrapper = nested_identity_selection(tmp_path, original_export)
-    prepared = (prepare_profile_in_subprocess(VirtualProfile((wrapper,)), root) if virtual
-                else prepare_install([wrapper], root).preparation)
-    assert prepared is not None
-    publish_profile(prepared) if virtual else Backups(tmp_path).apply(prepared)
-    package = read_package(read_semantic_export(wrapper).packages[0])
-    assert load_registry(root)['items'][package.identity]['digest'] == package.digest
-    assert executable.read_bytes() == b'known-build-1'
-
-
-@pytest.mark.parametrize('virtual', [False, True])
-def test_nested_archive_root_pins_earlier_ancestor_executable_candidates(tmp_path, original_export, virtual):
-    root, executable, wrapper = nested_identity_selection(tmp_path, original_export)
-    prepared = (prepare_profile_in_subprocess(VirtualProfile((wrapper,)), root) if virtual
-                else prepare_install([wrapper], root).preparation)
-    assert prepared is not None
-    earlier = root.parent / 'bin64/CrimsonDesert.exe'
-    earlier.parent.mkdir()
-    earlier.write_bytes(b'known-build-2')
-    assert game_identity(root)['executable_sha256'] == hashlib.sha256(b'known-build-2').hexdigest()
-    assert executable.read_bytes() == b'known-build-1'
-    before = files_in(root)
-    with pytest.raises(ValueError, match='[Ss]ource|identity|changed'):
-        publish_profile(prepared) if virtual else Backups(tmp_path).apply(prepared)
-    assert files_in(root) == before
 
 
 def test_earlier_executable_created_while_pinning_cannot_validate_old_selection(tmp_path, original_export, monkeypatch):

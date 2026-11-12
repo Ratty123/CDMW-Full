@@ -1090,13 +1090,11 @@ class _TabOutputMixin:
         # What the plan builds on rejects a plan still being built.
         changes = (
             add_to_existing,
-            lambda: panel.include_mounted.setChecked(True),
             lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("independent")),
         )
         for change in changes:
             panel.output_mode.setCurrentIndex(panel.output_mode.findData("folder"))
             panel.add_to_mod.setChecked(False)
-            panel.include_mounted.setChecked(False)
             with patch.object(controller, "_run", return_value=True) as dispatch:
                 self.assertTrue(controller.start_plan())
             complete = dispatch.call_args.args[2]

@@ -9,12 +9,12 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
 from cdmw.domain.archives.mutation import ArchiveAddRequest
 from cdmw.domain.archives.overlay_merge import OverlayConflict
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.services.independent_item_compatibility import scan_independent_conflicts
-from cdmw.services.independent_item_install import prepare_install, resolve_items
+from tests.support.item_install import prepare_install, resolve_items
 from cdmw.services.independent_item_package import from_plan, package_bytes
-from cdmw.services.virtual_loader_composition import prepare_profile
+from tests.support.virtual_composition import prepare_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_items import setup_game

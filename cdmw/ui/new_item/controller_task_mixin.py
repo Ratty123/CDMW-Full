@@ -41,7 +41,7 @@ from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceC
 from cdmw.ui.new_item.state import MANAGERS, NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
-from cdmw.workers.new_item_workers import export_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityTaskOutcome, UtilityWorker
 
 
@@ -273,7 +273,7 @@ class NewItemTaskControllerMixin:
             spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
             **({"icon_data": icon_data} if icon_data is not None else {}),
-            mod_base_folder=self.mod_base_folder, include_mounted_items=self.include_mounted_items,
+            mod_base_folder=self.mod_base_folder,
             read_entry=self._read_entry, **variant_arguments,
             **({"independent": True} if self.independent_mode else {}),
         )
@@ -419,26 +419,6 @@ class NewItemTaskControllerMixin:
             return write_package(package,path,stop_event=stop,validate_source=revision.validate)
         return self._run("export",task,self.export_finished.emit,
                          lambda message:self.status_message.emit(message,True),publishes_result=True)
-
-    def start_overlay_migration(self, mutation_service, package_root) -> bool:
-        """Move what the shipped archives already carry into the overlay, off the UI thread."""
-
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
-        task = overlay_migration_task(package_root, mutation_service=mutation_service)
-        return self._run("overlay", task, self.install_finished.emit,
-                         lambda message: self.status_message.emit(message, True), publishes_result=True)
-
-    def start_overlay_removal(self, mutation_service, package_root) -> bool:
-        """Unmount the overlay and delete it, off the UI thread."""
-
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
-        task = overlay_removal_task(package_root, mutation_service=mutation_service)
-        return self._run("overlay", task, self.install_finished.emit,
-                         lambda message: self.status_message.emit(message, True), publishes_result=True)
 
     def _run(
         self,

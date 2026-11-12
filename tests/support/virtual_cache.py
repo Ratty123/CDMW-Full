@@ -1,3 +1,4 @@
+"""Removed from the app with the virtual loader (decision 39); kept for tests only."""
 """Reuse a verified private generation after fresh input resolution.
 
 The descriptor is only a lookup hint. The existing profile file-hash ledger is
@@ -15,7 +16,7 @@ from cdmw.core.archive_overlay import PAMT_CONSTANT, PAZ_ALIGNMENT
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.compilation import compiler_stamp, validate_compilation
-from cdmw.domain.virtual_loader import VirtualLoaderError
+from tests.support.virtual_domain import VirtualLoaderError
 from cdmw.services.independent_item_package import canonical, digest, MAX_BLOB, MAX_FILES, MAX_MANIFEST, MAX_TOTAL
 
 
@@ -242,7 +243,7 @@ def load_previous_cache(root, profile_bytes, *, current_record, stop_event=None,
     The caller must freshly resolve and validate source provenance before lookup.
     A compiler or processing revision change disables even per-resource reuse.
     """
-    from cdmw.services.virtual_loader_state import decode, generation_path, target, validate_profile
+    from tests.support.virtual_state import decode, generation_path, target, validate_profile
     if profile_bytes is None:
         return None
     raise_if_cancelled(stop_event)

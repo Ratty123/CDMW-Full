@@ -85,10 +85,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.services.archive_verification_process import run_archive_verification_worker
 
         return run_archive_verification_worker(Path(args.input), Path(args.output))
-    if args.virtual_profile_worker:
-        from cdmw.services.virtual_loader_process import run_virtual_profile_worker
-
-        return run_virtual_profile_worker(Path(args.input), Path(args.output))
     if args.dmm_send_worker:
         from cdmw.services.dmm_send_process import run_dmm_send_worker
 

@@ -55,7 +55,7 @@ from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_template_search import TemplateSearchLane
 from cdmw.workers.new_item_template_selection import TemplateSelectionLane
 from cdmw.workers.new_item_lookup import NewItemLookupLane
-from cdmw.workers.new_item_workers import export_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 class NewItemStudioController(
@@ -81,8 +81,6 @@ class NewItemStudioController(
     plan_failed = Signal(str, object)
     plan_invalidated = Signal()
     export_finished = Signal(object)
-    install_finished = Signal(object)
-    install_failed = Signal(str)
     model_changed = Signal(object)
     #: a model file was read for the studio (a ModelImportSource), or discarded (None)
     model_import_changed = Signal(object)
@@ -133,7 +131,6 @@ class NewItemStudioController(
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
-        self.include_mounted_items = False
         #: The game's own character for the placement viewport, read once per player rig.
         #: A cached None means that rig was absent and the placement service uses a stand-in.
         self._character_references: Dict[str, object] = {}

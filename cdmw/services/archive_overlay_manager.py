@@ -1,12 +1,14 @@
-"""Inventory, compose and remove individually owned CDMW overlay installs.
+"""Read the overlay index and journals an older CDMW's overlay installs left.
 
-One mounted archive holds the composed result. An immutable journal per install
-retains its before/after payloads, so shared tables can be rebuilt in either removal
-order. Removed journal entries remain as the baseline and recovery history.
+Live item work (Send to DMM, combining item packages, mod updates) reads an old
+install's state through these so it composes on top of it.
+
+CDMW no longer installs into the game (decision 39). The install code moved to
+tests/support; Browse Archives' Remove What an Older CDMW Installed... takes an
+old install out. Nothing here writes.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import hashlib
 import io
 import json
@@ -17,19 +19,15 @@ import zipfile
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
-from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
-from cdmw.core.atomic_file import atomic_write_bytes
-from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_directory, read_papgt_directories, serialize_papgt
+from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, read_papgt_directories
 from cdmw.domain.archives.overlay_merge import (
     OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,
 )
-from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
-from cdmw.services.application_shutdown_service import archive_write_scope
-from cdmw.services.installation_lane import serialized_installation
-from cdmw.services.overlay_target_recovery import OverlayTargetRecovery, payload_digest
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_overlay_install import (
-    OVERLAY_OWNER_BYTES, OVERLAY_OWNER_MARKER, OverlayInstallResult,
-    is_cdmw_overlay_directory, overlay_baseline_files, overlay_directory_name, _processed_payload,
+    is_cdmw_overlay_directory,
+    overlay_baseline_files,
+    overlay_directory_name,
 )
 
 INDEX_PATH = '.cdmw/overlays.json'
@@ -46,34 +44,6 @@ def _digest(data):
 
 def _json(data):
     return (json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
-
-
-def _inventory_bytes(state):
-    # Whitespace has no wire meaning; retain the reader's existing byte budget.
-    return (json.dumps(state, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
-
-
-def _check_inventory_capacity(data):
-    if len(data) > _MAX_STATE_BYTES:
-        raise OverlayConflict(f'The composed overlay history exceeds the supported size '
-                              f'(at least {len(data):,} bytes; limit {_MAX_STATE_BYTES:,} bytes); this change cannot be published.')
-
-
-def _share_compilation_contexts(state, stop_event):
-    from cdmw.domain.new_item.compilation_storage import REFERENCE_FORMAT, read_compilation, store_compilation
-    contexts = dict(state.get('compilation_contexts', {}))
-    for layer in state['layers']:
-        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
-        if 'independent_compilation' not in layer:
-            continue
-        record = layer['independent_compilation']
-        if isinstance(record, dict) and record.get('format') == REFERENCE_FORMAT:
-            read_compilation(record, contexts)
-        else:
-            layer['independent_compilation'] = store_compilation(record, contexts)
-    if contexts or state['format'] == _FORMAT_WITH_CONTEXTS:
-        state['format'] = _FORMAT_WITH_CONTEXTS
-        state['compilation_contexts'] = contexts
 
 
 def _relative(raw):
@@ -172,10 +142,8 @@ def _validate_published(root, state, stop_event=None):
         changed = path.exists() if expected is None else not path.is_file() or _digest(path.read_bytes()) != expected
         if changed:
             raise OverlayConflict(
-                f'{relative} changed outside the overlay manager. '
-                'Open Installed overlays > Check game updates... to compare the saved overlays with the current game before recovery. '
-                'Use Start fresh... if the old set is unmounted and you want to retire it. '
-                'Refreshing the archive list or rebuilding the item plan does not repair the installed overlays.'
+                f'{relative} changed after an older CDMW installed overlays into this game. '
+                'Use Browse Archives > Remove What an Older CDMW Installed... to take that install out, then try again.'
             )
     for relative, expected in state.get('sources', {}).items():
         path = _target(root, relative)
@@ -201,62 +169,8 @@ def _validate_published(root, state, stop_event=None):
                     path = sorted(overlap)[0]
                     raise OverlayConflict(f'Overlay conflict in {path}; overlapping file edits cannot be separated safely.')
     if any(record.name != state['directory'] for record in owned):
-        raise OverlayConflict('Another CDMW archive group was installed outside this inventory. Remove or consolidate it before changing managed overlays.')
-
-
-@dataclass(frozen=True)
-class InstalledOverlay:
-    id: str
-    label: str
-    item_keys: tuple[int, ...]
-    directory: str
-    file_count: int
-    created_at: float
-    legacy: bool = False
-    game_build: str = "Unknown"
-    compatibility_status: str = "unknown"
-    enabled: bool = True
-    health: str = 'mounted'
-    issue: str = ''
-    dependencies: tuple[str, ...] = ()
-
-
-def list_installed_overlays(package_root, *, stop_event=None):
-    root = Path(package_root).resolve()
-    raise_if_cancelled(stop_event)
-    state = _load_index(root)
-    if state is not None:
-        from cdmw.core.mod_compatibility import build_label, build_status, game_identity
-        current_game = game_identity(root, stop_event)
-        sources_changed = any(not _target(root, relative).is_file() or _stamp(_target(root, relative)) != stamp
-                              for relative, stamp in state.get('sources', {}).items())
-        records = read_papgt_directories(_target(root, 'meta/0.papgt').read_bytes())
-        mounted = any(record.name == state['directory'] for record in records)
-        expected_mount = any(layer['active'] for layer in state['layers'])
-        health = 'mounted' if mounted else 'unmounted' if expected_mount else 'disabled'
-        issue = 'The saved overlay is not mounted by the game.' if expected_mount and not mounted else ''
-        try:
-            _validate_published(root, state, stop_event)
-        except (ValueError, OSError) as error:
-            issue = (issue + '\n' if issue else '') + str(error)
-            if mounted:
-                health = 'missing' if any(not _target(root, path).is_file()
-                    for path, value in state.get('published', {}).items() if value is not None) else 'changed'
-        return tuple(InstalledOverlay(layer['id'], layer['label'], tuple(layer['item_keys']), state['directory'],
-            int(layer['file_count']), float(layer['created_at']), bool(layer.get('legacy')),
-            build_label(layer.get('target_game')),
-            'unmounted' if not mounted and layer['active'] else 'changed' if sources_changed else build_status(layer.get('target_game'), current_game),
-            layer['active'], health if layer['active'] else 'disabled', issue,
-            tuple(other['label'] for other in state['layers'] if other['id'] in layer['dependencies']))
-            for layer in state['layers'] if layer['active'] or layer.get('disabled', False))
-    _records, owned = _mounted_owned(root)
-    result = []
-    for record in owned:
-        raise_if_cancelled(stop_event)
-        pamt = _target(root, record.name + '/0.pamt')
-        result.append(InstalledOverlay('legacy:' + record.name, f'Existing overlay {record.name}', (), record.name,
-            len(parse_archive_pamt(pamt)), pamt.stat().st_mtime, True))
-    return tuple(result)
+        raise OverlayConflict('Another CDMW archive group was installed outside this inventory. '
+                              'Use Browse Archives > Remove What an Older CDMW Installed... to take the old installs out.')
 
 
 def _pack_changes(changes):
@@ -382,37 +296,6 @@ def _added_item_keys(changes):
     return ()
 
 
-def _uses_owned_assets(plan, changes, owned_changes):
-    """Check the new runtime bindings, excluding inherited whole-table contents."""
-    import re
-
-    bindings = []
-    for path, change in changes.items():
-        if path != 'ui/xml/texture/cd_item_icon.xml' and path.endswith(('.prefab', '.pac_xml', '.xml', '.pae', '.paem', '.parg', '.pasg')):
-            if change['after'] != change['before']:
-                bindings.append(change['after'].lower())
-    # Unchanged template variants and unedited effects can be referenced without
-    # writing a new prefab/effect file for them.
-    for variant in plan.manifest.get('variants', ()):
-        if variant.get('appearance') == 'template':
-            bindings.append(str(variant.get('model_path', '')).lower().encode())
-            bindings.append(str(variant.get('prefab_path', '')).lower().encode())
-    for effect in plan.manifest.get('effects', ()):
-        bindings.append(str(effect.get('path', '')).lower().encode())
-    for path, change in owned_changes.items():
-        if change['before'] is not None or change['after'] is None or path in changes:
-            continue
-        if path.endswith(('.staticinfobody', '.staticinfoheader', '.pabgb', '.pabgh', '.pappt', '.paloc')):
-            continue
-        token = PurePosixPath(path).name
-        if token.endswith(('.pae', '.paem', '.parg', '.pasg')):
-            token = token.rsplit('.', 1)[0]
-        pattern = re.compile(re.escape(token.encode()) + rb'(?![a-z0-9_])')
-        if any(pattern.search(data) or token.encode('utf-16-le') in data for data in bindings):
-            return True
-    return False
-
-
 def _state_for_edit(root, directory_name, stop_event, *, retirement=None):
     state = _load_index(root)
     pending = {}
@@ -490,31 +373,6 @@ def _state_for_edit(root, directory_name, stop_event, *, retirement=None):
     return state, pending
 
 
-@dataclass(frozen=True)
-class OverlayChangePreparation:
-    package_root: Path
-    directory_name: str
-    label: str
-    removed_id: str | None
-    remaining_labels: tuple[str, ...]
-    writes: tuple[tuple[str, bytes], ...]
-    deletes: tuple[str, ...]
-    before: tuple[tuple[str, bytes | None], ...]
-    source_stamps: tuple[tuple[str, tuple], ...]
-    paths: tuple[str, ...]
-    pamt_checksum: int
-    payload_bytes: int
-    carried_forward: int
-    action: str = 'remove'
-    # Read dependencies, including absent ledgers, are not mutation targets.
-    observed_state: tuple[tuple[str, bytes | None], ...] = ()
-    source_directories: tuple[tuple[str, tuple[str, ...]], ...] = ()
-    # Immutable payload revisions and index/loose-file hashes survive the review.
-    # PAZ archives are checked through consumed payloads, not multi-GB full scans.
-    source_revisions: tuple[object, ...] = ()
-    source_checksums: tuple[tuple[Path, str], ...] = ()
-
-
 def _observe_state(root):
     paths = (INDEX_PATH, '.cdmw/independent-items.json', '.cdmw/virtual-loader/profile.json', 'meta/0.papgt', 'meta/0.pathc')
     return tuple((relative, path.read_bytes() if path.is_file() else None)
@@ -527,43 +385,6 @@ def _verify_observed_state(root, observed, phase, error_type=OverlayConflict):
         actual = path.read_bytes() if path.is_file() else None
         if actual != expected or (expected is None and path.exists()):
             raise error_type(f'{relative} changed {phase}. Refresh and prepare again.')
-
-
-def _pin_preparation(prepared, observed, *, error_type=OverlayConflict):
-    """Tie composition and publication to the state read before planning began."""
-    _verify_observed_state(prepared.package_root, observed, 'during preparation', error_type)
-    before = dict(prepared.before)
-    if any(path in before and before[path] != expected for path, expected in observed):
-        raise error_type('The installed state changed during preparation. Refresh and prepare again.')
-    return replace(prepared, observed_state=observed)
-
-
-@dataclass(frozen=True)
-class OverlayRemovalResult:
-    directory: Path
-    label: str
-    remaining: int
-    backup_dir: Path
-    removed_overlay_id: str
-    action: str = 'remove'
-
-
-@dataclass(frozen=True)
-class OverlayRetirementPreparation:
-    package_root: Path
-    directory_name: str
-    labels: tuple[str, ...]
-    inventory_data: bytes
-    mount_data: bytes
-    retirement_id: str
-
-
-@dataclass(frozen=True)
-class OverlayRetirementResult:
-    directory: Path
-    labels: tuple[str, ...]
-    backup_dir: Path
-    retired_inventory: Path
 
 
 def _retirement_state(root):
@@ -580,71 +401,6 @@ def _retirement_state(root):
     if any(is_cdmw_overlay_directory(_target(root, str(record.name))) for record in records):
         raise OverlayConflict('Another CDMW overlay folder is mounted. Review it before starting a fresh set.')
     return state, inventory, mount
-
-
-def prepare_overlay_retirement(package_root, *, stop_event=None):
-    """Retire only an unmounted inventory, preserving current game data and old payloads."""
-    raise_if_cancelled(stop_event)
-    root = Path(package_root).resolve()
-    state, inventory, mount = _retirement_state(root)
-    return OverlayRetirementPreparation(root, state['directory'],
-        tuple(layer['label'] for layer in state['layers'] if layer['active']),
-        inventory, mount, uuid.uuid4().hex)
-
-
-@archive_write_scope()
-@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
-def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
-                             game_running=None, stop_event=None, on_log=None):
-    if not confirmed:
-        raise PermissionError('Starting a fresh overlay set requires explicit confirmation.')
-    if not callable(backup) or not callable(restore_backup):
-        raise ValueError('Starting a fresh overlay set needs backup and restore services.')
-    if game_running is None:
-        from cdmw.services.new_item_service import game_is_running
-        game_running = game_is_running
-    root = preparation.package_root.resolve()
-    identity = preparation.retirement_id
-    if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
-        raise ValueError('Invalid retired overlay history identity.')
-    inventory = _target(root, INDEX_PATH)
-    retired = _target(root, '.cdmw/retired-overlays/' + identity + '.json')
-
-    def verify_current():
-        raise_if_cancelled(stop_event, 'Starting a fresh overlay set cancelled.')
-        if game_running():
-            raise RuntimeError('Close Crimson Desert before changing overlays.')
-        state, current, mount = _retirement_state(root)
-        labels = tuple(layer['label'] for layer in state['layers'] if layer['active'])
-        if (current != preparation.inventory_data or mount != preparation.mount_data
-                or state['directory'] != preparation.directory_name or labels != preparation.labels):
-            raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
-        if retired.exists():
-            raise OverlayConflict('The retired overlay history already exists. Refresh and prepare again.')
-
-    verify_current()
-    backup_dir = Path(backup((inventory,), 'Retire unmounted overlays: ' + ', '.join(preparation.labels)))
-    _verify_backup(backup_dir, {inventory: preparation.inventory_data})
-    # Cancellation and external changes after backup must leave the live inventory intact.
-    verify_current()
-    recovery = OverlayTargetRecovery(root, {inventory: payload_digest(preparation.inventory_data), retired: None},
-                                     backup_dir=backup_dir, restore_backup=restore_backup, stop_event=stop_event)
-    try:
-        retired.parent.mkdir(parents=True, exist_ok=True)
-        recovery.mutate({inventory: None, retired: payload_digest(preparation.inventory_data)},
-                        lambda: inventory.rename(retired))
-        if inventory.exists() or retired.read_bytes() != preparation.inventory_data:
-            raise RuntimeError('Retired overlay history did not match the reviewed inventory.')
-        recovery.committed()
-    except BaseException as error:
-        try:
-            recovery.rollback()
-        except Exception as rollback_error:
-            raise RuntimeError(f'Overlay retirement failed; recovery requires backup {backup_dir}: {rollback_error}') from error
-        raise
-    if on_log:
-        on_log(f'Retired {len(preparation.labels)} unmounted overlay(s). History: {retired}. Backup: {backup_dir}')
-    return OverlayRetirementResult(_target(root, preparation.directory_name), preparation.labels, backup_dir, retired)
 
 
 def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
@@ -673,389 +429,3 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
     return finish_textures(current, textures, stop_event=stop_event), active
 
 
-def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
-    raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
-    _share_compilation_contexts(state, stop_event)
-    # Context/layer metadata alone can exceed the budget. Sources are refreshed
-    # during composition and published files can disappear, so omit both from
-    # this lower bound rather than rejecting a change that could still fit.
-    _check_inventory_capacity(_inventory_bytes({**state, 'sources': {}, 'published': {}}))
-    layers = []
-    source_directories = ()
-    source_revisions = ()
-    baseline, flags, meta_paths = {}, {}, set()
-    for layer in state['layers']:
-        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
-        changes = decoded.pop(layer['id'], None) if decoded is not None else None
-        if changes is None:
-            changes = _unpack_changes(root, layer, pending, stop_event)
-        else:
-            # Keep the existing fresh journal hash check. Only inflation and
-            # per-payload decoding are reused within this preparation call.
-            _read_journal(root, layer, pending)
-        layers.append((layer, changes))
-        for path, change in changes.items():
-            baseline.setdefault(path, change['before'])
-            flags[path] = change['flags']
-            if change['meta']:
-                meta_paths.add(path)
-    if any(layer.get('independent_identity') for layer, _ in layers):
-        from cdmw.services.independent_item_compatibility import compose_underlay
-        baseline, source_directories, source_revisions = compose_underlay(root, state, pending, layers, baseline,
-            stop_event=stop_event, on_log=on_log, context=independent_context)
-    current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
-    from cdmw.domain.archives.iteminfo_composition import required_field_files
-    from cdmw.domain.archives.texture_composition import required_texture_files
-    required = required_field_files(layers, current) | required_texture_files(layers)
-    archive_paths = []
-    for path, payload in current.items():
-        raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
-        if path in meta_paths or payload is None or payload == baseline[path] and path not in required:
-            continue
-        archive_paths.append(path)
-    if not archive_paths and active:
-        raise OverlayConflict('An active overlay composed no archive changes.')
-    name = state['directory']
-    archive_targets = (name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER)
-    # The final publication keys/nulls are now known. Every non-null checksum is
-    # exactly 64 ASCII bytes, so this projects the final serialized size without
-    # compressing payloads or constructing an archive. Keep the exact final and
-    # pre-backup checks as well: this projection is not publication authority.
-    checksum_placeholder = '0' * 64
-    published = {p: checksum_placeholder for p in pending if p.startswith(name + '/') or p in meta_paths}
-    published.update({p: checksum_placeholder if archive_paths else None for p in archive_targets})
-    published.update({p: checksum_placeholder if current[p] is not None else None for p in meta_paths})
-    _check_inventory_capacity(_inventory_bytes({**state, 'published': published}))
-    archive = []
-    for path in archive_paths:
-        raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
-        payload = current[path]
-        archive.append(OverlayFile(path, _processed_payload(payload, compression_type=flags[path] & 15,
-            encrypted=bool(flags[path] >> 4), basename=path.rsplit('/', 1)[-1]), len(payload), flags[path]))
-    mount = _target(root, 'meta/0.papgt').read_bytes()
-    writes = dict(pending)
-    deletes = []
-    if archive:
-        built = build_overlay_archive(archive, stop_event=stop_event, on_log=on_log)
-        writes.update(zip(archive_targets, (built.pamt_bytes, built.paz_bytes, OVERLAY_OWNER_BYTES)))
-        writes['meta/0.papgt'] = papgt_with_directory(mount, name, built.pamt_checksum, flags=PAPGT_DEFAULT_FLAGS, first=True)
-        checksum, payload_bytes = built.pamt_checksum, len(built.paz_bytes)
-    else:
-        writes['meta/0.papgt'] = serialize_papgt([r for r in parse_papgt(mount) if r.name != name], header=mount[:12])
-        deletes.extend(archive_targets)
-        checksum = payload_bytes = 0
-    for path in meta_paths:
-        if current[path] is None:
-            deletes.append(path)
-        else:
-            writes[path] = current[path]
-    state['published'] = {p: _digest(v) for p, v in writes.items() if p.startswith(name + '/') or p in meta_paths}
-    state['published'].update({p: None for p in deletes})
-    writes[INDEX_PATH] = _inventory_bytes(state)
-    _check_inventory_capacity(writes[INDEX_PATH])
-    paths = tuple(sorted(e.path for e in archive))
-    # Composition is complete. Release decoded history before retaining the
-    # original destination bytes needed for review, drift checks and rollback.
-    del layers, baseline, current, archive, archive_paths
-    before = tuple((path, _target(root, path).read_bytes() if _target(root, path).is_file() else None) for path in dict.fromkeys((*writes, *deletes)))
-    return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
-        tuple(writes.items()), tuple(deletes), before, tuple((p, tuple(s)) for p, s in state['sources'].items()), paths,
-        checksum, payload_bytes, sum(layer['file_count'] for layer in active[:-1]) if removed_id is None else len(paths),
-        source_directories=source_directories, source_revisions=source_revisions,
-        source_checksums=_source_checksums(source_revisions, stop_event))
-
-
-def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
-    root = Path(package_root).resolve()
-    observed = _observe_state(root)
-    if on_log:
-        on_log('Validating the plan archive sources...')
-    if plan.source_revision is not None:
-        plan.source_revision.validate(stop_event)
-    if on_log:
-        on_log('Checking installed overlay state...')
-    state, pending = _state_for_edit(root, directory_name, stop_event, retirement=retirement)
-    mounted_path = _target(root, state['directory'] + '/0.pamt')
-    mounted_entries = {str(entry.path).lower(): entry for entry in parse_archive_pamt(mounted_path)} if mounted_path.is_file() else {}
-    changes = {}
-    for request in plan.patches:
-        raise_if_cancelled(stop_event, 'Overlay change capture cancelled.')
-        path = _relative(request.entry.path)
-        _remember_source(root, state, request.entry)
-        before = _read(request.entry)
-        if path in mounted_entries and before != _read(mounted_entries[path]):
-            # A higher-priority external mod can replace a shared table without
-            # touching our archive. Do not hide its rows when remounting ours first.
-            raise OverlayConflict(f'Overlay conflict in {path}; overlapping file edits cannot be separated safely.')
-        changes[path] = {'before': before, 'after': bytes(request.payload_data), 'flags': int(request.entry.flags), 'meta': False}
-    for addition in plan.additions:
-        path = _relative(addition.path)
-        if path in changes:
-            raise OverlayConflict(f'{path} is both added and replaced.')
-        changes[path] = {'before': None, 'after': bytes(addition.payload_data), 'flags': int(addition.flags), 'meta': False}
-    for write in plan.meta_files:
-        path = _relative(write.path)
-        if path != 'meta/0.pathc':
-            raise ValueError('Only the texture registry is supported as overlay metadata.')
-        changes[path] = {'before': _target(root, path).read_bytes(), 'after': bytes(write.payload_data), 'flags': 0, 'meta': True}
-    if not changes:
-        raise ValueError('The overlay plan changes nothing.')
-    item_keys = _added_item_keys(changes)
-    known_items = set(item_keys) | {int(plan.spec.item_key)}
-    # Portable packages retain save identities after removal. Ordinary CDMW
-    # installs must respect those reservations too, even on a stale item plan.
-    if _target(root, '.cdmw/independent-items.json').exists():
-        from cdmw.services.independent_item_install import load_registry
-        registry = load_registry(root)
-        if any(known_items.intersection(row['values'].get('iteminfo', {}).values()) for row in registry['items'].values()):
-            raise OverlayConflict('This item identity is reserved by an independent package. Rebuild with a different identity or update that package through Independent items.')
-    references = owned_item_references(changes) | {int(plan.spec.template_key)}
-    dependencies = []
-    decoded = {}
-    if on_log:
-        on_log('Checking dependencies against installed overlays...')
-    for layer in state['layers']:
-        if not layer['active'] and not layer.get('disabled', False):
-            continue
-        if known_items.intersection(layer['item_keys']):
-            raise OverlayConflict(f"Item identity conflicts with {layer['label']}. Build a new plan from the current installed tables.")
-        if not layer['active']:
-            continue
-        if references.intersection(layer['item_keys']):
-            dependencies.append(layer['id'])
-            continue
-        decoded[layer['id']] = _unpack_changes(root, layer, pending, stop_event)
-        if _uses_owned_assets(plan, changes, decoded[layer['id']]):
-            dependencies.append(layer['id'])
-    from cdmw.core.mod_compatibility import game_identity
-    if on_log:
-        on_log('Preparing overlay history...')
-    _add_layer(state, pending, plan.spec.display_names.get('eng') or plan.spec.internal_name, changes,
-        item_keys=tuple(sorted(known_items)), dependencies=dependencies, target_game=game_identity(root, stop_event))
-    prepared = _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log, decoded=decoded)
-    if retirement is not None:
-        before = dict(prepared.before)
-        archived = '.cdmw/retired-overlays/' + retirement.retirement_id + '.json'
-        if (before[INDEX_PATH] != retirement.inventory_data or before['meta/0.papgt'] != retirement.mount_data
-                or before[archived] is not None):
-            raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
-    return _pin_preparation(prepared, observed)
-
-
-def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log=None):
-    return _prepare_overlay_selection(package_root, overlay_id, None, stop_event=stop_event, on_log=on_log)
-
-
-def _prepare_overlay_selection(package_root, overlay_ids, enabled, *, stop_event=None, on_log=None):
-    root = Path(package_root).resolve()
-    observed = _observe_state(root)
-    state, pending = _state_for_edit(root, None, stop_event)
-    identities = tuple(dict.fromkeys((overlay_ids,) if isinstance(overlay_ids, str) else overlay_ids))
-    if not identities:
-        raise ValueError('Select at least one installed overlay.')
-    selected = []
-    for identity in identities:
-        layer = next((layer for layer in state['layers'] if (layer['active'] or layer.get('disabled', False)) and
-            (layer['id'] == identity or (identity == 'legacy:' + state['directory'] and layer.get('legacy')))), None)
-        if layer is None:
-            raise ValueError('The selected overlay is no longer installed. Refresh the list.')
-        selected.append(layer)
-    for layer in selected:
-        layer['active'] = bool(enabled)
-        if enabled is None:
-            layer.pop('disabled', None)
-        else:
-            layer['disabled'] = not enabled
-    result = _pin_preparation(_compose(root, state, pending, '\n'.join(layer['label'] for layer in selected),
-                                      selected[0]['id'], stop_event, on_log), observed)
-    return replace(result, action='remove' if enabled is None else 'enable' if enabled else 'disable')
-
-
-def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=None, on_log=None):
-    """Review a reversible enable/disable using the same composition and transaction as removal."""
-    return _prepare_overlay_selection(package_root, overlay_id, bool(enabled), stop_event=stop_event, on_log=on_log)
-
-
-def _file_matches_bytes(path, expected):
-    """Exact comparison with bounded temporary reads, including empty/absent files."""
-    if expected is None:
-        return not path.exists()
-    if not path.is_file():
-        return False
-    offset, view = 0, memoryview(expected)
-    # A one-byte buffer still detects unexpected content for an empty expected file.
-    chunk = bytearray(min(1024 * 1024, len(expected) + 1))
-    with path.open('rb') as source:
-        while size := source.readinto(chunk):
-            if (chunk if size == len(chunk) else chunk[:size]) != view[offset:offset + size]:
-                return False
-            offset += size
-    return offset == len(expected)
-
-
-def _verify_backup(backup_dir, expected):
-    manifest = Path(backup_dir) / 'backup_manifest.json'
-    if not manifest.is_file() or manifest.stat().st_size > _MAX_STATE_BYTES:
-        raise ValueError('The overlay backup manifest is missing or invalid.')
-    items = json.loads(manifest.read_text(encoding='utf-8')).get('files', [])
-    files = {}
-    for item in items:
-        original, kept = Path(item['original_path']).resolve(), Path(item['backup_path']).resolve()
-        if Path(backup_dir).resolve() not in kept.parents or not kept.is_file() or original in files:
-            raise ValueError('The overlay backup contains an invalid file entry.')
-        files[original] = kept
-    if set(files) != set(expected) or any(not _file_matches_bytes(files[path], payload) for path, payload in expected.items()):
-        raise ValueError('The overlay backup did not preserve every confirmed original file.')
-
-
-def _verify_source_directories(root, preparation):
-    for relative, expected in preparation.source_directories:
-        directory = _target(root, relative)
-        if tuple(sorted(path.name for path in directory.glob('*.pamt'))) != expected:
-            raise OverlayConflict(f'The source archive folder {relative} changed after preparation. Scan again.')
-
-
-def _read_source_checksum(path, stop_event):
-    checksum = hashlib.sha256()
-    with path.open('rb') as source:
-        while chunk := source.read(1024 * 1024):
-            raise_if_cancelled(stop_event, 'Source verification cancelled.')
-            checksum.update(chunk)
-    return checksum.hexdigest()
-
-
-def _source_checksums(revisions, stop_event):
-    paths = set()
-    indexes = {}
-    for revision in revisions:
-        source = getattr(revision, 'source_revision', revision)
-        paths.update(path for path, stamp in source.files if stamp is not None and path.suffix.lower() != '.paz')
-        for path, checksum in source.indexes:
-            if indexes.setdefault(path, checksum) != checksum:
-                raise OverlayConflict(f'Source index has conflicting parsed revisions: {path}.')
-    checksums = []
-    for path in sorted(paths):
-        checksum = _read_source_checksum(path, stop_event)
-        if path in indexes and checksum != indexes[path]:
-            raise OverlayConflict(f'Source index changed since parsing: {path}.')
-        checksums.append((path, checksum))
-    return tuple(checksums)
-
-
-def _verify_source_content(preparation, stop_event):
-    try:
-        for revision in preparation.source_revisions:
-            revision.validate(stop_event)
-        for path, checksum in preparation.source_checksums:
-            if _read_source_checksum(path, stop_event) != checksum:
-                raise OverlayConflict(f'The source file {path} changed after preparation.')
-    except RunCancelled:
-        raise
-    except (OSError, ValueError, RuntimeError) as exc:
-        raise OverlayConflict(f'Source dependencies changed or cannot be verified after preparation: {exc}') from exc
-
-
-@archive_write_scope()
-@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
-def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game_running=None, stop_event=None, on_log=None):
-    if not isinstance(preparation, OverlayChangePreparation):
-        raise TypeError('Overlay changes require a prepared change.')
-    if not confirmed:
-        raise PermissionError('Overlay changes require explicit confirmation.')
-    if not callable(backup) or not callable(restore_backup):
-        raise ValueError('The overlay change needs backup and restore services.')
-    if game_running is None:
-        from cdmw.services.new_item_service import game_is_running
-        game_running = game_is_running
-    if game_running():
-        raise RuntimeError('Close Crimson Desert before changing overlays.')
-    root = preparation.package_root.resolve()
-    name = _directory(preparation.directory_name)
-    allowed = {INDEX_PATH, '.cdmw/independent-items.json', 'meta/0.papgt', 'meta/0.pathc', name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER}
-    import re
-    for relative in (*dict(preparation.writes), *preparation.deletes):
-        if relative not in allowed and not re.fullmatch(
-                r'\.cdmw/(?:overlays/[0-9a-f]{32}\.zip|retired-overlays/[0-9a-f]{32}\.json|independent-items/[0-9a-f]{32}-[0-9a-f]{64}\.cditem)', relative):
-            raise ValueError('A prepared overlay change targets a file outside its ownership.')
-    if set(dict(preparation.before)) != set(dict(preparation.writes)) | set(preparation.deletes):
-        raise ValueError('Prepared overlay targets do not match their original files.')
-    if set(preparation.deletes) - {name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER, 'meta/0.pathc'}:
-        raise ValueError('A prepared overlay removal names an unowned file.')
-    for relative, payload in preparation.writes:
-        if relative == INDEX_PATH:
-            _check_inventory_capacity(payload)
-    originals = {}
-    _verify_source_directories(root, preparation)
-    _verify_observed_state(root, preparation.observed_state, 'after preparation')
-    for relative, expected in preparation.before:
-        path = _target(root, relative)
-        if not _file_matches_bytes(path, expected):
-            raise OverlayConflict(f'{relative} changed after preparation. Refresh and prepare again.')
-        if expected is not None:
-            originals[path] = expected
-    for relative, expected in preparation.source_stamps:
-        path = _target(root, relative)
-        if not path.is_file() or tuple(_stamp(path)) != expected:
-            raise OverlayConflict(f'The source archive {relative} changed after preparation.')
-    _verify_source_content(preparation, stop_event)
-    raise_if_cancelled(stop_event, 'Overlay change cancelled before backup.')
-    backup_dir = Path(backup(tuple(sorted(originals)), f'Overlay: {preparation.label}'))
-    _verify_backup(backup_dir, originals)
-    if game_running():
-        raise RuntimeError('Crimson Desert started during backup. Close it before changing overlays.')
-    _verify_source_directories(root, preparation)
-    _verify_observed_state(root, preparation.observed_state, 'after preparation')
-    for relative, expected in preparation.before:
-        path = _target(root, relative)
-        if not _file_matches_bytes(path, expected):
-            raise OverlayConflict(f'{relative} changed after preparation. Refresh and prepare again.')
-    for relative, expected in preparation.source_stamps:
-        path = _target(root, relative)
-        if not path.is_file() or tuple(_stamp(path)) != expected:
-            raise OverlayConflict(f'The source archive {relative} changed after preparation.')
-    writes = dict(preparation.writes)
-    _verify_source_content(preparation, stop_event)
-    recovery = OverlayTargetRecovery(root,
-        {_target(root, relative): payload_digest(previous) for relative, previous in preparation.before},
-        backup_dir=backup_dir, restore_backup=restore_backup, stop_event=stop_event)
-    try:
-        for relative, payload in preparation.writes:
-            if relative == 'meta/0.papgt':
-                continue
-            raise_if_cancelled(stop_event, 'Overlay change cancelled.')
-            path = _target(root, relative)
-            recovery.write(path, payload, atomic_write_bytes)
-            if not _file_matches_bytes(path, payload):
-                raise RuntimeError(f'Staged overlay bytes differ from the preparation: {relative}')
-        # Validate the staged archive through the actual index reader before
-        # publishing the mount list. No cancellation inside final publication.
-        if preparation.paths:
-            pamt = _target(root, preparation.directory_name + '/0.pamt')
-            actual = tuple(sorted(str(e.path).lower() for e in parse_archive_pamt(pamt)))
-            if actual != preparation.paths:
-                raise RuntimeError('Staged overlay paths differ from the prepared archive.')
-        raise_if_cancelled(stop_event, 'Overlay change cancelled before publication.')
-        mount_path, mount_payload = _target(root, 'meta/0.papgt'), writes['meta/0.papgt']
-        recovery.write(mount_path, mount_payload, atomic_write_bytes)
-        for relative in preparation.deletes:
-            recovery.unlink(_target(root, relative))
-        recovery.committed()
-    except BaseException as error:
-        try:
-            recovery.rollback()
-        except Exception as rollback_error:
-            raise RuntimeError(f'Overlay change failed; recovery requires backup {backup_dir}: {rollback_error}') from error
-        raise
-    directory = _target(root, preparation.directory_name)
-    if not preparation.paths:
-        try:
-            directory.rmdir()
-        except OSError:
-            pass
-    if on_log:
-        on_log(f"Overlay {preparation.action if preparation.removed_id else 'installed'}: {preparation.label}. {len(preparation.remaining_labels)} enabled. Backup: {backup_dir}")
-    if preparation.removed_id:
-        return OverlayRemovalResult(directory, preparation.label, len(preparation.remaining_labels), backup_dir,
-                                    preparation.removed_id, preparation.action)
-    return OverlayInstallResult(directory, preparation.pamt_checksum, len(preparation.paths), preparation.payload_bytes,
-        preparation.carried_forward, backup_dir, preparation.paths)

@@ -7,7 +7,7 @@ from cdmw.domain.new_item.independent import IndependentItemError, IndependentIt
 from cdmw.models import ArchiveEntry
 from cdmw.services.independent_item_references import audit_references
 from cdmw.services.new_item_provenance import SourceTracker
-from cdmw.services.virtual_loader_sources import profile_revision
+from tests.support.virtual_sources import profile_revision
 
 
 def _item_table():

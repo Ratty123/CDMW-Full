@@ -7,14 +7,14 @@ import pytest
 from cdmw.domain.new_item.compilation import _identity, compilation_record, compiler_stamp
 from cdmw.domain.new_item.compilation_storage import read_compilation, store_compilation, validate_contexts
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_rebuild
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import load_registry, prepare_install, prepare_rebuild
 from cdmw.services.independent_item_package import package_bytes
 from tests.test_archive_overlay_manager import Backups
 from tests.test_independent_items import setup_game
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_package_links import pair
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 def record(*, linked=False):

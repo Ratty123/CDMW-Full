@@ -41,10 +41,7 @@ class ModUpdateDialog(QDialog):
         form.setSpacing(10)
         self.source_kind = QComboBox()
         self.source_kind.addItem("Mod folder", False)
-        from cdmw import constants
-        if constants.ARCHIVE_OVERLAYS_ENABLED:
-            self.source_kind.addItem("Installed CDMW overlays together", True)
-        self.source_kind.setCurrentIndex(1 if installed and constants.ARCHIVE_OVERLAYS_ENABLED else 0)
+        self.source_kind.setCurrentIndex(0)
         form.addRow("Source:", self.source_kind)
         self.folder = QLineEdit()
         self.folder_browse = self._folder_row(form, "Mod folder:", self.folder, "Choose the original mod folder")
@@ -124,10 +121,9 @@ class ModUpdateDialog(QDialog):
         self.folder_browse.setEnabled(available and not installed)
         self.scan_button.setEnabled(available and bool(self.game_root.text().strip()) and
                                     (installed or bool(self.folder.text().strip())))
-        from cdmw import constants
-        self.export_button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
-        self.export_button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and available and self._plan is not None and self._plan.can_update and
-                                      bool(self.destination.text().strip()))
+        # Writing an updated package was only offered with the archive overlays.
+        self.export_button.setVisible(False)
+        self.export_button.setEnabled(False)
         self.progress.setVisible(self._working)
 
     def _invalidate(self, *_args):
@@ -179,8 +175,8 @@ class ModUpdateDialog(QDialog):
         self._plan = None
         self._review_lookup.cancel()
         self._review_writer.set_text("")
-        self._run(mod_update_scan_task(self.folder.text(), self.game_root.text(),
-            installed=bool(self.source_kind.currentData())), self._scanned, "Comparing the mod with current game data...",
+        self._run(mod_update_scan_task(self.folder.text(), self.game_root.text()),
+            self._scanned, "Comparing the mod with current game data...",
             task_accepts_progress=True)
 
     def _scanned(self, plan):
@@ -190,9 +186,6 @@ class ModUpdateDialog(QDialog):
                     "conflict": "Conflicts need review before this mod can be updated.",
                     "unknown": "The original baseline is incomplete. This mod cannot be updated automatically."}
         self.status.setText(statuses[plan.status])
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            self.status.setText(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."))
         labels = {"unknown": self.tr("Unknown baseline"), "unchanged": self.tr("Source data unchanged"),
                   "changed": self.tr("Updated data merged"), "conflict": self.tr("Conflict"),
                   "dependency_changed": self.tr("Referenced asset changed or missing")}
@@ -218,10 +211,7 @@ class ModUpdateDialog(QDialog):
         self._review_ready(key, f"The review could not be prepared: {message}")
 
     def _export(self):
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        if self._plan is not None and self._plan.can_update:
+        if False:  # Writing an updated package was only offered with the archive overlays.
             self._run(mod_update_export_task(self._plan, self.destination.text(), self.title.text()),
                       self._exported, "Writing the updated mod...", publishes_result=True)
 

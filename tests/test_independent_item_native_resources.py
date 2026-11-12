@@ -17,7 +17,7 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.spec import ModelSource
 from cdmw.services import independent_item_native_resources as owner
-from cdmw.services.independent_item_install import (
+from tests.support.item_install import (
     export_profile, load_registry, prepare_install, prepare_profile_import, prepare_remove, resolve_items,
 )
 from cdmw.services.independent_item_package import from_plan, package_bytes

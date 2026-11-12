@@ -86,10 +86,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self) -> None:
-        # This fixture also owns the retained pre-DLC overlay lifecycle cases.
-        self._overlay_policy = patch("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
-        self._overlay_policy.start()
-        self.addCleanup(self._overlay_policy.stop)
         self._folder_tools_policy = patch("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
         self._folder_tools_policy.start()
         self.addCleanup(self._folder_tools_policy.stop)
@@ -138,7 +134,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
         self._open_folder_patch.stop()
         self._output_settings_patch.stop()
         self._backup_patch.stop()
-        self._overlay_policy.stop()
         self._temp.cleanup()
 
     def _tab(self, window=None, **kwargs):
@@ -323,23 +318,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
             # Off returns to the shared Preview settings instead of a fixed preset.
             self.assertEqual(lighting.call_args.args, (None,))
 
-    def test_pending_post_install_refresh_is_cancelled_when_tab_is_deleted(self) -> None:
-        from PySide6.QtCore import QCoreApplication, QEvent
-
-        tab = self._tab()
-        tab.prefill_template(TEMPLATE)
-        tab.controller.install_finished.disconnect(tab.output_panel._install_finished)
-        refreshed = []
-        tab._reread_after_install = lambda: refreshed.append(True)
-        tab.controller.install_finished.emit(None)
-        self.app.processEvents()
-        self.assertEqual(refreshed, [True])
-        tab.controller.install_finished.emit(None)
-        tab.close()
-        tab.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.app.processEvents()
-        self.assertEqual(refreshed, [True])
 
     def test_an_empty_entry_list_is_read_from_the_package_root(self) -> None:
         """The shell's catalogue backend shows the browser without filling the legacy
@@ -1558,9 +1536,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, _TabShop
         self.assertEqual(tuple(output.glob("package_*_native")), ())
         tab.close()
         tab.deleteLater()
-
-
-
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -7,8 +7,8 @@ from uuid import uuid4
 import pytest
 
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import (
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import (
     REGISTRY_PATH, inventory, load_registry, prepare_install, prepare_remove,
 )
 from cdmw.services.independent_item_package import digest, from_plan, package_bytes
@@ -53,8 +53,8 @@ def test_incomplete_owned_icon_refuses_authoring_and_import_before_publication(t
         if backend == 'physical':
             prepare_install([package_bytes(tampered)], root)
         else:
-            from cdmw.domain.virtual_loader import VirtualProfile
-            from cdmw.services.virtual_loader_composition import prepare_profile
+            from tests.support.virtual_domain import VirtualProfile
+            from tests.support.virtual_composition import prepare_profile
             path = tmp_path / 'invalid.cditem'
             path.write_bytes(package_bytes(tampered))
             prepare_profile(VirtualProfile((path,)), root)
@@ -226,32 +226,6 @@ def test_independent_plan_uses_shipped_data_with_named_manager_archives(tmp_path
     assert files_in(root) == before
 
 
-@pytest.mark.parametrize('present', [True, False])
-def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path, present):
-    from cdmw.core.papgt_format import parse_papgt
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    _, package = authored(tmp_path / 'author')
-    _, update = authored(tmp_path / 'update', package.identity, 'UpdatedItem')
-    setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    for name in ('dmmgen', 'dmmsa'):
-        # Deleting a manager folder leaves its name and checksum in PAPGT.
-        add_external_group(tmp_path, root, name, {f'ui/texture/{name}.dds': b'unrelated external asset'},
-                           present=present)
-    groups = {name: files_in(root / name) for name in ('0009', 'dmmgen', 'dmmsa')}
-    mount = root / 'meta/0.papgt'
-    original_mount = parse_papgt(mount.read_bytes())
-    backups.apply(prepare_install([package_bytes(package)], root).preparation)
-    binding = load_registry(root)['items'][package.identity]['values']
-    backups.apply(prepare_install([package_bytes(update)], root).preparation)
-    backups.apply(prepare_overlay_rebuild(root))
-    assert inventory(root)[0][3] == 'Installed'
-    assert load_registry(root)['items'][package.identity]['values'] == binding
-    backups.apply(prepare_remove(package.identity, root))
-    assert parse_papgt(mount.read_bytes()) == original_mount
-    assert {name: files_in(root / name) for name in groups} == groups
-
-
 @pytest.mark.parametrize('name', ['dmmgen', 'dmmsa'])
 @pytest.mark.parametrize('uppercase_path', [False, True])
 def test_named_external_archive_cannot_claim_an_owned_asset(tmp_path, name, uppercase_path):
@@ -289,46 +263,6 @@ def test_unsafe_mounted_archive_names_are_refused(tmp_path, name):
     with pytest.raises(IndependentItemError, match='Unsupported mounted archive folder'):
         _external_paths(root, {'directory': '0036'})
     assert files_in(root) == before
-
-
-@pytest.mark.parametrize('operation', ['install', 'remove', 'disable', 'enable', 'rebuild'])
-def test_concurrent_package_install_cannot_be_lost_by_an_ordinary_overlay(tmp_path, monkeypatch, operation):
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    _, package = authored(tmp_path / 'author')
-    service, snapshot, _ = setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    ordinary = service.plan(shop_spec('OrdinaryItem'), snapshot)
-    if operation != 'install':
-        backups.apply(overlays.prepare_item_overlay(ordinary, root))
-        layer = overlays.list_installed_overlays(root)[0].id
-        if operation == 'enable':
-            backups.apply(overlays.prepare_overlay_enabled(root, layer, False))
-    compose = overlays._compose
-    installed = None
-
-    def interleave(*args, **kwargs):
-        nonlocal installed
-        if installed is None:
-            installed = {}  # Avoid recursion in the concurrent composition.
-            backups.apply(prepare_install([package_bytes(package)], root).preparation)
-            installed = files_in(root)
-        return compose(*args, **kwargs)
-
-    monkeypatch.setattr(overlays, '_compose', interleave)
-    with pytest.raises(ValueError, match='changed'):
-        if operation == 'install':
-            prepared = overlays.prepare_item_overlay(ordinary, root)
-        elif operation == 'remove':
-            prepared = overlays.prepare_overlay_removal(root, layer)
-        elif operation in ('disable', 'enable'):
-            prepared = overlays.prepare_overlay_enabled(root, layer, operation == 'enable')
-        else:
-            prepared = prepare_overlay_rebuild(root)
-        backups.apply(prepared)
-    assert installed and files_in(root) == installed
-    row = load_registry(root)['items'][package.identity]
-    assert snapshot_of(root).rows[row['values']['iteminfo']['item']].string_key == 'CDI_' + package.identity
-    assert inventory(root)[0][3] == 'Installed'
 
 
 @pytest.mark.parametrize('existing', [False, True])
@@ -427,22 +361,3 @@ def test_import_rejects_invalid_attachment_bindings_even_with_valid_hashes(tmp_p
     assert files_in(root) == before
 
 
-@pytest.mark.parametrize('directory_name', ['0042', 'dmmgen', 'dmmsa'])
-def test_unmounted_external_replacement_does_not_block_install_or_rebuild(tmp_path, directory_name):
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    from tests.test_new_item_service import build_package
-    _, package = authored(tmp_path / 'author')
-    _, snapshot, _ = setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    path = next(iter(package.dependencies))
-    pamt = build_package(tmp_path / 'external', {path: snapshot.payload(path)})
-    directory = root / directory_name
-    directory.mkdir()
-    for source in pamt.parent.iterdir():
-        if source.is_file():
-            (directory / source.name).write_bytes(source.read_bytes())
-    before = files_in(directory)
-    backups.apply(prepare_install([package_bytes(package)], root).preparation)
-    backups.apply(prepare_overlay_rebuild(root))
-    assert inventory(root)[0][3] == 'Installed'
-    assert files_in(directory) == before

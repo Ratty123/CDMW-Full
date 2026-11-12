@@ -9,8 +9,8 @@ import pytest
 
 from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services import independent_item_install as installer
+import tests.support.overlay_manager as overlays
+import tests.support.item_install as installer
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_items import authored, imported_game, setup_game
@@ -137,41 +137,6 @@ def test_failed_rebuild_restores_previous_artifacts_compiler_and_identity(tmp_pa
         backups.apply(result.preparation)
     assert files_in(root) == before
     assert installer.inventory(root)[0][3] == 'Installed'
-
-
-@pytest.mark.parametrize('record', ['missing', 'different'])
-def test_virtual_profile_with_unknown_compiler_requires_reapply_without_renumbering(tmp_path, monkeypatch, record):
-    from cdmw.domain.virtual_loader import VirtualProfile
-    from cdmw.services.virtual_loader_composition import prepare_profile
-    from cdmw.services.virtual_loader_state import PROFILE_PATH, generation_path, load_profile, publish_profile
-    from cdmw.services.virtual_loader_runtime import _snapshot_preflight, runtime_status
-    from tests.test_virtual_loader import packages, game_bytes
-
-    # This profile belongs to the temporary fixture, independently of host processes.
-    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
-    root, selected = packages(tmp_path)
-    before_game = game_bytes(root)
-    publish_profile(prepare_profile(VirtualProfile(selected), root))
-    before_registry = installer.load_registry(root)
-    profile = load_profile(root)
-    profile.pop('compilation', None)
-    profile.pop('build_cache', None)
-    if record == 'missing':
-        del profile['compiler']
-    else:
-        profile['compiler']['revision'] += 1
-    data = json.dumps(profile).encode('utf-8')
-    (root / PROFILE_PATH).write_bytes(data)
-    (generation_path(root, profile['generation']) / 'profile.json').write_bytes(data)
-    assert load_profile(root, registry=before_registry) == profile
-    status = runtime_status(root)
-    assert status.state == 'blocked' and 'Apply changes again' in status.detail
-    with pytest.raises(ValueError, match='Apply changes again'):
-        _snapshot_preflight(root)
-    publish_profile(prepare_profile(VirtualProfile(selected), root))
-    assert installer.load_registry(root) == before_registry
-    assert load_profile(root)['compiler'] == compiler_stamp()
-    assert game_bytes(root) == before_game
 
 
 @pytest.mark.parametrize('field,value', [('revision', True), ('revision', 0), ('adapters', {}),

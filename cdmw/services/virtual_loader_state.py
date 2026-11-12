@@ -1,25 +1,20 @@
-"""Strict virtual ownership, immutable generations and recoverable ledger publication.
+"""Read the profile ledgers an older CDMW's virtual loader left in ``.cdmw``.
 
-Only CDMW bookkeeping is published here. This module cannot publish to the game's
-archive or metadata directories. A durable journal covers the two-ledger commit.
+CDMW no longer installs into the game (decision 39). The install code moved to
+tests/support; Browse Archives' Remove What an Older CDMW Installed... takes an
+old install out. Nothing here writes.
 """
 import json
-import logging
 from pathlib import Path
 import re
 
-from cdmw.core.atomic_file import atomic_write_bytes
-from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.compilation import validate_compiler_stamp, validate_compilation
 from cdmw.domain.virtual_loader import VirtualLoaderError
-from cdmw.services.application_shutdown_service import archive_write_scope
-from cdmw.services.independent_item_package import canonical, digest, MAX_MANIFEST, package_id
-from cdmw.services.installation_lane import installation_lane
+from cdmw.services.independent_item_package import canonical, MAX_MANIFEST, package_id
 
 PROFILE_PATH = '.cdmw/virtual-loader/profile.json'
 JOURNAL_PATH = '.cdmw/virtual-loader/transaction.json'
 FORMAT = 'cdmw_virtual_profile_v1'
-REGISTRY = '.cdmw/independent-items.json'
 #: Profile files under this prefix are served by game resource path inside the game's
 #: package loader (`resources/character/model/.../x.pac`), not mapped over a file.
 RESOURCE_PREFIX = 'resources/'
@@ -179,9 +174,10 @@ def validate_profile(value):
                 raise ValueError('The virtual package dependency graph disagrees with the profile.')
         except ValueError as exc:
             raise VirtualLoaderError(str(exc)) from exc
-    if 'build_cache' in value:
-        from cdmw.services.virtual_loader_cache import validate_cache_record
-        validate_cache_record(value['build_cache'], value)
+    # The removed virtual loader's build cache record was optional metadata about its
+    # prepared archives; the outputs above stay authoritative. Only its shape is checked.
+    if 'build_cache' in value and not isinstance(value['build_cache'], dict):
+        raise VirtualLoaderError('Invalid virtual build cache record.')
     if len(canonical(value)) > MAX_MANIFEST:
         raise VirtualLoaderError('Virtual profile exceeds its size limit.')
     return value
@@ -212,187 +208,4 @@ def active_identities(root):
     profile = load_profile(root)
     return set(profile['items']) if profile else set()
 
-
-def _write_optional(path, data):
-    if data is None:
-        path.unlink(missing_ok=True)
-    else:
-        atomic_write_bytes(path, data)
-
-
-def _journal_value(before, after):
-    value = {'format': 'cdmw_virtual_transaction_v1', 'before': before, 'after': after}
-    return canonical({'data': value, 'sha256': digest(canonical(value))})
-
-
-def _verify_recovered_state(root, expected):
-    """Verify both selected ledgers and the complete referenced generation."""
-    from cdmw.services.independent_item_install import _validate_registry
-    from cdmw.services.virtual_loader_composition import hash_file
-    actual = {p: read_optional(target(root, p)) for p in expected}
-    if actual != expected:
-        raise VirtualLoaderError('Virtual recovery did not establish the selected ledger bytes.')
-    registry = _validate_registry(decode(actual[REGISTRY])) if actual[REGISTRY] is not None else None
-    if actual[PROFILE_PATH] is not None:
-        profile = validate_profile(decode(actual[PROFILE_PATH]))
-        if registry is None:
-            raise VirtualLoaderError('Virtual recovery is missing the matching identity ledger.')
-        for identity, binding in profile['items'].items():
-            row = registry['items'].get(identity)
-            if not row or row['layer'] is not None or any(row[key] != binding[key] for key in binding):
-                raise VirtualLoaderError('Virtual recovery ownership and identity ledgers disagree.')
-        if 'links' in profile.get('compilation', {}).get('inputs', {}):
-            from cdmw.domain.new_item.package_links import validate_link_bindings
-            validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])
-        directory = generation_path(root, profile['generation'])
-        if read_optional(target(directory, 'profile.json')) != actual[PROFILE_PATH]:
-            raise VirtualLoaderError('Virtual recovery does not match its retained generation manifest.')
-        for relative, checksum in profile['files'].items():
-            if hash_file(target(directory, 'files/' + relative)) != checksum:
-                raise VirtualLoaderError('Virtual recovery found a changed generation file.')
-    if {p: read_optional(target(root, p)) for p in expected} != expected:
-        raise VirtualLoaderError('Virtual recovery ledgers changed during verification.')
-
-
-@archive_write_scope()
-def recover_profile(root):
-    with installation_lane(root, recovery=True):
-        journal = target(root, JOURNAL_PATH)
-        journal_data = journal.read_bytes()
-        wrapper = decode(journal_data, limit=MAX_MANIFEST * 8)
-        value = wrapper.get('data', {})
-        if wrapper.get('sha256') != digest(canonical(value)) or value.get('format') != 'cdmw_virtual_transaction_v1':
-            raise VirtualLoaderError('Virtual recovery material failed validation.')
-        if set(value) != {'format', 'before', 'after'} or any(set(value[key]) != {REGISTRY, PROFILE_PATH} for key in ('before', 'after')):
-            raise VirtualLoaderError('Invalid virtual recovery targets.')
-        from cdmw.services.independent_item_install import _validate_registry
-        for side in ('before', 'after'):
-            for relative, text in value[side].items():
-                if text is not None:
-                    obj = decode(text.encode())
-                    (_validate_registry if relative == REGISTRY else validate_profile)(obj)
-        encoded = {side: {p: text.encode() if text is not None else None for p, text in value[side].items()} for side in ('before', 'after')}
-        actual = {p: read_optional(target(root, p)) for p in encoded['before']}
-        if any(actual[p] not in (encoded['before'][p], encoded['after'][p]) for p in actual):
-            raise VirtualLoaderError('An interrupted profile was changed externally; automatic recovery is refused.')
-        selected = 'after' if actual == encoded['after'] else 'before'
-        for relative, data in encoded[selected].items():
-            if read_optional(target(root, relative)) != data:
-                _write_optional(target(root, relative), data)
-        _verify_recovered_state(root, encoded[selected])
-        # Preserve the complete verified journal as recovery evidence.
-        archive = target(root, '.cdmw/virtual-loader/recovery/' + digest(journal_data) + '.json')
-        atomic_write_bytes(archive, journal_data)
-        if archive.read_bytes() != journal_data or journal.read_bytes() != journal_data:
-            raise VirtualLoaderError('Virtual recovery journal preservation failed verification.')
-        _verify_recovered_state(root, encoded[selected])
-        journal.unlink()
-        return selected
-
-
-@archive_write_scope()
-def publish_profile(prepared, *, stop_event=None, on_log=None):
-    from cdmw.services.independent_item_install import _validate_registry
-    from cdmw.services.archive_overlay_manager import _verify_observed_state
-    from cdmw.services.new_item_service import game_is_running
-    root = prepared.root
-    with installation_lane(root):
-        if game_is_running():
-            raise VirtualLoaderError('Close Crimson Desert before publishing a virtual profile.')
-        prepared.source_revision.validate(stop_event)
-        prepared.external.validate(stop_event)
-        _verify_observed_state(root, prepared.observed, 'after virtual preparation')
-        profile = validate_profile(decode(prepared.profile))
-        registry = _validate_registry(decode(prepared.registry))
-        if 'links' in profile.get('compilation', {}).get('inputs', {}):
-            from cdmw.domain.new_item.package_links import validate_link_bindings
-            validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])
-        if prepared.generation != profile['generation'] or len(prepared.files) != len(dict(prepared.files)):
-            raise VirtualLoaderError('Prepared generation or file identities disagree.')
-        for identity, binding in profile['items'].items():
-            row = registry['items'].get(identity)
-            if not row or row['layer'] is not None or any(row[key] != binding[key] for key in binding):
-                raise VirtualLoaderError('Prepared ownership does not match its identity reservations.')
-        if set(profile['files']) != set(dict(prepared.files)) or any(digest(data) != profile['files'][p] for p, data in prepared.files):
-            raise VirtualLoaderError('Prepared virtual files failed validation.')
-        directory = generation_path(root, prepared.generation)
-        if directory.exists():
-            raise VirtualLoaderError('The prepared generation already exists; prepare a fresh profile.')
-        directory.mkdir(parents=True)
-        # An interrupted/unreferenced generation is harmless and retained for diagnosis.
-        for relative, data in prepared.files:
-            raise_if_cancelled(stop_event)
-            atomic_write_bytes(target(directory, 'files/' + relative), data)
-            from cdmw.services.virtual_loader_composition import hash_file
-            if hash_file(target(directory, 'files/' + relative), stop_event) != profile['files'][relative]:
-                raise VirtualLoaderError('A staged snapshot file failed readback.')
-        for name, data in prepared.retained_packages:
-            if not re.fullmatch(r'[0-9a-f]{32}-[0-9a-f]{64}\.cditem', name):
-                raise VirtualLoaderError('Invalid retained virtual package name.')
-            raise_if_cancelled(stop_event)
-            atomic_write_bytes(target(directory, 'packages/' + name), data)
-        atomic_write_bytes(directory / 'profile.json', prepared.profile)
-        prepared.source_revision.validate(stop_event)
-        prepared.external.validate(stop_event)
-        _verify_observed_state(root, prepared.observed, 'before virtual publication')
-        raise_if_cancelled(stop_event)
-        after = {REGISTRY: prepared.registry.decode(), PROFILE_PATH: prepared.profile.decode()}
-        before = {p: data.decode() if data is not None else None for p in after for data in (read_optional(target(root, p)),)}
-        recovery_data = _journal_value(before, after)
-        backup = target(root, '.cdmw/virtual-loader/recovery/' + prepared.generation + '.json')
-        atomic_write_bytes(backup, recovery_data)
-        if backup.read_bytes() != recovery_data:
-            raise VirtualLoaderError('Virtual recovery material failed readback.')
-        atomic_write_bytes(target(root, JOURNAL_PATH), recovery_data)
-        try:
-            # No cancellation inside this two-ledger commit. Launch refuses any
-            # surviving journal; recovery is idempotent after process death.
-            for relative, data in after.items():
-                atomic_write_bytes(target(root, relative), data.encode())
-            target(root, JOURNAL_PATH).unlink()
-        except Exception as publication_error:
-            cleanup_error = None
-            encoded = {side: {p: text.encode() if text is not None else None
-                              for p, text in values.items()}
-                       for side, values in (('before', before), ('after', after))}
-            try:
-                try:
-                    selected = recover_profile(root)
-                except OSError as error:
-                    # Unlink may finish and then report an error. A missing journal
-                    # alone proves nothing; use this publication's retained witness.
-                    if (target(root, JOURNAL_PATH).exists()
-                            or read_optional(backup) != recovery_data):
-                        raise
-                    actual = {p: read_optional(target(root, p)) for p in after}
-                    selected = next((side for side in ('after', 'before')
-                                     if actual == encoded[side]), None)
-                    cleanup_error = error
-                if selected not in ('before', 'after'):
-                    raise VirtualLoaderError('Virtual recovery did not select a verified state.')
-                _verify_recovered_state(root, encoded[selected])
-                if target(root, JOURNAL_PATH).exists():
-                    raise VirtualLoaderError('Virtual recovery still has an active transaction journal.')
-                if cleanup_error is not None and read_optional(backup) != recovery_data:
-                    raise VirtualLoaderError('Retained virtual recovery evidence changed during verification.')
-            except Exception as recovery_error:
-                raise VirtualLoaderError(
-                    f'Virtual profile recovery is required. Publication: {publication_error}. '
-                    f'Recovery: {recovery_error}. Recovery material: {backup}') from recovery_error
-            if selected == 'before':
-                if cleanup_error is not None:
-                    logging.getLogger(__name__).warning(
-                        'Virtual profile restored and verified after journal cleanup reported: %s',
-                        cleanup_error)
-                raise
-            diagnostic = f'Virtual profile committed after verified recovery: {publication_error}'
-            if cleanup_error is not None:
-                diagnostic += f'. Journal cleanup: {cleanup_error}'
-            logging.getLogger(__name__).warning(diagnostic)
-            if on_log is not None:
-                try:
-                    on_log(diagnostic)
-                except Exception:
-                    logging.getLogger(__name__).exception('Committed profile diagnostic delivery failed.')
-        return profile
 

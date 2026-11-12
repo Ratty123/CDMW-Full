@@ -1149,7 +1149,6 @@ def build_plan(
             "The source item table already contains custom items: " + ", ".join(inherited) + ". "
             "Their records would be included in the exported tables. To create a separate mod, "
             "unmount existing item mods and read the archives again before building the plan. "
-            "To combine mounted items, select Include mounted items in a new mod and rebuild. "
             "To extend a mod folder, select it with Add to existing mod. "
             f"Source: {snapshot.iteminfo.payload_entry.pamt_path}"
         )

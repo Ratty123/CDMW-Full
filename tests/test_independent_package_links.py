@@ -5,13 +5,13 @@ import pytest
 
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.package_links import contract, resolve_package_graph, validate_link_record
-from cdmw.domain.virtual_loader import VirtualLoaderError, VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+from tests.support.virtual_domain import VirtualLoaderError, VirtualProfile
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import load_registry, prepare_install, prepare_remove
 from cdmw.services.independent_item_package import canonical, package_bytes, read_package
 from cdmw.services.independent_mod_package import migrate_v1, read_v2
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups
 from tests.test_independent_items import authored, setup_game
 from tests.test_independent_item_regressions import files_in
@@ -84,36 +84,6 @@ def test_exact_typed_references_bind_in_both_orders_and_routes(tmp_path, virtual
     else:
         backups.apply(prepare_remove(consumer.identity, root))
         backups.apply(prepare_remove(provider.identity, root))
-
-
-def test_existing_v1_provider_rebuild_disable_update_and_reinstall(tmp_path):
-    provider, consumer = pair(tmp_path)
-    setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    backups.apply(prepare_install([package_bytes(provider)], root).preparation)
-    backups.apply(prepare_install([package_bytes(consumer)], root).preparation)
-    original = load_registry(root)
-    provider_layer = original['items'][provider.identity]['layer']
-    consumer_layer = original['items'][consumer.identity]['layer']
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    backups.apply(prepare_overlay_rebuild(root))
-    before = files_in(root)
-    with pytest.raises(IndependentItemError, match='missing required package'):
-        overlays.prepare_overlay_enabled(root, provider_layer, False)
-    updated_provider = migrate_v1(provider, release='2')
-    with pytest.raises(IndependentItemError, match='release/content differs'):
-        prepare_install([package_bytes(updated_provider)], root)
-    assert files_in(root) == before
-    backups.apply(overlays.prepare_overlay_enabled(root, consumer_layer, False))
-    backups.apply(prepare_remove(provider.identity, root))
-    with pytest.raises(IndependentItemError, match='missing required package'):
-        overlays.prepare_overlay_enabled(root, consumer_layer, True)
-    backups.apply(prepare_install([package_bytes(provider)], root).preparation)
-    backups.apply(overlays.prepare_overlay_enabled(root, consumer_layer, True))
-    updated_consumer = linked(consumer, (updated_provider,))
-    backups.apply(prepare_install([package_bytes(updated_consumer), package_bytes(updated_provider)], root).preparation)
-    for identity, row in original['items'].items():
-        assert load_registry(root)['items'][identity]['values'] == row['values']
 
 
 def test_linked_packages_can_be_disabled_enabled_and_removed_together(tmp_path):
@@ -219,23 +189,6 @@ def test_graph_budget_and_cancellation(tmp_path, monkeypatch):
         resolve_package_graph((provider, consumer))
 
 
-def test_virtual_links_survive_actual_preparation_process_and_refuse_cross_deployment(tmp_path):
-    from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
-    provider, consumer = pair(tmp_path)
-    setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    paths = paths_for(tmp_path, (provider, consumer))
-    backups.apply(prepare_install([paths[0]], root).preparation)
-    before = files_in(root)
-    with pytest.raises(IndependentItemError, match='same deployment'):
-        prepare_profile(VirtualProfile((paths[1],)), root)
-    assert files_in(root) == before
-    backups.apply(prepare_remove(provider.identity, root))
-    prepared = prepare_profile_in_subprocess(VirtualProfile(paths), root)
-    publish_profile(prepared)
-    assert load_profile(root)['compilation']['inputs']['links']['references'][0]['package'] == provider.identity
-
-
 @pytest.mark.parametrize('field', ['content', 'value', 'lifetime', 'order', 'reference', 'extra-provider'])
 def test_compiled_graph_tampering_refuses(tmp_path, field):
     from cdmw.domain.new_item.compilation import validate_compilation, _identity
@@ -289,7 +242,7 @@ def test_retained_provider_changed_after_review_cannot_publish_consumer(tmp_path
 
 @pytest.mark.parametrize('virtual', [False, True])
 def test_graph_publication_failure_preserves_previous_profile(tmp_path, monkeypatch, virtual):
-    from cdmw.services import virtual_loader_state as virtual_state
+    import tests.support.virtual_state as virtual_state
     provider, consumer = pair(tmp_path)
     setup_game(tmp_path / 'recipient')
     root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
@@ -321,7 +274,7 @@ def test_compiled_reference_cannot_claim_another_retained_item_id(tmp_path, rebi
     import json
     from dataclasses import replace
     from cdmw.domain.new_item.compilation import _identity
-    from cdmw.services.virtual_loader_cache import _input_identity, _key
+    from tests.support.virtual_cache import _input_identity, _key
     from cdmw.services.virtual_loader_state import validate_profile
     provider, consumer = pair(tmp_path)
     setup_game(tmp_path / 'recipient')
@@ -339,7 +292,8 @@ def test_compiled_reference_cannot_claim_another_retained_item_id(tmp_path, rebi
         record['key'] = _key(record)
         validate_profile(profile)
     before = files_in(root)
-    error, message = (IndependentItemError, 'retained identity bindings') if rebind_cache else (VirtualLoaderError, 'Invalid virtual build cache record')
-    with pytest.raises(error, match=message):
+    # The removed virtual loader also refused a stale build cache record; the live profile
+    # reader only checks that record's shape, so both cases stop at the binding check.
+    with pytest.raises(IndependentItemError, match='retained identity bindings'):
         publish_profile(replace(prepared, profile=canonical(profile)))
     assert files_in(root) == before

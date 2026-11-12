@@ -85,7 +85,7 @@ PAGE_REFERENCES = {
     "Item-Icons": ("cdmw/ui/item_icons/README.md",),
     "Mod-Management": ("cdmw/ui/new_item/README.md#output-review-and-mod-management",),
     "Independent-Item-Packages": (
-        "cdmw/ui/new_item/INDEPENDENT_ITEMS.md", "cdmw/ui/new_item/VIRTUAL_LOADER.md",
+        "cdmw/ui/new_item/INDEPENDENT_ITEMS.md",
         "cdmw/services/INDEPENDENT_TEXTURES.md",
     ),
     "Translations-and-Text-Search": ("cdmw/ui/text_search/README.md",),

@@ -162,7 +162,6 @@ def plan_task(
     icon_source_path: Optional[Path] = None,
     icon_data: Optional[bytes] = None,
     mod_base_folder: Optional[Path] = None,
-    include_mounted_items: bool = False,
     independent: bool = False,
     read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
     reserved_keys: Sequence[int] = (),
@@ -190,7 +189,7 @@ def plan_task(
         base = snapshot
         refreshed = None
         if independent:
-            if include_mounted_items or mod_base_folder is not None:
+            if mod_base_folder is not None:
                 raise ValueError("Independent packages cannot include a mod base.")
             from cdmw.services.independent_item_package import stock_snapshot
             root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
@@ -204,17 +203,7 @@ def plan_task(
                 read_entry=read_entry or (snapshot.provenance.reader if snapshot.provenance else snapshot.read_entry), on_log=report, stop_event=stop_event,
             )
             base = refreshed
-        mounted = None
-        if include_mounted_items:
-            if mod_base_folder is not None:
-                raise ValueError("Choose either mounted items or an existing mod folder as the base.")
-            from cdmw.services.new_item_mounted_base import prepare_mounted_item_base
-
-            mounted = prepare_mounted_item_base(service, base,
-                read_entry=read_entry or (base.provenance.reader if base.provenance else base.read_entry),
-                on_log=report, stop_event=stop_event)
-            base = mounted.snapshot
-        elif mod_base_folder is not None:
+        if mod_base_folder is not None:
             from cdmw.services.new_item_mod_base import build_mod_base_snapshot
 
             # A normal snapshot owns its reader even when the controller was not
@@ -235,10 +224,6 @@ def plan_task(
             on_log=log, on_progress=on_progress, stop_event=stop_event,
             **({"capture_independent": True} if independent else {}),
         )
-        if mounted is not None:
-            from cdmw.services.new_item_mounted_base import complete_mounted_item_plan
-
-            plan = complete_mounted_item_plan(plan, mounted, stop_event=stop_event)
         return replace(plan, refreshed_snapshot=refreshed) if refreshed is not None else plan
 
     return run
@@ -311,76 +296,10 @@ def install_task(
     return run
 
 
-def overlay_migration_task(package_root, *, mutation_service) -> Callable[[LogSink, threading.Event], object]:
-    """Move what is already in the shipped archives out into the overlay, and put them back."""
-
-    def run(log: LogSink, stop_event: threading.Event) -> object:
-        from cdmw.services.archive_overlay_migration import migrate_into_overlay, plan_migration
-
-        found = plan_migration(package_root, stop_event=stop_event)
-        log(f"{len(found.entries)} archive entrie(s) differ from the oldest backup of them ({found.payload_bytes:,} bytes).")
-        if found.is_empty:
-            return found
-
-        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
-            raise RuntimeError("The archive mutation service is not available in this window.")
-
-        def backup(paths, description):
-            return mutation_service.backup_files(paths, description=description, on_log=log)
-
-        def restore(path):
-            return mutation_service.restore_backup(path, confirmed=True, on_log=log)
-
-        from cdmw.services.new_item_service import game_is_running
-
-        return migrate_into_overlay(
-            package_root,
-            plan=found,
-            backup=backup,
-            restore_backup=restore,
-            game_running=game_is_running,
-            on_log=log,
-            stop_event=stop_event,
-        )
-
-    return run
-
-
-def overlay_removal_task(package_root, *, mutation_service) -> Callable[[LogSink, threading.Event], object]:
-    """Unmount the overlay and delete it."""
-
-    def run(log: LogSink, stop_event: threading.Event) -> object:
-        from cdmw.services.archive_overlay_migration import remove_overlay
-
-        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
-            raise RuntimeError("The archive mutation service is not available in this window.")
-
-        def backup(paths, description):
-            return mutation_service.backup_files(paths, description=description, on_log=log)
-
-        def restore(path):
-            return mutation_service.restore_backup(path, confirmed=True, on_log=log)
-
-        from cdmw.services.new_item_service import game_is_running
-
-        return remove_overlay(
-            package_root,
-            backup=backup,
-            restore_backup=restore,
-            game_running=game_is_running,
-            on_log=log,
-            stop_event=stop_event,
-        )
-
-    return run
-
-
 __all__ = [
     "export_task",
     "install_task",
     "model_source_cleanup_task",
-    "overlay_migration_task",
-    "overlay_removal_task",
     "plan_task",
     "snapshot_task",
 ]

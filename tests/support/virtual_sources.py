@@ -1,8 +1,9 @@
+"""Removed from the app with the virtual loader (decision 39); kept for tests only."""
 """Separate catalogue freshness from the content required by a virtual profile."""
 from pathlib import Path
 
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.virtual_loader import VirtualLoaderError
+from tests.support.virtual_domain import VirtualLoaderError
 from cdmw.services.new_item_provenance import SourceRevision, _stamp
 
 

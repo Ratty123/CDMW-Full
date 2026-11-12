@@ -10,7 +10,7 @@ from cdmw.domain.archives.iteminfo_composition import rows_of
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.iteminfo_operations import ItemFieldConflict
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
-from cdmw.services.independent_item_install import load_registry, prepare_install
+from tests.support.item_install import load_registry, prepare_install
 from cdmw.services.independent_item_package import package_bytes, read_package
 from cdmw.services.mod_merge_service import export_merged_mod, prepare_mod_merge
 from cdmw.services.new_item_mod_base import build_mod_base_snapshot, mod_folder_payloads

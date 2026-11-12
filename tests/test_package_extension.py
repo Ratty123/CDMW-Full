@@ -8,11 +8,11 @@ from cdmw.core.mod_compatibility import (
     LEGACY_SEMANTIC_EXPORT_FILE, SEMANTIC_EXPORT_FILE, read_semantic_export, semantic_export_path,
     semantic_export_wrapper)
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services import independent_item_package as owner
 from tests.test_independent_item_streaming import package  # noqa: F401 (fixture)
 from tests.test_semantic_export_contract import original_export  # noqa: F401 (fixture)
-from tests.test_virtual_loader import packages
+from tests.support.game_fixtures import packages
 
 
 def test_packages_are_written_as_cdmw_and_legacy_names_stay_writable(package, tmp_path):
@@ -70,17 +70,3 @@ def test_an_empty_folder_names_the_current_wrapper(tmp_path):
     assert semantic_export_wrapper(tmp_path) == tmp_path / SEMANTIC_EXPORT_FILE
 
 
-def test_virtual_profiles_mix_cdmw_and_legacy_packages(tmp_path, monkeypatch):
-    from cdmw.services import virtual_loader_process
-    from cdmw.services.virtual_loader_state import load_profile, publish_profile
-    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
-    root, paths = packages(tmp_path)
-    renamed = paths[0].rename(paths[0].with_suffix('.cdmw'))
-    selection = (renamed, paths[1])
-    publish_profile(virtual_loader_process.prepare_profile_in_subprocess(VirtualProfile(selection), root))
-    profile = load_profile(root)
-    assert profile['packages'] == [str(path) for path in selection]
-    assert len(profile['items']) == 2
-    # CDMW's own retained copies keep the name the runtime validates.
-    retained = sorted(Path(root, '.cdmw/virtual-loader/generations').glob('*/packages/*'))
-    assert len(retained) == 2 and all(path.suffix == '.cditem' for path in retained)

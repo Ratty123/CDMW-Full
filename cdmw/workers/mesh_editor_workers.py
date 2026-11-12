@@ -38,10 +38,6 @@ from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextureSnapshot
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.domain.archives.filters import archive_entry_game_root, archive_entry_package_group
-from cdmw.services.archive_overlay_install import (
-    restore_last_overlay_install,
-)
-from cdmw.services.new_item_service import game_is_running
 from cdmw.workers.mesh_editor_aux_workers import (
     MeshArchiveMaterialContextResult,
     MeshArchiveMaterialContextWorker,
@@ -955,33 +951,6 @@ class MeshDirectOutputWorker(QObject):
         )
 
 
-class MeshOverlayRestoreWorker(QObject):
-    completed = Signal(int, object)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(self, request_id: int, receipt_path: Path | str, mutation_service: object) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.receipt_path = Path(receipt_path)
-        self.mutation_service = mutation_service
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            root = restore_last_overlay_install(
-                self.receipt_path,
-                confirmed=True,
-                restore_backup=lambda path: self.mutation_service.restore_backup(path, confirmed=True),
-                game_running=game_is_running,
-            )
-            self.completed.emit(self.request_id, root)
-        except Exception as exc:
-            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            self.finished.emit()
-
-
 class MeshReportWriteWorker(QObject):
     """Stage and atomically publish a small Mesh Editor JSON report."""
 
@@ -1060,6 +1029,5 @@ __all__ = [
     "MeshExportValidationWorker",
     "MeshReportWriteWorker",
     "MeshRebuildReportWorker",
-    "MeshOverlayRestoreWorker",
     "MeshTextureSourceResolveWorker",
 ]

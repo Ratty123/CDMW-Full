@@ -84,7 +84,6 @@ class RustMeshEditorHostFrame(QFrame):
     export_pac_requested = Signal()
     add_to_archive_browser_requested = Signal()
     continue_modified_mesh_requested = Signal()
-    restore_overlay_requested = Signal()
     reopen_edit_requested = Signal()
     close_session_requested = Signal()
 

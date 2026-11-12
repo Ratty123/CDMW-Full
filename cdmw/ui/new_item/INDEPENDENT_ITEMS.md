@@ -2,10 +2,12 @@
 
 Choose **Output > Independent item package (Experimental) · .cdmw**, build the plan and
 select **Write item package**. Share the resulting `.cdmw` file. Recipients add it
-to **Mod Management > Mods**, choose **Apply changes**, then **Launch game** for
-experimental virtual loading. Physical installation remains available through
-**Advanced > Item identities > Install into game archives**. Existing folder exports and
-game overlays remain available.
+to **Mod Management > Mods** and send it to DMM, which loads it as a mod. CDMW never
+installs into the game: the virtual loader and the archive-group overlay installs
+were removed (decision 39). Sections below that describe virtual profiles,
+**Apply changes** or installing into the game archives record how those removed
+routes worked; Browse Archives' **Remove What an Older CDMW Installed...** takes
+such an old install out of a game folder.
 
 ## File extension
 
@@ -14,11 +16,11 @@ Packages written before the rename end in `.cditem`; every reader accepts both, 
 updating a `.cditem` package in place keeps its name. The wire format and its
 versions did not change. CDMW's own retained copies under the game's
 `.cdmw/independent-items/` folder keep the `.cditem` name that the virtual loader
-validates, as do the `packages/<sha256>.cditem` members inside a semantic export.
+validated, as do the `packages/<sha256>.cditem` members inside a semantic export.
 
 Since the October 2026 DLC update (game 2.04.02), Mod Management is disabled and
 neither installation route can load items: the game authenticates its archive mount
-list (see [`VIRTUAL_LOADER.md`](VIRTUAL_LOADER.md)). **Write item package** still works
+list. **Write item package** still works
 against the updated tables. A package written for an earlier game version pins that
 version's tables and refuses until it is written again. The developer command
 `scripts/rebuild_cditem.py` plans such packages again from their retained recipes and
@@ -1161,8 +1163,8 @@ admission and the required game evidence remain pending. Exact backup hashes,
 stable IDs and installation dependency checks do not identify the providers
 needed by arbitrary saves. Failed or unknown save attempts retain their observed
 byte changes and reported outcome without claiming a committed save. The
-[save admission boundaries](VIRTUAL_LOADER.md#save-lineage-and-migration-admission)
-describe the current policy, missing origin evidence and absent-provider
+save admission boundaries (in the removed virtual loader's notes)
+described the current policy, missing origin evidence and absent-provider
 experiment. Game-update admission likewise retains exact source hashes until a
 record-level adapter has independent layout and semantic witnesses. No general
 runtime command API or unrestricted native-plugin compatibility guarantee is
@@ -1296,21 +1298,13 @@ artifacts, logical resource budgets, unchanged-stamp source changes, exact worke
 witnesses and atomic publication. `tests/test_semantic_export_ui.py` drives the
 queued exporter and reviewed importer with owned fixtures.
 
-`tests/test_overlay_target_recovery.py` checks per-target rollback after
-replace/unlink errors, foreign changes to attempted and unattempted targets,
-immutable backup evidence and verified cleanup. Virtual publication outcomes and
-save-attempt evidence have separate focused contracts in the
-[Virtual loader notes](VIRTUAL_LOADER.md#evidence-gates-and-validation).
-
-`tests/test_independent_items_ui.py` and the Output test in
-`tests/test_new_item_rust_ui.py` drive the real Qt controls through the Rust input
-bridge without a visible renderer. They test preservation of authoring choices,
-package export, reviewed installation/removal and shutdown with pending work.
+The Output test in `tests/test_new_item_rust_ui.py` drives the real Qt controls
+through the Rust input bridge without a visible renderer. It tests preservation of
+authoring choices, package export and shutdown with pending work.
 
 These tests are source and synthetic-package evidence. Separate controlled game
-results for selected swords, effects and save/reload are recorded in the
-[Virtual loader validation notes](VIRTUAL_LOADER.md#evidence-gates-and-validation);
-they do not certify every supported authoring configuration.
+results for selected swords, effects and save/reload were recorded in the
+removed virtual loader's notes (git history before decision 39); they do not certify every supported authoring configuration.
 Before claiming a usable game configuration, test the actual executable version
 and inputs with a disposable save: acquire and equip both colliding-source items,
 check models/icons/localisation/perks/effects and crafting, save/reload, update one,

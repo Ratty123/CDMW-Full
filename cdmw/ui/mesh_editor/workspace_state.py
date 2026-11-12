@@ -162,7 +162,6 @@ class WorkspaceStateMixin:
             "run_rebuild_report_button",
             "export_mesh_file_button",
             "build_mod_button",
-            "restore_overlay_button",
             "save_rebuild_report_button",
             "pose_preview_button",
             "animation_speed_combo",

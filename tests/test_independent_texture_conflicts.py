@@ -1,12 +1,12 @@
 """Existing raw inputs cannot erase typed texture requirements."""
 import pytest
 
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.independent_item_compatibility import scan_independent_conflicts
-from cdmw.services.independent_item_install import prepare_install
+from tests.support.item_install import prepare_install
 from cdmw.services.independent_item_package import package_bytes
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from tests.test_independent_item_compatibility import mount_mod
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_texture_composition import backups, visible_texture

@@ -1,67 +1,8 @@
-"""Private startup profiles; portable item packages keep their existing format."""
-from dataclasses import dataclass
-from pathlib import Path
+"""The error type the composition and profile readers raise.
+"""
 
 
 class VirtualLoaderError(ValueError):
     pass
 
 
-@dataclass(frozen=True)
-class VirtualProfile:
-    packages: tuple[Path, ...] = ()
-    mods: tuple[Path, ...] = ()
-    disabled_packages: tuple[Path, ...] = ()
-    disabled_mods: tuple[Path, ...] = ()
-
-
-@dataclass(frozen=True)
-class PreparedSnapshot:
-    root: Path
-    generation: str
-    files: tuple[tuple[str, bytes], ...]
-    registry: bytes
-    profile: bytes
-    observed: tuple[tuple[str, bytes | None], ...]
-    source_revision: object
-    external: object
-    summary: tuple[str, ...]
-    retained_packages: tuple[tuple[str, bytes], ...] = ()
-
-
-@dataclass(frozen=True)
-class VirtualLaunchPlan:
-    root: Path
-    generation: str
-    executable: Path
-    executable_sha256: str
-    snapshot: Path
-    manifest_sha256: str
-
-
-@dataclass(frozen=True)
-class VirtualSaveBackup:
-    directory: Path
-    source: Path
-    manifest_sha256: str
-    verified_files: tuple[tuple[str, int, str], ...] = ()
-    observed_utc: str = ''
-
-
-@dataclass(frozen=True)
-class ExperimentalLaunchReview:
-    plan: VirtualLaunchPlan
-    backup: VirtualSaveBackup
-    receipt_token: str = ''
-    diagnostics: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class VirtualSessionStatus:
-    state: str
-    detail: str
-    generation: str = ''
-    pid: int | None = None
-    progress: int | None = None
-    receipt_path: str = ''
-    diagnostics: tuple[str, ...] = ()

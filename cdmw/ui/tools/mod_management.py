@@ -1,15 +1,19 @@
-"""Utilities entry for existing mod merge, update and overlay workflows."""
-from pathlib import Path
+"""Utilities entry: the Mods page (CDMW packages sent to DMM) and the mod folder tools.
 
-from cdmw import constants
+The overlay pages, Item identities, Shared files and Health and recovery went
+with the installs into the game (decisions 39 and 42); Browse Archives' Remove
+What an Older CDMW Installed... takes out what those installs left.
+"""
 
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
-    QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QStackedWidget, QVBoxLayout, QWidget,
+    QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
+
+# The Mods page shows its own send progress on its lane; these are the folder tools'.
+_LANES = {'mod_merge', 'mod_update'}
 
 
 class ModManagementTab(QWidget):
@@ -28,12 +32,8 @@ class ModManagementTab(QWidget):
         context = dict(getattr(self.controller, '_template_preview_context', None) or {})
         context.update(preview_context or {})
         self.controller._template_preview_context = context
-        self._migration_preview_lane = self.controller.create_lookup_lane()
-        self._migration_preview_lane.completed.connect(self._confirm_overlay_migration)
-        self._migration_preview_lane.failed.connect(self._migration_preview_failed)
         self._closed = False
         self._refresh_needed = True
-        self._overview_refresh_needed = False
         self._last_progress_message = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -58,94 +58,30 @@ class ModManagementTab(QWidget):
         self.choose_game.clicked.connect(self._choose_game)
         source_row.addWidget(self.choose_game)
         layout.addLayout(source_row)
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
-        services = getattr(getattr(window, 'app_context', None), 'services', None)
-        mutations = getattr(services, 'require_archive_mutations', None)
+        from cdmw.ui.tools.dmm_packages_page import DmmPackagesPage
         root = str(self._get_package_root() or '')
-        self.inventory = OverlayManagerDialog(self.controller, root, mutations() if callable(mutations) else None,
-                                              self, embedded=True, catalogue_service=getattr(
-                                                  getattr(window, 'archive', None), 'archive_catalogue_service', None))
         self.merge_page = ModMergeDialog(self.controller, root, self, embedded=True)
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
-        from cdmw.ui.tools.mod_management_overview import ModManagementOverview
-        self.overview = ModManagementOverview(self.controller, self, mutations=self.inventory.mutations)
-        from cdmw.ui.new_item.independent_items_page import IndependentItemsPage
-        self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
-        self.independent_page.activity.connect(self._append_activity)
-        self.independent_page.mods_requested.connect(lambda: self.open_page('mods'))
-        from cdmw import constants
-        if constants.VIRTUAL_LOADING_ENABLED:
-            from cdmw.ui.tools.mod_management_list import ModManagementList
-            self.virtual_page = ModManagementList(self.controller, root, self.inventory, self.independent_page, self)
-        else:
-            from cdmw.ui.tools.dmm_packages_page import DmmPackagesPage
-            self.virtual_page = DmmPackagesPage(self.controller, root, self)
-        self.mods_pages = QStackedWidget()
-        self.mods_pages.setObjectName('mod_management_mods')
-        self.mods_pages.addWidget(self.virtual_page)
-        self.details_page = QWidget()
-        details_layout = QVBoxLayout(self.details_page)
-        details_layout.setContentsMargins(0, 0, 0, 0)
-        self.back_to_mods = QPushButton('Back to mod list')
-        self.back_to_mods.clicked.connect(lambda: self.open_page('mods'))
-        details_layout.addWidget(self.back_to_mods)
-        details_layout.addWidget(self.inventory, 1)
-        self.inventory.inventory_panel.hide()
-        self.mods_pages.addWidget(self.details_page)
-        self.virtual_page.details_requested.connect(self._show_mod_details)
-        self.virtual_page.activity.connect(self._append_activity)
+        self.mods_page = DmmPackagesPage(self.controller, root, self)
+        #: The name earlier callers and tests use for the Mods page.
+        self.virtual_page = self.mods_page
+        self.mods_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
         self.repackage_page = ModPackageRetrofitToolWidget()
-        recovery_page = QWidget()
-        recovery_layout = QVBoxLayout(recovery_page)
-        recovery_layout.setContentsMargins(0, 0, 0, 0)
-        self._page_by_key = {'mods': self.virtual_page, 'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
-                             'shared': self.independent_page.shared_page,
-                             'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
-                             'recovery': recovery_page}
-        self.overview.refresh_requested.connect(self.refresh)
-        self.inventory.inventory_changed.connect(self.overview.set_entries)
-        self.inventory.updates_requested.connect(self._update_mods)
-        self.inventory.activity.connect(self._append_activity)
-        # Preserve existing entry-point attributes for callers; navigation is now
+        self._page_by_key = {'mods': self.mods_page, 'virtual': self.mods_page, 'repackage': self.repackage_page,
+                             'merge': self.merge_page, 'updates': self.update_page}
+        # Preserve existing entry-point attributes for callers; navigation is
         # through the inline pages, not launcher buttons and child windows.
-        self.overlay_removal_button = QPushButton('Installed overlays', self)
-        self.overlay_removal_button.clicked.connect(self._remove_overlay)
-        self.overlay_removal_button.hide()
         self.merge_button = QPushButton('Merge mods', self)
         self.merge_button.clicked.connect(self._merge_mods)
         self.merge_button.hide()
         self.update_button = QPushButton('Check mods for game updates', self)
         self.update_button.clicked.connect(self._update_mods)
         self.update_button.hide()
-        saved = QGroupBox('Saved installs')
-        saved_layout = QVBoxLayout(saved)
-        recovery_layout.addWidget(saved)
-        saved.setToolTip('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
-                         'Start fresh retires an unmounted set.')
-        repair_row = QHBoxLayout()
-        repair_row.addWidget(self.inventory.rebuild_button)
-        repair_row.addWidget(self.inventory.start_fresh_button)
-        repair_row.addStretch(1)
-        saved_layout.addLayout(repair_row)
-        legacy = QGroupBox('Archive recovery')
-        legacy_layout = QVBoxLayout(legacy)
-        legacy.setToolTip('For items previously written into shipped archives.')
-        recovery_layout.addWidget(legacy)
-        self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
-        self.overlay_migration_button.setToolTip(
-            "For items already written into the shipped archives. Every archive entry that differs from the oldest "
-            "backup of it is carried into the overlay directory, and the archives themselves go back to that backup, "
-            "so the game reads the same thing while the files it shipped are its own again.")
-        self.overlay_migration_button.clicked.connect(self._migrate_overlay)
-        legacy_layout.addWidget(self.overlay_migration_button)
-        recovery_layout.addStretch(1)
         from cdmw.ui.tools.mod_management_advanced import ModManagementPages
-        self.pages = ModManagementPages(self.mods_pages, self.overview, recovery_page, self.independent_page,
-                                        self.repackage_page, self.merge_page, self.update_page, self)
-        self.recovery = self.pages.repair_toggle
+        self.pages = ModManagementPages(self.mods_page, self.repackage_page, self.merge_page, self.update_page, self)
         layout.addWidget(self.pages, 1)
         self.pages.currentChanged.connect(self._page_changed)
         self.pages.task_changed.connect(lambda: self._page_changed(0))
@@ -171,46 +107,26 @@ class ModManagementTab(QWidget):
         self.log.setProperty("followTail", True)
         self.log.setMaximumBlockCount(2000)
         self.log.hide()
-        self.overview.activity.connect(self._append_activity)
         self.controller.log_message.connect(self._operation_log)
         self.controller.status_message.connect(self._operation_status)
         self.controller.operation_progress.connect(self._operation_progress)
-        self.controller.install_finished.connect(self._installed)
         self.controller.busy_changed.connect(self._busy_changed)
         self._busy_changed(self.controller.busy)
 
     def open_page(self, key):
-        if key in {'installed', 'recovery', 'shared'} and not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
         page = self._page_by_key.get(key)
         if page is not None and not self._closed:
             with QSignalBlocker(self.pages), QSignalBlocker(self.pages.task):
-                if page in (self.virtual_page, self.inventory):
-                    self.mods_pages.setCurrentWidget(self.virtual_page if page is self.virtual_page else self.details_page)
-                    self.pages.setCurrentWidget(self.mods_pages)
-                else:
-                    self.pages.open_page(page)
+                self.pages.open_page(page)
             self._page_changed(0)
 
     def _current_page(self):
-        if self.pages.currentWidget() is self.mods_pages:
-            return self.virtual_page if self.mods_pages.currentWidget() is self.virtual_page else self.inventory
         return self.pages.current_page()
-
-    def _show_mod_details(self, identity):
-        self.open_page('installed')
-        for row, entry in enumerate(self.inventory._entries):
-            if entry.id == identity:
-                self.inventory.search.clear()
-                self.inventory.table.selectRow(row)
-                break
 
     def _page_changed(self, _index):
         self._update_operation_bar()
-        if self._current_page() is self.independent_page:
-            self.independent_page.refresh()
-        if self._current_page() is self.virtual_page:
-            self.virtual_page.refresh()
+        if self._current_page() is self.mods_page:
+            self.mods_page.refresh()
         if self._current_page() is not self.repackage_page or self.repackage_ui is not None:
             return
         if self._repackage_owner is None:
@@ -237,10 +153,10 @@ class ModManagementTab(QWidget):
 
     def refresh(self):
         self._refresh_needed = True
-        self._refresh_inventory()
+        self._refresh_pages()
 
     def _owns_operation(self):
-        return getattr(self.controller, '_lane', '') in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items', 'virtual_loader'}
+        return getattr(self.controller, '_lane', '') in _LANES
 
     def _append_activity(self, message):
         if str(message).strip():
@@ -257,7 +173,7 @@ class ModManagementTab(QWidget):
             self._status_changed(message, error)
 
     def _operation_progress(self, lane, current, total, message):
-        if lane in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items', 'virtual_loader'}:
+        if lane in _LANES:
             self.progress.setRange(0, max(0, total))
             self.progress.setValue(current)
             self.status.setText(str(message))
@@ -268,92 +184,51 @@ class ModManagementTab(QWidget):
                 self._status_changed(message)
 
     def _cancel(self):
-        if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying:
+        if self._owns_operation() and not self.mods_page._applying:
             self.controller.cancel_operation(self.controller._lane)
 
     def showEvent(self, event):
         super().showEvent(event)
         if not self._closed:
             self._refresh_needed = True
-            QTimer.singleShot(0, self, self._refresh_inventory)
+            QTimer.singleShot(0, self, self._refresh_pages)
 
-    def _refresh_inventory(self):
-        if self._closed or not self._refresh_needed or self.inventory._inventory_blocked() or not self.isVisible():
+    def _refresh_pages(self):
+        if self._closed or not self._refresh_needed or not self.isVisible():
             return
         self._refresh_needed = False
         root = str(self._get_package_root() or '').strip()
         self.game_folder.setText(root)
-        if self.pages.folder_tools:
-            self.overview.refresh(root)
-        if root != str(self.inventory.package_root):
-            self.overview.set_entries(())
-            self.inventory._loaded(())
-            self.inventory.package_root = root
-            self.merge_page.game_root.setText(root)
-            self.update_page.game_root.setText(root)
-        self.inventory.refresh()
-        self.independent_page.set_game_root(root)
-        self.virtual_page.set_game_root(root)
-        if self._current_page() is self.independent_page:
-            self.independent_page.refresh()
-        if self._current_page() is self.virtual_page:
-            self.virtual_page.refresh()
+        self.merge_page.game_root.setText(root)
+        self.update_page.game_root.setText(root)
+        self.mods_page.set_game_root(root)
+        if self._current_page() is self.mods_page:
+            self.mods_page.refresh()
 
     def _status_changed(self, message, error=False):
         self.status_message_requested.emit(str(message), bool(error))
 
     def _update_operation_bar(self):
-        # The virtual workspace already owns its status, percentage and Cancel.
-        # Keep the shared controls available when navigating to another page.
-        local_controls = (self._current_page() is self.virtual_page
-                          and self.controller._lane == 'virtual_loader')
-        self.operation_bar.setVisible(self.controller.busy and self._owns_operation() and not local_controls)
+        self.operation_bar.setVisible(self.controller.busy and self._owns_operation())
 
     def _busy_changed(self, busy):
         self._last_progress_message = None
         busy = self.controller.busy  # A completed review may already have queued its confirmed apply.
-        if busy and self.controller._lane != 'snapshot':
-            self.overview.cancel_read()
-            self._overview_refresh_needed = True
         self.choose_game.setEnabled(not busy and callable(self._set_package_root))
-        self.overview.refresh_button.setEnabled(not busy)
-        for button in (self.overlay_removal_button, self.merge_button, self.update_button,
-                       self.overlay_migration_button):
+        for button in (self.merge_button, self.update_button):
             button.setEnabled(not busy)
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            self.overlay_removal_button.setEnabled(False)
-            self.overlay_migration_button.setEnabled(False)
         own = bool(busy and self._owns_operation())
         self._update_operation_bar()
         self.progress.setVisible(own)
         self.cancel_button.setVisible(own)
-        self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying)
+        self.cancel_button.setEnabled(own and not self.mods_page._applying)
         if not busy:
-            if self._overview_refresh_needed and not self._closed and self.pages.folder_tools:
-                self._overview_refresh_needed = False
-                self.overview.refresh(self._get_package_root())
             for page in (self.merge_page, self.update_page):
                 if page._working:
                     page._working = False
                     page.status.setText('Operation finished or cancelled. Review the results before continuing.')
                     page._buttons()
-            QTimer.singleShot(0, self, self._refresh_inventory)
-
-    def _installed(self, result):
-        self._refresh_needed = True
-        QTimer.singleShot(0, self, self._refresh_inventory)
-        from cdmw.services.archive_overlay_install import OverlayInstallResult
-        from cdmw.services.independent_item_install import IdentityDeletionResult
-        if isinstance(result, (OverlayInstallResult, IdentityDeletionResult)):
-            return  # The owning page reports its completed operation.
-        if hasattr(result, 'removed_overlay_id') or hasattr(result, 'retired_inventory'):
-            return  # The inventory owns this result and refreshes itself.
-        from cdmw.ui.new_item.panels_output import install_result_report
-        title, message = install_result_report(result)
-        self.log.appendPlainText(message)
-        self._status_changed(message)
-        if not hasattr(result, 'removed_overlay_id'):
-            QMessageBox.information(self, title, message)
+            QTimer.singleShot(0, self, self._refresh_pages)
 
     def _merge_mods(self) -> None:
         self.open_page('merge')
@@ -361,89 +236,17 @@ class ModManagementTab(QWidget):
     def _update_mods(self) -> None:
         self.open_page('updates')
 
-    def _overlay_services(self, title: str):
-        """The mutation service (for the backup) and the package root, or None with a word."""
-
-        services = getattr(getattr(self._window, "app_context", None), "services", None)
-        mutations = getattr(services, "require_archive_mutations", None)
-        if not callable(mutations):
-            QMessageBox.warning(self, title, "The archive mutation service is not available in this window.")
-            return None
-        root = str(self._get_package_root() or "").strip()
-        if not root:
-            QMessageBox.warning(self, title, "Point the workbench at the game folder first.")
-            return None
-        return mutations(), Path(root)
-
-    def _migrate_overlay(self) -> None:
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        title = "Move installed items into the overlay"
-        found = self._overlay_services(title)
-        if found is None:
-            return
-        mutations, root = found
-        from cdmw.services.archive_overlay_migration import plan_migration
-
-        self.controller.status_message.emit("Reading installed items for recovery…", False)
-        self._migration_preview_lane.request((mutations, root), lambda stop: plan_migration(root, stop_event=stop))
-
-    def _migration_preview_failed(self, _key, message):
-        QMessageBox.warning(self, "Move installed items into the overlay", f"The archives could not be read: {message}")
-
-    def _confirm_overlay_migration(self, key, preview):
-        title = "Move installed items into the overlay"
-        mutations, root = key
-        current = self._overlay_services(title)
-        if current is None or current[0] is not mutations or current[1] != root:
-            self.controller.status_message.emit("Recovery cancelled because the archive source changed.", True)
-            return
-        if preview.is_empty:
-            QMessageBox.information(self, title, "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.")
-            return
-        listed = "\n".join(f"- {item.path}" for item in preview.entries[:12])
-        more = f"\n- ... {len(preview.entries) - 12} more" if len(preview.entries) > 12 else ""
-        confirmation = QMessageBox.question(
-            self,
-            title,
-            (
-                f"Move {len(preview.entries)} archive entrie(s) into the overlay and put the shipped archives back?\n\n"
-                f"{listed}{more}\n\n"
-                f"{len(preview.restore)} archive file(s) go back to their oldest backup ({len(preview.backups)} backup(s) read). "
-                "The game must not be running."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
-        self.controller.start_overlay_migration(mutations, root)
-
-    def _remove_overlay(self) -> None:
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        self.open_page('installed')
-        self.inventory.refresh()
-
     def iter_shutdown_workers(self):
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         workers = list(self.controller.iter_shutdown_workers())
         workers.extend(self.repackage_page.iter_shutdown_workers())
-        for dialog in self.findChildren(OverlayManagerDialog):
-            workers.extend(dialog.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self):
         if self._closed:
             return
         self._closed = True
-        self.overview.request_shutdown()
         self.repackage_page.request_shutdown()
-        self.independent_page.request_shutdown()
-        self.virtual_page.request_shutdown()
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
-        for dialog in self.findChildren(OverlayManagerDialog):
-            dialog.request_shutdown()
+        self.mods_page.request_shutdown()
         for page in (self.merge_page, self.update_page):
             page._finished(0)
         self.controller.request_shutdown()

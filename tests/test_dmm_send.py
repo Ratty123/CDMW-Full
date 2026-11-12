@@ -64,7 +64,7 @@ def test_a_resend_never_leaves_the_previous_version_in_dmms_mods_folder(tmp_path
 
 def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     from cdmw.services.dmm_send import send_item_packages
-    from tests.test_virtual_loader import game_bytes, packages
+    from tests.support.game_fixtures import game_bytes, packages
     root, files = packages(tmp_path)
     before = game_bytes(root)
     _install, mods = _dmm(tmp_path)
@@ -99,7 +99,7 @@ def test_a_later_send_keeps_every_item_key(tmp_path):
     from cdmw.services.dmm_send import send_item_packages
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.independent_item_package import read_package
-    from tests.test_virtual_loader import packages
+    from tests.support.game_fixtures import packages
     root, files = packages(tmp_path, count=3)
     _install, mods = _dmm(tmp_path)
     send_item_packages(files, root, mods, "CDMW items")
@@ -110,3 +110,16 @@ def test_a_later_send_keeps_every_item_key(tmp_path):
     for path in files[1:]:
         identity = read_package(path).identity
         assert second[identity] == first[identity]
+
+
+def test_an_overlay_from_an_earlier_version_does_not_block_sending_to_dmm(tmp_path):
+    # Moved from the removed virtual-loader tests: an older CDMW's overlay install in
+    # the game must not stop the live composition that Send to DMM uses.
+    from cdmw.services.virtual_loader_composition import compose_packages
+    from tests.support.game_fixtures import packages
+    from tests.support.item_install import prepare_install
+    from tests.test_archive_overlay_manager import Backups
+    root, files = packages(tmp_path)
+    Backups(tmp_path).apply(prepare_install(files[:1], root).preparation)
+    resolved, composed, _flags, _pathc = compose_packages(files, (), root)
+    assert len(resolved.registry['items']) == 2 and composed

@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import re
 
-# Archive-group overlays are incompatible with the October 2026 DLC layout.
-# Keep their implementation for future repair, without a user-facing opt-in.
-ARCHIVE_OVERLAYS_ENABLED = False
 # Mod Management handles CDMW packages only; DMM handles ordinary mods. The
-# mod folder tools (convert, combine, update, health) stay implemented but hidden.
+# mod folder tools (convert, combine, update) stay implemented but hidden.
+# CDMW's own installs into the game (archive overlays and the virtual loader)
+# are removed; Browse Archives' Remove What an Older CDMW Installed... takes
+# out what earlier versions put there.
 MOD_FOLDER_TOOLS_ENABLED = False
-# DMM loads CDMW's items: Mods sends packages to DMM as one mod. CDMW's own loading
-# (Apply changes, Launch game and the runtime in bin64) stays implemented but hidden.
-VIRTUAL_LOADING_ENABLED = False
 # New packages are written as .cdmw. Packages from before the rename keep .cditem
 # and stay readable. CDMW's own copies under the game's .cdmw folder keep .cditem.
 PACKAGE_EXTENSION = ".cdmw"

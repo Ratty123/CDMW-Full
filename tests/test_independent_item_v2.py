@@ -9,17 +9,17 @@ import pytest
 
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.mod_package import UnsupportedCapability, capability_result
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_rebuild, prepare_remove
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import load_registry, prepare_install, prepare_rebuild, prepare_remove
 from cdmw.services.independent_item_package import _v1_package, canonical, digest, package_bytes, package_metadata, read_package, write_package
 from cdmw.services.independent_mod_package import migrate_v1
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups
 from tests.test_independent_items import authored, setup_game
 from tests.test_independent_item_regressions import files_in
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 def packed(meta, blobs=(), comment=b''):
@@ -82,7 +82,7 @@ def test_unknown_or_malformed_required_behavior_refuses_before_game_access(tmp_p
         meta['ignored-behavior'] = {}
     elif mutation == 'module-field':
         module['ignored-behavior'] = {}
-    import cdmw.services.independent_item_install as installer
+    import tests.support.item_install as installer
     monkeypatch.setattr(installer, 'load_registry', lambda *args: pytest.fail('allocation must not start'))
     before = files_in(tmp_path)
     with pytest.raises(IndependentItemError, match=match):
@@ -231,12 +231,3 @@ def test_compilation_identity_covers_each_semantic_input(tmp_path, target):
         validate_compilation(changed)
 
 
-def test_v2_survives_real_preparation_process_and_publication(tmp_path):
-    from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
-    _, original = authored(tmp_path / 'author')
-    setup_game(tmp_path / 'recipient')
-    root, path = tmp_path / 'recipient/game', tmp_path / 'item.cditem'
-    path.write_bytes(package_bytes(migrate_v1(original)))
-    prepared = prepare_profile_in_subprocess(VirtualProfile((path,)), root)
-    publish_profile(prepared)
-    assert load_profile(root)['compilation']['inputs']['packages'][0]['version'] == 2

@@ -7,8 +7,8 @@ from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
 from cdmw.core.iteminfo_row import clone_iteminfo_row
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services import independent_item_install as install
-from cdmw.services.independent_item_install import (
+import tests.support.item_install as install
+from tests.support.item_install import (
     load_registry, prepare_install, prepare_remove, resolve_items,
 )
 from cdmw.services.independent_item_package import from_plan, package_bytes
@@ -81,7 +81,7 @@ def test_managed_name_hash_reservation_survives_each_installation_state(tmp_path
     held, incoming = [packages[i] for i in order]
     backups.apply(prepare_install([package_bytes(held)], root).preparation)
     if state == 'disabled':
-        from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
+        from tests.support.overlay_manager import prepare_overlay_enabled
         layer = load_registry(root)['items'][held.identity]['layer']
         backups.apply(prepare_overlay_enabled(root, layer, False))
     elif state == 'removed':

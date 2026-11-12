@@ -8,9 +8,8 @@ from cdmw.core.papgt_format import papgt_with_directory, parse_papgt, serialize_
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.independent_item_compatibility import scan_independent_conflicts, prepare_independent_mod_merge
-from cdmw.services.independent_item_install import prepare_install, prepare_remove, load_registry
+from tests.support.item_install import prepare_install, prepare_remove, load_registry
 from cdmw.services.independent_item_package import package_bytes
-from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
 from tests.test_archive_overlay_manager import Backups, snapshot_of
 from tests.test_independent_items import authored, setup_game
 from tests.test_new_item_service import build_package, _table4, OTHER, TEMPLATE, _named_row
@@ -211,25 +210,6 @@ def test_scan_prospective_folder_exports_merged_copy_without_changing_sources(tm
     assert rows[OTHER.to_bytes(4, 'little')] == dict(_table(files[body], files[head])[1])[OTHER.to_bytes(4, 'little')]
     assert payloads['character/texture/unrelated.dat'].read_bytes() == b'foreign asset'
     assert all(p.read_bytes() == data for p, data in before.items())
-
-
-def test_scan_and_reviewed_rebuild_detect_later_mod_and_preserve_removal(tmp_path):
-    _, package = authored(tmp_path / 'author')
-    _, stock, _ = setup_game(tmp_path / 'recipient')
-    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
-    backups.apply(prepare_install([package_bytes(package)], root).preparation)
-    foreign = mount_mod(root, tmp_path / 'foreign', table_change(stock), first=True)
-    report = scan_independent_conflicts(root)
-    assert report.compatible
-    backups.apply(prepare_overlay_rebuild(root))
-    assert snapshot_of(root).rows[OTHER].max_stack_count == stock.rows[OTHER].max_stack_count + 1
-    # Removing the external mount must not resurrect its contribution from a journal.
-    mount = root / 'meta/0.papgt'
-    data = mount.read_bytes()
-    mount.write_bytes(serialize_papgt([r for r in parse_papgt(data) if r.name != 'foreign'], header=data[:12]))
-    backups.apply(prepare_overlay_rebuild(root))
-    assert snapshot_of(root).rows[OTHER].max_stack_count == stock.rows[OTHER].max_stack_count
-    assert all(path.read_bytes() == value for path, value in foreign.items())
 
 
 def test_conflicting_providers_unknown_formats_and_cancel_do_not_claim_compatibility(tmp_path):

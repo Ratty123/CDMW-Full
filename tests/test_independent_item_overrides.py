@@ -5,18 +5,18 @@ import pytest
 
 from cdmw.core.iteminfo_declared_fields import read_field
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.independent_item_operations import from_declared_iteminfo_operations,from_iteminfo_operations
 from cdmw.services.independent_item_package import package_bytes,read_package,package_metadata
-from cdmw.services.independent_item_install import prepare_install,prepare_rebuild,prepare_remove,load_registry
+from tests.support.item_install import prepare_install,prepare_rebuild,prepare_remove,load_registry
 from cdmw.services.independent_mod_package import read_v2
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from tests.test_independent_item_behavior import behavior_game,definition_game,extended_game
 from tests.test_independent_items import setup_game
 from tests.test_independent_item_fields import virtual_row
 from tests.test_archive_overlay_manager import Backups,snapshot_of
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 from tests.test_iteminfo_overrides import declared
 
 
@@ -101,21 +101,6 @@ def test_borrowed_stock_records_are_protected_from_other_override_packages(tmp_p
     assert game_bytes(root)==before
 
 
-def test_stock_disable_rebuild_and_enable_preserve_variable_field_intent(tmp_path,behavior_game):
-    from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    _,snapshot,_=setup_game(tmp_path); root=tmp_path/'game'; backups=Backups(tmp_path)
-    first=package(snapshot,'behavior','memo','Variable memo'); second=package(snapshot,'inventory','tags',[321])
-    backups.apply(prepare_install([package_bytes(first),package_bytes(second)],root).preparation)
-    registry=load_registry(root); layer=registry['items'][first.identity]['layer']
-    backups.apply(prepare_overlay_enabled(root,layer,False)); backups.apply(prepare_overlay_rebuild(root))
-    raw=snapshot_of(root).rows[1001295].raw
-    assert read_field(raw,('behavior','memo'))==read_field(snapshot.rows[1001295].raw,('behavior','memo'))
-    assert read_field(raw,('inventory','tags'))==[321]
-    backups.apply(prepare_overlay_enabled(root,layer,True))
-    assert read_field(snapshot_of(root).rows[1001295].raw,('behavior','memo'))=='Variable memo'
-
-
 def test_unrelated_preparation_reads_do_not_expand_a_stock_packages_requirements(tmp_path,behavior_game):
     from cdmw.services.independent_item_operations import lower_field_operations
     _,snapshot,_=setup_game(tmp_path)
@@ -126,7 +111,7 @@ def test_unrelated_preparation_reads_do_not_expand_a_stock_packages_requirements
 
 
 def test_variable_stock_publication_failure_restores_exact_owned_archive_and_registry_bytes(tmp_path,behavior_game,monkeypatch):
-    import cdmw.services.archive_overlay_manager as overlays
+    import tests.support.overlay_manager as overlays
     from tests.test_independent_item_regressions import files_in
     _,snapshot,_=setup_game(tmp_path); root=tmp_path/'game'
     value=package(snapshot,'behavior','memo','A resized record requiring new directory offsets')

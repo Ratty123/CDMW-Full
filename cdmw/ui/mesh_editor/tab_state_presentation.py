@@ -156,18 +156,12 @@ class MeshEditorStatePresentationMixin:
             "standalone_replace_from_archive_button",
             "standalone_export_mesh_file_button",
             "standalone_build_mod_button",
-            "standalone_restore_overlay_button",
             "standalone_export_editable_package_button",
             "standalone_import_edited_package_button",
             "standalone_open_editable_package_folder_button",
         ):
             button = getattr(self, button_name, None)
             if button is None:
-                continue
-            from cdmw import constants
-            if button_name == "standalone_restore_overlay_button" and not constants.ARCHIVE_OVERLAYS_ENABLED:
-                button.setEnabled(False)
-                button.hide()
                 continue
             enabled = has_standalone and not output_task_active
             if button_name == "standalone_replace_from_archive_button":
@@ -184,9 +178,6 @@ class MeshEditorStatePresentationMixin:
                     enabled = enabled and not self._standalone_replacement_companions_required()
                 if button_name != "standalone_export_mesh_file_button":
                     enabled = enabled and has_archive_target
-            elif button_name == "standalone_restore_overlay_button":
-                receipt = self._mesh_overlay_receipt_path()
-                enabled = enabled and receipt is not None and receipt.is_file()
             elif ui_state.output_policy == MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value and button_name in {
                 "standalone_export_editable_package_button", "standalone_import_edited_package_button",
             }:

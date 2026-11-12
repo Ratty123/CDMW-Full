@@ -5,12 +5,14 @@ CDMW never writes into the game's archives. What is left here:
 - ``list_backups`` and ``restore_backup``, behind Browse Archives' **Restore
   Backup...**, which puts back the archive files an older CDMW version patched
   into the game, from the backup it made then;
-- ``backup_files`` and ``restore_backup`` for the archive-group overlay
-  installs, which stay implemented but switched off (``ARCHIVE_OVERLAYS_ENABLED``
-  and ``VIRTUAL_LOADING_ENABLED`` in ``cdmw.constants`` are False).
+- ``backup_files`` and ``restore_backup`` behind Browse Archives' **Remove What
+  an Older CDMW Installed...** (``cdmw.services.old_install_removal``), which
+  backs up the index files it changes first, so Restore Backup can undo it, and
+  restores that backup itself if the removal fails halfway.
 
 The direct patch plan (``prepare_patch`` and ``apply_patch``) was removed with the
-"Patch Game Files" route (decision 35).
+"Patch Game Files" route (decision 35), and the overlay and virtual-loader
+installs with decision 39.
 """
 
 from __future__ import annotations

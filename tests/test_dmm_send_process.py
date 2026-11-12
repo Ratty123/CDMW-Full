@@ -15,7 +15,7 @@ def _files(folder):
 
 def test_a_send_in_the_child_process_writes_the_same_mod_as_one_in_process(tmp_path, monkeypatch):
     from cdmw.services.dmm_send import send_item_packages
-    from tests.test_virtual_loader import packages
+    from tests.support.game_fixtures import packages
     # The child does not see this process's patches: keep its history and logs in tmp_path.
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local-app-data"))
     root, files = packages(tmp_path)

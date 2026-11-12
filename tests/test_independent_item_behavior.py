@@ -11,13 +11,13 @@ from cdmw.core.paloc_format import parse_paloc, encode_paloc, add_localization_e
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.new_item.item_behavior import ItemBehaviorSettings
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.independent_item_package import from_plan, package_bytes, package_metadata, read_package, unpack_recipe
-from cdmw.services.independent_item_install import prepare_install, prepare_rebuild, prepare_remove, load_registry
+from tests.support.item_install import prepare_install, prepare_rebuild, prepare_remove, load_registry
 from cdmw.services.independent_item_codec import encode
 from cdmw.services.independent_mod_package import read_v2
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from cdmw.services.new_item_behavior import load_behavior_index
 from tests.test_independent_item_definition import definition_game, SECONDARY, MAP_NAME, MAP_XML, MAP_DDS
 from tests.test_independent_item_settings import extended_game
@@ -26,7 +26,7 @@ from tests.test_new_item_service import TEMPLATE, ICON_STRING, ICON, _table4
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_item_fields import virtual_row
 from tests.item_behavior_fixtures import behavior_fields, text
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 @pytest.fixture

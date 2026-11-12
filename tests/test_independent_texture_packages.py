@@ -9,7 +9,7 @@ import pytest
 from cdmw.core.pathc_format import PathcTable, encode_pathc, register_dds
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.mod_package import capability_result
-from cdmw.services import independent_item_install as install
+import tests.support.item_install as install
 from cdmw.services.independent_item_package import (
     FORMAT, canonical, digest, package_bytes, package_metadata, read_package, stock_snapshot,
 )
@@ -557,7 +557,7 @@ def test_unavailable_texture_decoder_cannot_prepare_a_physical_install(tmp_path,
 
 
 def test_texture_update_publication_failure_restores_previous_owned_state(tmp_path, monkeypatch):
-    from cdmw.services import archive_overlay_manager as overlays
+    import tests.support.overlay_manager as overlays
     from tests.test_archive_overlay_manager import Backups, snapshot_of
 
     root, snapshot = texture_game(tmp_path)
@@ -585,10 +585,10 @@ def test_texture_update_publication_failure_restores_previous_owned_state(tmp_pa
 
 
 def test_texture_virtual_update_failure_restores_active_ledgers_and_previous_generation(tmp_path, monkeypatch):
-    from cdmw.domain.virtual_loader import VirtualProfile
-    from cdmw.services import virtual_loader_state as state
-    from cdmw.services.virtual_loader_composition import prepare_profile
-    from tests.test_virtual_loader import game_bytes
+    from tests.support.virtual_domain import VirtualProfile
+    import tests.support.virtual_state as state
+    from tests.support.virtual_composition import prepare_profile
+    from tests.support.game_fixtures import game_bytes
 
     root, snapshot = texture_game(tmp_path)
     original = texture_package(snapshot)
@@ -627,9 +627,9 @@ def test_texture_virtual_update_failure_restores_active_ledgers_and_previous_gen
 def test_texture_source_witness_survives_preparation_until_publication(tmp_path, virtual, changed):
     import os
     from pathlib import Path
-    from cdmw.domain.virtual_loader import VirtualProfile
-    from cdmw.services.virtual_loader_composition import prepare_profile
-    from cdmw.services.virtual_loader_state import publish_profile
+    from tests.support.virtual_domain import VirtualProfile
+    from tests.support.virtual_composition import prepare_profile
+    from tests.support.virtual_state import publish_profile
     from tests.test_archive_overlay_manager import Backups
 
     root, snapshot = texture_game(tmp_path)
@@ -700,7 +700,7 @@ def test_registry_baseline_follows_the_legacy_texture_owners_lifecycle(tmp_path,
     from cdmw.core.pathc_format import parse_pathc
     from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.domain.new_item.spec import IconSource
-    from cdmw.services import archive_overlay_manager as overlays
+    import tests.support.overlay_manager as overlays
     from cdmw.services.independent_item_package import from_plan
     from cdmw.services.new_item_service import NewItemService
     from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of

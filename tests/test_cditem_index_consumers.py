@@ -162,19 +162,6 @@ def test_mod_base_retains_both_original_stock_and_folder_index_witnesses(tmp_pat
         revision.validate()
 
 
-def test_mounted_base_preserves_original_indexes_through_derived_snapshot(tmp_path):
-    from cdmw.services.new_item_mounted_base import prepare_mounted_item_base
-    from tests.test_new_item_mounted_base import mounted_game
-    service, _, _, mounted, root = mounted_game(tmp_path)
-    before = mounted.provenance.capture().indexes
-    assert before
-    base = prepare_mounted_item_base(service, mounted, read_entry=_read).snapshot
-    after = dict(base.provenance.capture().indexes)
-    assert all(after[path] == checksum for path, checksum in before)
-    assert root / '0036/0.pamt' in after and root / '0009/0.pamt' in after
-    base.provenance.capture().validate()
-
-
 def test_listing_preserves_cancellation_from_inside_index_verification(tmp_path, monkeypatch):
     import cdmw.core.archive_format as archive_format
     from cdmw.domain.cancellation import RunCancelled
