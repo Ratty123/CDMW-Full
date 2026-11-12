@@ -245,8 +245,21 @@ class MeshDocumentsView(QWidget):
             if getattr(document, "standalone_rust_parked", False) and callable(unpark):
                 unpark()
             self.park_beyond_budget()
+            _show_commands_of(document)
         self.refresh_labels()
         self.document_changed.emit(index)
+
+
+def _show_commands_of(document: QWidget) -> None:
+    """The palette offers the shown document's editor commands (section 8.7 E2)."""
+
+    find = getattr(document, "_rust_command_registry", None)
+    registry = find() if callable(find) else None
+    if registry is None:
+        return
+    from cdmw.ui.mesh_editor.editor_commands import set_command_owner
+
+    set_command_owner(registry, document)
 
 
 def _broadcast(documents: list[QWidget], name: str):

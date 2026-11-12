@@ -953,14 +953,31 @@ class MeshEditorRustProcessMixin:
         self._send_rust_message(response)
 
     def _rust_command_registry(self):
+        """The window's registry, or the application's one: Browse's edit component
+        has no window, and a detached tool window has no registry of its own
+        (section 8.7 E2, E6)."""
+
+        from cdmw.ui.commands import registry as registry_module
         from cdmw.ui.commands.registry import CommandRegistry
 
         try:
             window = self.window()
         except (AttributeError, RuntimeError):
-            return None
+            window = None
         registry = getattr(window, "command_registry", None)
+        if isinstance(registry, CommandRegistry):
+            return registry
+        registry = registry_module.command_registry()
         return registry if isinstance(registry, CommandRegistry) else None
+
+    def _clear_rust_commands(self) -> None:
+        """This document's mirrored commands leave with its helper; others' stay."""
+
+        registry = self._rust_command_registry()
+        if registry is not None:
+            from cdmw.ui.mesh_editor.editor_commands import clear_helper_commands
+
+            clear_helper_commands(registry, self)
 
     def _mirror_rust_commands(self, commands: object) -> None:
         """The editor's own commands join the registry and the palette (P12)."""
@@ -971,7 +988,7 @@ class MeshEditorRustProcessMixin:
         from cdmw.ui.mesh_editor.editor_commands import mirror_helper_commands
 
         mirror_helper_commands(registry, [row for row in commands if isinstance(row, Mapping)],
-                               self._send_rust_command, lambda: bool(self.standalone_rust_ready))
+                               self._send_rust_command, lambda: bool(self.standalone_rust_ready), owner=self)
         if not getattr(self, "_rust_follows_keymap", False):
             # A key changed in Settings > Shortcuts reaches the running editor at once.
             self._rust_follows_keymap = True
@@ -1196,11 +1213,7 @@ class MeshEditorRustProcessMixin:
             and self._recover_rust_editor_after_crash()
         ):
             # The shadow session outlives the renderer (P4 V3): nothing is disposed.
-            registry = self._rust_command_registry()
-            if registry is not None:
-                from cdmw.ui.mesh_editor.editor_commands import clear_helper_commands
-
-                clear_helper_commands(registry)
+            self._clear_rust_commands()
             return
         elif (
             self.standalone_rust_process_error_reported
@@ -1219,11 +1232,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_closing = True
         self.standalone_rust_dispose_pending = True
         self._schedule_rust_session_dispose()
-        registry = self._rust_command_registry()
-        if registry is not None:  # the editor's commands leave with its helper
-            from cdmw.ui.mesh_editor.editor_commands import clear_helper_commands
-
-            clear_helper_commands(registry)
+        self._clear_rust_commands()  # the editor's commands leave with its helper
         release = getattr(self, "_release_viewport_binding", None)
         if callable(release):  # Browse's viewport shows its own scene again
             release()
