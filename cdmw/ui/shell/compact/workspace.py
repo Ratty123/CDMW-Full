@@ -81,20 +81,20 @@ class CompactWorkspace(QWidget):
         self.refresh_tool_enabled_states()
 
     def _run_tool_command(self, tool_key: str) -> None:
-        """A rail entry runs its registry command, as the palette does (P15 step 1)."""
+        """A rail entry is its registry command (P15 step 1): refused for the same reason.
 
-        from cdmw.ui.commands.registry import CommandRefused
+        The command opens the tool through this window's shell, as the palette's
+        run does, so an entry that is not available never opens.
+        """
+
         from cdmw.ui.shell.shell_commands import tool_command_id
 
         registry = getattr(self.owner.shell, "command_registry", None)
         command_id = tool_command_id(tool_key)
-        if registry is None or command_id not in registry:
-            self.owner.shell._activate_tool_key(tool_key)
-            return
-        try:
-            registry.run(command_id)
-        except CommandRefused:
+        if registry is not None and command_id in registry and registry.reason(command_id):
             self.refresh_tool_enabled_states()
+            return
+        self.owner.shell._activate_tool_key(tool_key)
 
     def refresh_tool_enabled_states(self) -> None:
         from cdmw.ui.shell.shell_commands import tool_command_id

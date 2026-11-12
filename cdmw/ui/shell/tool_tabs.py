@@ -182,6 +182,12 @@ class ShellToolTabsMixin:
                 workspace.notify_tool_widget_ready(tool_key)
 
     def _create_mesh_editor_tab(self) -> QWidget:
+        # P15: one Mesh Editor per open document, under a tab strip.
+        from cdmw.ui.mesh_editor.documents import MeshDocumentsView
+
+        return MeshDocumentsView(self._build_mesh_editor_document)
+
+    def _build_mesh_editor_document(self) -> QWidget:
         from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
         from cdmw.ui.mesh_editor.tab import MeshEditorTab
 

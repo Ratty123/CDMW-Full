@@ -577,6 +577,13 @@ class MeshEditorShellBridgeMixin:
             return True
         active_builder = self._mesh_editor_active_builder()
         has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
+        # P15: a document already editing this file is shown; another file opens
+        # beside an unfinished edit instead of replacing it.
+        if self._show_document_editing(entry, replace_same=replace_same):
+            return False
+        if has_standalone and self._open_in_other_document(entry, replace_same=replace_same):
+            return True
+        has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
         if active_builder is None and not has_standalone:
             return True
         if has_standalone:
@@ -632,6 +639,53 @@ class MeshEditorShellBridgeMixin:
         except RuntimeError:
             pass
         return True
+
+    def _mesh_documents(self):
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        try:
+            view = created_tool_widget(getattr(self, "mesh_editor_tab", None))
+        except (AttributeError, RuntimeError, TypeError):
+            return None
+        return view if callable(getattr(view, "open_new_document", None)) else None
+
+    def _show_document_editing(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
+        """Another document already edits ``entry``: show it (P15)."""
+
+        view = self._mesh_documents()
+        if view is None or replace_same:
+            return False
+        for document in view.documents:
+            if document is view.active:
+                continue
+            target = getattr(document, "_current_target_entry", None)
+            current = target() if callable(target) else None
+            has = getattr(document, "has_active_standalone_session", None)
+            if (callable(has) and has() and isinstance(current, ArchiveEntry)
+                    and current.identity == entry.identity and current.prepared_sha256 == entry.prepared_sha256):
+                view.set_active(view.index_of(document))
+                self._activate_tool_widget(self.mesh_editor_tab)
+                self.set_status_message("Mesh Editor is already open for this target.")
+                return True
+        return False
+
+    def _open_in_other_document(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
+        """The shown document has an unfinished edit of another file: open ``entry`` beside it (P15)."""
+
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
+
+        view = self._mesh_documents()
+        if view is None:
+            return False
+        current = view.active
+        target = getattr(current, "_current_target_entry", None)
+        current_entry = target() if callable(target) else None
+        if (not replace_same and isinstance(current_entry, ArchiveEntry)
+                and current_entry.identity == entry.identity):
+            return False
+        if not has_pending_edit(current):
+            return False  # nothing to keep: the shown document takes the new mesh
+        return view.open_new_document() is not None
 
     def _mesh_editor_open_blocked(self) -> bool:
         """Report a Mesh Editor that cannot start before any archive work begins."""
