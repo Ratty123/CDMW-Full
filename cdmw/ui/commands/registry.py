@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
+from cdmw.mcp.names import DEFAULT_EFFECT, EFFECT_CLASSES, reserved_prefix
+
 #: Where a command applies. ``shell`` commands are available everywhere.
 CONTEXTS = ("shell", "browse", "mesh_editor", "texture_editor", "new_item", "mod_management")
 RECENT_LIMIT = 12
@@ -43,10 +45,18 @@ class Command:
     helper: bool = False
     #: Words the palette also matches, besides the label.
     keywords: tuple[str, ...] = field(default_factory=tuple)
+    #: What running it can change, for AI connections (P13 stage C): read,
+    #: edit, destructive or output. A command that does not say is an edit.
+    effect: str = DEFAULT_EFFECT
 
     def __post_init__(self) -> None:
         if not self.id or "." not in self.id:
             raise CommandDefinitionError(f"A command id names its area and action, such as shell.settings: {self.id!r}")
+        if reserved_prefix(self.id):
+            raise CommandDefinitionError(
+                f"Command ids may not start with {reserved_prefix(self.id)!r}; typed AI tools use it: {self.id}")
+        if self.effect not in EFFECT_CLASSES:
+            raise CommandDefinitionError(f"Unknown effect class {self.effect!r} for {self.id}")
         if self.context not in CONTEXTS:
             raise CommandDefinitionError(f"Unknown command context {self.context!r} for {self.id}")
         if not self.label.strip():
