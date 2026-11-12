@@ -576,3 +576,35 @@ def test_the_view_shown_at_the_click_is_handed_on_or_dropped(tmp_path: Path) -> 
         offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
     harness._show_browse_view_first(entry)  # Browse is loading another file: no view
     assert len(made) == 2
+
+
+def test_a_plain_open_copies_its_base_before_binding_materials(tmp_path: Path, monkeypatch) -> None:
+    """P4 V4: the shadow's immutable base is copied from the bare mesh; the bound
+    material data made that copy 1.4 s of JSON through the native snapshot."""
+
+    from cdmw.services import mesh_rust_authoring
+    from cdmw.services.mesh_service import MeshService
+    from tests.test_mesh_rust_authoring import RustMeshAuthoringTests
+
+    order = []
+    original_open = MeshService.open_edit_session
+    original_materials = mesh_rust_authoring._prepare_shadow_mesh_materials
+
+    def open_session(service, mesh, **kwargs):
+        if kwargs.get("adopt_owned_mesh"):
+            order.append("shadow_open")
+        return original_open(service, mesh, **kwargs)
+
+    def materials(*args, **kwargs):
+        order.append("materials")
+        return original_materials(*args, **kwargs)
+
+    monkeypatch.setattr(MeshService, "open_edit_session", open_session)
+    monkeypatch.setattr(mesh_rust_authoring, "_prepare_shadow_mesh_materials", materials)
+    authoritative, session = RustMeshAuthoringTests()._create(tmp_path / "session")
+    try:
+        assert order == ["shadow_open", "materials"]
+        assert {"shadow_open_ms", "shadow_materials_after_open_ms", "files_ms"} <= set(session.open_stage_ms)
+    finally:
+        session.cancel()
+        authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)

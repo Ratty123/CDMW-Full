@@ -7755,6 +7755,15 @@ class RustMeshAuthoringSession:
         session_root = Path(root).resolve()
         session_root.mkdir(parents=True, exist_ok=False)
         root_identity = _session_root_identity(session_root)
+        # Where the preparation's time goes, recorded with the launch (P4 V4).
+        stage_marks: dict[str, float] = {}
+        stage_clock = [time.perf_counter()]
+
+        def mark(name: str) -> None:
+            now = time.perf_counter()
+            stage_marks[f"{name}_ms"] = round((now - stage_clock[0]) * 1000.0, 1)
+            stage_clock[0] = now
+
         try:
             report("Preparing mesh geometry...")
             authoritative_service = getattr(authoritative_controller, "mesh_service", None)
@@ -7776,6 +7785,7 @@ class RustMeshAuthoringSession:
                 authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
                 base_morph_session_revision, authoritative_morph_state,
             ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
+            mark("seed_capture")
         except Exception:
             _cleanup_failed_session_root(session_root, root_identity)
             raise
@@ -7783,13 +7793,29 @@ class RustMeshAuthoringSession:
             report("Preparing mesh materials...")
             bounded_item_set_references, prepared_item_set_materials = {}, None
             shadow_mesh.active_lod_index = authoritative_view.lod_index
-            if geometry_layer_seed.get("archive_refit_context") is None:
+            replacement_state = authoritative_session.replacement_state
+            # P4 V4: on the plain path the materials are bound after the shadow
+            # session opens, so its immutable base is copied from the bare mesh
+            # (about 0.06 s) instead of with the bound Preview Core material data
+            # (1.4 s through the native snapshot's JSON). Sets, archive refits and
+            # neutral or replacement coordinates keep the original order.
+            materials_after_open = (
+                geometry_layer_seed.get("archive_refit_context") is None
+                and not edit_item_set
+                and authoritative_session.neutral_appearance is None
+                and (replacement_state is None or replacement_state.neutral_appearance is None)
+            )
+            preview_material_binding_count = 0
+            if materials_after_open:
+                pass
+            elif geometry_layer_seed.get("archive_refit_context") is None:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
                     shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
                 )
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
+            mark("shadow_materials")
             (
                 authoritative_morph_root,
                 morph_profile_base_fingerprint,
@@ -7835,6 +7861,7 @@ class RustMeshAuthoringSession:
                     "Mesh session preparation was cancelled"
                 )
             _detach_shadow_layer_project(shadow_mesh, session_root)
+            mark("morph_profiles_and_set")
             session_id = f"rust-mesh:{uuid4()}"
             shadow_service = MeshService(
                 settings=_ShadowSettings(session_root / "settings.ini"),
@@ -7848,6 +7875,13 @@ class RustMeshAuthoringSession:
                 load_layer_project=False,
                 adopt_owned_mesh=True,
             )
+            mark("shadow_open")
+            if materials_after_open:
+                adopted = shadow_service._session(shadow_view.session_id).working_mesh
+                preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
+                    adopted, preview_context, texture_unavailable_reason, stop_event,
+                )
+                mark("shadow_materials_after_open")
             if neutral_appearance is not None:
                 shadow_session = shadow_service._session(shadow_view.session_id)
                 shadow_session.base_mesh_is_original_parse = False
@@ -7870,6 +7904,7 @@ class RustMeshAuthoringSession:
                 shadow_service, shadow_view, geometry_layer_seed, rigging_seed,
                 authoritative_morph_state, authoritative_view,
             )
+            mark("shadow_seeds")
             instance = cls(
                 authoritative_service=authoritative_service,
                 authoritative_session_id=authoritative_session_id,
@@ -7914,7 +7949,10 @@ class RustMeshAuthoringSession:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
             report("Preparing Mesh Editor files...")
             instance.defer_morph_state = bool(defer_morph_state)
+            instance.open_stage_ms.update(stage_marks)
             instance._write_initial_manifest(stop_event=stop_event, progress=report)
+            mark("files")
+            instance.open_stage_ms.update(stage_marks)
             report("Checking the prepared Mesh Editor session...")
             _validate_owned_session_tree(session_root, root_identity)
             return instance
@@ -8607,6 +8645,13 @@ class RustMeshAuthoringSession:
         # owns the shadow until the complete package is returned, so serializers
         # can read that isolated document without another native clone/export.
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
+        files_clock = [time.perf_counter()]
+
+        def files_mark(name: str) -> None:
+            now = time.perf_counter()
+            self.open_stage_ms[f"files_{name}_ms"] = round((now - files_clock[0]) * 1000.0, 1)
+            files_clock[0] = now
+
         # Started after the writer holds its mesh: the query keeps the
         # session's export lock while it waits on the helper. A deferred open
         # asks once the editor shows (query_deferred_morph_state).
@@ -8624,6 +8669,7 @@ class RustMeshAuthoringSession:
             self.max_state_document_bytes,
             int(document["byte_length"]),
         )
+        files_mark("document")
         channels = _atomic_write_payload(
             self.root,
             "channels.json",
@@ -8636,6 +8682,7 @@ class RustMeshAuthoringSession:
             ),
             expected_root_identity=self.root_identity,
         )
+        files_mark("channels")
         material_synthesis = _RustMaterialSynthesisState()
         material_mesh = nullcontext(mesh)
         replacement = self.shadow_service._session(self.shadow_session_id).replacement_state
@@ -8713,6 +8760,7 @@ class RustMeshAuthoringSession:
             )
         self.archive_refit_material_cache[material_key]["reason"] = self.texture_unavailable_reason
         waited = time.perf_counter()
+        files_mark("materials")
         view = self.shadow_service.session_view(self.shadow_session_id)
         self.open_stage_ms["session_view_ms"] = round((time.perf_counter() - waited) * 1000.0, 1)
         manifest = {
