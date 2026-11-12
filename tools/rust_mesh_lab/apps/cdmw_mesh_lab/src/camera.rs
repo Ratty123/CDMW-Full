@@ -404,6 +404,19 @@ impl OrbitCamera {
         self.bump_revision();
     }
 
+    /// Take another camera's angle, target and distance, keeping this camera's
+    /// own framing of its scene, so Frame still fits what this camera shows.
+    /// Both modes hold positions in source units, so no conversion is needed
+    /// when Browse's preview hands its view to the edit (P4 V3).
+    pub fn keep_orbit_of(&mut self, other: &Self) {
+        self.target = other.target;
+        self.yaw = other.yaw;
+        self.pitch = other.pitch;
+        self.roll = other.roll;
+        self.distance = other.distance;
+        self.bump_revision();
+    }
+
     #[must_use]
     pub fn orbit_state(&self) -> (f32, f32, Vec3, f32) {
         (self.yaw, self.pitch, self.target, self.distance)

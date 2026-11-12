@@ -28,6 +28,7 @@ mod cdmw_shader_controls;
 mod cdmw_ui;
 mod cdmw_vertex_inspector;
 mod control_contract;
+mod engine;
 #[cfg(test)]
 mod gpu_recovery_tests;
 #[cfg(test)]
@@ -154,11 +155,14 @@ fn main() -> Result<()> {
             .context("--cdmw-preview-session requires --embedded-parent-hwnd <decimal>")?;
         let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
         event_loop.set_control_flow(ControlFlow::Wait);
-        let mut application = cdmw_preview::PreviewApplication::open(
+        // One process, two modes (P4 V3): Browse's helper can enter edit in place.
+        let (preview, route) = cdmw_preview::PreviewApplication::open_routed(
             &manifest_path,
             parent_hwnd,
             event_loop.create_proxy(),
         )?;
+        let mut application =
+            engine::EngineApplication::new(preview, route, parent_hwnd, event_loop.create_proxy());
         event_loop
             .run_app(&mut application)
             .context("Preview event loop failed")?;
@@ -2240,6 +2244,13 @@ fn loaded_cdmw_material_factor(
     }
 }
 
+/// A camera's orbit, for the engine's edit report (P4 V3).
+fn camera_report(camera: &OrbitCamera) -> Value {
+    let (yaw, pitch, target, distance) = camera.orbit_state();
+    json!({"yaw": yaw, "pitch": pitch, "target_x": target.x, "target_y": target.y,
+           "target_z": target.z, "distance": distance})
+}
+
 fn add_cdmw_material_presentations(
     renderer: &mut WindowRenderer,
     presentations: &[SessionMaterialPresentation],
@@ -2396,6 +2407,12 @@ struct LabApplication {
     cdmw_bridge: Option<CdmwBridge>,
     /// Set while a pre-started helper waits for its session (`--cdmw-session-pending`).
     cdmw_pending: Option<PendingSessionInput>,
+    /// An edit inside Browse's own process (P4 V3): the window and renderer are
+    /// lent by its Preview, and ending the edit gives them back instead of exiting.
+    engine_hosted: bool,
+    engine_leave_requested: bool,
+    /// The Preview's camera, taken over once the session is installed (`keep_view`).
+    kept_camera: Option<OrbitCamera>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2663,6 +2680,9 @@ impl LabApplication {
             cdmw_uv_pixel_height: 1024,
             cdmw_weight_step: 0.1,
             cdmw_exit_requested: false,
+            engine_hosted: false,
+            engine_leave_requested: false,
+            kept_camera: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2691,6 +2711,72 @@ impl LabApplication {
         application
     }
 
+    /// An edit in Browse's own process (P4 V3): the Preview lends its window and
+    /// renderer; the session arrives as `open_session` on the routed input.
+    fn new_engine_edit(
+        input: PendingSessionInput,
+        embedded_parent_hwnd: u64,
+        window: Arc<Window>,
+        renderer: WindowRenderer,
+        camera: Option<OrbitCamera>,
+    ) -> Self {
+        let mut application = Self::new_pending(input, Some(embedded_parent_hwnd));
+        application.engine_hosted = true;
+        application.kept_camera = camera;
+        application.egui_state = Some(egui_winit::State::new(
+            application.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        application.renderer = Some(renderer);
+        application.window = Some(window);
+        application
+    }
+
+    /// Hand the renderer and the camera back to the Preview when the edit ends.
+    fn give_back_view(&mut self) -> (Option<WindowRenderer>, OrbitCamera) {
+        self.egui_state = None;
+        self.window = None;
+        (self.renderer.take(), self.camera.clone())
+    }
+
+    /// End this edit: an engine-hosted edit gives the view back; a helper of its own exits.
+    fn leave_or_exit(&mut self, event_loop: &ActiveEventLoop) {
+        if self.engine_hosted {
+            self.engine_leave_requested = true;
+        } else {
+            event_loop.exit();
+        }
+    }
+
+    #[must_use]
+    fn engine_leave_requested(&self) -> bool {
+        self.engine_leave_requested
+    }
+
+    fn engine_camera_report(&self) -> Value {
+        camera_report(&self.camera)
+    }
+
+    /// After an engine-hosted edit installed its session: the renderer's upload
+    /// count and what its texture cache keeps.
+    fn engine_installed_uploads(
+        &self,
+    ) -> Option<(u64, cdmw_render_wgpu::texture_cache::RetainedTextureReport)> {
+        if self.cdmw_pending.is_some() || self.cdmw_bridge.is_none() {
+            return None;
+        }
+        self.renderer.as_ref().map(|renderer| {
+            (
+                renderer.texture_upload_count(),
+                renderer.retained_texture_report(),
+            )
+        })
+    }
+
     /// Answer the pending helper's one request: open the session into the window and
     /// renderer that already exist, then say hello and ready as a fresh launch does.
     fn poll_pending_session(&mut self, event_loop: &ActiveEventLoop) {
@@ -2705,14 +2791,14 @@ impl LabApplication {
             Ok(Some(request)) => request,
             Err(error) => {
                 error!("pending Mesh Editor helper refused: {error}");
-                event_loop.exit();
+                self.leave_or_exit(event_loop);
                 return;
             }
         };
         let (Some(input), PendingRequest::Open(manifest_path)) =
             (self.cdmw_pending.take(), request)
         else {
-            event_loop.exit();
+            self.leave_or_exit(event_loop);
             return;
         };
         let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
@@ -2736,8 +2822,14 @@ impl LabApplication {
         if let Err(error) = opened {
             error!("{error}");
             let _ = cdmw_session::announce_pending_ready(child_hwnd, parent_hwnd, Some(&error));
-            event_loop.exit();
+            self.leave_or_exit(event_loop);
             return;
+        }
+        if self.viewport_rect.is_some()
+            && let Some(camera) = self.kept_camera.take()
+        {
+            // Browse's view, kept: same angle, target and distance (P4 V3).
+            self.camera.keep_orbit_of(&camera);
         }
         if let Some(mut renderer) = self.renderer.take() {
             match self.configure_renderer(&mut renderer) {
@@ -2752,7 +2844,7 @@ impl LabApplication {
         });
         if let Some(Err(error)) = announced {
             error!("CDMW handshake failed: {error}");
-            event_loop.exit();
+            self.leave_or_exit(event_loop);
             return;
         }
         window.set_title("CDMW — Mesh Editor");
@@ -3188,6 +3280,13 @@ impl LabApplication {
                 self.cdmw_host_connected = true;
                 self.status =
                     "CDMW connected · edits remain isolated until Finish Edit Mesh".to_owned();
+            }
+            HostEvent::MorphState(morph) => {
+                // Only the morph part changes; selection and edits stay as they are.
+                self.cdmw_state["morph_refit"] = morph;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
             }
             HostEvent::StateSnapshot(state) => {
                 if self.cdmw_busy() {
@@ -6075,6 +6174,12 @@ impl LabApplication {
         if first_viewport && !self.cdmw_reference_pieces.is_empty() {
             self.frame_item_set();
         }
+        if self.mesh.is_some()
+            && let Some(camera) = self.kept_camera.take()
+        {
+            // An edit in Browse's viewport keeps Browse's view over the first framing (P4 V3).
+            self.camera.keep_orbit_of(&camera);
+        }
     }
 
     fn ensure_projection(&mut self, rectangle: egui::Rect) -> bool {
@@ -7940,7 +8045,7 @@ impl ApplicationHandler for LabApplication {
                 {
                     let _ = bridge.cancel("Mesh Editor window closed");
                 }
-                event_loop.exit();
+                self.leave_or_exit(event_loop);
             }
             WindowEvent::Resized(size) => {
                 self.cancel_active_gesture("Resize cancelled the active gesture");
@@ -8018,7 +8123,7 @@ impl ApplicationHandler for LabApplication {
             window.request_redraw();
         }
         if self.cdmw_exit_requested {
-            event_loop.exit();
+            self.leave_or_exit(event_loop);
         }
     }
 }

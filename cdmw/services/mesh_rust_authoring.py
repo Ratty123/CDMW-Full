@@ -7704,6 +7704,12 @@ class RustMeshAuthoringSession:
     prepared_item_set_materials: object | None = field(default=None, repr=False)
     # The first morph query runs beside manifest writing; state_payload takes it.
     morph_state_prefetch: tuple[threading.Thread, dict[str, object]] | None = field(default=None, repr=False)
+    #: Milliseconds per stage of the open, for the runtime record (P4 V3).
+    open_stage_ms: dict[str, float] = field(default_factory=dict, repr=False)
+    #: P4 V3: the editor opens before the morph query, which holds the native
+    #: service for about two seconds; ``query_deferred_morph_state`` sends it later.
+    defer_morph_state: bool = field(default=False, repr=False)
+    deferred_morph_ready: bool = field(default=False, repr=False)
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -7733,6 +7739,7 @@ class RustMeshAuthoringSession:
         item_set_contexts: tuple = (),
         edit_item_set: bool = False,
         progress: Callable[[str], None] | None = None,
+        defer_morph_state: bool = False,
     ) -> "RustMeshAuthoringSession":
         def report(message: str) -> None:
             if stop_event is not None and stop_event.is_set():
@@ -7905,6 +7912,7 @@ class RustMeshAuthoringSession:
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
             report("Preparing Mesh Editor files...")
+            instance.defer_morph_state = bool(defer_morph_state)
             instance._write_initial_manifest(stop_event=stop_event, progress=report)
             report("Checking the prepared Mesh Editor session...")
             _validate_owned_session_tree(session_root, root_identity)
@@ -8513,7 +8521,9 @@ class RustMeshAuthoringSession:
             prefetch = self.morph_state_prefetch
             self.morph_state_prefetch = None
             if prefetch is not None:
+                started = time.perf_counter()
                 prefetch[0].join()
+                self.open_stage_ms["morph_join_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
 
     def _start_morph_state_prefetch(self) -> None:
         """Ask the helper for the morph state while the files are written.
@@ -8527,15 +8537,64 @@ class RustMeshAuthoringSession:
         session_id = self.shadow_session_id
         result: dict[str, object] = {}
 
+        stages = self.open_stage_ms
+
         def query() -> None:
+            started = time.perf_counter()
             try:
                 result["state"] = service.cached_morph_state_from_runtime(session_id)
             except BaseException as exc:  # handed to state_payload
                 result["error"] = exc
+            stages["morph_query_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
 
         thread = threading.Thread(target=query, name="cdmw-morph-state-prefetch", daemon=True)
         thread.start()
         self.morph_state_prefetch = (thread, result)
+
+    def rewrite_for_relaunch(self, process_generation: int) -> None:
+        """Write the session files again at the shadow's current revision (P4 V3).
+
+        After the editor's renderer exited unexpectedly the shadow session is kept;
+        a new helper with ``process_generation`` opens these files and continues
+        from the last accepted step. Runs on a worker, with no request in flight.
+        """
+
+        self._require_open()
+        self.process_generation = int(process_generation)
+        self._write_initial_manifest()
+
+    def query_deferred_morph_state(self, done: Callable[[dict[str, object]], None]) -> bool:
+        """Ask the morph state of a deferred open in the background (P4 V3).
+
+        ``done`` gets the morph payload (or the reason it is unavailable) on the
+        query's thread. False when nothing is deferred or a query already runs.
+        """
+
+        if not self.defer_morph_state or self.deferred_morph_ready or self.morph_state_prefetch is not None:
+            return False
+        service, session_id, stages = self.shadow_service, self.shadow_session_id, self.open_stage_ms
+        result: dict[str, object] = {}
+
+        def query() -> None:
+            started = time.perf_counter()
+            try:
+                state: object = service.cached_morph_state_from_runtime(session_id)
+            except (KeyError, RuntimeError, TypeError, ValueError) as exc:
+                state = {"available": False, "reason": str(exc)}
+            except BaseException as exc:  # the session closed under the query
+                state = {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+            stages["morph_query_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
+            payload = _json_safe(state)
+            if len(_canonical_json_bytes(payload)) > _MORPH_STATE_MAX_BYTES:
+                payload = {"available": False, "reason": "Mesh Morph state exceeds the 16 MiB inline protocol limit"}
+            result["state"] = payload
+            self.deferred_morph_ready = True
+            done(payload if isinstance(payload, dict) else {"available": False})
+
+        thread = threading.Thread(target=query, name="cdmw-morph-state-deferred", daemon=True)
+        self.morph_state_prefetch = (thread, result)
+        thread.start()
+        return True
 
     def _write_initial_manifest_files(
         self,
@@ -8548,8 +8607,10 @@ class RustMeshAuthoringSession:
         # can read that isolated document without another native clone/export.
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
         # Started after the writer holds its mesh: the query keeps the
-        # session's export lock while it waits on the helper.
-        self._start_morph_state_prefetch()
+        # session's export lock while it waits on the helper. A deferred open
+        # asks once the editor shows (query_deferred_morph_state).
+        if not self.defer_morph_state:
+            self._start_morph_state_prefetch()
         document = _atomic_write_payload(
             self.root,
             "document.bin",
@@ -8585,6 +8646,7 @@ class RustMeshAuthoringSession:
                 mesh, replacement.dependencies, required=False, stop_event=stop_event)
         if progress is not None:
             progress("Preparing material textures for Mesh Editor...")
+        stage_started = time.perf_counter()
         with material_mesh as prepared_material_mesh:
             if self.prepared_item_set_materials is not None:
                 textures, material_presentations, material_synthesis = self.prepared_item_set_materials
@@ -8604,6 +8666,7 @@ class RustMeshAuthoringSession:
                 )
             if prepared_material_mesh is not mesh:
                 textures = retain_replacement_material_textures(self, mesh, prepared_material_mesh, textures, stop_event)
+            textures_done = time.perf_counter()
             from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
             from cdmw.services.mesh_preview_material_source import preview_core_material_contract
             material_graph = _composite_preview_core_material_graph(
@@ -8611,6 +8674,12 @@ class RustMeshAuthoringSession:
                 lambda: stop_event is not None and stop_event.is_set(),
             )
             material_contract = preview_core_material_contract(prepared_material_mesh)
+            # Where an open's time goes (P4 V3), recorded with the launch.
+            self.open_stage_ms.update(
+                texture_payloads_ms=round((textures_done - stage_started) * 1000.0, 1),
+                material_graph_ms=round((time.perf_counter() - textures_done) * 1000.0, 1),
+                texture_count=len(textures),
+            )
             self.material_synthesis_budget_parts = (
                 len(material_synthesis.budget_skipped),
                 sum(
@@ -8642,7 +8711,9 @@ class RustMeshAuthoringSession:
                 else "No readable DDS preview textures were supplied by CDMW."
             )
         self.archive_refit_material_cache[material_key]["reason"] = self.texture_unavailable_reason
+        waited = time.perf_counter()
         view = self.shadow_service.session_view(self.shadow_session_id)
+        self.open_stage_ms["session_view_ms"] = round((time.perf_counter() - waited) * 1000.0, 1)
         manifest = {
             "schema": RUST_MESH_AUTHORING_PACKAGE,
             "protocol": RUST_MESH_EDITOR_PROTOCOL,
@@ -8843,16 +8914,23 @@ class RustMeshAuthoringSession:
         self._require_open()
         view = self.shadow_service.session_view(self.shadow_session_id)
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        waited = time.perf_counter()
         with shadow_session.export_lock:
+            self.open_stage_ms.setdefault("state_lock_wait_ms", round((time.perf_counter() - waited) * 1000.0, 1))
             weight_edit_capability = self._weight_edit_capability(shadow_session)
         try:
             prefetch = self.morph_state_prefetch
-            if prefetch is not None:
+            if self.defer_morph_state and not self.deferred_morph_ready:
+                # Said once the query is done, in a morph_state message.
+                morph_state: object = deferred_morph_placeholder()
+            elif prefetch is not None:
                 self.morph_state_prefetch = None
+                waited = time.perf_counter()
                 prefetch[0].join()
+                self.open_stage_ms["morph_join_ms"] = round((time.perf_counter() - waited) * 1000.0, 1)
                 if "error" in prefetch[1]:
                     raise prefetch[1]["error"]
-                morph_state: object = prefetch[1]["state"]
+                morph_state = prefetch[1]["state"]
             else:
                 morph_state = self.shadow_service.cached_morph_state_from_runtime(
                     self.shadow_session_id
@@ -10710,6 +10788,9 @@ class RustMeshAuthoringSession:
 
     def _dispose_shadow(self) -> str:
         warning = ""
+        prefetch, self.morph_state_prefetch = self.morph_state_prefetch, None
+        if prefetch is not None:
+            prefetch[0].join()  # never close the session under a running morph query
         try:
             self.shadow_service.close_edit_session(
                 self.shadow_session_id,
@@ -10722,6 +10803,12 @@ class RustMeshAuthoringSession:
             self.mesh_island_cache.clear()
             self.closed = True
         return warning
+
+
+def deferred_morph_placeholder() -> dict[str, object]:
+    """The morph state of an open whose morph query has not answered yet."""
+
+    return {"available": False, "preparing": True, "reason": "Morph data is still being prepared."}
 
 
 def _preserve_unchanged_rust_channel(

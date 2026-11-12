@@ -22,6 +22,7 @@ pub use selection_overlay::verify_face_selection_depth;
 mod ground;
 mod lighting_depth;
 mod material_layers;
+pub mod texture_cache;
 mod texture_upload;
 pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
@@ -3050,6 +3051,7 @@ pub struct WindowRenderer {
     texture_uploads: u64,
     staged_texture: Option<texture_upload::PendingDdsUpload>,
     retained_upload_textures: BTreeMap<String, Arc<wgpu::Texture>>,
+    retained_textures: texture_cache::RetainedTextures<wgpu::Texture>,
     _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     adapter: wgpu::Adapter,
@@ -3188,6 +3190,19 @@ impl WindowRenderer {
         self.texture_uploads
     }
 
+    /// Textures kept for reuse after their scene let them go.
+    #[must_use]
+    pub fn retained_texture_report(&self) -> texture_cache::RetainedTextureReport {
+        self.retained_textures.report()
+    }
+
+    /// Drop kept textures no scene binds (for memory pressure).
+    pub fn release_unbound_textures(&mut self) {
+        self.retained_textures.release_unpinned();
+        self.texture_cache
+            .retain(|_, texture| texture.strong_count() > 0);
+    }
+
     /// Keep the previous scene's immutable DDS alive during a staged replacement.
     pub fn begin_texture_uploads(&mut self) {
         self.retained_upload_textures = self
@@ -3217,6 +3232,7 @@ impl WindowRenderer {
         // shared cache use lower-case identities, including between slices.
         let sha256 = sha256.to_ascii_lowercase();
         if let Some(texture) = self.texture_cache.get(&sha256).and_then(Weak::upgrade) {
+            let _ = self.retained_textures.get(&sha256);
             self.retained_upload_textures
                 .insert(sha256.clone(), texture);
             return Ok((true, 0));
@@ -3242,6 +3258,11 @@ impl WindowRenderer {
         self.texture_cache.insert(
             uploaded.source_sha256.clone(),
             Arc::downgrade(&uploaded.texture),
+        );
+        self.retained_textures.keep(
+            &uploaded.source_sha256,
+            &uploaded.texture,
+            bytes.len() as u64,
         );
         self.retained_upload_textures
             .insert(uploaded.source_sha256, uploaded.texture);
@@ -3277,6 +3298,7 @@ impl WindowRenderer {
             .get(&identity.source_sha256)
             .and_then(Weak::upgrade)
         {
+            let _ = self.retained_textures.get(&identity.source_sha256);
             return Ok(UploadedDdsTexture {
                 texture,
                 view_format: identity.view_format,
@@ -3290,6 +3312,11 @@ impl WindowRenderer {
         self.texture_cache.insert(
             uploaded.source_sha256.clone(),
             Arc::downgrade(&uploaded.texture),
+        );
+        self.retained_textures.keep(
+            &uploaded.source_sha256,
+            &uploaded.texture,
+            bytes.len() as u64,
         );
         Ok(uploaded)
     }
@@ -3570,6 +3597,7 @@ impl WindowRenderer {
             texture_uploads: 0,
             staged_texture: None,
             retained_upload_textures: BTreeMap::new(),
+            retained_textures: texture_cache::RetainedTextures::default(),
             _instance: instance,
             surface,
             adapter,
@@ -3931,6 +3959,25 @@ impl WindowRenderer {
 
     pub fn set_face_selection_xray(&mut self, xray: bool) {
         self.face_selection_xray = xray;
+    }
+
+    /// Remove what an editor drew over the scene, so the next owner of this
+    /// renderer (Browse's preview after an edit, P4 V3) starts from a clean view.
+    pub fn clear_editor_overlays(&mut self) -> Result<(), RenderError> {
+        self.set_face_selection(&[], [0.0; 4])?;
+        self.face_selection_xray = false;
+        self.set_refit_warning(&[], [0.0; 4])?;
+        self.set_part_hover(&[], [0.0; 4])?;
+        self.set_rig_weights(&[], &[])?;
+        self.skeleton_lines = None;
+        self.show_bones = false;
+        self.preview_lines = None;
+        self.preview_lines_xray = false;
+        self.effect_lines = None;
+        self.show_normals = false;
+        self.show_bounds = false;
+        self.mesh_viewport = None;
+        Ok(())
     }
 
     /// Display-only warning tint, independent of the user's edit selection.

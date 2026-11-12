@@ -65,6 +65,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "No tool is in a window of its own.",
         "The Mesh Editor is not ready.",
         "Open an image first.",
+        # The close guard's status line (cdmw/ui/shell/close_controller.py, P4 V3).
+        "Finishing the edit. Close CDMW again when it has finished.",
         # Settings > Shortcuts: a context name and the conflict line, both translated at run time.
         "Everywhere",
         "Also used by: {names}",

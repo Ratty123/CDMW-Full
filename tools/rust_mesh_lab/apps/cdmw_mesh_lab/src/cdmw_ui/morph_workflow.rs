@@ -59,12 +59,15 @@ impl LabApplication {
             .cloned()
             .unwrap_or(Value::Null);
         if state.get("available").and_then(Value::as_bool) == Some(false) {
-            ui.colored_label(
-                cdmw_readable(ui, REFIT_ARMOR_COLOUR),
+            // An editor that opened before its morph query answered (P4 V3).
+            let reason = if state.get("preparing").and_then(Value::as_bool) == Some(true) {
+                crate::localization::tr("Morph data is still being prepared.")
+            } else {
                 crate::localization::tr(
                     state_str(&state, "reason").unwrap_or("Morph runtime unavailable"),
-                ),
-            );
+                )
+            };
+            ui.colored_label(cdmw_readable(ui, REFIT_ARMOR_COLOUR), reason);
             return;
         }
         let profile_id = state_str(&state, "profile_id").unwrap_or("");

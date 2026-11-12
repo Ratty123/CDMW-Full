@@ -763,3 +763,99 @@ fn capture_effect_corpus() {
     event_loop.run_app(&mut probe).expect("event loop");
     probe.result.expect("probe ran").expect("effect captures");
 }
+
+/// P4 V3: Browse's renderer is lent to the edit and given back. Every texture
+/// the resident scene uploaded is found by digest on both switches.
+#[derive(Default)]
+struct EnterEditTextureProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for EnterEditTextureProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(128, 128)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+            let digest = cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?.source_sha256;
+            let owners = vec![vec![0_u32]];
+            // The Preview's resident scene: the sliced path.
+            renderer.begin_texture_uploads();
+            let (complete, _) = renderer.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete, "a small texture stages in one slice");
+            renderer.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            renderer.finish_texture_uploads();
+            anyhow::ensure!(renderer.texture_upload_count() == 1, "resident upload");
+            // enter_edit: the edit state replaces the scene's textures.
+            renderer.reset_texture();
+            renderer.add_dds_texture(&bytes, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the edit uploaded a texture the resident scene already had"
+            );
+            // leave_edit: the Preview binds its scene again through the sliced path.
+            renderer.reset_texture();
+            renderer.begin_texture_uploads();
+            let (complete, used) = renderer.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete && used == 0, "the return staged bytes again");
+            renderer.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            renderer.finish_texture_uploads();
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the return uploaded again"
+            );
+            renderer.clear_editor_overlays()?;
+            // With no scene binding it, the texture is still kept, unpinned.
+            renderer.reset_texture();
+            let report = renderer.retained_texture_report();
+            anyhow::ensure!(
+                report.entries == 1 && report.pinned_entries == 0 && report.unpinned_bytes > 0,
+                "unexpected retained textures {report:?}"
+            );
+            renderer.release_unbound_textures();
+            anyhow::ensure!(
+                renderer.retained_texture_report().entries == 0,
+                "release kept it"
+            );
+            renderer.add_dds_texture(&bytes, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 2,
+                "a released texture is uploaded again"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit hidden-window D3D12 texture reuse across enter_edit and leave_edit"]
+fn enter_and_leave_edit_upload_no_texture_twice() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = EnterEditTextureProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("texture reuse across the mode switch");
+}

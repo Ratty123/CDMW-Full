@@ -21,6 +21,7 @@ from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
 from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
     RUST_PREVIEW_BACKEND,
     RUST_PREVIEW_PROTOCOL,
@@ -166,6 +167,8 @@ class RustPreviewSessionController(
         self._stdout_tail = ""
         self._stderr_tail = ""
         self._capabilities: set[str] = set()
+        # P4 V3: an edit borrowing this helper's viewport (cdmw.ui.preview.engine_channel).
+        self._edit_channel = None
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._authoring_scene_modes: dict[str, str] = {}
@@ -1192,6 +1195,9 @@ class RustPreviewSessionController(
         self._read_stdout(process, generation)
         self._read_stderr(process, generation)
         self._process = None
+        channel, self._edit_channel = self._edit_channel, None
+        if channel is not None:
+            channel.process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
@@ -1267,6 +1273,14 @@ class RustPreviewSessionController(
             try:
                 payload = json.loads(line)
             except ValueError:
+                continue
+            if isinstance(payload, Mapping) and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
+                # The editor's half of this process (P4 V3) belongs to the borrowed edit.
+                channel = self._edit_channel
+                if channel is not None:
+                    channel.feed(raw_line)
+                if payload.get("event") in {"edit_entered", "edit_left", "edit_refused"}:
+                    self.protocol_event.emit(dict(payload))  # for the runtime record and journeys
                 continue
             if isinstance(payload, Mapping):
                 self._handle_protocol_event(dict(payload), generation)
@@ -1526,6 +1540,9 @@ class RustPreviewSessionController(
     def _request_resident_package_load(self) -> bool:
         package = self._desired_package
         if self._gpu_failed or package is None or not self._can_send_protocol():
+            return False
+        if self._edit_channel is not None:
+            # An edit holds the viewport; the newest selection loads when it ends.
             return False
         if not (
             self._protocol_ready
@@ -2055,6 +2072,54 @@ class RustPreviewSessionController(
             return int(process.write(data)) == len(data)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
+
+    # ----- edit in place (P4 V3) -------------------------------------------
+    def edit_in_place_blocker(self) -> str:
+        """Why this viewport cannot hold an edit now, or "" when it can."""
+
+        from cdmw.ui.preview.engine_channel import EDIT_IN_PLACE_CAPABILITY
+
+        if not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the viewport is not ready"
+        if EDIT_IN_PLACE_CAPABILITY not in self._capabilities:
+            return "this viewport's helper cannot edit in place"
+        if self._edit_channel is not None:
+            return "this viewport is already editing"
+        if self._pending_package_generation:
+            return "the viewport is still loading a model"
+        return ""
+
+    def borrow_for_edit(self, parent: QObject | None = None):
+        """A channel for the editor protocol in this helper, or None when it cannot edit."""
+
+        from cdmw.ui.preview.engine_channel import EngineEditChannel
+
+        if self.edit_in_place_blocker():
+            return None
+        process, generation = self._process, self._process_generation
+
+        def write(data: bytes) -> int:
+            if self._process is not process or self._process_generation != generation:
+                return -1
+            try:
+                return int(process.write(data))
+            except (AttributeError, RuntimeError, TypeError):
+                return -1
+
+        channel = EngineEditChannel(write, lambda: self.process_id, self._release_edit_channel, parent)
+        self._edit_channel = channel
+        return channel
+
+    def _release_edit_channel(self, channel: object) -> None:
+        if self._edit_channel is not channel:
+            return
+        self._edit_channel = None
+        # A selection made while editing is shown now.
+        QTimer.singleShot(0, self, self._request_resident_package_load)
+
+    @property
+    def editing_in_place(self) -> bool:
+        return self._edit_channel is not None
 
     def _can_send_protocol(self) -> bool:
         return self._process is not None and qprocess_is_running(self._process)

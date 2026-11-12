@@ -150,6 +150,8 @@ class AutomationBridge(QObject):
             "capture": self._capture,
             "quit": self._quit,
             "set_preview_settings": self._set_preview_settings,
+            "resize": self._resize,
+            "end_edit": self._end_edit,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -187,7 +189,10 @@ class AutomationBridge(QObject):
         controller = getattr(host, "controller", None)
         if controller is None:
             return
-        keep = ("generation", "texture_uploads", "uploaded_bytes", "elapsed_ms", "package_path", "status")
+        keep = ("generation", "texture_uploads", "uploaded_bytes", "elapsed_ms", "package_path", "status",
+                "texture_uploads_before", "texture_uploads_after", "retained_entries", "reason",
+                *(f"{side}_camera_{key}" for side in ("browse", "edit")
+                  for key in ("yaw", "pitch", "distance", "target_x", "target_y", "target_z")))
 
         def protocol(row):
             row = dict(row or {})
@@ -310,13 +315,26 @@ class AutomationBridge(QObject):
                 "set_members": len(getattr(archive.archive_remote_bridge, "item_set_members", ()) or ()),
             },
             "browse_package": str(getattr(current, "dotnet_preview_package_path", "") or ""),
+            "browse_process_id": int(getattr(getattr(getattr(archive, "archive_d3d11_preview_host", None),
+                                                     "controller", None), "process_id", 0) or 0),
             "mesh_editor": None if tab is None else {
                 "ready": bool(getattr(tab, "standalone_rust_ready", False)),
+                # P4 V3: the edit is in Browse's viewport, in Browse's process.
+                "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
+                "process_id": self._editor_process_id(tab),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
                 "session_manifest": self._editor_session_manifest(tab),
             },
             "preview_settings": self._preview_settings(archive, tab),
         }
+
+    @staticmethod
+    def _editor_process_id(tab) -> int:
+        process = getattr(tab, "standalone_rust_process", None)
+        try:
+            return int(process.processId()) if process is not None else 0
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _editor_session_manifest(tab) -> str:
@@ -418,8 +436,33 @@ class AutomationBridge(QObject):
             self.window.shell._open_current_archive_mesh_editor()
         return True
 
+    def _resize(self, args: dict) -> bool:
+        """Resize the window where it is (it stays on the automation screen)."""
+
+        self.window.showNormal()
+        self.window.resize(max(800, int(args.get("width", 1600))), max(600, int(args.get("height", 1000))))
+        return True
+
+    def _end_edit(self, args: dict) -> bool:
+        """End the open edit as the Finish, Discard, Keep editing prompt would."""
+
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        tab = created_tool_widget(self.window.shell.mesh_editor_tab)
+        if tab is None:
+            return False
+        if str(args.get("answer", "discard")) == "finish":
+            return bool(tab.live_edit.request_finish())
+        tab.close_standalone_session()
+        return True
+
     def _quit(self, _args: dict) -> bool:
         from PySide6.QtCore import QTimer
+
+        from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
+
+        # An automated run quits without a question: an open edit is discarded.
+        end_edit_prompt.prompt_override = lambda *_args: end_edit_prompt.DISCARD
 
         QTimer.singleShot(0, self.window.close)
         return True

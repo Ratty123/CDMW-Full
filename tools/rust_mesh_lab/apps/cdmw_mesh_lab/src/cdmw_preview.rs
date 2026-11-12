@@ -25,7 +25,7 @@ use glam::{Mat4, Vec2, Vec3};
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
@@ -38,7 +38,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 128;
-const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 
 pub(crate) const CAPABILITIES: &[&str] = &[
     "embedded_child_window_v1",
@@ -69,6 +68,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "ui_theme_state_v1",
     "ui_localization_v1",
     "dialog_prewarm_hold_v1",
+    "edit_in_place_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -163,75 +163,64 @@ struct PreviewBridge {
 }
 
 impl PreviewBridge {
-    fn new(session_id: String, process_generation: u64, proxy: EventLoopProxy<()>) -> Self {
+    /// The engine's one stdin reader feeds this bridge (P4 V3); the returned
+    /// route is where it puts the Preview's lines.
+    fn new(session_id: String, process_generation: u64) -> (Self, PreviewRoute) {
         let (incoming_tx, incoming) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
-        thread::Builder::new()
-            .name("cdmw-rust-preview-input".to_owned())
-            .spawn(move || {
-                let input = std::io::stdin();
-                let mut reader = BufReader::new(input.lock());
-                loop {
-                    let mut line = String::new();
-                    match reader.read_line(&mut line) {
-                        Ok(0) => break,
-                        Ok(_) if line.len() > MAX_CONTROL_LINE_BYTES => {
-                            let _ = incoming_tx.try_send(Incoming::Error(
-                                "Preview protocol line exceeded its safety limit".to_owned(),
-                            ));
-                            break;
-                        }
-                        Ok(_) => match serde_json::from_str::<Value>(line.trim()) {
-                            Ok(value) => {
-                                if incoming_tx.try_send(Incoming::Message(value)).is_err() {
-                                    let _ = incoming_tx.try_send(Incoming::Error(
-                                        "Preview protocol queue is full".to_owned(),
-                                    ));
-                                }
-                                let _ = proxy.send_event(());
-                            }
-                            Err(error) => {
-                                let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                    "Preview received invalid JSON: {error}"
-                                )));
-                                let _ = proxy.send_event(());
-                            }
-                        },
-                        Err(error) => {
-                            let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                "Preview input failed: {error}"
-                            )));
-                            break;
-                        }
-                    }
-                }
-                let _ = incoming_tx.send(Incoming::Closed);
-                let _ = proxy.send_event(());
-            })
-            .expect("Preview input thread");
+        let route = PreviewRoute(incoming_tx);
         thread::Builder::new()
             .name("cdmw-rust-preview-output".to_owned())
             .spawn(move || {
+                // Lock per line: the edit state's writer shares this stream (V3).
                 let output = std::io::stdout();
-                let mut writer = BufWriter::new(output.lock());
                 while let Ok(value) = outbound_rx.recv() {
-                    if serde_json::to_writer(&mut writer, &value).is_err()
-                        || writer.write_all(b"\n").is_err()
-                        || writer.flush().is_err()
-                    {
+                    let Ok(mut line) = serde_json::to_vec(&value) else {
+                        break;
+                    };
+                    line.push(b'\n');
+                    let mut writer = output.lock();
+                    if writer.write_all(&line).is_err() || writer.flush().is_err() {
                         break;
                     }
                 }
             })
             .expect("Preview output thread");
-        Self {
-            incoming,
-            outbound,
-            session_id,
-            process_generation: process_generation.max(1),
+        (
+            Self {
+                incoming,
+                outbound,
+                session_id,
+                process_generation: process_generation.max(1),
+            },
+            route,
+        )
+    }
+}
+
+/// Where the engine's one stdin reader puts the Preview's lines (P4 V3).
+#[derive(Clone, Debug)]
+pub struct PreviewRoute(Sender<Incoming>);
+
+impl PreviewRoute {
+    pub fn message(&self, value: Value) {
+        if self.0.try_send(Incoming::Message(value)).is_err() {
+            let _ = self
+                .0
+                .try_send(Incoming::Error("Preview protocol queue is full".to_owned()));
         }
     }
 
+    pub fn error(&self, message: String) {
+        let _ = self.0.try_send(Incoming::Error(message));
+    }
+
+    pub fn closed(&self) {
+        let _ = self.0.send(Incoming::Closed);
+    }
+}
+
+impl PreviewBridge {
     fn send(&self, mut value: Value) {
         if let Some(object) = value.as_object_mut() {
             object
@@ -492,10 +481,36 @@ pub struct PreviewApplication {
     newest_package_generation: u64,
     newest_package_request_id: u64,
     package_waiting_for_interaction: bool,
+    /// The edit state holds the window's renderer (P4 V3).
+    lent: bool,
+    /// Icon captures draw textured whatever view mode is chosen (P4 V3).
+    icon_capture: bool,
+}
+
+/// The mode drawn: an icon capture is always textured, so a view mode chosen
+/// for looking at a model (shared by every viewport) never reaches an icon.
+fn drawn_view_mode(chosen: ViewMode, icon_capture: bool) -> ViewMode {
+    if icon_capture {
+        ViewMode::TexturedSolid
+    } else {
+        chosen
+    }
+}
+
+/// What the Preview lends the edit state when Browse edits in place (P4 V3).
+pub(crate) struct LentView {
+    pub window: Arc<Window>,
+    pub renderer: WindowRenderer,
+    pub camera: OrbitCamera,
 }
 
 impl PreviewApplication {
-    pub fn open(manifest_path: &Path, parent_hwnd: u64, proxy: EventLoopProxy<()>) -> Result<Self> {
+    /// Open for the engine (P4 V3): its one stdin reader feeds the returned route.
+    pub fn open_routed(
+        manifest_path: &Path,
+        parent_hwnd: u64,
+        proxy: EventLoopProxy<()>,
+    ) -> Result<(Self, PreviewRoute)> {
         let mut package = LoadedCdmwSessionPackage::load_preview(manifest_path)
             .context("failed to load the initial Preview package")?;
         let document = package.document().clone();
@@ -517,10 +532,9 @@ impl PreviewApplication {
             .map_err(anyhow::Error::msg)?;
         let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(&scene, &|| false)
             .map_err(anyhow::Error::msg)?;
-        let bridge = PreviewBridge::new(
+        let (bridge, route) = PreviewBridge::new(
             package.manifest().session_id.clone(),
             package.manifest().process_generation,
-            proxy.clone(),
         );
         let loader = PreviewLoader::new(proxy.clone())?;
         let (capture_tx, capture_rx) = bounded(2);
@@ -580,10 +594,12 @@ impl PreviewApplication {
             newest_package_generation: 0,
             newest_package_request_id: 0,
             package_waiting_for_interaction: false,
+            lent: false,
+            icon_capture: false,
         };
         application.refresh_visible_snapshot();
         application.apply_canonical_view(false);
-        Ok(application)
+        Ok((application, route))
     }
 
     fn viewport_rect(&self) -> Rect {
@@ -632,7 +648,90 @@ impl PreviewApplication {
         }
     }
 
+    /// Why this view cannot be edited in place, if it cannot (P4 V3): the
+    /// comparison layouts place the model with matrices of their own.
+    pub(crate) fn edit_in_place_blocker(&self) -> Option<&'static str> {
+        if self.window.is_none() {
+            return Some("The Preview window does not exist yet.");
+        }
+        if self.renderer.is_none() {
+            return Some("The Preview renderer is not ready.");
+        }
+        if self.snapshot_scene_roles.is_some()
+            || self
+                .state
+                .presentation
+                .get("comparison_mode")
+                .and_then(Value::as_str)
+                == Some("side_by_side")
+        {
+            return Some("Leave the comparison view before editing the mesh here.");
+        }
+        None
+    }
+
+    /// Hand the window, the renderer (with every texture it holds) and the view
+    /// to the edit state. Nothing is dropped; `return_view` takes them back.
+    pub(crate) fn lend_view(&mut self) -> Result<LentView, String> {
+        if let Some(reason) = self.edit_in_place_blocker() {
+            return Err(reason.to_owned());
+        }
+        let window = self.window.clone().expect("checked above");
+        let renderer = self.renderer.take().expect("checked above");
+        self.lent = true;
+        self.next_frame = None;
+        self.texture_uploads.pending = false;
+        self.renderer_idle.resume();
+        self.fail_deferred_capture("The viewport is editing the mesh.");
+        Ok(LentView {
+            window,
+            renderer,
+            camera: self.camera.clone(),
+        })
+    }
+
+    /// Take the view back after the edit. The resident scene is uploaded again;
+    /// its textures are still in the renderer's cache, so none is uploaded twice.
+    /// `camera` keeps the angle the user ended the edit with.
+    pub(crate) fn return_view(
+        &mut self,
+        renderer: Option<WindowRenderer>,
+        camera: Option<OrbitCamera>,
+    ) {
+        self.lent = false;
+        if let Some(camera) = camera {
+            self.camera.keep_orbit_of(&camera);
+        }
+        let Some(mut renderer) = renderer else {
+            // The edit lost the device: recover as after any GPU fault.
+            self.recover_gpu("The renderer was lost while editing.".to_owned());
+            return;
+        };
+        if let Err(error) = renderer.clear_editor_overlays() {
+            self.renderer = Some(renderer);
+            self.recover_gpu(error.to_string());
+            return;
+        }
+        self.renderer = Some(renderer);
+        let rebuilt = self
+            .configure_renderer()
+            .and_then(|()| self.apply_material_parameters());
+        if let Err(error) = rebuilt {
+            self.recover_gpu(error);
+            return;
+        }
+        self.render_failures = 0;
+        self.apply_presentation(false);
+        self.apply_overlays();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     fn restore_renderer(&mut self) -> Result<(), String> {
+        if self.lent {
+            return Ok(()); // the edit state owns the renderer until it returns it
+        }
         self.gpu_recovery.cancel_pending();
         let window = self.window.clone().ok_or("Preview window is unavailable")?;
         self.renderer = Some(
@@ -1075,7 +1174,7 @@ impl PreviewApplication {
                     renderer.set_view_mode(if isolated.is_some() {
                         ViewMode::TexturedSolid
                     } else {
-                        self.view_mode
+                        drawn_view_mode(self.view_mode, self.icon_capture)
                     });
                     renderer.set_camera_with_basis(matrix, right, up);
                     renderer
@@ -1091,7 +1190,7 @@ impl PreviewApplication {
             self.refresh_scene_overlays(time);
             let matrix = self.camera.view_projection(self.viewport_rect());
             if let Some(renderer) = &mut self.renderer {
-                renderer.set_view_mode(self.view_mode);
+                renderer.set_view_mode(drawn_view_mode(self.view_mode, self.icon_capture));
                 renderer.set_camera_with_basis(matrix, self.camera.right(), self.camera.up());
             }
             capture
@@ -1467,6 +1566,7 @@ impl PreviewApplication {
             .get("icon_capture_mode")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.icon_capture = icon_capture;
         let ground = !icon_capture
             && display
                 .get("ground_visible")
@@ -3083,7 +3183,7 @@ impl ApplicationHandler for PreviewApplication {
                 let camera = self.camera.view_projection(self.viewport_rect());
                 if let Some(renderer) = &mut self.renderer {
                     renderer.set_material_time(effect_time);
-                    renderer.set_view_mode(self.view_mode);
+                    renderer.set_view_mode(drawn_view_mode(self.view_mode, self.icon_capture));
                     renderer.set_camera_with_basis(camera, self.camera.right(), self.camera.up());
                     renderer.set_mesh_viewport(None);
                     match renderer.render() {
@@ -3139,6 +3239,13 @@ impl ApplicationHandler for PreviewApplication {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let changed = self.poll_bridge() | self.poll_package_loads();
         self.poll_captures();
+        if self.lent {
+            // The edit state draws and sets the wait; only messages and loads run here.
+            if self.exit_requested {
+                event_loop.exit();
+            }
+            return;
+        }
         if self.renderer_idle.take_due(Instant::now()) {
             self.renderer = None;
         }
@@ -4664,5 +4771,23 @@ mod tests {
             )
             .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod view_mode_tests {
+    use super::*;
+
+    #[test]
+    fn an_icon_capture_is_textured_whatever_mode_is_chosen() {
+        for chosen in [
+            ViewMode::Wireframe,
+            ViewMode::NormalMap,
+            ViewMode::XRay,
+            ViewMode::Solid,
+        ] {
+            assert_eq!(drawn_view_mode(chosen, true), ViewMode::TexturedSolid);
+            assert_eq!(drawn_view_mode(chosen, false), chosen);
+        }
     }
 }

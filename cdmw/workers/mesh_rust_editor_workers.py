@@ -152,6 +152,8 @@ class MeshRustSessionPrepareWorker(QObject):
                 **({"hair_start_mode": self.hair_start_mode} if self.hair_start_mode else {}),
                 **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
                 **({"edit_item_set": True} if self.edit_item_set else {}),
+                # The editor shows first and receives its morph data later (P4 V3).
+                **({"defer_morph_state": True} if getattr(self, "defer_morph_state", True) else {}),
             )
             if (
                 self._stop_event.is_set()

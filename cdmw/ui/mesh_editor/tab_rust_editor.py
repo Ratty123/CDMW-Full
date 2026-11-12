@@ -137,6 +137,22 @@ def _record_open_step_timings(tab: object, **timings: float) -> None:
             pass
 
 
+def _record_open_stage_timings(tab: object, stages: dict) -> None:
+    """Where the session preparation's time went (worker stages), with the launch."""
+
+    host = getattr(tab, "host", tab)
+    try:
+        window = host.window()  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        return
+    recorder = getattr(window, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder("mesh_editor_prepare_stages", **stages)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+
+
 def _sweep_stale_editor_sessions(owned_root: Path) -> None:
     """Remove session folders a crashed run left behind, off the UI thread."""
 

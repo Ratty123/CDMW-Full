@@ -35,6 +35,7 @@ from cdmw.ui.archive_browser.asset_catalog_dialog import ArchiveAssetCatalogDial
 from cdmw.ui.archive_browser.character_dependency_export import ArchiveCharacterDependencyExportMixin
 from cdmw.ui.archive_browser.controls_panel import ArchiveControlsPanelMixin
 from cdmw.ui.archive_browser.edited_results import ArchiveEditedResultsMixin
+from cdmw.ui.archive_browser.edit_in_place import BrowseEditInPlaceMixin
 from cdmw.ui.archive_browser.extraction import ArchiveExtractionMixin
 from cdmw.ui.archive_browser.icon_pipeline import ArchiveIconPipelineMixin
 from cdmw.ui.archive_browser.material_sidecar_actions import ArchiveMaterialSidecarActionsMixin
@@ -99,6 +100,7 @@ from cdmw.ui.archive_browser.workspace_layout import ArchiveWorkspaceLayoutMixin
 
 
 class ArchiveBrowserWorkspace(
+    BrowseEditInPlaceMixin,
     ArchiveEditedResultsMixin,
     ArchiveWorkerLifecycleMixin,
     ArchivePreviewWorkerMixin,

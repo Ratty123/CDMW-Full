@@ -498,6 +498,36 @@ fn run_command_must_name_an_editor_command() {
     ));
 }
 
+#[test]
+fn finish_and_late_morph_data_come_from_the_host() {
+    // P4 V3: the Finish, Discard, Keep editing prompt finishes as the button does,
+    // and an editor that opened before its morph query gets the data afterwards.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "late", 1, 0);
+    let identity = |event: &str| {
+        json!({"event": event, "protocol": cdmw_session::PROTOCOL, "session_id": "late",
+               "process_generation": 1})
+    };
+    let mut finish = identity("run_command");
+    finish["command"] = json!("session.finish");
+    assert!(matches!(
+        bridge.decode_host_event_for_test(finish),
+        HostEvent::RunCommand(command) if command == "session.finish"
+    ));
+    let mut morph = identity("morph_state");
+    morph["payload"] = json!({"available": true, "profile_id": "body"});
+    assert!(matches!(
+        bridge.decode_host_event_for_test(morph),
+        HostEvent::MorphState(state) if state["profile_id"] == "body"
+    ));
+    let mut empty = identity("morph_state");
+    empty["payload"] = json!("not an object");
+    assert!(matches!(
+        bridge.decode_host_event_for_test(empty),
+        HostEvent::Fatal(_)
+    ));
+}
+
 /// CDMW's Shortcuts page lists the editor's commands from this file when no
 /// editor runs. Set CDMW_WRITE_MESH_COMMANDS=1 to rewrite it after changing the keymap.
 #[test]

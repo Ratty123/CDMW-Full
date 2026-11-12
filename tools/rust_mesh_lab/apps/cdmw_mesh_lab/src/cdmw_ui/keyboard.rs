@@ -333,6 +333,12 @@ impl LabApplication {
         }
         // Commands CDMW's palette asked for run here, as their key press would.
         for command in std::mem::take(&mut self.pending_host_commands) {
+            if command == "session.finish" {
+                // CDMW's Finish, Discard, Keep editing prompt (P4 V3) finishes here,
+                // as the Finish button does.
+                actions.push(UiAction::FinishCdmw);
+                continue;
+            }
             if let Some(spec) = crate::shortcuts::spec_for_id(&command) {
                 self.run_shortcut(context, spec.action, actions);
             }

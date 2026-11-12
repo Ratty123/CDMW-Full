@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -469,6 +469,8 @@ pub enum HostEvent {
         error: String,
     },
     StateSnapshot(Value),
+    /// The morph data of an editor that opened before its query answered (P4 V3).
+    MorphState(Value),
     Cancel(String),
     Fatal(String),
 }
@@ -1741,7 +1743,11 @@ impl CdmwBridge {
                 "run_command" => value
                     .get("command")
                     .and_then(Value::as_str)
-                    .filter(|command| crate::shortcuts::spec_for_id(command).is_some())
+                    .filter(|command| {
+                        // Finish has no key of its own; CDMW's end-edit prompt asks for it.
+                        *command == "session.finish"
+                            || crate::shortcuts::spec_for_id(command).is_some()
+                    })
                     .map(|command| HostEvent::RunCommand(command.to_owned()))
                     .ok_or_else(|| {
                         SessionError::Protocol("run_command names no editor command".to_owned())
@@ -1755,6 +1761,15 @@ impl CdmwBridge {
                     }
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
+                // The morph data of an editor that opened before it (P4 V3).
+                "morph_state" => value
+                    .get("payload")
+                    .filter(|payload| payload.is_object())
+                    .cloned()
+                    .map(HostEvent::MorphState)
+                    .ok_or_else(|| {
+                        SessionError::Protocol("morph_state needs an object payload".to_owned())
+                    }),
                 "state_snapshot" => Ok(HostEvent::StateSnapshot(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
@@ -3564,6 +3579,21 @@ pub struct PendingSessionInput {
     receiver: Receiver<Incoming>,
 }
 
+/// Where the engine's stdin reader puts the edit state's lines.
+#[derive(Clone, Debug)]
+pub struct EditorRoute(Sender<Incoming>);
+
+impl EditorRoute {
+    /// False when the edit's queue is full or gone.
+    pub fn message(&self, value: Value) -> bool {
+        self.0.try_send(Incoming::Message(value)).is_ok()
+    }
+
+    pub fn error(&self, message: String) {
+        let _ = self.0.try_send(Incoming::LocalError(message));
+    }
+}
+
 /// What a pending helper heard from the host.
 #[derive(Debug, PartialEq, Eq)]
 pub enum PendingRequest {
@@ -3577,6 +3607,20 @@ impl PendingSessionInput {
         let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
         spawn_input_reader(sender.clone(), wake);
         Self { sender, receiver }
+    }
+
+    /// An input fed by the engine's one stdin reader instead of a reader of its own
+    /// (P4 V3): Browse's process routes the editor's lines here when it edits.
+    #[must_use]
+    pub fn routed() -> (Self, EditorRoute) {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        (
+            Self {
+                sender: sender.clone(),
+                receiver,
+            },
+            EditorRoute(sender),
+        )
     }
 
     #[cfg(test)]
@@ -3732,9 +3776,11 @@ fn spawn_output_writer(
     thread::Builder::new()
         .name("cdmw-rust-control-output".to_owned())
         .spawn(move || {
+            // Lock stdout per message, not for the thread's life: in one engine
+            // process the Preview's writer shares the stream, and each line stays whole.
             let stdout = std::io::stdout();
-            let mut writer = BufWriter::new(stdout.lock());
             for outbound in receiver {
+                let mut writer = Vec::with_capacity(4096);
                 let result = match outbound {
                     Outbound::Message(value) => write_control_message(&mut writer, &value),
                     Outbound::HairTransaction {
@@ -3778,6 +3824,12 @@ fn spawn_output_writer(
                         &mut writer,
                     ),
                 };
+                let result = result.and_then(|()| {
+                    let mut output = stdout.lock();
+                    output.write_all(&writer)?;
+                    output.flush()?;
+                    Ok(())
+                });
                 if let Err(error) = result {
                     let _ = error_sender.send(Incoming::LocalError(error.to_string()));
                     break;

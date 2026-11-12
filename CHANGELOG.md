@@ -11,6 +11,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - A **command palette** (Ctrl+Shift+P) lists the commands of the tool you are in and of the app, with their keys, recent ones first. A command that cannot run says why, as its button does. It opens from the Mesh Editor's 3D view and the Create New Item and Mod Management pages too; Ctrl+Shift+P can no longer be given to an editor command.
 
+- **Open in Mesh Editor** on a model Browse Archives already shows now edits it right there: the view keeps its angle and textures, the file and control panes fold into narrow strips that open under the pointer, and a banner names the file. Selecting another file shows its details; **Preview selected file instead** asks first. Opening the editor this way is faster, since no second 3D view starts. Sets, comparison views and files Browse is not showing still open in the Mesh Editor tab.
+
 - **Settings > Shortcuts** shows the keys of every command, including the Mesh Editor's and the Texture Editor's, in one list. Search it, change, unbind or reset a key, or reset all; a key already used where it would clash is named before you save it. Keys you set in the Mesh Editor's or the Texture Editor's own shortcut windows appear here and carry over.
 
 - Mesh Editor's **Export PAC As…**, available after Finish, saves just the PAC with a chosen name and path, remembers the destination and replaces existing exports. Edits needing companion files explain why Build Mod is required.
@@ -30,6 +32,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Preview and Mesh Editor add **Shadows** and **Ambient occlusion** switches for Textured and Game Outdoor views. Both start on. Icon captures retain self-shadows on a transparent background. **Studio (fixed lights)** adds lighting that stays in place as you orbit, alongside the unchanged default preset.
 
 ### Changed
+
+- Replacing an open mesh edit, or closing CDMW with one open, now asks **Finish**, **Discard** or **Keep editing** instead of a Yes or No question. If the Mesh Editor's 3D view stops unexpectedly, it restarts and your edits up to the last completed step are kept; only the step in progress is lost. A second stop within a minute offers Finish or Discard. Morph and refit data now finish loading just after the editor opens.
 
 - CDMW keeps its temporary files in **workspace\temp** inside its own folder instead of the Windows temp folder, and removes what a crash left there after a day. Create New Item's Blender path, rig folder and preview choices, which were kept in the Windows registry and shared by every copy of CDMW, now live in the settings file; they are copied over once and the registry entry is left as it is. If the CDMW folder cannot be written to, CDMW says so at start instead of using another folder.
 

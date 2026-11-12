@@ -591,29 +591,22 @@ class MeshEditorShellBridgeMixin:
                     return False
                 self.set_status_message("Mesh Editor is already open for this target.")
                 return False
-            controller = getattr(self.mesh_editor_tab, "standalone_controller", None)
-            try:
-                revision = int(controller.session_view().revision) if controller is not None else 0
-            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-                revision = 0
-            result = QMessageBox.question(
-                self,
-                "Replace Mesh Editor Session",
-                "Mesh Editor already has an active mesh.\n\n"
-                "Close it and open the selected archive mesh?\n\n"
-                + (
-                    "The current mesh has edits that have not been exported or built."
-                    if revision > 0
-                    else "The current mesh has no committed geometry edits."
-                ),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if result != QMessageBox.Yes:
+            # One question for every replacement of an edit (P4 V3): Finish, Discard or Keep editing.
+            from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import DISCARD, FINISH, NONE, resolve_pending_edit
+
+            answer = resolve_pending_edit(self, self.mesh_editor_tab)
+            if answer == NONE:
+                self.mesh_editor_tab.close_standalone_session()  # nothing in it to lose
+                return True
+            if answer == DISCARD:
+                return True
+            if answer == FINISH:
+                self.set_status_message(
+                    "Finishing the current edit. Open the selected mesh again when it has finished."
+                )
+            if not getattr(self.archive, "editing_in_place", False):
                 self._activate_tool_widget(self.mesh_editor_tab)
-                return False
-            self.mesh_editor_tab.close_standalone_session()
-            return True
+            return False
         if self._mesh_editor_active_builder_entry_key() == self._mesh_editor_entry_key(entry):
             self._activate_tool_widget(self.mesh_editor_tab)
             self.set_status_message("Mesh Editor is already open for this target.")
@@ -793,7 +786,12 @@ class MeshEditorShellBridgeMixin:
         )
         material_companion_entry = (None if session_options.get("item_set_contexts")
                                     else self.archive._find_archive_preview_companion_entry(entry))
-        self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+        # P4 V3: a model Browse already shows is edited in Browse's own viewport.
+        binding = self._browse_edit_binding(entry, preview_matches_entry, session_options)
+        if binding is None:
+            # The tab edits: Browse's copy of the model is not needed meanwhile. An
+            # edit in Browse's viewport keeps it, since that viewport shows it.
+            self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
         self.mesh_editor_tab.open_archive_session(
             entry,
             material_preview_model=material_preview_model,
@@ -805,8 +803,39 @@ class MeshEditorShellBridgeMixin:
             archive_dependencies=archive_dependencies,
             **session_options,
         )
+        if binding is not None:
+            self.set_status_message(f"Editing {entry.basename} in Browse Archives.")
+            return
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")
+
+    def _browse_edit_binding(self, entry: ArchiveEntry, preview_matches_entry: bool,
+                             session_options: Mapping[str, object]):
+        """Bind the Mesh Editor to Browse's viewport when it shows ``entry`` and can edit it."""
+
+        if not preview_matches_entry or session_options.get("item_set_contexts"):
+            return None
+        live_edit = getattr(self.mesh_editor_tab, "live_edit", None)
+        begin = getattr(self.archive, "begin_edit_in_place", None)
+        if live_edit is None or not callable(begin):
+            return None
+        binding = begin(entry)
+        if binding is None:
+            return None
+        if not getattr(self, "_browse_edit_moves_connected", False):
+            live_edit.moved_to_own_viewport.connect(self._browse_edit_moved_to_tab)
+            self._browse_edit_moves_connected = True
+        live_edit.edit_in_viewport(binding)
+        return binding
+
+    def _browse_edit_moved_to_tab(self, reason: str) -> None:
+        """Browse's viewport could not hold the edit: the Mesh Editor tab shows it."""
+
+        self._activate_tool_widget(self.mesh_editor_tab)
+        self.set_status_message("Opened the edit in the Mesh Editor tab.")
+        recorder = getattr(self, "_record_runtime_event", None)
+        if callable(recorder):
+            recorder("mesh_editor_edit_moved_to_tab", reason=str(reason or ""))
 
     def _open_current_archive_mesh_editor(self) -> None:
         current_entry = self.archive._current_archive_mesh_entry()

@@ -2689,15 +2689,16 @@ def test_replacing_an_edited_archive_session_requires_confirmation(tmp_path: Pat
             pass
 
     harness = Harness()
-    with patch("cdmw.ui.mesh_editor.shell_bridge.QMessageBox.question", return_value=0):
+    # P4 V3: replacing an edit asks Finish, Discard or Keep editing (one prompt for every caller).
+    from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
+
+    harness.mesh_editor_tab.standalone_controller = SimpleNamespace(session_view=lambda: SimpleNamespace(revision=2))
+    with patch.object(end_edit_prompt, "prompt_override", lambda *_: end_edit_prompt.KEEP):
         assert harness._prepare_mesh_editor_archive_launch(replacement) is False
     assert not harness.mesh_editor_tab.closed
     assert harness.activated
 
-    with patch(
-        "cdmw.ui.mesh_editor.shell_bridge.QMessageBox.question",
-        return_value=QMessageBox.Yes,
-    ):
+    with patch.object(end_edit_prompt, "prompt_override", lambda *_: end_edit_prompt.DISCARD):
         assert harness._prepare_mesh_editor_archive_launch(replacement) is True
     assert harness.mesh_editor_tab.closed
 

@@ -120,3 +120,27 @@ def test_journey_5_a_preview_setting_changed_once_reaches_every_viewport(run):
 
     reached = run.wait(everywhere, what="the change to reach Browse and the Mesh Editor")
     assert reached["shared"]["shadows"] == flipped["shadows"]
+
+
+def test_journey_6_edit_in_browse_in_its_own_process_and_return(run):
+    """P4 V3: Open in Mesh Editor edits in Browse's viewport, in Browse's process, with
+    no texture uploaded again; Discard hands the view back to Browse."""
+
+    run.select(driver.UPPER)
+    browse_pid = run.state()["browse_process_id"]
+    index = len(run.call("events"))
+    editor = run.open_mesh_editor()
+    assert editor["texture_unavailable_reason"] == "", editor
+    state = run.state()["mesh_editor"]
+    assert state["in_browse"] and state["process_id"] == browse_pid
+    entered = run.wait(lambda: [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"],
+                       what="the edit to report its uploads")[-1]
+    assert entered["texture_uploads_after"] == entered["texture_uploads_before"], entered
+    assert entered["edit_camera_yaw"] == pytest.approx(entered["browse_camera_yaw"], abs=1e-4)
+    assert entered["edit_camera_distance"] == pytest.approx(entered["browse_camera_distance"], rel=1e-4)
+    index = len(run.call("events"))
+    assert run.call("end_edit", answer="discard")
+    run.wait(lambda: not run.state()["mesh_editor"]["in_browse"], timeout=60, what="the edit to leave Browse")
+    run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
+             timeout=30, what="the helper to leave edit mode")
+    assert run.state()["browse_process_id"] == browse_pid

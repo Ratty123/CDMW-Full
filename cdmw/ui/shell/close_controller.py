@@ -590,6 +590,27 @@ class CloseControllerMixin:
         if callable(write_heartbeat):
             write_heartbeat("closed", clean_shutdown=True)
 
+    def _pending_edit_allows_close(self) -> bool:
+        """Closing with an open mesh edit asks Finish, Discard or Keep editing first (P4 V3)."""
+
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import DISCARD, NONE, resolve_pending_edit
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        shell = getattr(self, "shell", self)
+        tab = getattr(shell, "mesh_editor_tab", None)
+        try:
+            tab = created_tool_widget(tab) if tab is not None else None
+        except (AttributeError, RuntimeError, TypeError):
+            tab = None
+        if tab is None:
+            return True
+        answer = resolve_pending_edit(self, tab)
+        if answer == "finish":
+            set_status = getattr(self, "set_status_message", None)
+            if callable(set_status):
+                set_status("Finishing the edit. Close CDMW again when it has finished.")
+        return answer in (DISCARD, NONE)
+
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if bool(getattr(self, "_close_force_accept", False)):
             self._finalize_close()
@@ -604,6 +625,12 @@ class CloseControllerMixin:
             except Exception:
                 pass
             self._finish_deferred_close_if_workers_stopped()
+            return
+        if not self._pending_edit_allows_close():
+            try:
+                event.ignore()
+            except Exception:
+                pass
             return
         # Arm before discovering workers or invoking feature shutdown hooks:
         # either can be the source of a stalled close. Archive transactions

@@ -38,6 +38,7 @@ HOST_NAMES = (
 #: The state the component owns (everything its code assigns).
 STATE_NAMES = (
     "_archive_refit_picker_active", "_hair_entry_generation", "_pending_hair_start", "_rust_spare",
+    "_rust_last_crash_at",
     "_rust_follows_keymap", "_rust_keymap_echo", "_rust_spare_adoption", "_shared_preview_settings_connected",
     "mesh_editor_backend",
     "standalone_export_validation_revision", "standalone_last_export_validation_report",
@@ -78,10 +79,22 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
 
     became_ready = Signal()
     closed = Signal()
+    #: Browse's viewport could not hold the edit; the editor opened in the
+    #: host's own viewport instead. The argument is the reason.
+    moved_to_own_viewport = Signal(str)
+    #: (session, payload): a deferred morph query answered, on its own thread.
+    morph_state_arrived = Signal(object, object)
+    #: (session, error): the session files were written again after a crash.
+    crash_rewrite_done = Signal(object, str)
+    #: Browse's viewport while an edit is bound to it (``edit_in_viewport``).
+    _viewport_binding = None
 
     def __init__(self, host: QObject) -> None:
         QObject.__init__(self, host)
         self._live_edit_host = host
+        self.morph_state_arrived.connect(self._send_rust_morph_state)
+        self.crash_rewrite_done.connect(self._relaunch_rust_editor_after_crash)
+        self._viewport_binding = None
 
     # ----- the public surface -------------------------------------------------
     def open(self, controller: object) -> None:
@@ -106,6 +119,28 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     def host(self) -> QObject:
         return self._live_edit_host
 
+    # ----- edit in another host's viewport (P4 V3) ----------------------------
+    def edit_in_viewport(self, binding: object) -> None:
+        """Open the next edit in ``binding``'s viewport (Browse's) instead of the host's."""
+
+        self._viewport_binding = binding
+
+    @property
+    def viewport_binding(self) -> object | None:
+        return self._viewport_binding
+
+    def request_finish(self) -> bool:
+        """Finish Edit Mesh, as the editor's Finish button does; False when no editor is ready."""
+
+        if not self.standalone_rust_ready:
+            return False
+        return bool(self._send_rust_command("session.finish"))
+
+    def _release_viewport_binding(self) -> None:
+        binding, self._viewport_binding = self._viewport_binding, None
+        if binding is not None:
+            binding.end()
+
 
 def _host_property(name: str) -> property:
     def get(self: LiveEditComponent):
@@ -116,6 +151,18 @@ def _host_property(name: str) -> property:
 
 for _name in HOST_NAMES:
     setattr(LiveEditComponent, _name, _host_property(_name))
+
+
+def _viewport_frame(self: LiveEditComponent):
+    binding = self._viewport_binding
+    if binding is not None:
+        return binding.frame
+    return self._live_edit_host.standalone_native_host_frame
+
+
+# An edit in Browse's viewport answers the host-frame calls for that viewport.
+LiveEditComponent.standalone_native_host_frame = property(
+    _viewport_frame, doc="The host's viewport frame, or the borrowed viewport's while one is bound.")
 
 
 def moved_method_names() -> tuple[str, ...]:

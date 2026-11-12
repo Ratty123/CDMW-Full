@@ -67,6 +67,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_main_widget.setMinimumWidth(0)
         archive_preview_main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         archive_preview_main_layout = QVBoxLayout(archive_preview_main_widget)
+        self.archive_preview_main_layout = archive_preview_main_layout  # P4 V3 editing banner
         archive_preview_main_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_main_layout.setSpacing(4)
         self.character_context_service = None
@@ -475,6 +476,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_toolbar_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_toolbar_layout.setSpacing(4)
         archive_view_controls_layout = QHBoxLayout()
+        self.archive_view_controls_layout = archive_view_controls_layout  # hidden while editing (P4 V3)
         archive_view_controls_layout.setContentsMargins(0, 0, 0, 0)
         archive_view_controls_layout.setSpacing(6)
         for button, width in (

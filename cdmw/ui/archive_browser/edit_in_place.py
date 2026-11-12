@@ -1,0 +1,256 @@
+"""Edit mesh where Browse Archives shows it (P4 V3).
+
+"Open in Mesh Editor" on a model Browse already shows switches Browse's own
+viewport into edit mode: the helper that draws the preview enters edit mode in
+the same window, so the camera, the textures and the picture stay. The Mesh
+Editor tab keeps the session, the undo history and Finish; only the viewport
+is Browse's.
+
+While editing:
+- the controls and file list collapse to narrow strips that open while the
+  pointer is over them, so the editor's panels get the room;
+- the details, warnings and the preview's own view controls are hidden, since
+  the editor's Inspector and view options replace them;
+- a banner says which file is being edited. Selecting another file shows its
+  details only; the banner then offers to preview it instead, which asks
+  Finish, Discard or Keep editing first.
+"""
+
+from __future__ import annotations
+
+from PySide6.QtCore import QEvent, QObject, QTimer
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
+
+#: Width of a collapsed pane while editing.
+STRIP_WIDTH = 28
+_HOVER_COLLAPSE_MS = 400
+
+
+class _StripHover(QObject):
+    """Open a collapsed pane while the pointer is over it."""
+
+    def __init__(self, layout: "BrowseEditLayout") -> None:
+        super().__init__()
+        self._layout = layout
+        self._collapse_timer = QTimer(self)
+        self._collapse_timer.setSingleShot(True)
+        self._collapse_timer.timeout.connect(layout.collapse_strips)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        kind = event.type()
+        if kind == QEvent.Type.Enter:
+            self._collapse_timer.stop()
+            self._layout.open_strips()
+        elif kind == QEvent.Type.Leave:
+            self._collapse_timer.start(_HOVER_COLLAPSE_MS)
+        return False
+
+
+class BrowseEditLayout:
+    """Browse Archives' layout while its viewport holds an edit."""
+
+    def __init__(self, browser: QWidget) -> None:
+        self.browser = browser
+        self.active = False
+        self.entry = None
+        self._saved_sizes: list[int] = []
+        self._saved_minimums: list[int] = []
+        self._hidden: list[QWidget] = []
+        self._hover = _StripHover(self)
+        self.banner = self._build_banner()
+
+    # ----- banner -------------------------------------------------------------
+    def _build_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("ArchiveEditingBanner")
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(8, 4, 8, 4)
+        self.banner_label = QLabel("")
+        self.banner_label.setObjectName("ArchiveEditingBannerLabel")
+        self.preview_selected_button = QPushButton("Preview selected file instead")
+        self.preview_selected_button.setObjectName("ArchiveEditingPreviewSelectedButton")
+        self.preview_selected_button.setVisible(False)
+        row.addWidget(self.banner_label, stretch=1)
+        row.addWidget(self.preview_selected_button)
+        banner.setVisible(False)
+        layout = getattr(self.browser, "archive_preview_main_layout", None)
+        if layout is not None:
+            layout.insertWidget(0, banner)
+        return banner
+
+    def set_status(self, message: str) -> None:
+        label = getattr(self.entry, "basename", "") or getattr(self.entry, "path", "") or ""
+        text = f"Editing {label}" if label else "Editing"
+        if message:
+            text = f"{text}: {message}"
+        self.banner_label.setText(text)
+
+    def selection_changed(self, selected_entry: object) -> None:
+        """Another file is selected: offer to preview it instead of the edit."""
+
+        if not self.active:
+            return
+        same = (selected_entry is None or self.entry is None
+                or getattr(selected_entry, "identity", None) == getattr(self.entry, "identity", None))
+        self.preview_selected_button.setVisible(not same)
+
+    # ----- layout -------------------------------------------------------------
+    def _strip_panes(self) -> list[QWidget]:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if splitter is None or splitter.count() < 3:
+            return []
+        return [splitter.widget(0), splitter.widget(1)]
+
+    def enter(self, entry: object) -> None:
+        if self.active:
+            return
+        self.active = True
+        self.entry = entry
+        splitter = getattr(self.browser, "archive_splitter", None)
+        panes = self._strip_panes()
+        if splitter is not None and panes:
+            self._saved_sizes = list(splitter.sizes())
+            self._saved_minimums = [pane.minimumWidth() for pane in panes]
+            for pane in panes:
+                pane.setMinimumWidth(STRIP_WIDTH)
+                pane.installEventFilter(self._hover)
+            self.collapse_strips()
+        self._hidden = []
+        for name in ("archive_preview_meta_label", "archive_preview_health_label",
+                     "archive_preview_warning_label", "archive_item_set_components",
+                     "archive_texture_refs_group", "archive_character_context_panel"):
+            widget = getattr(self.browser, name, None)
+            if isinstance(widget, QWidget) and widget.isVisible():
+                widget.setVisible(False)
+                self._hidden.append(widget)
+        controls = getattr(self.browser, "archive_view_controls_layout", None)
+        if controls is not None:
+            for index in range(controls.count()):
+                widget = controls.itemAt(index).widget()
+                if widget is not None and widget.isVisible():
+                    widget.setVisible(False)
+                    self._hidden.append(widget)
+        self.set_status("")
+        self.preview_selected_button.setVisible(False)
+        self.banner.setVisible(True)
+
+    def leave(self) -> None:
+        if not self.active:
+            return
+        self.active = False
+        splitter = getattr(self.browser, "archive_splitter", None)
+        for pane, minimum in zip(self._strip_panes(), self._saved_minimums):
+            pane.removeEventFilter(self._hover)
+            pane.setMinimumWidth(minimum)
+        if splitter is not None and self._saved_sizes:
+            splitter.setSizes(self._saved_sizes)
+        for widget in self._hidden:
+            try:
+                widget.setVisible(True)
+            except RuntimeError:
+                pass
+        self._hidden = []
+        self.banner.setVisible(False)
+        self.preview_selected_button.setVisible(False)
+        self.entry = None
+
+    def collapse_strips(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if not self.active or splitter is None or not self._saved_sizes:
+            return
+        total = sum(self._saved_sizes)
+        splitter.setSizes([STRIP_WIDTH, STRIP_WIDTH, max(STRIP_WIDTH, total - 2 * STRIP_WIDTH)])
+
+    def open_strips(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if not self.active or splitter is None or len(self._saved_sizes) < 3:
+            return
+        total = sum(self._saved_sizes)
+        first, second = self._saved_sizes[0], self._saved_sizes[1]
+        splitter.setSizes([first, second, max(STRIP_WIDTH, total - first - second)])
+
+
+class BrowseEditInPlaceMixin:
+    """The Archive Browser's half of editing in its own viewport."""
+
+    def _archive_edit_layout(self) -> BrowseEditLayout:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is None:
+            layout = self._edit_in_place_layout = BrowseEditLayout(self)
+            layout.preview_selected_button.clicked.connect(self._preview_selected_instead_of_edit)
+            tree = getattr(self, "archive_tree", None)
+            if tree is not None:
+                tree.itemSelectionChanged.connect(self._edit_in_place_selection_changed)
+        return layout
+
+    def edit_in_place_blocker(self, entry: object) -> str:
+        """Why Browse's viewport cannot hold an edit of ``entry`` now ("" when it can)."""
+
+        host = getattr(self, "archive_d3d11_preview_host", None)
+        controller = getattr(host, "controller", None)
+        check = getattr(controller, "edit_in_place_blocker", None)
+        if not callable(check):
+            return "Browse's viewport cannot edit in place"
+        if getattr(self, "archive_preview_stack", None) is not None:
+            try:
+                if self.archive_preview_stack.currentWidget() is not host:
+                    return "Browse is not showing this model in 3D"
+            except RuntimeError:
+                return "Browse's viewport is closed"
+        return str(check() or "")
+
+    def begin_edit_in_place(self, entry: object):
+        """A viewport binding for the Mesh Editor, or None to open the edit in its tab."""
+
+        if self.edit_in_place_blocker(entry):
+            return None
+        from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+
+        binding = BrowseViewportBinding(self.archive_d3d11_preview_host,
+                                        str(getattr(entry, "basename", "") or ""), self)
+        layout = self._archive_edit_layout()
+        binding.status.connect(self._edit_in_place_status)
+        binding.ended.connect(self._edit_in_place_ended)
+        layout.enter(entry)
+        self._edit_in_place_binding = binding
+        return binding
+
+    @property
+    def editing_in_place(self) -> bool:
+        binding = getattr(self, "_edit_in_place_binding", None)
+        return binding is not None and not binding.is_ended
+
+    def _edit_in_place_status(self, kind: int, message: str) -> None:
+        layout = self._archive_edit_layout()
+        from cdmw.ui.mesh_editor.live_edit.browse_viewport import STATUS_EDITING
+
+        layout.set_status("" if kind == STATUS_EDITING else message)
+
+    def _edit_in_place_ended(self) -> None:
+        self._edit_in_place_binding = None
+        self._archive_edit_layout().leave()
+
+    def _edit_in_place_selection_changed(self) -> None:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is None or not layout.active:
+            return
+        current = getattr(self, "_current_archive_entry", None)
+        layout.selection_changed(current() if callable(current) else None)
+
+    def _preview_selected_instead_of_edit(self) -> None:
+        """Preview the selected file: ask Finish, Discard or Keep editing first."""
+
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import DISCARD, resolve_pending_edit
+
+        shell = getattr(self, "shell", None)
+        tab = getattr(shell, "mesh_editor_tab", None)
+        layout = self._archive_edit_layout()
+        label = getattr(layout.entry, "basename", "") or ""
+        answer = resolve_pending_edit(self, tab, file_label=label)
+        if answer == DISCARD or answer == "none":
+            binding = getattr(self, "_edit_in_place_binding", None)
+            if binding is not None:
+                binding.end()  # the newest selection loads once the viewport is free
+
+
+__all__ = ["BrowseEditInPlaceMixin", "BrowseEditLayout", "STRIP_WIDTH"]
