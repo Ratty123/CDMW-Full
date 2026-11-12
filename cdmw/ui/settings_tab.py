@@ -1169,6 +1169,15 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Shortcuts",
             "Keys for every command, in every tool. Search, change, unbind or reset them; a key used twice is named.",
         )
+        self.ai_connections_page_layout = _add_settings_page(
+            "ai_connections",
+            "AI connections",
+            "Let AI apps on this computer use CDMW's tools, and choose what they may do without asking.",
+        )
+        from cdmw.ui.ai_connections.settings_section import AiConnectionsSettingsSection
+
+        self.ai_connections_section = AiConnectionsSettingsSection(self.settings)
+        self.ai_connections_page_layout.addWidget(self.ai_connections_section)
         from cdmw.ui.commands.registry import command_registry
         from cdmw.ui.commands.shortcuts_page import ShortcutsPage
 

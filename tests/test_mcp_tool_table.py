@@ -1,6 +1,10 @@
 """P13 stage C, item 1: the tool table, reserved family prefixes and the effect class on Command."""
 from __future__ import annotations
 
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 from PySide6.QtWidgets import QApplication
 

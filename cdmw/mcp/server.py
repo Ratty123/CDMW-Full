@@ -60,6 +60,8 @@ class ToolCall:
     cancel_event: threading.Event = field(default_factory=threading.Event)
     #: ``progress(done, total, message)``; set by the job runner.
     on_progress: Callable[[float, float, str], None] | None = None
+    #: How it was approved: no_prompt, session, allow_once or allow_session.
+    approval: str = ""
 
     def cancelled(self) -> bool:
         return self.cancel_event.is_set()
@@ -98,6 +100,8 @@ class McpSession:
         self.protocol = PROTOCOL_VERSIONS[0]
         self.initialized = False
         self.in_flight: dict[object, threading.Event] = {}
+        #: Tools the user allowed "for this session": until this app disconnects.
+        self.session_allowed: set[str] = set()
         self._lock = threading.Lock()
 
     def send(self, message: dict) -> None:
@@ -166,9 +170,12 @@ class _RpcError(Exception):
 class McpServer:
     """The tool table behind the MCP methods; one instance serves every session."""
 
-    def __init__(self, table: ToolTable, context: object) -> None:
+    def __init__(self, table: ToolTable, context: object, *, policy=None) -> None:
+        from cdmw.mcp.approvals import ApprovalPolicy
+
         self.table = table
         self.context = context
+        self.policy = policy or ApprovalPolicy(getattr(context, "settings", None))
 
     # ----- the pipe ----------------------------------------------------------
     def serve_connection(self, conn) -> None:
@@ -180,7 +187,8 @@ class McpServer:
         while True:
             try:
                 message = recv_json(conn)
-            except (EOFError, OSError):
+            except (EOFError, OSError, RuntimeError):
+                # RuntimeError: multiprocessing's answer to a read cancelled by stop().
                 break
             except ValueError:
                 session.send({"jsonrpc": "2.0", "id": None, "error": {"code": PARSE_ERROR, "message": "Not JSON."}})
@@ -233,13 +241,42 @@ class McpServer:
             raise _RpcError(INVALID_PARAMS, f"CDMW has no tool {name or '(none)'}.", {"code": UNKNOWN_TOOL})
         call = ToolCall(tool, {}, self.context, client=session.client, cancel_event=cancel)
         try:
-            if not tool.built:
-                raise ToolError(NOT_BUILT, f"{tool.wire} is not built yet: its {tool.effect} tools come with a "
-                                           "later part of the AI connection work.")
-            call.arguments = validate_arguments(params.get("arguments"), tool.schema_for_clients())
+            self.prepare(session, call, params.get("arguments"))
             return _result(self.run(call))
         except ToolError as error:
             return _tool_error(error)
+
+    def prepare(self, session: McpSession, call: ToolCall, arguments: object) -> None:
+        """Every check, in order, before the tool runs (design record 2.4 steps 1 to 3)."""
+
+        from cdmw.mcp.approvals import connections_enabled
+        from cdmw.mcp.errors import NOT_RUNNING_MESSAGE, REFUSED
+
+        tool = call.tool
+        settings = getattr(self.context, "settings", None)
+        if settings is not None and not connections_enabled(settings):
+            raise ToolError(REFUSED, NOT_RUNNING_MESSAGE)
+        if not tool.built:
+            raise ToolError(NOT_BUILT, f"{tool.wire} is not built yet: its {tool.effect} tools come with a "
+                                       "later part of the AI connection work.")
+        call.arguments = validate_arguments(arguments, tool.schema_for_clients())
+        self.check_output_paths(call)
+        call.approval = self.policy.approve(
+            client=session.client, tool=tool.name, title=tool.title or tool.name, effect=tool.effect,
+            arguments=call.arguments, session_allowed=session.session_allowed, cancel=call.cancel_event)
+
+    def check_output_paths(self, call: ToolCall) -> None:
+        """The one path rule for every argument that names an output; no setting reaches it."""
+
+        from cdmw.domain.output_paths import OutputPathRefused, check_output_path
+        from cdmw.mcp.errors import REFUSED
+
+        game = getattr(self.context, "game_folder", lambda: "")()
+        for name in call.tool.output_paths:
+            try:
+                check_output_path(str(call.arguments.get(name) or ""), game_folder=game)
+            except OutputPathRefused as refused:
+                raise ToolError(REFUSED, str(refused), {"argument": name}) from None
 
     def run(self, call: ToolCall) -> object:
         try:

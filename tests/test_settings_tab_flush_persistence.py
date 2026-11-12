@@ -143,8 +143,10 @@ class SettingsTabFlushPersistenceTests(unittest.TestCase):
         keys = [str(nav.item(row).data(Qt.UserRole)) for row in range(nav.count())]
         titles = [nav.item(row).text() for row in range(nav.count())]
 
-        self.assertEqual(["setup", "general", "paths", "performance", "appearance", "shortcuts"], keys)
-        self.assertEqual(["Setup", "General", "Paths", "Performance", "Appearance", "Shortcuts"], titles)
+        self.assertEqual(["setup", "general", "paths", "performance", "appearance", "shortcuts", "ai_connections"],
+                         keys)
+        self.assertEqual(["Setup", "General", "Paths", "Performance", "Appearance", "Shortcuts", "AI connections"],
+                         titles)
 
         general_row = keys.index("general")
         appearance_row = keys.index("appearance")

@@ -289,12 +289,19 @@ class McpPipeServer(LocalPipeServer):
 
         super().stop()
         with self._lock:
-            active, self._active = list(self._active), []
+            active = list(self._active)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.DisconnectNamedPipe.argtypes = (wintypes.HANDLE,)
+        kernel32.CancelIoEx.argtypes = (wintypes.HANDLE, ctypes.c_void_p)
         for conn in active:
+            # Not conn.close(): its own thread is reading it and closes it when
+            # the read fails. Disconnecting tells the bridge at once.
             try:
-                conn.close()
-            except OSError:
-                pass
+                handle = wintypes.HANDLE(conn.fileno())
+            except (OSError, ValueError):
+                continue
+            kernel32.DisconnectNamedPipe(handle)
+            kernel32.CancelIoEx(handle, None)
 
 
 __all__ = [

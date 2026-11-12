@@ -156,7 +156,7 @@ def run_bridge(stdin: BinaryIO | None = None, stdout: BinaryIO | None = None, st
         while True:
             try:
                 data = conn.recv_bytes(MAX_LINE_BYTES)
-            except (EOFError, OSError):
+            except (EOFError, OSError, RuntimeError):
                 break
             if not data:
                 continue
