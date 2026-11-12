@@ -32,6 +32,9 @@ def retained_mod_folder_tools(monkeypatch):
 def _isolate_mod_export_history(tmp_path, monkeypatch):
     """Exports must never write authoring records into the user's real history."""
     monkeypatch.setattr("cdmw.core.mod_export_history._history_root", lambda: tmp_path / "mod-history")
+    # The folder earlier versions filed into is read too; never the user's real one.
+    monkeypatch.setattr("cdmw.core.mod_export_history._legacy_history_root",
+                        lambda: tmp_path / "mod-history-earlier")
 
 
 @pytest.fixture(autouse=True)
