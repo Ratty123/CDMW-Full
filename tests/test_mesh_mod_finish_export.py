@@ -25,22 +25,36 @@ from cdmw.ui.mesh_editor.controller import MeshEditorController
 from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
 from cdmw.workers.mesh_rust_editor_workers import MeshRustProtocolWorker
 from cdmw.workers.mesh_editor_workers import MeshDirectOutputResult
-from tests.test_mesh_cloth_influence import apply_rule, cloth_session
-from tests.test_mesh_rust_authoring_exact_output import _request
+from tests.test_mesh_cloth_influence import apply_rule, cloth_fixture
+from tests.test_mesh_rust_authoring_exact_output import _open_exact_session, _request
 from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+#: A game-like path. A package's payloads sit in folders and root-level files are manager
+#: metadata, so CDMW's history has nothing to bind a root-level mesh to (ae7f4fdd).
+ARCHIVE_PATH = "character/owned-rust-exact.pac"
+
+
+@pytest.fixture
+def cloth_session(tmp_path, monkeypatch):
+    monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: cloth_fixture())
+    source, service, session = _open_exact_session(tmp_path / "session", mesh_path=ARCHIVE_PATH)
+    yield source, service, session
+    if not session.closed:
+        session.cancel()
+    service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
 
 
 @pytest.fixture
 def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
     source, service, session = cloth_session
-    apply_rule(session, tmp_path, PacClothRule(0))
+    apply_rule(session, tmp_path, PacClothRule(0), archive_path=ARCHIVE_PATH)
     tab = _tab(tmp_path)
     controller = MeshEditorController(mesh_service=service)
     controller.attach_session(session.authoritative_session_id)
     tab.standalone_controller = controller
     tab.standalone_rust_target_controller = controller
     tab.standalone_rust_authoring_session = session
-    entry = ArchiveEntry("owned-rust-exact.pac", tmp_path / "0009/0.pamt", tmp_path / "0009/0.paz", 0, 0, 0, 0, 0)
+    entry = ArchiveEntry(ARCHIVE_PATH, tmp_path / "0009/0.pamt", tmp_path / "0009/0.paz", 0, 0, 0, 0, 0)
     entry.pamt_path.parent.mkdir()
     entry.pamt_path.write_bytes(b"owned source index")
     entry.paz_file.write_bytes(source)
@@ -76,6 +90,7 @@ def accepted_cloth_edit(cloth_session, tmp_path, monkeypatch):
     "choice,profile,suffix,descriptor,wrapper",
     [
         ("dmm_loose", "dmm", "dmm", "manifest.json", ""),
+        ("dmm_archive", "dmm", "dmm-archive", "manifest.json", ""),
     ],
 )
 @pytest.mark.parametrize("create_zip,open_folder", [(False, False), (True, False), (False, True), (True, True)])
@@ -108,7 +123,8 @@ def test_finish_then_build_exports_cloth_edit_for_every_manager(
 
     def choose(dialog):
         assert isinstance(dialog, MeshModExportDialog)
-        assert dialog.manager.count() == 1
+        # Loose mesh and, since 0700bd27, the DMM archive group (a package folder; nothing goes into the game).
+        assert [dialog.manager.itemData(i)[0] for i in range(dialog.manager.count())] == ["dmm_loose", "dmm_archive"]
         assert not dialog.build_button.isEnabled()
         assert not dialog.create_zip.isChecked() and not dialog.open_folder.isChecked()
         assert dialog.include_body.isHidden()  # Only a Fit session has a body to offer.
