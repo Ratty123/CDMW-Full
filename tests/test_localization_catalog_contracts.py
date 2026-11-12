@@ -594,8 +594,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
     script = "\n".join(
         (
             "import os, sys, gc",
-            # Reproduce collection during QWidgetAction's native menu handoff,
-            # which otherwise only happened intermittently on Windows CI.
+            # Collect as often as possible during QWidgetAction's native menu
+            # handoff, which otherwise only happened intermittently on Windows CI.
             "gc.set_threshold(1, 1, 1)" if frequent_gc else "# Default GC thresholds",
             "from pathlib import Path",
             "from time import monotonic",
@@ -609,6 +609,23 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "from cdmw.ui.main_window import MainWindow",
             "from cdmw.ui.shell.app_context import AppContext",
             "app = QApplication.instance() or QApplication([])",
+            # As the app does from start-up on: no automatic collection, and the
+            # GUI-thread collector, here on a 1 ms timer, so collections land
+            # between events throughout construction and the menu handoff.
+            # Automatic collection at threshold 1 could start inside a Qt call
+            # such as setStyleSheet's re-polish, which the app never allows.
+            *(
+                (
+                    "import threading",
+                    "from cdmw.ui.shell.garbage_collection import ensure_app_garbage_collector",
+                    "ensure_app_garbage_collector(app)._timer.setInterval(1)",
+                    "assert not gc.isenabled()",
+                    "collection_threads = []",
+                    "gc.callbacks.append(lambda phase, _info: phase == 'start'"
+                    " and collection_threads.append(threading.get_ident()))",
+                )
+                if frequent_gc else ()
+            ),
             f"settings = create_settings(settings_file_path=Path({str(settings_path)!r}))",
             "settings.setValue('appearance/language', 'de')",
             "settings.sync()",
@@ -666,6 +683,13 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "assert window.textures.total_files_value.text() == expected_total, (",
             "    f'Counter kept {window.textures.total_files_value.text()!r}, expected {expected_total!r}.'",
             ")",
+            *(
+                (
+                    "assert collection_threads, 'The GUI-thread collector never ran'",
+                    "assert set(collection_threads) == {threading.main_thread().ident}, collection_threads",
+                )
+                if frequent_gc else ()
+            ),
             "window._finalize_close()",
             "assert app.property('_cdmw_ui_localizer') is None",
             "window.deleteLater()",
@@ -673,6 +697,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
         )
     )
+    child_profile = tmp_path / "child-profile"
+    child_profile.mkdir()
     result = subprocess.run(
         [sys.executable, "-c", script],
         cwd=Path(__file__).resolve().parents[1],
@@ -680,6 +706,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             **os.environ,
             "QT_QPA_PLATFORM": "offscreen",
             "CDMW_GUI_STARTUP_SMOKE": "1",
+            # A profile of its own, so the fault log below is this child's.
+            "CDMW_PROFILE_DIR": str(child_profile),
         },
         text=True,
         stdout=subprocess.PIPE,
@@ -688,9 +716,9 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
     )
     native_fault = ""
     if result.returncode:
-        # MainWindow redirects faulthandler to the app log. Preserve this
-        # child's trace before the next startup scenario replaces that log.
-        fault_path = Path(__file__).resolve().parents[1] / "workspace/logs/native_fault_current.log"
+        # MainWindow redirects faulthandler to the app log in the profile's
+        # workspace, so a native fault's stack is there and not on stderr.
+        fault_path = child_profile / "workspace/logs/native_fault_current.log"
         if fault_path.is_file():
             with fault_path.open("rb") as fault_file:
                 fault_file.seek(max(0, fault_path.stat().st_size - 8192))
