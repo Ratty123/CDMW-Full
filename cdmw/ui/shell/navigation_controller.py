@@ -276,6 +276,8 @@ class NavigationControllerMixin:
         widget = self._tool_widgets_by_key.get("mod_management" if key == "mod_package_retrofit" else key)
         if widget is not None and not widget.isEnabled():
             return
+        if key == "mesh_editor" and self._move_browse_edit_to_mesh_workspace():
+            return
         if key == 'mod_package_retrofit':
             widget = self._tool_widgets_by_key.get('mod_management')
             if widget is not None:
@@ -294,6 +296,28 @@ class NavigationControllerMixin:
         widget = self._tool_widgets_by_key.get(key)
         if widget is not None:
             self._activate_tool_widget(widget)
+
+    def _move_browse_edit_to_mesh_workspace(self) -> bool:
+        """Switching to the Mesh Editor takes an edit in Browse's view with it (P15 step 1).
+
+        The edit moves into the Mesh workspace without reopening (Promote to tab):
+        the scene, its camera, selection and history stay, and Browse's view
+        follows it read-only. True when the move started; the move itself shows
+        the Mesh Editor.
+        """
+
+        if getattr(self, "_moving_edit_to_mesh_workspace", False):
+            return False
+        archive = getattr(self, "archive", None)
+        promote = getattr(archive, "_promote_edit_to_tab", None)
+        if not getattr(archive, "editing_in_place", False) or not callable(promote):
+            return False
+        self._moving_edit_to_mesh_workspace = True
+        try:
+            promote()
+        finally:
+            self._moving_edit_to_mesh_workspace = False
+        return True
 
     def _activate_tool_widget(self, widget: QWidget) -> None:
         if not widget.isEnabled():
