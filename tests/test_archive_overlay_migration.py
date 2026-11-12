@@ -63,7 +63,9 @@ class MigrationTests(unittest.TestCase):
 
     def _patch_the_old_way(self, payload: bytes = b"the patched item table") -> None:
         entry = {item.path: item for item in parse_archive_pamt(self.pamt)}[f"{BIN}/iteminfo.pabgb"]
-        archive_patching.patch_archive_entries((ArchivePatchRequest(entry, payload),))
+        from tests.support.archive_patch_writer import patch_archive_entries
+
+        patch_archive_entries((ArchivePatchRequest(entry, payload),))
 
     def test_a_patched_archive_moves_into_the_overlay_and_the_original_comes_back(self) -> None:
         self._patch_the_old_way()

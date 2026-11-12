@@ -19,9 +19,10 @@ folders, 427,871 files) and re-checked at parse time:
 The in-game proof is the 2026-08-17 spike: five records added this way (a .pac,
 .pac_xml, .hkx and two .prefab under existing folders) loaded and rendered.
 
-Dependency direction: this module builds on :mod:`cdmw.core.archive_patching`
-(payload primitives, backups, the checksum chain and the shared mutation runner)
-and never the other way round.
+Kept for tests only (decision 39): CDMW never writes into the game's archives,
+and tests use this on owned copies. It builds on
+:mod:`tests.support.archive_patch_writer` (the mutation runner and the checksum
+chain), which reads the remaining helpers from :mod:`cdmw.core.archive_patching`.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
-from cdmw.core import archive_patching as _patching
+from tests.support import archive_patch_writer as _patching
 from cdmw.core.archive_format import VfsPathResolver, calculate_pa_checksum
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult, MetaFileWrite
 

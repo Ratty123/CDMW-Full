@@ -201,7 +201,7 @@ class _WriteTestsMixin:
         at the wrong bytes. The read fails somewhere deep in decompression or decryption,
         and the message that surfaces has to name the cause rather than the symptom."""
 
-        from cdmw.core.archive_patching import patch_archive_entries
+        from tests.support.archive_patch_writer import patch_archive_entries
         from cdmw.domain.archives.mutation import ArchivePatchRequest
         from cdmw.services.new_item_snapshot import NewItemSnapshotError
 

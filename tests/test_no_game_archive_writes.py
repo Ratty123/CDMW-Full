@@ -4,8 +4,9 @@ CDMW only creates mods. The direct "Patch Game Files" route is gone. What can
 still write into a game installation is fenced in, and these tests fail when
 that fence moves:
 
-- the low-level archive writers are referenced only inside the two core
-  modules that define them (their tests use them on owned copies);
+- the low-level archive writers are not in cdmw/ at all: they live in
+  tests/support/ (tests use them on owned copies), and nothing under cdmw/
+  imports that package;
 - ``restore_archive_patch_backup`` is reached only through
   ``ArchiveMutationService.restore_backup`` and the overlay installs' own
   rollback;
@@ -37,12 +38,15 @@ SKIPPED = {"cdmw/ui/shell/error_reference_data.py"}
 #: Lazy re-export tables of the old ``cdmw.core.archive_modding`` names; they hold strings only.
 COMPAT_TABLES = ("cdmw/core/archive_modding_compat_exports_",)
 
+#: The in-place PAMT/PAZ writers, moved to tests/support/archive_patch_writer.py
+#: and tests/support/archive_entry_addition.py.
 CORE_WRITERS = frozenset({
     "patch_archive_entries", "apply_archive_mutations", "add_archive_entries",
     "_run_archive_mutation", "_apply_in_place_patches", "_write_paz_payload", "_append_paz_payload",
-    "_write_bytes_preserve_timestamps", "_restore_backup",
+    "_write_bytes_preserve_timestamps", "_write_paz_record", "_verify_crc_chain", "_parse_mutable_pamt",
 })
-CORE_WRITER_HOMES = frozenset({"cdmw/core/archive_patching.py", "cdmw/core/archive_entry_addition.py"})
+#: Restore's own copy-back; only its module and the Restore path use it.
+RESTORE_COPY = "_restore_backup"
 
 RESTORE_WRITER = "restore_archive_patch_backup"
 RESTORE_WRITER_CALLERS = {
@@ -157,8 +161,18 @@ def test_the_switches_that_hide_the_game_installs_are_off():
     assert constants.VIRTUAL_LOADING_ENABLED is False
 
 
-def test_the_low_level_archive_writers_stay_inside_their_core_modules():
-    assert _modules_referencing(CORE_WRITERS) <= CORE_WRITER_HOMES
+def test_the_low_level_archive_writers_are_not_in_the_app():
+    assert _modules_referencing(CORE_WRITERS) == set()
+    assert _modules_referencing({RESTORE_COPY}) == {"cdmw/core/archive_patching.py"}
+    assert not (ROOT / "cdmw/core/archive_entry_addition.py").exists()
+    importing_tests = set()
+    for path, tree in _modules().items():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "tests":
+                importing_tests.add(path)
+            elif isinstance(node, ast.Import) and any(alias.name.split(".")[0] == "tests" for alias in node.names):
+                importing_tests.add(path)
+    assert importing_tests == set()
 
 
 def test_the_backup_restore_writer_is_reached_only_through_its_listed_callers():

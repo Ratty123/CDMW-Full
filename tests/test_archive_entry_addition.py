@@ -15,15 +15,9 @@ from unittest.mock import patch
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
-from cdmw.core.archive_modding import (
-    ArchiveAddRequest,
-    ArchivePatchRequest,
-    _verify_crc_chain,
-    add_archive_entries,
-    apply_archive_mutations,
-    patch_archive_entries,
-)
-from cdmw.core.archive_entry_addition import parse_pamt_document
+from cdmw.core.archive_modding import ArchiveAddRequest, ArchivePatchRequest
+from tests.support.archive_entry_addition import add_archive_entries, apply_archive_mutations, parse_pamt_document
+from tests.support.archive_patch_writer import _verify_crc_chain, patch_archive_entries
 
 
 def _flat_name(name: str) -> bytes:
@@ -282,7 +276,7 @@ class AddArchiveEntriesTests(unittest.TestCase):
         request = ArchiveAddRequest(self.pamt_path, "character/model/weapon/sword_0005.pac", b"new sword payload", 0)
         pamt_before = self.pamt_path.read_bytes()
         papgt_before = self.papgt_path.read_bytes()
-        with patch("cdmw.core.archive_patching._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
+        with patch("tests.support.archive_patch_writer._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 add_archive_entries((request,))
         self.assertEqual(self.pamt_path.read_bytes(), pamt_before)

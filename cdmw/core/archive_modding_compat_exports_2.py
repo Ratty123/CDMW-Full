@@ -46,7 +46,6 @@ ARCHIVE_MODDING_EXPORTS_2: dict[str, tuple[str, str]] = {
     'parse_mesh': ('cdmw.modding.mesh_parser', 'parse_mesh'),
     'parse_pab': ('cdmw.modding.skeleton_parser', 'parse_pab'),
     'parsed_mesh_to_preview_model': ('cdmw.core.archive_mesh_import_preview', 'parsed_mesh_to_preview_model'),
-    'patch_archive_entries': ('cdmw.core.archive_patching', 'patch_archive_entries'),
     'raise_if_cancelled': ('cdmw.core.common', 'raise_if_cancelled'),
     'read_archive_entry_baseline_data': ('cdmw.core.mesh_baseline', 'read_archive_entry_baseline_data'),
     'request_app_temp_cache_prune': ('cdmw.core.temp_cache', 'request_app_temp_cache_prune'),
