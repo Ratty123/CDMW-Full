@@ -522,3 +522,21 @@ def test_a_failed_set_piece_still_fails_the_preparation(tmp_path, monkeypatch):
                 lambda _message: None, tmp_path / "root", None)
     finally:
         service.close_edit_session(controller.active_session_id, force_without_saving=True)
+
+
+def test_set_pieces_use_browse_s_preview_core_cache_when_the_session_is_in_the_workspace(tmp_path):
+    from cdmw.services.cache_layout import runtime_cache_layout
+    from cdmw.services.mesh_item_set_editing import item_set_material_cache
+
+    cache = tmp_path / "cache"
+    session = cache / "mesh_editor_sessions" / "session-1"
+    session.mkdir(parents=True)
+    # No Browse cache yet: the sessions' own.
+    assert item_set_material_cache(session) == cache / "mesh_editor_sessions" / "item-set-native-cache"
+    native = runtime_cache_layout(cache).native_preview_root
+    native.mkdir(parents=True)
+    assert item_set_material_cache(session) == native
+    # Sessions outside the workspace cache keep their own.
+    elsewhere = tmp_path / "temp" / "cdmw-rust-mesh-editor" / "session-2"
+    elsewhere.mkdir(parents=True)
+    assert item_set_material_cache(elsewhere) == elsewhere.parent / "item-set-native-cache"

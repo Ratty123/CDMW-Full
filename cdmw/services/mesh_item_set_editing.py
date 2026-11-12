@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import replace
 import hashlib
 import threading
+from pathlib import Path
 
 from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
@@ -21,6 +22,24 @@ ITEM_SET_PREPARATION_WORKERS = 4
 
 #: Milliseconds per step of the last set preparation, for the runtime record (P4 V4).
 LAST_ITEM_SET_PREPARATION_MS: dict[str, float] = {}
+
+
+def item_set_material_cache(session_root: Path) -> Path:
+    """Where a set's pieces run their Preview Core jobs (P4 V6).
+
+    Browse's own Preview Core cache when the session lives in the workspace
+    cache, so a piece reuses the textures Browse decoded for the set and its
+    packages; a cache of the sessions' own otherwise (sessions in temp).
+    """
+
+    from cdmw.services.cache_layout import runtime_cache_layout
+
+    sessions = Path(session_root).parent
+    if sessions.name == "mesh_editor_sessions":
+        native = runtime_cache_layout(sessions.parent).native_preview_root
+        if native.is_dir():
+            return native
+    return sessions / "item-set-native-cache"
 
 
 def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop_event, progress, root, root_identity):
@@ -45,7 +64,7 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
         if hasattr(primary.mesh, name):
             setattr(material_mesh, name, getattr(primary.mesh, name))
     primary = replace(primary, mesh=material_mesh)
-    material_cache = root.parent / "item-set-native-cache"
+    material_cache = item_set_material_cache(Path(root))
 
     def prepare_piece(context):
         raise_if_cancelled(stop_event, "Item set loading cancelled")
