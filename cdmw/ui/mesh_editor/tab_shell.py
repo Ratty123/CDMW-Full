@@ -976,7 +976,9 @@ class MeshEditorTabShellMixin(
             loses_work = bool(closing()) if callable(closing) else True
         except Exception:
             loses_work = True
-        if loses_work and int(getattr(self, "current_undo_count", 0) or 0) > 0:
+        # The clean mark decides, not the undo steps: a change the history does not
+        # hold is lost on close too (section 8.7 D4).
+        if loses_work:
             confirmed = _tab.QMessageBox.question(
                 self,
                 "Discard Unsaved Mesh Editor Changes?",

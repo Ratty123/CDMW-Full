@@ -369,3 +369,45 @@ def test_a_copied_draft_keeps_every_step_its_journal_names(tmp_path) -> None:
     _copy_draft(source, target, None)
     copied = {path.name for path in (target / "mesh_layers").iterdir() if path.name.startswith("generation-")}
     assert named <= copied, f"the copy lost {sorted(named - copied)}"
+
+
+def test_the_clean_mark_decides_whether_closing_a_mesh_without_a_draft_loses_work() -> None:
+    """Section 8.7 D4: ``history_clean`` had no reader; the close prompt counted undo steps."""
+
+    from tests.test_mesh_geometry_layers import _layer_mesh
+
+    disk = MeshService()
+    disk_id = disk.open_edit_session(_layer_mesh(), session_id=f"disk-{uuid4().hex}", mode="edit").session_id
+    try:
+        _move(disk, disk_id, 0.5)
+        assert disk.closing_loses_work(disk_id)
+        disk.mark_history_clean(disk_id)  # Finish: the edit is kept as a pending edit
+        assert not disk.closing_loses_work(disk_id) and disk.session_view(disk_id).history_clean
+        _move(disk, disk_id, 0.25)
+        assert disk.closing_loses_work(disk_id)
+        disk.undo(disk_id)  # back at the finished state's geometry, but a step was undone
+        assert disk.closing_loses_work(disk_id), "asking once too often is safe; losing work is not"
+    finally:
+        disk.close_edit_session(disk_id)
+
+
+def test_the_close_prompt_asks_whenever_closing_loses_work(monkeypatch) -> None:
+    """The close prompt asked only with undo steps; work the history does not hold was lost silently."""
+
+    from types import SimpleNamespace
+
+    import cdmw.ui.mesh_editor.tab  # noqa: F401 - loads the facade tab_shell reads
+    from cdmw.ui.mesh_editor import tab_shell
+
+    asked: list[str] = []
+    shown: list[bool] = []
+    box = SimpleNamespace(Yes=1, No=0, question=lambda *args: asked.append(args[1]) or 0)
+    monkeypatch.setattr(tab_shell._tab, "QMessageBox", box)
+    tab = SimpleNamespace(
+        has_active_standalone_session=lambda: True,
+        standalone_controller=SimpleNamespace(closing_loses_work=lambda: True),
+        current_undo_count=0,
+        show_empty_state=lambda: shown.append(True),
+    )
+    tab_shell.MeshEditorTabShellMixin._close_standalone_session_requested(tab)
+    assert asked == ["Discard Unsaved Mesh Editor Changes?"] and not shown

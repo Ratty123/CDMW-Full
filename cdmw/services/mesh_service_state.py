@@ -293,6 +293,9 @@ class _MeshEditSession:
     history_journal_error: str = ""
     # P14: the next journal record is the state the user finished.
     history_journal_clean_pending: bool = False
+    #: A mesh without a draft: the revision Finish or Build last recorded as clean
+    #: (-1: the state it opened with, while no undo step exists; section 8.7 D4).
+    history_clean_revision: int = -1
     # P15 repair A1: Finish ended an editor session; the next draft save removes
     # its recovery point, once the draft holds the edits.
     history_recovery_clear_on_save: bool = False
