@@ -222,9 +222,92 @@ def _checkout_workspace_files() -> frozenset[str]:
     return frozenset(found)
 
 
+_user_state_at_start: dict[str, frozenset] | None = None
+
+
+def _user_folders() -> tuple[Path, ...]:
+    """The folders outside the CDMW folder that CDMW wrote into in earlier versions."""
+
+    from cdmw.constants import APP_NAME
+
+    folders = []
+    for variable, name in (("LOCALAPPDATA", APP_NAME), ("APPDATA", "CDMW")):
+        base = os.environ.get(variable, "").strip()
+        if base:
+            folders.append(Path(base) / name)
+    return tuple(folders)
+
+
+def _user_registry_keys() -> tuple[str, ...]:
+    from cdmw.constants import APP_ORGANIZATION
+
+    return ("Software\\CDMWTests", "Software\\CDMWHarness", f"Software\\{APP_ORGANIZATION}")
+
+
+def _folder_state(folder: Path) -> frozenset:
+    """(path, size, modified) of every file under ``folder``: a new or changed file shows."""
+
+    if not folder.is_dir():
+        return frozenset()
+    state = set()
+    for current, _dirs, files in os.walk(folder):
+        for name in files:
+            path = os.path.join(current, name)
+            try:
+                info = os.stat(path)
+            except OSError:
+                continue
+            state.add((os.path.relpath(path, folder), info.st_size, info.st_mtime_ns))
+    return frozenset(state)
+
+
+def _registry_state(key_path: str) -> frozenset:
+    """Every value under a HKEY_CURRENT_USER key, read only (Windows; empty elsewhere)."""
+
+    try:
+        import winreg
+    except ImportError:
+        return frozenset()
+    state = set()
+
+    def walk(path: str) -> None:
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ)
+        except OSError:
+            return
+        with key:
+            state.add((path, "", ""))
+            index = 0
+            while True:
+                try:
+                    name, value, kind = winreg.EnumValue(key, index)
+                except OSError:
+                    break
+                state.add((path, name, f"{kind}:{value!r}"))
+                index += 1
+            index = 0
+            while True:
+                try:
+                    child = winreg.EnumKey(key, index)
+                except OSError:
+                    break
+                walk(f"{path}\\{child}")
+                index += 1
+
+    walk(key_path)
+    return frozenset(state)
+
+
+def _user_state() -> dict[str, frozenset]:
+    state = {str(folder): _folder_state(folder) for folder in _user_folders()}
+    state.update({f"HKEY_CURRENT_USER\\{key}": _registry_state(key) for key in _user_registry_keys()})
+    return state
+
+
 def pytest_sessionstart(session):
-    global _workspace_files_at_start
+    global _workspace_files_at_start, _user_state_at_start
     _workspace_files_at_start = _checkout_workspace_files()
+    _user_state_at_start = _user_state()
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -238,17 +321,30 @@ def pytest_sessionfinish(session, exitstatus):
         module.cleanup_native_preview_delta_paths()
     # Tests write inside the run's private profile, never the checkout's own
     # workspace: in the main checkout that is the user's real workspace.
+    written: list[str] = []
     if _workspace_files_at_start is not None:
         added = sorted(_checkout_workspace_files() - _workspace_files_at_start)
-        if added:
-            shown = "\n".join(f"  workspace{os.sep}{path}" for path in added[:20])
-            more = f"\n  ... and {len(added) - 20} more" if len(added) > 20 else ""
-            reporter = session.config.pluginmanager.get_plugin("terminalreporter")
-            message = ("This test run wrote into the checkout's workspace folder; "
-                       f"tests must write under the run's profile or tmp_path:\n{shown}{more}")
-            if reporter is not None:
-                reporter.write_sep("=", "files written into the checkout's workspace", red=True)
-                reporter.write_line(message)
-            else:
-                print(message, file=sys.stderr)
-            session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        written += [os.path.join(str(_CHECKOUT_WORKSPACE), path) for path in added]
+    if _user_state_at_start is not None:
+        # The user's AppData folders and registry keys: a new or changed entry is a
+        # test writing outside the run's profile (the app writes only in its folder).
+        now = _user_state()
+        for place, before in _user_state_at_start.items():
+            changed = sorted({entry[:2] for entry in now.get(place, frozenset()) - before})
+            registry = place.startswith("HKEY_")
+            written += [f"{place}{os.sep}{entry[0]}" if not registry
+                        else entry[0] + (f" [{entry[1]}]" if entry[1] else "")
+                        for entry in changed]
+    if written:
+        shown = "\n".join(f"  {path}" for path in written[:20])
+        more = f"\n  ... and {len(written) - 20} more" if len(written) > 20 else ""
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        message = ("This test run wrote outside its profile (the checkout's workspace, "
+                   "AppData or the registry); tests must write under the run's profile "
+                   f"or tmp_path:\n{shown}{more}")
+        if reporter is not None:
+            reporter.write_sep("=", "files written outside the run's profile", red=True)
+            reporter.write_line(message)
+        else:
+            print(message, file=sys.stderr)
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
