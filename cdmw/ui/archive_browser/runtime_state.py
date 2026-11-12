@@ -13,6 +13,34 @@ from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
 
 
+_user32 = None
+
+
+def _native_input_user32():
+    """A private user32 loader, typed once.
+
+    Setting `restype` on `ctypes.windll.user32` changes the function for every
+    module in the process: `GetForegroundWindow` then returned None instead of 0
+    without a foreground window, and `int()` of it raised elsewhere.
+    """
+
+    global _user32
+    if _user32 is None:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.GetLastInputInfo.restype = wintypes.BOOL
+        user32.GetForegroundWindow.argtypes = []
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+        user32.GetAsyncKeyState.restype = ctypes.c_short
+        _user32 = user32
+    return _user32
+
+
 def _native_input_state() -> tuple[int, bool, bool] | None:
     """Include input consumed by embedded native renderers, outside Qt's filter."""
     import ctypes
@@ -21,15 +49,14 @@ def _native_input_state() -> tuple[int, bool, bool] | None:
     class LastInputInfo(ctypes.Structure):
         _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
 
-    user32 = ctypes.windll.user32
+    user32 = _native_input_user32()
     info = LastInputInfo()
     info.cbSize = ctypes.sizeof(info)
     if not user32.GetLastInputInfo(ctypes.byref(info)):
         return None
-    user32.GetForegroundWindow.restype = wintypes.HWND
     foreground = user32.GetForegroundWindow()
     process_id = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(wintypes.HWND(foreground), ctypes.byref(process_id))
+    user32.GetWindowThreadProcessId(foreground, ctypes.byref(process_id))
     mouse_held = any(user32.GetAsyncKeyState(button) & 0x8000 for button in (1, 2, 4, 5, 6))
     return info.dwTime, process_id.value == os.getpid(), mouse_held
 
