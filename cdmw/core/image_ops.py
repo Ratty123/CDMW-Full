@@ -13,14 +13,13 @@ same call, pinned by ``tests/test_image_ops.py`` against OpenCV's own output
 OpenCV is imported here and nowhere else. Three groups:
 
 - replaced: numpy or Pillow only (borders, the ellipse kernel, dilate and
-  erode, the rotation matrix, PNG);
+  erode, the rotation matrix, PNG, contour length, polygon simplification);
 - written and pinned, but OpenCV first: the numpy version is many times slower
   on a 4096 x 4096 layer, and these run per stroke or per composite, so they
   call OpenCV while it is installed and fall back to numpy without it (gray,
   HSV, the lookup table, addWeighted, Gaussian blur, resize);
 - OpenCV only, not written yet (flood fill, antialiased polygon fill,
-  contours, polygon simplification, Canny, bilateral and median filters,
-  affine warp).
+  contours, Canny, bilateral and median filters, affine warp).
 
 ``uses_opencv`` lists the last two groups; a test keeps it complete.
 """
@@ -80,8 +79,17 @@ uses_opencv: Tuple[str, ...] = (
     "flood_fill_value",
     "fill_polygon_antialiased",
     "find_outer_contours_ccomp",
-    "contour_arc_length",
-    "approx_polygon",
+    "canny_edges",
+    "bilateral_filter",
+    "median_blur",
+    "warp_affine_linear",
+)
+# Of those, the ones with no numpy version yet: they need OpenCV to run at all.
+opencv_only: Tuple[str, ...] = (
+    "flood_fill_mask_only",
+    "flood_fill_value",
+    "fill_polygon_antialiased",
+    "find_outer_contours_ccomp",
     "canny_edges",
     "bilateral_filter",
     "median_blur",
@@ -691,11 +699,184 @@ def find_outer_contours_ccomp(binary: np.ndarray):
 
 
 def contour_arc_length(contour: np.ndarray, closed: bool) -> float:
-    return float(_cv2().arcLength(contour, closed))
+    """``cv2.arcLength(contour, closed)`` (exact).
+
+    OpenCV takes float32 square roots of float32 squared steps, sums each block
+    of 16 backwards, and adds the blocks in double; this does the same.
+    """
+
+    points = np.asarray(contour).reshape(-1, 2).astype(np.float32)
+    count = points.shape[0]
+    if count <= 1:
+        return 0.0
+    previous = np.concatenate((points[-1:] if closed else points[:1], points[:-1]), axis=0)
+    step = (points - previous).astype(np.float32)
+    lengths = np.sqrt((step[:, 0] * step[:, 0] + step[:, 1] * step[:, 1]).astype(np.float32)).astype(np.float32)
+    perimeter = 0.0
+    for start in range(0, count, 16):
+        for value in lengths[start : start + 16][::-1]:
+            perimeter += float(value)
+    return perimeter
 
 
 def approx_polygon(contour: np.ndarray, epsilon: float, closed: bool) -> np.ndarray:
-    return _cv2().approxPolyDP(contour, epsilon, closed=closed)
+    """``cv2.approxPolyDP(contour, epsilon, closed)``: OpenCV's Douglas-Peucker, step for step.
+
+    Integer contours (from findContours) and float32 paths (the lasso) keep
+    their type; the result has OpenCV's (n, 1, 2) shape.
+    """
+
+    source = np.asarray(contour)
+    is_float = source.dtype == np.float32
+    if not is_float and source.dtype != np.int32:
+        raise ValueError("approx_polygon takes int32 or float32 points, as OpenCV does.")
+    points = source.reshape(-1, 2)
+    count = points.shape[0]
+    if count == 0:
+        return points.reshape(0, 1, 2).copy()
+    if is_float:
+        xs = [np.float32(value) for value in points[:, 0]]
+        ys = [np.float32(value) for value in points[:, 1]]
+
+        def sub(a, b):
+            return float(np.float32(a - b))
+
+        def sq(ax, ay, bx, by):
+            # float * float + float * float stays float32 in OpenCV's C++.
+            return float(np.float32(np.float32(ax - bx) * np.float32(ax - bx) + np.float32(ay - by) * np.float32(ay - by)))
+
+        def dot(ax, ay, bx, by, cx, cy):
+            return float(np.float32(np.float32(ax - bx) * np.float32(cx - ax) + np.float32(ay - by) * np.float32(cy - ay)))
+    else:
+        xs = [int(value) for value in points[:, 0]]
+        ys = [int(value) for value in points[:, 1]]
+
+        def sub(a, b):
+            return float(a - b)
+
+        def sq(ax, ay, bx, by):
+            return float((ax - bx) * (ax - bx) + (ay - by) * (ay - by))
+
+        def dot(ax, ay, bx, by, cx, cy):
+            return float((ax - bx) * (cx - ax) + (ay - by) * (cy - ay))
+
+    eps = float(epsilon) * float(epsilon)
+    stack: list[tuple[int, int]] = []
+    out: list[int] = []
+    init_iters = 3
+    slice_start = slice_end = 0
+    right_start = right_end = 0
+    is_closed = bool(closed)
+    if not is_closed:
+        right_start = count
+        if xs[count - 1] != xs[0] or ys[count - 1] != ys[0]:
+            stack.append((0, count - 1))
+        else:
+            is_closed = True
+            init_iters = 1
+    start_index = 0
+    if is_closed:
+        right_start = 0
+        pos = 0
+        le_eps = False
+        for _ in range(init_iters):
+            pos = (pos + right_start) % count
+            start_index = pos
+            pos = (pos + 1) % count
+            max_dist = 0.0
+            for j in range(1, count):
+                index = pos
+                pos = (pos + 1) % count
+                dx = sub(xs[index], xs[start_index])
+                dy = sub(ys[index], ys[start_index])
+                dist = dx * dx + dy * dy
+                if dist > max_dist:
+                    max_dist = dist
+                    right_start = j
+            le_eps = max_dist <= eps
+        if not le_eps:
+            right_end = slice_start = pos % count
+            slice_end = right_start = (right_start + slice_start) % count
+            stack.append((right_start, right_end))
+            stack.append((slice_start, slice_end))
+        else:
+            out.append(start_index)
+    while stack:
+        slice_start, slice_end = stack.pop()
+        end_index = slice_end
+        pos = slice_start
+        start_index = pos
+        pos = (pos + 1) % count
+        if pos != slice_end:
+            dx = sub(xs[end_index], xs[start_index])
+            dy = sub(ys[end_index], ys[start_index])
+            segment_len_2 = dx * dx + dy * dy
+            max_dist = 0.0  # squared distance to the segment, times segment_len_2
+            while pos != slice_end:
+                index = pos
+                pos = (pos + 1) % count
+                px = sub(xs[index], xs[start_index])
+                py = sub(ys[index], ys[start_index])
+                projection = px * dx + py * dy
+                if projection < 0:
+                    dist = sq(xs[index], ys[index], xs[start_index], ys[start_index]) * segment_len_2
+                elif projection > segment_len_2:
+                    dist = sq(xs[index], ys[index], xs[end_index], ys[end_index]) * segment_len_2
+                else:
+                    cross = py * dx - px * dy
+                    dist = cross * cross
+                if dist > max_dist:
+                    max_dist = dist
+                    right_start = (pos + count - 1) % count
+            le_eps = max_dist <= eps * segment_len_2
+        else:
+            le_eps = True
+            start_index = slice_start
+        if le_eps:
+            out.append(start_index)
+        else:
+            stack.append((right_start, slice_end))
+            stack.append((slice_start, right_start))
+    if not is_closed:
+        out.append(count - 1)
+
+    # Final clean-up: drop points on nearly straight runs, as OpenCV does.
+    dst = [(xs[index], ys[index]) for index in out]
+    is_closed = bool(closed)
+    total = new_count = len(dst)
+    pos = total - 1 if is_closed else 0
+
+    def read(position):
+        point = dst[position]
+        position += 1
+        return point, (0 if position >= total else position)
+
+    start, pos = read(pos)
+    write = pos
+    point, pos = read(pos)
+    i = 0 if is_closed else 1
+    limit = total - (0 if is_closed else 1)
+    while i < limit and new_count > 2:
+        end, pos = read(pos)
+        dx = sub(end[0], start[0])
+        dy = sub(end[1], start[1])
+        dist = abs(sub(point[0], start[0]) * dy - sub(point[1], start[1]) * dx)
+        inner = dot(point[0], point[1], start[0], start[1], end[0], end[1])
+        if dist * dist <= 0.5 * eps * (dx * dx + dy * dy) and dx != 0 and dy != 0 and inner >= 0:
+            new_count -= 1
+            dst[write] = start = end
+            write = write + 1 if write + 1 < total else 0
+            point, pos = read(pos)
+            i += 2
+            continue
+        dst[write] = start = point
+        write = write + 1 if write + 1 < total else 0
+        point = end
+        i += 1
+    if not is_closed:
+        dst[write] = point
+    result = np.array(dst[:new_count], dtype=np.float32 if is_float else np.int32).reshape(-1, 1, 2)
+    return result
 
 
 def canny_edges(gray: np.ndarray, low: float, high: float) -> np.ndarray:

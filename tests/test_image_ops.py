@@ -181,39 +181,72 @@ def test_add_weighted(backend, amount):
     _within(f"add_weighted_{amount}", image_ops.add_weighted(RGB_F, 1.0 + amount, blurred, -amount, 0.0), 1e-4)
 
 
-# ---- still OpenCV: pinned now, so the replacement has a target -----------------------------
+# ---- written since, or still OpenCV only: one pin per function -----------------------------
 
 
-def test_functions_still_on_opencv_return_the_pinned_output():
-    if image_ops.opencv_available() is False:
-        pytest.skip("OpenCV is not installed; these functions have no replacement yet")
+def _only_on_opencv(backend: str, name: str) -> None:
+    if backend == "numpy" and name in image_ops.opencv_only:
+        pytest.skip(f"{name} has no numpy version yet")
+
+
+def test_flood_fills(backend):
+    _only_on_opencv(backend, "flood_fill_mask_only")
     for tolerance in (0, 24, 90):
         for index, seed in enumerate(((5, 5), (40, 20), (0, 36))):
-            _exact(f"flood_bucket_{tolerance}_{index}",
-                   image_ops.flood_fill_mask_only(RGB, seed, tolerance))
+            _exact(f"flood_bucket_{tolerance}_{index}", image_ops.flood_fill_mask_only(RGB, seed, tolerance))
             for connectivity in (4, 8):
                 _exact(f"flood_select_{tolerance}_{index}_{connectivity}",
                        image_ops.flood_fill_value(MASKS["soft"], seed, 255, tolerance, connectivity))
+
+
+def test_fill_polygon_antialiased(backend):
+    _only_on_opencv(backend, "fill_polygon_antialiased")
     for index, polygon in enumerate(inputs.polygons()):
         canvas = np.zeros((160, 200), np.uint8)
         _exact(f"fillpoly_aa_{index}", image_ops.fill_polygon_antialiased(canvas, polygon))
+
+
+def test_find_contours(backend):
+    _only_on_opencv(backend, "find_outer_contours_ccomp")
     for name, mask in MASKS.items():
-        contours, _hierarchy = image_ops.find_outer_contours_ccomp(np.asarray(mask > 0, dtype=np.uint8))
+        contours, hierarchy = image_ops.find_outer_contours_ccomp(np.asarray(mask > 0, dtype=np.uint8))
         assert len(contours) == int(REFERENCE[f"contours_{name}_count"])
+        _exact(f"contours_{name}_hierarchy", np.asarray(hierarchy).reshape(-1, 4))
         for index, contour in enumerate(contours):
             _exact(f"contours_{name}_{index}", contour.reshape(-1, 2))
+
+
+def test_contour_length_and_simplification():
+    # Inputs are OpenCV's own contours, kept in the reference file.
+    for name in MASKS:
+        for index in range(int(REFERENCE[f"contours_{name}_count"])):
+            contour = REFERENCE[f"contours_{name}_{index}"].reshape(-1, 1, 2)
             length = image_ops.contour_arc_length(contour, True)
             assert length == float(REFERENCE[f"arclength_{name}_{index}"])
             _exact(f"approx_closed_{name}_{index}",
                    image_ops.approx_polygon(contour, max(0.35, length * 0.002), True).reshape(-1, 2))
     for index, path in enumerate(inputs.lasso_paths()):
+        assert np.array_equal(REFERENCE[f"lasso_{index}"], path)
         _exact(f"approx_open_{index}", image_ops.approx_polygon(path.reshape(-1, 1, 2), 0.35, False).reshape(-1, 2))
+
+
+def test_canny(backend):
+    _only_on_opencv(backend, "canny_edges")
     for low, high in ((10, 23), (44, 98), (94, 210)):
         _exact(f"canny_{low}_{high}", image_ops.canny_edges(REFERENCE["gauss_gray_1.2"], low, high))
+
+
+def test_median_and_bilateral(backend):
+    _only_on_opencv(backend, "median_blur")
     for size in (3, 5, 9):
         _exact(f"median_{size}", image_ops.median_blur(RGB, size))
+    _only_on_opencv(backend, "bilateral_filter")
     for diameter, colour, space in ((3, 12.0, 6.0), (7, 30.0, 16.0), (15, 48.0, 26.0)):
         _exact(f"bilateral_{diameter}", image_ops.bilateral_filter(RGB, diameter, colour, space))
+
+
+def test_warp_affine(backend):
+    _only_on_opencv(backend, "warp_affine_linear")
     for angle in (0.5, 17.0, 45.0, 90.0, -133.25):
         height, width = RGBA.shape[:2]
         center = (width / 2.0, height / 2.0)
@@ -258,6 +291,27 @@ def test_colour_conversions_match_opencv_on_random_widths():
         assert np.array_equal(image_ops._rgba_to_gray_numpy(rgba), cv2.cvtColor(rgba, cv2.COLOR_RGBA2GRAY)), width
         lut = rng.integers(0, 256, 256).astype(np.uint8)
         assert np.array_equal(image_ops._apply_lut_numpy(rgb, lut), cv2.LUT(rgb, lut)), width
+
+
+def test_contour_length_and_simplification_match_opencv_on_random_contours():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(4)
+    for trial in range(60):
+        height, width = (int(value) for value in rng.integers(3, 90, 2))
+        mask = (rng.random((height, width)) > rng.uniform(0.2, 0.9)).astype(np.uint8)
+        contours, _ = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            for closed in (True, False):
+                length = cv2.arcLength(contour, closed)
+                assert image_ops.contour_arc_length(contour, closed) == length
+                epsilon = max(0.35, length * 0.002) if trial % 2 else float(rng.uniform(0.1, 6.0))
+                assert np.array_equal(image_ops.approx_polygon(contour, epsilon, closed),
+                                      cv2.approxPolyDP(contour, epsilon, closed))
+        path = np.cumsum(rng.normal(0.0, 1.5, (int(rng.integers(2, 300)), 2)), axis=0).astype(np.float32)
+        path = path.reshape(-1, 1, 2)
+        for closed in (False, True):
+            assert image_ops.contour_arc_length(path, closed) == cv2.arcLength(path, closed)
+            assert np.array_equal(image_ops.approx_polygon(path, 0.35, closed), cv2.approxPolyDP(path, 0.35, closed))
 
 
 def test_morphology_matches_opencv_on_random_masks():
@@ -313,3 +367,4 @@ def test_the_list_of_functions_still_on_opencv_is_complete():
                    for inner in ast.walk(node)):
                 calling.add(node.name)
     assert calling - {"opencv_available"} == set(image_ops.uses_opencv)
+    assert set(image_ops.opencv_only) <= set(image_ops.uses_opencv)
