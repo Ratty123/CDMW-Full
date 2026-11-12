@@ -515,6 +515,25 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     }
 
     std::set<std::string> seen_components;
+    // A weapon's sheath is a model of its own beside it (`<stem>_in.pac`), and the
+    // item prefab the stem guess finds does not always list it: the sword
+    // `cd_phm_02_sword_0015.pac` lost its scabbard row that way (P5). List the
+    // companion as an optional component; it loads only when it is enabled.
+    {
+        std::string folder = job.path;
+        std::replace(folder.begin(), folder.end(), '\\', '/');
+        const size_t slash = folder.find_last_of('/');
+        folder = slash == std::string::npos ? std::string() : folder.substr(0, slash + 1);
+        for (const char* suffix : {"_in"}) {
+            const std::string companion = folder + model_stem + suffix + ".pac";
+            std::optional<ArchiveEntryRef> resolved = resolve_archive_path_across_package(job, index, companion);
+            if (!resolved.has_value() || prefab_component_path_key(resolved->path) != prefab_component_path_key(companion)) {
+                continue;
+            }
+            const std::string key = lower_copy(path_utf8(resolved->pamt_path) + "|" + resolved->path);
+            if (seen_components.insert(key).second) components.push_back(*resolved);
+        }
+    }
     for (const ArchiveEntryRef& prefab : prefab_candidates) {
         std::vector<char> prefab_bytes;
         try {

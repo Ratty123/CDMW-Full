@@ -125,3 +125,15 @@ def test_unticked_parts_start_with_view_off_in_the_editor() -> None:
     MeshEditorSessionMixin._apply_pending_view_hidden_parts(
         tab, result, SimpleNamespace(path="Character/Model/sword.pac"))
     assert session.viewport_hidden_parts == (1,) and tab.pending_view_hidden_parts is None
+
+
+def test_preview_core_lists_the_sword_s_scabbard_and_tests_it() -> None:
+    """P5: the sheath beside a weapon (`<stem>_in.pac`) is an optional component; the self-test runs it."""
+    from pathlib import Path
+
+    lookup = Path("native/cdmw_preview_core/src/owners/material_archive_lookup.cpp").read_text(encoding="utf-8")
+    tests = Path("native/cdmw_preview_core/src/owners/material_surface_self_tests.cpp").read_text(encoding="utf-8")
+    assert 'for (const char* suffix : {"_in"})' in lookup
+    runner = tests[tests.index("static void run_material_contract_self_test()"):]
+    assert "run_weapon_sheath_component_self_test();" in runner[:400]
+    assert "cd_phm_02_sword_0015_in.pac" in tests

@@ -840,8 +840,34 @@ static void run_item_set_components_self_test() {
     }), "set material lookup exceeded its component bound");
 }
 
+static void run_weapon_sheath_component_self_test() {
+    // P5: the sword's scabbard is listed even when no prefab names it, and only
+    // when it exists; it is optional, so nothing loads it unless it is enabled.
+    EntryJob job;
+    job.path = "character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0015.pac";
+    job.extension = ".pac";
+    job.archive_dependency_entries_complete = true;
+    PamtIndex index;
+    const auto components_without = prefab_model_component_refs_for_job(job, index);
+    require_material_contract(components_without.empty(), "a missing sheath was listed");
+    ArchiveEntryRef sheath;
+    sheath.path = "character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0015_in.pac";
+    sheath.basename = basename_from_path(sheath.path);
+    sheath.extension = ".pac";
+    index.by_basename[sheath.basename].push_back(sheath);
+    ArchiveEntryRef elsewhere = sheath;
+    elsewhere.path = "character/model/other/cd_phm_02_sword_0015_in.pac";
+    index.by_basename[sheath.basename].push_back(elsewhere);
+    const auto components = prefab_model_component_refs_for_job(job, index);
+    require_material_contract(components.size() == 1 && components.front().path == sheath.path,
+        "the sword's own scabbard beside it was not listed as its component");
+    require_material_contract(!prefab_component_enabled_for_job(components.front(), job),
+        "the scabbard loaded without being enabled");
+}
+
 static void run_material_contract_self_test() {
     run_item_set_components_self_test();
+    run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";
     ArchiveEntryRef other_texture;

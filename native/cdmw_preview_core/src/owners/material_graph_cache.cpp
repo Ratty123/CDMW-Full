@@ -49,7 +49,9 @@ static std::vector<fs::path> package_root_pamt_paths(const fs::path& package_roo
 
 static void run_archive_path_io_self_test() {
 #ifdef _WIN32
-    const auto parent = fs::absolute(fs::temp_directory_path()).lexically_normal();
+    auto parent = fs::absolute(fs::temp_directory_path()).lexically_normal();
+    // Windows names the temp folder with a trailing separator; a child's parent has none.
+    if (!parent.has_filename()) parent = parent.parent_path();
     const auto name = "cdmw-path-test-" + std::to_string(GetCurrentProcessId()) + "-"
         + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     const auto temporary = parent / name;
