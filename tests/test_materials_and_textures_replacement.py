@@ -103,14 +103,14 @@ def test_the_file_filter_offers_the_supported_external_formats() -> None:
     assert "fbx" not in external_filter.lower()
 
 
-class _RequestFlow:
-    """The commit boundary's request builder, with its collaborators stubbed."""
+def _build(build_entry, preview, *, paired_entry=None, include_geometry=True):
+    """The mod's mesh requests, from the loose build's own request builder."""
 
-    from cdmw.ui.archive_browser.mesh_direct_patch import (
-        ArchiveMeshDirectPatchMixin as _Mixin,
-    )
+    from cdmw.ui.archive_browser.mesh_patch_flow import _loose_mesh_patch_requests
 
-    _build = _Mixin._build_mesh_direct_patch_requests
+    requests = _loose_mesh_patch_requests(build_entry, paired_entry, preview,
+                                          writes_geometry=include_geometry, on_log=lambda _message: None)
+    return requests, []
 
 
 def _entry(path: str):
@@ -128,8 +128,7 @@ def test_the_mesh_entry_is_patched_only_when_the_operation_writes_geometry(
     build_entry = _entry("character/model/sword.pac")
     paired_entry = _entry("character/model/sword.pamlod")
 
-    requests, _warnings = _RequestFlow._build(
-        SimpleNamespace(),
+    requests, _warnings = _build(
         build_entry,
         preview,
         paired_entry=paired_entry,
@@ -150,8 +149,7 @@ def test_not_writing_the_mesh_is_what_keeps_the_geometry_hash() -> None:
     shipped_hash = hashlib.sha256(shipped).hexdigest()
     preview = SimpleNamespace(rebuilt_data=b"a rebuild that is not byte identical", paired_lod_data=None)
 
-    requests, _warnings = _RequestFlow._build(
-        SimpleNamespace(),
+    requests, _warnings = _build(
         _entry("character/model/sword.pac"),
         preview,
         include_geometry=False,

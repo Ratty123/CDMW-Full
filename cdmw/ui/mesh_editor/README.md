@@ -199,6 +199,26 @@ Folder...** lists a mod built before saved drafts existed, or by someone else, i
 selected project; its game path comes from CDMW's local export record, or from the
 mesh file's place in the folder.
 
+**Combine into One Mod...** ([flow](saved_work_combine.py), command
+`saved_work.combine`, registered by the page as Browse registers its own) writes two or
+more selected built mods that change different game files into one new mod (GitHub
+issue 31). It is enabled only for two or more built-mod rows whose folders exist, with
+the reason otherwise. One dialog holds every stage: a worker reads the builds and plans
+(`prepare_mesh_build_combine`, nothing written); the plan, or the refusal naming the
+shared file and the builds; a title, a new or empty folder and an optional ZIP; then a
+worker writes and lists the mod (`export_combined_mesh_builds`, `register_combined_mod`,
+[tasks](../../workers/mesh_build_combine_workers.py)). The configured game folder, read
+from Archive Browser through the page's source resolver, is always passed, so an output
+inside the game is refused on the loose route too. Cancel works at every stage: the
+workers stop, and a cancel after the mod was published removes it again (an empty
+folder the user chose is put back). The selected builds are never changed.
+
+The **Game file** column fits each path to its width with
+[`game_file_label`](../../domain/packages/game_file_label.py): the file name stays whole
+and leading folders go first, so two files of one armour stay apart. A row that writes
+several files (`SavedWorkRow.game_files`) reads "first + N more"; its tooltip and the
+Details list show every file.
+
 **Name Draft...** beside Continue Earlier Work... names the draft of the open mesh and
 chooses its project, with **New Project...** in the same dialog. It works before the
 first save too: the planned draft carries the name. Later edit passes, continued built

@@ -21,8 +21,13 @@ reconstructs only idempotent query/page/lookup requests; prepare, search, and
 export writes are never replayed automatically.
 UI modules never import archive implementation modules or the
 `cdmw.core.archive` / `cdmw.core.archive_modding` compatibility facades.
-Mutation commands and backup locations remain owned by
-`ArchiveMutationService`; long-running calls are dispatched through workers.
+Backups and Restore remain owned by `ArchiveMutationService`; long-running calls
+are dispatched through workers. CDMW never writes into the game's archives: the
+direct patch plan was removed, and what is left is Restore Backup (putting back
+what an older CDMW patched, after a confirmation; backups are looked for in the
+current backup root and in the system temp folder older versions used) and the
+backup/restore pair of the switched-off overlay installs.
+`tests/test_no_game_archive_writes.py` pins every caller.
 
 ## Preview services
 

@@ -1,8 +1,7 @@
-"""Archive path and mutation safety rules owned outside UI widgets."""
+"""Archive path safety rules owned outside UI widgets."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
@@ -22,22 +21,6 @@ _WINDOWS_RESERVED_NAMES = frozenset(
     }
 )
 _WINDOWS_INVALID_CHARACTERS = frozenset('<>:"|?*')
-
-
-@dataclass(frozen=True, slots=True)
-class ArchiveMutationSafety:
-    """Safety contract required before an archive mutation may run."""
-
-    description: str
-    requires_confirmation: bool = True
-    requires_backup: bool = True
-    recoverable: bool = True
-
-
-def require_explicit_archive_mutation(description: str) -> ArchiveMutationSafety:
-    """Return the default safety contract for destructive archive work."""
-
-    return ArchiveMutationSafety(description=str(description or "archive mutation").strip())
 
 
 def safe_archive_output_path(
@@ -81,7 +64,5 @@ def safe_archive_output_path(
 
 
 __all__ = [
-    "ArchiveMutationSafety",
-    "require_explicit_archive_mutation",
     "safe_archive_output_path",
 ]

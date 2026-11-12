@@ -44,6 +44,12 @@ SHOULDER = "character/model/1_pc/1_phw/armor/14_sho/cd_phw_00_sho_under_00_0151.
 WING_TEXTURE = "character/texture/cd_phw_00_wing_0151_d.dds"
 
 
+@pytest.fixture(autouse=True)
+def _owned_history(tmp_path, monkeypatch):
+    # Build Mod and Combine keep authoring records in %LOCALAPPDATA%; keep them owned.
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "localappdata"))
+
+
 def _build(root: Path, name: str, files: dict[str, tuple[bytes, str]], *, profile: str = "dmm",
            companions: dict[str, bytes] | None = None) -> Path:
     """A built mod made the way Build Mod makes one: staged, written by the loose writer, published."""
@@ -206,6 +212,46 @@ def test_mixed_builds_combine_through_the_merge_service_into_a_dmm_archive_group
     assert read_archive_entry_data(payloads[UPPER].entry)[0] == b"one"
     assert read_archive_entry_data(payloads[SHOULDER].entry)[0] == b"two"
     assert _fingerprint(game_root) == game_before  # the game is only read
+
+
+@pytest.mark.parametrize("chosen_empty", [False, True])
+def test_a_cancel_after_the_archive_group_is_published_leaves_no_folder(tmp_path, monkeypatch, chosen_empty):
+    import cdmw.core.mod_export_history as history
+    from cdmw.domain.cancellation import RunCancelled
+    from tests.test_new_item_provenance import setup_game
+
+    _service, _snapshot, entries = setup_game(tmp_path)
+    game_root = tmp_path / "game"
+    game_before = _fingerprint(game_root)
+    builds = tmp_path / "mods"
+    builds.mkdir()
+    first = _build(builds, "First", {UPPER: (b"one", "0009")}, profile="dmm")
+    second = _build(builds, "Second", {SHOULDER: (b"two", "0014")}, profile="cdumm")
+    prepared = prepare_mesh_build_combine((first, second))
+    published = []
+    real = history.file_mod_history
+    destination = tmp_path / "out" / "Mixed"
+
+    def cancelled_once_published(root, *args, **kwargs):
+        # The staging step files history too; the cancel lands on the published folder.
+        if Path(root).resolve() != destination.resolve():
+            return real(root, *args, **kwargs)
+        published.append(Path(root))
+        raise RunCancelled("Combining built mods was cancelled.")
+
+    monkeypatch.setattr(history, "file_mod_history", cancelled_once_published)
+    if chosen_empty:
+        destination.mkdir(parents=True)
+    with pytest.raises(RunCancelled):
+        export_combined_mesh_builds(prepared, destination, title="Mixed", game_root=game_root, entries=entries,
+                                    create_zip=True)
+    assert published and published[0].is_relative_to(destination.resolve())
+    if chosen_empty:
+        assert destination.is_dir() and not any(destination.iterdir())
+    else:
+        assert not destination.exists()
+    assert sorted(path.name for path in destination.parent.iterdir()) == (["Mixed"] if chosen_empty else [])
+    assert _fingerprint(game_root) == game_before
 
 
 def test_a_build_changed_after_the_check_and_unsafe_outputs_are_refused(reporter_builds, tmp_path):

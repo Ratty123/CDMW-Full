@@ -1,4 +1,4 @@
-"""Archive mesh patch, loose export, and direct patch flow."""
+"""Archive mesh replacement: rebuild, review and write a loose mod. The game is never patched."""
 from __future__ import annotations
 
 import json
@@ -34,7 +34,7 @@ from cdmw.domain.textures.policy import check_final_preview_material_authority a
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions
-from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.ui.archive_browser.dds_preview_resolvers import archive_dds_preview_resolver_pair as _archive_dds_preview_resolver_pair_helper
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_file_dialog_title,
@@ -222,7 +222,6 @@ class ArchiveMeshPatchFlowMixin:
             output_mode: str = "loose",
         ) -> bool:
             build_dialog_parent = dialog_parent if dialog_parent is not None else self
-            destination = "patch" if str(output_mode or "").strip().casefold() == "patch" else "loose"
 
             def _set_builder_status(message: str) -> None:
                 if build_status_callback is not None:
@@ -244,45 +243,46 @@ class ArchiveMeshPatchFlowMixin:
                     if isinstance(path, Path)
                 )
 
+            if str(output_mode or "loose").strip().casefold() != "loose":
+                # Writing into the game's archives was removed; a replacement is always a mod.
+                _finish_builder_status("CDMW no longer patches game archives. Build a mod instead.", False)
+                return False
             loose_export_settings = None
             selected_related_entries: Sequence[ArchiveEntry] = ()
-            if destination == "loose":
-                _set_builder_status("Choosing mesh replacement export metadata...")
-                loose_export_settings = self._collect_archive_mod_ready_export_target(
-                    browse_title="Select Mod-Ready Export Parent Root",
-                    prompt_for_metadata=True,
-                    initial_include_related_files=False,
-                    show_include_related_files_option=False,
-                    dialog_title="Mesh Loose Export Metadata",
-                    allow_dmm_texture_structure=False,
-                    show_texture_resolution_manifest_option=True,
-                    show_material_authority_report_option=True,
-                    show_active_file_authority_audit_option=True,
-                    parent=build_dialog_parent,
-                )
-                if loose_export_settings is None:
-                    _finish_builder_status("Mesh replacement build cancelled before export target selection.", False)
-                    return False
-                _set_builder_status("Choosing optional related files for loose package...")
-                selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
-                    build_entry,
-                    title="Include Additional Referenced Files",
-                    intro_text=(
-                        "Select any original archive companion files that should be copied into the loose mod. "
-                        "Generated replacement textures and patched material sidecars are included automatically when enabled; "
-                        "original .pac_xml, .pab, .hkx, and old DDS files are unchecked by default."
-                    ),
-                    confirm_button_text="Continue",
-                    default_checked=False,
-                    parent=build_dialog_parent,
-                )
-                if selected_related_entries_result is None:
-                    _finish_builder_status("Mesh replacement build cancelled before related file selection.", False)
-                    return False
-                selected_related_entries = selected_related_entries_result
-                _set_builder_status("Building loose mod package...")
-            else:
-                _set_builder_status("Preparing direct archive patch...")
+            _set_builder_status("Choosing mesh replacement export metadata...")
+            loose_export_settings = self._collect_archive_mod_ready_export_target(
+                browse_title="Select Mod-Ready Export Parent Root",
+                prompt_for_metadata=True,
+                initial_include_related_files=False,
+                show_include_related_files_option=False,
+                dialog_title="Mesh Loose Export Metadata",
+                allow_dmm_texture_structure=False,
+                show_texture_resolution_manifest_option=True,
+                show_material_authority_report_option=True,
+                show_active_file_authority_audit_option=True,
+                parent=build_dialog_parent,
+            )
+            if loose_export_settings is None:
+                _finish_builder_status("Mesh replacement build cancelled before export target selection.", False)
+                return False
+            _set_builder_status("Choosing optional related files for loose package...")
+            selected_related_entries_result = self._prompt_archive_mesh_related_file_selection(
+                build_entry,
+                title="Include Additional Referenced Files",
+                intro_text=(
+                    "Select any original archive companion files that should be copied into the loose mod. "
+                    "Generated replacement textures and patched material sidecars are included automatically when enabled; "
+                    "original .pac_xml, .pab, .hkx, and old DDS files are unchecked by default."
+                ),
+                confirm_button_text="Continue",
+                default_checked=False,
+                parent=build_dialog_parent,
+            )
+            if selected_related_entries_result is None:
+                _finish_builder_status("Mesh replacement build cancelled before related file selection.", False)
+                return False
+            selected_related_entries = selected_related_entries_result
+            _set_builder_status("Building loose mod package...")
 
             paired_entry = None
             if build_entry.extension == ".pam":
@@ -338,24 +338,16 @@ class ArchiveMeshPatchFlowMixin:
 
             def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                 material_report_render_settings = self._current_model_preview_render_settings()
-                mutation_service = self.shell.app_context.services.require_archive_mutations() if destination == "patch" else None
 
                 def _commit_task(
                     log: Callable[[str], None],
                     stop_event: threading.Event,
                 ) -> object:
                     raise_if_cancelled(stop_event, "Mesh replacement export cancelled.")
-                    # Same override for both destinations; the blocker dialog confirms a direct patch once more.
                     unsafe_material_preflight_override = bool(getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False))
-                    export_options = None
-                    parent_root = None
-                    package_info = None
-                    create_no_encrypt = False
-                    include_related_files = False
-                    if destination == "loose":
-                        if loose_export_settings is None:
-                            raise ValueError("Loose export settings were not collected.")
-                        parent_root, package_info, create_no_encrypt, include_related_files, export_options = loose_export_settings
+                    if loose_export_settings is None:
+                        raise ValueError("Loose export settings were not collected.")
+                    parent_root, package_info, create_no_encrypt, include_related_files, export_options = loose_export_settings
 
                     custom_icon_specs: Tuple[MeshImportSupplementalFileSpec, ...] = ()
                     custom_icon_override = (
@@ -373,49 +365,19 @@ class ArchiveMeshPatchFlowMixin:
                     loose_supplemental_specs = tuple(setup.extra_supplemental_specs or ()) + tuple(
                         preview_result.supplemental_file_specs or ()
                     )
-                    loose_supplemental_specs = loose_supplemental_specs + custom_icon_specs
-                    direct_patch_supplemental_specs = tuple(
-                        spec
-                        for spec in tuple(preview_result.supplemental_file_specs or ()) + custom_icon_specs
-                        if isinstance(spec, MeshImportSupplementalFileSpec)
-                        and isinstance(getattr(spec, "target_entry", None), ArchiveEntry)
-                        and self._mesh_direct_patch_spec_is_generated(spec)
+                    supplemental_specs_to_include = loose_supplemental_specs + custom_icon_specs
+                    # The sidecar and the DDS files travel as supplemental
+                    # specs, so a package with no mesh entry is still whole.
+                    requests = _loose_mesh_patch_requests(
+                        build_entry, paired_entry, preview_result,
+                        writes_geometry=writes_geometry, on_log=log,
                     )
-                    supplemental_specs_to_include = (
-                        direct_patch_supplemental_specs
-                        if destination == "patch"
-                        else loose_supplemental_specs
-                    )
-                    if destination == "patch":
-                        requests, request_warnings = self._build_mesh_direct_patch_requests(
-                            build_entry,
-                            preview_result,
-                            paired_entry=paired_entry,
-                            supplemental_specs=direct_patch_supplemental_specs,
-                            include_geometry=writes_geometry,
-                        )
-                        for warning in request_warnings:
-                            log(warning)
-                    else:
-                        # The sidecar and the DDS files travel as supplemental
-                        # specs, so a package with no mesh entry is still whole.
-                        requests = _loose_mesh_patch_requests(
-                            build_entry, paired_entry, preview_result,
-                            writes_geometry=writes_geometry, on_log=log,
-                        )
 
-                    if destination == "patch":
-                        preflight_failed_prefix = "Final package texture preflight failed before direct archive patch: "
-                        preflight_failed_log = (
-                            "Final package texture preflight failed before direct archive patch; no files were written:\n"
-                        )
-                        log("Running final package texture preflight before direct archive patch...")
-                    else:
-                        preflight_failed_prefix = "Final package texture preflight failed before export: "
-                        preflight_failed_log = (
-                            "Final package texture preflight failed before export; no files were written:\n"
-                        )
-                        log("Running final package texture preflight before export...")
+                    preflight_failed_prefix = "Final package texture preflight failed before export: "
+                    preflight_failed_log = (
+                        "Final package texture preflight failed before export; no files were written:\n"
+                    )
+                    log("Running final package texture preflight before export...")
                     pre_export_preview: Optional[FinalPackagePreviewResult] = None
                     try:
                         pre_export_preview = build_final_package_preview(
@@ -440,15 +402,12 @@ class ArchiveMeshPatchFlowMixin:
                             preflight_failed_log
                             + "\n".join(f"- {line}" for line in blocker_lines)
                         )
-                        if unsafe_material_preflight_override and destination == "patch":
-                            log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing direct archive patch even though final package preflight could not be built.")
-                        elif unsafe_material_preflight_override:
+                        if unsafe_material_preflight_override:
                             log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing loose export even though final package preflight could not be built.")
                         else:
                             return {
                                 "preview": preview_result,
                                 "loose": None,
-                                "patch": None,
                                 "final_preview": None,
                                 "preflight_blocked": blocker_lines,
                                 "preflight_hard_blocked": blocker_lines,
@@ -463,9 +422,7 @@ class ArchiveMeshPatchFlowMixin:
                             blockers = "\n".join(f"- {line}" for line in pre_export_authority_blockers[:12])
                             if len(pre_export_authority_blockers) > 12:
                                 blockers += f"\n- ... {len(pre_export_authority_blockers) - 12:,} more blocker(s)"
-                            if unsafe_material_preflight_override and destination == "patch":
-                                log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing direct archive patch despite material authority report blocker(s):\n" + blockers)
-                            elif unsafe_material_preflight_override:
+                            if unsafe_material_preflight_override:
                                 log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing loose export despite material authority report blocker(s):\n" + blockers)
                             else:
                                 log(
@@ -475,7 +432,6 @@ class ArchiveMeshPatchFlowMixin:
                                 return {
                                     "preview": preview_result,
                                     "loose": None,
-                                    "patch": None,
                                     "final_preview": pre_export_preview,
                                     "preflight_blocked": pre_export_authority_blockers,
                                     "preflight_hard_blocked": pre_export_authority_blockers,
@@ -488,46 +444,21 @@ class ArchiveMeshPatchFlowMixin:
                             blockers = "\n".join(f"- {line}" for line in blocker_lines[:12])
                             if len(pre_export_preview.preflight_errors) > 12:
                                 blockers += f"\n- ... {len(pre_export_preview.preflight_errors) - 12:,} more blocker(s)"
-                            if unsafe_material_preflight_override and destination == "patch":
-                                log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing direct archive patch despite material preflight blocker(s):\n" + blockers)
-                                apply_material_preflight_override(pre_export_preview, include_hard=True)
-                            elif unsafe_material_preflight_override:
+                            if unsafe_material_preflight_override:
                                 log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING + "\nContinuing loose export despite material preflight blocker(s):\n" + blockers)
                                 apply_material_preflight_override(pre_export_preview, include_hard=True)
                             else:
-                                if destination == "patch":
-                                    log(
-                                        "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
-                                        + blockers
-                                    )
-                                else:
-                                    log(
-                                        "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
-                                        + blockers
-                                    )
+                                log(
+                                    "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                    + blockers
+                                )
                                 return {
                                     "preview": preview_result,
                                     "loose": None,
-                                    "patch": None,
                                     "final_preview": pre_export_preview,
                                     "preflight_blocked": blocker_lines,
                                     "preflight_hard_blocked": hard_blockers,
                                 }
-                    if destination == "patch":
-                        if not requests:
-                            raise ValueError("No archive patch requests could be built for the rebuilt mesh.")
-                        log(f"Patching {len(requests)} rebuilt/generated entries directly into game archives...")
-                        assert mutation_service is not None
-                        plan = mutation_service.prepare_patch(
-                            requests, confirmed=True, description=f"Patch rebuilt mesh {build_entry.path}",
-                        )
-                        patch_result = mutation_service.apply_patch(plan, on_log=log, stop_event=stop_event)
-                        return {
-                            "preview": preview_result,
-                            "patch": patch_result,
-                            "final_preview": pre_export_preview,
-                        }
-
                     log(f"Writing {len(requests)} rebuilt entries into a mod-ready loose package...")
                     loose_result = export_archive_mesh_payloads_to_mod_ready_loose(
                         requests,
@@ -627,7 +558,6 @@ class ArchiveMeshPatchFlowMixin:
                     return {
                         "preview": preview_result,
                         "loose": loose_result,
-                        "patch": None,
                         "final_preview": final_preview,
                     }
 
@@ -637,7 +567,6 @@ class ArchiveMeshPatchFlowMixin:
                         return
                     preview_payload = result.get("preview")
                     loose_result = result.get("loose")
-                    patch_result = result.get("patch")
                     preflight_blockers = tuple(
                         str(line)
                         for line in tuple(result.get("preflight_blocked") or ())
@@ -666,11 +595,7 @@ class ArchiveMeshPatchFlowMixin:
                         blocker_layout.setContentsMargins(14, 14, 14, 14)
                         blocker_layout.setSpacing(10)
                         blocker_summary = QLabel(
-                            (
-                                "<b>Game archive files were not patched.</b><br><br>"
-                                if destination == "patch"
-                                else "<b>Loose package was not written.</b><br><br>"
-                            )
+                            "<b>Loose package was not written.</b><br><br>"
                             + "Complete source-owned swap requires the final package preview to match exact material bindings."
                         )
                         blocker_summary.setWordWrap(True)
@@ -679,11 +604,7 @@ class ArchiveMeshPatchFlowMixin:
                         blocker_details.setReadOnly(True)
                         blocker_details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
                         blocker_details.setPlainText(
-                            (
-                                "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
-                                if destination == "patch"
-                                else "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
-                            )
+                            "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
                             + blocker_text
                         )
                         blocker_details.setMinimumSize(QSize(860, 390))
@@ -692,13 +613,13 @@ class ArchiveMeshPatchFlowMixin:
                         blocker_button_row.addStretch(1)
                         unsafe_choice = {"export": False}
                         unsafe_export_button = None
-                        # Both destinations get the choice; the override rides the retried commit for whichever is running.
+                        # The override rides the retried commit.
                         unsafe_export_available = not bool(getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False))
                         if unsafe_export_available:
                             blocker_cancel_button = QPushButton("Cancel")
                             blocker_cancel_button.clicked.connect(blocker_dialog.reject)
                             blocker_button_row.addWidget(blocker_cancel_button)
-                            unsafe_export_button = QPushButton("Patch Anyway (Unsafe)" if destination == "patch" else "Export Anyway (Unsafe)")
+                            unsafe_export_button = QPushButton("Export Anyway (Unsafe)")
                             unsafe_export_button.setObjectName("MeshAlignmentUnsafeMaterialPreflightExportButton")
                             unsafe_export_button.setToolTip(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)
 
@@ -717,52 +638,10 @@ class ArchiveMeshPatchFlowMixin:
                         if unsafe_choice.get("export"):
                             if static_replacement_options is not None:
                                 setattr(static_replacement_options, "allow_unsafe_material_preflight_export", True)
-                            _set_builder_status("Patching game archive files with unsafe material preflight override..." if destination == "patch" else "Writing loose mod package with unsafe material preflight override...")
+                            _set_builder_status("Writing loose mod package with unsafe material preflight override...")
                             _start_commit(preview_payload)
                             return
                         _finish_builder_status("Mesh replacement build blocked by final package texture preflight.", False)
-                        return
-                    if destination == "patch":
-                        if not isinstance(patch_result, ArchivePatchResult):
-                            _finish_builder_status("Mesh archive patch finished with an incomplete result payload.", False)
-                            return
-                        self._apply_archive_patch_result(patch_result)
-                        final_preview = (
-                            result.get("final_preview")
-                            if isinstance(result.get("final_preview"), FinalPackagePreviewResult)
-                            else None
-                        )
-                        self._show_archive_import_preview(
-                            build_entry,
-                            preview_payload,
-                            patched=True,
-                            backup_dir=patch_result.backup_dir,
-                            final_preview=final_preview,
-                        )
-                        updated_entry = self._find_archive_entry_by_virtual_path(build_entry.path) or build_entry
-                        self._render_archive_preview(updated_entry, force=True)
-                        try:
-                            build_dialog_parent.isVisible()
-                            patch_box_parent = build_dialog_parent
-                        except RuntimeError:
-                            patch_box_parent = self
-                        patch_box = QMessageBox(patch_box_parent)
-                        patch_box.setIcon(QMessageBox.Information)
-                        patch_box.setWindowTitle("Game Files Patched")
-                        patch_box.setText("Patched game archive files.")
-                        patch_box.setInformativeText(str(patch_result.backup_dir))
-                        patch_box.setDetailedText(
-                            "Patched archive entries:\n"
-                            + "\n".join(str(path) for path in patch_result.changed_paths)
-                            + f"\n\nBackup:\n{patch_result.backup_dir}"
-                        )
-                        patch_box.setStandardButtons(QMessageBox.Ok)
-                        patch_box.setMinimumSize(QSize(560, 180))
-                        patch_box.exec()
-                        _finish_builder_status(
-                            f"Patched rebuilt {build_entry.basename} into game archives.",
-                            True,
-                        )
                         return
                     if not isinstance(loose_result, ArchiveLooseExportResult):
                         _finish_builder_status("Mesh loose export finished with an incomplete result payload.", False)
@@ -814,11 +693,7 @@ class ArchiveMeshPatchFlowMixin:
                     )
 
                 self.shell._run_utility_task_when_idle(
-                    status_message=(
-                        f"Patching {build_entry.basename} into game archive files..."
-                        if destination == "patch"
-                        else f"Writing {build_entry.basename} into a mod-ready loose package..."
-                    ),
+                    status_message=f"Writing {build_entry.basename} into a mod-ready loose package...",
                     task=_commit_task,
                     on_complete=_handle_commit_complete,
                     on_error=lambda message: _finish_builder_status(
@@ -837,42 +712,11 @@ class ArchiveMeshPatchFlowMixin:
                     if not self._confirm_archive_mesh_import_commit(
                         build_entry,
                         result,
-                        destination=destination,
                         source_obj_path=scene_path_obj,
                     ):
                         _finish_builder_status("Mesh import cancelled after validation review.", False)
                         return
-                if destination == "patch":
-                    target_paths = list(
-                        self._mesh_direct_patch_target_paths(
-                            build_entry,
-                            result,
-                            paired_entry=paired_entry,
-                            supplemental_specs=tuple(result.supplemental_file_specs or ()),
-                        )
-                    )
-                    custom_icon_override = (
-                        getattr(static_replacement_options, "custom_item_icon_override", None)
-                        if static_replacement_options is not None
-                        else None
-                    )
-                    if isinstance(custom_icon_override, ItemIconOverrideSpec):
-                        custom_icon_target = getattr(custom_icon_override, "target_entry", None)
-                        if isinstance(custom_icon_target, ArchiveEntry):
-                            custom_icon_path = str(custom_icon_target.path or "").replace("\\", "/").strip()
-                            if custom_icon_path and custom_icon_path.casefold() not in {
-                                path.casefold() for path in target_paths
-                            }:
-                                target_paths.append(custom_icon_path)
-                    if not self._confirm_mesh_direct_archive_patch(
-                        target_paths,
-                        parent=build_dialog_parent,
-                    ):
-                        _finish_builder_status("Mesh archive patch cancelled before writing game files.", False)
-                        return
-                    _set_builder_status("Patching game archive files...")
-                else:
-                    _set_builder_status("Writing loose mod package...")
+                _set_builder_status("Writing loose mod package...")
                 _start_commit(result)
 
             self.shell._run_utility_task(

@@ -404,13 +404,21 @@ def export_combined_mesh_builds(
     title = str(title or "").strip() or "Combined mod"
     names = ", ".join(source.label for source in plan.sources)
     info = package_info or ModPackageInfo(title=title, version="1.0", description=f"Combined from: {names}.")
+    chosen_empty = root.is_dir()
     if plan.layout == LAYOUT_LOOSE:
         data = _verify_unchanged(prepared, stop_event)
         if on_log:
             on_log(f"Writing {len(plan.files)} files from {len(plan.sources)} builds...")
-        if root.is_dir():
+        if chosen_empty:
             root.rmdir()  # An empty folder was chosen; publication needs the name free.
-        zip_path = _write_loose(prepared, root, data, package_info=info, create_zip=create_zip, stop_event=stop_event)
+        try:
+            zip_path = _write_loose(prepared, root, data, package_info=info, create_zip=create_zip,
+                                    stop_event=stop_event)
+        except BaseException:
+            # Publication is atomic, so nothing was published; give back the empty folder.
+            if chosen_empty and not root.exists():
+                root.mkdir(parents=True, exist_ok=True)
+            raise
         return CombinedMeshBuildResult(root, zip_path, plan.layout, plan.manager_profile, plan.target_paths,
                                        tuple(source.label for source in plan.sources))
     if game is None:
@@ -424,16 +432,40 @@ def export_combined_mesh_builds(
     if merge.conflicts:
         raise ValueError("These builds cannot be combined:\n" + "\n".join(f"- {line}" for line in merge.conflicts))
     result = export_merged_mod(merge, root, title=title, on_log=on_log, stop_event=stop_event)
-    package_root = Path(getattr(result, "package_root", root))
-    file_mod_history(package_root, {SESSION_METADATA: _combined_metadata(prepared)}, stop_event=stop_event)
+    package_root = Path(getattr(result, "package_root", root)).resolve()
     zip_path = None
-    if create_zip:
-        from cdmw.core.mod_package import _write_package_zip
+    try:
+        file_mod_history(package_root, {SESSION_METADATA: _combined_metadata(prepared)}, stop_event=stop_event)
+        if create_zip:
+            from cdmw.core.mod_package import _write_package_zip
 
-        zip_path = package_root.with_name(package_root.name + ".zip")
-        _write_package_zip(package_root, zip_path=zip_path, stop_event=stop_event)
+            zip_path = package_root.with_name(package_root.name + ".zip")
+            _write_package_zip(package_root, zip_path=zip_path, stop_event=stop_event)
+        raise_if_cancelled(stop_event, _CANCELLED)
+    except BaseException:
+        # The merged folder was published a moment ago into a new or empty folder:
+        # a cancel or failure after that takes it back out, so no part is left.
+        remove_combined_output(root, package_root, zip_path, restore_empty=chosen_empty)
+        raise
     return CombinedMeshBuildResult(package_root, zip_path, plan.layout, "dmm", plan.target_paths,
                                    tuple(source.label for source in plan.sources))
+
+
+def remove_combined_output(root: Path | str, output: Path | str, zip_path: Path | str | None = None, *,
+                           restore_empty: bool = False) -> None:
+    """Take a combined mod that was just written back out (a late cancel or failure).
+
+    Only `output` when it is `root` or inside it, and the ZIP beside it, are
+    removed: both were created by this export into a new or empty folder.
+    """
+
+    root, output = Path(root).resolve(), Path(output).resolve()
+    if output == root or output.is_relative_to(root):
+        shutil.rmtree(output, ignore_errors=True)
+    if zip_path is not None:
+        Path(zip_path).unlink(missing_ok=True)
+    if restore_empty and not root.exists():
+        root.mkdir(parents=True, exist_ok=True)
 
 
 __all__ = [
@@ -444,4 +476,5 @@ __all__ = [
     "merge_build_compatibility",
     "prepare_mesh_build_combine",
     "read_mesh_build",
+    "remove_combined_output",
 ]
