@@ -53,6 +53,8 @@ class RustNewItemStudioTab(QWidget):
         self._closed = False
         self._rust_mode = False
         self._process = None
+        from cdmw.ui.preview.engine_viewport import engine_page_factory
+        self._process_factory = engine_page_factory(fallback=lambda owner: QProcess(owner))
         self._prepare_thread = None
         self._prepare_worker = None
         self._launch = None
@@ -202,7 +204,8 @@ class RustNewItemStudioTab(QWidget):
         self._stderr = ""
         self._state_fingerprint = b""
         self._sent_generation = self._received_generation = 0
-        process = QProcess(self)
+        # A page of Browse's helper process when it can open one (P4 V5).
+        process = self._process_factory(self)
         self._process = process
         process.setProcessChannelMode(QProcess.SeparateChannels)
         process.readyReadStandardOutput.connect(self._read_stdout)

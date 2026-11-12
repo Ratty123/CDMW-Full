@@ -6,7 +6,8 @@ mod model;
 mod view;
 
 use anyhow::{Context, Result, bail};
-use model::{Input, MAX_MESSAGE_BYTES, PROTOCOL, State};
+pub(crate) use model::PROTOCOL;
+use model::{Input, MAX_MESSAGE_BYTES, State};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::io::{BufRead, Read, Write};
@@ -164,6 +165,9 @@ pub fn try_run() -> Result<bool> {
     let mut app = Application {
         session,
         parent,
+        page_id: None,
+        shared_gpu: None,
+        closed: false,
         receiver,
         context: egui::Context::default(),
         window: None,
@@ -200,7 +204,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-fn emit(message: &Value) -> Result<()> {
+fn emit_line(message: &Value) -> Result<()> {
     let mut output = std::io::stdout().lock();
     serde_json::to_writer(&mut output, message)?;
     output.write_all(b"\n")?;
@@ -327,9 +331,14 @@ fn load_images(context: &egui::Context, view: &mut PresentationView, state: &Sta
     Ok(())
 }
 
-struct Application {
+pub(crate) struct Application {
     session: String,
     parent: u64,
+    /// Set when the page is a window of the engine process (P4 V5): every line
+    /// it writes names it, and closing closes the window, not the process.
+    page_id: Option<String>,
+    shared_gpu: Option<cdmw_render_wgpu::SharedGpu>,
+    closed: bool,
     receiver: mpsc::Receiver<Result<Value, String>>,
     context: egui::Context,
     window: Option<Arc<Window>>,
@@ -346,7 +355,103 @@ struct Application {
     next_repaint: Option<Instant>,
 }
 
+/// Open a page as a window of the engine process (P4 V5): its input comes from
+/// the returned sender, its lines name `page_id`, and it draws on `gpu`.
+pub(crate) fn open_in_engine(
+    manifest_path: &Path,
+    parent: u64,
+    page_id: String,
+    gpu: cdmw_render_wgpu::SharedGpu,
+) -> Result<(Application, mpsc::SyncSender<Result<Value, String>>)> {
+    let manifest: Value = serde_json::from_slice(&read_bounded(manifest_path)?)?;
+    let session = manifest["session"]
+        .as_str()
+        .context("Missing New Item UI session")?
+        .to_owned();
+    if manifest["protocol"] != PROTOCOL || session.len() > 64 || parent == 0 {
+        bail!("Invalid New Item UI manifest");
+    }
+    let (sender, receiver) = mpsc::sync_channel(ENGINE_PAGE_QUEUE);
+    let app = Application {
+        session,
+        parent,
+        page_id: Some(page_id),
+        shared_gpu: Some(gpu),
+        closed: false,
+        receiver,
+        context: egui::Context::default(),
+        window: None,
+        input: None,
+        renderer: None,
+        state: None,
+        view: PresentationView::default(),
+        textures: egui::TexturesDelta::default(),
+        requests: VecDeque::new(),
+        next_request: 0,
+        in_flight: None,
+        last_layout: String::new(),
+        error: None,
+        next_repaint: None,
+    };
+    Ok((app, sender))
+}
+
+/// Lines queued for a page in the engine; its host sends a state about ten
+/// times a second and waits for each acknowledgement.
+const ENGINE_PAGE_QUEUE: usize = 64;
+
 impl Application {
+    pub(crate) fn page_id(&self) -> Option<&str> {
+        self.page_id.as_deref()
+    }
+
+    pub(crate) fn window_id(&self) -> Option<WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    /// `page_close` from CDMW: the engine drops this page.
+    pub(crate) fn close_in_engine(&mut self) {
+        self.closed = true;
+    }
+
+    /// One whole line to CDMW, naming this page when the engine hosts it.
+    fn emit(&self, message: &Value) -> Result<()> {
+        match &self.page_id {
+            Some(page_id) => {
+                let mut message = message.clone();
+                if let Some(object) = message.as_object_mut() {
+                    object.insert("page_id".to_owned(), json!(page_id));
+                }
+                emit_line(&message)
+            }
+            None => emit_line(message),
+        }
+    }
+
+    /// End the page: the process for a page of its own, only the window in the engine.
+    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+        if self.page_id.is_some() {
+            self.closed = true;
+        } else {
+            event_loop.exit();
+        }
+    }
+
+    fn make_renderer(&self, window: Arc<Window>) -> Result<cdmw_render_wgpu::WindowRenderer> {
+        if let Some(gpu) = &self.shared_gpu
+            && let Ok(renderer) = cdmw_render_wgpu::WindowRenderer::new_on(gpu, window.clone())
+        {
+            return Ok(renderer);
+        }
+        Ok(pollster::block_on(cdmw_render_wgpu::WindowRenderer::new(
+            window,
+        ))?)
+    }
+
     fn poll(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         while let Ok(message) = self.receiver.try_recv() {
             let message = message.map_err(|error| anyhow::anyhow!(error))?;
@@ -373,7 +478,7 @@ impl Application {
                     }
                     apply_theme(&self.context, &state.theme);
                     load_images(&self.context, &mut self.view, &state)?;
-                    emit(
+                    self.emit(
                         &json!({"protocol":PROTOCOL,"type":"state_received","session":self.session,"generation":state.generation}),
                     )?;
                     self.state = Some(state);
@@ -384,7 +489,7 @@ impl Application {
                     self.requests.clear();
                 }
                 Some("shutdown") => {
-                    event_loop.exit();
+                    self.exit(event_loop);
                 }
                 Some("focus") => {
                     if let Some(window) = &self.window {
@@ -421,7 +526,7 @@ impl Application {
                     continue;
                 }
                 self.next_request += 1;
-                emit(
+                self.emit(
                     &json!({"protocol":PROTOCOL,"type":"input","session":self.session,
                     "request":self.next_request,"control":input.control,"revision":input.revision,
                     "action":input.action,"value":input.value}),
@@ -490,7 +595,7 @@ impl Application {
             })?;
         }
         if palette {
-            emit(
+            self.emit(
                 &json!({"protocol":PROTOCOL,"type":"app_shortcut","session":self.session,
                 "command":"command_palette"}),
             )?;
@@ -504,7 +609,7 @@ impl Application {
                 "generation":state.generation,"pixels_per_point":output.pixels_per_point,"portals":portals});
             let encoded = layout.to_string();
             if encoded != self.last_layout {
-                emit(&layout)?;
+                self.emit(&layout)?;
                 self.last_layout = encoded;
             }
         }
@@ -514,11 +619,11 @@ impl Application {
 
     fn failed(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
         let message = error.to_string();
-        let _ = emit(
+        let _ = self.emit(
             &json!({"protocol":PROTOCOL,"type":"failed","session":self.session,"message":message}),
         );
         self.error = Some(message);
-        event_loop.exit();
+        self.exit(event_loop);
     }
 }
 
@@ -536,9 +641,7 @@ impl ApplicationHandler for Application {
                 self.parent,
             )?;
             let window = Arc::new(event_loop.create_window(attributes)?);
-            self.renderer = Some(pollster::block_on(cdmw_render_wgpu::WindowRenderer::new(
-                window.clone(),
-            ))?);
+            self.renderer = Some(self.make_renderer(window.clone())?);
             self.input = Some(egui_winit::State::new(
                 self.context.clone(),
                 egui::ViewportId::ROOT,
@@ -547,7 +650,7 @@ impl ApplicationHandler for Application {
                 window.theme(),
                 None,
             ));
-            emit(
+            self.emit(
                 &json!({"protocol":PROTOCOL,"type":"ready","session":self.session,
                     "capabilities":["host_focus_v1"],
                 "child_hwnd":cdmw_win32_embed::window_hwnd(&window)?,"embedded_parent_hwnd":self.parent}),
@@ -586,7 +689,7 @@ impl ApplicationHandler for Application {
             repaint = input.on_window_event(window, &event).repaint;
         }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => self.exit(event_loop),
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(size);

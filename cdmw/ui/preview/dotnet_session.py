@@ -173,6 +173,8 @@ class RustPreviewSessionController(
         self._window_edit_channel = None
         # P4 V5: other previews' windows in this process, by viewport id.
         self._viewport_channels: dict[str, object] = {}
+        # P4 V5: Create New Item and Mod Management pages in this process, by page id.
+        self._page_channels: dict[str, object] = {}
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._authoring_scene_modes: dict[str, str] = {}
@@ -1206,7 +1208,8 @@ class RustPreviewSessionController(
         if window_channel is not None:
             window_channel.process_lost(exit_code)
         viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
-        for viewport in viewports:
+        pages, self._page_channels = list(self._page_channels.values()), {}
+        for viewport in (*viewports, *pages):
             viewport.process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
@@ -1283,6 +1286,13 @@ class RustPreviewSessionController(
             try:
                 payload = json.loads(line)
             except ValueError:
+                continue
+            page_id = payload.get("page_id") if isinstance(payload, Mapping) else None
+            if page_id:
+                # A Create New Item or Mod Management page in this process (P4 V5).
+                page = self._page_channels.get(str(page_id))
+                if page is not None:
+                    page.feed(raw_line)
                 continue
             viewport_id = payload.get("viewport_id") if isinstance(payload, Mapping) else None
             if viewport_id:
@@ -2158,6 +2168,46 @@ class RustPreviewSessionController(
             self._viewport_channels.pop(viewport_id, None)
             return False
         return True
+
+    def page_blocker(self) -> str:
+        """Why this process cannot open a Create New Item or Mod Management page now, or ""."""
+
+        from cdmw.ui.preview.engine_viewport import PAGE_OPEN_CAPABILITY
+
+        if self._closed or not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if PAGE_OPEN_CAPABILITY not in self._capabilities:
+            return "this preview process cannot open pages"
+        return ""
+
+    def open_page(self, channel: object, manifest: str, parent_hwnd: int) -> bool:
+        """Ask this process to open a Create New Item or Mod Management page (P4 V5)."""
+
+        from cdmw.ui.preview.engine_viewport import NEW_ITEM_UI_PROTOCOL
+
+        if self.page_blocker():
+            return False
+        page_id = str(getattr(channel, "window_id", "") or "")
+        if not page_id or page_id in self._page_channels:
+            return False
+        self._page_channels[page_id] = channel
+        written = self.write_for_viewport(json.dumps({
+            "protocol": NEW_ITEM_UI_PROTOCOL, "type": "page_open", "page_id": page_id,
+            "manifest": str(manifest), "parent_hwnd": int(parent_hwnd),
+        }, separators=(",", ":")).encode("utf-8") + b"\n")
+        if written <= 0:
+            self._page_channels.pop(page_id, None)
+            return False
+        return True
+
+    def release_page(self, channel: object) -> None:
+        page_id = str(getattr(channel, "window_id", "") or "")
+        if self._page_channels.get(page_id) is channel:
+            del self._page_channels[page_id]
+
+    @property
+    def page_count(self) -> int:
+        return len(self._page_channels)
 
     def write_for_viewport(self, data: bytes) -> int:
         process = self._process

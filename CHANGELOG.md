@@ -13,7 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - **Open in Mesh Editor** on a model Browse Archives already shows now edits it right there: the view keeps its angle and textures, the file and control panes fold into narrow strips that open under the pointer, and a banner names the file. Selecting another file shows its details; **Preview selected file instead** asks first. The editor appears on the model at once and every tool is ready within about two seconds for a single file; tools that are still being prepared say so when you use them and unlock by themselves, and parts you select in the Parts list meanwhile stay selected. Sets, comparison views and files Browse is not showing still open in the Mesh Editor tab.
 
-- Sets and other files opened in the **Mesh Editor** tab, and the 3D previews in Model Library, Create New Item and the placement, replacement, reference and Character Finder windows, are drawn by the 3D preview that is already running instead of a separate program each, so opening them starts nothing new in the background.
+- Sets and other files opened in the **Mesh Editor** tab, the **Create New Item** and **Mod Management** pages, and the 3D previews in Model Library, Create New Item and the placement, replacement, reference and Character Finder windows are drawn by the 3D preview that is already running instead of a separate program each, so opening them starts nothing new in the background.
 
 - Character Finder's thumbnails are drawn by the 3D preview that is already running instead of starting a renderer for each, so fewer programs run in the background while you browse.
 

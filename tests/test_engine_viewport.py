@@ -190,3 +190,55 @@ def test_a_dialog_controller_launches_into_browse_s_process(tmp_path: Path, monk
     finally:
         dialog.shutdown()
         browse.shutdown()
+
+
+def test_a_page_opens_in_browse_s_process_and_its_lines_are_its_own(tmp_path: Path) -> None:
+    from cdmw.ui.preview.engine_viewport import NEW_ITEM_UI_PROTOCOL, PAGE_OPEN_CAPABILITY, EnginePageChannel
+
+    controller, process, _package = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = {PAGE_OPEN_CAPABILITY}  # noqa: SLF001
+    _make_ready(controller)
+    try:
+        assert controller.page_blocker() == ""
+        page = EnginePageChannel(controller)
+        page.setArguments(["--cdmw-new-item-session", "C:/sessions/studio.json", "--embedded-parent-hwnd", "55"])
+        page.start()
+        QApplication.processEvents()
+        assert process.writes[-1] == {"protocol": NEW_ITEM_UI_PROTOCOL, "type": "page_open",
+                                      "page_id": page.window_id, "manifest": "C:/sessions/studio.json",
+                                      "parent_hwnd": 55}
+        # The tab's own messages name the page; its replies come back without the id.
+        page.write(_line({"protocol": NEW_ITEM_UI_PROTOCOL, "session": "s", "type": "shutdown"}))
+        assert process.writes[-1]["page_id"] == page.window_id and page.bytesToWrite() == 0
+        heard = []
+        page.readyReadStandardOutput.connect(lambda: heard.append(bytes(page.readAllStandardOutput())))
+        _emit_stdout(process, _line({"protocol": NEW_ITEM_UI_PROTOCOL, "type": "ready", "session": "s",
+                                     "page_id": page.window_id, "child_hwnd": 66}))
+        assert heard and json.loads(heard[0]) == {"protocol": NEW_ITEM_UI_PROTOCOL, "type": "ready",
+                                                  "session": "s", "child_hwnd": 66}
+        finished = []
+        page.finished.connect(lambda code, status: finished.append(code))
+        _emit_stdout(process, _line({"protocol": NEW_ITEM_UI_PROTOCOL, "type": "page_closed",
+                                     "page_id": page.window_id}))
+        QApplication.processEvents()
+        assert finished == [0] and controller.page_count == 0
+    finally:
+        controller.shutdown()
+
+
+def test_the_page_factory_asks_browse_s_process_first(monkeypatch) -> None:
+    from cdmw.ui.preview.engine_viewport import EnginePageChannel, engine_page_factory
+
+    router = EngineCaptureRouter()
+
+    class _PageResident(_Resident):
+        def page_blocker(self):
+            return self.blocker
+
+    browse = _PageResident()
+    router.register(browse, resident=True)
+    monkeypatch.setattr(engine_capture, "engine_capture_router", lambda: router)
+    make = engine_page_factory()
+    assert isinstance(make(QObject()), EnginePageChannel)
+    browse.blocker = "this preview process cannot open pages"
+    assert isinstance(make(QObject()), QProcess)

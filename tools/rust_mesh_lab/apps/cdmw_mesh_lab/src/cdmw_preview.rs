@@ -72,6 +72,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "package_capture_v1",
     "own_viewport_edit_v1",
     "viewport_open_v1",
+    "page_open_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {

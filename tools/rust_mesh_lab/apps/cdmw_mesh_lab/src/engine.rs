@@ -24,6 +24,11 @@
 //! they are not unique). Closing it (`close_request` naming it) drops its window
 //! and says `viewport_closed`; the process keeps running.
 //!
+//! Create New Item and Mod Management pages can be windows of it as well: a
+//! `page_open {page_id, manifest, parent_hwnd}` line on the New Item UI protocol
+//! opens the page under that parent on the same device; its lines name its
+//! `page_id` both ways, and `page_close` naming it drops it (`page_closed`).
+//!
 //! One stdin reader serves every state: each line names its protocol and is
 //! routed by it, a preview line also by its session. Both states write whole lines to stdout through their own
 //! writers, each locking the stream per line.
@@ -53,17 +58,25 @@ enum EditorLine {
     Message(Value),
     /// `viewport_open`: the engine opens another preview state.
     Viewport(Value),
+    /// `page_open` or `page_close` on the New Item UI protocol.
+    Page(Value),
     Closed,
 }
 
 /// Preview routes by viewport id, shared with the stdin reader.
 type PreviewRoutes = Arc<Mutex<HashMap<String, PreviewRoute>>>;
+/// Page inputs by page id, shared with the stdin reader.
+type PageRoutes = Arc<Mutex<HashMap<String, std::sync::mpsc::SyncSender<Result<Value, String>>>>>;
+const PAGE_PROTOCOL: &str = crate::new_item_ui::PROTOCOL;
 
 pub struct EngineApplication {
     preview: PreviewApplication,
     /// Other previews' windows in this process (P4 V5).
     viewports: Vec<PreviewApplication>,
     routes: PreviewRoutes,
+    /// Create New Item and Mod Management pages in this process (P4 V5).
+    pages: Vec<crate::new_item_ui::Application>,
+    page_routes: PageRoutes,
     proxy: EventLoopProxy<()>,
     edit: Option<LabApplication>,
     edit_route: Option<EditorRoute>,
@@ -86,11 +99,20 @@ impl EngineApplication {
     ) -> Self {
         let (editor_tx, editor_lines) = bounded(EDITOR_QUEUE_BOUND);
         let routes = PreviewRoutes::default();
-        spawn_engine_input(preview_route, Arc::clone(&routes), editor_tx, proxy.clone());
+        let page_routes = PageRoutes::default();
+        spawn_engine_input(
+            preview_route,
+            Arc::clone(&routes),
+            Arc::clone(&page_routes),
+            editor_tx,
+            proxy.clone(),
+        );
         Self {
             preview,
             viewports: Vec::new(),
             routes,
+            pages: Vec::new(),
+            page_routes,
             proxy,
             edit: None,
             edit_route: None,
@@ -116,6 +138,7 @@ impl EngineApplication {
                 }
                 EditorLine::Message(value) => self.route_editor_message(value, event_loop),
                 EditorLine::Viewport(value) => self.open_viewport(&value, event_loop),
+                EditorLine::Page(value) => self.page_line(&value, event_loop),
             }
         }
     }
@@ -245,6 +268,83 @@ impl EngineApplication {
         // Its window, renderer and `protocol_ready`/`ready`, as a launch does.
         viewport.resume(event_loop);
         self.viewports.push(viewport);
+    }
+
+    /// `page_open {page_id, manifest, parent_hwnd}` or `page_close {page_id}`.
+    fn page_line(&mut self, value: &Value, event_loop: &ActiveEventLoop) {
+        let page_id = value
+            .get("page_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if value.get("type").and_then(Value::as_str) == Some("page_close") {
+            for page in &mut self.pages {
+                if page.page_id() == Some(page_id.as_str()) {
+                    page.close_in_engine();
+                }
+            }
+            return;
+        }
+        let refuse = |reason: String| {
+            write_page_line(&json!({"type": "page_refused", "page_id": page_id, "reason": reason}));
+        };
+        let manifest = value
+            .get("manifest")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let parent_hwnd = value
+            .get("parent_hwnd")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if page_id.is_empty() || manifest.is_empty() || parent_hwnd == 0 {
+            return refuse("page_open needs a page id, a manifest and a parent window".to_owned());
+        }
+        if self
+            .pages
+            .iter()
+            .any(|page| page.page_id() == Some(page_id.as_str()))
+        {
+            return refuse("that page is already open here".to_owned());
+        }
+        let Some(gpu) = self.preview.shared_gpu() else {
+            return refuse("the preview's renderer is not ready".to_owned());
+        };
+        let (mut page, input) = match crate::new_item_ui::open_in_engine(
+            std::path::Path::new(manifest),
+            parent_hwnd,
+            page_id.clone(),
+            gpu,
+        ) {
+            Ok(opened) => opened,
+            Err(error) => return refuse(format!("{error:#}")),
+        };
+        if let Ok(mut routes) = self.page_routes.lock() {
+            routes.insert(page_id, input);
+        }
+        ApplicationHandler::resumed(&mut page, event_loop);
+        self.pages.push(page);
+    }
+
+    /// Poll every page's input, let each set its wait, and drop the closed ones.
+    fn wait_pages(&mut self, event_loop: &ActiveEventLoop, mut flow: ControlFlow) -> ControlFlow {
+        for page in &mut self.pages {
+            ApplicationHandler::user_event(page, event_loop, ());
+            ApplicationHandler::about_to_wait(page, event_loop);
+            flow = earliest(flow, event_loop.control_flow());
+        }
+        let (closed, open): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pages)
+            .into_iter()
+            .partition(crate::new_item_ui::Application::is_closed);
+        self.pages = open;
+        for page in closed {
+            let page_id = page.page_id().unwrap_or_default().to_owned();
+            if let Ok(mut routes) = self.page_routes.lock() {
+                routes.remove(&page_id);
+            }
+            drop(page);
+            write_page_line(&json!({"type": "page_closed", "page_id": page_id}));
+        }
+        flow
     }
 
     /// Drop the viewports that closed; CDMW hears `viewport_closed` for each.
@@ -416,6 +516,12 @@ impl ApplicationHandler for EngineApplication {
             .find(|view| view.window_id() == Some(window_id))
         {
             viewport.route_window_event(event_loop, window_id, event);
+        } else if let Some(page) = self
+            .pages
+            .iter_mut()
+            .find(|page| page.window_id() == Some(window_id))
+        {
+            ApplicationHandler::window_event(page, event_loop, window_id, event);
         } else {
             self.preview.window_event(event_loop, window_id, event);
         }
@@ -431,6 +537,7 @@ impl ApplicationHandler for EngineApplication {
             viewport.wait(event_loop);
             preview_flow = earliest(preview_flow, event_loop.control_flow());
         }
+        let preview_flow = self.wait_pages(event_loop, preview_flow);
         event_loop.set_control_flow(preview_flow);
         self.drop_closed_viewports();
         if let Some(edit) = &mut self.edit {
@@ -496,6 +603,7 @@ fn own_viewport_parent(open_session: &Value) -> Option<u64> {
 fn spawn_engine_input(
     preview: PreviewRoute,
     routes: PreviewRoutes,
+    page_routes: PageRoutes,
     editor: Sender<EditorLine>,
     proxy: EventLoopProxy<()>,
 ) {
@@ -531,6 +639,10 @@ fn spawn_engine_input(
                                     if editor.try_send(EditorLine::Viewport(value)).is_err() {
                                         preview.error("CDMW control queue overflowed".to_owned());
                                     }
+                                } else if value.get("protocol").and_then(Value::as_str)
+                                    == Some(PAGE_PROTOCOL)
+                                {
+                                    route_page_line(&page_routes, &editor, value);
                                 } else if let Some(route) = viewport_route(&routes, &value) {
                                     route.message(value);
                                 } else {
@@ -555,12 +667,57 @@ fn spawn_engine_input(
                     route.closed();
                 }
             }
+            if let Ok(pages) = page_routes.lock() {
+                for input in pages.values() {
+                    let _ = input.try_send(Err("CDMW closed the control input".to_owned()));
+                }
+            }
             let _ = editor.send(EditorLine::Closed);
             let _ = proxy.send_event(());
         });
     if let Err(spawn_error) = spawned {
         error!("engine input thread could not start: {spawn_error}");
     }
+}
+
+/// A New Item UI line: opening and closing go to the engine, the rest to the
+/// page it names (a full or closed page's line is dropped; its host times out).
+fn route_page_line(page_routes: &PageRoutes, editor: &Sender<EditorLine>, value: Value) {
+    let kind = value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if matches!(kind, "page_open" | "page_close") {
+        let _ = editor.try_send(EditorLine::Page(value));
+        return;
+    }
+    let Some(page_id) = value
+        .get("page_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    if let Ok(routes) = page_routes.lock()
+        && let Some(input) = routes.get(&page_id)
+    {
+        let _ = input.try_send(Ok(value));
+    }
+}
+
+/// A line the engine itself says on the New Item UI protocol.
+fn write_page_line(value: &Value) {
+    let mut value = value.clone();
+    if let Some(object) = value.as_object_mut() {
+        object.insert("protocol".to_owned(), json!(PAGE_PROTOCOL));
+    }
+    let Ok(mut line) = serde_json::to_vec(&value) else {
+        return;
+    };
+    line.push(b'\n');
+    let stdout = std::io::stdout();
+    let mut output = stdout.lock();
+    let _ = output.write_all(&line).and_then(|()| output.flush());
 }
 
 /// The route of the other viewport this preview line names, if any.
@@ -629,6 +786,41 @@ mod tests {
         assert!(viewport_route(&routes, &json!({"session_id": "dialog"})).is_none());
         assert!(viewport_route(&routes, &json!({"viewport_id": "browse"})).is_none());
         assert!(viewport_route(&routes, &json!({"event": "cancel"})).is_none());
+    }
+
+    #[test]
+    fn a_page_line_goes_to_the_page_it_names_and_opening_goes_to_the_engine() {
+        let pages = PageRoutes::default();
+        let (input, received) = std::sync::mpsc::sync_channel(4);
+        pages
+            .lock()
+            .unwrap_or_else(|_| panic!("pages"))
+            .insert("studio".to_owned(), input);
+        let (editor, lines) = bounded(4);
+        route_page_line(
+            &pages,
+            &editor,
+            json!({"protocol": PAGE_PROTOCOL, "type": "state", "page_id": "studio"}),
+        );
+        assert!(received.try_recv().is_ok());
+        route_page_line(
+            &pages,
+            &editor,
+            json!({"protocol": PAGE_PROTOCOL, "type": "page_open", "page_id": "mods"}),
+        );
+        assert!(matches!(lines.try_recv(), Ok(EditorLine::Page(_))));
+        // No page id, or a page not open here: dropped.
+        route_page_line(
+            &pages,
+            &editor,
+            json!({"protocol": PAGE_PROTOCOL, "type": "state"}),
+        );
+        route_page_line(
+            &pages,
+            &editor,
+            json!({"protocol": PAGE_PROTOCOL, "type": "state", "page_id": "gone"}),
+        );
+        assert!(received.try_recv().is_err() && lines.try_recv().is_err());
     }
 
     #[test]

@@ -26,11 +26,23 @@ from cdmw.services.mesh_rust_contract import RUST_PREVIEW_PROTOCOL
 
 #: What a Preview helper announces when other previews can be windows of it.
 VIEWPORT_OPEN_CAPABILITY = "viewport_open_v1"
-_END_EVENTS = frozenset({"viewport_closed", "viewport_refused"})
+#: What it announces when Create New Item and Mod Management pages can be too.
+PAGE_OPEN_CAPABILITY = "page_open_v1"
+#: The pages' own protocol (``new_item_ui::PROTOCOL`` in the helper).
+NEW_ITEM_UI_PROTOCOL = "cdmw_new_item_ui_v1"
 
 
 class EngineViewportChannel(QObject):
     """Another preview's window in a resident helper, shaped like a ``QProcess``."""
+
+    #: How this kind of window is launched, named and ended.
+    MANIFEST_ARGUMENT = "--cdmw-preview-session"
+    ID_FIELD = "viewport_id"
+    EVENT_FIELD = "event"
+    CLOSED_EVENT = "viewport_closed"
+    REFUSED_EVENT = "viewport_refused"
+    OPEN_METHOD = "open_viewport"
+    RELEASE_METHOD = "release_viewport"
 
     readyReadStandardOutput = Signal()
     readyReadStandardError = Signal()
@@ -47,6 +59,7 @@ class EngineViewportChannel(QObject):
         self._resident = resident
         self._on_refused = on_refused
         self.viewport_id = uuid.uuid4().hex
+        self.window_id = self.viewport_id
         self._arguments: list[str] = []
         self._buffer = bytearray()
         self._running = False
@@ -73,16 +86,16 @@ class EngineViewportChannel(QObject):
             return ""
 
     def start(self) -> None:
-        manifest = self._argument("--cdmw-preview-session")
+        manifest = self._argument(self.MANIFEST_ARGUMENT)
         try:
             parent_hwnd = int(self._argument("--embedded-parent-hwnd") or 0)
         except ValueError:
             parent_hwnd = 0
         opened = False
-        open_viewport = getattr(self._resident, "open_viewport", None)
-        if manifest and parent_hwnd > 0 and callable(open_viewport):
+        open_window = getattr(self._resident, self.OPEN_METHOD, None)
+        if manifest and parent_hwnd > 0 and callable(open_window):
             try:
-                opened = bool(open_viewport(self, manifest, parent_hwnd))
+                opened = bool(open_window(self, manifest, parent_hwnd))
             except RuntimeError:
                 opened = False
         if not opened:
@@ -102,15 +115,15 @@ class EngineViewportChannel(QObject):
             payload = json.loads(line.decode("utf-8", errors="replace"))
         except ValueError:
             payload = {}
-        event = payload.get("event") if isinstance(payload, dict) else None
-        if event in _END_EVENTS:
-            if event == "viewport_refused":
+        event = payload.get(self.EVENT_FIELD) if isinstance(payload, dict) else None
+        if event in (self.CLOSED_EVENT, self.REFUSED_EVENT):
+            if event == self.REFUSED_EVENT:
                 self._refused(str(payload.get("reason") or "The window could not be opened."))
-            self._end(exit_code=0 if event == "viewport_closed" else 1)
+            self._end(exit_code=0 if event == self.CLOSED_EVENT else 1)
             return
         if isinstance(payload, dict):
             # To the dialog's controller this is its own process's line.
-            payload.pop("viewport_id", None)
+            payload.pop(self.ID_FIELD, None)
             line = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         self._buffer += line + b"\n"
         self.readyReadStandardOutput.emit()
@@ -133,7 +146,7 @@ class EngineViewportChannel(QObject):
             except ValueError:
                 return -1
             if isinstance(payload, dict):
-                payload["viewport_id"] = self.viewport_id
+                payload[self.ID_FIELD] = self.window_id
             lines.append(json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n")
         writer = getattr(self._resident, "write_for_viewport", None)
         if not callable(writer):
@@ -150,6 +163,9 @@ class EngineViewportChannel(QObject):
 
     def bytesAvailable(self) -> int:  # noqa: N802 - QProcess shape
         return len(self._buffer)
+
+    def bytesToWrite(self) -> int:  # noqa: N802 - QProcess shape
+        return 0
 
     def processId(self) -> int:  # noqa: N802 - QProcess shape
         if not self._running:
@@ -169,8 +185,7 @@ class EngineViewportChannel(QObject):
         """Close this window; Browse's process keeps running."""
 
         if self._running:
-            line = json.dumps({"protocol": RUST_PREVIEW_PROTOCOL, "event": "close_request",
-                               "viewport_id": self.viewport_id}, separators=(",", ":")).encode("utf-8") + b"\n"
+            line = json.dumps(self._close_line(), separators=(",", ":")).encode("utf-8") + b"\n"
             writer = getattr(self._resident, "write_for_viewport", None)
             if callable(writer):
                 try:
@@ -187,6 +202,9 @@ class EngineViewportChannel(QObject):
         return True
 
     # ----- internals -----------------------------------------------------------
+    def _close_line(self) -> dict:
+        return {"protocol": RUST_PREVIEW_PROTOCOL, "event": "close_request", "viewport_id": self.window_id}
+
     def _refused(self, reason: str) -> None:
         self.refusal = reason
         if self._on_refused is not None:
@@ -196,7 +214,7 @@ class EngineViewportChannel(QObject):
         if not self._running:
             return
         self._running = False
-        release = getattr(self._resident, "release_viewport", None)
+        release = getattr(self._resident, self.RELEASE_METHOD, None)
         if callable(release):
             try:
                 release(self)
@@ -204,6 +222,45 @@ class EngineViewportChannel(QObject):
                 pass
         status = QProcess.ExitStatus.CrashExit if crashed else QProcess.ExitStatus.NormalExit
         QTimer.singleShot(0, self, lambda: self.finished.emit(int(exit_code), status))
+
+
+class EnginePageChannel(EngineViewportChannel):
+    """A Create New Item or Mod Management page in a resident helper (P4 V5)."""
+
+    MANIFEST_ARGUMENT = "--cdmw-new-item-session"
+    ID_FIELD = "page_id"
+    EVENT_FIELD = "type"
+    CLOSED_EVENT = "page_closed"
+    REFUSED_EVENT = "page_refused"
+    OPEN_METHOD = "open_page"
+    RELEASE_METHOD = "release_page"
+
+    def _close_line(self) -> dict:
+        return {"protocol": NEW_ITEM_UI_PROTOCOL, "type": "page_close", "page_id": self.window_id}
+
+
+def engine_page_factory(owner_refusals: dict | None = None, *, fallback=None):
+    """A process factory for a page tab: a page of Browse's helper when it can open one.
+
+    ``fallback(owner)`` makes the process otherwise (``QProcess`` by default).
+    """
+
+    from cdmw.services.engine_capture import engine_capture_router
+
+    refused: dict = owner_refusals if owner_refusals is not None else {}
+
+    def make(owner: QObject):
+        if not refused.get(id(owner)):
+            resident = engine_capture_router().resident_controller()
+            blocker = getattr(resident, "page_blocker", None)
+            if resident is not None and callable(blocker) and not blocker():
+                def note(_reason: str, key=id(owner)) -> None:
+                    refused[key] = True
+
+                return EnginePageChannel(resident, owner, on_refused=note)
+        return fallback(owner) if fallback is not None else QProcess(owner)
+
+    return make
 
 
 def engine_viewport_factory(owner_refusals: dict | None = None):
@@ -232,4 +289,7 @@ def engine_viewport_factory(owner_refusals: dict | None = None):
     return make
 
 
-__all__ = ["VIEWPORT_OPEN_CAPABILITY", "EngineViewportChannel", "engine_viewport_factory"]
+__all__ = [
+    "NEW_ITEM_UI_PROTOCOL", "PAGE_OPEN_CAPABILITY", "VIEWPORT_OPEN_CAPABILITY", "EnginePageChannel",
+    "EngineViewportChannel", "engine_page_factory", "engine_viewport_factory",
+]
