@@ -594,8 +594,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
     script = "\n".join(
         (
             "import os, sys, gc",
-            # Reproduce collection during QWidgetAction's native menu handoff,
-            # which otherwise only happened intermittently on Windows CI.
+            # Collect as often as possible during QWidgetAction's native menu
+            # handoff, which otherwise only happened intermittently on Windows CI.
             "gc.set_threshold(1, 1, 1)" if frequent_gc else "# Default GC thresholds",
             "from pathlib import Path",
             "from time import monotonic",
@@ -609,6 +609,23 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "from cdmw.ui.main_window import MainWindow",
             "from cdmw.ui.shell.app_context import AppContext",
             "app = QApplication.instance() or QApplication([])",
+            # As the app does from start-up on: no automatic collection, and the
+            # GUI-thread collector, here on a 1 ms timer, so collections land
+            # between events throughout construction and the menu handoff.
+            # Automatic collection at threshold 1 could start inside a Qt call
+            # such as setStyleSheet's re-polish, which the app never allows.
+            *(
+                (
+                    "import threading",
+                    "from cdmw.ui.shell.garbage_collection import ensure_app_garbage_collector",
+                    "ensure_app_garbage_collector(app)._timer.setInterval(1)",
+                    "assert not gc.isenabled()",
+                    "collection_threads = []",
+                    "gc.callbacks.append(lambda phase, _info: phase == 'start'"
+                    " and collection_threads.append(threading.get_ident()))",
+                )
+                if frequent_gc else ()
+            ),
             f"settings = create_settings(settings_file_path=Path({str(settings_path)!r}))",
             "settings.setValue('appearance/language', 'de')",
             "settings.sync()",
@@ -666,6 +683,13 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "assert window.textures.total_files_value.text() == expected_total, (",
             "    f'Counter kept {window.textures.total_files_value.text()!r}, expected {expected_total!r}.'",
             ")",
+            *(
+                (
+                    "assert collection_threads, 'The GUI-thread collector never ran'",
+                    "assert set(collection_threads) == {threading.main_thread().ident}, collection_threads",
+                )
+                if frequent_gc else ()
+            ),
             "window._finalize_close()",
             "assert app.property('_cdmw_ui_localizer') is None",
             "window.deleteLater()",
