@@ -8,10 +8,9 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    # Before anything imports numpy: OpenBLAS sizes its thread pool when it loads.
-    from cdmw.app.native_threads import limit_native_thread_pools
-
-    limit_native_thread_pools()
+    # First: importing the package bounds OpenBLAS's thread pool before numpy loads
+    # (cdmw/app/native_threads.py), also for the multiprocessing children below.
+    import cdmw  # noqa: F401
     # Dispatch frozen capture/guardian children before Qt or app startup. The
     # guardian must survive a lost parent long enough to release held input.
     from multiprocessing import freeze_support

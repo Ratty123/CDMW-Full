@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cdmw  # noqa: F401  (first: bounds OpenBLAS's threads before any test imports numpy)
 import os
 import shutil
 import sys
