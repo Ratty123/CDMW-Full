@@ -809,7 +809,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
         self.shader_controls_editor = ShaderControlsEditor(self)
         self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
-                                            self._controller.material_shader_options())
+                                            self._controller.material_shader_options(),
+                                            self._controller.material_shader_authored())
         self.shader_controls_editor.changed.connect(self._shader_controls_changed)
         self.shader_controls_editor.paint_requested.connect(lambda part: self._paint_transparency(part, "blending"))
         self.shader_controls_editor.restore_mask_requested.connect(lambda part: self._restore_transparency_mask(part, "blending"))
@@ -1319,7 +1320,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.invalidate_plan()
         self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
-                                            self._controller.material_shader_options())
+                                            self._controller.material_shader_options(),
+                                            self._controller.material_shader_authored())
         self._sync_glow_preview()
 
     def refresh_glow_parts(self) -> None:
@@ -1340,7 +1342,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             enabled=source is not None, mesh=mesh, glow=glow_choice(self._controller.draft))
         self._refresh_body_visibility()
         self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls,
-                                            self._controller.material_shader_options())
+                                            self._controller.material_shader_options(),
+                                            self._controller.material_shader_authored())
         self.glow_parts.blockSignals(True)
         self.glow_parts.clear()
         for name, label in parts:

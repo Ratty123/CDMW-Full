@@ -169,6 +169,29 @@ BLENDED_FIELD_HELP = {
     "_uvScale": "Tiling of the height map that varies the thread width; smaller values repeat it more often. Unchecked: retain the authored value, or 1.",
     "_dyeingColor": "Multiplies the colour texture. Its alpha, kept from the source, scales coverage. Unchecked: retain the authored colour, or white.",
 }
+# Starting points taken from shipped materials and released community mods, so a
+# slider session can begin from numbers that are known to work in game.
+# Veil A/B: the two wrappers of cd_phw_00_hel_00_0219 (decoded 2026-11-12).
+# Sheer fabric: Angel Teddy / Angel Outfit SkinnedMeshGlass cloth. The light
+# preset folds that mod's 0xd7 glass-colour alpha into Opacity (0.40 x 0.843),
+# because colour edits keep the source alpha.
+SHADER_PRESETS = {
+    "SkinnedMeshTransparency": (
+        ("Wedding veil A", (("_netPitch", (.334,)), ("_netThread", (.538,)), ("_glow", (.443,)), ("_sheen", (.625,)))),
+        ("Wedding veil B", (("_netPitch", (.3,)), ("_netThread", (.727,)), ("_glow", (.516,)), ("_sheen", (.901,)),
+                            ("_uvScale", (.27,)), ("_dyeingColor", (217/255, 217/255, 217/255)))),
+        ("Lace veil (community mod)", (("_netPitch", (.3,)), ("_netThread", (.627,)), ("_glow", (.1,)),
+                                       ("_sheen", (.901,)), ("_uvScale", (.27,)))),
+    ),
+    "SkinnedMeshGlass": (
+        ("Sheer fabric: light", (("_tintOpacity", (.34,)), ("_thickness", (.2,)), ("_roughness", (.55,)),
+                                 ("_refractiveIndex", (1.1,)))),
+        ("Sheer fabric: medium", (("_tintOpacity", (.55,)), ("_thickness", (.64,)), ("_roughness", (.8,)),
+                                  ("_refractiveIndex", (1.1,)))),
+        ("Sheer fabric: dense", (("_tintOpacity", (.65,)), ("_thickness", (.72,)), ("_roughness", (.84,)),
+                                 ("_refractiveIndex", (1.1,)))),
+    ),
+}
 BLENDED_SHADERS = frozenset(family.shader for family in BLENDED_FAMILIES)
 # Renderer family IDs: 1–6 effects, 7 EyeCover, 8–9 one-layer glass, 10–11 layered.
 BLENDED_FAMILY_IDS = {"SkinnedMeshGlass": 10, "SkinnedMeshTransparency": 11}
@@ -300,7 +323,9 @@ def catalogue_payload():
                          "integer": p.integer,
                          **({"note": GLASS_FIELD_HELP[p.name]} if f in GLASS_FAMILIES else
                             {"note": BLENDED_FIELD_HELP[p.name]} if f in BLENDED_FAMILIES else {})}
-                        for p in f.fields]} for f in MESH_FAMILIES]
+                        for p in f.fields],
+             "presets": [{"label": label, "values": {name: list(numbers) for name, numbers in values}}
+                         for label, values in SHADER_PRESETS.get(f.shader, ())]} for f in MESH_FAMILIES]
 
 
 def _colour_alpha(raw):
@@ -312,6 +337,47 @@ def _colour_alpha(raw):
         except ValueError:
             pass
     return 1.
+
+
+def authored_field_numbers(field, raw):
+    """Parse one authored parameter the way the preview reads it; None when absent or unusable.
+
+    The inspector shows these numbers and the renderer draws from them, so both
+    must come from this single parser.
+    """
+    numbers = None
+    try:
+        if field.kind == "Color" and isinstance(raw, str) and raw.startswith("#"):
+            numbers = tuple(int(raw[i:i+2], 16)/255 for i in (1, 3, 5))
+        elif raw is not None:
+            numbers = tuple(float(n) for n in str(raw).replace(",", " ").split())
+            if field.kind == "Byte4":
+                numbers = (float(int(numbers[0]) & 255),)
+            elif field.kind == "BitFlag32":
+                numbers = (float(int(numbers[0]) & 1),)
+        if numbers is None or len(numbers) != len(field.default) or any(not math.isfinite(n) for n in numbers):
+            return None
+    except (ValueError, TypeError, OverflowError, IndexError):
+        return None
+    return numbers
+
+
+def authored_values_payload(authored):
+    """Authored numbers per family for the inspector: {shader: {field: [numbers]}}.
+
+    Only parameters the source material actually declares appear, so the panel
+    can tell an authored value from a definition default.
+    """
+    result = {}
+    for family in MESH_FAMILIES:
+        fields = {}
+        for field in family.fields:
+            numbers = authored_field_numbers(field, (authored or {}).get(field.name))
+            if numbers is not None:
+                fields[field.name] = [min(max(n, field.minimum), field.maximum) for n in numbers]
+        if fields:
+            result[family.shader] = fields
+    return result
 
 
 def preview_factors(controls, authored=None):
@@ -361,20 +427,7 @@ def preview_factors(controls, authored=None):
     for field in family.fields:
         numbers = values.get(field.name)
         if numbers is None:
-            raw = authored.get(field.name)
-            try:
-                if field.kind == "Color" and isinstance(raw, str) and raw.startswith("#"):
-                    numbers = tuple(int(raw[i:i+2], 16)/255 for i in (1, 3, 5))
-                elif raw is not None:
-                    numbers = tuple(float(n) for n in str(raw).replace(",", " ").split())
-                    if field.kind == "Byte4":
-                        numbers = (float(int(numbers[0]) & 255),)
-                    elif field.kind == "BitFlag32":
-                        numbers = (float(int(numbers[0]) & 1),)
-                if numbers is None or len(numbers) != len(field.default) or any(not math.isfinite(n) for n in numbers):
-                    numbers = field.default
-            except (ValueError, TypeError, OverflowError):
-                numbers = field.default
+            numbers = authored_field_numbers(field, authored.get(field.name)) or field.default
         if family in GLASS_FAMILIES and any(not field.minimum <= n <= field.maximum for n in numbers):
             raise ValueError(f"{field.label}: authored value is outside the supported {family.shader} range.")
         if family in BLENDED_FAMILIES:

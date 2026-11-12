@@ -80,6 +80,19 @@ def control_material_sources(text, *, static=False):
     return result
 
 
+def equipment_authored_values(text):
+    """Parsed authored numbers per part for the editors: {part: {shader: {field: [numbers]}}}.
+
+    Model variants can differ; the first variant that declares a part is shown.
+    """
+    from cdmw.domain.mesh.shader_controls import authored_values_payload
+    result = {}
+    for variant in control_material_variants(text):
+        for name, (_shader, values, _textures) in variant.items():
+            result.setdefault(name, authored_values_payload(values))
+    return result
+
+
 def equipment_glass_needs_bake(shader, parameters):
     """Only the decoded equipment layer families can use the appearance baker."""
     return shader in {"SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2"} and any(

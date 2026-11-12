@@ -21,6 +21,7 @@ class ShaderControlsEditor(QGroupBox):
         self._loading = False
         self._choices = {}
         self._source_options = None
+        self._authored = {}
         layout = QVBoxLayout(self)
         self.part = QComboBox()
         layout.addWidget(self.part)
@@ -89,11 +90,13 @@ class ShaderControlsEditor(QGroupBox):
         self.family.currentIndexChanged.connect(self._family_changed)
         self.reset.clicked.connect(self._reset)
 
-    def refresh(self, parts, choices, source_options=None):
+    def refresh(self, parts, choices, source_options=None, authored=None):
         old = self.part.currentData()
         self._loading = True
         self._choices = dict(choices)
         self._source_options = source_options
+        # {part: {shader: {field: numbers}}}: what the source material declares.
+        self._authored = dict(authored or {})
         self.part.clear()
         for name, label in parts:
             self.part.addItem(label, name)
@@ -183,6 +186,7 @@ class ShaderControlsEditor(QGroupBox):
                 self.note.setVisible(True)
             self.family.setToolTip(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)
+            authored = self._authored.get(str(self.part.currentData()).casefold(), {}).get(family.shader, {})
             for field in family.fields:
                 enabled = QCheckBox(field.label)
                 enabled.setChecked(field.name in values)
@@ -216,7 +220,11 @@ class ShaderControlsEditor(QGroupBox):
                 row.setContentsMargins(0, 0, 0, 0)
                 holder.setLayout(row)
                 spins = []
-                for value in values.get(field.name, field.default):
+                # An untouched field shows the source material's own number, which
+                # is what the export keeps; the definition default only fills gaps.
+                source = authored.get(field.name)
+                shown = values.get(field.name, source if source is not None and len(source) == len(field.default) else field.default)
+                for value in shown:
                     spin = enable_focused_wheel(QDoubleSpinBox())
                     spin.setRange(field.minimum, field.maximum)
                     spin.setDecimals(0 if field.integer else 4)

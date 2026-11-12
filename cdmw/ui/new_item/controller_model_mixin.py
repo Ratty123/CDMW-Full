@@ -223,6 +223,7 @@ class NewItemModelControllerMixin:
             self._template_request = None
             self._template_parts = {}
             self._template_shader_options = {}
+            self._template_shader_authored = {}
             self._template_translucency = {}
             self._template_selection_lane.cancel()
             self._commit_template(None)
@@ -236,6 +237,7 @@ class NewItemModelControllerMixin:
         self._template_request = None
         self._template_parts = facts.parts
         self._template_shader_options = facts.shader_options
+        self._template_shader_authored = getattr(facts, "shader_authored", {})
         self._template_translucency = facts.translucency
         self._commit_template(key)
 

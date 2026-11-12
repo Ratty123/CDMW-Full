@@ -484,7 +484,7 @@ fn island_controls_use_separate_tabs_and_return_to_inspector_tools() -> TestResu
     for (heading, control) in [
         ("Translucency (experimental)", "Apply translucency"),
         ("Glow (experimental)", "Apply glow"),
-        ("Shader experiments", "Apply shader controls"),
+        ("Shader experiments", "Restore shader controls"),
     ] {
         ui.click(heading)?;
         ui.reveal(control)?;

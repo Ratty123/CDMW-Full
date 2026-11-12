@@ -10,13 +10,14 @@ from cdmw.domain.cancellation import raise_if_cancelled
 class TemplateMaterialFacts:
     parts: dict = field(default_factory=dict)
     shader_options: dict = field(default_factory=dict)
+    shader_authored: dict = field(default_factory=dict)
     #: authored SkinnedMeshTranslucent (thickness, extinction) by model path and folded part name
     translucency: dict = field(default_factory=dict)
 
 
 def template_material_facts(snapshot, key, *, stop_event=None):
     from cdmw.core.pac_xml_standard_material import authored_translucency_values, find_material_wrappers
-    from cdmw.core.material_shader_controls import equipment_shader_options
+    from cdmw.core.material_shader_controls import equipment_authored_values, equipment_shader_options
     from cdmw.services.new_item_variants import xml_path
 
     try:
@@ -33,6 +34,11 @@ def template_material_facts(snapshot, key, *, stop_event=None):
                                                      for row in find_material_wrappers(text))
             raise_if_cancelled(stop_event)
             facts.shader_options[item.path.casefold()] = equipment_shader_options(text)
+            try:
+                facts.shader_authored[item.path.casefold()] = equipment_authored_values(text)
+            except ValueError:
+                # Ambiguous bindings already disable the experiments; show defaults.
+                facts.shader_authored[item.path.casefold()] = {}
             facts.translucency[item.path.casefold()] = authored_translucency_values(text)
     return facts
 

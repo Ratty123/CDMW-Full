@@ -6,7 +6,8 @@ import xml.etree.ElementTree as ET
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import control_material_variants, rewrite_shader_controls, validate_source
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
-from cdmw.domain.mesh.shader_controls import MESH_FAMILIES, ShaderControls, catalogue_payload, family_for
+from cdmw.domain.mesh.shader_controls import (MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
+                                             family_for, preview_factors)
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
 
@@ -134,8 +135,36 @@ def _shader_source_options(session):
             options = dict.fromkeys(options, error)
         if binding is not None and (binding.translucency is not None or binding.emission is not None):
             options = dict.fromkeys(options, "Restore Glow and Translucency before choosing another shader experiment.")
-        result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options}
+        result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
+                         **_authored_panel_state(candidates, options)}
     return result
+
+
+def _authored_panel_state(candidates, options):
+    """What the source material declares, for the inspector and its live preview.
+
+    ``authored`` lists each distinct model variant's shader, parsed numbers and
+    texture paths. ``preview_base`` holds, per compatible family, the factor
+    vector the viewport draws when nothing is overridden; the inspector replaces
+    single lanes of it while a slider moves. Pure parsing: no archive reads.
+    """
+    variants = []
+    for shader, values, textures in candidates:
+        row = {"shader": shader, "fields": authored_values_payload(values),
+               "textures": {name: path for name, path in textures.items() if path}}
+        if row not in variants:
+            variants.append(row)
+    base = {}
+    if candidates:
+        _, values, _ = candidates[0]
+        for family in MESH_FAMILIES:
+            if options.get(family.shader):
+                continue
+            try:
+                base[family.shader] = list(preview_factors(ShaderControls(family.shader), values))
+            except ValueError:
+                continue
+    return {"authored": variants, "preview_base": base}
 
 
 def shader_controls_ui_state(authoring, replacement):

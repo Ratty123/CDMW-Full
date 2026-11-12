@@ -9026,6 +9026,148 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     Ok(())
 }
 
+/// Frames until the inspector's commit delay has passed; returns the last actions
+/// it produced since the previous call, which is the commit when there was one.
+fn settled_shader_actions(ui: &mut HeadlessUi) -> Vec<UiAction> {
+    ui.settle_layout();
+    std::mem::take(&mut ui.last_actions)
+}
+
+fn veil_shader_state() -> Value {
+    let base = [11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0];
+    let mut preview_base = vec![0.0; 32];
+    preview_base[..base.len()].copy_from_slice(&base);
+    json!({"available": true, "static": false,
+        "catalogue": [{"shader": "SkinnedMeshTransparency", "label": "Sheer net veil (experimental)", "note": "Net veil.",
+            "fields": [
+                {"name": "_netPitch", "label": "Net spacing", "default": [0.5], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_netThread", "label": "Thread thickness", "default": [0.5], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_glow", "label": "Backlight glow", "default": [0.65], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_sheen", "label": "Sheen", "default": [0.22], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_uvScale", "label": "Thread map scale", "default": [1.0], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_dyeingColor", "label": "Veil colour RGB", "default": [1.0, 1.0, 1.0], "minimum": 0.0, "maximum": 1.0, "integer": false}],
+            "presets": [{"label": "Wedding veil A", "values": {"_netPitch": [0.334], "_netThread": [0.538], "_glow": [0.443], "_sheen": [0.625]}}]}],
+        "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null,
+            "source_shader": "SkinnedMeshTransparency", "shader_options": {"SkinnedMeshTransparency": ""},
+            "authored": [{"shader": "SkinnedMeshTransparency",
+                "fields": {"SkinnedMeshTransparency": {"_netPitch": [0.3], "_netThread": [0.727], "_glow": [0.5164705882352941], "_sheen": [0.901], "_uvScale": [0.27]}},
+                "textures": {"_heightTexture": "character/texture/cd_phw_00_hel_00_0219_disp.dds"}}],
+            "preview_base": {"SkinnedMeshTransparency": preview_base}}]})
+}
+
+#[test]
+fn shader_controls_open_on_the_source_values_preview_live_and_commit_on_release() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.application.cdmw_state["shader_controls"] = veil_shader_state();
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    // The material's own numbers, not the definition defaults (0.5 / 0.65 / 0.22).
+    ui.reveal("Sheer net veil (experimental)")?;
+    ui.reveal("Original: 0.727")?;
+    ui.reveal("Original: 0.901")?;
+    ui.reveal("Not set by this material. Default: 1.000, 1.000, 1.000")?;
+    ui.click("Source textures")?;
+    ui.reveal("_heightTexture: cd_phw_00_hel_00_0219_disp.dds")?;
+    // Opening the panel sends nothing and previews nothing.
+    let opened = settled_shader_actions(&mut ui);
+    assert!(!has_host_command(&opened, "replacement_shader_controls"));
+    assert!(!opened.iter().any(|action| matches!(action, UiAction::CdmwShaderPreview(_))));
+    assert!(ui.application.cdmw_shader_live_preview.is_empty());
+
+    ui.type_number_in_row("Thread thickness", 0.727, "0.5")?;
+    // The viewport follows at once: only the edited lane changes.
+    let live = ui.application.cdmw_shader_live_preview.get(&1).copied().ok_or("live preview")?;
+    assert_eq!(&live[..9], &[11.0, 1.0, 0.0, 0.0, 0.3, 0.5, 0.516, 0.901, 0.27]);
+    assert_eq!(live[12], 1.0);
+    // After the control rests, the host receives exactly one override.
+    let actions = settled_shader_actions(&mut ui);
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, label: "Edit shader controls" }
+        if arguments == &json!({"part_ids": ["b"], "shader_controls": {
+            "shader": "SkinnedMeshTransparency", "values": {"_netThread": [0.5]}}}))));
+    // It is not sent again while the host has not answered.
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    ui.reveal("Thread thickness *")?;
+
+    // The reset button returns the field, and the preview, to the source number.
+    ui.click("Original")?;
+    let live = ui.application.cdmw_shader_live_preview.get(&1).copied().ok_or("live preview")?;
+    assert_eq!(live[5], 0.727);
+    assert!(ui.label_rect("Thread thickness *").is_none());
+    // Nothing was saved for this part, so returning to the source sends no command.
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+
+    // A preset replaces the changed values in one step.
+    ui.click("Choose a preset")?;
+    ui.click("Wedding veil A")?;
+    let live = ui.application.cdmw_shader_live_preview.get(&1).copied().ok_or("live preview")?;
+    assert_eq!(&live[4..9], &[0.334, 0.538, 0.443, 0.625, 0.27]);
+    let actions = settled_shader_actions(&mut ui);
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments["shader_controls"]["values"] == json!({"_netPitch": [0.334], "_netThread": [0.538], "_glow": [0.443], "_sheen": [0.625]}))));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+
+    // The host's answer ends the live preview; a rejection reloads the saved values.
+    ui.application.cdmw_shader_live_preview.insert(1, live);
+    ui.application.clear_cdmw_shader_live_preview();
+    assert!(ui.application.cdmw_shader_live_preview.is_empty());
+    ui.application.cdmw_shader_panel_epoch += 1;
+    ui.settle_layout();
+    ui.reveal("Original: 0.727")?;
+    assert!(ui.label_rect("Net spacing *").is_none());
+
+    // Backdrop buttons change only the viewport background.
+    ui.click("Skin tone")?;
+    assert_eq!(ui.application.viewport_background_colour, Color32::from_rgb(224, 172, 150));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    Ok(())
+}
+
+#[test]
+fn shader_live_factors_replace_only_edited_lanes() {
+    let state = veil_shader_state();
+    let (row, family) = (&state["parts"][0], &state["catalogue"][0]);
+    let untouched = crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).unwrap();
+    assert_eq!(&untouched[..13], &[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0]);
+    // A three-lane colour starts after the five scalar fields; the alpha lane after it is kept.
+    let dyed = crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency",
+        "values": {"_dyeingColor": [0.25, 0.5, 0.75], "_netPitch": [7.0]}})).unwrap();
+    assert_eq!(&dyed[4..13], &[1.0, 0.727, 0.516, 0.901, 0.27, 0.25, 0.5, 0.75, 1.0]);
+    // Painted masks and families without a host base cannot be previewed locally.
+    assert!(crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency", "values": {}, "cutout_mask": {}})).is_none());
+    assert!(crate::cdmw_shader_controls::shader_live_factors(&json!({"preview_base": {}}), family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).is_none());
+}
+
+#[test]
+fn live_shader_factors_override_the_edited_part_on_the_active_lod_only() {
+    let presentation = |index: u32, shader_controls: Option<[f32; 32]>| -> SessionMaterialPresentation {
+        let mut row: SessionMaterialPresentation = serde_json::from_value(json!({
+            "lod_index": 0, "material_index": index, "material_slot_index": index,
+            "material_category": "cloth", "category_code": 0, "category_confidence": 1.0,
+            "shader_family": "SkinnedMeshTransparency", "normal_y_policy": "keep", "normal_y_inverted": false,
+            "alpha_mode": "opaque", "double_sided": false, "hair_anisotropy": false})).unwrap();
+        row.shader_controls = shader_controls;
+        row
+    };
+    let mut saved = [0.0_f32; 32];
+    saved[..6].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727]);
+    let mut edited = saved;
+    edited[5] = 0.5;
+    let presentations = [presentation(0, None), presentation(1, Some(saved))];
+    let none = cdmw_live_material_factors(&presentations, &BTreeMap::new(), 1, 0).unwrap();
+    let live = cdmw_live_material_factors(&presentations, &BTreeMap::from([(1, edited)]), 1, 0).unwrap();
+    let controls = |factors: &[cdmw_render_wgpu::OwnedMaterialFactors], part: u32| factors.iter()
+        .find(|(_, ownership)| ownership[0].contains(&part)).map(|(factors, _)| factors.shader_controls);
+    assert_eq!(controls(&none, 1), Some(Some(saved)));
+    assert_eq!(controls(&live, 1), Some(Some(edited)));
+    assert_eq!(controls(&live, 0), controls(&none, 0));
+}
+
 #[test]
 fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
@@ -9044,17 +9186,14 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("Shader experiments")?;
     ui.settle_layout();
     assert!(ui.reveal("Part B: Known masks: 2/3; G 0.000–1.000.").is_ok());
-    let actions = ui.actions_from_click("Apply shader controls")?;
+    // Showing saved controls sends nothing.
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    ui.type_number_in_row("Reveal progress *", 0.5, "0.875")?;
+    let actions = settled_shader_actions(&mut ui);
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
-        if arguments == &json!({"part_ids": ["b"], "shader_controls": controls}))));
-    ui.application.cdmw_pending_request = None;
-    ui.type_number_in_row("Reveal progress", 0.5, "0.875")?;
-    let actions = ui.actions_from_click("Apply shader controls")?;
-    assert!(actions.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
-        if arguments["shader_controls"]["values"]["_wingFlowProgress"][0] == json!(0.875)
-    )));
+        if arguments == &json!({"part_ids": ["b"], "shader_controls": {
+            "shader": "SkinnedMeshWing", "values": {"_wingFlowProgress": [0.875]}}}))));
     ui.application.cdmw_pending_request = None;
     let actions = ui.actions_from_click("Restore shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
@@ -9072,7 +9211,7 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     ui.click("Parts")?;
     ui.click("None")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
 }
@@ -9093,10 +9232,15 @@ fn glass_shader_controls_offer_the_correct_pipeline_and_emit_absorption() -> Tes
         ui.click("1: Part B")?;
         ui.click("Shader experiments")?;
         ui.settle_layout();
-        ui.reveal(label)?;
-        ui.click("Absorption")?;
+        // A plain source keeps its shader until an experiment is chosen.
+        ui.click("Keep source shader")?;
+        ui.click(label)?;
+        let actions = settled_shader_actions(&mut ui);
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+            if arguments == &json!({"part_ids": ["b"], "shader_controls": {"shader": shader, "values": {}}}))));
         ui.type_number_in_row("Absorption", 0.3, &maximum.to_string())?;
-        let actions = ui.actions_from_click("Apply shader controls")?;
+        let actions = settled_shader_actions(&mut ui);
         assert!(actions.iter().any(|action| matches!(action,
             UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
             if arguments == &json!({"part_ids": ["b"], "shader_controls": {
@@ -9124,11 +9268,14 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ui.click("Shader experiments")?;
     ui.settle_layout();
     ui.reveal("Source shader: SkinnedMeshEmissive_Ver2.")?;
-    ui.click("Equipment glass")?;
+    ui.click("Keep source shader")?;
+    // A disabled choice is ignored; the source shader stays selected and nothing is sent.
     ui.click("Patterned reveal")?;
-    // Close the combo. A disabled choice must leave Equipment glass selected.
     ui.frame(vec![key_event(egui::Key::Escape, true), key_event(egui::Key::Escape, false)]);
-    let actions = ui.actions_from_click("Apply shader controls")?;
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    ui.click("Keep source shader")?;
+    ui.click("Equipment glass")?;
+    let actions = settled_shader_actions(&mut ui);
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments["shader_controls"]["shader"] == "SkinnedMeshTranslucent")));
@@ -9136,13 +9283,14 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ui.click("Parts")?;
     ui.click("All")?;
     ui.click("Back to Inspector")?;
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
+    // Part A cannot take the saved experiment again, so nothing but Restore is offered.
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
     assert!(has_host_command(&ui.actions_from_click("Restore shader controls")?, "replacement_shader_controls"));
     ui.application.cdmw_pending_request = None;
     ui.click("1: Part B")?;
     ui.click("Back to Inspector")?;
     ui.application.cdmw_state["shader_controls"]["parts"][1]["shader_options"] = Value::Null;
     ui.settle_layout();
-    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
     Ok(())
 }

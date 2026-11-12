@@ -1520,6 +1520,10 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    /// Draw these parts with uncommitted shader factors; `None` returns a part to its saved state.
+    CdmwShaderPreview(Vec<(u32, Option<[f32; 32]>)>),
+    /// Viewport backdrop only; see-through materials read very differently against light and dark.
+    SetViewportBackground(Color32),
     SelectIslands(Vec<(u32, Vec<u32>)>),
     SelectIsland {
         part: u32,
@@ -1561,6 +1565,8 @@ impl UiAction {
                 | Self::StandardView(_)
                 | Self::OrbitMode
                 | Self::OrbitYaw(_)
+                | Self::CdmwShaderPreview(_)
+                | Self::SetViewportBackground(_)
         )
     }
 
@@ -1948,6 +1954,41 @@ fn deformation_reference_for_snapshot<'a>(
     reference?.positions_for_snapshot(visible_submeshes, snapshot)
 }
 
+/// The host's material presentations with the inspector's uncommitted shader
+/// factors laid over the parts being edited on the active LOD.
+fn cdmw_live_material_factors(
+    presentations: &[SessionMaterialPresentation],
+    live: &BTreeMap<u32, [f32; 32]>,
+    lod_count: usize,
+    lod: usize,
+) -> Result<Vec<cdmw_render_wgpu::OwnedMaterialFactors>, cdmw_render_wgpu::RenderError> {
+    let authored = presentations
+        .iter()
+        .map(|presentation| {
+            (
+                cdmw_material_preview_factors(presentation),
+                cdmw_material_ownership(presentation, lod_count),
+            )
+        })
+        .collect::<Vec<_>>();
+    let overrides = live
+        .iter()
+        .filter(|_| lod < lod_count)
+        .map(|(part, factors)| {
+            let mut ownership = vec![Vec::new(); lod_count];
+            ownership[lod].push(*part);
+            (
+                MaterialPreviewFactors {
+                    shader_controls: Some(*factors),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership,
+            )
+        })
+        .collect::<Vec<_>>();
+    cdmw_render_wgpu::preview_material_factors(&authored, &overrides, lod)
+}
+
 fn cdmw_material_ownership(
     presentation: &SessionMaterialPresentation,
     lod_count: usize,
@@ -2120,6 +2161,11 @@ struct LabApplication {
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
+    /// Inspector slider values shown before the host has committed them, keyed by
+    /// active-LOD part index. Never exported: the host's presentations stay authoritative.
+    cdmw_shader_live_preview: BTreeMap<u32, [f32; 32]>,
+    /// Bumped when a shader edit is rejected so the inspector reloads the saved values.
+    cdmw_shader_panel_epoch: u64,
     cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
     cdmw_textured_mode_available: bool,
@@ -2323,6 +2369,8 @@ impl LabApplication {
             cdmw_hidden_parts: HashSet::new(),
             cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
+            cdmw_shader_live_preview: BTreeMap::new(),
+            cdmw_shader_panel_epoch: 0,
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
             cdmw_textured_mode_available: false,
@@ -2745,6 +2793,49 @@ impl LabApplication {
         }
     }
 
+    fn set_cdmw_shader_live_preview(&mut self, changes: Vec<(u32, Option<[f32; 32]>)>) {
+        for (part, factors) in changes {
+            match factors {
+                Some(factors) => {
+                    self.cdmw_shader_live_preview.insert(part, factors);
+                }
+                None => {
+                    self.cdmw_shader_live_preview.remove(&part);
+                }
+            }
+        }
+        self.refresh_cdmw_material_factors();
+    }
+
+    fn clear_cdmw_shader_live_preview(&mut self) {
+        if !self.cdmw_shader_live_preview.is_empty() {
+            self.cdmw_shader_live_preview.clear();
+            self.refresh_cdmw_material_factors();
+        }
+    }
+
+    /// Replace only the renderer's material numbers. Geometry and textures stay
+    /// resident, so this is cheap enough to run on every slider movement.
+    fn refresh_cdmw_material_factors(&mut self) {
+        let lod_count = self.document.as_ref().map_or(0, |document| document.lods.len());
+        let lod = self.active_lod_index;
+        match cdmw_live_material_factors(
+            &self.cdmw_material_presentations,
+            &self.cdmw_shader_live_preview,
+            lod_count,
+            lod,
+        ) {
+            Ok(factors) => {
+                if let Some(renderer) = &mut self.renderer
+                    && let Err(error) = renderer.replace_material_factors(&factors, lod)
+                {
+                    self.status = format!("Shader preview failed: {error}");
+                }
+            }
+            Err(error) => self.status = format!("Shader preview failed: {error}"),
+        }
+    }
+
     fn submit_cdmw_command(&mut self, command: &str, arguments: Value, label: &str) {
         if self.cdmw_busy() {
             self.status = "Finish the pending CDMW operation before starting another".to_owned();
@@ -3012,6 +3103,13 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
+        if matches!(label.as_str(), "Edit shader controls" | "Restore shader controls") {
+            // The host's answer replaces the live preview, whether it accepted the edit or not.
+            self.clear_cdmw_shader_live_preview();
+            if !ok {
+                self.cdmw_shader_panel_epoch = self.cdmw_shader_panel_epoch.wrapping_add(1);
+            }
+        }
         self.record_cdmw_refit_feedback(&label, ok, error, retain_refit_feedback);
         if label == "Place weapon preview" && !ok {
             self.reject_weapon_placement();
@@ -3328,6 +3426,9 @@ impl LabApplication {
         );
         self.cdmw_texture_resources = textures;
         self.cdmw_material_presentations = material_presentations;
+        // Reinstalled materials are the saved state; any live preview is stale.
+        let stale_live_preview = !self.cdmw_shader_live_preview.is_empty();
+        self.cdmw_shader_live_preview.clear();
         if let Some((key, reason)) = material_revision {
             self.cdmw_material_key = key;
             self.cdmw_texture_package_reason = reason;
@@ -3345,6 +3446,10 @@ impl LabApplication {
             renderer
                 .set_material_lod(active_lod_index)
                 .context("CDMW material presentation LOD could not be restored")?;
+        }
+        if stale_live_preview && reuse_materials {
+            // Retained renderer materials still hold the previewed numbers.
+            self.refresh_cdmw_material_factors();
         }
         self.camera = camera;
         if let Some(mesh) = &self.mesh {
@@ -4597,7 +4702,8 @@ impl LabApplication {
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let _language = crate::localization::enter(&self.egui_context);
         if actions.iter().any(|action| match action {
-            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode => false,
+            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode
+            | UiAction::CdmwShaderPreview(_) | UiAction::SetViewportBackground(_) => false,
             UiAction::CdmwCommand { command, arguments, .. }
                 if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
             _ => true,
@@ -5013,6 +5119,8 @@ impl LabApplication {
                     arguments,
                     label,
                 } => self.submit_cdmw_command(command, arguments, label),
+                UiAction::CdmwShaderPreview(changes) => self.set_cdmw_shader_live_preview(changes),
+                UiAction::SetViewportBackground(colour) => self.viewport_background_colour = colour,
                 UiAction::CdmwMeshAction {
                     action,
                     label,
@@ -5145,6 +5253,8 @@ impl LabApplication {
             return;
         }
         self.cancel_pending_lod();
+        // Live shader factors are keyed by the active LOD's part indices.
+        self.clear_cdmw_shader_live_preview();
         if target_index >= self.lod_sessions.len() {
             self.status = format!("LOD {target_index} is not available for editing");
             return;

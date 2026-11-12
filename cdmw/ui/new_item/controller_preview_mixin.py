@@ -745,6 +745,18 @@ class NewItemPreviewControllerMixin:
                 options[name] = shader, supported
         return options
 
+    def material_shader_authored(self):
+        """Numbers the selected template's materials declare, by folded part name."""
+        identity = self.current_variant_identity()
+        selected = identity[1].casefold() if identity else None
+        authored = {}
+        for path, parts in self._template_shader_authored.items():
+            if selected is not None and path != selected:
+                continue
+            for name, families in parts.items():
+                authored.setdefault(name, families)
+        return authored
+
     def material_authored_translucency(self):
         """Absorption already authored on SkinnedMeshTranslucent parts, by folded part name."""
         values = {}
