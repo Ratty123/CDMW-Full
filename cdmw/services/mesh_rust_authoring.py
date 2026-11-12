@@ -7862,19 +7862,34 @@ class RustMeshAuthoringSession:
                 )
             _detach_shadow_layer_project(shadow_mesh, session_root)
             mark("morph_profiles_and_set")
+            if edit_item_set:
+                from cdmw.services.mesh_item_set_editing import LAST_ITEM_SET_PREPARATION_MS
+
+                stage_marks.update({f"set_{key}": value for key, value in LAST_ITEM_SET_PREPARATION_MS.items()})
             session_id = f"rust-mesh:{uuid4()}"
             shadow_service = MeshService(
                 settings=_ShadowSettings(session_root / "settings.ini"),
                 max_history=authoritative_service.max_history,
                 max_history_bytes=authoritative_service.max_history_bytes,
             )
-            shadow_view = shadow_service.open_edit_session(
-                shadow_mesh,
-                session_id=f"{session_id}:shadow",
-                mode=authoritative_view.mode,
-                load_layer_project=False,
-                adopt_owned_mesh=True,
+            # The base copy the open makes skips the bound Preview Core material
+            # sources (presentation data, and most of the copy's JSON); the working
+            # parts get them back at once (P4 V4).
+            from cdmw.services.mesh_preview_material_source import (
+                restore_preview_core_sources, set_aside_preview_core_sources,
             )
+
+            set_aside = set_aside_preview_core_sources(shadow_mesh)
+            try:
+                shadow_view = shadow_service.open_edit_session(
+                    shadow_mesh,
+                    session_id=f"{session_id}:shadow",
+                    mode=authoritative_view.mode,
+                    load_layer_project=False,
+                    adopt_owned_mesh=True,
+                )
+            finally:
+                restore_preview_core_sources(set_aside)
             mark("shadow_open")
             if materials_after_open:
                 adopted = shadow_service._session(shadow_view.session_id).working_mesh

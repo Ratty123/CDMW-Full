@@ -53,6 +53,51 @@ def bind_preview_core_material_source(part, package, batch, conservation):
     part.preview_native_material_overrides = overrides
 
 
+def _parts(mesh):
+    levels = [list(getattr(mesh, "submeshes", ()) or ())]
+    levels.extend(list(level or ()) for level in (getattr(mesh, "lod_levels", ()) or ()))
+    seen, parts = set(), []
+    for level in levels:
+        for part in level:
+            if id(part) not in seen:
+                seen.add(id(part))
+                parts.append(part)
+    return parts
+
+
+def set_aside_preview_core_sources(mesh):
+    """Take each part's bound Preview Core material source out of its overrides.
+
+    A copy of the mesh through the native snapshot encodes every extra attribute
+    to JSON in Python; these sources were most of that work. Copies that do not
+    need them (an immutable base, a clone that gets them back) set them aside
+    first (P4 V4). Returns what ``restore_preview_core_sources`` puts back.
+    """
+
+    set_aside = []
+    for part in _parts(mesh):
+        overrides = getattr(part, "preview_native_material_overrides", None)
+        if isinstance(overrides, dict) and "preview_core_material_source" in overrides:
+            kept = dict(overrides)
+            source = kept.pop("preview_core_material_source")
+            part.preview_native_material_overrides = kept
+            set_aside.append((part, source))
+    return set_aside
+
+
+def restore_preview_core_sources(set_aside, *, onto=None):
+    """Put set-aside sources back; ``onto`` maps an original part to its copy as well."""
+
+    for part, source in set_aside:
+        targets = [part]
+        if onto is not None and id(part) in onto:
+            targets.append(onto[id(part)])
+        for target in targets:
+            overrides = dict(getattr(target, "preview_native_material_overrides", {}) or {})
+            overrides["preview_core_material_source"] = source
+            target.preview_native_material_overrides = overrides
+
+
 def unedited_preview_core_material_source(part):
     source = (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
     if (isinstance(source, dict) and source.get("binding_signature") == _binding_signature(part)

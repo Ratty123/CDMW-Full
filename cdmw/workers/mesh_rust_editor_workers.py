@@ -134,7 +134,11 @@ class MeshRustSessionPrepareWorker(QObject):
             if self._stop_event.is_set() or not self._controller_context_is_current():
                 self._stop_event.set()
                 return
+            before_prepare_ms = 0.0
             if self.before_prepare is not None:
+                import time as _time
+
+                before_started = _time.perf_counter()
                 try:
                     self.before_prepare()
                 except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -142,6 +146,7 @@ class MeshRustSessionPrepareWorker(QObject):
                 if self._stop_event.is_set() or not self._controller_context_is_current():
                     self._stop_event.set()
                     return
+                before_prepare_ms = round((_time.perf_counter() - before_started) * 1000.0, 1)
             session = RustMeshAuthoringSession.create(
                 self.authoritative_controller,
                 self.session_root,
@@ -155,6 +160,9 @@ class MeshRustSessionPrepareWorker(QObject):
                 # The editor shows first and receives its morph data later (P4 V3).
                 **({"defer_morph_state": True} if getattr(self, "defer_morph_state", True) else {}),
             )
+            stages = getattr(session, "open_stage_ms", None)
+            if isinstance(stages, dict) and before_prepare_ms:
+                stages["material_prime_ms"] = before_prepare_ms  # resolved on this worker since V1
             if (
                 self._stop_event.is_set()
                 or not self._controller_context_is_current()

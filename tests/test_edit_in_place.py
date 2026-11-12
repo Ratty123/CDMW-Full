@@ -608,3 +608,22 @@ def test_a_plain_open_copies_its_base_before_binding_materials(tmp_path: Path, m
     finally:
         session.cancel()
         authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)
+
+
+def test_material_sources_set_aside_for_a_copy_come_back_on_both_parts() -> None:
+    from cdmw.services.mesh_preview_material_source import (
+        restore_preview_core_sources, set_aside_preview_core_sources,
+    )
+
+    source = {"package": "p", "batch": {"material_name": "m"}, "conservation": {}}
+    part = SimpleNamespace(preview_native_material_overrides={"tint": 1, "preview_core_material_source": source})
+    plain = SimpleNamespace(preview_native_material_overrides={"tint": 2})
+    mesh = SimpleNamespace(submeshes=[part, plain], lod_levels=[[part]])
+    set_aside = set_aside_preview_core_sources(mesh)
+    assert len(set_aside) == 1  # a part shared by two levels is set aside once
+    assert part.preview_native_material_overrides == {"tint": 1}  # what a copy would see
+    copy_ = SimpleNamespace(preview_native_material_overrides={"tint": 1})
+    restore_preview_core_sources(set_aside, onto={id(part): copy_})
+    assert part.preview_native_material_overrides["preview_core_material_source"] is source
+    assert copy_.preview_native_material_overrides["preview_core_material_source"] is source
+    assert plain.preview_native_material_overrides == {"tint": 2}

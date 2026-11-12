@@ -19,8 +19,16 @@ from cdmw.services.mesh_asset_context import (
 ITEM_SET_PREPARATION_WORKERS = 4
 
 
+#: Milliseconds per step of the last set preparation, for the runtime record (P4 V4).
+LAST_ITEM_SET_PREPARATION_MS: dict[str, float] = {}
+
+
 def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop_event, progress, root, root_identity):
     """Called only by the existing cancellable session preparation worker."""
+    import time as _time
+
+    timings: dict[str, float] = {}
+    started = _time.perf_counter()
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.mesh_item_set_budget import prepare_item_set_budget
     from cdmw.services.mesh_preview_material_source import prepare_item_set_material_source
@@ -41,10 +49,15 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
 
     def prepare_piece(context):
         raise_if_cancelled(stop_event, "Item set loading cancelled")
+        piece_started = _time.perf_counter()
         prepared = prepare_archive_refit_source({"_archive_entry": context.selected_entry,
                                                 "_archive_dependencies": context}, stop_event)
         source = prepared["_archive_snapshot"]
+        parsed = _time.perf_counter()
         native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
+        name = context.selected_entry.basename
+        timings[f"piece_parse_ms:{name}"] = round((parsed - piece_started) * 1000.0, 1)
+        timings[f"piece_material_ms:{name}"] = round((_time.perf_counter() - parsed) * 1000.0, 1)
         leases = (prepared.get("_archive_preview_lease"), native_lease)
         return (context.selected_entry, source, prepared.get("_archive_neutral_appearance"), leases, context)
 
@@ -61,17 +74,24 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
         piece_futures = [pool.submit(prepare_piece, context) for context in contexts[1:]]
         wait([primary_future, *piece_futures])
     primary_lease = primary_future.result()
+    timings["pieces_ms"] = round((_time.perf_counter() - started) * 1000.0, 1)
     sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, primary_lease, contexts[0])]
     sources.extend(future.result() for future in piece_futures)
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     progress("Preparing material textures for Mesh Editor...")
+    budget_started = _time.perf_counter()
     admitted, bounded_references, materials = prepare_item_set_budget(sources, root, root_identity, stop_event)
+    timings["budget_ms"] = round((_time.perf_counter() - budget_started) * 1000.0, 1)
     references = [contexts[0]]
     for index, context in enumerate(contexts[1:], 1):
         if index not in admitted:
             references.append(context)
     raise_if_cancelled(stop_event, "Item set loading cancelled")
+    compose_started = _time.perf_counter()
     mesh, context = compose_item_set([source for index, source in enumerate(sources) if index in admitted])
+    timings["compose_ms"] = round((_time.perf_counter() - compose_started) * 1000.0, 1)
+    LAST_ITEM_SET_PREPARATION_MS.clear()
+    LAST_ITEM_SET_PREPARATION_MS.update(timings)
     return mesh, context, tuple(references) if len(references) > 1 else (), bounded_references, materials
 
 
@@ -86,7 +106,21 @@ def compose_item_set(sources):
             raise ValueError(f"Item set needs an original game mesh: {entry.basename}")
         if assets and entry.identity in {asset.entry.identity for asset in assets}:
             raise ValueError("Item set contains duplicate source files")
-        mesh = appearance.to_neutral(source.mesh) if appearance is not None else _clone(source.mesh)
+        # The clone skips the bound Preview Core material sources and gets them
+        # back by part (P4 V4): they were most of the clone's JSON work.
+        from cdmw.services.mesh_preview_material_source import (
+            restore_preview_core_sources, set_aside_preview_core_sources,
+        )
+
+        set_aside = set_aside_preview_core_sources(source.mesh)
+        try:
+            mesh = appearance.to_neutral(source.mesh) if appearance is not None else _clone(source.mesh)
+        finally:
+            originals = list(source.mesh.submeshes)
+            copies = list(mesh.submeshes) if "mesh" in locals() else []
+            onto = ({id(original): copy_ for original, copy_ in zip(originals, copies)}
+                    if len(originals) == len(copies) else None)
+            restore_preview_core_sources(set_aside, onto=onto)
         first = len(combined.submeshes) if combined is not None else 0
         asset = MeshAsset(copy.copy(entry), replace(source, archive_refit_context=None),
                           tuple(range(first, first + len(mesh.submeshes))), "editable", lease, appearance,
