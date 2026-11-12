@@ -26,7 +26,7 @@ from cdmw.ui.new_item.rust_ui_models import ModelProjection
 from cdmw.ui.new_item.rust_ui_registry import ControlRegistry
 from cdmw.ui.new_item.workflow_header import WorkflowHeader
 from cdmw.ui.themes import get_theme
-from cdmw.ui.layout_metrics import MIN_FONT_PIXELS
+from cdmw.ui.layout_metrics import MIN_FONT_PIXELS, layout_metrics
 
 
 def qt_caption(value):
@@ -98,6 +98,13 @@ def theme_snapshot(widget):
     # One range on every surface (P11): the page's floor is the UI minimum.
     result["font_pixels"] = max(MIN_FONT_PIXELS, round(pixels))
     result["min_font_pixels"] = MIN_FONT_PIXELS
+    application = QApplication.instance()
+    density = str(application.property("_cdmw_ui_density") or "compact") if application is not None else "compact"
+    try:
+        scale = float(application.property("_cdmw_layout_scale") or 1.0) if application is not None else 1.0
+    except (TypeError, ValueError):
+        scale = 1.0
+    result["layout_metrics"] = layout_metrics(density, pixels * 72.0 / 96.0, scale).payload()
     result["dark"] = palette.color(QPalette.Window).lightnessF() < 0.5
     localizer = active_ui_localizer()
     result["language"] = str(getattr(localizer, "language_code", "en"))

@@ -622,16 +622,18 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         # The sizes and density every other surface uses (P11): clamped to the one
         # range, with Compact forced on small screens.
         from cdmw.constants import UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN
+        from cdmw.ui.layout_metrics import layout_metrics
         from cdmw.ui.shell.theme_controller import _resolved_app_fonts
 
         density = str(self.settings.value("appearance/ui_density", "compact") or "compact")
+        screen_scale = 1.0
         font_point_size = float(font.pointSizeF())
         if font_point_size <= 0.0:
             font_point_size = float(DEFAULT_UI_FONT_SIZE)
         data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
         if isinstance(application, QApplication):
             try:
-                resolved_font, resolved_data, density, _scale = _resolved_app_fonts(application, self.settings)
+                resolved_font, resolved_data, density, screen_scale = _resolved_app_fonts(application, self.settings)
                 font_point_size = float(resolved_font.pointSizeF()) or font_point_size
                 data_font_point_size = float(resolved_data.pointSizeF()) or data_font_point_size
             except (AttributeError, RuntimeError, TypeError, ValueError):
@@ -655,6 +657,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "font_min_points": UI_FONT_SIZE_MIN,
             "font_max_points": UI_FONT_SIZE_MAX,
             "density": density,
+            # The same spacing the Qt stylesheet uses (P11 step 4).
+            "layout_metrics": layout_metrics(density, font_point_size, screen_scale).payload(),
             "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
         }
 

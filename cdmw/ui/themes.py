@@ -18,101 +18,6 @@ def get_theme(key: str) -> Dict[str, str]:
     return UI_THEME_SCHEMES.get(key, UI_THEME_SCHEMES[DEFAULT_UI_THEME])
 
 
-def _density_metrics(density_key: str) -> Dict[str, int]:
-    density = (density_key or DEFAULT_UI_DENSITY).strip().lower()
-    if density == "comfortable":
-        return {
-            "menu_pad_y": 5,
-            "menu_pad_x": 10,
-            "menu_item_pad_y": 6,
-            "menu_item_pad_x": 12,
-            "group_margin_top": 18,
-            "group_pad_top": 12,
-            "group_title_pad_y": 1,
-            "group_title_pad_x": 8,
-            "section_pad_y": 8,
-            "section_pad_x": 10,
-            "field_pad_y": 6,
-            "field_pad_x": 9,
-            "list_pad_y": 4,
-            "list_pad_x": 6,
-            "header_pad_y": 6,
-            "header_pad_x": 8,
-            "button_pad_y": 7,
-            "button_pad_x": 12,
-            "button_min_h": 22,
-            "progress_min_h": 24,
-            "tab_pad_top": 8,
-            "tab_pad_bottom": 9,
-            "tab_pad_x": 14,
-            "tab_min_h": 24,
-        }
-    if density == "normal":
-        return {
-            "menu_pad_y": 4,
-            "menu_pad_x": 9,
-            "menu_item_pad_y": 5,
-            "menu_item_pad_x": 10,
-            "group_margin_top": 15,
-            "group_pad_top": 10,
-            "group_title_pad_y": 0,
-            "group_title_pad_x": 7,
-            "section_pad_y": 6,
-            "section_pad_x": 9,
-            "field_pad_y": 5,
-            "field_pad_x": 8,
-            "list_pad_y": 3,
-            "list_pad_x": 5,
-            "header_pad_y": 5,
-            "header_pad_x": 7,
-            "button_pad_y": 5,
-            "button_pad_x": 10,
-            "button_min_h": 18,
-            "progress_min_h": 20,
-            "tab_pad_top": 6,
-            "tab_pad_bottom": 7,
-            "tab_pad_x": 12,
-            "tab_min_h": 20,
-        }
-    return {
-        "menu_pad_y": 3,
-        "menu_pad_x": 8,
-        "menu_item_pad_y": 4,
-        "menu_item_pad_x": 9,
-        "group_margin_top": 13,
-        "group_pad_top": 8,
-        "group_title_pad_y": 0,
-        "group_title_pad_x": 6,
-        "section_pad_y": 5,
-        "section_pad_x": 8,
-        "field_pad_y": 4,
-        "field_pad_x": 7,
-        "list_pad_y": 2,
-        "list_pad_x": 5,
-        "header_pad_y": 4,
-        "header_pad_x": 6,
-        "button_pad_y": 4,
-        "button_pad_x": 8,
-        "button_min_h": 16,
-        "progress_min_h": 18,
-        "tab_pad_top": 5,
-        "tab_pad_bottom": 6,
-        "tab_pad_x": 10,
-        "tab_min_h": 18,
-    }
-
-
-def _scale_density_metrics(metrics: Dict[str, int], scale: float) -> Dict[str, int]:
-    safe_scale = max(0.72, min(1.15, float(scale or 1.0)))
-    scaled: Dict[str, int] = {}
-    for key, value in metrics.items():
-        minimum = 0 if "pad" in key or "margin" in key else 1
-        if key in {"button_min_h", "progress_min_h", "tab_min_h"}:
-            minimum = 12
-        scaled[key] = max(minimum, int(round(int(value) * safe_scale)))
-    return scaled
-
-
 def build_app_palette(theme_key: str) -> QPalette:
     theme = get_theme(theme_key)
     palette = QPalette()
@@ -1167,7 +1072,10 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
 ) -> str:
     from cdmw.ui.native_tool_style import native_tool_stylesheet
     theme = get_theme(theme_key)
-    metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)
+    # Paddings and heights from the one metrics module the helper's theme uses too (P11 step 4).
+    from cdmw.ui.layout_metrics import layout_metrics, stylesheet_metrics
+
+    metrics = stylesheet_metrics(layout_metrics(density_key, base_font_size, layout_scale))
     light_theme = QColor(theme["window"]).lightnessF() >= 0.55
     role_text = {
         "identity": "#b45309" if theme_key == "crimson_desert" else "#0369a1" if light_theme else "#7dd3fc",

@@ -2518,8 +2518,20 @@ pub fn apply_theme(context: &egui::Context, theme: &Value) {
         .text_styles
         .insert(TextStyle::Heading, FontId::proportional(font + 4.0));
     style.spacing.interact_size.y = font + 8.0;
-    style.spacing.item_spacing = Vec2::new(6.0, 4.0);
-    style.spacing.button_padding = Vec2::new(8.0, 3.0);
+    // The spacing the Qt stylesheet uses (P11 step 4); today's when an older host sends none.
+    let metric_pair = |name: &str, fallback: Vec2| {
+        theme["layout_metrics"][name]
+            .as_array()
+            .and_then(|pair| {
+                Some(Vec2::new(
+                    pair.first()?.as_f64()? as f32,
+                    pair.get(1)?.as_f64()? as f32,
+                ))
+            })
+            .unwrap_or(fallback)
+    };
+    style.spacing.item_spacing = metric_pair("item_spacing", Vec2::new(6.0, 4.0));
+    style.spacing.button_padding = metric_pair("frame_pad", Vec2::new(8.0, 3.0));
     style.spacing.scroll = egui::style::ScrollStyle::solid();
     context.set_style_of(theme_kind, style);
     context.set_theme(theme_kind);

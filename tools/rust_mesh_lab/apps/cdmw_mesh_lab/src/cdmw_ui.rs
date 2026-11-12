@@ -1813,11 +1813,40 @@ impl LabApplication {
             } else {
                 (egui::vec2(6.0, 4.0), egui::vec2(8.0, 4.0), 25.0)
             };
-        style.spacing.item_spacing = item_spacing;
-        style.spacing.button_padding = button_padding;
-        // Controls follow the text and its padding, not a fixed height.
         let _ = interaction_height;
-        style.spacing.interact_size.y = font_size + 2.0 * button_padding.y;
+        let metrics = theme.get("layout_metrics");
+        let metric_pair = |name: &str, fallback: egui::Vec2| {
+            metrics
+                .and_then(|value| value.get(name))
+                .and_then(Value::as_array)
+                .and_then(|pair| {
+                    Some(egui::vec2(
+                        pair.first()?.as_f64()? as f32,
+                        pair.get(1)?.as_f64()? as f32,
+                    ))
+                })
+                .unwrap_or(fallback)
+        };
+        let metric = |name: &str| {
+            metrics
+                .and_then(|value| value.get(name))
+                .and_then(Value::as_f64)
+        };
+        // The spacing the Qt stylesheet uses (P11 step 4).
+        style.spacing.item_spacing = metric_pair("item_spacing", item_spacing);
+        style.spacing.button_padding = metric_pair("frame_pad", button_padding);
+        style.spacing.window_margin = egui::Margin::symmetric(
+            metric_pair("window_pad", egui::vec2(7.0, 6.0)).x as i8,
+            metric_pair("window_pad", egui::vec2(7.0, 6.0)).y as i8,
+        );
+        if let Some(indent) = metric("indent") {
+            style.spacing.indent = indent as f32;
+        }
+        if let Some(scrollbar) = metric("scrollbar") {
+            style.spacing.scroll.bar_width = scrollbar as f32;
+        }
+        // Controls follow the text and its padding, not a fixed height.
+        style.spacing.interact_size.y = font_size + 2.0 * style.spacing.button_padding.y;
         for (text_style, size, family) in [
             (
                 egui::TextStyle::Small,

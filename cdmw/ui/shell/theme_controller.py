@@ -213,9 +213,13 @@ def apply_app_theme(
     )
     _install_app_fonts(app, app_font, data_font)
     app.setProperty("_cdmw_theme_key", resolved_theme)
+    # Read by the surfaces drawn by the helper, so their spacing matches (P11 step 4).
+    app.setProperty("_cdmw_ui_density", effective_density_key)
+    app.setProperty("_cdmw_layout_scale", float(screen_scale))
     app.setPalette(build_app_palette(resolved_theme))
     stylesheet = build_app_stylesheet(
         resolved_theme,
+        base_font_size=app_font.pointSize() if app_font.pointSize() > 0 else DEFAULT_UI_FONT_SIZE,
         density_key=effective_density_key,
         layout_scale=screen_scale,
     )
