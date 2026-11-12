@@ -173,6 +173,26 @@ def test_request_finishes_once_on_the_ui_thread_and_is_released(server):
     assert on_owner_thread and isinstance(result, ReportHttpResult) and result.status == 200
 
 
+def test_shipped_source_does_not_import_qt_network():
+    import ast
+    from pathlib import Path
+
+    offenders = []
+    roots = (Path("cdmw_app.py"), Path("cdmw"), Path("tools/placement_studio"), Path("tools/translation_studio"))
+    for root in roots:
+        for path in [root] if root.suffix == ".py" else sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                names = []
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    names = [node.module] + [f"{node.module}.{alias.name}" for alias in node.names]
+                if any(name == "PySide6.QtNetwork" or name.startswith("PySide6.QtNetwork.") for name in names):
+                    offenders.append(f"{path}:{node.lineno}")
+    assert offenders == []
+
+
 def test_abort_finishes_at_once_and_drops_the_late_answer(server):
     _app()
     request = ReportNetworkRequest(server + "/slow", b"{}")
