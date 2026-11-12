@@ -143,3 +143,54 @@ def test_finish_that_cannot_run_says_why_and_keeps_the_edit(monkeypatch) -> None
     monkeypatch.setattr(end_edit_prompt, "notice_override", lambda _parent, text: told.append(text))
     assert end_edit_prompt.resolve_pending_edit(None, tab) == end_edit_prompt.KEEP
     assert told and "not available" in told[0] and not closed
+
+
+def test_a_document_that_opens_past_the_budget_parks_the_oldest_at_once() -> None:
+    """Section 8.7 F2: parking ran only on a tab switch, before the new document had a session."""
+
+    from PySide6.QtCore import QObject, Signal
+
+    from tests.test_mesh_documents import _Document
+
+    class _LiveEdit(QObject):
+        became_ready = Signal()
+        is_ready = False
+        viewport_binding = None
+
+    def build():
+        document = _Document()
+        document.live_edit = _LiveEdit()
+        return document
+
+    view = MeshDocumentsView(build)
+    try:
+        for index in range(documents_module.MAX_LOADED_DOCUMENTS):
+            document = view.active if index == 0 else view.open_new_document()
+            document.open_file(f"part{index}.pac", edited=True)
+            document.live_edit.became_ready.emit()
+        newest = view.open_new_document()
+        newest.open_file("last.pac", edited=True)  # opened after its tab was shown
+        newest.live_edit.became_ready.emit()
+        assert len(view.loaded_documents()) == documents_module.MAX_LOADED_DOCUMENTS
+        assert view.documents[0].standalone_rust_parked
+    finally:
+        view.deleteLater()
+
+
+def test_the_document_browse_is_editing_is_never_parked() -> None:
+    """Section 8.7 F2: parking it left Browse's folded layout and banner on a closed view."""
+
+    from tests.test_mesh_documents import _Document
+
+    view = MeshDocumentsView(_Document)
+    try:
+        browse = view.active
+        browse.open_file("sword.pac", edited=True)
+        browse.live_edit.viewport_binding = object()  # its edit is in Browse's view
+        for index in range(documents_module.MAX_LOADED_DOCUMENTS):
+            view.open_new_document().open_file(f"part{index}.pac", edited=True)
+        view.set_active(view.index_of(view.active))
+        assert not browse.standalone_rust_parked
+        assert view.documents[1].standalone_rust_parked
+    finally:
+        view.deleteLater()

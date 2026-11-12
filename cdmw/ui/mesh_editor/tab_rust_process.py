@@ -41,6 +41,11 @@ _RUST_DIAGNOSTIC_LINE_LIMIT = 8
 _RUST_CRASH_RETRY_WINDOW_S = 60.0
 #: Tests answer the second-crash question here: ``lambda box: "finish"`` or ``"discard"``.
 crash_prompt_override = None
+#: A second-crash prompt is open; another document's waits for it (section 8.7 F3).
+_crash_prompt_open = False
+#: ``edit_in_place_blocker`` while Browse's process is (re)starting, and how long to wait for it.
+_BOUND_VIEWPORT_NOT_READY = "the viewport is not ready"
+_BOUND_VIEWPORT_WAIT_S = 20.0
 
 
 def _rust_stderr_failure_marker(line: str) -> bool:
@@ -139,11 +144,43 @@ class MeshEditorRustProcessMixin:
         channel = binding.borrow()
         if channel is None:
             reason = binding.blocker() or "Browse's viewport cannot edit now"
+            if self._wait_for_bound_viewport(session, reason):
+                return True
             self._leave_bound_viewport(reason)
             return False
+        self._bound_viewport_wait_since = 0.0
         self._set_rust_status("Opening the edit in Browse's viewport...")
         self._adopt_rust_editor_process(channel, session, keep_view=True)
         return True
+
+    def _wait_for_bound_viewport(self, session: object, reason: str) -> bool:
+        """Browse's process is starting again (after a crash of the process the edit
+        shared): wait for it, so the edit continues in Browse's viewport and not in
+        the tab (section 8.7 F4). False once it is not that, or waited too long."""
+
+        now = time.monotonic()
+        crashed_at = float(getattr(self, "_rust_last_crash_at", 0.0) or 0.0)
+        if reason != _BOUND_VIEWPORT_NOT_READY or not crashed_at or now - crashed_at > _RUST_CRASH_RETRY_WINDOW_S:
+            self._bound_viewport_wait_since = 0.0
+            return False
+        since = float(getattr(self, "_bound_viewport_wait_since", 0.0) or 0.0)
+        if not since:
+            self._bound_viewport_wait_since = since = now
+        if now - since > _BOUND_VIEWPORT_WAIT_S:
+            self._bound_viewport_wait_since = 0.0
+            return False
+        self._set_rust_status("Waiting for Browse's viewport to start again...")
+        QTimer.singleShot(250, self, lambda current=session: self._retry_bound_viewport(current))
+        return True
+
+    def _retry_bound_viewport(self, session: object) -> None:
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            self._bound_viewport_wait_since = 0.0
+            return
+        if getattr(self, "_viewport_binding", None) is None:
+            return
+        if not self._open_in_bound_viewport(session):
+            self._launch_rust_editor_process(session)  # waited too long: the tab's own view
 
     def _open_in_engine_window(self, session: object, parent_hwnd: int) -> bool:
         """Edit in a window of Browse's process under the tab (P4 V5): no process of its own.
@@ -1325,22 +1362,42 @@ class MeshEditorRustProcessMixin:
     def _offer_finish_or_discard_after_crash(self, session: object) -> None:
         """Second crash: no viewport; Finish or Discard the shadow session."""
 
+        global _crash_prompt_open
+
         if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
+        if _crash_prompt_open:
+            # One shared process ended for several documents: ask about each in
+            # turn, never one box over another (section 8.7 F3).
+            QTimer.singleShot(250, self, lambda current=session: self._offer_finish_or_discard_after_crash(current))
             return
         from PySide6.QtWidgets import QMessageBox
 
+        target = getattr(self, "_current_target_entry", None)
+        try:
+            entry = target() if callable(target) else None
+        except (AttributeError, RuntimeError, TypeError):
+            entry = None
+        name = str(getattr(entry, "basename", "") or getattr(entry, "path", "") or "")
         box = QMessageBox(self.window() if callable(getattr(self, "window", None)) else None)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("Mesh Editor Stopped")
-        box.setText("The 3D view stopped twice within a minute.")
+        box.setText(f"The 3D view of {name} stopped twice within a minute." if name
+                    else "The 3D view stopped twice within a minute.")
         box.setInformativeText("Your edits up to the last completed step are kept. Finish keeps them as a "
                                "pending edit; Discard drops them.")
         finish = box.addButton("Finish", QMessageBox.ButtonRole.AcceptRole)
         box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
-        answer = crash_prompt_override(box) if crash_prompt_override is not None else None
-        if answer is None:
-            box.exec()
-            answer = "finish" if box.clickedButton() is finish else "discard"
+        _crash_prompt_open = True
+        try:
+            answer = crash_prompt_override(box) if crash_prompt_override is not None else None
+            if answer is None:
+                box.exec()
+                answer = "finish" if box.clickedButton() is finish else "discard"
+        finally:
+            _crash_prompt_open = False
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
         if answer == "finish":
             self.standalone_rust_host_request_id += 1
             self.standalone_rust_protocol_queue.append(self._rust_host_message(

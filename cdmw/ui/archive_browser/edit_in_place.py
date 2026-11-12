@@ -329,6 +329,12 @@ class BrowseEditInPlaceMixin:
             binding = getattr(self, "_edit_in_place_binding", None)
             if binding is not None:
                 binding.end()  # the newest selection loads once the viewport is free
+            if answer == "none":
+                # Nothing to lose yet, but the edit may still be preparing: cancel it,
+                # so it never opens through the ended binding (section 8.7 F1).
+                close = getattr(tab, "close_standalone_session", None)
+                if callable(close):
+                    close()
 
 
 __all__ = ["BrowseEditInPlaceMixin", "BrowseEditLayout", "STRIP_WIDTH"]

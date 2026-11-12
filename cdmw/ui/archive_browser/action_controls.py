@@ -8,6 +8,10 @@ from cdmw.models import ArchiveEntry
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 
+#: Why Replace Mesh from File is not offered (section 8.7 F5): the workflow is held back.
+MESH_REPLACEMENT_HELD_BACK_REASON = "Replacing a mesh from a file is not available in this release."
+
+
 class ArchiveBrowserActionControlsMixin:
     """Synchronize Archive Browser action buttons with the current selection."""
 
@@ -171,7 +175,7 @@ class ArchiveBrowserActionControlsMixin:
             self.archive_model_import_mesh_button,
             False,  # Mesh Replacement is held back from the release UI.
             "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package.",
-            mesh_reason,
+            MESH_REPLACEMENT_HELD_BACK_REASON,
         )
         self._set_action_button_state(
             self.archive_appearance_composite_button,

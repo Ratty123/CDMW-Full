@@ -35,6 +35,13 @@ class ArchivePreviewResultMixin:
     ) -> float:
         if request_id is not None and request_id != self.archive_preview_request_id:
             return 0.0
+        if getattr(self, "editing_in_place", False) is True and not str(
+            getattr(result, "dotnet_preview_package_path", "") or ""
+        ).strip():
+            # The edit holds Browse's view (section 8.7 F1): a texture, text or media
+            # file selected meanwhile is offered by the edit banner, not shown over it.
+            self._edit_in_place_selection_changed()
+            return 0.0
         selected_entry = self._current_archive_entry()
         self.archive_preview_showing_loose = use_loose and bool(result.loose_file_path)
         self.archive_preview_requested_loose = bool(self.archive_preview_showing_loose)

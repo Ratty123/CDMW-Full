@@ -145,3 +145,62 @@ def test_an_own_process_crash_keeps_its_session_while_a_request_finishes(tmp_pat
         tab.standalone_rust_protocol_thread = None
         tab.standalone_rust_authoring_session = None
         _dispose(tab)
+
+
+def test_a_second_crash_names_the_file_and_asks_one_document_at_a_time(tmp_path, monkeypatch) -> None:
+    """Section 8.7 F3: the prompt named no file, and every document asked at once."""
+
+    from types import SimpleNamespace as _NS
+
+    from cdmw.ui.mesh_editor import tab_rust_process
+
+    tabs = []
+    for name in ("sword.pac", "helmet.pac"):
+        tab, *_ = _ready_tab(tmp_path / name, monkeypatch)
+        monkeypatch.setattr(tab, "_current_target_entry", lambda name=name: _NS(basename=name))
+        tab._rust_last_crash_at = time.monotonic()  # the first crash a moment ago
+        tabs.append(tab)
+    asked, open_now, nested = [], [], []
+
+    def answer(box):
+        nested.append(len(open_now))
+        open_now.append(box)
+        asked.append(box.text())
+        _wait(lambda: False, timeout=0.3)  # the box's own event loop: other prompts may try to open
+        open_now.pop()
+        return "discard"
+
+    monkeypatch.setattr(tab_rust_process, "crash_prompt_override", answer)
+    for tab in tabs:  # one shared process ended: both documents lost their view
+        assert tab._recover_rust_editor_after_crash()
+    assert _wait(lambda: len(asked) == 2, timeout=5.0)
+    assert nested == [0, 0], "a second prompt opened over the first"
+    assert any("sword.pac" in text for text in asked) and any("helmet.pac" in text for text in asked)
+
+
+def test_a_crash_while_editing_in_browse_continues_in_browse_s_viewport(tmp_path, monkeypatch) -> None:
+    """Section 8.7 F4: the relaunch found Browse's process still restarting and moved to the tab."""
+
+    from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+    from cdmw.ui.preview.engine_channel import EDIT_IN_PLACE_CAPABILITY
+    from tests.test_dotnet_preview_shared_host import _make_ready, _start_controller
+
+    controller, process, _ = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = (EDIT_IN_PLACE_CAPABILITY,)
+    tab, session, *_ = _ready_tab(tmp_path / "doc", monkeypatch)
+    binding = BrowseViewportBinding(SimpleNamespace(controller=controller), "sword.pac")
+    tab.live_edit.edit_in_viewport(binding)
+    adopted, moved = [], []
+    monkeypatch.setattr(tab, "_adopt_rust_editor_process",
+                        lambda channel, current, **kw: adopted.append((channel, kw)))
+    tab.live_edit.moved_to_own_viewport.connect(moved.append)
+    # Browse's process is restarting after the crash: not ready yet.
+    tab._rust_last_crash_at = time.monotonic()
+    assert tab._open_in_bound_viewport(session)
+    assert tab.live_edit.viewport_binding is binding and not moved
+    _make_ready(controller)
+    assert _wait(lambda: bool(adopted), timeout=5.0)
+    assert adopted[0][1].get("keep_view") is True and not moved
+    process.kill()
+    process.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    controller.shutdown()

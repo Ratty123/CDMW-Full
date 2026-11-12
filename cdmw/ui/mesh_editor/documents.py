@@ -83,6 +83,11 @@ class MeshDocumentsView(QWidget):
         signal = getattr(document, "status_message_requested", None)
         if signal is not None and hasattr(signal, "connect"):
             signal.connect(lambda *_args: self.refresh_labels())
+        # A document whose editor became ready may take the budget over: park at
+        # once, not at the next tab switch (section 8.7 F2).
+        ready = getattr(getattr(document, "live_edit", None), "became_ready", None)
+        if ready is not None and hasattr(ready, "connect"):
+            ready.connect(self.park_beyond_budget)
         self.set_active(len(self._documents) - 1)
         return document
 
@@ -210,9 +215,11 @@ class MeshDocumentsView(QWidget):
         """Park the documents shown longest ago until the budget holds (P15 step 3)."""
 
         parked: list[QWidget] = []
-        active = self.active
-        candidates = [document for document in self._shown if document is not active]
-        candidates += [document for document in self._documents if document not in candidates and document is not active]
+        # The shown document stays, and so does the one Browse's view is editing.
+        keep = {id(self.active), id(self.browse_document())}
+        candidates = [document for document in self._shown if id(document) not in keep]
+        candidates += [document for document in self._documents
+                       if document not in candidates and id(document) not in keep]
         while len(self.loaded_documents()) > MAX_LOADED_DOCUMENTS and candidates:
             document = candidates.pop(0)
             if document not in self.loaded_documents():
