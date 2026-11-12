@@ -88,9 +88,34 @@ _HELPERS = (
 )
 
 
+class _SettingsValues:
+    """Helper settings read on the settings object's own thread, for a worker to use."""
+
+    __slots__ = ("_values",)
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+
+    def value(self, key: str, default: object = None) -> object:
+        return self._values.get(key, default)
+
+
 @dataclass(slots=True)
 class AssetAuthoringService:
     settings: object | None = None
+
+    def with_settings_snapshot(self) -> "AssetAuthoringService":
+        """A copy that reads helper settings taken now instead of the live settings object.
+
+        One QSettings object is not safe to use from two threads at once; a
+        discovery that runs on a worker uses this copy, made on the GUI thread.
+        """
+
+        reader = getattr(self.settings, "value", None)
+        if not callable(reader):
+            return AssetAuthoringService(settings=None)
+        values = {spec.setting_key: reader(spec.setting_key, "") for spec in _HELPERS if spec.setting_key}
+        return AssetAuthoringService(settings=_SettingsValues(values))
 
     def discovery_report(
         self,
