@@ -281,16 +281,39 @@ def test_finished_or_built_states_are_clean_and_closing_a_draft_loses_nothing(tm
 
 
 def test_settings_names_the_service_history_limits() -> None:
-    import ast
+    """Section 8.7 D5: the Settings line reads the service's limits, not a fixed text."""
 
     from cdmw.services.mesh_service import _DEFAULT_MESH_HISTORY_BYTES
+    from cdmw.ui.settings_tab import mesh_history_limits
 
+    assert mesh_history_limits() == (MeshService().max_history, _DEFAULT_MESH_HISTORY_BYTES // (1024 * 1024))
     source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
-    texts = [node.value for node in ast.walk(ast.parse(source))
-             if isinstance(node, ast.Constant) and isinstance(node.value, str) and "undo history" in node.value]
-    limits = " ".join(texts)
-    assert f"{MeshService().max_history} steps" in limits
-    assert f"{_DEFAULT_MESH_HISTORY_BYTES // (1024 * 1024)} MiB" in limits
+    assert "up to {steps} steps and {mib} MiB a draft" in source
+
+
+def test_the_recovery_point_counts_toward_the_history_cap(tmp_path) -> None:
+    """Section 8.7 D5: the unfinished edits kept for a crash are inside the cap."""
+
+    def journalled(with_recovery: bool, root: Path) -> int:
+        service, session_id = _open(root)
+        try:
+            project = root / "mesh_layers"
+            _move(service, session_id, 0.25)
+            service.retry_mesh_layer_autosave(session_id)
+            first = journal.read_journal(project).records[-1]
+            service.max_history_bytes = first.size_bytes * 3 + first.size_bytes // 2
+            if with_recovery:
+                journal.write_editor_recovery(project, first.generation, base_generation=first.generation)
+            for _ in range(5):
+                _move(service, session_id, 0.25)
+                service.retry_mesh_layer_autosave(session_id)
+            return len(journal.read_journal(project).records)
+        finally:
+            service.close_edit_session(session_id)
+
+    without = journalled(False, tmp_path / "plain")
+    with_recovery = journalled(True, tmp_path / "recovery")
+    assert with_recovery < without, (with_recovery, without)
 
 
 def test_undo_and_redo_continue_into_the_saved_steps(tmp_path) -> None:

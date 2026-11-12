@@ -1681,9 +1681,13 @@ class _MeshServiceSessionLayerCore(
                 project_root, generation, depth=session.history_journal_depth, kind=journal.KIND_DRAFT,
                 labels=session.history_journal_labels, part_ids=session.history_journal_parts,
             )
+            # The unfinished edits kept for a crash count toward the cap; material
+            # files drafts share do not, since they are no step of history (8.7 D5).
+            recovery = journal.read_editor_recovery(project_root)
+            reserved = journal.generation_size(project_root, str(recovery["generation"])) if recovery else 0
             journal.record_state(
                 project_root, record, future_valid=not session.history_journal_edited,
-                max_steps=self.max_history, max_bytes=self.max_history_bytes, keep=keep,
+                max_steps=self.max_history, max_bytes=max(0, self.max_history_bytes - reserved), keep=keep,
             )
             journal.prune_unjournaled_generations(project_root, keep=keep)
         except (OSError, ValueError) as exc:

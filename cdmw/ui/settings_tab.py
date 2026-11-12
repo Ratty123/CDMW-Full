@@ -94,6 +94,15 @@ if TYPE_CHECKING:
     from cdmw.services.asset_authoring_service import AssetAuthoringService
 
 
+
+def mesh_history_limits() -> tuple[int, int]:
+    """The Mesh Editor service's history limits: steps, and MiB a draft (section 8.7 D5)."""
+
+    from cdmw.services.mesh_service import MeshService
+
+    service = MeshService()
+    return int(service.max_history), int(service.max_history_bytes) // (1024 * 1024)
+
 class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, QWidget):
     theme_changed = Signal(str)
     appearance_change_started = Signal(object)
@@ -954,8 +963,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         safety_layout.addWidget(self.confirm_archive_cleanup_checkbox)
         safety_layout.addWidget(self.capture_crash_details_checkbox)
         safety_layout.addWidget(self.verbose_archive_logs_checkbox)
+        steps, mib = mesh_history_limits()
         self.history_limits_label = QLabel(
-            "Mesh Editor drafts keep their undo history after CDMW closes: up to 64 steps and 256 MiB a draft. "
+            f"Mesh Editor drafts keep their undo history after CDMW closes: up to {steps} steps and {mib} MiB a draft. "
             "Edits that were not finished are kept until you finish or discard them. A mesh opened from disk "
             "keeps its history only while it is open."
         )
