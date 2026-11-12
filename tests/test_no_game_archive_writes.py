@@ -59,6 +59,8 @@ SERVICE_WRITES = frozenset({"restore_backup", "backup_files"})
 SERVICE_WRITE_CALLERS = {
     "cdmw/services/archive_mutation_service.py": "defines them",
     "cdmw/ui/archive_browser/patch_actions.py": "Restore Backup...: puts back what an older CDMW patched, confirmed",
+    "cdmw/services/old_install_removal.py": "Remove What an Older CDMW Installed...: backs up first, restores on failure",
+    "cdmw/ui/archive_browser/old_install_removal.py": "Remove What an Older CDMW Installed...: confirmed, through the service",
     "cdmw/services/archive_overlay_install.py": "overlay install rollback (switched off)",
     "cdmw/services/archive_overlay_manager.py": "overlay change rollback (switched off)",
     "cdmw/services/archive_overlay_migration.py": "overlay migration rollback (switched off)",
