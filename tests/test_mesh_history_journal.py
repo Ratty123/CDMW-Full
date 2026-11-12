@@ -467,3 +467,27 @@ def test_a_journal_that_failed_to_open_is_left_alone(tmp_path, monkeypatch) -> N
     service.retry_mesh_layer_autosave(session_id)
     service.close_edit_session(session_id)
     assert generations <= {path.name for path in root.iterdir()}, "saved steps were deleted"
+
+
+def test_a_layer_change_without_a_new_revision_moves_the_clean_mark() -> None:
+    """Section 8.8 R12: the clean mark compared the revision only; renaming, showing or
+    activating a layer changes the mesh's state without it."""
+
+    from tests.test_mesh_geometry_layers import _layer_mesh
+
+    disk = MeshService()
+    disk_id = disk.open_edit_session(_layer_mesh(), session_id=f"disk-{uuid4().hex}", mode="edit").session_id
+    try:
+        disk.apply_command(disk_id, MeshEditCommand(
+            "select", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+            params={"operation": "replace"}))
+        disk.copy_selection(disk_id, target="face")
+        disk.paste_selection(disk_id)  # a layer of its own: "selection-copy-1"
+        disk.mark_history_clean(disk_id)  # Finish or Build
+        assert not disk.closing_loses_work(disk_id)
+        revision = disk.session_view(disk_id).revision
+        disk.rename_geometry_layer(disk_id, "selection-copy-1", "Renamed")
+        assert disk.session_view(disk_id).revision == revision  # no new revision
+        assert disk.closing_loses_work(disk_id), "the rename was lost on close unasked"
+    finally:
+        disk.close_edit_session(disk_id)

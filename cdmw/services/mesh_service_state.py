@@ -293,9 +293,9 @@ class _MeshEditSession:
     history_journal_error: str = ""
     # P14: the next journal record is the state the user finished.
     history_journal_clean_pending: bool = False
-    #: A mesh without a draft: the revision Finish or Build last recorded as clean
-    #: (-1: the state it opened with, while no undo step exists; section 8.7 D4).
-    history_clean_revision: int = -1
+    #: A mesh without a draft: the (revision, layer revision) Finish or Build last
+    #: recorded as clean; None while it is the state it opened with (8.7 D4, 8.8 R12).
+    history_clean_key: tuple[int, int] | None = None
     #: The draft's journal could not be read fully when it opened: this session
     #: neither rewrites nor prunes it, and adds no step to it (section 8.8 R8).
     history_journal_readonly: str = ""

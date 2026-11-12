@@ -712,9 +712,11 @@ def _history_journal_of(session: _MeshEditSession):
 
 def _history_clean(session: _MeshEditSession) -> bool:
     if session.mesh_layer_project_path is None:
-        if session.history_clean_revision >= 0:
-            return int(session.revision) == session.history_clean_revision
-        return not session.undo_stack
+        # Layer renames, visibility and activation move the layer revision only.
+        key = (int(session.revision), int(session.geometry_layer_revision))
+        if session.history_clean_key is not None:
+            return key == session.history_clean_key
+        return not session.undo_stack and not session.geometry_layer_revision
     if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
         return False
     try:
@@ -1733,7 +1735,7 @@ class _MeshServiceSessionLayerCore(
         session = self._session(session_id)
         with session.export_lock:
             if session.mesh_layer_project_path is None:
-                session.history_clean_revision = int(session.revision)
+                session.history_clean_key = (int(session.revision), int(session.geometry_layer_revision))
                 return
             saved = (session.revision, session.geometry_layer_revision) == session.mesh_layer_autosave_saved_key
             if not saved or not session.mesh_layer_loaded_generation:
