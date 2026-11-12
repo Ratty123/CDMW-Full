@@ -48,9 +48,8 @@ def test_finished_mesh_has_no_install_action(app):
 
 def test_mesh_overlay_requests_stop_before_looking_up_a_game_or_worker():
     owner = SimpleNamespace()
-    MeshEditorDirectOutputMixin._start_mesh_overlay_prepare_requested(owner)
     MeshEditorDirectOutputMixin._restore_last_mesh_overlay_requested(owner)
-    assert MeshEditorDirectOutputMixin._start_mesh_direct_output_worker(owner, "overlay_prepare", None) is False
+    assert not hasattr(MeshEditorDirectOutputMixin, "_start_mesh_overlay_prepare_requested")
 
 
 def test_new_item_output_keeps_only_folder_and_portable_package(app, tmp_path, monkeypatch):

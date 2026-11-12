@@ -162,7 +162,6 @@ class WorkspaceStateMixin:
             "run_rebuild_report_button",
             "export_mesh_file_button",
             "build_mod_button",
-            "install_overlay_button",
             "restore_overlay_button",
             "save_rebuild_report_button",
             "pose_preview_button",
@@ -277,7 +276,7 @@ class WorkspaceStateMixin:
         save_button = self.__dict__.get("save_rebuild_report_button")
         if save_button is not None:
             save_button.setEnabled(bool(has_target) and self._has_rebuild_report and not self._embedded_controls_only)
-        for name in ("build_mod_button", "install_overlay_button"):
+        for name in ("build_mod_button",):
             button = self.__dict__.get(name)
             if button is not None:
                 button.setEnabled(

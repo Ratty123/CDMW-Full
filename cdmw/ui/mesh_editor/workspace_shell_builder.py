@@ -225,7 +225,6 @@ class WorkspaceShellBuilderMixin:
             self.replace_from_archive_button,
             self.export_mesh_file_button,
             self.build_mod_button,
-            self.install_overlay_button,
             self.restore_overlay_button,
         )
         self.run_validation_report_button.setText("Run validation")
@@ -404,9 +403,6 @@ class WorkspaceShellBuilderMixin:
         self.native_host_frame.export_pac_requested.connect(self.export_pac_requested.emit)
         self.native_host_frame.add_to_archive_browser_requested.connect(self.add_to_archive_browser_requested.emit)
         self.native_host_frame.continue_modified_mesh_requested.connect(self.continue_modified_mesh_requested.emit)
-        self.native_host_frame.install_overlay_requested.connect(
-            self.install_overlay_requested.emit
-        )
         self.native_host_frame.restore_overlay_requested.connect(
             self.restore_overlay_requested.emit
         )

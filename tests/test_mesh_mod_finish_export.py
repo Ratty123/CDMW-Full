@@ -365,34 +365,3 @@ def test_late_result_cannot_open_export_folder(accepted_cloth_edit, tmp_path, mo
     result = MeshDirectOutputResult("loose_mod", tmp_path, zip_path=tmp_path / "mod.zip")
     tab._handle_mesh_direct_output_completed(tab.standalone_output_request_id - 1, result, open_folder=True)
     assert not opened
-
-
-@pytest.mark.parametrize("busy", [False, True])
-@pytest.mark.parametrize("confirm", [False, True])
-def test_queued_completion_preserves_overlay_confirmation_and_cleanup_order(
-    accepted_cloth_edit, tmp_path, monkeypatch, busy, confirm,
-):
-    tab, _service, _session, entry, _source = accepted_cloth_edit
-    preparation = SimpleNamespace(
-        requested_paths=(entry.path,), carried_forward_paths=(), backup_targets=(),
-        mount_list_before=("0009",), mount_list_after=("0009", "0042"), directory=tmp_path / "0042",
-    )
-    mutation_service = object()
-    calls, prompts = [], []
-
-    def question(*args):
-        prompts.append(args)
-        assert QThread.currentThread() == QApplication.instance().thread()
-        return QMessageBox.Yes if confirm else QMessageBox.No
-
-    monkeypatch.setattr(QMessageBox, "question", question)
-    monkeypatch.setattr(tab, "_mesh_direct_output_busy", lambda: busy)
-    monkeypatch.setattr(tab, "_start_mesh_overlay_operation_worker", lambda worker, **kwargs: calls.append((worker, kwargs)))
-    result = MeshDirectOutputResult("overlay_prepare", None, overlay_preparation=preparation)
-    tab._handle_mesh_direct_output_completed(
-        tab.standalone_output_request_id, result, mutation_service=mutation_service,
-    )
-    assert len(prompts) == 1
-    assert len(calls) == int(confirm and not busy)
-    assert tab.standalone_pending_overlay_apply == ((preparation, mutation_service) if confirm and busy else None)
-    tab.standalone_pending_overlay_apply = None

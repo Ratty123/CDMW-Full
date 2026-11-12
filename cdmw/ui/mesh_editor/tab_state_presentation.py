@@ -156,7 +156,6 @@ class MeshEditorStatePresentationMixin:
             "standalone_replace_from_archive_button",
             "standalone_export_mesh_file_button",
             "standalone_build_mod_button",
-            "standalone_install_overlay_button",
             "standalone_restore_overlay_button",
             "standalone_export_editable_package_button",
             "standalone_import_edited_package_button",
@@ -166,7 +165,7 @@ class MeshEditorStatePresentationMixin:
             if button is None:
                 continue
             from cdmw import constants
-            if button_name in {"standalone_install_overlay_button", "standalone_restore_overlay_button"} and not constants.ARCHIVE_OVERLAYS_ENABLED:
+            if button_name == "standalone_restore_overlay_button" and not constants.ARCHIVE_OVERLAYS_ENABLED:
                 button.setEnabled(False)
                 button.hide()
                 continue
@@ -179,7 +178,6 @@ class MeshEditorStatePresentationMixin:
             if button_name in {
                 "standalone_export_mesh_file_button",
                 "standalone_build_mod_button",
-                "standalone_install_overlay_button",
             }:
                 enabled = enabled and rebuild_allowed
                 if button_name == "standalone_export_mesh_file_button":

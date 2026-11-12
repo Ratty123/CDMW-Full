@@ -64,7 +64,7 @@ SERVICE_WRITE_CALLERS = {
     "cdmw/services/overlay_target_recovery.py": "overlay rollback (switched off)",
     "cdmw/ui/new_item/independent_items_page.py": "overlay install page (switched off)",
     "cdmw/ui/new_item/overlay_manager_dialog.py": "overlay manager (switched off)",
-    "cdmw/workers/mesh_editor_workers.py": "Mesh Editor overlay install worker (switched off)",
+    "cdmw/workers/mesh_editor_workers.py": "Mesh Editor Restore Last Overlay Install worker (switched off)",
     "cdmw/workers/new_item_workers.py": "Create New Item overlay install worker (switched off)",
 }
 
@@ -105,9 +105,6 @@ INSTALLER_IMPORTS = frozenset({
     ("cdmw/ui/tools/mod_management_overview.py", "cdmw.services.archive_reference_cleanup", "prepare_missing_reference_cleanup"),
     ("cdmw/ui/tools/mod_management_overview.py", "cdmw.services.archive_reference_cleanup", "apply_missing_reference_cleanup"),
     # The overlay install workers (switched off).
-    ("cdmw/workers/mesh_editor_workers.py", "cdmw.services.archive_overlay_install", "OverlayInstallPreparation"),
-    ("cdmw/workers/mesh_editor_workers.py", "cdmw.services.archive_overlay_install", "apply_overlay_install"),
-    ("cdmw/workers/mesh_editor_workers.py", "cdmw.services.archive_overlay_install", "prepare_overlay_install"),
     ("cdmw/workers/mesh_editor_workers.py", "cdmw.services.archive_overlay_install", "restore_last_overlay_install"),
     ("cdmw/workers/new_item_workers.py", "cdmw.services.archive_overlay_migration", "migrate_into_overlay"),
     ("cdmw/workers/new_item_workers.py", "cdmw.services.archive_overlay_migration", "plan_migration"),

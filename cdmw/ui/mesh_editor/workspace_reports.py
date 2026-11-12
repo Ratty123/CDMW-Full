@@ -346,7 +346,7 @@ class WorkspaceReportMixin:
             copy_button.setEnabled(
                 self._has_editor_target and self._has_export_validation_report and not self._embedded_controls_only
             )
-        for name in ("export_mesh_file_button", "build_mod_button", "install_overlay_button"):
+        for name in ("export_mesh_file_button", "build_mod_button"):
             button = getattr(self, name, None)
             if button is not None:
                 button.setEnabled(
@@ -382,7 +382,7 @@ class WorkspaceReportMixin:
         self.update_export_validation(state.value)
         current = state.status is MeshPanelStatus.READY and state.value_revision == state.revision
         self._export_validation_ok = bool(current and state.value is not None and state.value.ok)
-        for name in ("export_mesh_file_button", "build_mod_button", "install_overlay_button"):
+        for name in ("export_mesh_file_button", "build_mod_button"):
             button = getattr(self, name, None)
             if button is not None:
                 button.setEnabled(

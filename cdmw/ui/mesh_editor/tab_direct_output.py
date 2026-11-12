@@ -230,29 +230,6 @@ class MeshEditorDirectOutputMixin:
             (asset.entry for asset in assets if asset.entry.identity not in body_identities), entry)
         return tuple(bodies), named
 
-    def _start_mesh_overlay_prepare_requested(self) -> None:
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        entry = self._mesh_output_target()
-        if entry is None:
-            return
-        if not self._standalone_export_validation_ok():
-            self.status_message_requested.emit("Run validation successfully before installing a mesh overlay.", True)
-            return
-        provider = self.get_archive_mutation_service
-        mutation_service = provider() if callable(provider) else None
-        if mutation_service is None:
-            self.status_message_requested.emit("Archive backup/restore service is unavailable in this window.", True)
-            return
-        if game_is_running():
-            self.status_message_requested.emit("Close the game before preparing a Mesh Editor overlay install.", True)
-            return
-        self._start_mesh_direct_output_worker(
-            "overlay_prepare",
-            entry,
-            mutation_service=mutation_service,
-        )
-
     def _start_mesh_direct_output_worker(
         self,
         kind: str,
@@ -271,8 +248,6 @@ class MeshEditorDirectOutputMixin:
         include_refit_body: bool = False,
         keep_layers: tuple[str, ...] = (),
     ) -> bool:
-        if kind == "overlay_prepare" and not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
             return False
@@ -388,34 +363,6 @@ class MeshEditorDirectOutputMixin:
             self.archive_result_ready.emit(replace(prepared, draft_lineage=dict(self.mesh_editor_draft_lineage or {})))
             self.status_message_requested.emit("Edited meshes added to Archive Browser with their source dependencies.", False)
             return
-        if result.kind == "overlay_prepare" and result.overlay_preparation is not None:
-            preparation = result.overlay_preparation
-            carry = "\n".join(f"  - {path}" for path in preparation.carried_forward_paths) or "  - none"
-            backups = "\n".join(f"  - {path}" for path in preparation.backup_targets) or "  - none"
-            mount_before = ", ".join(preparation.mount_list_before) or "none"
-            mount_after = ", ".join(preparation.mount_list_after) or "none"
-            confirmation = _tab.QMessageBox.question(
-                self,
-                "Install as Overlay",
-                (
-                    "Install this validated mesh through the workbench overlay?\n\n"
-                    f"Mesh path:\n  {preparation.requested_paths[0]}\n\n"
-                    f"Overlay directory:\n  {preparation.directory}\n\n"
-                    f"Mount list before:\n  {mount_before}\n"
-                    f"Mount list after:\n  {mount_after}\n\n"
-                    f"Carry-forward set ({len(preparation.carried_forward_paths)}):\n{carry}\n\n"
-                    f"Backup targets ({len(preparation.backup_targets)}):\n{backups}\n\n"
-                    "The game-closed check is repeated immediately before apply. "
-                    "Shipped PAMT/PAZ archives are never written."
-                ),
-                _tab.QMessageBox.Yes | _tab.QMessageBox.No,
-                _tab.QMessageBox.No,
-            )
-            if confirmation == _tab.QMessageBox.Yes and mutation_service is not None:
-                self._start_mesh_overlay_apply(preparation, mutation_service)
-            else:
-                self.status_message_requested.emit("Mesh overlay install was not applied.", False)
-            return
         output = str(result.output_path or "")
         self.status_message_requested.emit(
             f"Mesh Editor {result.kind.replace('_', ' ')} output ready: {output}",
@@ -471,15 +418,6 @@ class MeshEditorDirectOutputMixin:
             draft_request=draft_request, **material_context,
         )
 
-    def _start_mesh_overlay_apply(self, preparation: object, mutation_service: object) -> None:
-        if self._mesh_direct_output_busy():
-            self.standalone_pending_overlay_apply = (preparation, mutation_service)
-            return
-        self.standalone_output_request_id += 1
-        request_id = self.standalone_output_request_id
-        worker = _tab.MeshOverlayApplyWorker(request_id, preparation, mutation_service)
-        self._start_mesh_overlay_operation_worker(worker, kind="overlay_apply")
-
     def _start_mesh_overlay_operation_worker(self, worker: object, *, kind: str) -> None:
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -507,15 +445,7 @@ class MeshEditorDirectOutputMixin:
     def _handle_mesh_overlay_operation_completed(self, request_id: int, result: object) -> None:
         if int(request_id) != int(self.standalone_output_request_id):
             return
-        if isinstance(result, _tab.MeshDirectOutputResult):
-            installed = result.install_result
-            receipt = getattr(installed, "receipt_path", None)
-            self.status_message_requested.emit(
-                f"Mesh overlay installed: {result.output_path}. Receipt: {receipt}",
-                False,
-            )
-        else:
-            self.status_message_requested.emit(f"Mesh overlay restored for: {result}", False)
+        self.status_message_requested.emit(f"Mesh overlay restored for: {result}", False)
         self._update_restore_overlay_button()
 
     def _handle_mesh_direct_output_cancelled(self, request_id: int, message: str) -> None:
@@ -548,12 +478,8 @@ class MeshEditorDirectOutputMixin:
             progress.close()
             progress.deleteLater()
             self.standalone_output_progress = None
-        pending = self.standalone_pending_overlay_apply
-        self.standalone_pending_overlay_apply = None
         worker.deleteLater()
         thread.deleteLater()
-        if pending is not None:
-            QTimer.singleShot(0, lambda values=pending: self._start_mesh_overlay_apply(*values))
 
     def _finish_mesh_direct_output_worker_thread(self, worker: object) -> None:
         """Return a Python worker to Qt's UI thread before its native thread exits."""

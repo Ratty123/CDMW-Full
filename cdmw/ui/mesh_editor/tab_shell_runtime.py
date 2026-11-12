@@ -128,7 +128,6 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_output_progress: object | None = None
         self.standalone_output_request_id = 0
         self.standalone_output_kind = ""
-        self.standalone_pending_overlay_apply: tuple[object, object] | None = None
         self.standalone_report_write_thread: _tab.QThread | None = None
         self.standalone_report_write_worker: _tab.MeshReportWriteWorker | None = None
         self.standalone_report_write_request_id = 0

@@ -187,7 +187,6 @@ class MeshEditorTabShellMixin(
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.add_to_archive_browser_requested.connect(self._start_archive_browser_result_requested)
         page.continue_modified_mesh_requested.connect(self._continue_editing_modified_mesh_requested)
-        page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
         page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
         page.reopen_edit_requested.connect(self._reopen_rust_editor_requested)
         page.close_session_requested.connect(self._close_standalone_session_requested)
@@ -209,7 +208,6 @@ class MeshEditorTabShellMixin(
         self.standalone_replace_from_archive_button = page.replace_from_archive_button
         self.standalone_export_mesh_file_button = page.export_mesh_file_button
         self.standalone_build_mod_button = page.build_mod_button
-        self.standalone_install_overlay_button = page.install_overlay_button
         self.standalone_restore_overlay_button = page.restore_overlay_button
         self.standalone_export_editable_package_button = page.export_editable_package_button
         self.standalone_import_edited_package_button = page.import_edited_package_button

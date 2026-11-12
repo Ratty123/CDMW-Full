@@ -39,9 +39,6 @@ from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextu
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.domain.archives.filters import archive_entry_game_root, archive_entry_package_group
 from cdmw.services.archive_overlay_install import (
-    OverlayInstallPreparation,
-    apply_overlay_install,
-    prepare_overlay_install,
     restore_last_overlay_install,
 )
 from cdmw.services.new_item_service import game_is_running
@@ -432,8 +429,6 @@ class MeshDirectOutputResult:
     output_path: Path | None
     manager_profile: str = ""
     rebuild_report: object | None = None
-    overlay_preparation: OverlayInstallPreparation | None = None
-    install_result: object | None = None
     zip_path: Path | None = None
     archive_result: object | None = None
     # The Drafts & Mods record for a built mod, or why it failed.
@@ -667,20 +662,6 @@ class MeshDirectOutputWorker(QObject):
                 result = self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_loose_mod(tuple(requests), metadata, report)
             elif self.kind == "overlay_package":
                 result = self._write_overlay_package(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_overlay_package(tuple(requests), metadata, report)
-            elif self.kind == "overlay_prepare":
-                package_root = archive_entry_game_root(self.entry)
-                preparation = prepare_overlay_install(
-                    tuple(requests),
-                    additions=tuple(additions),
-                    package_root=package_root,
-                    stop_event=self.stop_event,
-                )
-                result = MeshDirectOutputResult(
-                    kind=self.kind,
-                    output_path=None,
-                    rebuild_report=report,
-                    overlay_preparation=preparation,
-                )
             else:
                 raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
             if layers is not None:
@@ -974,60 +955,6 @@ class MeshDirectOutputWorker(QObject):
         )
 
 
-class MeshOverlayApplyWorker(QObject):
-    completed = Signal(int, object)
-    cancelled = Signal(int, str)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        request_id: int,
-        preparation: OverlayInstallPreparation,
-        mutation_service: object,
-    ) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.preparation = preparation
-        self.mutation_service = mutation_service
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            def backup(paths, label):
-                return self.mutation_service.backup_files(paths, description=label)
-
-            def restore(path):
-                return self.mutation_service.restore_backup(path, confirmed=True)
-
-            result = apply_overlay_install(
-                self.preparation,
-                confirmed=True,
-                backup=backup,
-                restore_backup=restore,
-                game_running=game_is_running,
-                stop_event=self.stop_event,
-            )
-            self.completed.emit(
-                self.request_id,
-                MeshDirectOutputResult(
-                    kind="overlay_install",
-                    output_path=result.directory,
-                    install_result=result,
-                ),
-            )
-        except RunCancelled:
-            self.cancelled.emit(self.request_id, "Overlay installation cancelled.")
-        except Exception as exc:
-            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            self.finished.emit()
-
-
 class MeshOverlayRestoreWorker(QObject):
     completed = Signal(int, object)
     error = Signal(int, str)
@@ -1133,7 +1060,6 @@ __all__ = [
     "MeshExportValidationWorker",
     "MeshReportWriteWorker",
     "MeshRebuildReportWorker",
-    "MeshOverlayApplyWorker",
     "MeshOverlayRestoreWorker",
     "MeshTextureSourceResolveWorker",
 ]
