@@ -116,47 +116,35 @@ def test_release_constraints_are_exact_complete_and_installed() -> None:
 
     assert SUPPORTED_PYTHON_RELEASES == ((3, 11), (3, 14))
     assert {
-        "brotli",
-        "cryptography",
-        "inflate64",
         "lz4",
-        "multivolumefile",
         "numpy",
-        "opencv-python-headless",
         "pillow",
-        "psutil",
-        "py7zr",
-        "pybcj",
-        "pycryptodomex",
         "pyinstaller",
-        "pyppmd",
         "pyside6",
         "pyside6-addons",
         "pyside6-essentials",
         "shiboken6",
-        "texttable",
     }.issubset(pins)
     assert {key: version for key, (_display_name, version) in pins.items()} == locked_versions
     lock_source = RELEASE_LOCK.read_text(encoding="utf-8")
     assert "--require-hashes" in lock_source
     assert "--only-binary :all:" in lock_source
-    assert 'backports.zstd==1.7.0 ; python_version < "3.14"' in lock_source
     assert verify_release_environment(CONSTRAINTS) == ()
 
 
 def test_release_verifier_rejects_an_unhashed_or_incomplete_lock(tmp_path: Path) -> None:
     source = RELEASE_LOCK.read_text(encoding="utf-8")
-    texttable_line = next(line for line in source.splitlines() if line.startswith("texttable=="))
+    altgraph_line = next(line for line in source.splitlines() if line.startswith("altgraph=="))
     hashless = tmp_path / "hashless-lock.txt"
-    hashless.write_text(source.replace(texttable_line, "texttable==1.7.0"), encoding="utf-8")
+    hashless.write_text(source.replace(altgraph_line, "altgraph==0.17.5"), encoding="utf-8")
     with pytest.raises(ValueError, match="has no SHA-256 hash"):
         read_hashed_release_lock(hashless)
 
     incomplete = tmp_path / "incomplete-lock.txt"
-    incomplete.write_text(source.replace(texttable_line + "\n", ""), encoding="utf-8")
+    incomplete.write_text(source.replace(altgraph_line + "\n", ""), encoding="utf-8")
     errors = verify_release_environment(CONSTRAINTS, incomplete)
-    assert "texttable: release constraint has no hashed lock entry" in errors
-    assert "py7zr: active dependency texttable is not pinned in the release lock" in errors
+    assert "altgraph: release constraint has no hashed lock entry" in errors
+    assert "pyinstaller: active dependency altgraph is not pinned in the release lock" in errors
 
 
 @pytest.mark.parametrize(
