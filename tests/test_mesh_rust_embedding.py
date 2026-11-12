@@ -98,14 +98,20 @@ def test_direct_workspace_constructs_only_the_rust_native_host(tmp_path: Path) -
 
 
 def test_rust_theme_payload_carries_exact_app_palette_type_scale_and_density(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch,
 ) -> None:
+    from cdmw.ui.shell import theme_controller
+
+    # Small screens force Compact (P11): this case is about a large one.
+    monkeypatch.setattr(theme_controller, "available_screen_size_for", lambda _widget: (2560, 1440))
     tab = _tab(tmp_path)
     application = QApplication.instance()
     assert application is not None
     original_font = QFont(application.font())
     try:
         application.setFont(QFont("Verdana", 12))
+        # Since P11 the sizes come from the saved settings, as on every surface.
+        tab.settings.setValue("appearance/ui_font_size", 12)
         tab.settings.setValue("appearance/data_font_size", 11)
         tab.settings.setValue("appearance/ui_density", "comfortable")
         tab.theme_key = "light"

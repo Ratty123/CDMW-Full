@@ -296,6 +296,9 @@ class _MeshEditSession:
     #: A mesh without a draft: the revision Finish or Build last recorded as clean
     #: (-1: the state it opened with, while no undo step exists; section 8.7 D4).
     history_clean_revision: int = -1
+    #: The draft's journal could not be read fully when it opened: this session
+    #: neither rewrites nor prunes it, and adds no step to it (section 8.8 R8).
+    history_journal_readonly: str = ""
     # P15 repair A1: Finish ended an editor session; the next draft save removes
     # its recovery point, once the draft holds the edits.
     history_recovery_clear_on_save: bool = False

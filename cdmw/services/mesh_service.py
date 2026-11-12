@@ -668,8 +668,13 @@ def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None
 
     try:
         journal = read_journal(Path(project_path).parent)
-    except (OSError, ValueError):
-        return  # the draft opens without its history; nothing on disk is changed (8.7 A12)
+    except (OSError, ValueError) as exc:
+        # The draft opens without its history, and this session never writes the
+        # journal: from depth 0 the next save would delete every step (8.8 R8).
+        session.history_journal_readonly = f"{type(exc).__name__}: {exc}"
+        return
+    if journal.unreadable_lines:
+        session.history_journal_readonly = f"{journal.unreadable_lines} line(s) of the history could not be read"
     record = journal.record_for(session.mesh_layer_loaded_generation) if session.mesh_layer_loaded_generation else None
     if record is not None:
         session.history_journal_depth = record.depth
@@ -1634,6 +1639,17 @@ class _MeshServiceSessionLayerCore(
         project_root = Path(session.mesh_layer_project_path).parent
         generation = str(descriptor.get("current_generation") or "")
         keep = (generation, str(descriptor.get("previous_generation") or ""))
+        if session.history_journal_readonly:
+            session.history_journal_error = (
+                "The draft's history could not be read fully when it opened, so this session adds no "
+                f"step to it and removes nothing ({session.history_journal_readonly}).")
+            if session.history_recovery_clear_on_save:
+                # The draft still holds what the editor finished (section 8.7 A1).
+                session.history_recovery_clear_on_save = False
+                from cdmw.services.mesh_history_journal import clear_editor_recovery
+
+                clear_editor_recovery(project_root)
+            return
         _reconcile_journal_depth(session)
         try:
             record = journal.new_record(

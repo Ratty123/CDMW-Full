@@ -411,3 +411,59 @@ def test_the_close_prompt_asks_whenever_closing_loses_work(monkeypatch) -> None:
     )
     tab_shell.MeshEditorTabShellMixin._close_standalone_session_requested(tab)
     assert asked == ["Discard Unsaved Mesh Editor Changes?"] and not shown
+
+
+def test_a_journal_read_incompletely_is_never_rewritten_or_pruned_in_that_session(tmp_path) -> None:
+    """Section 8.8 R8: record_state rewrote the journal without the unreadable line,
+    and the prune that followed deleted that line's generation."""
+
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    service.retry_mesh_layer_autosave(session_id)
+    _move(service, session_id, 0.25)
+    service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    root = tmp_path / "mesh_layers"
+    path = journal.journal_path(root)
+    first = journal.read_journal(root).records[0]
+    # The first record's line becomes unreadable; its generation is still on disk.
+    lines = path.read_bytes().splitlines()
+    damaged = [b"\xff\xfe not text " + line[10:] if first.generation.encode() in line else line for line in lines]
+    path.write_bytes(b"\n".join(damaged) + b"\n")
+    before = path.read_bytes()
+    assert (root / first.generation).is_dir()
+
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.5)
+    service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    assert (root / first.generation).is_dir(), "the unreadable line's generation was deleted"
+    assert path.read_bytes().startswith(before), "the journal was rewritten without its unreadable line"
+
+
+def test_a_journal_that_failed_to_open_is_left_alone(tmp_path, monkeypatch) -> None:
+    """Section 8.8 R8: an OSError at open left depth 0, and the next save deleted every step."""
+
+    service, session_id = _open(tmp_path)
+    for step in (0.25, 0.25, 0.25):
+        _move(service, session_id, step)
+        service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    root = tmp_path / "mesh_layers"
+    generations = {record.generation for record in journal.read_journal(root).records}
+    real_read = journal.read_journal
+    calls = {"n": 0}
+
+    def failing_once(project_root):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("the disk was busy")
+        return real_read(project_root)
+
+    monkeypatch.setattr(journal, "read_journal", failing_once)
+    service, session_id = _open(tmp_path)
+    monkeypatch.setattr(journal, "read_journal", real_read)
+    _move(service, session_id, 0.5)
+    service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    assert generations <= {path.name for path in root.iterdir()}, "saved steps were deleted"

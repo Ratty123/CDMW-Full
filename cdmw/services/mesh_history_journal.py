@@ -89,6 +89,15 @@ class Journal:
     clean_generation: str = ""
     #: Lines that could not be read; only a truncated last line is expected.
     ignored_lines: int = 0
+    #: The last line was cut off without its newline: a crash in the middle of an
+    #: append. It names no step on disk yet, so it may be written over.
+    truncated_tail: bool = False
+
+    @property
+    def unreadable_lines(self) -> int:
+        """Lines that could not be read and may name a saved step (section 8.8 R8)."""
+
+        return self.ignored_lines - int(self.truncated_tail)
 
     def record_for(self, generation: str) -> JournalRecord | None:
         return next((record for record in self.records if record.generation == generation), None)
@@ -137,7 +146,9 @@ def read_journal(project_root: Path) -> Journal:
     except FileNotFoundError:
         return journal
     by_depth: dict[int, JournalRecord] = {}
-    for raw_line in data.splitlines():
+    lines = data.splitlines()
+    last = max((index for index, line in enumerate(lines) if line.strip()), default=-1)
+    for index, raw_line in enumerate(lines):
         if not raw_line.strip():
             continue
         try:
@@ -161,6 +172,8 @@ def read_journal(project_root: Path) -> Journal:
             )
         except (TypeError, ValueError, OverflowError):  # UnicodeDecodeError is a ValueError
             journal.ignored_lines += 1
+            if index == last and not data.endswith((b"\n", b"\r")):
+                journal.truncated_tail = True
             continue
         by_depth[record.depth] = record  # a later line for a depth replaces it
     journal.records = [by_depth[depth] for depth in sorted(by_depth)]
@@ -177,6 +190,10 @@ def verify_record(project_root: Path, record: JournalRecord) -> str:
     if actual != record.digest:
         return f"{record.generation}: its saved state does not match the journal's digest"
     return ""
+
+
+class JournalNotWritable(ValueError):
+    """The journal could not be read fully, so it is neither rewritten nor pruned."""
 
 
 def record_state(
@@ -201,6 +218,10 @@ def record_state(
     kept = {name for name in keep if name}
     kept.add(record.generation)
     journal = read_journal(root)
+    if journal.unreadable_lines:
+        # A line could not be read: rewriting would drop it and pruning would delete
+        # the generation it names (section 8.8 R8). Nothing is changed.
+        raise JournalNotWritable("the history journal has lines that cannot be read")
     before = list(journal.records)
     records = [item for item in before if item.depth != record.depth
                and (future_valid or item.depth < record.depth)]
@@ -235,8 +256,10 @@ def drop_after(project_root: Path, depth: int, *, keep: Iterable[str] = ()) -> J
 
     root = Path(project_root)
     journal = read_journal(root)
+    if journal.unreadable_lines:
+        raise JournalNotWritable("the history journal has lines that cannot be read")
     dropped = [item for item in journal.records if item.depth > depth]
-    if not dropped and not journal.ignored_lines:
+    if not dropped:
         return journal
     journal.records = [item for item in journal.records if item.depth <= depth]
     _rewrite(root, journal)
@@ -262,7 +285,7 @@ def prune_unjournaled_generations(project_root: Path, keep: Iterable[str] = ()) 
 
     root = Path(project_root)
     current = read_journal(root)
-    if current.ignored_lines:
+    if current.unreadable_lines:
         # A line could not be read: it may name a step, so nothing is removed (8.7 A12).
         return
     named = {record.generation for record in current.records} | {name for name in keep if name}
