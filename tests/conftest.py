@@ -146,8 +146,24 @@ _PROFILE_ENV = "CDMW_PROFILE_DIR"
 _pytest_profile_root: Path | None = None
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item, nextitem):
+    """Free the finished test's cycles on the main thread, between Qt calls as the app does."""
+
+    yield
+    from tests.gui_thread_gc import collect_after_test
+
+    collect_after_test()
+
+
 def pytest_configure() -> None:
     global _original_cache_root, _pytest_cache_root, _pytest_profile_root
+    # As in the app: no automatic cyclic collection, which would start inside
+    # whatever allocates next (a Qt re-polish, a worker thread). See
+    # tests/gui_thread_gc.py.
+    from tests.gui_thread_gc import install
+
+    install()
     _canonicalize_temp_root()
     _original_cache_root = os.environ.get(_CACHE_ENV)
     _pytest_cache_root = Path(tempfile.mkdtemp(prefix="cdmw-pytest-cache-"))
