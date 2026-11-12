@@ -962,6 +962,13 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.history_limits_label.setWordWrap(True)
         self.history_limits_label.setObjectName("HintLabel")
         safety_layout.addWidget(self.history_limits_label)
+        self.document_budget_label = QLabel(
+            "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown "
+            "longest ago is parked: its view closes, and it opens again with its edits and history when you show it."
+        )
+        self.document_budget_label.setWordWrap(True)
+        self.document_budget_label.setObjectName("HintLabel")
+        safety_layout.addWidget(self.document_budget_label)
         self.safety_page_layout.addWidget(safety_group)
 
         profile_group = QGroupBox("Profile")

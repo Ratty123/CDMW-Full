@@ -19,9 +19,12 @@ from collections.abc import Callable
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
-#: Documents kept loaded at once (P15 step 3: past it the oldest inactive one is
-#: parked). One constant; Settings states it.
+#: Documents whose 3D view stays open at once (P15 step 3): past it the one shown
+#: longest ago is parked (its view closes; its session, edit and history stay).
+#: One constant; Settings states it.
 MAX_LOADED_DOCUMENTS = 4
+#: Documents open as tabs at once, parked or not.
+MAX_OPEN_DOCUMENTS = 12
 #: What a document's tab says while it has nothing open.
 EMPTY_DOCUMENT_LABEL = "Mesh Editor"
 #: Calls every document receives, not only the shown one.
@@ -39,6 +42,8 @@ class MeshDocumentsView(QWidget):
         self.setObjectName("MeshEditorDocuments")
         self._build_document = build_document
         self._documents: list[QWidget] = []
+        #: Documents in the order they were last shown, newest last (for parking).
+        self._shown: list[QWidget] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -95,7 +100,7 @@ class MeshDocumentsView(QWidget):
         if empty is not None:
             self.set_active(self.index_of(empty))
             return empty
-        if len(self._documents) >= MAX_LOADED_DOCUMENTS:
+        if len(self._documents) >= MAX_OPEN_DOCUMENTS:
             return None
         return self.add_document()
 
@@ -121,6 +126,8 @@ class MeshDocumentsView(QWidget):
             self.refresh_labels()
             return True
         self._documents.pop(index)
+        if document in self._shown:
+            self._shown.remove(document)
         self.stack.removeWidget(document)
         self.tab_bar.removeTab(index)
         document.deleteLater()
@@ -155,9 +162,42 @@ class MeshDocumentsView(QWidget):
             return _broadcast(documents, name)
         return getattr(self.active, name)
 
+    def loaded_documents(self) -> tuple[QWidget, ...]:
+        """Documents with a session whose 3D view is not parked."""
+
+        return tuple(document for document in self._documents
+                     if _has_session(document) and not getattr(document, "standalone_rust_parked", False))
+
+    def park_beyond_budget(self) -> list[QWidget]:
+        """Park the documents shown longest ago until the budget holds (P15 step 3)."""
+
+        parked: list[QWidget] = []
+        active = self.active
+        candidates = [document for document in self._shown if document is not active]
+        candidates += [document for document in self._documents if document not in candidates and document is not active]
+        while len(self.loaded_documents()) > MAX_LOADED_DOCUMENTS and candidates:
+            document = candidates.pop(0)
+            if document not in self.loaded_documents():
+                continue
+            park = getattr(document, "park_rust_editor", None)
+            if callable(park) and park():
+                parked.append(document)
+        if parked:
+            self.refresh_labels()
+        return parked
+
     def _show_document(self, index: int) -> None:
         if 0 <= index < len(self._documents) and self.stack.currentIndex() != index:
             self.stack.setCurrentIndex(index)
+        if 0 <= index < len(self._documents):
+            document = self._documents[index]
+            if document in self._shown:
+                self._shown.remove(document)
+            self._shown.append(document)
+            unpark = getattr(document, "unpark_rust_editor", None)
+            if getattr(document, "standalone_rust_parked", False) and callable(unpark):
+                unpark()
+            self.park_beyond_budget()
         self.refresh_labels()
         self.document_changed.emit(index)
 
@@ -194,7 +234,9 @@ def document_label(document: QWidget) -> str:
         return EMPTY_DOCUMENT_LABEL
     from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
 
-    return f"{name} *" if has_pending_edit(document) else name
+    label = f"{name} *" if has_pending_edit(document) else name
+    # A parked document's view is closed; showing it opens the view again.
+    return f"{label} (parked)" if getattr(document, "standalone_rust_parked", False) else label
 
 
 def document_tooltip(document: QWidget) -> str:
@@ -206,4 +248,5 @@ def document_tooltip(document: QWidget) -> str:
     return str(getattr(entry, "path", "") or "")
 
 
-__all__ = ["EMPTY_DOCUMENT_LABEL", "MAX_LOADED_DOCUMENTS", "MeshDocumentsView", "document_label"]
+__all__ = ["EMPTY_DOCUMENT_LABEL", "MAX_LOADED_DOCUMENTS", "MAX_OPEN_DOCUMENTS", "MeshDocumentsView",
+           "document_label"]

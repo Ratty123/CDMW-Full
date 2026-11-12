@@ -998,6 +998,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_process_generation = 0
         self.standalone_rust_authoring_session = session
         self.standalone_rust_session_root = session.root
+        self.standalone_rust_parked = False  # a new session is never parked (P15)
         self.standalone_rust_texture_unavailable_reason = str(
             getattr(session, "texture_unavailable_reason", "") or ""
         ).strip()

@@ -67,6 +67,9 @@ def _rust_stderr_backtrace_note(line: str) -> bool:
     )
 
 
+#: What a parked document says (P15 step 3).
+PARKED_STATUS = "This document is parked to save memory. Its 3D view opens again when you show it."
+
 class MeshEditorRustProcessMixin:
     def _hair_start_options(self):
         pending = getattr(self, "_pending_hair_start", None)
@@ -1167,6 +1170,11 @@ class MeshEditorRustProcessMixin:
             process.deleteLater()
         except RuntimeError:
             pass
+        if getattr(self, "standalone_rust_parked", False):
+            # Parked (P15 step 3): the view closed on purpose; the session stays.
+            self.standalone_rust_closing = False
+            self._set_rust_status(PARKED_STATUS)
+            return
         if self.standalone_rust_finish_accepted:
             show_result = getattr(host, "show_result", None)
             if callable(show_result):
@@ -1343,6 +1351,47 @@ class MeshEditorRustProcessMixin:
             show_error(str(message or "Mesh Editor failed"))
         self._set_rust_status(str(message or "Mesh Editor failed"), error=True)
         self._stop_rust_editor_process()
+
+    def park_rust_editor(self) -> bool:
+        """Close this document's 3D view to free its memory, keeping its session (P15 step 3).
+
+        The shadow session, its session files, its edit and its history stay; only
+        the editor's window and its GPU resources go. ``unpark_rust_editor`` opens
+        the view again from the session files, as a restart after a crash does.
+        False when the editor is not idle (a request or Finish is running).
+        """
+
+        session = self.standalone_rust_authoring_session
+        process = self.standalone_rust_process
+        if (session is None or getattr(session, "closed", True) or process is None
+                or not self.standalone_rust_ready or getattr(self, "standalone_rust_parked", False)):
+            return False
+        if (self._rust_finish_protocol_active() or self.standalone_rust_protocol_thread is not None
+                or self.standalone_rust_prepare_thread is not None):
+            return False
+        self.standalone_rust_parked = True
+        self.standalone_rust_ready = False
+        self.standalone_rust_host_request_id += 1
+        if not self._send_rust_message(self._rust_host_message("cancel", request_id=self.standalone_rust_host_request_id)):
+            self.standalone_rust_parked = False
+            self.standalone_rust_ready = True
+            return False
+        return True
+
+    def unpark_rust_editor(self) -> bool:
+        """Open a parked document's 3D view again at its last accepted step."""
+
+        if not getattr(self, "standalone_rust_parked", False):
+            return False
+        session = self.standalone_rust_authoring_session
+        self.standalone_rust_parked = False
+        if session is None or getattr(session, "closed", True):
+            return False
+        if self.standalone_rust_process is not None:
+            return False  # still closing; the shell shows it again when it has
+        self._set_rust_status("Opening this document's 3D view again...")
+        self._rewrite_rust_session_after_crash(session)
+        return True
 
     def _stop_rust_editor_process(self, *, reason: str = "") -> None:
         hair_context = getattr(self, "_hair_context_preparation", None)
