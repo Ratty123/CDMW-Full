@@ -64,11 +64,17 @@ def test_startup_restore_does_not_rewrite_all_settings_before_first_paint(monkey
             saves.append(True)
 
     monkeypatch.setattr(startup_restore_module.QTimer, "singleShot", lambda *_args: None)
+    # Startup restore installs the layout persistence, a QObject parented to the window; this
+    # probe is no QObject, and layout persistence has its own tests. Record the install only.
+    installed = []
+    monkeypatch.setattr("cdmw.ui.layout_persistence.install_layout_persistence",
+                        lambda window, settings: installed.append(window))
     window = RestoreProbe()
 
     window._restore_shell_startup_state(lambda _message: None, previous_session_unclean=False)
 
     assert window._settings_ready is True
+    assert installed == [window]
     assert saves == []
 
 
@@ -192,9 +198,16 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
     assert saved is True
     # The count is derived: every persisted field of ModelPreviewRenderSettings
     # writes one key. It moved from 81 to 87 when the six resident viewport
-    # presentation settings below were added. Naming them makes a count change
-    # distinguish a deliberate new setting from accidental persistence.
-    assert len(writes) == 87
+    # presentation settings below were added, and to 92 with shadows and ambient
+    # occlusion (c22b20e5), the lighting preset (c17aa35f) and the ground and its
+    # grid (4250b5d1). Naming them makes a count change distinguish a deliberate
+    # new setting from accidental persistence.
+    assert len(writes) == 92
+    for key in ("preview/preview_shadows", "preview/preview_ambient_occlusion", "preview/preview_lighting_preset",
+                "preview/preview_ground_visible", "preview/preview_ground_grid_visible"):
+        assert key in writes
+    # The view mode is one shared key since e4406e6e, not a second one.
+    assert "preview/view_mode" in writes and "preview/d3d11_view_mode" not in writes
     assert writes["archive/model_use_textures"] is True
     assert writes["archive/model_high_quality"] is True
     assert writes["preview/texture_max_dimension"] == 2048
