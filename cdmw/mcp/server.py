@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from cdmw.mcp.errors import INVALID_ARGUMENTS, NOT_BUILT, UNKNOWN_TOOL, FAILED, ToolError
 from cdmw.mcp.schema import validate_arguments
-from cdmw.mcp.tools import ON_UI, Tool, ToolTable
+from cdmw.mcp.tools import ON_CALL, ON_UI, PAGE_LIMIT_DEFAULT, Tool, ToolTable
 
 #: Newest first. The client's version is used when it is one of these.
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
@@ -62,6 +62,10 @@ class ToolCall:
     on_progress: Callable[[float, float, str], None] | None = None
     #: How it was approved: no_prompt, session, allow_once or allow_session.
     approval: str = ""
+    #: The server, for the app's own tools (jobs, pages).
+    server: object = None
+    #: The job this call became, when it took longer than a quick answer.
+    job: object = None
 
     def cancelled(self) -> bool:
         return self.cancel_event.is_set()
@@ -170,12 +174,20 @@ class _RpcError(Exception):
 class McpServer:
     """The tool table behind the MCP methods; one instance serves every session."""
 
-    def __init__(self, table: ToolTable, context: object, *, policy=None) -> None:
+    def __init__(self, table: ToolTable, context: object, *, policy=None, audit=None, jobs=None) -> None:
         from cdmw.mcp.approvals import ApprovalPolicy
+        from cdmw.mcp.audit import AuditLog
+        from cdmw.mcp.jobs import JobRegistry
+        from cdmw.mcp.paging import PageStore
 
         self.table = table
         self.context = context
         self.policy = policy or ApprovalPolicy(getattr(context, "settings", None))
+        self.audit = audit or AuditLog()
+        self.jobs = jobs or JobRegistry()
+        self.pages = PageStore()
+        #: How long a worker call may take and still answer directly (tests shorten it).
+        self.quick_result_s: float | None = None
 
     # ----- the pipe ----------------------------------------------------------
     def serve_connection(self, conn) -> None:
@@ -234,17 +246,60 @@ class McpServer:
     def listed_tools(self) -> list[Tool]:
         return [tool for tool in self.all_tools() if tool.built]
 
+    def find_tool(self, name: str) -> Tool | None:
+        tool = self.table.find(name, tools=self.table.typed())
+        if tool is not None:
+            return tool
+        ui_call = getattr(self.context, "ui_call", None)
+        commands = ui_call(self.table.command_tools) if ui_call is not None else self.table.command_tools()
+        return self.table.find(name, tools=commands)
+
     def call_tool(self, session: McpSession, params: dict, cancel: threading.Event) -> dict[str, object]:
+        from cdmw.mcp.audit import Stopwatch
+
         name = str(params.get("name") or "")
-        tool = self.table.find(name, tools=self.all_tools())
+        watch = Stopwatch()
+        tool = self.find_tool(name)
         if tool is None:
+            self.audit.record(client=session.client, tool=name[:128], effect="", arguments=None, approval="",
+                              result=UNKNOWN_TOOL, duration_s=watch.elapsed())
             raise _RpcError(INVALID_PARAMS, f"CDMW has no tool {name or '(none)'}.", {"code": UNKNOWN_TOOL})
-        call = ToolCall(tool, {}, self.context, client=session.client, cancel_event=cancel)
+        call = ToolCall(tool, {}, self.context, client=session.client, cancel_event=cancel, server=self)
+        meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
+        if meta.get("progressToken") is not None:
+            call.on_progress = self._progress_sender(session, meta["progressToken"])
+        outcome = {"result": "ok", "message": "", "rows": None}
         try:
             self.prepare(session, call, params.get("arguments"))
-            return _result(self.run(call))
+            payload = self.page_or_run(call)
+            if tool.paged and isinstance(payload, dict) and isinstance(payload.get(tool.paged), list):
+                outcome["rows"] = len(payload[tool.paged])
+            return _result(payload)
         except ToolError as error:
+            outcome.update(result=error.code, message=error.message)
             return _tool_error(error)
+        finally:
+            job = call.job
+            given = params.get("arguments") if isinstance(params.get("arguments"), dict) else None
+            self.audit.record(client=session.client, tool=tool.name, effect=tool.effect,
+                              arguments=call.arguments or given, approval=call.approval,
+                              result=outcome["result"], duration_s=watch.elapsed(),
+                              job=getattr(job, "id", "") if job is not None else "", message=outcome["message"],
+                              rows=outcome["rows"])
+
+    @staticmethod
+    def _progress_sender(session: McpSession, token):
+        def send(done: float, total: float, message: str) -> None:
+            params = {"progressToken": token, "progress": done}
+            if total:
+                params["total"] = total
+            if message:
+                params["message"] = message
+            try:
+                session.send({"jsonrpc": "2.0", "method": "notifications/progress", "params": params})
+            except OSError:
+                pass
+        return send
 
     def prepare(self, session: McpSession, call: ToolCall, arguments: object) -> None:
         """Every check, in order, before the tool runs (design record 2.4 steps 1 to 3)."""
@@ -259,11 +314,28 @@ class McpServer:
         if not tool.built:
             raise ToolError(NOT_BUILT, f"{tool.wire} is not built yet: its {tool.effect} tools come with a "
                                        "later part of the AI connection work.")
-        call.arguments = validate_arguments(arguments, tool.schema_for_clients())
+        schema = tool.schema_for_clients()
+        if tool.paged and isinstance(arguments, dict) and arguments.get("page_token"):
+            # The next page needs only its token; the search's own arguments are not asked again.
+            properties = {k: v for k, v in schema["properties"].items() if k in ("limit", "page_token")}
+            schema = {"type": "object", "properties": properties, "additionalProperties": True}
+            arguments = {k: v for k, v in arguments.items() if k in properties}
+        call.arguments = validate_arguments(arguments, schema)
         self.check_output_paths(call)
         call.approval = self.policy.approve(
             client=session.client, tool=tool.name, title=tool.title or tool.name, effect=tool.effect,
             arguments=call.arguments, session_allowed=session.session_allowed, cancel=call.cancel_event)
+
+    def page_or_run(self, call: ToolCall) -> object:
+        tool = call.tool
+        limit = int(call.arguments.pop("limit", PAGE_LIMIT_DEFAULT) or PAGE_LIMIT_DEFAULT) if tool.paged else 0
+        token = call.arguments.pop("page_token", "") if tool.paged else ""
+        if token:
+            return self.pages.next(tool.name, str(token), limit)
+        payload = self.run(call)
+        if tool.paged:
+            payload = self.pages.first(tool.name, tool.paged, payload, limit)
+        return payload
 
     def check_output_paths(self, call: ToolCall) -> None:
         """The one path rule for every argument that names an output; no setting reaches it."""
@@ -279,14 +351,30 @@ class McpServer:
                 raise ToolError(REFUSED, str(refused), {"argument": name}) from None
 
     def run(self, call: ToolCall) -> object:
+        """UI tools run on the UI thread; worker tools run as a job, answered at once when quick."""
+
+        from cdmw.mcp.jobs import QUICK_RESULT_S
+
+        tool = call.tool
         try:
-            if call.tool.runs_on == ON_UI:
-                return self.context.ui_call(lambda: call.tool.handler(call))
-            return call.tool.handler(call)
+            if tool.runs_on == ON_UI:
+                return self.context.ui_call(lambda: tool.handler(call))
+            if tool.runs_on == ON_CALL:
+                return tool.handler(call)
         except ToolError:
             raise
         except Exception as exc:
             raise ToolError(FAILED, str(exc) or type(exc).__name__) from exc
+        game_folder = getattr(self.context, "game_folder", lambda: "")
+        job = self.jobs.start(call, lambda: tool.handler(call), game_folder=game_folder)
+        job.paged = tool.paged
+        if job.wait(self.quick_result_s if self.quick_result_s is not None else QUICK_RESULT_S):
+            if job.error is not None:
+                raise job.error
+            call.job = None  # answered directly: no job to follow
+            return job.result
+        return {"job": job.id, "state": job.state, "tool": tool.wire,
+                "message": "This takes a while. Follow it with app_job, or stop it with app_cancel_job."}
 
 
 __all__ = ["INSTRUCTIONS", "INVALID_ARGUMENTS", "McpServer", "McpSession", "PROTOCOL_VERSIONS", "ToolCall"]

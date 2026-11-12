@@ -44,6 +44,8 @@ BUILT_EFFECTS = frozenset({READ})
 #: state; anything slow runs on a worker.
 ON_WORKER = "worker"
 ON_UI = "ui"
+#: Quick bookkeeping (jobs, pages): runs on the call's own thread, never as a job.
+ON_CALL = "call"
 #: Arguments the server adds to a paged tool's schema.
 PAGE_LIMIT_DEFAULT = 100
 PAGE_LIMIT_MAX = 500
@@ -127,8 +129,8 @@ def _check_tool(tool: Tool) -> None:
         raise ToolTableError(f"{tool.name}: unknown effect class {tool.effect!r}")
     if not WIRE_NAME_PATTERN.match(tool.wire):
         raise ToolTableError(f"{tool.name}: clients cannot call {tool.wire!r}")
-    if tool.runs_on not in (ON_WORKER, ON_UI):
-        raise ToolTableError(f"{tool.name}: runs_on must be {ON_WORKER} or {ON_UI}")
+    if tool.runs_on not in (ON_WORKER, ON_UI, ON_CALL):
+        raise ToolTableError(f"{tool.name}: runs_on must be {ON_WORKER}, {ON_UI} or {ON_CALL}")
     if tool.effect == OUTPUT and not tool.output_paths and tool.family != COMMAND_FAMILY:
         raise ToolTableError(f"{tool.name}: an output tool names the arguments it writes to")
     for name in tool.output_paths:
