@@ -201,3 +201,45 @@ def test_a_refused_promotion_keeps_the_edit_in_browse(tmp_path: Path, monkeypatc
     finally:
         _dispose(tab)
         controller.shutdown()
+
+
+def test_several_documents_edit_in_one_process_each_by_its_session(tmp_path: Path) -> None:
+    """P15: one edit per open document in Browse's process, lines routed by session both ways."""
+    from cdmw.ui.preview.dotnet_session import MAX_ENGINE_EDITS
+    from cdmw.ui.preview.engine_channel import MULTI_EDIT_CAPABILITY
+
+    controller, process = _ready_controller(
+        tmp_path, capabilities=(EDIT_IN_PLACE_CAPABILITY, OWN_VIEWPORT_EDIT_CAPABILITY, MULTI_EDIT_CAPABILITY))
+    try:
+        first, second = controller.borrow_for_window_edit(), controller.borrow_for_window_edit()
+        assert first is not None and second is not None and controller.open_edit_count == 2
+        first.session_id, second.session_id = "draft-a", "draft-b"
+        # Browse's own view can still edit a third document.
+        assert controller.edit_in_place_blocker() == ""
+        heard = {"a": [], "b": []}
+        first.readyReadStandardOutput.connect(lambda: heard["a"].append(json.loads(bytes(first.readAllStandardOutput()))))
+        second.readyReadStandardOutput.connect(lambda: heard["b"].append(json.loads(bytes(second.readAllStandardOutput()))))
+        for session in ("draft-b", "draft-a", "draft-b"):
+            _emit_stdout(process, _line({"event": "ready", "protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": session}))
+        assert [line["session_id"] for line in heard["a"]] == ["draft-a"]
+        assert [line["session_id"] for line in heard["b"]] == ["draft-b", "draft-b"]
+        # A line for a document that is not open goes nowhere.
+        _emit_stdout(process, _line({"event": "ready", "protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": "gone"}))
+        assert len(heard["a"]) == 1 and len(heard["b"]) == 2
+        # Each channel names its session when it leaves, so only its edit ends.
+        second.terminate()
+        assert process.writes[-1] == {"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                      "session_id": "draft-b"}
+        assert controller.open_edit_count == 1
+        while controller.open_edit_count < MAX_ENGINE_EDITS:
+            assert controller.borrow_for_window_edit() is not None
+        assert str(MAX_ENGINE_EDITS) in controller.window_edit_blocker()
+        assert controller.borrow_for_window_edit() is None and controller.borrow_for_edit() is None
+        finished = []
+        first.finished.connect(lambda code, status: finished.append(status))
+        controller._process_finished(process, controller.process_generation, 3,  # noqa: SLF001
+                                     QProcess.ExitStatus.CrashExit)
+        QApplication.processEvents()
+        assert finished == [QProcess.ExitStatus.CrashExit] and controller.open_edit_count == 0
+    finally:
+        controller.shutdown()

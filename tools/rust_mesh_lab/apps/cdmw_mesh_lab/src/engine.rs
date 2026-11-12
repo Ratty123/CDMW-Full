@@ -29,6 +29,12 @@
 //! opens the page under that parent on the same device; its lines name its
 //! `page_id` both ways, and `page_close` naming it drops it (`page_closed`).
 //!
+//! Several edits can be open at once (P15, one per document): each is keyed by
+//! the `session_id` its `open_session` names, every host line naming that id
+//! goes to it, and every line the engine says about an edit names it. At most
+//! one edit shows in Browse's view; the others have windows of their own. A
+//! host that names no id addresses the only edit, as before.
+//!
 //! One stdin reader serves every state: each line names its protocol and is
 //! routed by it, a preview line also by its session. Both states write whole lines to stdout through their own
 //! writers, each locking the stream per line.
@@ -69,6 +75,19 @@ type PreviewRoutes = Arc<Mutex<HashMap<String, PreviewRoute>>>;
 type PageRoutes = Arc<Mutex<HashMap<String, std::sync::mpsc::SyncSender<Result<Value, String>>>>>;
 const PAGE_PROTOCOL: &str = crate::new_item_ui::PROTOCOL;
 
+/// One edit the engine holds (P15: one per open document).
+struct EngineEdit {
+    /// The session id its `open_session` named; empty until it names one.
+    id: String,
+    app: LabApplication,
+    route: EditorRoute,
+    /// Its own window; `None` while it shows in Browse's view.
+    own_window: Option<WindowId>,
+    /// GPU texture uploads before the edit was entered, until it reports them.
+    uploads_before: Option<u64>,
+    lent_camera_report: Option<Value>,
+}
+
 pub struct EngineApplication {
     preview: PreviewApplication,
     /// Other previews' windows in this process (P4 V5).
@@ -78,15 +97,9 @@ pub struct EngineApplication {
     pages: Vec<crate::new_item_ui::Application>,
     page_routes: PageRoutes,
     proxy: EventLoopProxy<()>,
-    edit: Option<LabApplication>,
-    edit_route: Option<EditorRoute>,
+    edits: Vec<EngineEdit>,
     editor_lines: Receiver<EditorLine>,
     parent_hwnd: u64,
-    /// GPU texture uploads before the edit was entered, until it reports them.
-    uploads_before_edit: Option<u64>,
-    /// The edit's own window, when it has one instead of Browse's.
-    edit_window: Option<WindowId>,
-    lent_camera_report: Option<Value>,
 }
 
 impl EngineApplication {
@@ -114,14 +127,45 @@ impl EngineApplication {
             pages: Vec::new(),
             page_routes,
             proxy,
-            edit: None,
-            edit_route: None,
+            edits: Vec::new(),
             editor_lines,
             parent_hwnd,
-            uploads_before_edit: None,
-            edit_window: None,
-            lent_camera_report: None,
         }
+    }
+
+    /// The edit a host line addresses: the one its `session_id` names, or the
+    /// only edit when it names none.
+    fn edit_index(&self, id: &str) -> Option<usize> {
+        let edits: Vec<(&str, bool)> = self
+            .edits
+            .iter()
+            .map(|edit| (edit.id.as_str(), edit.app.showing_view()))
+            .collect();
+        addressed_edit(&edits, id)
+    }
+
+    /// The edit shown in Browse's view, if any.
+    fn view_edit(&self) -> Option<usize> {
+        self.edits.iter().position(|edit| edit.own_window.is_none())
+    }
+
+    fn push_edit(
+        &mut self,
+        id: &str,
+        app: LabApplication,
+        route: EditorRoute,
+        own_window: Option<WindowId>,
+        uploads_before: Option<u64>,
+        lent_camera_report: Option<Value>,
+    ) {
+        self.edits.push(EngineEdit {
+            id: id.to_owned(),
+            app,
+            route,
+            own_window,
+            uploads_before,
+            lent_camera_report,
+        });
     }
 
     fn poll_editor_lines(&mut self, event_loop: &ActiveEventLoop) {
@@ -132,8 +176,8 @@ impl EngineApplication {
             };
             match line {
                 EditorLine::Closed => {
-                    if let Some(route) = &self.edit_route {
-                        route.error("CDMW closed the control input".to_owned());
+                    for edit in &self.edits {
+                        edit.route.error("CDMW closed the control input".to_owned());
                     }
                 }
                 EditorLine::Message(value) => self.route_editor_message(value, event_loop),
@@ -149,50 +193,73 @@ impl EngineApplication {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        let id = value
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let index = self.edit_index(&id);
         if event == "leave_edit" {
             // The host ends the edit whatever the edit state is doing.
-            if self.edit.is_some() {
-                self.leave_edit();
+            if let Some(index) = index {
+                self.leave_edit(index);
             }
             return;
         }
         if event == "promote_edit" {
-            self.promote_edit(&value, event_loop);
+            self.promote_edit(index, &id, &value, event_loop);
             return;
         }
-        if self.edit.is_none() {
+        let Some(index) = index else {
             match event.as_str() {
                 "open_session" if own_viewport_parent(&value).is_some() => {
-                    self.enter_edit_own_window(value, event_loop);
+                    self.enter_edit_own_window(&id, value, event_loop);
                 }
-                "open_session" => self.enter_edit(value),
-                "enter_edit" => self.enter_edit_view(&value),
+                "open_session" => self.enter_edit(&id, value),
+                "enter_edit" => self.enter_edit_view(&id, &value),
                 // A cancel for an edit that already ended needs no answer.
                 "cancel" | "close_request" => {}
-                other => write_editor_line(&json!({
-                    "event": "edit_refused",
-                    "reason": format!("no edit is open for {other}"),
-                })),
+                other => write_edit_line(
+                    &id,
+                    &json!({
+                        "event": "edit_refused",
+                        "reason": format!("no edit is open for {other}"),
+                    }),
+                ),
             }
             return;
-        }
-        if event == "open_session" && !self.edit.as_ref().is_some_and(LabApplication::showing_view)
-        {
-            write_editor_line(&json!({
-                "event": "edit_refused",
-                "reason": "an edit is already open in this viewport",
-            }));
+        };
+        if event == "open_session" && !self.edits[index].app.showing_view() {
+            write_edit_line(
+                &id,
+                &json!({
+                    "event": "edit_refused",
+                    "reason": "an edit is already open for this session",
+                }),
+            );
             return;
         }
-        if let Some(route) = &self.edit_route
-            && !route.message(value)
-        {
-            route.error("CDMW control queue overflowed".to_owned());
+        if self.edits[index].id.is_empty() && !id.is_empty() {
+            self.edits[index].id = id;
+        }
+        let edit = &self.edits[index];
+        if !edit.route.message(value) {
+            edit.route.error("CDMW control queue overflowed".to_owned());
         }
     }
 
     /// `open_session {manifest, keep_view}` on the editor protocol.
-    fn enter_edit(&mut self, open_session: Value) {
+    fn enter_edit(&mut self, id: &str, open_session: Value) {
+        if self.view_edit().is_some() {
+            write_edit_line(
+                id,
+                &json!({
+                    "event": "edit_refused",
+                    "reason": "an edit is already open in this viewport",
+                }),
+            );
+            return;
+        }
         let keep_view = open_session
             .get("keep_view")
             .and_then(Value::as_bool)
@@ -200,23 +267,23 @@ impl EngineApplication {
         let lent = match self.preview.lend_view() {
             Ok(lent) => lent,
             Err(reason) => {
-                write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
+                write_edit_line(id, &json!({"event": "edit_refused", "reason": reason}));
                 return;
             }
         };
-        self.uploads_before_edit = Some(lent.renderer.texture_upload_count());
-        self.lent_camera_report = Some(crate::camera_report(&lent.camera));
+        let uploads_before = Some(lent.renderer.texture_upload_count());
+        let camera_report = Some(crate::camera_report(&lent.camera));
         let (input, route) = PendingSessionInput::routed();
         // The edit state reads its `open_session` as a pre-started helper does.
         let _ = route.message(open_session);
-        self.edit = Some(LabApplication::new_engine_edit(
+        let app = LabApplication::new_engine_edit(
             input,
             self.parent_hwnd,
             lent.window,
             lent.renderer,
             keep_view.then_some(lent.camera),
-        ));
-        self.edit_route = Some(route);
+        );
+        self.push_edit(id, app, route, None, uploads_before, camera_report);
     }
 
     /// `viewport_open {viewport_id, manifest, parent_hwnd}`: another preview's
@@ -354,17 +421,16 @@ impl EngineApplication {
     /// Other viewports showing the edited file follow the edit read-only (P4 V5).
     /// Browse's own view does not while it is the edit's view.
     fn follow_edit(&mut self) {
-        let Some(edit) = self.edit.as_mut() else {
-            return;
-        };
-        let Some((path, revision, mesh)) = edit.mesh_for_followers(std::time::Instant::now())
-        else {
-            return;
-        };
-        let parts = mesh.submesh_indices().len();
-        for preview in std::iter::once(&mut self.preview).chain(self.viewports.iter_mut()) {
-            if preview.can_follow(&path, parts) {
-                preview.follow(revision, mesh);
+        let now = std::time::Instant::now();
+        for edit in &mut self.edits {
+            let Some((path, revision, mesh)) = edit.app.mesh_for_followers(now) else {
+                continue;
+            };
+            let parts = mesh.submesh_indices().len();
+            for preview in std::iter::once(&mut self.preview).chain(self.viewports.iter_mut()) {
+                if preview.can_follow(&path, parts) {
+                    preview.follow(revision, mesh);
+                }
             }
         }
     }
@@ -387,29 +453,27 @@ impl EngineApplication {
 
     /// `open_session {manifest, viewport: "own", parent_hwnd}`: the edit gets a
     /// child window of its own under `parent_hwnd`, drawn on the Preview's device.
-    fn enter_edit_own_window(&mut self, open_session: Value, event_loop: &ActiveEventLoop) {
+    fn enter_edit_own_window(
+        &mut self,
+        id: &str,
+        open_session: Value,
+        event_loop: &ActiveEventLoop,
+    ) {
         let Some(parent_hwnd) = own_viewport_parent(&open_session) else {
             return;
         };
-        let refuse = |reason: String| {
-            write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
-        };
         let (window, renderer) = match self.editor_window_under(parent_hwnd, event_loop) {
             Ok(made) => made,
-            Err(reason) => return refuse(reason),
+            Err(reason) => {
+                return write_edit_line(id, &json!({"event": "edit_refused", "reason": reason}));
+            }
         };
         let (input, route) = PendingSessionInput::routed();
         let _ = route.message(open_session);
-        self.uploads_before_edit = Some(renderer.texture_upload_count());
-        self.edit_window = Some(window.id());
-        self.edit = Some(LabApplication::new_engine_edit(
-            input,
-            parent_hwnd,
-            window,
-            renderer,
-            None,
-        ));
-        self.edit_route = Some(route);
+        let uploads_before = Some(renderer.texture_upload_count());
+        let own_window = Some(window.id());
+        let app = LabApplication::new_engine_edit(input, parent_hwnd, window, renderer, None);
+        self.push_edit(id, app, route, own_window, uploads_before, None);
     }
 
     /// A child window under `parent_hwnd` with a renderer on the Preview's device.
@@ -442,13 +506,19 @@ impl EngineApplication {
     /// `promote_edit {parent_hwnd}` (Promote to tab): the edit in Browse's view
     /// moves into a window of its own under `parent_hwnd`, without reopening, and
     /// Browse gets its view back. Answers `edit_promoted {child_hwnd}`.
-    fn promote_edit(&mut self, value: &Value, event_loop: &ActiveEventLoop) {
+    fn promote_edit(
+        &mut self,
+        index: Option<usize>,
+        id: &str,
+        value: &Value,
+        event_loop: &ActiveEventLoop,
+    ) {
         let refuse = |reason: String| {
-            write_editor_line(&json!({"event": "promote_refused", "reason": reason}));
+            write_edit_line(id, &json!({"event": "promote_refused", "reason": reason}));
         };
-        if self.edit.is_none() || self.edit_window.is_some() {
+        let Some(index) = index.filter(|index| self.edits[*index].own_window.is_none()) else {
             return refuse("no edit in Browse's view to move".to_owned());
-        }
+        };
         let Some(parent_hwnd) = value
             .get("parent_hwnd")
             .and_then(Value::as_u64)
@@ -460,19 +530,23 @@ impl EngineApplication {
             Ok(made) => made,
             Err(reason) => return refuse(reason),
         };
-        let Some(edit) = self.edit.as_mut() else {
-            return;
-        };
-        match edit.move_to_window(window.clone(), renderer, parent_hwnd) {
+        match self.edits[index]
+            .app
+            .move_to_window(window.clone(), renderer, parent_hwnd)
+        {
             Ok((lent, camera)) => {
                 self.preview.return_view(lent, Some(camera));
-                self.edit_window = Some(window.id());
+                self.edits[index].own_window = Some(window.id());
                 let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
-                write_editor_line(&json!({
-                    "event": "edit_promoted",
-                    "child_hwnd": child_hwnd,
-                    "embedded_parent_hwnd": parent_hwnd,
-                }));
+                let edit_id = self.edits[index].id.clone();
+                write_edit_line(
+                    &edit_id,
+                    &json!({
+                        "event": "edit_promoted",
+                        "child_hwnd": child_hwnd,
+                        "embedded_parent_hwnd": parent_hwnd,
+                    }),
+                );
             }
             Err(reason) => refuse(reason),
         }
@@ -480,7 +554,17 @@ impl EngineApplication {
 
     /// `enter_edit {keep_view}`: show the editor at once on Browse's resident
     /// model; the session follows as `open_session` (P4 V4).
-    fn enter_edit_view(&mut self, value: &Value) {
+    fn enter_edit_view(&mut self, id: &str, value: &Value) {
+        if self.view_edit().is_some() {
+            write_edit_line(
+                id,
+                &json!({
+                    "event": "edit_refused",
+                    "reason": "an edit is already open in this viewport",
+                }),
+            );
+            return;
+        }
         let keep_view = value
             .get("keep_view")
             .and_then(Value::as_bool)
@@ -489,72 +573,92 @@ impl EngineApplication {
         let lent = match self.preview.lend_view() {
             Ok(lent) => lent,
             Err(reason) => {
-                write_editor_line(&json!({"event": "edit_refused", "reason": reason}));
+                write_edit_line(id, &json!({"event": "edit_refused", "reason": reason}));
                 return;
             }
         };
-        self.uploads_before_edit = Some(lent.renderer.texture_upload_count());
-        self.lent_camera_report = Some(crate::camera_report(&lent.camera));
+        let uploads_before = Some(lent.renderer.texture_upload_count());
+        let camera_report = Some(crate::camera_report(&lent.camera));
         let (input, route) = PendingSessionInput::routed();
         let (root, manifest, lod, document, textures, layers) = parts;
         let bridge = crate::cdmw_session::CdmwBridge::view_only(
             root, manifest, lod, textures, layers, input,
         );
-        let mut edit = LabApplication::new_view_edit(
+        let mut app = LabApplication::new_view_edit(
             self.parent_hwnd,
             lent.window,
             lent.renderer,
             keep_view.then_some(lent.camera),
         );
         let started = std::time::Instant::now();
-        let shown = edit.install_view(bridge, document);
+        let shown = app.install_view(bridge, document);
         let install_ms = started.elapsed().as_secs_f64() * 1000.0;
-        self.edit = Some(edit);
-        self.edit_route = Some(route);
+        self.push_edit(id, app, route, None, uploads_before, camera_report);
         match shown {
             Ok(()) => {
-                write_editor_line(&json!({
-                    "event": "edit_viewing",
-                    "install_ms": install_ms,
-                    // When the view was up, by the helper's clock (CDMW may read it later).
-                    "at_unix_ms": std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map_or(0, |since| since.as_millis() as u64),
-                }));
+                write_edit_line(
+                    id,
+                    &json!({
+                        "event": "edit_viewing",
+                        "install_ms": install_ms,
+                        // When the view was up, by the helper's clock (CDMW may read it later).
+                        "at_unix_ms": std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map_or(0, |since| since.as_millis() as u64),
+                    }),
+                );
             }
             Err(error) => {
-                write_editor_line(&json!({"event": "edit_refused", "reason": error.to_string()}));
-                self.leave_edit();
+                write_edit_line(
+                    id,
+                    &json!({"event": "edit_refused", "reason": error.to_string()}),
+                );
+                let index = self.edits.len() - 1;
+                self.leave_edit(index);
             }
         }
     }
 
-    fn leave_edit(&mut self) {
-        let Some(mut edit) = self.edit.take() else {
-            return;
-        };
-        self.edit_route = None;
-        self.uploads_before_edit = None;
-        if self.edit_window.take().is_some() {
-            // Its own window and renderer close with it; Browse's view was never lent.
-            drop(edit);
-            write_editor_line(&json!({"event": "edit_left"}));
+    fn leave_edit(&mut self, index: usize) {
+        if index >= self.edits.len() {
             return;
         }
-        let (renderer, camera) = edit.give_back_view();
+        let mut edit = self.edits.remove(index);
+        if edit.own_window.is_some() {
+            // Its own window and renderer close with it; Browse's view was never lent.
+            let id = edit.id.clone();
+            drop(edit);
+            write_edit_line(&id, &json!({"event": "edit_left"}));
+            return;
+        }
+        let (renderer, camera) = edit.app.give_back_view();
+        let id = edit.id.clone();
         drop(edit);
         self.preview.return_view(renderer, Some(camera));
-        write_editor_line(&json!({"event": "edit_left"}));
+        write_edit_line(&id, &json!({"event": "edit_left"}));
     }
 
     fn leave_if_requested(&mut self) {
-        if self
-            .edit
-            .as_ref()
-            .is_some_and(LabApplication::engine_leave_requested)
+        while let Some(index) = self
+            .edits
+            .iter()
+            .position(|edit| edit.app.engine_leave_requested())
         {
-            self.leave_edit();
+            self.leave_edit(index);
         }
+    }
+
+    /// The edit whose window an event names: its own window, or Browse's view.
+    fn edit_for_window(&self, window_id: WindowId) -> Option<usize> {
+        if let Some(index) = self
+            .edits
+            .iter()
+            .position(|edit| edit.own_window == Some(window_id))
+        {
+            return Some(index);
+        }
+        let index = self.view_edit()?;
+        (self.edits[index].app.engine_window_id() == Some(window_id)).then_some(index)
     }
 }
 
@@ -572,12 +676,10 @@ impl ApplicationHandler for EngineApplication {
     ) {
         // An edit in Browse's view gets that window's events; one in its own
         // window gets only those of its window.
-        let to_edit = self
-            .edit
-            .as_ref()
-            .is_some_and(|_| self.edit_window.is_none_or(|own| own == window_id));
-        if to_edit && let Some(edit) = &mut self.edit {
-            edit.window_event(event_loop, window_id, event);
+        if let Some(index) = self.edit_for_window(window_id) {
+            self.edits[index]
+                .app
+                .window_event(event_loop, window_id, event);
             self.leave_if_requested();
         } else if let Some(viewport) = self
             .viewports
@@ -610,16 +712,17 @@ impl ApplicationHandler for EngineApplication {
         self.follow_edit();
         event_loop.set_control_flow(preview_flow);
         self.drop_closed_viewports();
-        if let Some(edit) = &mut self.edit {
-            edit.about_to_wait(event_loop);
-            // Both views may be live (an edit in a window of its own): each set the
-            // wait for its own deadlines, so keep the earlier of the two.
-            event_loop.set_control_flow(earliest(preview_flow, event_loop.control_flow()));
+        let mut flow = preview_flow;
+        for edit in &mut self.edits {
+            edit.app.about_to_wait(event_loop);
+            // Every view may be live (edits in windows of their own): each set the
+            // wait for its own deadlines, so keep the earliest.
+            flow = earliest(flow, event_loop.control_flow());
             // Once the session is installed: how many textures entering uploaded.
-            if let Some(before) = self.uploads_before_edit
-                && let Some((after, retained)) = edit.engine_installed_uploads()
+            if let Some(before) = edit.uploads_before
+                && let Some((after, retained)) = edit.app.engine_installed_uploads()
             {
-                self.uploads_before_edit = None;
+                edit.uploads_before = None;
                 let mut report = json!({
                     "event": "edit_entered",
                     "texture_uploads_before": before,
@@ -631,8 +734,8 @@ impl ApplicationHandler for EngineApplication {
                 // The camera before and after, flat for the runtime record.
                 if let (Some(object), Value::Object(browse), Value::Object(edit_camera)) = (
                     report.as_object_mut(),
-                    self.lent_camera_report.take().unwrap_or(Value::Null),
-                    edit.engine_camera_report(),
+                    edit.lent_camera_report.take().unwrap_or(Value::Null),
+                    edit.app.engine_camera_report(),
                 ) {
                     for (key, value) in browse {
                         object.insert(format!("browse_camera_{key}"), value);
@@ -641,9 +744,10 @@ impl ApplicationHandler for EngineApplication {
                         object.insert(format!("edit_camera_{key}"), value);
                     }
                 }
-                write_editor_line(&report);
+                write_edit_line(&edit.id, &report);
             }
         }
+        event_loop.set_control_flow(flow);
         self.leave_if_requested();
     }
 }
@@ -672,6 +776,28 @@ fn earliest(first: ControlFlow, second: ControlFlow) -> ControlFlow {
         | (ControlFlow::Wait, ControlFlow::WaitUntil(at)) => ControlFlow::WaitUntil(at),
         (ControlFlow::Wait, ControlFlow::Wait) => ControlFlow::Wait,
     }
+}
+
+/// Which of the open edits (their ids, and whether each still waits for its
+/// session) a host line naming `id` addresses (P15).
+fn addressed_edit(edits: &[(&str, bool)], id: &str) -> Option<usize> {
+    if let Some(index) = edits
+        .iter()
+        .position(|(edit_id, _)| !id.is_empty() && *edit_id == id)
+    {
+        return Some(index);
+    }
+    // One edit, as before P15: a line naming no id, or an edit that never named one.
+    if edits.len() == 1 && (id.is_empty() || edits[0].0.is_empty()) {
+        return Some(0);
+    }
+    // An edit opened before its session existed (P4 V4) takes the first id named.
+    if id.is_empty() {
+        return None;
+    }
+    edits
+        .iter()
+        .position(|(edit_id, viewing)| edit_id.is_empty() && *viewing)
 }
 
 /// The parent window an `open_session` asks its own viewport under, if any.
@@ -834,6 +960,17 @@ fn is_editor_line(value: &Value) -> bool {
     value.get("protocol").and_then(Value::as_str) == Some(PROTOCOL)
 }
 
+/// A line the engine says about one edit: it names the edit's session (P15).
+fn write_edit_line(id: &str, value: &Value) {
+    let mut value = value.clone();
+    if !id.is_empty()
+        && let Some(object) = value.as_object_mut()
+    {
+        object.entry("session_id").or_insert_with(|| json!(id));
+    }
+    write_editor_line(&value);
+}
+
 /// A line the engine itself says on the editor protocol (`edit_left`, `edit_refused`).
 fn write_editor_line(value: &Value) {
     let mut value = value.clone();
@@ -961,6 +1098,25 @@ mod tests {
         );
         assert_eq!(
             own_viewport_parent(&json!({"viewport": "browse", "parent_hwnd": 9})),
+            None
+        );
+    }
+
+    #[test]
+    fn a_line_goes_to_the_edit_its_session_names() {
+        let edits = [("draft-a", false), ("draft-b", false)];
+        assert_eq!(addressed_edit(&edits, "draft-b"), Some(1));
+        assert_eq!(addressed_edit(&edits, "draft-c"), None);
+        // With several edits a line naming none addresses none of them.
+        assert_eq!(addressed_edit(&edits, ""), None);
+        // With one edit, as before P15, a line naming none is that edit's.
+        assert_eq!(addressed_edit(&[("draft-a", false)], ""), Some(0));
+        // An edit showing Browse's model before its session takes the first id named.
+        let viewing = [("draft-a", false), ("", true)];
+        assert_eq!(addressed_edit(&viewing, "draft-new"), Some(1));
+        assert_eq!(addressed_edit(&[("", false)], "draft-new"), Some(0));
+        assert_eq!(
+            addressed_edit(&[("", false), ("draft-a", false)], "draft-new"),
             None
         );
     }

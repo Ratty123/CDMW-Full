@@ -6,7 +6,8 @@ fn parts_layout_keeps_names_clear_and_view_include_independent() -> TestResult {
     let title = format!("0: {name}");
     for (size, font, density) in [
         (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
-        (egui::vec2(1000.0, 900.0), 18.0, "comfortable"),
+        // The largest text size since P11 step 2 (6 to 16 pt).
+        (egui::vec2(1000.0, 900.0), 16.0, "comfortable"),
     ] {
         let mut application = two_part_application()?;
         Arc::make_mut(application.document.as_mut().ok_or("document")?).lods[0].submeshes[0].name =
@@ -49,12 +50,17 @@ fn parts_layout_keeps_names_clear_and_view_include_independent() -> TestResult {
         ui.click(&title)?;
         assert_eq!(ui.application.selected_part_indices(), vec![0]);
         ui.last_actions.clear();
+        // Selecting can move the list at large text (the selection line wraps).
+        let view = ui.list_checkbox_rect(&title, "View")?;
+        let include = ui.list_checkbox_rect(&title, "Include")?;
         ui.click_at(view.center());
         assert!(ui.application.cdmw_hidden_parts.contains(&0));
         assert!(!has_host_command(&ui.last_actions, "replacement_include"));
+        let view = ui.list_checkbox_rect(&title, "View")?;
         ui.click_at(view.center());
         assert!(ui.application.cdmw_hidden_parts.is_empty());
         ui.last_actions.clear();
+        let include = ui.list_checkbox_rect(&title, "Include").unwrap_or(include);
         ui.click_at(include.center());
         assert!(ui.last_actions.iter().any(|action| matches!(action,
             UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
@@ -285,7 +291,8 @@ fn parts_panel_uses_available_height_and_keeps_scroll_and_selection_across_tabs(
     }
     for (size, font, density) in [
         (egui::vec2(1440.0, 1080.0), 11.0, "normal"),
-        (egui::vec2(1000.0, 900.0), 18.0, "comfortable"),
+        // The largest text size since P11 step 2 (6 to 16 pt).
+        (egui::vec2(1000.0, 900.0), 16.0, "comfortable"),
         (egui::vec2(800.0, 1200.0), 11.0, "normal"),
     ] {
         let mut application = two_part_application()?;

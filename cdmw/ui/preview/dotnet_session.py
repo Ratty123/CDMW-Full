@@ -81,6 +81,10 @@ _AUTHORING_PROTOCOL_CAPABILITIES = (
 )
 
 
+#: Edits one engine process holds at once (P15): open documents beyond it edit in
+#: a helper of their own, and the document budget parks the oldest.
+MAX_ENGINE_EDITS = 4
+
 class RustPreviewSessionController(
     DotNetPreviewSessionLocalizationMixin,
     DotNetPreviewSessionReadyWatchdogMixin,
@@ -169,8 +173,8 @@ class RustPreviewSessionController(
         self._capabilities: set[str] = set()
         # P4 V3: an edit borrowing this helper's viewport (cdmw.ui.preview.engine_channel).
         self._edit_channel = None
-        # P4 V5: an edit in a window of its own in this process (the Mesh Editor tab).
-        self._window_edit_channel = None
+        #: Edits in windows of their own in this process, one per document (P15).
+        self._window_edit_channels: list = []
         # P4 V5: other previews' windows in this process, by viewport id.
         self._viewport_channels: dict[str, object] = {}
         # P4 V5: Create New Item and Mod Management pages in this process, by page id.
@@ -1204,8 +1208,8 @@ class RustPreviewSessionController(
         channel, self._edit_channel = self._edit_channel, None
         if channel is not None:
             channel.process_lost(exit_code)
-        window_channel, self._window_edit_channel = self._window_edit_channel, None
-        if window_channel is not None:
+        window_channels, self._window_edit_channels = list(self._window_edit_channels), []
+        for window_channel in window_channels:
             window_channel.process_lost(exit_code)
         viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
         pages, self._page_channels = list(self._page_channels.values()), {}
@@ -1303,8 +1307,9 @@ class RustPreviewSessionController(
                     viewport.feed(raw_line)
                 continue
             if isinstance(payload, Mapping) and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
-                # The editor's half of this process (P4 V3) belongs to the borrowed edit.
-                channel = self._edit_channel or self._window_edit_channel
+                # The editor's half of this process (P4 V3) belongs to the borrowed
+                # edit; with several (P15) to the one whose session the line names.
+                channel = self._edit_channel_for(payload)
                 if channel is not None:
                     channel.feed(raw_line)
                 if payload.get("event") in {"edit_entered", "edit_viewing", "edit_left", "edit_refused"}:
@@ -2113,8 +2118,12 @@ class RustPreviewSessionController(
             return "this viewport's helper cannot edit in place"
         if self._edit_channel is not None:
             return "this viewport is already editing"
-        if self._window_edit_channel is not None:
+        from cdmw.ui.preview.engine_channel import MULTI_EDIT_CAPABILITY
+
+        if self._window_edit_channels and MULTI_EDIT_CAPABILITY not in self._capabilities:
             return "the Mesh Editor tab is editing in this viewport's process"
+        if self.open_edit_count >= MAX_ENGINE_EDITS:
+            return f"this preview process already holds {MAX_ENGINE_EDITS} edits"
         if self._pending_package_generation:
             return "the viewport is still loading a model"
         return ""
@@ -2236,9 +2245,33 @@ class RustPreviewSessionController(
             return "the preview process is not ready"
         if OWN_VIEWPORT_EDIT_CAPABILITY not in self._capabilities:
             return "this preview process cannot hold an editor window"
-        if self._edit_channel is not None or self._window_edit_channel is not None:
-            return "this preview process is already editing"
+        from cdmw.ui.preview.engine_channel import MULTI_EDIT_CAPABILITY
+
+        if MULTI_EDIT_CAPABILITY not in self._capabilities:
+            if self._edit_channel is not None or self._window_edit_channels:
+                return "this preview process is already editing"
+            return ""
+        if len(self._window_edit_channels) + int(self._edit_channel is not None) >= MAX_ENGINE_EDITS:
+            return f"this preview process already holds {MAX_ENGINE_EDITS} edits"
         return ""
+
+    def _edit_channel_for(self, payload: Mapping[str, object]):
+        """The borrowed edit an editor line belongs to (P15: routed by its session)."""
+
+        channels = [channel for channel in (self._edit_channel, *self._window_edit_channels) if channel is not None]
+        session_id = str(payload.get("session_id") or "")
+        if session_id:
+            named = next((channel for channel in channels if channel.session_id == session_id), None)
+            if named is not None:
+                return named
+            # A channel that has not named its session yet (Browse's view before the session).
+            unnamed = [channel for channel in channels if not channel.session_id]
+            if len(unnamed) == 1:
+                return unnamed[0]
+            return None
+        if self._edit_channel is not None:
+            return self._edit_channel
+        return channels[0] if len(channels) == 1 else None
 
     def borrow_for_window_edit(self, parent: QObject | None = None):
         """A channel for an edit in a window of its own in this process (P4 V5), or None.
@@ -2263,12 +2296,12 @@ class RustPreviewSessionController(
 
         channel = EngineEditChannel(write, lambda: self.process_id, self._release_window_edit_channel, parent)
         channel.own_window = True
-        self._window_edit_channel = channel
+        self._window_edit_channels.append(channel)
         return channel
 
     def _release_window_edit_channel(self, channel: object) -> None:
-        if self._window_edit_channel is channel:
-            self._window_edit_channel = None
+        if channel in self._window_edit_channels:
+            self._window_edit_channels.remove(channel)
 
     def promote_edit_channel(self, channel: object) -> bool:
         """The edit in Browse's viewport moved into a window of its own (P4 V5).
@@ -2276,10 +2309,10 @@ class RustPreviewSessionController(
         Browse previews again at once: a selection made meanwhile is shown.
         """
 
-        if self._edit_channel is not channel or self._window_edit_channel is not None:
+        if self._edit_channel is not channel:
             return False
         self._edit_channel = None
-        self._window_edit_channel = channel
+        self._window_edit_channels.append(channel)
         hand_to = getattr(channel, "hand_to", None)
         if callable(hand_to):
             hand_to(self._release_window_edit_channel)
@@ -2288,7 +2321,13 @@ class RustPreviewSessionController(
 
     @property
     def editing_in_own_window(self) -> bool:
-        return self._window_edit_channel is not None
+        return bool(self._window_edit_channels)
+
+    @property
+    def open_edit_count(self) -> int:
+        """Edits this process holds now (P15: one per open document)."""
+
+        return len(self._window_edit_channels) + int(self._edit_channel is not None)
 
     def _release_edit_channel(self, channel: object) -> None:
         if self._edit_channel is not channel:

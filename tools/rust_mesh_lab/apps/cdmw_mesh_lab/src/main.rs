@@ -2949,6 +2949,11 @@ impl LabApplication {
     }
 
     #[must_use]
+    /// The window this edit draws in (Browse's lent one or its own).
+    fn engine_window_id(&self) -> Option<winit::window::WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
     fn engine_leave_requested(&self) -> bool {
         self.engine_leave_requested
     }

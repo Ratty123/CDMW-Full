@@ -239,6 +239,12 @@ class MeshEditorRustProcessMixin:
             "manifest": str(session.manifest_path),
             "keep_view": bool(keep_view),
         }
+        session_id = str(getattr(session, "session_id", "") or "")
+        if session_id:
+            # Browse's process holds one edit per document and routes by it (P15).
+            message["session_id"] = session_id
+            if hasattr(process, "session_id"):
+                process.session_id = session_id
         if own_window_parent > 0:
             message.update(viewport="own", parent_hwnd=int(own_window_parent))
         line = json.dumps(message, separators=(",", ":")).encode("utf-8") + b"\n"

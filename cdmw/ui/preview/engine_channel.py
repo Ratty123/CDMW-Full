@@ -25,6 +25,8 @@ from cdmw.services.mesh_rust_contract import RUST_MESH_EDITOR_PROTOCOL
 EDIT_IN_PLACE_CAPABILITY = "edit_in_place_v1"
 #: What it announces when an edit can also have a window of its own there (P4 V5).
 OWN_VIEWPORT_EDIT_CAPABILITY = "own_viewport_edit_v1"
+#: What it announces when it holds several edits at once, one per document (P15).
+MULTI_EDIT_CAPABILITY = "multi_edit_v1"
 
 _LEAVE_EVENTS = frozenset({"edit_left", "edit_refused"})
 #: The engine's own report; the editor component does not read it.
@@ -64,6 +66,8 @@ class EngineEditChannel(QObject):
         self.viewing = False
         #: The edit has a window of its own in this process instead of Browse's (P4 V5).
         self.own_window = False
+        #: The session this edit opened (P15): the engine routes lines by it both ways.
+        self.session_id = ""
 
     # ----- fed by the Preview controller --------------------------------------
     def feed(self, raw_line: bytes) -> None:
@@ -133,15 +137,13 @@ class EngineEditChannel(QObject):
     def show_view(self, *, keep_view: bool = True) -> bool:
         """Show the editor at once on Browse's model, before the session exists (P4 V4)."""
 
-        line = json.dumps({"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
-                           "keep_view": bool(keep_view)}, separators=(",", ":")).encode("utf-8") + b"\n"
+        line = self._own_line({"event": "enter_edit", "keep_view": bool(keep_view)})
         return self.write(line) == len(line)
 
     def promote(self, parent_hwnd: int) -> bool:
         """Ask the edit to move into a window of its own under ``parent_hwnd`` (Promote to tab)."""
 
-        line = json.dumps({"event": "promote_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
-                           "parent_hwnd": int(parent_hwnd)}, separators=(",", ":")).encode("utf-8") + b"\n"
+        line = self._own_line({"event": "promote_edit", "parent_hwnd": int(parent_hwnd)})
         return self.write(line) == len(line)
 
     def hand_to(self, detach: Callable[["EngineEditChannel"], None]) -> None:
@@ -169,13 +171,18 @@ class EngineEditChannel(QObject):
         return self._running
 
     # ----- internals ----------------------------------------------------------
+    def _own_line(self, payload: dict) -> bytes:
+        message = {"event": payload.pop("event"), "protocol": RUST_MESH_EDITOR_PROTOCOL, **payload}
+        if self.session_id:
+            message["session_id"] = self.session_id
+        return json.dumps(message, separators=(",", ":")).encode("utf-8") + b"\n"
+
     def _end(self, *, send_leave: bool, exit_code: int = 0, crashed: bool = False) -> None:
         if not self._running:
             return
         self._running = False
         if send_leave:
-            line = json.dumps({"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL},
-                              separators=(",", ":")).encode("utf-8") + b"\n"
+            line = self._own_line({"event": "leave_edit"})
             try:
                 self._write(line)
             except (RuntimeError, OSError):
@@ -190,4 +197,4 @@ class EngineEditChannel(QObject):
         QTimer.singleShot(0, self, lambda: self.finished.emit(int(exit_code), status))
 
 
-__all__ = ["EDIT_IN_PLACE_CAPABILITY", "OWN_VIEWPORT_EDIT_CAPABILITY", "EngineEditChannel"]
+__all__ = ["EDIT_IN_PLACE_CAPABILITY", "MULTI_EDIT_CAPABILITY", "OWN_VIEWPORT_EDIT_CAPABILITY", "EngineEditChannel"]
