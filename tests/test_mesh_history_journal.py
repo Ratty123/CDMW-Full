@@ -304,3 +304,68 @@ def test_undo_and_redo_continue_into_the_saved_steps(tmp_path) -> None:
     assert service.undo(session_id).status == "noop"  # nothing before the first saved step
     assert service.redo(session_id).action == "journal_redo" and _x(service, session_id) == pytest.approx(0.5)
     service.close_edit_session(session_id)
+
+
+def test_a_journal_undo_never_drops_an_unsaved_redo_state(tmp_path) -> None:
+    """Section 8.7 A2: the in-memory redo stack holds a state the journal does not have."""
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    _move(service, session_id, 0.25)
+    service.close_edit_session(session_id)
+    service, session_id = _open(tmp_path)  # at 0.5, two saved steps, empty memory
+    session = service._session(session_id)
+    service.apply_command(session_id, MeshEditCommand(
+        "transform", selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}),
+        params={"translate": (1.0, 0.0, 0.0)}))
+    if session.mesh_layer_autosave_timer is not None:
+        session.mesh_layer_autosave_timer.cancel()  # the edit is not saved yet
+    assert _x(service, session_id) == pytest.approx(1.5)
+    service.undo(session_id)  # in memory: back to 0.5, the 1.5 state is a redo
+    if session.mesh_layer_autosave_timer is not None:
+        session.mesh_layer_autosave_timer.cancel()
+    service.undo(session_id)  # the in-memory stack is empty: a journal step to 0.25
+    assert _x(service, session_id) == pytest.approx(0.25)
+    seen = []
+    for _ in range(4):
+        result = service.redo(session_id)
+        if result.status == "noop":
+            break
+        seen.append(round(_x(service, session_id), 4))
+    assert 1.5 in seen, f"the unsaved state was lost; Redo reached {seen}"
+    service.close_edit_session(session_id, force_without_saving=True)
+
+
+def test_a_journal_that_cannot_be_read_leaves_the_draft_readable(tmp_path) -> None:
+    """Section 8.7 A12: a damaged journal must not stop the draft from opening, nor cost generations."""
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    _move(service, session_id, 0.25)
+    service.close_edit_session(session_id)
+    project_root = tmp_path / "mesh_layers"
+    path = journal.journal_path(project_root)
+    path.write_bytes(path.read_bytes() + b"\xff\xfe broken \xff\n")
+    generations = sorted(p.name for p in project_root.iterdir() if p.name.startswith("generation-"))
+    service, session_id = _open(tmp_path)  # must not raise
+    assert _x(service, session_id) == pytest.approx(0.5)
+    _move(service, session_id, 0.25)
+    still = sorted(p.name for p in project_root.iterdir() if p.name.startswith("generation-"))
+    assert set(generations) <= set(still), "an unreadable journal cost saved generations"
+    service.close_edit_session(session_id)
+
+
+def test_a_copied_draft_keeps_every_step_its_journal_names(tmp_path) -> None:
+    """Section 8.7 A10: Duplicate and Build copy the draft; its history must still work in the copy."""
+    from cdmw.services.mesh_saved_work_service import _copy_draft
+
+    source = tmp_path / "draft"
+    service, session_id = _open(source)
+    for _ in range(3):
+        _move(service, session_id, 0.25)
+    service.close_edit_session(session_id)
+    project = source / "mesh_layers"
+    named = {record.generation for record in journal.read_journal(project).records}
+    assert len(named) == 3
+    target = tmp_path / "copy"
+    _copy_draft(source, target, None)
+    copied = {path.name for path in (target / "mesh_layers").iterdir() if path.name.startswith("generation-")}
+    assert named <= copied, f"the copy lost {sorted(named - copied)}"

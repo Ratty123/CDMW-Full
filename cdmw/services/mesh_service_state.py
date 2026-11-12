@@ -293,6 +293,11 @@ class _MeshEditSession:
     history_journal_error: str = ""
     # P14: the next journal record is the state the user finished.
     history_journal_clean_pending: bool = False
+    # P15 repair A1: Finish ended an editor session; the next draft save removes
+    # its recovery point, once the draft holds the edits.
+    history_recovery_clear_on_save: bool = False
+    #: Why a recovery point that exists was not restored ("" when none, or restored).
+    history_recovery_problem: str = ""
     # P14: a Mesh Editor shadow keeps its unfinished state beside the draft it
     # edits: (project path, source SHA-256, the draft generation it started from).
     history_recovery_target: tuple[Path, str, str] | None = None

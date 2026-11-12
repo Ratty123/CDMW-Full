@@ -940,9 +940,11 @@ class MeshEditorShellBridgeMixin:
             binding = begin(entry)
         if binding is None:
             return None
-        if not getattr(self, "_browse_edit_moves_connected", False):
+        # Each document's editor is connected once (section 8.7 A5: not only the first).
+        connected = self.__dict__.setdefault("_browse_edit_moves_connected_to", set())
+        if id(live_edit) not in connected:
             live_edit.moved_to_own_viewport.connect(self._browse_edit_moved_to_tab)
-            self._browse_edit_moves_connected = True
+            connected.add(id(live_edit))
         live_edit.edit_in_viewport(binding)
         if fresh:
             # View first (P4 V4): the editor shows Browse's model now; the session follows.

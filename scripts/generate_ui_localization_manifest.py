@@ -449,6 +449,10 @@ MANUAL_SOURCE_KEYS = frozenset(
         "None of the look's models is in the loaded archives.",
         "{value_0} is missing; reinstall Character Creator.",
         "{value_0} could not be read: {value_1}",
+        # Recovery problems (P15 repair A11): the Mesh Editor's status line shows them.
+        "Unfinished Mesh Editor edits are not restored while Morph & Refit has a profile open.",
+        "Unfinished Mesh Editor edits were made from an earlier state of this draft and were not restored; the draft has changed since.",
+        "Unfinished Mesh Editor edits could not be restored ({value_0}). The draft opens as it was last finished.",
     }
 )
 RETIRED_MANUAL_SOURCE_KEYS = frozenset({

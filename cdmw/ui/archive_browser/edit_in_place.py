@@ -257,12 +257,11 @@ class BrowseEditInPlaceMixin:
         """Move the edit in Browse's viewport to the Mesh Editor tab (P4 V5)."""
 
         shell = getattr(self, "shell", None)
-        owner = getattr(shell, "mesh_editor_tab", None)
-        created = getattr(owner, "widget_if_created", None)
-        tab = created() if callable(created) else owner
+        tab = self._browse_edit_document()
         live = getattr(tab, "live_edit", None)
         if live is None or getattr(live, "viewport_binding", None) is None:
             return
+        self._show_browse_edit_document(tab)
         activate = getattr(shell, "_activate_tool_key", None)
         if callable(activate):
             activate("mesh_editor")  # its host window exists and has its size first
@@ -274,6 +273,26 @@ class BrowseEditInPlaceMixin:
                     set_status("The edit could not move to the Mesh Editor tab now.", error=True)
 
         QTimer.singleShot(0, promote)
+
+    def _browse_edit_document(self):
+        """The Mesh Editor document whose edit is in this viewport, not the one shown (8.7 A5)."""
+
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        view = created() if callable(created) else owner
+        find = getattr(view, "browse_document", None)
+        document = find() if callable(find) else None
+        return document if document is not None else view
+
+    def _show_browse_edit_document(self, document) -> None:
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        view = created() if callable(created) else owner
+        index_of, set_active = getattr(view, "index_of", None), getattr(view, "set_active", None)
+        if callable(index_of) and callable(set_active) and index_of(document) >= 0:
+            set_active(index_of(document))
 
     @property
     def editing_in_place(self) -> bool:
@@ -302,8 +321,7 @@ class BrowseEditInPlaceMixin:
 
         from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import DISCARD, resolve_pending_edit
 
-        shell = getattr(self, "shell", None)
-        tab = getattr(shell, "mesh_editor_tab", None)
+        tab = self._browse_edit_document()
         layout = self._archive_edit_layout()
         label = getattr(layout.entry, "basename", "") or ""
         answer = resolve_pending_edit(self, tab, file_label=label)

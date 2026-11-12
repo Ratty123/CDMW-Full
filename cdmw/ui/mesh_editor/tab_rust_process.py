@@ -1248,6 +1248,11 @@ class MeshEditorRustProcessMixin:
         self._rust_last_crash_at = now
         self.standalone_rust_ready = False
         self.standalone_rust_hello_received = False
+        # The session is kept: a failure path that ran first (Qt reports a crash
+        # as an error, then as finished) must not dispose it when a request ends
+        # (section 8.7 A7).
+        self.standalone_rust_dispose_pending = False
+        self.standalone_rust_closing = False
         host = getattr(self, "standalone_native_host_frame", None)
         if previous and now - previous < _RUST_CRASH_RETRY_WINDOW_S:
             message = ("The 3D view stopped again. Your edits up to the last completed step are kept; "
@@ -1299,6 +1304,13 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_failure_reported = False
         self.standalone_rust_process_error_reported = False
         self.standalone_rust_finish_accepted = False
+        # A new helper (after a crash or a park) says hello once and numbers its
+        # requests from 1 again (section 8.7 A3 and A4).
+        self.standalone_rust_hello_received = False
+        self.standalone_rust_ready = False
+        self.standalone_rust_last_client_request_id = 0
+        self.standalone_rust_stdout_buffer = b""
+        self.standalone_rust_dispose_pending = False
         self._launch_rust_editor_process(session)
 
     def _offer_finish_or_discard_after_crash(self, session: object) -> None:

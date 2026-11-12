@@ -829,6 +829,14 @@ def _copy_draft(source_workspace: Path, target_workspace: Path, stop_event) -> N
     project_dir = source_workspace / PurePosixPath(PROJECT_RELATIVE_PATH).parent
     descriptor = _read_json(source_workspace / PROJECT_RELATIVE_PATH) or {}
     keep = {str(descriptor.get("current_generation") or ""), str(descriptor.get("previous_generation") or "")}
+    # The copy's history works as the original's: every journalled step and the
+    # editor's recovery point come along (section 8.7 A10).
+    from cdmw.services.mesh_history_journal import read_editor_recovery, read_journal
+
+    keep.update(record.generation for record in read_journal(project_dir).records)
+    recovery = read_editor_recovery(project_dir)
+    if recovery is not None:
+        keep.add(str(recovery["generation"]))
     target_workspace.mkdir(parents=True, exist_ok=False)
     for path in sorted(source_workspace.rglob("*")):
         raise_if_cancelled(stop_event, "Saved work was cancelled.")

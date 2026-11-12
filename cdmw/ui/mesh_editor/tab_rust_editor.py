@@ -1003,7 +1003,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             getattr(session, "texture_unavailable_reason", "") or ""
         ).strip()
         self._launch_rust_editor_process(session)
-        if float(getattr(session, "recovered_edits_at", 0.0) or 0.0) > 0.0:
+        problem = str(getattr(session, "recovery_problem", "") or "")
+        if problem:
+            self._set_rust_status(problem, error=True)
+        elif float(getattr(session, "recovered_edits_at", 0.0) or 0.0) > 0.0:
             self._set_rust_status(
                 "Mesh Editor continued from edits that were not finished before CDMW closed. "
                 "Undo returns to the draft as it was last finished."

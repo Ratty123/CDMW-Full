@@ -1312,3 +1312,64 @@ def test_discarded_editor_edits_leave_no_recovery_point(game, tmp_path):
         assert _first_x(first) == pytest.approx(original_x + 0.1, abs=2e-5)
     finally:
         _close(first)
+
+
+def test_finish_keeps_the_recovery_point_until_the_draft_holds_the_edits(game, tmp_path):
+    """Section 8.7 A1: a crash between Finish and the draft's autosave must lose nothing."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    try:
+        original_x = _first_x(first)
+        editor = _editor(first, tmp_path / "rust-first")
+        _move_in_editor(editor, original_x + 0.25)
+        project = first.draft_manifest_path.parent / "mesh_layers"
+        _wait_for_recovery(project)
+        host = first.service._session(first.view.session_id)
+        editor.finish(_request(editor, "finish_request", 2))
+        # Right after Finish the draft's own save has not run yet (it waits 0.75 s).
+        saved = host.mesh_layer_autosave_saved_key == (host.revision, host.geometry_layer_revision)
+        assert saved or read_editor_recovery(project) is not None, (
+            "Finish removed the unfinished edits before the draft was written")
+        _wait_for_autosave(first)
+        assert read_editor_recovery(project) is None  # now the draft holds them
+    finally:
+        _close(first)
+
+
+def test_discard_removes_unfinished_edits_even_after_the_draft_closed(game, tmp_path):
+    """Section 8.7 A11: Discard's removal must not depend on the order sessions close in."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    _wait_for_recovery(project)
+    first.service.close_edit_session(first.view.session_id, force_without_saving=True)  # the tab closed first
+    editor.cancel()
+    assert read_editor_recovery(project) is None, "discarded edits would come back when the draft reopens"
+
+
+def test_a_recovery_point_that_cannot_be_restored_is_reported(game, tmp_path):
+    """Section 8.7 A11: a damaged recovery point opens the editor without it, and says so."""
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    recovery = _wait_for_recovery(project)
+    editor.shadow_service.close_edit_session(editor.shadow_session_id, force_without_saving=True)
+    first.service.close_edit_session(first.view.session_id, force_without_saving=True)
+    manifest = project / recovery["generation"] / "generation.json"
+    manifest.write_text(manifest.read_text(encoding="utf-8") + " ", encoding="utf-8")
+    rows = list_saved_work(game.drafts)
+    launch = prepare_saved_work_launch(game.drafts, rows[0], game.entry, edited_note=EDITED_RESULT_NOTE)
+    resumed = _load(launch.selected_entry, game.context, game.drafts, draft_request=launch.draft_request)
+    try:
+        again = _editor(resumed, tmp_path / "rust-again")
+        assert again.recovered_edits_at == 0.0
+        assert again.recovery_problem, "the editor opened without its unfinished edits and said nothing"
+    finally:
+        resumed.service.close_edit_session(resumed.view.session_id, force_without_saving=True)

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
 #: Documents whose 3D view stays open at once (P15 step 3): past it the one shown
@@ -30,7 +30,7 @@ EMPTY_DOCUMENT_LABEL = "Mesh Editor"
 #: Calls every document receives, not only the shown one.
 _BROADCAST = frozenset({"set_theme", "sync_ui_font", "set_archive_selection"})
 #: The view's own attributes; every other write goes to the shown document.
-_OWN = frozenset({"_build_document", "_documents", "_shown", "tab_bar", "stack"})
+_OWN = frozenset({"_build_document", "_documents", "_shown", "_closing", "tab_bar", "stack"})
 
 
 class MeshDocumentsView(QWidget):
@@ -46,6 +46,8 @@ class MeshDocumentsView(QWidget):
         self._documents: list[QWidget] = []
         #: Documents in the order they were last shown, newest last (for parking).
         self._shown: list[QWidget] = []
+        #: Closed documents whose threads are still running; deleted when they end.
+        self._closing: list[QWidget] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -132,9 +134,43 @@ class MeshDocumentsView(QWidget):
             self._shown.remove(document)
         self.stack.removeWidget(document)
         self.tab_bar.removeTab(index)
-        document.deleteLater()
+        self._closing.append(document)
+        document.hide()
+        self._delete_when_idle(document)
         self.set_active(min(index, len(self._documents) - 1))
         return True
+
+    def _delete_when_idle(self, document: QWidget) -> None:
+        """Delete a closed document once none of its threads runs (section 8.7 A6)."""
+
+        if document not in self._closing:
+            return
+        if _running_threads(document):
+            QTimer.singleShot(100, self, lambda current=document: self._delete_when_idle(current))
+            return
+        self._closing.remove(document)
+        document.deleteLater()
+
+    # ----- shutdown reaches every document (section 8.7 A9) -------------------
+    def iter_shutdown_workers(self):
+        workers = []
+        for document in (*self._documents, *self._closing):
+            iterator = getattr(document, "iter_shutdown_workers", None)
+            if callable(iterator):
+                workers.extend(tuple(iterator()))
+        return tuple(workers)
+
+    def request_shutdown(self) -> None:
+        for document in (*self._documents, *self._closing):
+            stop = getattr(document, "request_shutdown", None)
+            if callable(stop):
+                stop()
+
+    def browse_document(self) -> QWidget | None:
+        """The document whose edit is in Browse's view, shown or not (section 8.7 A5)."""
+
+        return next((document for document in self._documents
+                     if getattr(getattr(document, "live_edit", None), "viewport_binding", None) is not None), None)
 
     def pending_documents(self) -> tuple[QWidget, ...]:
         """Documents with an unfinished edit, for the close guard."""
@@ -222,6 +258,20 @@ def _broadcast(documents: list[QWidget], name: str):
                 result = method(*args, **kwargs)
         return result
     return call
+
+
+def _running_threads(document: QWidget) -> bool:
+    iterator = getattr(document, "iter_shutdown_workers", None)
+    if not callable(iterator):
+        return False
+    for _name, thread, _worker in tuple(iterator()):
+        running = getattr(thread, "isRunning", None)
+        try:
+            if callable(running) and running():
+                return True
+        except RuntimeError:
+            continue
+    return False
 
 
 def _has_session(document: QWidget) -> bool:

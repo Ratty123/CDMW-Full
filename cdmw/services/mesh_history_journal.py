@@ -133,15 +133,17 @@ def read_journal(project_root: Path) -> Journal:
     path = journal_path(project_root)
     journal = Journal()
     try:
-        text = path.read_text(encoding="utf-8")
+        data = path.read_bytes()
     except FileNotFoundError:
         return journal
     by_depth: dict[int, JournalRecord] = {}
-    for line in text.splitlines():
-        if not line.strip():
+    for raw_line in data.splitlines():
+        if not raw_line.strip():
             continue
         try:
-            item = json.loads(line)
+            # A line that is not text (a damaged byte) is unreadable on its own; the
+            # others still count (section 8.7 A12).
+            item = json.loads(raw_line.decode("utf-8"))
             if not isinstance(item, dict) or item.get("format") != JOURNAL_FORMAT:
                 raise ValueError
             if item.get("type") == "clean":
@@ -157,7 +159,7 @@ def read_journal(project_root: Path) -> Journal:
                 part_ids=tuple(_non_negative(part) for part in item.get("part_ids") or ())[:4096],
                 created_at=float(item.get("created_at") or 0.0),
             )
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError):  # UnicodeDecodeError is a ValueError
             journal.ignored_lines += 1
             continue
         by_depth[record.depth] = record  # a later line for a depth replaces it
@@ -259,7 +261,11 @@ def prune_unjournaled_generations(project_root: Path, keep: Iterable[str] = ()) 
     """
 
     root = Path(project_root)
-    named = {record.generation for record in read_journal(root).records} | {name for name in keep if name}
+    current = read_journal(root)
+    if current.ignored_lines:
+        # A line could not be read: it may name a step, so nothing is removed (8.7 A12).
+        return
+    named = {record.generation for record in current.records} | {name for name in keep if name}
     recovery = read_editor_recovery(root)
     if recovery is not None:
         named.add(recovery["generation"])

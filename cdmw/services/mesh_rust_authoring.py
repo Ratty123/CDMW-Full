@@ -7748,6 +7748,10 @@ class RustMeshAuthoringSession:
     deferred_morph_ready: bool = field(default=False, repr=False)
     #: P14: when the unfinished edits this editor continued from were saved (0.0: none).
     recovered_edits_at: float = 0.0
+    #: Why unfinished edits that exist were not restored ("" when none were lost).
+    recovery_problem: str = ""
+    #: The draft folder the recovery point is kept in, fixed at open (section 8.7 A11).
+    recovery_project_root: Path | None = None
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -8034,30 +8038,42 @@ class RustMeshAuthoringSession:
             return 0.0
         plan = getattr(authoritative_session, "mesh_draft_plan", None)
         draft = (plan, bytes(getattr(authoritative_session, "original_data", b"") or b"")) if plan is not None else None
+        self.recovery_project_root = Path(project_path).parent
         try:
-            return self.shadow_service.attach_editor_recovery(
+            restored = self.shadow_service.attach_editor_recovery(
                 self.shadow_session_id, Path(project_path), source_hash,
                 base_generation=str(getattr(authoritative_session, "mesh_layer_loaded_generation", "") or ""),
                 draft=draft,
             )
-        except Exception:
-            # Recovery is a safety net; the editor opens without it.
+            shadow = self.shadow_service._session(self.shadow_session_id)
+            self.recovery_problem = str(getattr(shadow, "history_recovery_problem", "") or "")
+            return restored
+        except Exception as exc:
+            # Recovery is a safety net; the editor opens without it, and says so.
+            self.recovery_problem = f"Unfinished Mesh Editor edits could not be restored ({type(exc).__name__}: {exc})."
             return 0.0
 
-    def _end_editor_recovery(self) -> None:
-        """The edits were finished or discarded: their recovery point goes."""
+    def _end_editor_recovery(self, *, after_draft_save: bool = False) -> None:
+        """The edits were finished or discarded: their recovery point goes.
+
+        ``after_draft_save`` (Finish): the shadow stops writing it now, and the
+        draft's next save, which holds the finished edits, removes it.
+        """
 
         from cdmw.services import mesh_history_journal as journal
 
         try:
             self.shadow_service.detach_editor_recovery(self.shadow_session_id, clear=False)
-            project_path = self.authoritative_service._session(self.authoritative_session_id).mesh_layer_project_path
-            if project_path is not None:
-                project_root = Path(project_path).parent
-                with journal.project_lock(project_root):
-                    journal.clear_editor_recovery(project_root)
+            if after_draft_save:
+                self.authoritative_service.clear_editor_recovery_after_next_save(self.authoritative_session_id)
+                return
         except Exception:
             pass
+        # Discard: the folder fixed at open, whatever closed first (section 8.7 A11).
+        project_root = self.recovery_project_root
+        if project_root is not None:
+            with journal.project_lock(project_root):
+                journal.clear_editor_recovery(project_root)
 
     def _require_open(self) -> None:
         if self.closed:
@@ -10904,7 +10920,9 @@ class RustMeshAuthoringSession:
                 ) from commit_error
             raise
         result = self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
-        self._end_editor_recovery()  # the draft holds these edits now (P14)
+        # The draft holds these edits once its next save lands; until then the
+        # recovery point stays, so a crash in between loses nothing (8.7 A1).
+        self._end_editor_recovery(after_draft_save=True)
         try:
             self.authoritative_service.mark_history_clean(self.authoritative_session_id)
         except Exception:
