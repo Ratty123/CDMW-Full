@@ -204,3 +204,21 @@ def test_a_crash_while_editing_in_browse_continues_in_browse_s_viewport(tmp_path
     process.kill()
     process.finished.emit(1, QProcess.ExitStatus.NormalExit)
     controller.shutdown()
+
+
+def test_showing_a_parked_document_before_its_helper_exits_is_no_crash(tmp_path, monkeypatch) -> None:
+    """Section 8.8 R13: the late exit counted as a crash, and twice in a minute raised
+    the crash prompt for a healthy document."""
+
+    tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch)
+    try:
+        channel = tab.standalone_rust_process
+        assert tab.park_rust_editor()
+        assert tab.unpark_rust_editor(), "showing it again was refused while its view closed"
+        tab._handle_rust_process_finished(channel, 0, QProcess.ExitStatus.NormalExit)  # noqa: SLF001
+        assert _wait(lambda: launched == [session]), "the view did not open again after the exit"
+        assert not getattr(tab, "_rust_last_crash_at", 0.0), "the parked exit counted as a crash"
+        assert failures == [], failures
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)

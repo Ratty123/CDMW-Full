@@ -57,6 +57,7 @@ STATE_NAMES = (
     "standalone_rust_prepare_active_request_id", "standalone_rust_prepare_controller",
     "standalone_rust_prepare_process_generation", "standalone_rust_prepare_request_id",
     "standalone_rust_parked",
+    "standalone_rust_unpark_requested",
     "standalone_rust_prepare_service", "standalone_rust_prepare_session_id", "standalone_rust_prepare_thread",
     "standalone_rust_prepare_worker", "standalone_rust_process", "standalone_rust_process_error_reported",
     "standalone_rust_process_generation", "standalone_rust_protocol_events", "standalone_rust_protocol_queue",
@@ -94,6 +95,7 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     _viewport_binding = None
     #: The view is closed to save memory; the session stays (P15 step 3).
     standalone_rust_parked = False
+    standalone_rust_unpark_requested = False
 
     def __init__(self, host: QObject) -> None:
         QObject.__init__(self, host)

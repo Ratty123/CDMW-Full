@@ -941,10 +941,10 @@ class MeshEditorShellBridgeMixin:
         if binding is None:
             return None
         # Each document's editor is connected once (section 8.7 A5: not only the first).
-        connected = self.__dict__.setdefault("_browse_edit_moves_connected_to", set())
-        if id(live_edit) not in connected:
+        # Marked on the component itself: an id() can be reused by a later one (8.8 R13).
+        if not getattr(live_edit, "_cdmw_browse_moves_connected", False):
             live_edit.moved_to_own_viewport.connect(self._browse_edit_moved_to_tab)
-            connected.add(id(live_edit))
+            live_edit._cdmw_browse_moves_connected = True
         live_edit.edit_in_viewport(binding)
         self._watch_documents_for_browse_edit()
         if fresh:
@@ -960,10 +960,9 @@ class MeshEditorShellBridgeMixin:
 
         view = created_tool_widget(self.mesh_editor_tab)
         changed = getattr(view, "document_changed", None)
-        connected = self.__dict__.setdefault("_documents_watched_for_browse_edit", set())
-        if changed is None or id(view) in connected:
+        if changed is None or getattr(view, "_cdmw_watched_for_browse_edit", False):
             return
-        connected.add(id(view))
+        object.__setattr__(view, "_cdmw_watched_for_browse_edit", True)  # not forwarded to a document
 
         def shown(index: int, view=view) -> None:
             documents = tuple(getattr(view, "documents", ()) or ())

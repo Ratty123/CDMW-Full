@@ -1011,6 +1011,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_authoring_session = session
         self.standalone_rust_session_root = session.root
         self.standalone_rust_parked = False  # a new session is never parked (P15)
+        self.standalone_rust_unpark_requested = False
         self.standalone_rust_texture_unavailable_reason = str(
             getattr(session, "texture_unavailable_reason", "") or ""
         ).strip()
@@ -1018,6 +1019,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         problem = str(getattr(session, "recovery_problem", "") or "")
         if problem:
             self._set_rust_status(problem, error=True)
+            # The status line is overwritten by the next message; the shell's activity
+            # log keeps it (section 8.8 R13).
+            notice = getattr(self, "status_message_requested", None)
+            if notice is not None and hasattr(notice, "emit"):
+                notice.emit(problem, True)
         elif float(getattr(session, "recovered_edits_at", 0.0) or 0.0) > 0.0:
             self._set_rust_status(
                 "Mesh Editor continued from edits that were not finished before CDMW closed. "

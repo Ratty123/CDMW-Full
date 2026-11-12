@@ -710,6 +710,21 @@ def _history_journal_of(session: _MeshEditSession):
     return journal
 
 
+def _clear_requested_recovery(session: _MeshEditSession, project_root: Path) -> None:
+    """The draft now holds what an editor finished: remove that editor's recovery point
+    (section 8.7 A1), but never one a newer editor wrote meanwhile (8.8 R13)."""
+
+    from cdmw.services.mesh_history_journal import clear_editor_recovery, read_editor_recovery
+
+    if not session.history_recovery_clear_on_save:
+        return
+    session.history_recovery_clear_on_save = False
+    requested, session.history_recovery_clear_generation = session.history_recovery_clear_generation, ""
+    current = read_editor_recovery(project_root)
+    if current is not None and requested and str(current["generation"]) == requested:
+        clear_editor_recovery(project_root)
+
+
 def _history_clean(session: _MeshEditSession) -> bool:
     if session.mesh_layer_project_path is None:
         # Layer renames, visibility and activation move the layer revision only.
@@ -1645,12 +1660,7 @@ class _MeshServiceSessionLayerCore(
             session.history_journal_error = (
                 "The draft's history could not be read fully when it opened, so this session adds no "
                 f"step to it and removes nothing ({session.history_journal_readonly}).")
-            if session.history_recovery_clear_on_save:
-                # The draft still holds what the editor finished (section 8.7 A1).
-                session.history_recovery_clear_on_save = False
-                from cdmw.services.mesh_history_journal import clear_editor_recovery
-
-                clear_editor_recovery(project_root)
+            _clear_requested_recovery(session, project_root)
             return
         _reconcile_journal_depth(session)
         try:
@@ -1673,10 +1683,7 @@ class _MeshServiceSessionLayerCore(
         if session.history_journal_clean_pending:
             session.history_journal_clean_pending = False
             journal.mark_clean(project_root, generation)
-        if session.history_recovery_clear_on_save:
-            # The draft now holds what the editor finished (section 8.7 A1).
-            session.history_recovery_clear_on_save = False
-            journal.clear_editor_recovery(project_root)
+        _clear_requested_recovery(session, project_root)
 
     def _step_history_journal_if_any(self, session: _MeshEditSession, direction: int) -> MeshEditResult | None:
         if session.mesh_layer_project_path is None or _journal_step_target(session, direction) is None:
@@ -1718,7 +1725,11 @@ class _MeshServiceSessionLayerCore(
                 return
             saved = (session.revision, session.geometry_layer_revision) == session.mesh_layer_autosave_saved_key
             if not saved:
+                from cdmw.services.mesh_history_journal import read_editor_recovery
+
+                current = read_editor_recovery(Path(session.mesh_layer_project_path).parent)
                 session.history_recovery_clear_on_save = True
+                session.history_recovery_clear_generation = str(current["generation"]) if current else ""
                 return
             project_root = Path(session.mesh_layer_project_path).parent
             with project_lock(project_root):

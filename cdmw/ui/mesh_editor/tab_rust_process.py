@@ -1227,6 +1227,9 @@ class MeshEditorRustProcessMixin:
         if getattr(self, "standalone_rust_parked", False):
             # Parked (P15 step 3): the view closed on purpose; the session stays.
             self.standalone_rust_closing = False
+            if getattr(self, "standalone_rust_unpark_requested", False):
+                self.unpark_rust_editor()  # shown again while it closed
+                return
             self._set_rust_status(PARKED_STATUS)
             return
         if self.standalone_rust_finish_accepted:
@@ -1462,11 +1465,17 @@ class MeshEditorRustProcessMixin:
         if not getattr(self, "standalone_rust_parked", False):
             return False
         session = self.standalone_rust_authoring_session
-        self.standalone_rust_parked = False
         if session is None or getattr(session, "closed", True):
+            self.standalone_rust_parked = False
             return False
         if self.standalone_rust_process is not None:
-            return False  # still closing; the shell shows it again when it has
+            # Its view is still closing: it stays parked until the helper has exited,
+            # so that exit is no crash, and opens again then (section 8.8 R13).
+            self.standalone_rust_unpark_requested = True
+            self._set_rust_status("Opening this document's 3D view again...")
+            return True
+        self.standalone_rust_parked = False
+        self.standalone_rust_unpark_requested = False
         self._set_rust_status("Opening this document's 3D view again...")
         self._rewrite_rust_session_after_crash(session)
         return True

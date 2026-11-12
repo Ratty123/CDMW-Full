@@ -491,3 +491,28 @@ def test_a_layer_change_without_a_new_revision_moves_the_clean_mark() -> None:
         assert disk.closing_loses_work(disk_id), "the rename was lost on close unasked"
     finally:
         disk.close_edit_session(disk_id)
+
+
+def test_a_late_draft_save_never_clears_a_newer_editor_s_recovery_point(tmp_path) -> None:
+    """Section 8.8 R13: a clean-up asked for by one editor removed the recovery point a
+    newer editor wrote before the draft's save landed."""
+
+    service, session_id = _open(tmp_path)
+    try:
+        root = tmp_path / "mesh_layers"
+        for step in (0.25, 0.25):
+            _move(service, session_id, step)
+            service.retry_mesh_layer_autosave(session_id)
+        older, newer = (record.generation for record in journal.read_journal(root).records[-2:])
+        journal.write_editor_recovery(root, older, base_generation=older)
+        _move(service, session_id, 0.25)
+        # The draft's save of this state is still pending (it waits 0.75 s in the app).
+        service._session(session_id).mesh_layer_autosave_saved_key = None
+        service.clear_editor_recovery_after_next_save(session_id)  # the first editor's Finish
+        # A newer editor's unfinished edits, written before the draft's save lands.
+        journal.write_editor_recovery(root, newer, base_generation=older)
+        service.retry_mesh_layer_autosave(session_id)
+        kept = journal.read_editor_recovery(root)
+        assert kept is not None and kept["generation"] == newer, kept
+    finally:
+        service.close_edit_session(session_id)
