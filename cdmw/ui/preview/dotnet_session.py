@@ -2264,7 +2264,14 @@ class RustPreviewSessionController(
         return ""
 
     def _edit_channel_for(self, payload: Mapping[str, object]):
-        """The borrowed edit an editor line belongs to (P15: routed by its session)."""
+        """The borrowed edit an editor line belongs to (section 8.8, cause 1).
+
+        A line names its edit: by session, or by Browse's marker for the edit in
+        Browse's view before its session exists. Nothing is routed by count; a line
+        that names neither, or names an edit that is gone, belongs to no channel.
+        """
+
+        from cdmw.ui.preview.engine_channel import VIEW_SLOT
 
         channels = [channel for channel in (self._edit_channel, *self._window_edit_channels) if channel is not None]
         session_id = str(payload.get("session_id") or "")
@@ -2272,14 +2279,14 @@ class RustPreviewSessionController(
             named = next((channel for channel in channels if channel.session_id == session_id), None)
             if named is not None:
                 return named
-            # A channel that has not named its session yet (Browse's view before the session).
-            unnamed = [channel for channel in channels if not channel.session_id]
-            if len(unnamed) == 1:
-                return unnamed[0]
+            # Browse's channel learns its session from its own open_session line.
+            if payload.get("edit_slot") == VIEW_SLOT and self._edit_channel is not None \
+                    and not self._edit_channel.session_id:
+                return self._edit_channel
             return None
-        if self._edit_channel is not None:
+        if payload.get("edit_slot") == VIEW_SLOT:
             return self._edit_channel
-        return channels[0] if len(channels) == 1 else None
+        return None
 
     def borrow_for_window_edit(self, parent: QObject | None = None):
         """A channel for an edit in a window of its own in this process (P4 V5), or None.
@@ -2320,6 +2327,7 @@ class RustPreviewSessionController(
         if self._edit_channel is not channel:
             return False
         self._edit_channel = None
+        channel.own_window = True  # its lines are routed by session from now on
         self._window_edit_channels.append(channel)
         hand_to = getattr(channel, "hand_to", None)
         if callable(hand_to):

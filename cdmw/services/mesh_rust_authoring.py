@@ -7748,6 +7748,8 @@ class RustMeshAuthoringSession:
     deferred_morph_ready: bool = field(default=False, repr=False)
     #: P14: when the unfinished edits this editor continued from were saved (0.0: none).
     recovered_edits_at: float = 0.0
+    #: The shadow session's revision when the editor opened (-1: not known yet).
+    shadow_base_revision: int = -1
     #: Why unfinished edits that exist were not restored ("" when none were lost).
     recovery_problem: str = ""
     #: The draft folder the recovery point is kept in, fixed at open (section 8.7 A11).
@@ -8004,6 +8006,11 @@ class RustMeshAuthoringSession:
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
             instance.recovered_edits_at = instance._attach_editor_recovery(authoritative_session)
+            try:
+                instance.shadow_base_revision = int(
+                    instance.shadow_service.session_view(instance.shadow_session_id).revision)
+            except Exception:
+                instance.shadow_base_revision = -1
             report("Preparing Mesh Editor files...")
             instance.defer_morph_state = bool(defer_morph_state)
             instance.open_stage_ms.update(stage_marks)
@@ -10562,6 +10569,33 @@ class RustMeshAuthoringSession:
                 f"Free Edit output folder must still be new; the selected destination now exists: {target}"
             )
         return target
+
+    def unfinished_steps(self) -> int:
+        """Editor steps since the editor opened that no Finish has taken (section 8.8).
+
+        Edits restored from a recovery point count as one step until a Finish.
+        """
+
+        with self._lifecycle_lock:
+            if self._finish_accepted or self.closed:
+                return 0
+        steps = 1 if self.recovered_edits_at > 0.0 else 0
+        if self.shadow_base_revision >= 0:
+            try:
+                current = int(self.shadow_service.session_view(self.shadow_session_id).revision)
+            except Exception:
+                return max(steps, 1)  # unreadable: count it, so nothing is closed unasked
+            steps += max(0, current - self.shadow_base_revision)
+        return steps
+
+    def holds_recovery_point(self) -> bool:
+        """Whether unfinished edits of this editor are kept on disk for a crash."""
+
+        root = self.recovery_project_root
+        try:
+            return bool(root is not None and (Path(root) / "editor_recovery.json").is_file())
+        except OSError:
+            return False
 
     def _complete_accepted_finish(
         self, cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication,

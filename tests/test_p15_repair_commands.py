@@ -86,3 +86,46 @@ def test_showing_a_document_tab_offers_its_commands(tmp_path, monkeypatch) -> No
     assert _mirrors(host.command_registry).shown().owner() is first.live_edit
     view.tab_bar.setCurrentIndex(1)
     assert _mirrors(host.command_registry).shown().owner() is second.live_edit
+
+
+def test_a_command_runs_in_the_edit_browse_shows_not_a_hidden_document(tmp_path, monkeypatch) -> None:
+    """R6: Browse's edit frame had no isVisible, so the command went to the hidden shown document."""
+
+    from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+
+    host, (a, *_, ), (b, *_, ) = _two_documents(tmp_path, monkeypatch)
+    registry = host.command_registry
+    preview_host = QWidget()
+    preview_host.show()  # Browse's viewport, on screen
+    try:
+        binding = BrowseViewportBinding(preview_host, "sword.pac")
+        b.live_edit.edit_in_viewport(binding)  # B edits in Browse's view
+        a_lines, b_lines = [], []
+        monkeypatch.setattr(a, "_send_rust_message", lambda line: a_lines.append(line) or True)
+        monkeypatch.setattr(b, "_send_rust_message", lambda line: b_lines.append(line) or True)
+        a._mirror_rust_commands(list(_ROWS))
+        b._mirror_rust_commands(list(_ROWS))
+        set_command_owner(registry, a)  # the Mesh page's shown document, hidden behind Browse
+        registry.run(registry_id("tool.move"))
+        assert len(b_lines) == 1 and not a_lines
+    finally:
+        preview_host.deleteLater()
+
+
+def test_a_closed_document_s_mirror_does_not_keep_it_alive(tmp_path, monkeypatch) -> None:
+    """R6: mirrors held strong references to their owners, so nothing was ever pruned."""
+
+    import weakref
+
+    from cdmw.ui.mesh_editor.editor_commands import _mirrors
+
+    host, (a, *_, ), _second = _two_documents(tmp_path, monkeypatch)
+    registry = host.command_registry
+    a._mirror_rust_commands(list(_ROWS))
+    owner = weakref.ref(a.live_edit)
+    mirror = next(iter(_mirrors(registry).by_owner.values()))
+    assert mirror.owner() is a.live_edit
+    for name in ("send", "ready"):
+        assert not any(cell.cell_contents is a.live_edit
+                       for cell in (getattr(getattr(mirror, name, None), "__closure__", None) or ())), name
+    assert owner() is a.live_edit

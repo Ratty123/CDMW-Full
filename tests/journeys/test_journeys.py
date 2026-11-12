@@ -110,8 +110,8 @@ def _one_edit(run, before: int) -> int:
     for command in ("selection.target.face", "session.select_all", "selection.shrink", "selection.shrink",
                     "selection.shrink", "topology.delete_selection"):
         run.call("run_editor_command", id=command)
-    return run.wait(lambda: (run.state()["mesh_editor"]["revision"] > before) and run.state()["mesh_editor"]["revision"],
-                    timeout=60, what="the edit to be accepted")
+    return run.wait(lambda: (run.state()["mesh_editor"]["editor_steps"] > before)
+                    and run.state()["mesh_editor"]["editor_steps"], timeout=60, what="the edit to be accepted")
 
 
 def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspace(run):
@@ -125,7 +125,7 @@ def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspac
     run.open_mesh_editor()
     _editor_ready(run)
     assert run.state()["mesh_editor"]["in_browse"]
-    first = _one_edit(run, run.state()["mesh_editor"]["revision"])
+    first = _one_edit(run, run.state()["mesh_editor"]["editor_steps"])
     index = len(run.call("events"))
     run.call("activate_tool", key="mesh_editor")
     state = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,

@@ -29,10 +29,20 @@ def registry_id(helper_id: str) -> str:
 
 
 class _Mirror:
-    def __init__(self, owner: object, rows: list[Mapping[str, object]], send: Callable[[str], bool],
-                 ready: Callable[[], bool]) -> None:
+    """One document's reported commands. It holds its owner weakly and reaches it
+    only when a command runs, so a closed document is never kept alive (8.8 R6)."""
+
+    def __init__(self, owner: object, rows: list[Mapping[str, object]]) -> None:
         self.owner = weakref.ref(owner)
-        self.rows, self.send, self.ready = rows, send, ready
+        self.rows = rows
+
+    def send(self, helper_id: str) -> bool:
+        owner = self.owner()
+        send = getattr(owner, "_send_rust_command", None)
+        return bool(callable(send) and send(helper_id))
+
+    def ready(self) -> bool:
+        return bool(getattr(self.owner(), "standalone_rust_ready", False))
 
 
 class _Mirrors:
@@ -49,7 +59,9 @@ class _Mirrors:
 
     def shown(self) -> _Mirror | None:
         owner = self.owner() if self.owner is not None else None
-        return self.by_owner.get(id(owner)) if owner is not None else None
+        mirror = self.by_owner.get(id(owner)) if owner is not None else None
+        # An id can be reused after its owner is gone: only its own mirror counts.
+        return mirror if mirror is not None and mirror.owner() is owner else None
 
 
 def _mirrors(registry: CommandRegistry) -> _Mirrors:
@@ -102,7 +114,7 @@ def mirror_helper_commands(registry: CommandRegistry, commands: Iterable[Mapping
     if owner is None:
         return _publish(registry, rows, send, ready)
     mirrors = _mirrors(registry)
-    mirrors.by_owner[id(owner)] = _Mirror(owner, rows, send, ready)
+    mirrors.by_owner[id(owner)] = _Mirror(owner, rows)
     shown = mirrors.shown()
     if shown is None or shown.owner() is owner:
         mirrors.owner = weakref.ref(owner)

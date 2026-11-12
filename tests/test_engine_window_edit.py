@@ -48,11 +48,13 @@ def test_the_tab_s_window_takes_the_editor_lines_and_browse_keeps_previewing(tmp
         assert not controller.editing_in_place  # Browse's own loads are not held back
         heard = []
         channel.readyReadStandardOutput.connect(lambda: heard.append(bytes(channel.readAllStandardOutput())))
-        hello = {"event": "hello", "protocol": RUST_MESH_EDITOR_PROTOCOL, "child_hwnd": 9}
+        channel.session_id = "draft-w"  # an edit in a window of its own is always named
+        hello = {"event": "hello", "protocol": RUST_MESH_EDITOR_PROTOCOL, "child_hwnd": 9, "session_id": "draft-w"}
         _emit_stdout(process, _line(hello))
         assert heard and json.loads(heard[0]) == hello
         channel.terminate()
-        assert process.writes[-1] == {"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL}
+        assert process.writes[-1] == {"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                      "session_id": "draft-w"}
         assert not controller.editing_in_own_window and controller.window_edit_blocker() == ""
     finally:
         controller.shutdown()
@@ -158,8 +160,8 @@ def test_promote_to_tab_moves_the_edit_out_of_browse_s_viewport_without_ending_i
 
         assert live.promote_to_tab()
         assert process.writes[-1] == {"event": "promote_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL,
-                                      "parent_hwnd": 5150}
-        _emit_stdout(process, _line({"event": "edit_promoted", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                      "parent_hwnd": 5150, "edit_slot": "view"}
+        _emit_stdout(process, _line({"event": "edit_promoted", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL,
                                      "child_hwnd": 808, "embedded_parent_hwnd": 5150}))
         QApplication.processEvents()
         # The window moved under the tab; the edit runs on in Browse's process.
@@ -193,7 +195,7 @@ def test_a_refused_promotion_keeps_the_edit_in_browse(tmp_path: Path, monkeypatc
         notices = []
         tab.status_message_requested.connect(lambda message, error: notices.append(message))
         assert live.promote_to_tab()
-        _emit_stdout(process, _line({"event": "promote_refused", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+        _emit_stdout(process, _line({"event": "promote_refused", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL,
                                      "reason": "no edit in Browse's view to move"}))
         QApplication.processEvents()
         assert live.viewport_binding is binding and controller.editing_in_place

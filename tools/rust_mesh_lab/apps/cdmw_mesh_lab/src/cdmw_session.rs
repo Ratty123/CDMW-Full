@@ -3868,7 +3868,9 @@ fn spawn_output_writer(
             for outbound in receiver {
                 let mut writer = Vec::with_capacity(4096);
                 let result = match outbound {
-                    Outbound::Message(value) => write_control_message(&mut writer, &value),
+                    Outbound::Message(value) => {
+                        write_control_message(&mut writer, &with_session_id(value, &session_id))
+                    }
                     Outbound::HairTransaction {
                         request_id,
                         base_revision,
@@ -3923,6 +3925,19 @@ fn spawn_output_writer(
             }
         })
         .expect("control output thread creation must succeed");
+}
+
+/// Every line an edit writes names its session, so the host never routes one by
+/// count (section 8.8 cause 1).
+fn with_session_id(mut value: Value, session_id: &str) -> Value {
+    if !session_id.is_empty()
+        && let Some(object) = value.as_object_mut()
+    {
+        object
+            .entry("session_id")
+            .or_insert_with(|| json!(session_id));
+    }
+    value
 }
 
 fn write_control_message(writer: &mut impl Write, value: &Value) -> Result<(), SessionError> {

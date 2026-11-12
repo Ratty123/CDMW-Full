@@ -327,6 +327,8 @@ class AutomationBridge(QObject):
                 "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
                 "process_id": self._editor_process_id(tab),
                 "revision": self._editor_revision(tab),
+                # Editor steps no Finish has taken (journey 3).
+                "editor_steps": self._editor_steps(tab),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
                 "session_manifest": self._editor_session_manifest(tab),
             },
@@ -410,6 +412,12 @@ class AutomationBridge(QObject):
             return False
         view.set_active(index)
         return True
+
+    @staticmethod
+    def _editor_steps(tab) -> int:
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import unfinished_editor_steps
+
+        return int(unfinished_editor_steps(tab))
 
     @staticmethod
     def _editor_revision(tab) -> int:

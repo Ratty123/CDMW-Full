@@ -29,6 +29,23 @@ OWN_VIEWPORT_EDIT_CAPABILITY = "own_viewport_edit_v1"
 MULTI_EDIT_CAPABILITY = "multi_edit_v1"
 
 _LEAVE_EVENTS = frozenset({"edit_left", "edit_refused"})
+#: The marker every line of the edit in Browse's view carries, both ways (section 8.8):
+#: the engine routes by it before the edit's session exists, and never by count.
+VIEW_SLOT = "view"
+_VIEW_SLOT_FIELD = b'"edit_slot":"view",'
+
+
+def mark_view_lines(data: bytes) -> bytes:
+    """Put Browse's marker on each JSON object line that does not carry one."""
+
+    lines = []
+    for line in bytes(data).split(b"\n"):
+        stripped = line.lstrip()
+        if stripped.startswith(b"{") and b'"edit_slot"' not in line:
+            at = line.index(b"{") + 1
+            line = line[:at] + (_VIEW_SLOT_FIELD if stripped[1:2] != b"}" else _VIEW_SLOT_FIELD[:-1]) + line[at:]
+        lines.append(line)
+    return b"\n".join(lines)
 #: The engine's own report; the editor component does not read it.
 _ENGINE_EVENTS = frozenset({"edit_entered", "edit_viewing"})
 
@@ -113,7 +130,11 @@ class EngineEditChannel(QObject):
     def write(self, data: bytes | QByteArray) -> int:
         if not self._running:
             return -1
-        return int(self._write(bytes(data)))
+        raw = bytes(data)
+        marked = raw if self.own_window else mark_view_lines(raw)
+        written = int(self._write(marked))
+        # The caller checks the length it gave, not the marked one.
+        return len(raw) if written == len(marked) else written
 
     def readAllStandardOutput(self) -> QByteArray:  # noqa: N802 - QProcess shape
         data, self._buffer = bytes(self._buffer), bytearray()
@@ -175,6 +196,8 @@ class EngineEditChannel(QObject):
         message = {"event": payload.pop("event"), "protocol": RUST_MESH_EDITOR_PROTOCOL, **payload}
         if self.session_id:
             message["session_id"] = self.session_id
+        if not self.own_window:
+            message["edit_slot"] = VIEW_SLOT
         return json.dumps(message, separators=(",", ":")).encode("utf-8") + b"\n"
 
     def _end(self, *, send_leave: bool, exit_code: int = 0, crashed: bool = False) -> None:
@@ -197,4 +220,5 @@ class EngineEditChannel(QObject):
         QTimer.singleShot(0, self, lambda: self.finished.emit(int(exit_code), status))
 
 
-__all__ = ["EDIT_IN_PLACE_CAPABILITY", "MULTI_EDIT_CAPABILITY", "OWN_VIEWPORT_EDIT_CAPABILITY", "EngineEditChannel"]
+__all__ = ["EDIT_IN_PLACE_CAPABILITY", "MULTI_EDIT_CAPABILITY", "OWN_VIEWPORT_EDIT_CAPABILITY", "VIEW_SLOT",
+           "EngineEditChannel", "mark_view_lines"]

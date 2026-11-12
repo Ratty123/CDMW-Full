@@ -38,12 +38,41 @@ def pending_edit_revision(tab: object) -> int:
         return 0
 
 
+def unfinished_editor_steps(tab: object) -> int:
+    """Editor steps no Finish has taken yet, whether or not the editor is ready,
+    parked or restarting (section 8.8)."""
+
+    session = getattr(tab, "standalone_rust_authoring_session", None)
+    if session is None or getattr(session, "closed", True):
+        return 0
+    steps = getattr(session, "unfinished_steps", None)
+    try:
+        return int(steps()) if callable(steps) else 0
+    except Exception:
+        return 1  # cannot tell: ask rather than lose them
+
+
 def has_pending_edit(tab: object) -> bool:
-    """True while an edit is open with changes, or still open in its viewport."""
+    """The one definition of a pending edit (section 8.8, cause 3).
+
+    A document with a session and accepted steps, unfinished editor steps or a
+    recovery point, whether its editor is ready, parked, restarting or still
+    opening; or an editor open in its viewport. Every close, shutdown, discard
+    and "preview instead" path asks through this.
+    """
 
     live_edit = getattr(tab, "live_edit", None)
-    editing = bool(getattr(live_edit, "is_ready", False))
-    return pending_edit_revision(tab) > 0 or editing
+    if bool(getattr(live_edit, "is_ready", False)) or pending_edit_revision(tab) > 0:
+        return True
+    if unfinished_editor_steps(tab) > 0:
+        return True
+    session = getattr(tab, "standalone_rust_authoring_session", None)
+    holds = getattr(session, "holds_recovery_point", None)
+    try:
+        return bool(session is not None and not getattr(session, "closed", True)
+                    and callable(holds) and holds())
+    except Exception:
+        return True
 
 
 def ask_to_end_edit(parent: QWidget | None, file_label: str, *, finish_available: bool = True) -> str:
@@ -114,5 +143,5 @@ def _tell(parent: QWidget | None, text: str) -> None:
 
 __all__ = [
     "DISCARD", "FINISH", "KEEP", "NONE", "ask_to_end_edit", "has_pending_edit",
-    "pending_edit_revision", "prompt_override", "resolve_pending_edit",
+    "pending_edit_revision", "prompt_override", "resolve_pending_edit", "unfinished_editor_steps",
 ]

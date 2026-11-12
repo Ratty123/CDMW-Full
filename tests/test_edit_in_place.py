@@ -56,7 +56,7 @@ def test_editor_lines_reach_the_edit_and_preview_lines_stay_with_the_preview(tmp
         heard_preview, heard_edit = [], []
         controller.protocol_event.connect(lambda payload: heard_preview.append(payload.get("event")))
         channel.readyReadStandardOutput.connect(lambda: heard_edit.append(bytes(channel.readAllStandardOutput())))
-        hello = {"event": "hello", "protocol": RUST_MESH_EDITOR_PROTOCOL, "child_hwnd": 7}
+        hello = {"event": "hello", "protocol": RUST_MESH_EDITOR_PROTOCOL, "child_hwnd": 7, "edit_slot": "view"}
         _emit_stdout(process, _line(hello) + _line({"event": "view_state_changed", "protocol": RUST_PREVIEW_PROTOCOL}))
         assert heard_edit and json.loads(heard_edit[0]) == hello
         assert "hello" not in heard_preview
@@ -75,13 +75,13 @@ def test_ending_the_edit_leaves_edit_mode_and_keeps_the_process(tmp_path: Path) 
         finished = []
         channel.finished.connect(lambda code, status: finished.append((code, status)))
         channel.terminate()
-        assert process.writes[-1] == {"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL}
+        assert process.writes[-1] == {"event": "leave_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL, "edit_slot": "view"}
         assert channel.state() == channel.NotRunning and not controller.editing_in_place
         assert process.state() == QProcess.ProcessState.Running
         QApplication.processEvents()
         assert finished == [(0, QProcess.ExitStatus.NormalExit)]
         # The helper says edit_left later; nothing more is reported for it.
-        _emit_stdout(process, _line({"event": "edit_left", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
+        _emit_stdout(process, _line({"event": "edit_left", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
         QApplication.processEvents()
         assert len(finished) == 1
     finally:
@@ -94,7 +94,7 @@ def test_the_helper_leaving_edit_mode_ends_the_edit(tmp_path: Path) -> None:
         channel = controller.borrow_for_edit()
         finished = []
         channel.finished.connect(lambda code, status: finished.append(code))
-        _emit_stdout(process, _line({"event": "edit_left", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
+        _emit_stdout(process, _line({"event": "edit_left", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
         QApplication.processEvents()
         assert finished == [0] and not controller.editing_in_place
         # The helper said it left: nothing is sent back.
@@ -110,7 +110,7 @@ def test_a_refused_edit_says_why(tmp_path: Path) -> None:
         reasons, finished = [], []
         channel.refused.connect(reasons.append)
         channel.finished.connect(lambda code, status: finished.append(code))
-        _emit_stdout(process, _line({"event": "edit_refused", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+        _emit_stdout(process, _line({"event": "edit_refused", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL,
                                      "reason": "Leave the comparison view before editing the mesh here."}))
         QApplication.processEvents()
         assert reasons == ["Leave the comparison view before editing the mesh here."]
@@ -501,11 +501,12 @@ def test_the_click_shows_the_view_and_the_session_reuses_its_channel(tmp_path: P
         host = SimpleNamespace(controller=controller, _embedded_child_hwnd=7)
         binding = BrowseViewportBinding(host, "upper.pac")
         assert binding.show_view_now()
-        assert process.writes[-1] == {"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL, "keep_view": True}
+        assert process.writes[-1] == {"event": "enter_edit", "protocol": RUST_MESH_EDITOR_PROTOCOL, "keep_view": True,
+                                      "edit_slot": "view"}
         first = binding.channel
         viewing = []
         first.viewing_started.connect(lambda: viewing.append(1))
-        _emit_stdout(process, _line({"event": "edit_viewing", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+        _emit_stdout(process, _line({"event": "edit_viewing", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL,
                                      "install_ms": 40.0}))
         assert viewing == [1] and first.viewing
         assert first.bytesAvailable() == 0  # the engine's own line is not the editor's

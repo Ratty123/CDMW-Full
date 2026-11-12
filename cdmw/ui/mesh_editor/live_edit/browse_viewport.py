@@ -28,6 +28,15 @@ class BrowseEditFrame:
     def _host(self):
         return self._binding.preview_host
 
+    def isVisible(self) -> bool:  # noqa: N802 - the host frame's Qt shape
+        """Whether Browse's viewport is on screen (section 8.8 R6)."""
+
+        try:
+            host = self._host()
+            return bool(host is not None and host.isVisible())
+        except (AttributeError, RuntimeError):
+            return False
+
     def host_hwnd(self) -> int:
         try:
             return int(self._host().controller._safe_host_hwnd())

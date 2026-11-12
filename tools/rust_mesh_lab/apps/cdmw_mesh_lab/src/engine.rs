@@ -136,21 +136,15 @@ impl EngineApplication {
         }
     }
 
-    /// The edit a host line addresses: the one its `session_id` names, or the
-    /// only edit when it names none.
-    fn edit_index(&self, id: &str) -> Option<usize> {
-        let edits: Vec<(&str, bool, bool)> = self
+    /// The edit a host line addresses: the one Browse's view holds when the line
+    /// carries Browse's marker, else the one its `session_id` names (section 8.8).
+    fn edit_index(&self, view_slot: bool, id: &str) -> Option<usize> {
+        let edits: Vec<(&str, bool)> = self
             .edits
             .iter()
-            .map(|edit| {
-                (
-                    edit.id.as_str(),
-                    edit.app.showing_view(),
-                    edit.own_window.is_none(),
-                )
-            })
+            .map(|edit| (edit.id.as_str(), edit.own_window.is_none()))
             .collect();
-        addressed_edit(&edits, id)
+        addressed_edit(&edits, view_slot, id)
     }
 
     /// The edit shown in Browse's view, if any.
@@ -207,7 +201,8 @@ impl EngineApplication {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        let index = self.edit_index(&id);
+        let view_slot = is_view_slot(&value);
+        let index = self.edit_index(view_slot, &id);
         if event == "leave_edit" {
             // The host ends the edit whatever the edit state is doing.
             if let Some(index) = index {
@@ -221,9 +216,26 @@ impl EngineApplication {
         }
         let Some(index) = index else {
             match event.as_str() {
+                // An edit in a window of its own is always named (section 8.8).
+                "open_session" if own_viewport_parent(&value).is_some() && id.is_empty() => {
+                    write_edit_line(
+                        &id,
+                        &json!({
+                            "event": "edit_refused",
+                            "reason": "an edit in a window of its own must name its session",
+                        }),
+                    );
+                }
                 "open_session" if own_viewport_parent(&value).is_some() => {
                     self.enter_edit_own_window(&id, value, event_loop);
                 }
+                "open_session" | "enter_edit" if !view_slot => write_edit_line(
+                    &id,
+                    &json!({
+                        "event": "edit_refused",
+                        "reason": "an edit in Browse's view must carry Browse's marker",
+                    }),
+                ),
                 "open_session" => self.enter_edit(&id, value),
                 "enter_edit" => self.enter_edit_view(&id, &value),
                 // A cancel for an edit that already ended needs no answer.
@@ -248,7 +260,13 @@ impl EngineApplication {
             );
             return;
         }
-        if self.edits[index].id.is_empty() && !id.is_empty() {
+        // Only Browse's own open_session names the edit its view holds (section 8.8).
+        if view_slot
+            && event == "open_session"
+            && own_viewport_parent(&value).is_none()
+            && self.edits[index].id.is_empty()
+            && !id.is_empty()
+        {
             self.edits[index].id = id;
         }
         let edit = &self.edits[index];
@@ -820,25 +838,22 @@ fn earliest(first: ControlFlow, second: ControlFlow) -> ControlFlow {
 
 /// Which of the open edits (their ids, and whether each still waits for its
 /// session) a host line naming `id` addresses (P15).
-fn addressed_edit(edits: &[(&str, bool, bool)], id: &str) -> Option<usize> {
-    if let Some(index) = edits
-        .iter()
-        .position(|(edit_id, _, _)| !id.is_empty() && *edit_id == id)
-    {
-        return Some(index);
+fn addressed_edit(edits: &[(&str, bool)], view_slot: bool, id: &str) -> Option<usize> {
+    if view_slot {
+        // Browse's marker: the one edit in Browse's view, named yet or not.
+        return edits.iter().position(|(_, in_view)| *in_view);
     }
-    // A line naming no session is Browse's own (`enter_edit`, an early
-    // `leave_edit`): it addresses the edit in Browse's view, never a document
-    // editing in a window of its own (section 8.7 B1).
     if id.is_empty() {
-        return edits.iter().position(|(_, _, in_view)| *in_view);
+        return None; // never "the only edit" (section 8.8 cause 1)
     }
-    // An edit opened before its session existed (P4 V4) takes the first id
-    // named; so does an edit from a host that names none (before P15).
-    edits
-        .iter()
-        .position(|(edit_id, viewing, in_view)| edit_id.is_empty() && *viewing && *in_view)
-        .or_else(|| (edits.len() == 1 && edits[0].0.is_empty()).then_some(0))
+    edits.iter().position(|(edit_id, _)| *edit_id == id)
+}
+
+/// The marker Browse's own channel puts on each of its lines (section 8.8).
+pub(crate) const VIEW_SLOT: &str = "view";
+
+fn is_view_slot(value: &Value) -> bool {
+    value.get("edit_slot").and_then(Value::as_str) == Some(VIEW_SLOT)
 }
 
 /// The parent window an `open_session` asks its own viewport under, if any.
@@ -1070,10 +1085,15 @@ fn is_editor_line(value: &Value) -> bool {
 /// A line the engine says about one edit: it names the edit's session (P15).
 fn write_edit_line(id: &str, value: &Value) {
     let mut value = value.clone();
-    if !id.is_empty()
-        && let Some(object) = value.as_object_mut()
-    {
-        object.entry("session_id").or_insert_with(|| json!(id));
+    if let Some(object) = value.as_object_mut() {
+        if id.is_empty() {
+            // Only the edit in Browse's view is unnamed: say so (section 8.8).
+            object
+                .entry("edit_slot")
+                .or_insert_with(|| json!(VIEW_SLOT));
+        } else {
+            object.entry("session_id").or_insert_with(|| json!(id));
+        }
     }
     write_editor_line(&value);
 }
@@ -1280,29 +1300,20 @@ mod tests {
     }
 
     #[test]
-    fn a_line_goes_to_the_edit_its_session_names() {
-        // (session id, showing Browse's model before its session, in Browse's view)
-        let edits = [("draft-a", false, false), ("draft-b", false, false)];
-        assert_eq!(addressed_edit(&edits, "draft-b"), Some(1));
-        assert_eq!(addressed_edit(&edits, "draft-c"), None);
-        assert_eq!(addressed_edit(&edits, ""), None);
-        // Section 8.7 B1: a line naming no session is Browse's, never the one
-        // document editing in a window of its own.
-        assert_eq!(addressed_edit(&[("draft-a", false, false)], ""), None);
-        let with_browse = [("draft-a", false, false), ("draft-b", false, true)];
-        assert_eq!(addressed_edit(&with_browse, ""), Some(1));
-        // An edit showing Browse's model before its session takes the first id named.
-        let viewing = [("draft-a", false, false), ("", true, true)];
-        assert_eq!(addressed_edit(&viewing, "draft-new"), Some(1));
-        // A host from before P15 names no session at all.
-        assert_eq!(addressed_edit(&[("", false, true)], "draft-new"), Some(0));
-        assert_eq!(
-            addressed_edit(
-                &[("", false, false), ("draft-a", false, false)],
-                "draft-new"
-            ),
-            None
-        );
+    fn a_line_goes_to_the_edit_its_session_or_browse_s_view_names() {
+        // (session id, in Browse's view)
+        let edits = [("draft-a", false), ("draft-b", false), ("", true)];
+        // Section 8.8 cause 1: the session id, or the one marker for Browse's view.
+        assert_eq!(addressed_edit(&edits, false, "draft-b"), Some(1));
+        assert_eq!(addressed_edit(&edits, true, ""), Some(2));
+        assert_eq!(addressed_edit(&edits, true, "draft-new"), Some(2));
+        // Never by count: no id and no marker is no edit, even with one edit open.
+        assert_eq!(addressed_edit(&[("draft-a", false)], false, ""), None);
+        assert_eq!(addressed_edit(&[("", true)], false, ""), None);
+        // R4: an unknown id never reaches the unnamed edit in Browse's view.
+        assert_eq!(addressed_edit(&edits, false, "draft-c"), None);
+        // The marker without an edit in Browse's view addresses nothing.
+        assert_eq!(addressed_edit(&[("draft-a", false)], true, ""), None);
     }
 
     #[test]

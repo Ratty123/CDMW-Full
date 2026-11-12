@@ -146,11 +146,15 @@ class MeshDocumentsView(QWidget):
         return True
 
     def _delete_when_idle(self, document: QWidget) -> None:
-        """Delete a closed document once none of its threads runs (section 8.7 A6)."""
+        """Delete a closed document once its session is disposed (section 8.8 R2).
+
+        Not when no thread happens to run: an idle editor's dispose starts only
+        when its helper or channel reports the end, after the tab has closed.
+        """
 
         if document not in self._closing:
             return
-        if _running_threads(document):
+        if _running_threads(document) or not _disposed(document):
             QTimer.singleShot(100, self, lambda current=document: self._delete_when_idle(current))
             return
         self._closing.remove(document)
@@ -292,6 +296,19 @@ def _running_threads(document: QWidget) -> bool:
         except RuntimeError:
             continue
     return False
+
+
+def _disposed(document: QWidget) -> bool:
+    """Nothing of the document's editor session is left to end or clean up."""
+
+    try:
+        return (getattr(document, "standalone_rust_process", None) is None
+                and getattr(document, "standalone_rust_dispose_thread", None) is None
+                and not getattr(document, "standalone_rust_dispose_queue", ())
+                and not getattr(document, "standalone_rust_dispose_pending", False)
+                and getattr(document, "standalone_rust_session_root", None) is None)
+    except RuntimeError:
+        return True
 
 
 def _has_session(document: QWidget) -> bool:
