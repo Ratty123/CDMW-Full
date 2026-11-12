@@ -10,7 +10,7 @@
 //! least-recently-used order up to a byte limit; above it the oldest go first.
 
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Unpinned textures kept for reuse. One constant, measured in V3 against the
 /// memory target (see the parity report).
@@ -23,6 +23,16 @@ pub struct RetainedTextureReport {
     pub pinned_entries: usize,
     pub pinned_bytes: u64,
     pub unpinned_bytes: u64,
+}
+
+/// The one retained list of a device, shared by every renderer on it (section
+/// 8.7 C4): one limit for the device, and a texture another window kept is not
+/// counted as pinned by that window's list.
+pub type DeviceRetainedTextures<T> = Arc<Mutex<RetainedTextures<T>>>;
+
+/// The device's list, still usable after a panic elsewhere poisoned its lock.
+pub fn lock_retained<T>(list: &DeviceRetainedTextures<T>) -> MutexGuard<'_, RetainedTextures<T>> {
+    list.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[derive(Debug)]
@@ -118,6 +128,30 @@ impl<T> RetainedTextures<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn two_windows_on_one_device_share_one_limit_and_do_not_pin_for_each_other() {
+        // Section 8.7 C4: each window kept its own list, so a texture another
+        // window had kept counted as pinned and the bound was the limit times
+        // the windows.
+        let device: DeviceRetainedTextures<u32> =
+            Arc::new(Mutex::new(RetainedTextures::with_limit(100)));
+        let (browse, edit) = (Arc::clone(&device), Arc::clone(&device));
+        let scene = vec![Arc::new(1_u32), Arc::new(2_u32), Arc::new(3_u32)];
+        lock_retained(&browse).keep("a", &scene[0], 40);
+        lock_retained(&edit).keep("a", &scene[0], 40);
+        lock_retained(&edit).keep("b", &scene[1], 40);
+        lock_retained(&browse).keep("c", &scene[2], 40);
+        drop(scene);
+        let report = lock_retained(&device).report();
+        assert_eq!(report.entries, 3, "one entry per texture on the device");
+        assert_eq!(
+            report.pinned_entries, 0,
+            "no window's list pins another's texture"
+        );
+        lock_retained(&device).trim();
+        assert!(lock_retained(&device).report().unpinned_bytes <= 100);
+    }
 
     #[test]
     fn a_texture_outlives_the_scene_that_bound_it() {

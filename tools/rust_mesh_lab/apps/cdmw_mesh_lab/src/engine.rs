@@ -650,8 +650,16 @@ impl EngineApplication {
         }
         let (renderer, camera) = edit.app.give_back_view();
         let id = edit.id.clone();
-        drop(edit);
         self.preview.return_view(renderer, Some(camera));
+        // After a Finish, Browse's view shows the finished mesh until the finished
+        // package replaces it, never the model from before the edit (section 8.7 C2).
+        if edit.app.engine_finished()
+            && let Some((path, revision, mesh)) = edit.app.engine_followed_mesh()
+            && self.preview.can_follow(&path, mesh.submesh_indices().len())
+        {
+            self.preview.follow(revision, mesh);
+        }
+        drop(edit);
         write_edit_line(&id, &json!({"event": "edit_left"}));
     }
 

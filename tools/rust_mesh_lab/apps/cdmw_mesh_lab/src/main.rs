@@ -2914,16 +2914,17 @@ impl LabApplication {
         {
             return None;
         }
-        let path = self
-            .cdmw_bridge
-            .as_ref()?
-            .manifest()
-            .source
-            .get("path")?
-            .as_str()?
-            .to_owned();
-        let mesh = self.mesh.as_ref()?;
+        self.engine_followed_mesh()?;
         self.followers_seen_at = Some(now);
+        self.engine_followed_mesh()
+    }
+
+    /// The mesh followers show now, without the follow interval (for leaving).
+    pub(crate) fn engine_followed_mesh(
+        &self,
+    ) -> Option<(String, crate::engine::FollowedRevision, &WorkingMesh)> {
+        let path = self.engine_source_path()?;
+        let mesh = self.mesh.as_ref()?;
         let revision = crate::engine::FollowedRevision {
             mesh: mesh.identity(),
             geometry: mesh.geometry_revision,

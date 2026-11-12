@@ -3056,6 +3056,7 @@ pub struct SharedGpu {
     queue: wgpu::Queue,
     faults: GpuFaults,
     textures: DeviceTextures,
+    retained: texture_cache::DeviceRetainedTextures<wgpu::Texture>,
 }
 
 /// Every texture uploaded on one device, by the SHA-256 of its DDS bytes, held
@@ -3073,7 +3074,7 @@ pub struct WindowRenderer {
     texture_uploads: u64,
     staged_texture: Option<texture_upload::PendingDdsUpload>,
     retained_upload_textures: BTreeMap<String, Arc<wgpu::Texture>>,
-    retained_textures: texture_cache::RetainedTextures<wgpu::Texture>,
+    retained_textures: texture_cache::DeviceRetainedTextures<wgpu::Texture>,
     _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     adapter: wgpu::Adapter,
@@ -3155,6 +3156,7 @@ impl WindowRenderer {
             queue: self.queue.clone(),
             faults: self.gpu_faults.clone(),
             textures: Arc::clone(&self.device_textures),
+            retained: Arc::clone(&self.retained_textures),
         }
     }
 
@@ -3228,12 +3230,12 @@ impl WindowRenderer {
     /// Textures kept for reuse after their scene let them go.
     #[must_use]
     pub fn retained_texture_report(&self) -> texture_cache::RetainedTextureReport {
-        self.retained_textures.report()
+        texture_cache::lock_retained(&self.retained_textures).report()
     }
 
     /// Drop kept textures no scene binds (for memory pressure).
     pub fn release_unbound_textures(&mut self) {
-        self.retained_textures.release_unpinned();
+        texture_cache::lock_retained(&self.retained_textures).release_unpinned();
         self.texture_cache
             .retain(|_, texture| texture.strong_count() > 0);
         if let Ok(mut shared) = self.device_textures.lock() {
@@ -3265,7 +3267,7 @@ impl WindowRenderer {
             shared.retain(|_, texture| texture.strong_count() > 0);
             shared.insert(sha256.to_owned(), Arc::downgrade(texture));
         }
-        self.retained_textures.keep(sha256, texture, bytes);
+        texture_cache::lock_retained(&self.retained_textures).keep(sha256, texture, bytes);
     }
 
     /// Keep the previous scene's immutable DDS alive during a staged replacement.
@@ -3297,10 +3299,11 @@ impl WindowRenderer {
         // shared cache use lower-case identities, including between slices.
         let sha256 = sha256.to_ascii_lowercase();
         if let Some(texture) = self.known_texture(&sha256) {
-            if self.retained_textures.get(&sha256).is_none() {
-                self.retained_textures
-                    .keep(&sha256, &texture, bytes.len() as u64);
+            let mut retained = texture_cache::lock_retained(&self.retained_textures);
+            if retained.get(&sha256).is_none() {
+                retained.keep(&sha256, &texture, bytes.len() as u64);
             }
+            drop(retained);
             self.retained_upload_textures
                 .insert(sha256.clone(), texture);
             return Ok((true, 0));
@@ -3358,14 +3361,11 @@ impl WindowRenderer {
         let plan = dds_upload_plan(bytes, role, verified_sha256)?;
         let identity = dds_identity_from_plan(&plan)?;
         if let Some(texture) = self.known_texture(&identity.source_sha256) {
-            if self
-                .retained_textures
-                .get(&identity.source_sha256)
-                .is_none()
-            {
-                self.retained_textures
-                    .keep(&identity.source_sha256, &texture, bytes.len() as u64);
+            let mut retained = texture_cache::lock_retained(&self.retained_textures);
+            if retained.get(&identity.source_sha256).is_none() {
+                retained.keep(&identity.source_sha256, &texture, bytes.len() as u64);
             }
+            drop(retained);
             return Ok(UploadedDdsTexture {
                 texture,
                 view_format: identity.view_format,
@@ -3501,6 +3501,7 @@ impl WindowRenderer {
             queue,
             gpu_faults,
             DeviceTextures::default(),
+            Arc::default(),
             window.inner_size(),
         )
     }
@@ -3531,6 +3532,7 @@ impl WindowRenderer {
             gpu.queue.clone(),
             gpu.faults.clone(),
             Arc::clone(&gpu.textures),
+            Arc::clone(&gpu.retained),
             window.inner_size(),
         )
     }
@@ -3544,6 +3546,7 @@ impl WindowRenderer {
         queue: wgpu::Queue,
         gpu_faults: GpuFaults,
         device_textures: DeviceTextures,
+        retained_textures: texture_cache::DeviceRetainedTextures<wgpu::Texture>,
         size: winit::dpi::PhysicalSize<u32>,
     ) -> Result<Self, RenderError> {
         let capabilities = surface.get_capabilities(&adapter);
@@ -3713,7 +3716,7 @@ impl WindowRenderer {
             texture_uploads: 0,
             staged_texture: None,
             retained_upload_textures: BTreeMap::new(),
-            retained_textures: texture_cache::RetainedTextures::default(),
+            retained_textures,
             _instance: instance,
             surface,
             adapter,
@@ -5479,6 +5482,7 @@ async fn material_capture_device() -> Result<SharedGpu, RenderError> {
         queue,
         faults: GpuFaults::default(),
         textures: DeviceTextures::default(),
+        retained: Arc::default(),
     })
 }
 
